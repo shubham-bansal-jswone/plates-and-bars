@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /packages/api
+    schedule:
+      interval: weekly
+  # Add npm entries for /packages/core and /apps/mobile and a gradle entry for
+  # /backend in the PR that creates each folder (Dependabot errors on a
+  # directory that does not exist). See infra/README.md.
