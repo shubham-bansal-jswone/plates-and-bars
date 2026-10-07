@@ -119,11 +119,12 @@ export interface paths {
          *     the record as now stored; the device replaces its local copy with it.
          *
          *     **Retries are idempotent.** A device that loses the response to a successful sync
-         *     re-sends the same records with the same, now stale, `version` and the same
-         *     `updated_at`. The backend resolves each such record as a conflict with
-         *     `resolution: server_won` (equal `updated_at`, so the tie goes to the server),
-         *     `client_version` = the version the device sent and a `server_record` whose fields,
-         *     apart from `version`, are identical to what the device sent. Nothing is written and
+         *     re-sends the same records with the same, now stale, `version`. A retry is any
+         *     pushed record whose content, apart from `version`, is identical to the stored
+         *     record (the stored `updated_at` may have been clamped on the first attempt; compare
+         *     against it, not the device time). The backend resolves each retry as a conflict with
+         *     `resolution: server_won`, `client_version` = the version the device sent and a
+         *     `server_record` equal to the stored record. Nothing is written and
          *     nothing is lost, so the backend does not add these to the conflict log. The app
          *     must not surface them as real conflicts: when every field of `server_record` except
          *     `version` equals the copy it pushed, it silently adopts `server_record.version`.
@@ -400,7 +401,8 @@ export interface components {
             /**
              * @description `client_won`: the device's edit was newer and is now stored. `server_won`: the
              *     server's copy was newer and the device's edit was not applied. Either way the
-             *     losing copy is kept in the server's conflict log.
+             *     losing copy is kept in the server's conflict log, except for idempotent retries
+             *     (see `POST /sync`), which are not logged.
              * @enum {string}
              */
             resolution: "client_won" | "server_won";
@@ -813,7 +815,8 @@ export interface components {
         /**
          * @description Training and app preferences. One per user; id = UUIDv5(`settings:me`).
          *     Prototype: the remaining keys of `settings` (profile, targets, consent, myFoods,
-         *     recipes, kitchen, excl and repl have their own tables).
+         *     recipes, kitchen, excl and repl have their own tables). `labHold` is not synced in
+         *     v0: lab reports are a v2 feature and whether the hold flag syncs is decided with them.
          */
         Settings: components["schemas"]["SyncMeta"] & {
             /** @description Focus muscles. */
@@ -881,17 +884,6 @@ export interface components {
             prep: {
                 [key: string]: unknown;
             }[];
-            /**
-             * @description Lab-result hold. Prototype: `labHold`. While `on`, the app raises the calorie
-             *     target to at least maintenance and builds light sessions. The flag syncs so
-             *     every device applies the same targets and session mods; it holds no lab values.
-             *     Lab reports themselves stay on the device and never sync.
-             */
-            lab_hold: {
-                on: boolean;
-                /** @description Day the hold started; null when `on` is false. */
-                since: components["schemas"]["LocalDate"] | null;
-            };
         };
     };
     responses: {
