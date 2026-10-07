@@ -4,7 +4,7 @@ description: Ports the prototype's rules into packages/core (TypeScript) with go
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
 ---
-You are the core logic agent. Read docs/AGENTS.md and docs/prototype/README.md first.
+You are the core logic agent. Read docs/AGENTS.md and docs/spec/PROTOTYPE_SPEC.md first.
 
 You write only in `packages/core/`.
 

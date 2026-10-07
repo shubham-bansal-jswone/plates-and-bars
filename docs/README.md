@@ -1,11 +1,13 @@
-# Handoff: prototype → agents (2026-10-07)
+# docs/
 
-Copy these into the repo root of plates-and-bar, in one PR labelled `spec-change`:
+Where to find things. The prototype is the behaviour specification; everything else explains or indexes it.
 
-    docs/prototype/plate-and-bar.html   reference implementation (open in a browser)
-    docs/spec/PROTOTYPE_SPEC.md         behaviour spec; section 0 lists what changed
-    docs/spec/golden/*.json             fixtures generated from the prototype
-    docs/spec/ISSUES.md                 the issues to open, with acceptance criteria
-    docs/AGENTS.md                      agent rules (addendum folded in, 2026-10-08)
+    AGENTS.md                      rules and lanes for every agent (read first)
+    development-plan.md            scope, stack, data model, milestones, budget
+    adr/                           architecture decision records
+    prototype/plate-and-bar.html   reference implementation (open in a browser)
+    spec/PROTOTYPE_SPEC.md         behaviour spec; section 0 lists what changed and when
+    spec/golden/*.json             fixtures generated from the prototype; never edit by hand
+    spec/ISSUES.md                 work items from the 2026-10-07 handoff, with acceptance criteria
 
-Then open the issues in ISSUES.md and assign each to its agent.
+When the prototype changes, follow "When the prototype changes" in AGENTS.md.
