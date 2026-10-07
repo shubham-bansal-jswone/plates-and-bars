@@ -25,6 +25,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ServiceUnavailableException.class)
     ResponseEntity<ErrorResponse> unavailable(ServiceUnavailableException e) {
+        log.warn("Service unavailable, cause {}", e.getCause() == null ? "none" : e.getCause().getClass().getName());
         return respond(HttpStatus.SERVICE_UNAVAILABLE, "unavailable", "Service temporarily unavailable.", null);
     }
 
@@ -57,6 +58,17 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ErrorResponse> internal(Exception e) {
+        if (e instanceof org.springframework.web.ErrorResponse spring) {
+            // ResponseStatusException, HttpMediaTypeNotAcceptableException and friends keep their status.
+            HttpStatus status = HttpStatus.resolve(spring.getStatusCode().value());
+            if (status == null) {
+                status = HttpStatus.INTERNAL_SERVER_ERROR;
+            }
+            log.warn("Request failed with {} ({})", status.value(), e.getClass().getSimpleName());
+            return status.is4xxClientError()
+                    ? respond(status, "invalid_request", "The request is not valid.", null)
+                    : respond(status, "internal", "Something went wrong.", null);
+        }
         // Class name only: the message could contain user data.
         log.error("Unhandled exception of type {}", e.getClass().getName());
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, "internal", "Something went wrong.", null);
@@ -64,6 +76,9 @@ public class ApiExceptionHandler {
 
     private static ResponseEntity<ErrorResponse> respond(
             HttpStatus status, String code, String message, List<ErrorResponse.Detail> details) {
-        return ResponseEntity.status(status).body(new ErrorResponse(code, message, details));
+        // Explicit JSON type so error bodies still render when the client's Accept header is not JSON.
+        return ResponseEntity.status(status)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(new ErrorResponse(code, message, details));
     }
 }
