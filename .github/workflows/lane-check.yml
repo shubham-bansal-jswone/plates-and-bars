@@ -1,0 +1,19 @@
+name: Lane check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lane-check:
+    name: lane-check (warns only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: infra/scripts/lane-check.sh "$BASE"
