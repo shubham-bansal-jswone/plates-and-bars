@@ -42,8 +42,11 @@ these files here; a prototype change lands them in a `spec-change` PR, and this 
 The fixtures store display-rounded numbers, so the test projects the port's result onto the fixture
 shape before comparing (`toGolden` in `test/targets.test.ts`): energy values with `Math.round`,
 `weeklyKg` to 2 decimals, `refWeight` from `refW`.
+The fixture does not say how `weeklyKg` was rounded. The test uses `Math.round(x * 100) / 100`.
+`Number(x.toFixed(2))` gives the same result for every current fixture value, because none of them
+sits at a half cent. The two would only differ on a future value at a half, such as -0.125.
 
 Alongside the fixtures, differential tests slice the prototype's own functions out of the HTML, run
-them, and compare them field by field with the port over a grid of inputs (13,440 profiles for
+them, and compare them field by field with the port over a grid of inputs (20,160 profiles for
 `calcTargets`, every combination for `needsClearance`). If the prototype changes shape, these tests
 fail loudly at the slice step rather than passing silently.

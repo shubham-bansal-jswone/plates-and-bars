@@ -6,7 +6,6 @@ import {
   type Goal,
   type Pace,
   type Sex,
-  type Special,
   type TargetsProfile,
   type TargetsResult,
 } from '../src/index';
@@ -70,10 +69,12 @@ describe('calcTargets: golden/targets.json', () => {
 describe('calcTargets: differential against the prototype source', () => {
   // Runs the prototype's own num, ACTIVITY, PACE, TRAIN_NET_MET, bmrOf and calcTargets.
   const src = prototypeSource();
-  // ACTIVITY .. latestWeight (tables and constants), then bmrOf, then calcTargets.
+  // num, the ACTIVITY and PACE tables, TRAIN_NET_MET, bmrOf and calcTargets, each sliced on its own.
   const code = [
     sliceLine(src, 'const num = '),
-    sliceBlock(src, 'const ACTIVITY = {', '}'),
+    sliceBlock(src, 'const ACTIVITY = {', '};'),
+    sliceLine(src, 'const PACE = '),
+    sliceLine(src, 'const TRAIN_NET_MET = '),
     sliceLine(src, 'const bmrOf = '),
     sliceBlock(src, 'function calcTargets(p){', '}'),
     'return calcTargets;',
@@ -84,7 +85,7 @@ describe('calcTargets: differential against the prototype source', () => {
   const activities: Activity[] = ['sitting', 'light', 'feet', 'physical'];
   const goals: Goal[] = ['lose', 'recomp', 'maintain', 'gain'];
   const paces: (Pace | undefined)[] = ['gentle', 'moderate', undefined];
-  const specials: (Special | undefined)[] = ['none', 'pregnant', 'breastfeeding', undefined];
+  const specials: TargetsProfile['special'][] = ['none', 'pregnant', 'breastfeeding', undefined, null, ''];
   const bodies = [
     { age: 18, height: 140, weight: 37 },
     { age: 29, height: 140, weight: 37 },
@@ -120,8 +121,8 @@ describe('calcTargets: differential against the prototype source', () => {
     const mismatches = cases.filter((p) => {
       const ours = calcTargets(p) as unknown as Record<string, unknown>;
       const theirs = protoCalc(p);
-      // `special` is compared by truthiness: the prototype yields `undefined` or `''` (falsy) when
-      // `p.special` is absent; the port always returns a boolean. Every other field must be identical.
+      // `special` is compared by truthiness: when `p.special` is absent, null or '', the prototype
+      // yields that falsy value itself; the port always returns a boolean. Every other field must be identical.
       const same = (k: string) => (k === 'special' ? !!ours[k] === !!theirs[k] : Object.is(ours[k], theirs[k]));
       return Object.keys(theirs).some((k) => !same(k)) || Object.keys(ours).length !== Object.keys(theirs).length;
     });
@@ -181,6 +182,14 @@ describe('calcTargets: edge cases', () => {
     expect(r.special).toBe(true);
     expect(r.adj).toBe(0);
     expect(r.perKg).toBe(1.8);
+  });
+
+  // Regression (PR #40 review): null or '' from untyped stored JSON must count as 'none'.
+  it.each([null, ''] as const)('treats special %p on a woman as none', (special) => {
+    const r = calcTargets({ ...base, sex: 'female', special });
+    expect(r.special).toBe(false);
+    expect(r.adj).toBe(-0.2);
+    expect(r.perKg).toBe(2.0);
   });
 
   it('keeps a gain surplus for pregnant women', () => {
