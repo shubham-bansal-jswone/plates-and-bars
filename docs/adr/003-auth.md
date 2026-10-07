@@ -19,7 +19,7 @@ The app is offline-first, so a user may open it on a gym floor with no signal lo
 
 ## Consequences
 
-- A user who opens the app at least once every 90 days stays signed in; an idle session ends after 90 days. Local data stays on the device and syncs after the same user signs in again; what happens to queued records when a different account signs in on the same device is an open question (#17).
+- A user who opens the app at least once every 90 days stays signed in; an idle session ends after 90 days. Local data stays on the device and syncs after the same user signs in again; account linking and the account-switch rule are decided in ADR 004.
 - A stolen access token is useful for at most 15 minutes.
 - Two requests racing to refresh with the same token look like reuse and end the session, so the app must serialise refreshes (one in flight at a time).
 - The backend must store a token family per sign-in to revoke it on reuse.
