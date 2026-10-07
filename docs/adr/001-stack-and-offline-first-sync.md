@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-08
+- Amended 2026-10-08: corrected in place the same day it merged (issue #5). The sync decision now states user scoping, the UUIDv5 namespace, the tie rule and what never syncs; the tombstone consequence now says how a long-offline device recovers. No decision changed.
 
 ## Context
 
@@ -16,11 +17,13 @@ Plate & Bar has to ship on Android and the web first and iOS later, built part-t
 - **Contract first:** the OpenAPI spec in `packages/api` is agreed before implementation; the app uses a client generated from it.
 - **Offline-first sync** through one `POST /sync` endpoint:
   - Every change is written to the device first and queued.
-  - Every user-owned record has a client-made UUID, a `version`, `updated_at` and `deleted_at`. Records unique per natural key (one profile, one day note per day, one lift history per exercise) use a deterministic UUIDv5 so two offline devices agree on the id.
+  - Every synced record belongs to exactly one user (`user_id`), and every sync read and write is scoped to the authenticated user.
+  - Every user-owned record has a client-made UUID, a `version`, `updated_at` and `deleted_at`. Records unique per natural key (one profile, one day note per day, one lift history per exercise) use a deterministic UUIDv5 whose namespace is the user's id, so two offline devices of the same user agree on the id.
   - Writes are version-checked: the server applies a change only when the version the device last saw matches the stored one.
-  - On a mismatch the newer edit (by `updated_at`) wins for the whole record; the losing copy is kept in a server-side conflict log and reported back to the device.
+  - On a mismatch the newer edit (by `updated_at`) wins for the whole record, and a tie on `updated_at` goes to the server; the losing copy is kept in a server-side conflict log and reported back to the device.
   - Deletes are soft (tombstones) so they reach every device.
   - The device pulls changes since an opaque cursor in the same round trip.
+  - Never synced in v1: progress photos, cycle data and lab results. They stay on the device and have no server table.
 
 ## Consequences
 
@@ -28,5 +31,5 @@ Plate & Bar has to ship on Android and the web first and iOS later, built part-t
 - The app keeps working with no connection; sync bugs become the highest-risk code and get the heaviest tests (backend Testcontainers tests, an offline end-to-end test).
 - Record-level last-writer-wins can drop a field edit made on another device at nearly the same time. That is acceptable for single-user data and recoverable from the conflict log; field-level merging can be added later if it proves necessary.
 - Device clocks decide conflicts, so the server clamps `updated_at` values in the future.
-- Tombstones accumulate; a purge policy is needed before the tables grow large.
+- Tombstones accumulate; a purge policy is needed before the tables grow large and is left to a later ADR. Whatever window it sets, a device offline for longer than that window must do a full pull (`cursor: null`), because the deletes it missed may no longer exist as tombstones.
 - The EAS free tier limits monthly builds, so local Gradle builds are the fallback for Android.
