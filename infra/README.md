@@ -38,7 +38,7 @@ The `api` job regenerates `packages/api/client/schema.d.ts` from `openapi.yaml` 
 
 ### Secret and dependency scanning
 
-- gitleaks (v8.30.1, binary downloaded and checksum-verified, no licence needed) scans full history on every PR and push, plus weekly.
+- gitleaks (v8.30.1, binary downloaded and checksum-verified, no licence needed) scans full history on every PR and push, plus weekly, with the root `.gitleaks.toml`. That file allowlists only the `jwt` rule, only for `packages/api/openapi.yaml` and `packages/api/client/schema.d.ts`, because the contract's examples contain deliberately fake JWTs (`id_token`, access tokens). It is path-based, not fingerprint-based, so changing the examples needs no update; every other rule stays active on those files.
 - `dependency-review-action` fails PRs that add dependencies with known high-severity advisories (free on public repos; checked 2026-10-08 that this repo is public).
 - Dependabot covers GitHub Actions and `packages/api`. Whoever creates `packages/core`, `apps/mobile` or `backend/` should ask Infra (or add, since it is a one-block change) the matching `npm` / `gradle` entry in `.github/dependabot.yml`, because Dependabot errors on directories that do not exist yet.
 - Recommended, a setting rather than code: enable Secret scanning and Push protection under Settings, Code security.

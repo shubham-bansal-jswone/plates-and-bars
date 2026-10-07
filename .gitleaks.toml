@@ -1,0 +1,14 @@
+# Extend the default ruleset; only the exceptions below are relaxed.
+[extend]
+useDefault = true
+
+# The OpenAPI examples contain deliberately fake JWTs (id_token, access tokens).
+# Allowlist only the `jwt` rule, only for these files. All other rules stay
+# active on them.
+[[allowlists]]
+description = "Fake JWT examples in the API contract"
+targetRules = ["jwt"]
+paths = [
+  '''packages/api/openapi\.yaml''',
+  '''packages/api/client/schema\.d\.ts''',
+]
