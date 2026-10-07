@@ -12,14 +12,17 @@ Rules for every agent working on Plate & Bar. Read this, the issue, the contract
 | App | `apps/mobile`: screens, offline store, sync client | Backend, rules (imports `core`) |
 | Content | `content/`, `tools/`: exercises, cards, recipes, USDA import | Code outside `tools/` |
 | Website | `apps/site` | Everything else |
-| Infra | `infra/`, CI pipelines | Application code |
-| QA | Maestro and Playwright tests, bug reports | Fixes (files issues instead) |
+| Infra | `infra/`, `.github/workflows/`: CI, Compose, staging, backups | Application code |
+| QA | `tests/e2e/`: Maestro and Playwright tests, bug reports | Fixes (files issues instead) |
+
+`docs/` outside `docs/adr/` (this file, the plan, the spec and golden fixtures) is owned by Shubham; agents change it only when an issue labelled `docs` asks them to.
 
 ## Rules
 
 - Read the issue, the contract and the prototype behaviour before writing code.
 - Never commit secrets, change another agent's folder, or edit the contract outside a contract PR.
 - Contract changes land first, alone, after review. Prefer additive changes; flag any breaking change in the PR title.
+- Backend and app code are built against the merged `packages/api/openapi.yaml` on `main`, never against an open contract PR.
 - Rules and numbers come from `packages/core` or `content/`, never re-typed in UI or backend code.
 - Every new calculation gets a test with numbers checked against the prototype.
 - Pull requests are small (under about 400 lines), pass CI, include tests and fill the PR checklist.

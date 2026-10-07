@@ -53,6 +53,8 @@ Each block is one GitHub issue: title, label, owner, acceptance criteria.
 - [ ] Day fields: `complete`, `steps`, `sleep`, `water`; set timestamp `t`
 - [ ] `DELETE /me` removes every user row; `GET /me/export` returns all user data
 
+> Note (2026-10-08): the `/me` criterion is deferred to the M1 contract PR; the v0 contract (GitHub PR #1) covers auth, sync, foods and health only.
+
 ### 11. Golden-test CI gate
 `ci` · QA agent
 - [ ] CI runs all golden tests on every PR and blocks merge on any mismatch
