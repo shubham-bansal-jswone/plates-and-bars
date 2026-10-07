@@ -16,17 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITLEAKS_VERSION: 8.30.1
+      # sha256 of gitleaks_8.30.1_linux_x64.tar.gz; update together with the version
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install gitleaks (checksum verified)
+      - name: Install gitleaks (pinned checksum)
         run: |
           base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
           tgz="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           curl -sSfL -o "/tmp/$tgz" "$base/$tgz"
-          curl -sSfL -o /tmp/checksums.txt "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
-          (cd /tmp && grep " $tgz\$" checksums.txt | sha256sum -c -)
+          echo "$GITLEAKS_SHA256  /tmp/$tgz" | sha256sum -c -
           tar -xzf "/tmp/$tgz" -C /usr/local/bin gitleaks
       - name: Scan history
         run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose
@@ -40,14 +41,3 @@ jobs:
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
-
-  npm-audit:
-    name: npm audit (api)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm audit --audit-level=high --omit=dev
-        working-directory: packages/api

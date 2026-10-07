@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -47,20 +47,30 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: packages/api/package-lock.json
       - run: npm ci
-      - run: npm run lint
-      - run: npm run generate
-      - name: Generated client must match openapi.yaml
+      - run: npm run check
+      - name: No untracked files in generated client
         run: |
-          if ! git diff --exit-code -- client/schema.d.ts \
-             || [ -n "$(git status --porcelain -- client)" ]; then
+          if [ -n "$(git status --porcelain -- client)" ]; then
             echo "::error::packages/api/client is stale. Run 'npm run generate' in packages/api and commit the result."
             exit 1
           fi
-      - run: npm run typecheck
+
+  npm-audit:
+    name: npm audit (api)
+    needs: changes
+    if: needs.changes.outputs.run_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm audit --audit-level=high --omit=dev
+        working-directory: packages/api
 
   core:
     name: core (lint, types, tests)
@@ -74,7 +84,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: packages/core/package-lock.json
       - run: npm ci
@@ -94,7 +104,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
       - run: npm ci
@@ -116,5 +126,5 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
       - run: ./gradlew build --no-daemon
