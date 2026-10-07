@@ -1,0 +1,1780 @@
+openapi: 3.1.0
+info:
+  title: Plate & Bar API
+  version: 0.1.0
+  summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
+  description: |
+    The server stores, syncs and guards; every rule (targets, plan engine, progression,
+    food maths) runs on the phone in `packages/core`.
+
+    M0 scope: auth, sync, food search and health. Content bundles, AI calls and account
+    rights (`/content/*`, `/ai/*`, `GET /me/export`, `DELETE /me`) are added in later
+    milestones as additive changes. In particular, the third criterion of spec item 10
+    ("Sync model additions") in `docs/spec/ISSUES.md`, `DELETE /me` and `GET /me/export`,
+    is deferred to a later contract PR; the backend should not expect it from this contract.
+
+    Wire conventions:
+    - JSON field names are snake_case everywhere. Where a field comes from the prototype
+      (`docs/prototype/plate-and-bar.html`) under a different name, its description says
+      "Prototype: `name`".
+    - Timestamps (`*_at`, `t`) are ISO 8601 date-times in UTC with a `Z` suffix.
+    - Calendar days (`date`, `created`, `cleared`, `until`, ...) are `YYYY-MM-DD` in the
+      user's local calendar, exactly as the prototype keys its days.
+    - Units are metric and named in the field: grams (`_g`), kilograms (`_kg`),
+      centimetres (`_cm`), millilitres (`_ml`), minutes (`_min`), kilocalories (`kcal`).
+    - Carbohydrate is always total carbohydrate including fibre.
+    - Every 4xx and 5xx response uses the shared `Error` schema.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /api/v1
+    description: Base path on every environment (local, staging, production); hosts are set per deployment.
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+    description: Sign-in and token refresh. Public.
+  - name: sync
+    description: Offline-first sync of user-owned records.
+  - name: foods
+    description: Shared food database search.
+  - name: system
+    description: Health and status.
+
+paths:
+  /auth/google:
+    post:
+      tags: [auth]
+      operationId: signInWithGoogle
+      summary: Sign in with a Google ID token
+      description: |
+        Verifies the Google ID token obtained on the device, creates the account on first
+        sign-in, and returns a new token pair.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleSignInRequest'
+            examples:
+              default:
+                value:
+                  id_token: eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2In0.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20ifQ.c2lnbmF0dXJl
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenPair'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /auth/email/start:
+    post:
+      tags: [auth]
+      operationId: startEmailSignIn
+      summary: Send a one-time sign-in code by email
+      description: |
+        Sends a 6-digit one-time code to the address. Always answers 202 for a well-formed
+        address, whether or not an account exists, so the endpoint cannot be used to find
+        accounts. Rate-limited per address and per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailStartRequest'
+            examples:
+              default:
+                value:
+                  email: asha@example.com
+      responses:
+        '202':
+          description: Code sent (or silently not sent if the address cannot receive mail).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailStartResponse'
+              examples:
+                default:
+                  value:
+                    code_expires_at: '2026-10-08T06:40:00Z'
+                    resend_after_seconds: 60
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /auth/email/verify:
+    post:
+      tags: [auth]
+      operationId: verifyEmailSignIn
+      summary: Exchange an emailed code for tokens
+      description: |
+        Verifies the one-time code, creates the account on first sign-in, and returns a new
+        token pair. A code is single-use; after 5 wrong attempts it is invalidated and the
+        user must request a new one.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerifyRequest'
+            examples:
+              default:
+                value:
+                  email: asha@example.com
+                  code: '482913'
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenPair'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Code wrong, expired, already used, or attempts exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: invalid_code
+                    message: That code is wrong or has expired. Request a new one.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshTokens
+      summary: Rotate the refresh token
+      description: |
+        Exchanges a refresh token for a new access token and a new refresh token. The old
+        refresh token is invalidated; the new one is valid for 90 days from this refresh
+        (see `TokenPair.refresh_token`). Presenting an already-rotated refresh token is treated
+        as theft: the whole session (every token descended from the same sign-in) is
+        revoked and the user must sign in again.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            examples:
+              default:
+                value:
+                  refresh_token: rt_9f2c1e6b7a8d4c3b9e0f1a2b3c4d5e6f
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenPair'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Refresh token unknown, expired, revoked or reused.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: unauthorized
+                    message: Your session has ended. Sign in again.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /sync:
+    post:
+      tags: [sync]
+      operationId: sync
+      summary: Push local changes and pull server changes
+      description: |
+        One round trip of offline-first sync.
+
+        **Push.** `changes` carries every record the device created, edited or deleted since
+        its last successful sync. Each record carries `version`: the server version the
+        device last saw for that record (0 for a record the server has never seen). The
+        server applies a record only when that version matches the stored one, then stores
+        it as `version + 1`. Every pushed record appears in exactly one of `applied` or
+        `conflicts` in the response.
+
+        **Conflicts.** On a version mismatch the edit with the later `updated_at` wins for
+        the whole record (ties go to the server). The losing copy is kept in the server's
+        conflict log. `conflicts[].resolution` says which side won and `server_record` is
+        the record as now stored; the device replaces its local copy with it.
+
+        **Retries are idempotent.** A device that loses the response to a successful sync
+        re-sends the same records with the same, now stale, `version`. A retry is any
+        pushed record whose content, apart from `version` and `updated_at`, is identical to
+        the stored record (`updated_at` is excluded because the server may have clamped it
+        on the first attempt). The backend resolves each retry as a conflict with
+        `resolution: server_won`, `client_version` = the version the device sent and a
+        `server_record` equal to the stored record. Nothing is written and
+        nothing is lost, so the backend does not add these to the conflict log. The app
+        must not surface them as real conflicts: when every field of `server_record` except
+        `version` and `updated_at` equals the copy it pushed, it silently adopts
+        `server_record.version` and `server_record.updated_at`.
+        Any other `server_won` or `client_won` result is a real conflict.
+
+        **Deletes** are soft: set `deleted_at`. Tombstones travel like any other change so
+        the delete reaches every device.
+
+        **Pull.** `changes` in the response holds records changed on the server since the
+        request `cursor` (all of the user's records when `cursor` is null; tombstones may be
+        omitted then). Records the device just pushed are not echoed back; their new
+        versions are in `applied`. If `has_more` is true, call again with the returned
+        cursor and no changes until it is false.
+
+        **Record ids** are UUIDs made on the device. Records that are unique per natural
+        key use a deterministic UUIDv5 so two offline devices produce the same id:
+        namespace = the user's id, name = `<table>:<key>`, for example
+        `day_notes:2026-10-08`. The key for each such table is given in its schema.
+
+        **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
+        synced records have no table. The app rebuilds them locally after every pull; see
+        `Workout` for the prototype's `sessions` store.
+
+        Limits: at most 500 records in total per request and per response page.
+        `updated_at` values more than 5 minutes in the future are clamped to server time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncRequest'
+            examples:
+              firstSync:
+                summary: First sync from a new device, nothing to push
+                value:
+                  cursor: null
+                  changes: {}
+              pushMealAndSet:
+                summary: Push a logged meal, a ticked set and a deleted water entry
+                value:
+                  cursor: c_000000000000a3f1
+                  changes:
+                    food_logs:
+                      - id: 6f1c2a9e-3b7d-4c51-9a0e-2d4b8f7e1c33
+                        version: 0
+                        updated_at: '2026-10-08T07:12:45Z'
+                        deleted_at: null
+                        date: '2026-10-08'
+                        meal: Breakfast
+                        name: Poha
+                        qty: 1
+                        kcal: 291
+                        protein_g: 6.3
+                        carbs_g: 43.5
+                        fat_g: 10.3
+                        food_id: null
+                    workout_sets:
+                      - id: 0b9e4d1a-7c2f-4e8b-8a6d-5f3e2c1b0a99
+                        version: 3
+                        updated_at: '2026-10-08T12:31:02Z'
+                        deleted_at: null
+                        workout_id: 8d3f6a2b-1e4c-5a7d-9b0e-3c2f1a4d6e8b
+                        exercise: Barbell Bench Press
+                        kind: work
+                        set_index: 0
+                        weight_kg: 60
+                        reps: 8
+                        done: true
+                        rate: right
+                        t: '2026-10-08T12:31:00Z'
+                    water_logs:
+                      - id: 2a7d9c4e-5b1f-4a3e-8c6d-0e9f1b2a3c4d
+                        version: 1
+                        updated_at: '2026-10-08T09:00:10Z'
+                        deleted_at: '2026-10-08T09:00:10Z'
+                        date: '2026-10-08'
+                        ml: 250
+      responses:
+        '200':
+          description: Sync round trip completed (individual records may still be in conflict).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+              examples:
+                withConflict:
+                  value:
+                    cursor: c_000000000000a40c
+                    has_more: false
+                    applied:
+                      - table: food_logs
+                        id: 6f1c2a9e-3b7d-4c51-9a0e-2d4b8f7e1c33
+                        version: 1
+                      - table: water_logs
+                        id: 2a7d9c4e-5b1f-4a3e-8c6d-0e9f1b2a3c4d
+                        version: 2
+                    conflicts:
+                      - table: workout_sets
+                        id: 0b9e4d1a-7c2f-4e8b-8a6d-5f3e2c1b0a99
+                        client_version: 3
+                        server_version: 4
+                        resolution: server_won
+                        server_record:
+                          id: 0b9e4d1a-7c2f-4e8b-8a6d-5f3e2c1b0a99
+                          version: 4
+                          updated_at: '2026-10-08T12:31:40Z'
+                          deleted_at: null
+                          workout_id: 8d3f6a2b-1e4c-5a7d-9b0e-3c2f1a4d6e8b
+                          exercise: Barbell Bench Press
+                          kind: work
+                          set_index: 0
+                          weight_kg: 62.5
+                          reps: 8
+                          done: true
+                          rate: hard
+                          t: '2026-10-08T12:31:00Z'
+                    changes:
+                      weights:
+                        - id: 5c8e1f2a-9d3b-5e4c-a1f0-7b6d2e3c4a5f
+                          version: 1
+                          updated_at: '2026-10-08T06:05:00Z'
+                          deleted_at: null
+                          date: '2026-10-08'
+                          weight_kg: 81.4
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /foods:
+    get:
+      tags: [foods]
+      operationId: searchFoods
+      summary: Search the shared food database
+      description: |
+        Matches `q` against food names and aliases (everyday and Hindi names such as
+        chawal, anda, dahi), case-insensitively. Results are paged with an opaque cursor.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search text, matched against name and aliases.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          example: dahi
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque cursor from a previous page's `next_cursor`.
+          schema:
+            type: string
+          example: f_20
+        - name: limit
+          in: query
+          required: false
+          description: Page size.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: One page of matching foods.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoodPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - id: 3e7b1c9a-2d4f-4a6b-8c1e-9f0a2b3c4d5e
+                        name: Curd / dahi
+                        name_hi: null
+                        aliases: [dahi, yogurt, yoghurt]
+                        serving:
+                          label: 100 g
+                          grams: 100
+                        per_serving:
+                          kcal: 58
+                          protein_g: 3.1
+                          carbs_g: 4.6
+                          fibre_g: 0
+                          added_sugar_g: 0
+                          fat_g: 3
+                        fruit_veg_servings: 0
+                        source:
+                          code: fssai
+                          name: FSSAI standards (derived values)
+                          licence: Derived from public FSSAI standards
+                          url: https://www.fssai.gov.in/
+                          reference: null
+                        updated_at: '2026-10-07T00:00:00Z'
+                    next_cursor: null
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: Liveness and version
+      security: []
+      responses:
+        '200':
+          description: The API is up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              examples:
+                default:
+                  value:
+                    status: ok
+                    version: 0.1.0
+        '503':
+          description: The API is up but cannot serve requests (for example, the database is unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: unavailable
+                    message: Service temporarily unavailable.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  # Later milestones (additive): /content/manifest, /content/{bundle}, /ai/describe-meal,
+  # /ai/ask-why, /ai/weekly-summary, GET /me/export, DELETE /me.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived JWT access token from an `/auth/*` endpoint.
+
+  responses:
+    TokenPair:
+      description: Signed in; a new token pair.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TokenPair'
+          examples:
+            default:
+              value:
+                token_type: Bearer
+                access_token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhMWIyIn0.c2ln
+                access_token_expires_at: '2026-10-08T06:45:00Z'
+                refresh_token: rt_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
+                refresh_token_expires_at: '2027-01-06T06:30:00Z'
+                user:
+                  id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                  email: asha@example.com
+                  created_at: '2026-10-08T06:30:00Z'
+                new_user: true
+    InvalidRequest:
+      description: The request is malformed or fails validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            default:
+              value:
+                code: invalid_request
+                message: Some fields are invalid.
+                details:
+                  - field: changes.food_logs[0].kcal
+                    issue: must be greater than or equal to 0
+    Unauthorized:
+      description: Missing, invalid or expired credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            expired:
+              value:
+                code: token_expired
+                message: Access token expired. Refresh and retry.
+            invalid:
+              value:
+                code: unauthorized
+                message: Sign in to continue.
+    RateLimited:
+      description: Too many requests. Retry after the number of seconds in `Retry-After`.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            default:
+              value:
+                code: rate_limited
+                message: Too many requests. Try again in a minute.
+    Internal:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            default:
+              value:
+                code: internal
+                message: Something went wrong on our side.
+
+  schemas:
+    # ---------- shared ----------
+    Error:
+      type: object
+      description: The one error shape for every 4xx and 5xx response.
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - invalid_request
+            - unauthorized
+            - token_expired
+            - invalid_code
+            - not_found
+            - rate_limited
+            - internal
+            - unavailable
+          description: |
+            Stable machine-readable code. `token_expired`: refresh the access token and
+            retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
+            or expired. `not_found`: reserved for later milestones; no M0 operation
+            returns it.
+        message:
+          type: string
+          description: Plain-language message safe to show the user. Never contains health data.
+        details:
+          type: array
+          description: Per-field problems, for `invalid_request`.
+          items:
+            type: object
+            required: [field, issue]
+            properties:
+              field:
+                type: string
+                description: JSON path of the offending field.
+              issue:
+                type: string
+
+    LocalDate:
+      type: string
+      format: date
+      description: Calendar day in the user's local time, `YYYY-MM-DD`.
+      examples: ['2026-10-08']
+
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 date-time in UTC with a `Z` suffix.
+      examples: ['2026-10-08T06:30:00Z']
+
+    # ---------- auth ----------
+    GoogleSignInRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+          description: Google ID token from Google Sign-In on the device.
+
+    EmailStartRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+
+    EmailStartResponse:
+      type: object
+      required: [code_expires_at, resend_after_seconds]
+      properties:
+        code_expires_at:
+          $ref: '#/components/schemas/Timestamp'
+        resend_after_seconds:
+          type: integer
+          minimum: 0
+          description: Seconds before another code can be requested for this address.
+
+    EmailVerifyRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TokenPair:
+      type: object
+      required:
+        - token_type
+        - access_token
+        - access_token_expires_at
+        - refresh_token
+        - refresh_token_expires_at
+        - user
+        - new_user
+      properties:
+        token_type:
+          type: string
+          const: Bearer
+        access_token:
+          type: string
+          description: "JWT, short-lived (target 15 minutes). Send as `Authorization: Bearer <token>`."
+        access_token_expires_at:
+          $ref: '#/components/schemas/Timestamp'
+        refresh_token:
+          type: string
+          description: |
+            Opaque, single-use. Store in secure storage; replace on every refresh.
+            Lifetime 90 days, extended on rotation: every `/auth/refresh` returns a new
+            refresh token valid for 90 days from that refresh, so a device that opens the
+            app at least once every 90 days stays signed in. Presenting an already-rotated
+            token revokes the whole session.
+        refresh_token_expires_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: When `refresh_token` expires, 90 days after it was issued.
+        user:
+          $ref: '#/components/schemas/User'
+        new_user:
+          type: boolean
+          description: True when this sign-in created the account.
+
+    User:
+      type: object
+      required: [id, email, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Also the UUIDv5 namespace for deterministic sync record ids.
+        email:
+          type: [string, 'null']
+          format: email
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+
+    # ---------- health ----------
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          const: ok
+        version:
+          type: string
+          description: Deployed API build version.
+
+    # ---------- foods ----------
+    FoodPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Food'
+        next_cursor:
+          type: [string, 'null']
+          description: Pass as `cursor` for the next page; null on the last page.
+
+    Food:
+      type: object
+      description: |
+        A shared food. Values are per serving, as in the prototype; carbs include fibre.
+      required:
+        - id
+        - name
+        - name_hi
+        - aliases
+        - serving
+        - per_serving
+        - fruit_veg_servings
+        - source
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          examples: [Rice, cooked]
+        name_hi:
+          type: [string, 'null']
+          description: Everyday Hindi name, when it differs from `name`.
+        aliases:
+          type: array
+          description: Other names matched by search (Hindi, regional and common spellings).
+          items:
+            type: string
+        serving:
+          $ref: '#/components/schemas/Serving'
+        per_serving:
+          $ref: '#/components/schemas/Nutrients'
+        fruit_veg_servings:
+          type: number
+          minimum: 0
+          description: Fruit and vegetable servings (80 g each) in one serving.
+        source:
+          $ref: '#/components/schemas/FoodSource'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+
+    Serving:
+      type: object
+      required: [label, grams]
+      properties:
+        label:
+          type: string
+          description: 'Serving as shown to the user. Prototype: `unit`.'
+          examples: ['1 katori (35 g dal)', '100 g', '1 glass (250 ml)']
+        grams:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          description: |
+            Grams in the serving label, enabling grams logging (qty = grams / this value).
+            Null when the label has no gram weight.
+
+    Nutrients:
+      type: object
+      required: [kcal, protein_g, carbs_g, fibre_g, added_sugar_g, fat_g]
+      properties:
+        kcal:
+          type: number
+          minimum: 0
+        protein_g:
+          type: number
+          minimum: 0
+        carbs_g:
+          type: number
+          minimum: 0
+          description: Total carbohydrate including fibre.
+        fibre_g:
+          type: [number, 'null']
+          minimum: 0
+          description: Null when unknown.
+        added_sugar_g:
+          type: [number, 'null']
+          minimum: 0
+          description: Null when unknown.
+        fat_g:
+          type: number
+          minimum: 0
+
+    FoodSource:
+      type: object
+      description: |
+        Where a row's values come from. Only the sources listed in ADR 002
+        (`docs/adr/002-food-data-sources.md`) are allowed.
+      required: [code, name, licence, url, reference]
+      properties:
+        code:
+          type: string
+          enum: [usda_fdc, fssai, own_recipe, kitchen_test, label_typical]
+          description: |
+            `usda_fdc`: USDA FoodData Central. `fssai`: values derived from FSSAI standards
+            (paneer, curd, milk). `own_recipe`: calculated from our recipes. `kitchen_test`:
+            weighed in our kitchen tests. `label_typical`: packaged foods using typical
+            nutrition-label values across common brands; in the prototype these are whey
+            protein, Greek yogurt and makhana.
+        name:
+          type: string
+          examples: [USDA FoodData Central (SR Legacy), Typical label values (packaged food)]
+        licence:
+          type: string
+          examples: [Public domain (CC0 1.0), Nutrition facts read from product labels; no label database copied]
+        url:
+          type: [string, 'null']
+          format: uri
+        reference:
+          type: [string, 'null']
+          description: Identifier in the source, such as a USDA FDC id.
+
+    # ---------- sync envelope ----------
+    SyncRequest:
+      type: object
+      required: [cursor, changes]
+      properties:
+        cursor:
+          type: [string, 'null']
+          description: Opaque cursor from the last successful sync; null on first sync.
+        changes:
+          $ref: '#/components/schemas/SyncChanges'
+
+    SyncResponse:
+      type: object
+      required: [cursor, has_more, applied, conflicts, changes]
+      properties:
+        cursor:
+          type: string
+          description: Opaque; store it and send it with the next sync.
+        has_more:
+          type: boolean
+          description: True when more server changes are waiting; sync again with `cursor`.
+        applied:
+          type: array
+          description: Pushed records the server stored, with their new versions.
+          items:
+            $ref: '#/components/schemas/AppliedRecord'
+        conflicts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncConflict'
+        changes:
+          $ref: '#/components/schemas/SyncChanges'
+
+    SyncTable:
+      type: string
+      enum:
+        - profiles
+        - consents
+        - food_logs
+        - water_logs
+        - day_notes
+        - workouts
+        - workout_sets
+        - lift_stats
+        - weights
+        - measurements
+        - user_foods
+        - recipes
+        - kitchen_tests
+        - exclusions
+        - swaps
+        - settings
+
+    AppliedRecord:
+      type: object
+      required: [table, id, version]
+      properties:
+        table:
+          $ref: '#/components/schemas/SyncTable'
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+
+    SyncConflict:
+      type: object
+      required: [table, id, client_version, server_version, resolution, server_record]
+      properties:
+        table:
+          $ref: '#/components/schemas/SyncTable'
+        id:
+          type: string
+          format: uuid
+        client_version:
+          type: integer
+          minimum: 0
+          description: The version the device sent.
+        server_version:
+          type: integer
+          minimum: 1
+          description: The version stored on the server after resolution.
+        resolution:
+          type: string
+          enum: [client_won, server_won]
+          description: |
+            `client_won`: the device's edit was newer and is now stored. `server_won`: the
+            server's copy was newer and the device's edit was not applied. Either way the
+            losing copy is kept in the server's conflict log, except for idempotent retries
+            (see `POST /sync`), which are not logged.
+        server_record:
+          $ref: '#/components/schemas/SyncRecord'
+
+    SyncChanges:
+      type: object
+      description: Changed records grouped by table. Omit tables with no changes.
+      additionalProperties: false
+      properties:
+        profiles:
+          type: array
+          items: { $ref: '#/components/schemas/Profile' }
+        consents:
+          type: array
+          items: { $ref: '#/components/schemas/Consent' }
+        food_logs:
+          type: array
+          items: { $ref: '#/components/schemas/FoodLog' }
+        water_logs:
+          type: array
+          items: { $ref: '#/components/schemas/WaterLog' }
+        day_notes:
+          type: array
+          items: { $ref: '#/components/schemas/DayNote' }
+        workouts:
+          type: array
+          items: { $ref: '#/components/schemas/Workout' }
+        workout_sets:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSet' }
+        lift_stats:
+          type: array
+          items: { $ref: '#/components/schemas/LiftStat' }
+        weights:
+          type: array
+          items: { $ref: '#/components/schemas/Weight' }
+        measurements:
+          type: array
+          items: { $ref: '#/components/schemas/Measurement' }
+        user_foods:
+          type: array
+          items: { $ref: '#/components/schemas/UserFood' }
+        recipes:
+          type: array
+          items: { $ref: '#/components/schemas/Recipe' }
+        kitchen_tests:
+          type: array
+          items: { $ref: '#/components/schemas/KitchenTest' }
+        exclusions:
+          type: array
+          items: { $ref: '#/components/schemas/Exclusion' }
+        swaps:
+          type: array
+          items: { $ref: '#/components/schemas/Swap' }
+        settings:
+          type: array
+          items: { $ref: '#/components/schemas/Settings' }
+
+    SyncRecord:
+      description: |
+        Any synced record. Several record schemas can match the same object, so pick the
+        schema by the conflict's `table` rather than by validating against each.
+      anyOf:
+        - $ref: '#/components/schemas/Profile'
+        - $ref: '#/components/schemas/Consent'
+        - $ref: '#/components/schemas/FoodLog'
+        - $ref: '#/components/schemas/WaterLog'
+        - $ref: '#/components/schemas/DayNote'
+        - $ref: '#/components/schemas/Workout'
+        - $ref: '#/components/schemas/WorkoutSet'
+        - $ref: '#/components/schemas/LiftStat'
+        - $ref: '#/components/schemas/Weight'
+        - $ref: '#/components/schemas/Measurement'
+        - $ref: '#/components/schemas/UserFood'
+        - $ref: '#/components/schemas/Recipe'
+        - $ref: '#/components/schemas/KitchenTest'
+        - $ref: '#/components/schemas/Exclusion'
+        - $ref: '#/components/schemas/Swap'
+        - $ref: '#/components/schemas/Settings'
+
+    SyncMeta:
+      type: object
+      description: Fields every synced record carries.
+      required: [id, version, updated_at, deleted_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Made on the device. Random UUIDv4, or UUIDv5 for natural-key tables.
+        version:
+          type: integer
+          minimum: 0
+          description: |
+            On push: the server version the device last saw (0 if never synced).
+            On pull: the stored server version.
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the record was last edited on a device. Decides conflicts.
+        deleted_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+          description: Set when deleted (tombstone); null otherwise.
+
+    # ---------- sync tables ----------
+    Profile:
+      description: |
+        Setup answers and targets. One per user; id = UUIDv5(`profiles:me`).
+        Prototype: `settings.profile` plus target fields in `settings`.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [sex, age, height_cm, weight_kg, activity, where, days, exp, minutes, goal, pace, special, screen, created, cleared, targets]
+          properties:
+            sex:
+              type: string
+              enum: [male, female]
+            age:
+              type: integer
+              minimum: 18
+              maximum: 90
+            height_cm:
+              type: number
+              exclusiveMinimum: 0
+              description: 'Prototype: `height`.'
+            weight_kg:
+              type: number
+              exclusiveMinimum: 0
+              description: 'Weight at setup. Prototype: `weight`.'
+            activity:
+              type: string
+              enum: [sitting, light, feet, physical]
+            where:
+              type: string
+              enum: [gym, dumbbells, bodyweight]
+            days:
+              type: integer
+              minimum: 0
+              maximum: 7
+              description: Training days per week; 0 means no plan.
+            exp:
+              type: [string, 'null']
+              enum: [new, some, exp, null]
+              description: Training experience; null when `days` is 0.
+            minutes:
+              type: [integer, 'null']
+              enum: [30, 45, 60, 75, 90, null]
+              description: Session length; null when `days` is 0.
+            goal:
+              type: string
+              enum: [lose, recomp, maintain, gain]
+            pace:
+              type: string
+              enum: [gentle, moderate]
+            special:
+              type: string
+              enum: [none, pregnant, breastfeeding]
+            screen:
+              type: array
+              description: Answers to the 6 health-check questions, in prototype order.
+              minItems: 6
+              maxItems: 6
+              items:
+                type: string
+                enum: ['yes', 'no']
+            created:
+              $ref: '#/components/schemas/LocalDate'
+              description: Day setup was first completed (drives the beginner ramp).
+            cleared:
+              oneOf:
+                - $ref: '#/components/schemas/LocalDate'
+                - type: 'null'
+              description: Day the user tapped "My doctor has cleared me"; null if not.
+            targets:
+              $ref: '#/components/schemas/Targets'
+
+    Targets:
+      type: object
+      description: 'Daily targets. Prototype: `settings.kcal`, `.protein`, `.carbs`, `.fat`.'
+      required: [kcal, protein_g, carbs_g, fat_g]
+      properties:
+        kcal:
+          type: integer
+          minimum: 0
+        protein_g:
+          type: integer
+          minimum: 0
+        carbs_g:
+          type: integer
+          minimum: 0
+        fat_g:
+          type: integer
+          minimum: 0
+
+    Consent:
+      description: 'A dated consent record (DPDP). Prototype: `settings.consent` (a date).'
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [kind, given_at, text_version]
+          properties:
+            kind:
+              type: string
+              enum: [data_storage]
+              description: The first-run consent to storing data as described.
+            given_at:
+              $ref: '#/components/schemas/Timestamp'
+            text_version:
+              type: string
+              description: Version of the consent text the user agreed to.
+              examples: ['2026-10-07']
+
+    FoodLog:
+      description: 'One logged food in a meal. Prototype: an item in `day.meals`.'
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [date, meal, name, qty, kcal, protein_g, carbs_g, fat_g, food_id]
+          properties:
+            date:
+              $ref: '#/components/schemas/LocalDate'
+            meal:
+              type: string
+              enum: [Breakfast, Lunch, Snacks, Dinner]
+            name:
+              type: string
+              maxLength: 200
+            qty:
+              type: number
+              exclusiveMinimum: 0
+              description: Number of servings.
+            kcal:
+              type: number
+              minimum: 0
+              description: Per serving.
+            protein_g:
+              type: number
+              minimum: 0
+              description: 'Per serving. Prototype: `p`.'
+            carbs_g:
+              type: number
+              minimum: 0
+              description: 'Per serving, including fibre. Prototype: `c`.'
+            fat_g:
+              type: number
+              minimum: 0
+              description: 'Per serving. Prototype: `f`.'
+            food_id:
+              type: [string, 'null']
+              format: uuid
+              description: Shared food or user food this came from, if any.
+
+    WaterLog:
+      description: 'One drink of water. Prototype: an entry in `day.water`.'
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [date, ml]
+          properties:
+            date:
+              $ref: '#/components/schemas/LocalDate'
+            ml:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 5000
+
+    DayNote:
+      description: |
+        Per-day flags and counts. One per day; id = UUIDv5(`day_notes:<date>`).
+        Water lives in `water_logs`.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [date, complete, steps, sleep, fast]
+          properties:
+            date:
+              $ref: '#/components/schemas/LocalDate'
+            complete:
+              type: [boolean, 'null']
+              description: '"I''ve logged everything" tick; null when never set.'
+            steps:
+              type: [integer, 'null']
+              minimum: 0
+            sleep:
+              type: [number, 'null']
+              minimum: 0
+              maximum: 24
+              description: Hours slept.
+            fast:
+              type: boolean
+              description: Fasting day (switches meal ideas to the fasting pool).
+
+    Workout:
+      description: |
+        The training session(s) for one day. One per day; id = UUIDv5(`workouts:<date>`).
+        Sets live in `workout_sets`. Prototype: `day.workout`.
+
+        The prototype's `sessions` store (`sessions.entries[date] = { t, n }`, used for
+        template rotation, the weekly streak and the habits meter) has no table: the app
+        rebuilds it after every pull from `workouts` and `workout_sets`. For each workout
+        not deleted, `n` = the number of its sets not deleted with `kind: work` and
+        `done: true`, and `t` = `base`, else `template`, else "Session"; there is an entry
+        for the workout's `date` only when `n` > 0.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [date, template, base, where, cardio_min, mods, exercises, ci_choice]
+          properties:
+            date:
+              $ref: '#/components/schemas/LocalDate'
+            template:
+              type: [string, 'null']
+              description: Display name, e.g. "Upper A (dumbbells only)" or "Push A + Pull A".
+            base:
+              type: [string, 'null']
+              description: Plan template the session was built from, e.g. "Upper A".
+            where:
+              type: [string, 'null']
+              enum: [gym, dumbbells, bodyweight, null]
+              description: Day override of the profile's `where`; null to use the profile.
+            cardio_min:
+              type: [integer, 'null']
+              minimum: 0
+              description: 'Prototype: `cardio`.'
+            mods:
+              type: object
+              description: Session modifiers (light, short, deload, re-entry). Shape owned by packages/core; stored as-is.
+              additionalProperties: true
+            exercises:
+              type: array
+              description: Exercises in session order.
+              items:
+                $ref: '#/components/schemas/WorkoutExercise'
+            ci_choice:
+              type: [string, 'null']
+              enum: [light, swap, orig, null]
+              description: |
+                How the weekly check-in said to build today's session: `light`, `swap` (next
+                template) or `orig`; null when no choice was made. Prototype: `ciChoice`.
+
+    WorkoutExercise:
+      type: object
+      required: [name, part, bridge, form, found_kg, skip_ramp]
+      properties:
+        name:
+          type: string
+          description: Exercise name; unique within a workout.
+        part:
+          type: integer
+          enum: [1, 2]
+          description: 2 for exercises added by a second session that day.
+        bridge:
+          type: boolean
+          description: Ladder bridge exercise (2 lighter sets).
+        form:
+          type: [string, 'null']
+          enum: ['yes', 'no', null]
+          description: Did form stay solid on every set.
+        found_kg:
+          type: [number, 'null']
+          description: 'Working weight found by the ramp. Prototype: `found`.'
+        skip_ramp:
+          type: boolean
+          description: 'User skipped the find-your-weight ramp. Prototype: `skipRamp`.'
+
+    WorkoutSet:
+      description: One working or ramp set within a workout.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [workout_id, exercise, kind, set_index, weight_kg, reps, done, rate, t]
+          properties:
+            workout_id:
+              type: string
+              format: uuid
+            exercise:
+              type: string
+              description: Matches a `name` in the workout's `exercises`.
+            kind:
+              type: string
+              enum: [work, ramp]
+              description: '`ramp` sets are the find-your-weight ramp. Prototype: `ex.ramp`.'
+            set_index:
+              type: integer
+              minimum: 0
+              description: Position within the exercise's sets of this kind.
+            weight_kg:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Load; assistance for assisted exercises; null if blank. Prototype: `w`.'
+            reps:
+              type: [integer, 'null']
+              minimum: 0
+              description: 'Reps, or seconds for holds; null if blank. Prototype: `r`.'
+            done:
+              type: boolean
+            rate:
+              type: [string, 'null']
+              enum: [easy, right, hard, fail, null]
+            t:
+              oneOf:
+                - $ref: '#/components/schemas/Timestamp'
+                - type: 'null'
+              description: When the set was ticked done.
+
+    LiftSet:
+      type: object
+      required: [weight_kg, reps, rate]
+      properties:
+        weight_kg:
+          type: number
+          minimum: 0
+        reps:
+          type: integer
+          minimum: 0
+        rate:
+          type: [string, 'null']
+          enum: [easy, right, hard, fail, null]
+
+    LiftStat:
+      description: |
+        Per-exercise history used for weight suggestions and stalls.
+        One per exercise; id = UUIDv5(`lift_stats:<exercise>`). Prototype: `lifts[name]`.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [exercise, date, sets, form, sessions, first, prev, history, pb_toast_date]
+          properties:
+            exercise:
+              type: string
+            date:
+              $ref: '#/components/schemas/LocalDate'
+              description: Day of the latest session.
+            sets:
+              type: array
+              items: { $ref: '#/components/schemas/LiftSet' }
+            form:
+              type: [string, 'null']
+              enum: ['yes', 'no', null]
+            sessions:
+              type: integer
+              minimum: 1
+              description: 'Sessions done on this exercise. Prototype: `n`.'
+            first:
+              $ref: '#/components/schemas/LocalDate'
+              description: Day of the first session.
+            prev:
+              type: [object, 'null']
+              description: The session before the latest.
+              required: [date, sets, form]
+              properties:
+                date:
+                  $ref: '#/components/schemas/LocalDate'
+                sets:
+                  type: array
+                  items: { $ref: '#/components/schemas/LiftSet' }
+                form:
+                  type: [string, 'null']
+                  enum: ['yes', 'no', null]
+            history:
+              type: array
+              maxItems: 8
+              description: 'Last 8 session scores. Prototype: `hist` with `e`.'
+              items:
+                type: object
+                required: [date, score]
+                properties:
+                  date:
+                    $ref: '#/components/schemas/LocalDate'
+                  score:
+                    type: number
+            pb_toast_date:
+              oneOf:
+                - $ref: '#/components/schemas/LocalDate'
+                - type: 'null'
+              description: |
+                Day the personal-best toast was last shown for this lift, so it shows at most
+                once a day; null if never shown. Prototype: `pbToast`.
+
+    Weight:
+      description: 'Body weight on a day. One per day; id = UUIDv5(`weights:<date>`). Prototype: `weights.entries`.'
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [date, weight_kg]
+          properties:
+            date:
+              $ref: '#/components/schemas/LocalDate'
+            weight_kg:
+              type: number
+              exclusiveMinimum: 20
+              exclusiveMaximum: 400
+              description: The prototype accepts a weigh-in only above 20 and below 400 kg.
+
+    Measurement:
+      description: |
+        Tape measurements on a day, in cm; null when not measured.
+        One per day; id = UUIDv5(`measurements:<date>`). Prototype: `measures.entries`.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [date, waist_cm, neck_cm, chest_cm, arm_cm, thigh_cm, hips_cm]
+          properties:
+            date:
+              $ref: '#/components/schemas/LocalDate'
+            waist_cm: { $ref: '#/components/schemas/TapeCm' }
+            neck_cm: { $ref: '#/components/schemas/TapeCm' }
+            chest_cm: { $ref: '#/components/schemas/TapeCm' }
+            arm_cm: { $ref: '#/components/schemas/TapeCm' }
+            thigh_cm: { $ref: '#/components/schemas/TapeCm' }
+            hips_cm: { $ref: '#/components/schemas/TapeCm' }
+
+    TapeCm:
+      type: [number, 'null']
+      minimum: 10
+      maximum: 250
+
+    UserFood:
+      description: 'A personal food. Prototype: an item in `settings.myFoods`.'
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [name, unit, kcal, protein_g, carbs_g, fat_g, fibre_g, added_sugar_g, fruit_veg_servings, origin]
+          properties:
+            name:
+              type: string
+              maxLength: 200
+            unit:
+              type: string
+              description: Serving label, e.g. "1 katori".
+            kcal:
+              type: number
+              minimum: 0
+            protein_g:
+              type: number
+              minimum: 0
+            carbs_g:
+              type: number
+              minimum: 0
+              description: Including fibre.
+            fat_g:
+              type: number
+              minimum: 0
+            fibre_g:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Prototype: `fib`.'
+            added_sugar_g:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Prototype: `sug`.'
+            fruit_veg_servings:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Prototype: `veg`.'
+            origin:
+              type: string
+              enum: [custom, recipe, kitchen_test]
+              description: 'Prototype: flags `recipe` / `kitchen`.'
+
+    Ingredient:
+      type: object
+      required: [ingredient, amount, unit]
+      properties:
+        ingredient:
+          type: string
+          description: 'Raw ingredient name from the shared raw table. Prototype: `ing`.'
+          examples: ['Toor dal (dry)']
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          description: 'Prototype: `amt`.'
+        unit:
+          type: string
+          enum: [g, tsp, tbsp]
+
+    Recipe:
+      description: 'A home recipe built from raw ingredients. Prototype: an item in `settings.recipes`.'
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [name, ingredients, yield_mode, katoris, cooked_g, oil]
+          properties:
+            name:
+              type: string
+              maxLength: 200
+            ingredients:
+              type: array
+              items: { $ref: '#/components/schemas/Ingredient' }
+            yield_mode:
+              type: string
+              enum: [katori, grams]
+              description: 'How the cooked yield is given. Prototype: `ymode`.'
+            katoris:
+              type: [number, 'null']
+              exclusiveMinimum: 0
+              description: Katoris (150 g each) the recipe made, when `yield_mode` is katori.
+            cooked_g:
+              type: [number, 'null']
+              exclusiveMinimum: 0
+              description: 'Cooked weight, when `yield_mode` is grams. Prototype: `grams`.'
+            oil:
+              type: string
+              description: Oil level chosen in the recipe builder.
+              examples: [normal]
+
+    KitchenTest:
+      description: |
+        A weighed dish. Photos stay on the device; only `has_photo` syncs.
+        Prototype: an item in `settings.kitchen`.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [name, date, note, ingredients, pot_g, pot_full_g, cooked_g, serving_g, serving_name, has_photo]
+          properties:
+            name:
+              type: string
+              maxLength: 200
+            date:
+              $ref: '#/components/schemas/LocalDate'
+            note:
+              type: string
+            ingredients:
+              type: array
+              items: { $ref: '#/components/schemas/Ingredient' }
+            pot_g:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Empty pot weight. Prototype: `pot`.'
+            pot_full_g:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Pot with cooked food. Prototype: `potFull`.'
+            cooked_g:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Cooked weight entered directly. Prototype: `cooked`.'
+            serving_g:
+              type: [number, 'null']
+              minimum: 0
+              description: 'Weight of one serving. Prototype: `serving`.'
+            serving_name:
+              type: string
+              enum: [katori, plate, piece, glass, bowl]
+              description: 'Prototype: `sname`.'
+            has_photo:
+              type: boolean
+              description: 'A photo exists on the device. Prototype: `hasPhoto`.'
+
+    Exclusion:
+      description: 'A rule leaving an exercise, family, pattern or joint out. Prototype: an item in `settings.excl`.'
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [name, scope, key, reason, created, until, to, done]
+          properties:
+            name:
+              type: string
+              description: Exercise the user was looking at when making the rule.
+            scope:
+              type: string
+              enum: [exercise, family, pattern, joint]
+            key:
+              type: string
+              description: Exercise name, family, pattern or joint, per `scope`.
+            reason:
+              type: [string, 'null']
+              enum: [pain, equip, dislike, form, null]
+            created:
+              $ref: '#/components/schemas/LocalDate'
+            until:
+              oneOf:
+                - $ref: '#/components/schemas/LocalDate'
+                - type: 'null'
+              description: Last day of a timed rule; null for permanent.
+            to:
+              type: object
+              description: Replacement picked per exercise name; null value means skipped.
+              additionalProperties:
+                type: [string, 'null']
+            done:
+              type: boolean
+              description: The user brought the exercise back; rule no longer active.
+
+    Swap:
+      description: |
+        A lasting swap of one exercise for another (ladder step or side swap).
+        One per source exercise; id = UUIDv5(`swaps:<from>`). Prototype: `settings.repl[from]`.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [from, to, since, bridge_until]
+          properties:
+            from:
+              type: string
+            to:
+              type: string
+            since:
+              $ref: '#/components/schemas/LocalDate'
+            bridge_until:
+              oneOf:
+                - $ref: '#/components/schemas/LocalDate'
+                - type: 'null'
+              description: 'Last day the old exercise is kept as a bridge. Prototype: `bridgeUntil`.'
+
+    ExerciseTags:
+      type: object
+      description: 'Tags for a custom exercise, same meaning as content tags (`p`, `f`, `eq`, `d`, `m`, `s`, `j`).'
+      required: [pattern, family, equipment, difficulty, primary, secondary, joints]
+      properties:
+        pattern:
+          type: string
+        family:
+          type: string
+        equipment:
+          type: string
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 3
+        primary:
+          type: array
+          items: { $ref: '#/components/schemas/Muscle' }
+        secondary:
+          type: array
+          items: { $ref: '#/components/schemas/Muscle' }
+        joints:
+          type: array
+          items:
+            type: string
+
+    Muscle:
+      type: string
+      enum: [chest, front-delt, side-delt, rear-delt, triceps, lats, upper-back, biceps, forearms, quads, hams, glutes, calves, abs, lower-back]
+
+    Settings:
+      description: |
+        Training and app preferences. One per user; id = UUIDv5(`settings:me`).
+        Prototype: the remaining keys of `settings` (profile, targets, consent, myFoods,
+        recipes, kitchen, excl and repl have their own tables). `labHold` is not synced in
+        v0: lab reports are a v2 feature and whether the hold flag syncs is decided with them.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [focus, rest_off, custom_tags, diet, water_sizes, exercise_overrides, flex, returning, ladder_stay, checkin_seen, adjustments, adaptive, learn, meal_plan, prep]
+          properties:
+            focus:
+              type: array
+              maxItems: 3
+              description: Focus muscles.
+              items: { $ref: '#/components/schemas/Muscle' }
+            rest_off:
+              type: boolean
+              description: 'Rest timer turned off. Prototype: `restOff`.'
+            custom_tags:
+              type: object
+              description: 'Tags for custom exercises, keyed by exercise name. Prototype: `customTags`.'
+              additionalProperties: { $ref: '#/components/schemas/ExerciseTags' }
+            diet:
+              type: string
+              enum: [any, egg, veg]
+              description: 'Meal-idea diet filter: everything, eggetarian or vegetarian.'
+            water_sizes:
+              type: object
+              description: 'Prototype: `water`.'
+              required: [glass_ml, bottle_ml]
+              properties:
+                glass_ml:
+                  type: integer
+                  exclusiveMinimum: 0
+                bottle_ml:
+                  type: integer
+                  exclusiveMinimum: 0
+            exercise_overrides:
+              type: object
+              description: 'Per-exercise type, step and rep range, keyed by exercise name. Prototype: `ex`.'
+              additionalProperties:
+                type: object
+                required: [type, step_kg, rep_low, rep_high]
+                properties:
+                  type:
+                    type: string
+                  step_kg:
+                    type: number
+                    minimum: 0
+                  rep_low:
+                    type: integer
+                    minimum: 1
+                  rep_high:
+                    type: integer
+                    minimum: 1
+            flex:
+              type: array
+              description: Calorie moves between days (last 7 days).
+              items:
+                type: object
+                required: [date, kcal_delta]
+                properties:
+                  date:
+                    $ref: '#/components/schemas/LocalDate'
+                  kcal_delta:
+                    type: integer
+                    description: 'Prototype: `d`.'
+            returning:
+              type: object
+              description: Exercises coming back after an exclusion, keyed by name, with the last day of the light period.
+              additionalProperties:
+                type: object
+                required: [until]
+                properties:
+                  until:
+                    $ref: '#/components/schemas/LocalDate'
+            ladder_stay:
+              type: object
+              description: 'Ladder "stay" answers, keyed by exercise name, until a day. Prototype: `ladderStay`.'
+              additionalProperties:
+                $ref: '#/components/schemas/LocalDate'
+            checkin_seen:
+              oneOf:
+                - $ref: '#/components/schemas/LocalDate'
+                - type: 'null'
+              description: 'Monday of the last weekly check-in seen. Prototype: `checkinSeen`.'
+            adjustments:
+              type: object
+              description: 'Plan adjustment state (declines, muted, dismissed, deload, reentry). Prototype: `adj`. Shape owned by packages/core.'
+              additionalProperties: true
+            adaptive:
+              type: object
+              description: Real-burn estimate state. Shape owned by packages/core.
+              additionalProperties: true
+            learn:
+              type: object
+              description: Science-card progress. Shape owned by packages/core.
+              additionalProperties: true
+            meal_plan:
+              type: [object, 'null']
+              description: 'Saved meal plan. Prototype: `mealPlan`. Shape owned by packages/core.'
+              additionalProperties: true
+            prep:
+              type: array
+              description: Meal-prep batches still being eaten. Shape owned by packages/core.
+              items:
+                type: object
+                additionalProperties: true

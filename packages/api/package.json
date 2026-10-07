@@ -1,0 +1,23 @@
+{
+  "name": "@plate-and-bar/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plate & Bar OpenAPI contract and generated TypeScript client",
+  "type": "module",
+  "main": "client/index.ts",
+  "types": "client/index.ts",
+  "scripts": {
+    "generate": "openapi-typescript openapi.yaml -o client/schema.d.ts",
+    "lint": "redocly lint openapi.yaml",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check": "npm run lint && npm run generate && git diff --exit-code -- client/schema.d.ts && npm run typecheck"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.60.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}
