@@ -43,4 +43,19 @@ class HealthMigrationIT {
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         assertThat(res.getBody()).contains("\"status\":\"ok\"").contains("\"version\":\"0.1.0\"");
     }
+
+    @Test
+    void identityKeysAreCaseAndAccentSensitive() {
+        String sql = "INSERT INTO users (id, email) VALUES (?, ?)";
+        jdbc.update(sql, "00000000-0000-0000-0000-000000000001", "jose@x");
+        jdbc.update(sql, "00000000-0000-0000-0000-000000000002", "jos\u00e9@x");
+
+        String ident = "INSERT INTO auth_identities (id, user_id, provider, provider_subject) VALUES (?, ?, ?, ?)";
+        String u1 = "00000000-0000-0000-0000-000000000001";
+        jdbc.update(ident, "10000000-0000-0000-0000-000000000001", u1, "google", "AbC");
+        jdbc.update(ident, "10000000-0000-0000-0000-000000000002", u1, "google", "abc");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        jdbc.update(ident, "10000000-0000-0000-0000-000000000003", u1, "google", "AbC"))
+                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+    }
 }

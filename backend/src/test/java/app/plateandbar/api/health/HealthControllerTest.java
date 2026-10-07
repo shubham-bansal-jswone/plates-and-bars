@@ -55,4 +55,12 @@ class HealthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
     }
+
+    @Test
+    void unacceptableAcceptHeaderIs406WithErrorBody() throws Exception {
+        mvc.perform(get("/api/v1/health").accept(org.springframework.http.MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(jsonPath("$.message").exists());
+    }
 }

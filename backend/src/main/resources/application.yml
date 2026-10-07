@@ -7,8 +7,6 @@ spring:
     password: ${DB_PASSWORD:}
   flyway:
     enabled: true
-  jackson:
-    default-property-inclusion: non_null
 
 server:
   port: ${PORT:8080}

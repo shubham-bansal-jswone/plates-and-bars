@@ -33,7 +33,7 @@ docker run --rm -p 8080:8080 -e DB_URL=... -e DB_USER=... -e DB_PASSWORD=... pla
 
 ```sh
 cd backend
-./gradlew build      # compile, all tests, bootJar (what CI runs)
+./gradlew build      # compile, all tests, bootJar (the command CI will run; the workflow lands in PR #38)
 ./gradlew test
 ```
 
