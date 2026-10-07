@@ -10,7 +10,7 @@ ADR 003 left two questions open (#17). First, whether a Google sign-in and an em
 ## Decision
 
 - **Google identities are keyed by `sub`,** Google's stable user id, never by email. Email is used once, when a Google identity is first seen, to decide which account it joins.
-- **One account per verified email.** When a Google ID token carries `email_verified: true` and an account already exists for that address (from an earlier email-code sign-in, or vice versa), the new identity is linked to that account in `auth_identities`; the response carries `new_user: false`. "Same address" means trimmed and lower-cased, with no Gmail dot or plus folding. A Google token without `email_verified: true` is refused with the existing 401 `unauthorized`; no new error code.
+- **One account per verified email.** When a Google ID token carries `email_verified: true` and an account already exists for that address (from an earlier email-code sign-in, or vice versa), the new identity is linked to that account in `auth_identities`; the response carries `new_user: false`. "Same address" means trimmed and lower-cased, with no Gmail dot or plus folding. A Google token without `email_verified: true` is refused with the existing 401 `unauthorized`; no new error code. `email_verified` is trusted for any Google account, not only Workspace domains (`hd`).
 - **The local store belongs to one user.** The app records the user id the store belongs to and compares it with `TokenPair.user.id` after every token exchange, before any push.
 - **Unsynced changes block leaving the account.** While the queue is non-empty, sign-out offers only "Sync now, then sign out" and "Discard and sign out" (explicit confirmation stating how many changes are lost). If the session has expired, signing in as the same user pushes the queue; signing in as a different user is refused after the token exchange, the new tokens are discarded, and the choices are "Sign in as the previous user to sync" and "Discard and sign out".
 - **Switching users wipes the store.** Signing in as a different user with an empty queue deletes the previous user's local store, photo vault included, before the first write.
@@ -18,7 +18,8 @@ ADR 003 left two questions open (#17). First, whether a Google sign-in and an em
 
 ## Consequences
 
-- Backend: `auth_identities` holds `(provider, provider_subject)` unique per row and many rows per user; lookup is by subject, linking by normalised verified email.
+- Backend: `auth_identities` holds `(provider, provider_subject)` unique per row and many rows per user; lookup is by subject, linking by normalised verified email. For email-code sign-in the subject is the normalised email.
+- Accepted risk: a non-Google-hosted address that Google once verified but the person no longer owns could link to an existing email-code account. Google re-verifies on sign-in, and the alternative (Workspace-only linking) would break the fallback for ordinary Gmail users.
 - A Google-side email change does not break sign-in, since the identity is keyed by `sub`. A recycled email address cannot take over an account, since an existing Google identity is never re-pointed by email.
 - A refused different-user sign-in may already have created that user's account on the server (first sign-in creates the account). That is harmless: it holds no data.
 - No sign-out endpoint exists in contract v0, so after "Discard and sign out" the server-side refresh token stays valid until it expires or is rotated. The device deletes its copy, which is the only place the token lives. Accepted for M0; a later contract PR may add `POST /auth/sign-out` to revoke the family.
