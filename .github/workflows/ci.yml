@@ -1,0 +1,130 @@
+name: CI
+
+# One workflow so required checks always report: path filtering is done in the
+# `changes` job, and jobs that do not apply are skipped (a skipped job counts
+# as passing for branch protection). A path-filtered `on:` would leave
+# required checks pending forever.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      run_api: ${{ steps.d.outputs.run_api }}
+      run_core: ${{ steps.d.outputs.run_core }}
+      run_mobile: ${{ steps.d.outputs.run_mobile }}
+      run_backend: ${{ steps.d.outputs.run_backend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: d
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: infra/scripts/detect-changes.sh "$BASE"
+
+  api:
+    name: api (lint, types, stale client)
+    needs: changes
+    if: needs.changes.outputs.run_api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/api/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - name: No untracked files in generated client
+        run: |
+          if [ -n "$(git status --porcelain -- client)" ]; then
+            echo "::error::packages/api/client is stale. Run 'npm run generate' in packages/api and commit the result."
+            exit 1
+          fi
+
+  npm-audit:
+    name: npm audit (api)
+    needs: changes
+    if: needs.changes.outputs.run_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm audit --audit-level=high --omit=dev
+        working-directory: packages/api
+
+  core:
+    name: core (lint, types, tests)
+    needs: changes
+    if: needs.changes.outputs.run_core == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/core/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  mobile:
+    name: mobile (lint, types, tests)
+    needs: changes
+    if: needs.changes.outputs.run_mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  backend:
+    name: backend (gradle build)
+    needs: changes
+    if: needs.changes.outputs.run_backend == 'true'
+    runs-on: ubuntu-latest # Docker is preinstalled, so Testcontainers works
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      - run: ./gradlew build --no-daemon

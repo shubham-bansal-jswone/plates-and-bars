@@ -1,0 +1,28 @@
+# Extend the default ruleset; only the exceptions below are relaxed.
+[extend]
+useDefault = true
+
+# The OpenAPI examples contain deliberately fake JWTs (id_token, access tokens).
+# Allowlist only the `jwt` rule, only for these files. All other rules stay
+# active on them.
+[[allowlists]]
+description = "Fake JWT examples in the API contract"
+targetRules = ["jwt"]
+paths = [
+  '''packages/api/openapi\.yaml''',
+  '''packages/api/client/schema\.d\.ts''',
+]
+
+# The same fake tokens also trip `generic-api-key` on their access_token /
+# refresh_token / id_token example lines. Allowlist only those lines in these
+# files; generic-api-key stays active for everything else in them.
+[[allowlists]]
+description = "Fake token examples in the API contract (generic-api-key)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = [
+  '''packages/api/openapi\.yaml''',
+  '''packages/api/client/schema\.d\.ts''',
+]
+regexTarget = "line"
+regexes = ['''(access|refresh|id)_token''']
