@@ -23,7 +23,7 @@ Plate & Bar has to ship on Android and the web first and iOS later, built part-t
   - On a mismatch the newer edit (by `updated_at`) wins for the whole record, and a tie on `updated_at` goes to the server; the losing copy is kept in a server-side conflict log and reported back to the device.
   - Deletes are soft (tombstones) so they reach every device.
   - The device pulls changes since an opaque cursor in the same round trip.
-  - Never synced in v1: progress photos, cycle data and lab results. They stay on the device and have no server table.
+  - Never synced in v1: progress photos, kitchen-test photos, cycle data and lab results. They stay on the device and have no server table.
 
 ## Consequences
 
@@ -31,5 +31,5 @@ Plate & Bar has to ship on Android and the web first and iOS later, built part-t
 - The app keeps working with no connection; sync bugs become the highest-risk code and get the heaviest tests (backend Testcontainers tests, an offline end-to-end test).
 - Record-level last-writer-wins can drop a field edit made on another device at nearly the same time. That is acceptable for single-user data and recoverable from the conflict log; field-level merging can be added later if it proves necessary.
 - Device clocks decide conflicts, so the server clamps `updated_at` values in the future.
-- Tombstones accumulate; a purge policy is needed before the tables grow large and is left to a later ADR. Whatever window it sets, a device offline for longer than that window must do a full pull (`cursor: null`), because the deletes it missed may no longer exist as tombstones.
+- Tombstones accumulate; a purge policy is needed before the tables grow large and is left to a later ADR. Whatever window it sets, a device offline for longer than that window has missed deletes whose tombstones may be gone; the contract has no way yet to tell a device its cursor is too old, so the purge ADR must define that signal and the recovery (a full pull with `cursor: null` after pushing queued changes, treating synced records absent from the pull as deleted).
 - The EAS free tier limits monthly builds, so local Gradle builds are the fallback for Android.
