@@ -8,7 +8,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `backend` run only when relevant |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
-| `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs), `npm audit` for `packages/api` |
+| `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
 | `.github/dependabot.yml` | weekly | Updates for GitHub Actions and `packages/api` |
 
 Why one `ci.yml` instead of a workflow per folder with `on.paths`: a path-filtered workflow that does not trigger never reports, so a required check would stay "pending" forever. Instead, `infra/scripts/detect-changes.sh` does the path filtering and non-applicable jobs are skipped, which branch protection treats as passing.
@@ -21,16 +21,16 @@ CI runs exactly these commands from the folder. Match them; do not expect other 
 
 | Folder | Detected by | Commands | Also runs when |
 | --- | --- | --- | --- |
-| `packages/api` | `package.json` | `npm ci`, `npm run lint`, `npm run generate`, stale-client check (below), `npm run typecheck` | |
-| `packages/core` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/api` changes |
+| `packages/api` | `package.json` | `npm ci`, `npm run check` (lint, generate, stale diff, typecheck), untracked-files check on `client/`; plus `npm audit --audit-level=high --omit=dev` as the separate `npm audit (api)` job | |
+| `packages/core` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/api` or `docs/spec/golden/` changes |
 | `apps/mobile` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/core` or `packages/api` changes |
 | `backend` | `build.gradle` or `build.gradle.kts` | `./gradlew build --no-daemon` (JDK 21 Temurin; Docker is available for Testcontainers) | `packages/api/openapi.yaml` changes |
 
-Requirements for the TS packages: Node 20, a committed `package-lock.json` (needed by `npm ci` and the npm cache), and the scripts `lint`, `typecheck`, `test` in `package.json`. For `backend`: a committed Gradle wrapper (`gradlew`, executable) and tests wired into `build`. If the lane needs different commands or a Node/JDK version, change them via an Infra issue.
+Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (needed by `npm ci` and the npm cache), and the scripts `lint`, `typecheck`, `test` in `package.json`. For `backend`: a committed Gradle wrapper (`gradlew`, executable) and tests wired into `build`. If the lane needs different commands or a Node/JDK version, change them via an Infra issue.
 
 ### Stale generated client
 
-The `api` job regenerates `packages/api/client/schema.d.ts` from `openapi.yaml` and fails with an explicit message if that changes the tracked file or leaves untracked files in `client/`. Fix: run `npm run generate` in `packages/api` and commit.
+`npm run check` in the `api` job regenerates `packages/api/client/schema.d.ts` from `openapi.yaml` and fails with an explicit message if that changes the tracked file or leaves untracked files in `client/`. Fix: run `npm run generate` in `packages/api` and commit.
 
 ### Lane check
 
@@ -38,9 +38,9 @@ The `api` job regenerates `packages/api/client/schema.d.ts` from `openapi.yaml` 
 
 ### Secret and dependency scanning
 
-- gitleaks (v8.30.1, binary downloaded and checksum-verified, no licence needed) scans full history on every PR and push, plus weekly, with the root `.gitleaks.toml`. That file allowlists only the `jwt` rule, only for `packages/api/openapi.yaml` and `packages/api/client/schema.d.ts`, because the contract's examples contain deliberately fake JWTs (`id_token`, access tokens). It is path-based, not fingerprint-based, so changing the examples needs no update; a second entry allowlists `generic-api-key` in the same files only on lines naming `access_token`, `refresh_token` or `id_token` (the same fake examples). Every other rule, and `generic-api-key` on other lines, stays active.
+- gitleaks (v8.30.1, binary downloaded and verified against a SHA-256 hard-coded in the workflow, no licence needed) scans full history on every PR and push, plus weekly, with the root `.gitleaks.toml`. That file allowlists only the `jwt` rule, only for `packages/api/openapi.yaml` and `packages/api/client/schema.d.ts`, because the contract's examples contain deliberately fake JWTs (`id_token`, access tokens). It is path-based, not fingerprint-based, so changing the examples needs no update; a second entry allowlists `generic-api-key` in the same files only on lines naming `access_token`, `refresh_token` or `id_token` (the same fake examples). Every other rule, and `generic-api-key` on other lines, stays active.
 - `dependency-review-action` fails PRs that add dependencies with known high-severity advisories (free on public repos; checked 2026-10-08 that this repo is public).
-- Dependabot covers GitHub Actions and `packages/api`. Whoever creates `packages/core`, `apps/mobile` or `backend/` should ask Infra (or add, since it is a one-block change) the matching `npm` / `gradle` entry in `.github/dependabot.yml`, because Dependabot errors on directories that do not exist yet.
+- Dependabot covers GitHub Actions and `packages/api`. Infra adds the matching `npm` / `gradle` entry in `.github/dependabot.yml` when `packages/core`, `apps/mobile` or `backend/` lands (other lanes do not edit it), because Dependabot errors on directories that do not exist yet.
 - Recommended, a setting rather than code: enable Secret scanning and Push protection under Settings, Code security.
 
 ## Branch protection for `main` (to be set by Shubham)
@@ -58,7 +58,7 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 
 Do not require `lane-check (warns only)`; it only annotates. Skipped jobs (folder absent or untouched) count as passing, so requiring all of the above is safe now. Note that `dependency-review` only runs on PRs, so it will not report on pushes to `main`; that is fine for PR-based protection.
 
-Pin: actions are referenced by major version tag; Dependabot proposes bumps.
+Pin: `gradle/actions/setup-gradle` is pinned to a full commit SHA (v4.4.4); other actions use major version tags. Dependabot proposes bumps. gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
 
 ## Local checks
 

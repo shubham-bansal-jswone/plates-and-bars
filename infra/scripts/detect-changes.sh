@@ -30,7 +30,7 @@ if touched .github/workflows/ci.yml infra/scripts/; then all=1; else all=0; fi
 want() { [ "$all" = 1 ] && return 0; touched "$@"; }
 
 if has_npm packages/api && want packages/api/; then emit api true; else emit api false; fi
-if has_npm packages/core && want packages/core/ packages/api/; then emit core true; else emit core false; fi
+if has_npm packages/core && want packages/core/ packages/api/ docs/spec/golden/; then emit core true; else emit core false; fi
 # the app imports core and the generated client
 if has_npm apps/mobile && want apps/mobile/ packages/core/ packages/api/; then emit mobile true; else emit mobile false; fi
 if has_gradle backend && want backend/ packages/api/openapi.yaml; then emit backend true; else emit backend false; fi
