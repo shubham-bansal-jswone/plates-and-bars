@@ -120,14 +120,15 @@ export interface paths {
          *
          *     **Retries are idempotent.** A device that loses the response to a successful sync
          *     re-sends the same records with the same, now stale, `version`. A retry is any
-         *     pushed record whose content, apart from `version`, is identical to the stored
-         *     record (the stored `updated_at` may have been clamped on the first attempt; compare
-         *     against it, not the device time). The backend resolves each retry as a conflict with
+         *     pushed record whose content, apart from `version` and `updated_at`, is identical to
+         *     the stored record (`updated_at` is excluded because the server may have clamped it
+         *     on the first attempt). The backend resolves each retry as a conflict with
          *     `resolution: server_won`, `client_version` = the version the device sent and a
          *     `server_record` equal to the stored record. Nothing is written and
          *     nothing is lost, so the backend does not add these to the conflict log. The app
          *     must not surface them as real conflicts: when every field of `server_record` except
-         *     `version` equals the copy it pushed, it silently adopts `server_record.version`.
+         *     `version` and `updated_at` equals the copy it pushed, it silently adopts
+         *     `server_record.version` and `server_record.updated_at`.
          *     Any other `server_won` or `client_won` result is a real conflict.
          *
          *     **Deletes** are soft: set `deleted_at`. Tombstones travel like any other change so
