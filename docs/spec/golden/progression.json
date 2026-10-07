@@ -1,0 +1,612 @@
+{
+ "exerciseMeta": {
+  "Barbell Bench Press": [
+   "barbell",
+   6,
+   10
+  ],
+  "Incline Dumbbell Press": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Machine Chest Press": [
+   "machine",
+   8,
+   12
+  ],
+  "Pec Deck Fly": [
+   "machine",
+   10,
+   15
+  ],
+  "Cable Crossover": [
+   "cable",
+   10,
+   15
+  ],
+  "Push-ups": [
+   "bodyweight",
+   8,
+   20
+  ],
+  "Seated Dumbbell Press": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Machine Shoulder Press": [
+   "machine",
+   8,
+   12
+  ],
+  "Lateral Raise": [
+   "dumbbell",
+   12,
+   15
+  ],
+  "Cable Lateral Raise": [
+   "cable",
+   12,
+   15
+  ],
+  "Rear Delt Fly": [
+   "dumbbell",
+   12,
+   15
+  ],
+  "Face Pull": [
+   "cable",
+   12,
+   15
+  ],
+  "Rope Pushdown": [
+   "cable",
+   10,
+   15
+  ],
+  "Overhead Cable Extension": [
+   "cable",
+   10,
+   15
+  ],
+  "Close-Grip Bench Press": [
+   "barbell",
+   6,
+   10
+  ],
+  "Assisted Dips": [
+   "assisted",
+   6,
+   12
+  ],
+  "Lat Pulldown": [
+   "machine",
+   8,
+   12
+  ],
+  "Seated Cable Row": [
+   "machine",
+   8,
+   12
+  ],
+  "Chest-Supported Row": [
+   "machine",
+   8,
+   12
+  ],
+  "One-Arm Dumbbell Row": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Assisted Pull-up": [
+   "assisted",
+   6,
+   10
+  ],
+  "Straight-Arm Pulldown": [
+   "cable",
+   12,
+   15
+  ],
+  "Dumbbell Curl": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Hammer Curl": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Cable Curl": [
+   "cable",
+   10,
+   15
+  ],
+  "Preacher Curl": [
+   "barbell",
+   8,
+   12
+  ],
+  "Hack Squat": [
+   "machine",
+   8,
+   12
+  ],
+  "Leg Press": [
+   "machine",
+   10,
+   15
+  ],
+  "Goblet Squat": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Walking Lunge": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Leg Extension": [
+   "machine",
+   10,
+   15
+  ],
+  "Lying Leg Curl": [
+   "machine",
+   10,
+   15
+  ],
+  "Seated Leg Curl": [
+   "machine",
+   10,
+   15
+  ],
+  "Hip Thrust": [
+   "barbell",
+   8,
+   12
+  ],
+  "Standing Calf Raise": [
+   "machine",
+   10,
+   15
+  ],
+  "Seated Calf Raise": [
+   "machine",
+   12,
+   15
+  ],
+  "Cable Crunch": [
+   "cable",
+   10,
+   15
+  ],
+  "Hanging Knee Raise": [
+   "bodyweight",
+   8,
+   15
+  ],
+  "Plank (seconds)": [
+   "time",
+   20,
+   60
+  ],
+  "Dead Bug": [
+   "bodyweight",
+   8,
+   12
+  ],
+  "Dumbbell Floor Press": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Decline Push-ups": [
+   "bodyweight",
+   8,
+   15
+  ],
+  "Pike Push-ups": [
+   "bodyweight",
+   6,
+   12
+  ],
+  "Overhead Dumbbell Extension": [
+   "dumbbell",
+   10,
+   15
+  ],
+  "Bench Dips": [
+   "bodyweight",
+   8,
+   15
+  ],
+  "Prone Y-T-W Raise": [
+   "bodyweight",
+   8,
+   12
+  ],
+  "Bodyweight Squat": [
+   "bodyweight",
+   12,
+   20
+  ],
+  "Dumbbell Split Squat": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Split Squat": [
+   "bodyweight",
+   10,
+   15
+  ],
+  "Single-Leg Glute Bridge": [
+   "bodyweight",
+   10,
+   15
+  ],
+  "Glute Bridge": [
+   "bodyweight",
+   12,
+   20
+  ],
+  "Wall Sit (seconds)": [
+   "time",
+   30,
+   60
+  ],
+  "Single-Leg Calf Raise": [
+   "bodyweight",
+   10,
+   20
+  ],
+  "Crunch": [
+   "bodyweight",
+   12,
+   20
+  ],
+  "Dumbbell Fly": [
+   "dumbbell",
+   10,
+   15
+  ],
+  "Lying Leg Raise": [
+   "bodyweight",
+   8,
+   15
+  ],
+  "Dumbbell Bench Press": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Barbell Back Squat": [
+   "barbell",
+   6,
+   10
+  ],
+  "Standing Barbell Press": [
+   "barbell",
+   6,
+   10
+  ],
+  "Barbell Row": [
+   "barbell",
+   8,
+   12
+  ],
+  "Bodyweight Pull-up": [
+   "bodyweight",
+   5,
+   10
+  ],
+  "Weighted Pull-up": [
+   "other",
+   5,
+   8
+  ],
+  "Cable Pull-through": [
+   "cable",
+   10,
+   15
+  ],
+  "Dumbbell Romanian Deadlift": [
+   "dumbbell",
+   8,
+   12
+  ],
+  "Barbell Romanian Deadlift": [
+   "barbell",
+   8,
+   10
+  ],
+  "Deadlift": [
+   "barbell",
+   5,
+   8
+  ],
+  "Single-Leg Balance (seconds)": [
+   "time",
+   20,
+   40
+  ],
+  "Incline Push-ups": [
+   "bodyweight",
+   8,
+   20
+  ],
+  "Archer Push-ups": [
+   "bodyweight",
+   5,
+   12
+  ],
+  "Bulgarian Split Squat": [
+   "bodyweight",
+   8,
+   15
+  ],
+  "Backpack Row": [
+   "other",
+   10,
+   20
+  ]
+ },
+ "defaultStep": {
+  "barbell": 2.5,
+  "dumbbell": 2.5,
+  "machine": 5,
+  "cable": 5,
+  "assisted": 5,
+  "other": 2.5,
+  "bodyweight": 0,
+  "time": 0
+ },
+ "cases": [
+  {
+   "input": {
+    "id": "top-of-range-up",
+    "name": "Hack Squat",
+    "last": {
+     "date": "2026-10-01",
+     "n": 5,
+     "first": "2026-08-01",
+     "form": "yes",
+     "sets": [
+      {
+       "w": 60,
+       "r": 12,
+       "rate": "right"
+      },
+      {
+       "w": 60,
+       "r": 12,
+       "rate": "right"
+      },
+      {
+       "w": 60,
+       "r": 12,
+       "rate": "right"
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "up",
+    "weight": 65,
+    "reps": 8,
+    "text": "65 kg × 8–12 reps"
+   }
+  },
+  {
+   "input": {
+    "id": "in-range-hold",
+    "name": "Hack Squat",
+    "last": {
+     "date": "2026-10-01",
+     "n": 5,
+     "first": "2026-08-01",
+     "sets": [
+      {
+       "w": 60,
+       "r": 10
+      },
+      {
+       "w": 60,
+       "r": 9
+      },
+      {
+       "w": 60,
+       "r": 9
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "hold",
+    "weight": 60,
+    "reps": 10,
+    "text": "60 kg × 10 reps"
+   }
+  },
+  {
+   "input": {
+    "id": "first-2-weeks-hold",
+    "name": "Hack Squat",
+    "last": {
+     "date": "2026-10-01",
+     "n": 2,
+     "first": "2026-09-28",
+     "sets": [
+      {
+       "w": 60,
+       "r": 12,
+       "rate": "right"
+      },
+      {
+       "w": 60,
+       "r": 12,
+       "rate": "right"
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "hold",
+    "weight": 60,
+    "reps": 12,
+    "text": "60 kg × 8–12 reps"
+   }
+  },
+  {
+   "input": {
+    "id": "form-slipped-hold",
+    "name": "Hack Squat",
+    "last": {
+     "date": "2026-10-01",
+     "n": 5,
+     "first": "2026-08-01",
+     "form": "no",
+     "sets": [
+      {
+       "w": 60,
+       "r": 12
+      },
+      {
+       "w": 60,
+       "r": 12
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "hold",
+    "weight": 60,
+    "reps": 12,
+    "text": "60 kg × 8–12 reps"
+   }
+  },
+  {
+   "input": {
+    "id": "failed-drop",
+    "name": "Barbell Bench Press",
+    "last": {
+     "date": "2026-10-01",
+     "n": 5,
+     "first": "2026-08-01",
+     "sets": [
+      {
+       "w": 50,
+       "r": 5,
+       "rate": "fail"
+      },
+      {
+       "w": 50,
+       "r": 4,
+       "rate": "fail"
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "down",
+    "weight": 45,
+    "reps": 6,
+    "text": "45 kg × 6–10 reps"
+   }
+  },
+  {
+   "input": {
+    "id": "dumbbell-big-jump",
+    "name": "Lateral Raise",
+    "last": {
+     "date": "2026-10-01",
+     "n": 6,
+     "first": "2026-08-01",
+     "sets": [
+      {
+       "w": 5,
+       "r": 15
+      },
+      {
+       "w": 5,
+       "r": 15
+      },
+      {
+       "w": 5,
+       "r": 15
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "up",
+    "weight": 7.5,
+    "reps": 12,
+    "text": "7.5 kg each × 12–15 reps"
+   }
+  },
+  {
+   "input": {
+    "id": "bodyweight-reps",
+    "name": "Push-ups",
+    "last": {
+     "date": "2026-10-01",
+     "n": 6,
+     "first": "2026-08-01",
+     "sets": [
+      {
+       "w": 0,
+       "r": 12
+      },
+      {
+       "w": 0,
+       "r": 11
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "bw",
+    "weight": "",
+    "reps": 13,
+    "text": "13 reps a set"
+   }
+  },
+  {
+   "input": {
+    "id": "assisted-less-help",
+    "name": "Assisted Pull-up",
+    "last": {
+     "date": "2026-10-01",
+     "n": 6,
+     "first": "2026-08-01",
+     "sets": [
+      {
+       "w": 30,
+       "r": 10
+      },
+      {
+       "w": 30,
+       "r": 10
+      },
+      {
+       "w": 30,
+       "r": 10
+      }
+     ]
+    }
+   },
+   "output": {
+    "mode": "up",
+    "weight": 25,
+    "reps": 6,
+    "text": "25 kg assist × 6–10 reps"
+   }
+  }
+ ]
+}

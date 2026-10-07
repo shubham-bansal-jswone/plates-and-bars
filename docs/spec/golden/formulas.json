@@ -1,0 +1,22 @@
+{
+ "navyBodyFat": {
+  "male_165cm_w95_n39": 25.2,
+  "female_158cm_w78_n32_h98": 32.4
+ },
+ "water": {
+  "kg82_restDay_ml": 2700,
+  "kg82_trainingDay_ml": 3300
+ },
+ "fibreTarget": {
+  "kcal2000": 30
+ },
+ "workoutBurn": {
+  "sets": 3,
+  "min": 18,
+  "cardio": 10,
+  "gross": 190,
+  "extra": 155,
+  "timed": true
+ },
+ "e1rmScore": "Epley: weight * (1 + reps/30); bodyweight: total reps; assisted: max(reps*2 - assist kg)"
+}

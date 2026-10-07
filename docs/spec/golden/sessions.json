@@ -1,0 +1,110 @@
+{
+ "gym|Push A": [
+  "Machine Chest Press",
+  "Incline Dumbbell Press",
+  "Seated Dumbbell Press",
+  "Lateral Raise"
+ ],
+ "gym|Push A|focus=glutes": [
+  "Machine Chest Press",
+  "Incline Dumbbell Press",
+  "Seated Dumbbell Press",
+  "Lateral Raise"
+ ],
+ "gym|Legs A": [
+  "Hack Squat",
+  "Lying Leg Curl",
+  "Hip Thrust",
+  "Leg Extension"
+ ],
+ "gym|Legs A|focus=glutes": [
+  "Hack Squat",
+  "Hip Thrust",
+  "Lying Leg Curl",
+  "Leg Extension"
+ ],
+ "gym|Full body A": [
+  "Hack Squat",
+  "Machine Chest Press",
+  "Lat Pulldown",
+  "Lateral Raise"
+ ],
+ "gym|Full body A|focus=glutes": [
+  "Hack Squat",
+  "Machine Chest Press",
+  "Lat Pulldown",
+  "Lateral Raise"
+ ],
+ "dumbbells|Push A": [
+  "Dumbbell Floor Press",
+  "Incline Dumbbell Press",
+  "Seated Dumbbell Press",
+  "Lateral Raise"
+ ],
+ "dumbbells|Push A|focus=glutes": [
+  "Dumbbell Floor Press",
+  "Incline Dumbbell Press",
+  "Seated Dumbbell Press",
+  "Lateral Raise"
+ ],
+ "dumbbells|Legs A": [
+  "Goblet Squat",
+  "Single-Leg Glute Bridge",
+  "Glute Bridge",
+  "Single-Leg Calf Raise"
+ ],
+ "dumbbells|Legs A|focus=glutes": [
+  "Goblet Squat",
+  "Single-Leg Glute Bridge",
+  "Glute Bridge",
+  "Single-Leg Calf Raise"
+ ],
+ "dumbbells|Full body A": [
+  "Goblet Squat",
+  "Dumbbell Floor Press",
+  "One-Arm Dumbbell Row",
+  "Lateral Raise"
+ ],
+ "dumbbells|Full body A|focus=glutes": [
+  "Goblet Squat",
+  "Dumbbell Floor Press",
+  "One-Arm Dumbbell Row",
+  "Lateral Raise"
+ ],
+ "bodyweight|Push A": [
+  "Push-ups",
+  "Decline Push-ups",
+  "Pike Push-ups",
+  "Bench Dips"
+ ],
+ "bodyweight|Push A|focus=glutes": [
+  "Push-ups",
+  "Decline Push-ups",
+  "Pike Push-ups",
+  "Bench Dips"
+ ],
+ "bodyweight|Legs A": [
+  "Bodyweight Squat",
+  "Single-Leg Glute Bridge",
+  "Glute Bridge",
+  "Wall Sit (seconds)"
+ ],
+ "bodyweight|Legs A|focus=glutes": [
+  "Bodyweight Squat",
+  "Single-Leg Glute Bridge",
+  "Glute Bridge",
+  "Wall Sit (seconds)"
+ ],
+ "bodyweight|Full body A": [
+  "Bodyweight Squat",
+  "Push-ups",
+  "Backpack Row",
+  "Single-Leg Glute Bridge"
+ ],
+ "bodyweight|Full body A|focus=glutes": [
+  "Bodyweight Squat",
+  "Single-Leg Glute Bridge",
+  "Push-ups",
+  "Backpack Row"
+ ]
+}

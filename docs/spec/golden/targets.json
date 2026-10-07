@@ -1,0 +1,242 @@
+[
+ {
+  "input": {
+   "id": "male-30-lose-moderate",
+   "sex": "male",
+   "age": 30,
+   "height": 165,
+   "weight": 82,
+   "activity": "sitting",
+   "days": 6,
+   "minutes": 60,
+   "goal": "lose",
+   "pace": "moderate",
+   "special": "none"
+  },
+  "output": {
+   "tdee": 2493,
+   "bmr": 1706,
+   "movement": 256,
+   "training": 281,
+   "digestion": 249,
+   "kcal": 1990,
+   "protein": 150,
+   "carbs": 224,
+   "fat": 55,
+   "floored": false,
+   "capped": false,
+   "refWeight": 74,
+   "weeklyKg": -0.46
+  }
+ },
+ {
+  "input": {
+   "id": "male-31-recomp",
+   "sex": "male",
+   "age": 31,
+   "height": 170.2,
+   "weight": 83,
+   "activity": "sitting",
+   "days": 6,
+   "minutes": 45,
+   "goal": "recomp",
+   "pace": "moderate",
+   "special": "none"
+  },
+  "output": {
+   "tdee": 2465,
+   "bmr": 1744,
+   "movement": 262,
+   "training": 213,
+   "digestion": 247,
+   "kcal": 2220,
+   "protein": 165,
+   "carbs": 251,
+   "fat": 62,
+   "floored": false,
+   "capped": false,
+   "refWeight": 83,
+   "weeklyKg": -0.22
+  }
+ },
+ {
+  "input": {
+   "id": "female-28-lose-moderate",
+   "sex": "female",
+   "age": 28,
+   "height": 158,
+   "weight": 55,
+   "activity": "light",
+   "days": 3,
+   "minutes": 45,
+   "goal": "lose",
+   "pace": "moderate",
+   "special": "none"
+  },
+  "output": {
+   "tdee": 1865,
+   "bmr": 1237,
+   "movement": 371,
+   "training": 71,
+   "digestion": 186,
+   "kcal": 1490,
+   "protein": 110,
+   "carbs": 170,
+   "fat": 41,
+   "floored": false,
+   "capped": false,
+   "refWeight": 55,
+   "weeklyKg": -0.34
+  }
+ },
+ {
+  "input": {
+   "id": "female-28-pregnant",
+   "sex": "female",
+   "age": 28,
+   "height": 158,
+   "weight": 55,
+   "activity": "light",
+   "days": 3,
+   "minutes": 45,
+   "goal": "lose",
+   "pace": "moderate",
+   "special": "pregnant"
+  },
+  "output": {
+   "tdee": 1865,
+   "bmr": 1237,
+   "movement": 371,
+   "training": 71,
+   "digestion": 186,
+   "kcal": 1860,
+   "protein": 100,
+   "carbs": 248,
+   "fat": 52,
+   "floored": false,
+   "capped": false,
+   "refWeight": 55,
+   "weeklyKg": 0
+  }
+ },
+ {
+  "input": {
+   "id": "male-45-gain",
+   "sex": "male",
+   "age": 45,
+   "height": 178,
+   "weight": 70,
+   "activity": "feet",
+   "days": 4,
+   "minutes": 60,
+   "goal": "gain",
+   "pace": "moderate",
+   "special": "none"
+  },
+  "output": {
+   "tdee": 2743,
+   "bmr": 1593,
+   "movement": 717,
+   "training": 160,
+   "digestion": 274,
+   "kcal": 2940,
+   "protein": 125,
+   "carbs": 426,
+   "fat": 82,
+   "floored": false,
+   "capped": false,
+   "refWeight": 70,
+   "weeklyKg": 0.18
+  }
+ },
+ {
+  "input": {
+   "id": "female-66-maintain",
+   "sex": "female",
+   "age": 66,
+   "height": 155,
+   "weight": 62,
+   "activity": "light",
+   "days": 3,
+   "minutes": 45,
+   "goal": "maintain",
+   "pace": "moderate",
+   "special": "none"
+  },
+  "output": {
+   "tdee": 1674,
+   "bmr": 1098,
+   "movement": 329,
+   "training": 80,
+   "digestion": 167,
+   "kcal": 1670,
+   "protein": 110,
+   "carbs": 204,
+   "fat": 46,
+   "floored": false,
+   "capped": false,
+   "refWeight": 62,
+   "weeklyKg": 0
+  }
+ },
+ {
+  "input": {
+   "id": "male-bmi35-lose",
+   "sex": "male",
+   "age": 40,
+   "height": 170,
+   "weight": 101,
+   "activity": "sitting",
+   "days": 4,
+   "minutes": 60,
+   "goal": "lose",
+   "pace": "moderate",
+   "special": "none"
+  },
+  "output": {
+   "tdee": 2656,
+   "bmr": 1878,
+   "movement": 282,
+   "training": 231,
+   "digestion": 266,
+   "kcal": 2120,
+   "protein": 155,
+   "carbs": 238,
+   "fat": 61,
+   "floored": false,
+   "capped": false,
+   "refWeight": 78,
+   "weeklyKg": -0.49
+  }
+ },
+ {
+  "input": {
+   "id": "female-small-floor",
+   "sex": "female",
+   "age": 50,
+   "height": 150,
+   "weight": 45,
+   "activity": "sitting",
+   "days": 0,
+   "minutes": 0,
+   "goal": "lose",
+   "pace": "moderate",
+   "special": "none"
+  },
+  "output": {
+   "tdee": 1248,
+   "bmr": 977,
+   "movement": 146,
+   "training": 0,
+   "digestion": 125,
+   "kcal": 1200,
+   "protein": 90,
+   "carbs": 136,
+   "fat": 33,
+   "floored": true,
+   "capped": false,
+   "refWeight": 45,
+   "weeklyKg": -0.04
+  }
+ }
+]

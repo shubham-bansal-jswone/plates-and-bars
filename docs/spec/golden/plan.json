@@ -1,0 +1,450 @@
+{
+ "templates": {
+  "Push A": [
+   "Machine Chest Press",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise",
+   "Rope Pushdown"
+  ],
+  "Pull A": [
+   "Lat Pulldown",
+   "Seated Cable Row",
+   "Face Pull",
+   "Dumbbell Curl",
+   "Cable Crunch"
+  ],
+  "Legs A": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust",
+   "Leg Extension",
+   "Standing Calf Raise",
+   "Cable Crunch"
+  ],
+  "Push B": [
+   "Barbell Bench Press",
+   "Machine Shoulder Press",
+   "Pec Deck Fly",
+   "Cable Lateral Raise",
+   "Overhead Cable Extension"
+  ],
+  "Pull B": [
+   "Assisted Pull-up",
+   "Chest-Supported Row",
+   "One-Arm Dumbbell Row",
+   "Rear Delt Fly",
+   "Hammer Curl"
+  ],
+  "Legs B": [
+   "Leg Press",
+   "Seated Leg Curl",
+   "Dumbbell Split Squat",
+   "Hip Thrust",
+   "Seated Calf Raise",
+   "Hanging Knee Raise"
+  ],
+  "Full body A": [
+   "Hack Squat",
+   "Machine Chest Press",
+   "Lat Pulldown",
+   "Lateral Raise",
+   "Lying Leg Curl"
+  ],
+  "Full body B": [
+   "Leg Press",
+   "Machine Shoulder Press",
+   "Seated Cable Row",
+   "Rope Pushdown",
+   "Dumbbell Curl"
+  ],
+  "Full body C": [
+   "Hack Squat",
+   "Incline Dumbbell Press",
+   "Chest-Supported Row",
+   "Hip Thrust",
+   "Face Pull"
+  ],
+  "Upper A": [
+   "Machine Chest Press",
+   "Lat Pulldown",
+   "Seated Dumbbell Press",
+   "Seated Cable Row",
+   "Rope Pushdown",
+   "Dumbbell Curl"
+  ],
+  "Upper B": [
+   "Barbell Bench Press",
+   "Chest-Supported Row",
+   "Machine Shoulder Press",
+   "Assisted Pull-up",
+   "Overhead Cable Extension",
+   "Cable Curl"
+  ],
+  "Lower A": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust",
+   "Leg Extension",
+   "Standing Calf Raise",
+   "Cable Crunch"
+  ],
+  "Lower B": [
+   "Leg Press",
+   "Seated Leg Curl",
+   "Dumbbell Split Squat",
+   "Hip Thrust",
+   "Seated Calf Raise",
+   "Hanging Knee Raise"
+  ]
+ },
+ "splits": {
+  "2": {
+   "list": [
+    "Full body A",
+    "Full body B"
+   ],
+   "days": [
+    1,
+    4
+   ]
+  },
+  "3": {
+   "list": [
+    "Full body A",
+    "Full body B",
+    "Full body C"
+   ],
+   "days": [
+    1,
+    3,
+    5
+   ]
+  },
+  "4": {
+   "list": [
+    "Upper A",
+    "Lower A",
+    "Upper B",
+    "Lower B"
+   ],
+   "days": [
+    1,
+    2,
+    4,
+    5
+   ]
+  },
+  "5": {
+   "list": [
+    "Push A",
+    "Pull A",
+    "Legs A",
+    "Upper B",
+    "Lower B"
+   ],
+   "days": [
+    1,
+    2,
+    3,
+    5,
+    6
+   ]
+  },
+  "6": {
+   "list": [
+    "Push A",
+    "Pull A",
+    "Legs A",
+    "Push B",
+    "Pull B",
+    "Legs B"
+   ],
+   "days": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ]
+  }
+ },
+ "plans": [
+  {
+   "days": 2,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": null
+    },
+    {
+     "date": "2026-10-07",
+     "template": null
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Full body B"
+    },
+    {
+     "date": "2026-10-09",
+     "template": null
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  },
+  {
+   "days": 3,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": null
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Full body B"
+    },
+    {
+     "date": "2026-10-08",
+     "template": null
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Full body C"
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  },
+  {
+   "days": 4,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Lower A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": null
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Upper B"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Lower B"
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  },
+  {
+   "days": 5,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Pull A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": null
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Upper B"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Lower B"
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  },
+  {
+   "days": 6,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Pull A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Push B"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Pull B"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Legs B"
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  }
+ ]
+}
