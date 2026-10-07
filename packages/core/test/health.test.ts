@@ -12,8 +12,14 @@ describe('screenFlag', () => {
     expect(screenFlag({ screen: allNo })).toBe(false);
   });
 
-  it('is true when any answer is yes', () => {
+  it('is true when any answer is yes (prototype object shape)', () => {
     expect(screenFlag({ screen: { ...allNo, 3: 'yes' } })).toBe(true);
+  });
+
+  it('accepts the contract array shape', () => {
+    expect(screenFlag({ screen: ['no', 'no', 'no', 'no', 'no', 'no'] })).toBe(false);
+    expect(screenFlag({ screen: ['no', 'no', 'no', 'no', 'no', 'yes'] })).toBe(true);
+    expect(screenFlag({ screen: [] })).toBe(false);
   });
 });
 
@@ -39,6 +45,13 @@ describe('needsClearance', () => {
     expect(needsClearance({ ...p, cleared: '2026-10-08' })).toBe(false);
   });
 
+  it('works with the contract array shape and a null cleared', () => {
+    const p: HealthProfile = { special: 'none', screen: ['no', 'yes', 'no', 'no', 'no', 'no'], cleared: null };
+    expect(needsClearance(p)).toBe(true);
+    expect(needsClearance({ ...p, cleared: '2026-10-08' })).toBe(false);
+    expect(needsClearance({ ...p, screen: ['no', 'no', 'no', 'no', 'no', 'no'] })).toBe(false);
+  });
+
   it('is false for breastfeeding alone', () => {
     expect(needsClearance({ special: 'breastfeeding', screen: allNo })).toBe(false);
   });
@@ -56,8 +69,10 @@ ${sliceLine(src, 'const needsClearance = ')}
 return (p) => { S.settings.profile = p; return needsClearance(); };`;
     const proto = new Function(code)() as (p: unknown) => boolean;
     const profiles: (HealthProfile | null)[] = [null];
-    for (const special of [undefined, 'none', 'pregnant', 'breastfeeding'] as const)
-      for (const screen of [undefined, {}, allNo, { ...allNo, 5: 'yes' as const }])
+    const arrNo = ['no', 'no', 'no', 'no', 'no', 'no'] as const;
+    const arrYes = ['yes', 'no', 'no', 'no', 'no', 'no'] as const;
+    for (const special of [undefined, null, '', 'none', 'pregnant', 'breastfeeding'] as const)
+      for (const screen of [undefined, {}, allNo, { ...allNo, 5: 'yes' as const }, [], arrNo, arrYes])
         for (const cleared of [undefined, null, '', '2026-10-08']) {
           const p: HealthProfile = {};
           if (special !== undefined) p.special = special;

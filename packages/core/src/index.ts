@@ -23,4 +23,4 @@ export type { TargetsProfile, TargetsResult, Sex, Activity, Goal, Pace, Special 
  * - `screenFlag` mirrors prototype `screenFlag(p)`.
  */
 export { needsClearance, screenFlag } from './health';
-export type { HealthProfile, ScreenAnswer } from './health';
+export type { HealthProfile, ScreenAnswer, ScreenAnswers } from './health';

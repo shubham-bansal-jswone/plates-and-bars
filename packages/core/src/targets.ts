@@ -20,8 +20,11 @@ export interface TargetsProfile {
   goal: Goal;
   /** Defaults to `moderate` when absent. Only read when `goal` is `lose`. */
   pace?: Pace;
-  /** Pregnancy / breastfeeding. Only counts for `sex: 'female'`. */
-  special?: Special;
+  /**
+   * Pregnancy / breastfeeding. Only counts for `sex: 'female'`. `null` and `''` (possible in
+   * untyped stored or synced JSON) count as `'none'`, as in the prototype.
+   */
+  special?: Special | null | '';
 }
 
 /**
@@ -101,7 +104,7 @@ export function calcTargets(p: TargetsProfile): TargetsResult {
   const base = bmr + movement + training;
   const tdee = base / 0.9;
   const digestion = tdee - base;
-  const special = p.sex === 'female' && p.special !== undefined && p.special !== 'none';
+  const special = p.sex === 'female' && !!p.special && p.special !== 'none';
   let adj =
     p.goal === 'lose'
       ? PACE_ADJ[p.pace ?? 'moderate']
