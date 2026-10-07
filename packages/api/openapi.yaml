@@ -9,7 +9,9 @@ info:
 
     M0 scope: auth, sync, food search and health. Content bundles, AI calls and account
     rights (`/content/*`, `/ai/*`, `GET /me/export`, `DELETE /me`) are added in later
-    milestones as additive changes.
+    milestones as additive changes. In particular, the third criterion of spec item 10
+    ("Sync model additions") in `docs/spec/ISSUES.md`, `DELETE /me` and `GET /me/export`,
+    is deferred to the M1 contract PR; the backend should not expect it from this contract.
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
@@ -160,7 +162,8 @@ paths:
       summary: Rotate the refresh token
       description: |
         Exchanges a refresh token for a new access token and a new refresh token. The old
-        refresh token is invalidated. Presenting an already-rotated refresh token is treated
+        refresh token is invalidated; the new one is valid for 90 days from this refresh
+        (see `TokenPair.refresh_token`). Presenting an already-rotated refresh token is treated
         as theft: the whole session (every token descended from the same sign-in) is
         revoked and the user must sign in again.
       security: []
@@ -215,6 +218,17 @@ paths:
         conflict log. `conflicts[].resolution` says which side won and `server_record` is
         the record as now stored; the device replaces its local copy with it.
 
+        **Retries are idempotent.** A device that loses the response to a successful sync
+        re-sends the same records with the same, now stale, `version` and the same
+        `updated_at`. The backend resolves each such record as a conflict with
+        `resolution: server_won` (equal `updated_at`, so the tie goes to the server),
+        `client_version` = the version the device sent and a `server_record` whose fields,
+        apart from `version`, are identical to what the device sent. Nothing is written and
+        nothing is lost, so the backend does not add these to the conflict log. The app
+        must not surface them as real conflicts: when every field of `server_record` except
+        `version` equals the copy it pushed, it silently adopts `server_record.version`.
+        Any other `server_won` or `client_won` result is a real conflict.
+
         **Deletes** are soft: set `deleted_at`. Tombstones travel like any other change so
         the delete reaches every device.
 
@@ -228,6 +242,10 @@ paths:
         key use a deterministic UUIDv5 so two offline devices produce the same id:
         namespace = the user's id, name = `<table>:<key>`, for example
         `day_notes:2026-10-08`. The key for each such table is given in its schema.
+
+        **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
+        synced records have no table. The app rebuilds them locally after every pull; see
+        `Workout` for the prototype's `sessions` store.
 
         Limits: at most 500 records in total per request and per response page.
         `updated_at` values more than 5 minutes in the future are clamped to server time.
@@ -559,7 +577,8 @@ components:
           description: |
             Stable machine-readable code. `token_expired`: refresh the access token and
             retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
-            or expired.
+            or expired. `not_found`: reserved for later milestones; no M0 operation
+            returns it.
         message:
           type: string
           description: Plain-language message safe to show the user. Never contains health data.
@@ -657,9 +676,15 @@ components:
           $ref: '#/components/schemas/Timestamp'
         refresh_token:
           type: string
-          description: Opaque, single-use. Store in secure storage; replace on every refresh.
+          description: |
+            Opaque, single-use. Store in secure storage; replace on every refresh.
+            Lifetime 90 days, extended on rotation: every `/auth/refresh` returns a new
+            refresh token valid for 90 days from that refresh, so a device that opens the
+            app at least once every 90 days stays signed in. Presenting an already-rotated
+            token revokes the whole session.
         refresh_token_expires_at:
           $ref: '#/components/schemas/Timestamp'
+          description: When `refresh_token` expires, 90 days after it was issued.
         user:
           $ref: '#/components/schemas/User'
         new_user:
@@ -790,18 +815,26 @@ components:
 
     FoodSource:
       type: object
-      description: Where a row's values come from. Never IFCT or INDB.
+      description: |
+        Where a row's values come from. Only the sources listed in ADR 002
+        (`docs/adr/002-food-data-sources.md`) are allowed.
       required: [code, name, licence, url, reference]
       properties:
         code:
           type: string
-          enum: [usda_fdc, fssai, own_recipe, kitchen_test]
+          enum: [usda_fdc, fssai, own_recipe, kitchen_test, label_typical]
+          description: |
+            `usda_fdc`: USDA FoodData Central. `fssai`: values derived from FSSAI standards
+            (paneer, curd, milk). `own_recipe`: calculated from our recipes. `kitchen_test`:
+            weighed in our kitchen tests. `label_typical`: packaged foods using typical
+            nutrition-label values across common brands; in the prototype these are whey
+            protein, Greek yogurt and makhana.
         name:
           type: string
-          examples: [USDA FoodData Central (SR Legacy)]
+          examples: [USDA FoodData Central (SR Legacy), Typical label values (packaged food)]
         licence:
           type: string
-          examples: [Public domain (CC0 1.0)]
+          examples: [Public domain (CC0 1.0), Nutrition facts read from product labels; no label database copied]
         url:
           type: [string, 'null']
           format: uri
@@ -957,8 +990,10 @@ components:
           items: { $ref: '#/components/schemas/Settings' }
 
     SyncRecord:
-      description: Any synced record; the conflict's `table` says which.
-      oneOf:
+      description: |
+        Any synced record. Several record schemas can match the same object, so pick the
+        schema by the conflict's `table` rather than by validating against each.
+      anyOf:
         - $ref: '#/components/schemas/Profile'
         - $ref: '#/components/schemas/Consent'
         - $ref: '#/components/schemas/FoodLog'
@@ -1192,10 +1227,17 @@ components:
       description: |
         The training session(s) for one day. One per day; id = UUIDv5(`workouts:<date>`).
         Sets live in `workout_sets`. Prototype: `day.workout`.
+
+        The prototype's `sessions` store (`sessions.entries[date] = { t, n }`, used for
+        template rotation, the weekly streak and the habits meter) has no table: the app
+        rebuilds it after every pull from `workouts` and `workout_sets`. For each workout
+        not deleted, `n` = the number of its sets not deleted with `kind: work` and
+        `done: true`, and `t` = `base`, else `template`, else "Session"; there is an entry
+        for the workout's `date` only when `n` > 0.
       allOf:
         - $ref: '#/components/schemas/SyncMeta'
         - type: object
-          required: [date, template, base, where, cardio_min, mods, exercises]
+          required: [date, template, base, where, cardio_min, mods, exercises, ci_choice]
           properties:
             date:
               $ref: '#/components/schemas/LocalDate'
@@ -1222,6 +1264,12 @@ components:
               description: Exercises in session order.
               items:
                 $ref: '#/components/schemas/WorkoutExercise'
+            ci_choice:
+              type: [string, 'null']
+              enum: [light, swap, orig, null]
+              description: |
+                How the weekly check-in said to build today's session: `light`, `swap` (next
+                template) or `orig`; null when no choice was made. Prototype: `ciChoice`.
 
     WorkoutExercise:
       type: object
@@ -1309,7 +1357,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SyncMeta'
         - type: object
-          required: [exercise, date, sets, form, sessions, first, prev, history]
+          required: [exercise, date, sets, form, sessions, first, prev, history, pb_toast_date]
           properties:
             exercise:
               type: string
@@ -1354,6 +1402,13 @@ components:
                     $ref: '#/components/schemas/LocalDate'
                   score:
                     type: number
+            pb_toast_date:
+              oneOf:
+                - $ref: '#/components/schemas/LocalDate'
+                - type: 'null'
+              description: |
+                Day the personal-best toast was last shown for this lift, so it shows at most
+                once a day; null if never shown. Prototype: `pbToast`.
 
     Weight:
       description: 'Body weight on a day. One per day; id = UUIDv5(`weights:<date>`). Prototype: `weights.entries`.'
@@ -1366,8 +1421,9 @@ components:
               $ref: '#/components/schemas/LocalDate'
             weight_kg:
               type: number
-              exclusiveMinimum: 0
-              maximum: 400
+              exclusiveMinimum: 20
+              exclusiveMaximum: 400
+              description: The prototype accepts a weigh-in only above 20 and below 400 kg.
 
     Measurement:
       description: |
@@ -1618,7 +1674,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SyncMeta'
         - type: object
-          required: [focus, rest_off, custom_tags, diet, water_sizes, exercise_overrides, flex, returning, ladder_stay, checkin_seen, adjustments, adaptive, learn, meal_plan, prep]
+          required: [focus, rest_off, custom_tags, diet, water_sizes, exercise_overrides, flex, returning, ladder_stay, checkin_seen, adjustments, adaptive, learn, meal_plan, prep, lab_hold]
           properties:
             focus:
               type: array
@@ -1634,8 +1690,8 @@ components:
               additionalProperties: { $ref: '#/components/schemas/ExerciseTags' }
             diet:
               type: string
-              enum: [any, egg, veg, nonveg]
-              description: Meal-idea diet filter.
+              enum: [any, egg, veg]
+              description: 'Meal-idea diet filter: everything, eggetarian or vegetarian.'
             water_sizes:
               type: object
               description: 'Prototype: `water`.'
@@ -1718,3 +1774,19 @@ components:
               items:
                 type: object
                 additionalProperties: true
+            lab_hold:
+              type: object
+              description: |
+                Lab-result hold. Prototype: `labHold`. While `on`, the app raises the calorie
+                target to at least maintenance and builds light sessions. The flag syncs so
+                every device applies the same targets and session mods; it holds no lab values.
+                Lab reports themselves stay on the device and never sync.
+              required: [on, since]
+              properties:
+                'on':
+                  type: boolean
+                since:
+                  oneOf:
+                    - $ref: '#/components/schemas/LocalDate'
+                    - type: 'null'
+                  description: Day the hold started; null when `on` is false.
