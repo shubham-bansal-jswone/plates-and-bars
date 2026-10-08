@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ProfileProvider } from '../src/state/ProfileProvider';
+import { SettingsProvider } from '../src/state/SettingsProvider';
 import type { StoreDb } from '../src/db/records';
 import type { WorkoutDb } from '../src/db/workouts';
 
@@ -48,4 +49,6 @@ export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<s
   return db;
 }
 
-export const withProfile = (db: StoreDb, ui: ReactNode) => <ProfileProvider db={db}>{ui}</ProfileProvider>;
+export const withProfile = (db: StoreDb, ui: ReactNode) => <ProfileProvider db={db}>
+    <SettingsProvider db={db}>{ui}</SettingsProvider>
+  </ProfileProvider>;

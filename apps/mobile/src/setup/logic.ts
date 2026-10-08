@@ -1,5 +1,6 @@
 import {
   SCREEN_QUESTIONS,
+  cmToFtIn,
   normaliseSetup,
   validateSetupStep,
   type ScreenAnswer,
@@ -77,13 +78,37 @@ export function localDate(now: Date): string {
   return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
 }
 
-/** The Profile record for complete answers: core's `normaliseSetup` plus local sync metadata. */
-export function buildProfile(d: Draft, now: Date): Profile {
+/** The form filled with a stored profile's answers (prototype `startSetup` on a redo); height shows in ft/in, as first time. */
+export function draftFromProfile(p: Profile): Draft {
+  const { ft, inch } = cmToFtIn(p.height_cm);
+  return {
+    sex: p.sex,
+    special: p.special,
+    age: String(p.age),
+    unit: 'ft',
+    ft: String(ft),
+    inch: String(inch),
+    cm: String(Math.round(p.height_cm)),
+    weight: String(p.weight_kg),
+    activity: p.activity,
+    where: p.where,
+    // Both came through core's validation when stored.
+    days: p.days as Draft['days'],
+    exp: p.exp ?? '',
+    minutes: p.minutes as Draft['minutes'],
+    goal: p.goal,
+    pace: p.pace,
+    screen: [...p.screen],
+  };
+}
+
+/** The Profile record for complete answers: core's `normaliseSetup` plus local sync metadata. A redo keeps `created` and `cleared`. */
+export function buildProfile(d: Draft, now: Date, previous?: Profile | null): Profile {
   return {
     id: null,
     version: 0,
     updated_at: now.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     deleted_at: null,
-    ...normaliseSetup(d, localDate(now)),
+    ...normaliseSetup(d, localDate(now), previous),
   };
 }

@@ -5,6 +5,7 @@ import { fmt } from '../format';
 import { Button, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
+import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
 import { catalog } from '../workout/catalog';
@@ -15,19 +16,17 @@ import { Card, Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../wo
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 
-const NO_FOCUS: readonly string[] = [];
-
 interface Props {
   db: WorkoutDb;
   /** Clock, injectable for tests. */
   now?: () => Date;
-  /** Focus muscles (contract `Settings.focus`); the app has no settings store yet. */
-  focus?: readonly string[];
 }
 
 /** Workout tab: today's planned session with Start, then the session itself. */
-export function WorkoutScreen({ db, now = () => new Date(), focus = NO_FOCUS }: Props) {
+export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const { profile, status } = useProfile();
+  const { ready, settings } = useSettings();
+  const { focus, rest_off: restOff } = settings;
   const [toast, setToast] = useState<string | null>(null);
   const [rest, setRest] = useState<RestState | null>(null);
   const [howTo, setHowTo] = useState<string | null>(null);
@@ -39,15 +38,16 @@ export function WorkoutScreen({ db, now = () => new Date(), focus = NO_FOCUS }: 
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const startRest = useCallback((name: string, label: string) => {
+    if (restOff) return;
     const total = restFor(name, catalog.tags);
     const t = Date.now();
     setRest({ id: t, end: t + total * 1000, total, label });
-  }, []);
+  }, [restOff]);
 
   const w = useWorkoutDay({ db, profile, now, focus, notify, startRest });
   const { day } = w;
 
-  if (status !== 'ready' || !day.ready) return <Page><Hint>Loading…</Hint></Page>;
+  if (status !== 'ready' || !ready || !day.ready) return <Page><Hint>Loading…</Hint></Page>;
   if (!profile)
     return (
       <Page>

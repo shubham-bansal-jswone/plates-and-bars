@@ -42,6 +42,12 @@ export const MIGRATIONS: readonly string[] = [
      key TEXT PRIMARY KEY NOT NULL,
      data TEXT NOT NULL
    );`,
+  // v4: the user's contract Settings record, one row under the fixed local key 'me' (a JSON document). The v1
+  // table named settings is the device-local key/value flags, so this one is user_settings.
+  `CREATE TABLE IF NOT EXISTS user_settings (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );`,
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {

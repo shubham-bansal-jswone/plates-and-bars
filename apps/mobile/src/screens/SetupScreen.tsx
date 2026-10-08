@@ -5,7 +5,7 @@ import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, layout } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
-import { buildProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
+import { buildProfile, draftFromProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useTheme } from '../theme/useTheme';
 
@@ -214,20 +214,29 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
 }
 
 /** Consent first, then four question steps, then the results; "Use these targets" saves the profile. */
-export function SetupScreen() {
-  const { status, consent, giveConsent, setProfile, skipSetup } = useProfile();
+export function SetupScreen({ recalc = false }: { recalc?: boolean }) {
+  const { status } = useProfile();
+  // Wait for the stored profile, so a redo starts from its answers.
+  return status === 'ready' ? <SetupFlow recalc={recalc} /> : null;
+}
+
+/**
+ * With a stored profile (redo), the form starts with its answers, and `recalc` opens straight on the results
+ * (prototype `su-recalc`, `startSetup(4)`); saving keeps the profile's `created` and `cleared`.
+ */
+function SetupFlow({ recalc }: { recalc: boolean }) {
+  const { profile: stored, consent, giveConsent, setProfile, skipSetup } = useProfile();
   const router = useRouter();
   const c = useTheme();
-  const [d, setD] = useState<Draft>(emptyDraft);
-  const [step, setStep] = useState(0);
+  const [d, setD] = useState<Draft>(() => (stored ? draftFromProfile(stored) : emptyDraft()));
+  const [step, setStep] = useState(stored && recalc ? STEPS : 0);
   const [err, setErr] = useState('');
   const set: Pick = (k, v) => {
     setErr('');
     setD((prev) => ({ ...prev, [k]: v }));
   };
-  const profile = useMemo(() => (step === STEPS ? buildProfile(d, new Date()) : null), [step, d]);
+  const profile = useMemo(() => (step === STEPS ? buildProfile(d, new Date(), stored) : null), [step, d, stored]);
 
-  if (status !== 'ready') return null;
   if (!consent) return <Consent onContinue={giveConsent} />;
 
   const next = () => {
@@ -251,14 +260,18 @@ export function SetupScreen() {
           <View />
         )}
         <Text style={{ color: c.muted }}>{step < STEPS ? `Step ${step + 1} of ${STEPS}` : 'Your targets'}</Text>
-        <Button
-          kind="link"
-          label="Skip for now"
-          onPress={() => {
-            skipSetup();
-            router.replace('/' as never);
-          }}
-        />
+        {stored ? (
+          <Button kind="link" label="Cancel" onPress={() => (router.canGoBack() ? router.back() : router.replace('/targets' as never))} />
+        ) : (
+          <Button
+            kind="link"
+            label="Skip for now"
+            onPress={() => {
+              skipSetup();
+              router.replace('/' as never);
+            }}
+          />
+        )}
       </View>
       {profile ? (
         <>
