@@ -48,13 +48,18 @@ These change the scope table in the Development Plan. Treat them as v1 unless ma
 - Protein: 2.0 g/kg (lose, recomp) else 1.8 g/kg, on a reference weight at BMI 27 when BMI > 30; rounded to 5.
 - Fat: max(25% of kcal, 0.6 g/kg). Carbs: the rest.
 
-**Fixture rounding (`targets.json`).** `calcTargets` returns energy values unrounded; the fixture stores them rounded as the screen shows them. Ports compare after applying the same rounding:
-- `tdee`, `bmr`, `movement`, `training`, `digestion`: whole kcal, `Math.round` (the prototype's `fmt`).
-- `kcal`: rounded to 10 by `calcTargets` itself; `protein` to 5; `carbs`, `fat`, `refWeight`: whole numbers as returned.
-- `weeklyKg`: 2 decimals, `Math.round(x * 100) / 100` (`toFixed(2)` gives the same values for every current case).
-- Negative zero is written as `0` (JSON has no `-0`); compare with `Object.is` only after normalising.
+**Fixture rounding.** The golden fixtures store some values rounded; ports compare after applying the same rounding. Inferred from the data and the prototype, since the generator that wrote them is not in the repo.
 
-Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fractional numbers; `foods.json`, `formulas.json` and `progression.json` hold values with at most one decimal, stored as the prototype holds them (no extra rounding known). Until the fixture generator is in the repo (#74), these notes are inferred from the data.
+`targets.json` (prototype keys `refW` and `weekly` are stored as `refWeight` and `weeklyKg`):
+- `tdee`, `bmr`, `movement`, `training`, `digestion`: `calcTargets` returns them unrounded; the fixture stores whole kcal, `Math.round` (the prototype's `fmt`, as the screen shows them).
+- `kcal`: rounded to 10 and `protein` to 5 by `calcTargets` itself; `carbs` and `fat` come out whole from `calcTargets`.
+- `refWeight`: whole in every current case because every fixture weight is whole; `calcTargets` returns the body weight unchanged when BMI is 30 or below, so ports round it with `Math.round` before comparing.
+- `weeklyKg`: 2 decimals, `Math.round(x * 100) / 100` (`toFixed(2)` agrees on every current case). The screen shows 1 decimal; the fixture keeps 2.
+- Negative zero is stored as `0` (two current cases produce `-0`); normalise before comparing with `Object.is`.
+
+`formulas.json`: `navyBodyFat` is rounded to 1 decimal (`navyBF` returns 25.2156 and 32.3715; the fixture stores 25.2 and 32.4), although the screen shows a whole percentage. Water, fibre and workout burn come out whole from the prototype.
+
+Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fractional numbers; `foods.json` and `progression.json` hold at most one decimal, as the prototype holds them.
 
 **Health check:** any "yes" or pregnancy → `needsClearance` until the user taps "My doctor has cleared me": sessions are light (one fewer set, no weight increases) and a card explains why.
 
