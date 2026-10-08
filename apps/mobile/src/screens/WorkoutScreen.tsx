@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
+import { modsNote, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -8,11 +8,10 @@ import { useProfile } from '../state/ProfileProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
 import { catalog } from '../workout/catalog';
-import { CHECKIN, MUSCLE, REASON_TEXT, listJoin } from '../workout/copy';
+import { CHECKIN, MUSCLE, REASON_TEXT, listJoin, modsNoteText } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { guidance, progressionContext } from '../workout/guidance';
 import { Card, Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
-import { secondSessionOffered, volumeKg } from '../workout/pending-core';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 
@@ -182,15 +181,9 @@ function SessionView({ w, profile, focus, onHowTo }: { w: W; profile: Prof; focu
         done++;
       }
     }
-  const mods = wk.mods as { light?: boolean; short?: boolean; where?: string };
-  const notes = [
-    mods.light && 'lighter session: 1 fewer set, no weight increases',
-    mods.short && 'short session: main exercises only',
-    mods.where && mods.where !== 'gym' && (mods.where === 'dumbbells' ? 'dumbbells-only version' : 'bodyweight version'),
-  ].filter(Boolean);
-  const second = secondSessionOffered(day.exs, wk.template);
-  const vol = volumeKg(day.exs);
-  const list = (planList(profile) as readonly string[]).filter((t) => t !== wk.base);
+  const notes = modsNote(wk.mods).map(modsNoteText);
+  const choices = secondSessionChoices({ exercises: day.exs, template: wk.template, base: wk.base }, profile);
+  const vol = sessionVolume(day.exs);
 
   return (
     <Page>
@@ -221,14 +214,14 @@ function SessionView({ w, profile, focus, onHowTo }: { w: W; profile: Prof; focu
         );
       })}
       <Hint>Tap the tick with a field empty to use the suggested number. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
-      {second ? (
+      {choices ? (
         <Card>
           <Button label="Training again later today?" kind="link" onPress={() => setOpen(!open)} />
           {open ? (
             <>
               <Hint>Twice-a-day training is for experienced lifters with enough recovery. Pick different muscles from this morning’s session.</Hint>
               <View style={styles.wrap}>
-                {list.map((t) => (
+                {choices.map((t) => (
                   <Chip key={t} label={`Add ${t}`} text={t} onPress={() => void w.addSecond(t)} />
                 ))}
               </View>

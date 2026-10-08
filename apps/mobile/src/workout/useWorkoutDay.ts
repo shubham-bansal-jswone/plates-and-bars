@@ -7,6 +7,8 @@ import {
   setTarget,
   tickFill,
   updateLift,
+  mergeSecondSession,
+  templateName,
   type Checkin,
   type LiftRecord,
   type Rate,
@@ -16,7 +18,6 @@ import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift,
 import { localDate } from '../setup/logic';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
-import { mergeSecond, templateName } from './pending-core';
 import { guidance, progressionContext } from './guidance';
 import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState } from './model';
 import type { Workout } from './types';
@@ -195,13 +196,12 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
           checkin: {},
           focus,
         });
-        const have = new Set(d.exs.map((e) => e.name));
         const first = d.exs.length;
-        const added: ExState[] = built.exercises
-          .filter((e) => !have.has(e.name))
-          .map((e) => ({ name: e.name, part: 2, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
-        d.exs = [...d.exs, ...added];
-        d.workout = { ...old, ...mergeSecond(old, template, built.mods.light) };
+        const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        const merged = mergeSecondSession({ exercises: d.exs, template: old.template, base: old.base, mods: old.mods }, template, { exercises: builtEx, mods: built.mods });
+        const added = merged.exercises.slice(first) as ExState[];
+        d.exs = merged.exercises as ExState[];
+        d.workout = { ...old, template: merged.template, base: merged.base, mods: merged.mods };
         commit(d);
         notify(`${template} added to today`);
         await enqueue(async () => {

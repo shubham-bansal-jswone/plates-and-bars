@@ -444,3 +444,19 @@ describe('Workout tab: unticking every set', () => {
     expect(screen.getByText('Suggested: 62.5 kg × 6–10 reps')).toBeTruthy();
   });
 });
+
+describe('Workout tab: the Today note', () => {
+  it('says what a stored recovery week or re-entry changes, from core’s codes', async () => {
+    const db = await setup();
+    const w = { id: null, version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, date: DATE, template: 'Push B', base: 'Push B', where: null, cardio_min: null, ci_choice: null, exercises: [{ name: 'Pec Deck Fly', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }] };
+    db.rows.set(`workouts:${DATE}`, JSON.stringify({ ...w, mods: { light: true, short: false, where: 'gym', deload: true, reentry: 0 } }));
+    await screen.unmount();
+    await mount(db);
+    // A recovery week wins over "lighter session".
+    expect(await screen.findByText('Today: recovery week: fewer sets, about 10% lighter.')).toBeTruthy();
+    await screen.unmount();
+    db.rows.set(`workouts:${DATE}`, JSON.stringify({ ...w, mods: { light: false, short: true, where: 'dumbbells', deload: false, reentry: 0.3 } }));
+    await mount(db);
+    expect(await screen.findByText('Today: easing back in: about 30% lighter; short session: main exercises only; dumbbells-only version.')).toBeTruthy();
+  });
+});

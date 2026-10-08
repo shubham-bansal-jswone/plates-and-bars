@@ -3,6 +3,8 @@ import {
   lastFor,
   mapForWhere,
   resolveSession,
+  sessionMods,
+  type SessionMods,
   sessionSets,
   shortSession,
   TEMPLATES,
@@ -15,7 +17,6 @@ import {
 } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
 import { catalog } from './catalog';
-import { sessionMods } from './pending-core';
 
 
 export interface BuildInput {
@@ -34,7 +35,7 @@ export interface BuildInput {
 export interface BuiltSession {
   /** Exercises in session order, with their working-set counts. */
   exercises: { name: string; sets: number; bridge: boolean }[];
-  mods: { light: boolean; short: boolean; where: Where; deload: boolean; reentry: number };
+  mods: SessionMods;
   /** Names the template has that this session leaves out (they rotate in on other days). */
   left: string[];
   /** The exercises `applyFocus` added, for the focus badge. */
@@ -54,14 +55,15 @@ export function buildSession(i: BuildInput): BuiltSession {
   const state = { profile: i.profile, sessions: i.sessions };
   let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, catalog);
   items = shortSession(items, i.checkin.time);
-  const mods = sessionMods({ ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile });
+  // Recovery week and re-entry are settings the app does not store yet. TODO(recovery issue): pass them here.
+  const { setsLight, mods } = sessionMods({ date: i.date, ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile, deload: null, reentry: null });
   const sets = sessionSets(items, {
     profile: i.profile,
     date: i.date,
     focus: i.focus,
     tags: catalog.tags,
     lastSets: (n) => lastFor(n, i.lifts, i.date)?.sets.length,
-    light: mods.light,
+    light: setsLight,
   });
   const kept = new Set(items.map((x) => x.name));
   return {

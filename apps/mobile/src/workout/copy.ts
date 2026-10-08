@@ -1,4 +1,4 @@
-import type { Checkin, CheckinReason, ExType, Rate } from '@plate-and-bar/core';
+import type { ModsNotePart, Checkin, CheckinReason, ExType, Rate } from '@plate-and-bar/core';
 
 // Display text from the prototype's workout screen (TYPE_LABEL, MUSCLE, RATES, CI_Q).
 
@@ -49,4 +49,20 @@ export const REASON_TEXT: Record<CheckinReason, string> = { sleep: 'poor sleep',
 /** "a, b and c". Mirrors the prototype's `listJoin`. */
 export function listJoin(a: string[]): string {
   return a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
+}
+
+/** Copy for one part of the "Today: …" note (core's `modsNote` gives the codes). */
+export function modsNoteText(p: ModsNotePart): string {
+  switch (p.kind) {
+    case 'deload':
+      return 'recovery week: fewer sets, about 10% lighter';
+    case 'reentry':
+      return `easing back in: about ${p.pct}% lighter`;
+    case 'light':
+      return 'lighter session: 1 fewer set, no weight increases';
+    case 'short':
+      return 'short session: main exercises only';
+    case 'where':
+      return p.where === 'dumbbells' ? 'dumbbells-only version' : 'bodyweight version';
+  }
 }

@@ -1,4 +1,4 @@
-import type { Rate } from '@plate-and-bar/core';
+import type { Rate, SessionMods } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
 // Contract records (packages/api/openapi.yaml), snake_case. Workout is a natural-key table:
@@ -26,7 +26,8 @@ export interface Workout extends Omit<SyncMeta, 'id'> {
   base: string | null;
   where: 'gym' | 'dumbbells' | 'bodyweight' | null;
   cardio_min: number | null;
-  mods: Record<string, unknown>;
+  /** Session modifiers; the shape is core's `SessionMods` (the contract stores it as is). */
+  mods: Partial<SessionMods>;
   exercises: WorkoutExercise[];
   ci_choice: 'light' | 'swap' | 'orig' | null;
 }
