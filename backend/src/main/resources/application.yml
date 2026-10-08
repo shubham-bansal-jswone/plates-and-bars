@@ -8,8 +8,21 @@ spring:
   flyway:
     enabled: true
 
+logging:
+  level:
+    # These print "rejected value [...]" (user input such as an email) when validation fails.
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: INFO
+    org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolver: INFO
+    # TRACE here prints exception-handler arguments, including validation exceptions with the rejected value.
+    org.springframework.web.method.HandlerMethod: INFO
+
 server:
   port: ${PORT:8080}
 
 app:
   version: ${APP_VERSION:0.1.0}
+  auth:
+    # Environment only. No default: the app refuses to start without a key of at least 32 bytes.
+    jwt-signing-key: ${JWT_SIGNING_KEY:}
+    # Comma-separated OAuth client ids (audiences) accepted in Google ID tokens.
+    google-client-ids: ${GOOGLE_CLIENT_IDS:}

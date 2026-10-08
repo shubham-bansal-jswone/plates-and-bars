@@ -23,6 +23,11 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
+    @ExceptionHandler(ApiException.class)
+    ResponseEntity<ErrorResponse> api(ApiException e) {
+        return respond(e.status(), e.code(), e.getMessage(), null);
+    }
+
     @ExceptionHandler(ServiceUnavailableException.class)
     ResponseEntity<ErrorResponse> unavailable(ServiceUnavailableException e) {
         log.warn("Service unavailable, cause {}", e.getCause() == null ? "none" : e.getCause().getClass().getName());
