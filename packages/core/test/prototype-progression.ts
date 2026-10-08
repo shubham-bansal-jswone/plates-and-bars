@@ -1,5 +1,5 @@
-import type { ExerciseMetaTable } from '../src/index';
 import { prototypeSource, sliceBlock, sliceLine } from './helpers';
+import type { MetaTable, ShortTag } from './prototype-plan';
 
 /** Every statement in the prototype that builds `EX_META`, in source order. */
 export function exMetaSource(src: string): string {
@@ -16,8 +16,26 @@ export function exMetaSource(src: string): string {
 }
 
 /** Prototype `EX_META` as the prototype builds it (custom tags aside). */
-export function prototypeExMeta(): ExerciseMetaTable {
-  return new Function(`${exMetaSource(prototypeSource())}\nreturn EX_META;`)() as ExerciseMetaTable;
+export function prototypeExMeta(): MetaTable {
+  return new Function(`${exMetaSource(prototypeSource())}\nreturn EX_META;`)() as MetaTable;
+}
+
+export interface ProtoCustomTags {
+  S: { settings: { customTags?: Record<string, ShortTag> } };
+  TAGS: Record<string, ShortTag>;
+  EX_META: MetaTable;
+  applyCustomTags(): void;
+}
+
+/** Runs prototype `applyCustomTags()`, sliced out of the HTML, on the `TAGS` and `EX_META` passed in (it mutates them). */
+type CustomTagsFn = (tags: Record<string, ShortTag>, meta: MetaTable) => ProtoCustomTags;
+let customTagsFn: CustomTagsFn | null = null;
+export function loadCustomTags(tags: Record<string, ShortTag>, meta: MetaTable): ProtoCustomTags {
+  if (!customTagsFn) {
+    const code = ['const S = { settings:{} };', sliceLine(prototypeSource(), 'function applyCustomTags(){'), 'return { S, TAGS, EX_META, applyCustomTags };'].join('\n');
+    customTagsFn = new Function('TAGS', 'EX_META', code) as CustomTagsFn;
+  }
+  return customTagsFn(tags, meta);
 }
 
 export interface ProgState {
@@ -42,7 +60,7 @@ export interface ProtoProgression {
  * the HTML, against a fake `S`, with `EX_META` passed in. UI calls (`saveDay`, `render`, `toast`,
  * `startRest`, `updateLift`) are stubbed; toasts are recorded.
  */
-export function loadProgression(meta: ExerciseMetaTable): ProtoProgression {
+export function loadProgression(meta: MetaTable): ProtoProgression {
   const src = prototypeSource();
   const code = [
     'const S = { date:"", lifts:{}, settings:{}, day:{ workout:{ exercises:[] } }, where:"gym" };',

@@ -1,15 +1,64 @@
 import { daysBetween } from './dates';
 import { num } from './num';
 import { older, type PlanProfile, type Where } from './plan';
+import type { ExerciseCatalog, ExerciseTag } from './session';
 
 /** Equipment type of an exercise (prototype `EX_META[name][0]`). */
 export type ExType = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'assisted' | 'bodyweight' | 'time' | 'other';
 
 /**
- * Per-exercise type and rep range, as in prototype `EX_META` (`name → [type, lo, hi]`). It is content
- * data, so it is passed in rather than copied here; golden/progression.json's `exerciseMeta` has this shape.
+ * An exercise's type and rep range: prototype `EX_META[name]` (`[type, lo, hi]`) under content's names
+ * (content/exercises.json `meta`, the contract's `exercise_overrides` names). `type` is a plain string
+ * so content/exercises.json is assignable as is; content's validator limits it to `ExType` values.
  */
-export type ExerciseMetaTable = Readonly<Record<string, readonly [ExType, number, number]>>;
+export interface ExerciseMeta {
+  type: string;
+  rep_low: number;
+  rep_high: number;
+}
+
+/** Prototype `exInfo`'s `['other', 8, 12]`: the meta of an exercise the catalogue does not know. */
+const FALLBACK_META: ExerciseMeta = { type: 'other', rep_low: 8, rep_high: 12 };
+
+/**
+ * The catalogue's meta for `name`, else other, 8–12.
+ *
+ * Mirrors the `EX_META[name] || ['other',8,12]` step of prototype `exInfo(name)`.
+ */
+export function metaFor(name: string, catalog: Pick<ExerciseCatalog, 'meta'>): ExerciseMeta {
+  return catalog.meta[name] || FALLBACK_META;
+}
+
+/**
+ * Meta for a custom exercise: type from its equipment (barbell, dumbbell, machine, cable and
+ * bodyweight keep it; anything else is other), 8–12 reps.
+ *
+ * Mirrors the `EX_META[n] = [...]` step of prototype `applyCustomTags()`.
+ */
+export function customExerciseMeta(tag: Pick<ExerciseTag, 'equipment'>): ExerciseMeta {
+  const eq = tag.equipment;
+  const type = eq === 'machine' || eq === 'cable' || eq === 'dumbbell' || eq === 'barbell' ? eq : eq === 'bodyweight' ? 'bodyweight' : 'other';
+  return { type, rep_low: 8, rep_high: 12 };
+}
+
+/**
+ * The catalogue with the user's custom exercises added (contract `Settings.custom_tags`). Each custom
+ * tag is set, replacing a built-in tag of the same name in its place, new names after the built-in
+ * ones. Meta is added only for names with none (`customExerciseMeta`); existing meta is kept. Returns
+ * a new catalogue; other fields pass through.
+ *
+ * Mirrors prototype `applyCustomTags()` (catalogue and `S.settings.customTags` passed in; the
+ * prototype mutates `TAGS` and `EX_META`).
+ */
+export function applyCustomTags<C extends Pick<ExerciseCatalog, 'tags' | 'meta'>>(catalog: C, customTags: Readonly<Record<string, ExerciseTag>> | null | undefined): C {
+  const tags: Record<string, ExerciseTag> = { ...catalog.tags };
+  const meta: Record<string, ExerciseMeta> = { ...catalog.meta };
+  for (const [n, t] of Object.entries(customTags || {})) {
+    tags[n] = t;
+    if (!meta[n]) meta[n] = customExerciseMeta(t);
+  }
+  return { ...catalog, tags, meta };
+}
 
 /** Smallest weight jump per type, in kg. Mirrors prototype `DEFAULT_STEP`. */
 export const DEFAULT_STEP: Readonly<Record<ExType, number>> = { barbell: 2.5, dumbbell: 2.5, machine: 5, cable: 5, assisted: 5, other: 2.5, bodyweight: 0, time: 0 };
@@ -24,6 +73,23 @@ export interface ExerciseOverride {
   lo?: number;
   hi?: number;
   step?: number;
+}
+
+/** One entry of contract `Settings.exercise_overrides` (prototype `S.settings.ex[name]` renamed). */
+export interface SettingsExerciseOverride {
+  type: string;
+  step_kg: number;
+  rep_low: number;
+  rep_high: number;
+}
+
+/**
+ * The prototype-shaped overrides `exInfo` and `ProgressionContext.overrides` read, from contract
+ * `Settings.exercise_overrides`: `type` as is, `step_kg` → `step`, `rep_low` → `lo`, `rep_high` → `hi`.
+ * Like the prototype, a falsy type or rep bound falls back to the catalogue in `exInfo`.
+ */
+export function overridesFromSettings(overrides: Readonly<Record<string, SettingsExerciseOverride>> | null | undefined): Record<string, ExerciseOverride> {
+  return Object.fromEntries(Object.entries(overrides || {}).map(([n, o]) => [n, { type: o.type as ExType, step: o.step_kg, lo: o.rep_low, hi: o.rep_high }]));
 }
 
 /** Type, rep range and weight step for an exercise. */
@@ -54,6 +120,16 @@ export interface LiftRecord extends LiftSession {
   /** First date on this exercise; older records may lack it. */
   first?: string;
   prev?: LiftSession | null;
+  /** Last 8 session scores, `e` rounded to 0.1 (prototype `hist`; written by `updateLift`). */
+  hist?: readonly ScoreEntry[];
+  /** Day the personal-best toast was last shown, null if never (prototype `pbToast`; contract `pb_toast_date`). */
+  pbToast?: string | null;
+}
+
+/** One session's score in a lift's history (prototype `hist[i]`; contract `history[i]` with `score`). */
+export interface ScoreEntry {
+  date: string;
+  e: number;
 }
 
 /** Everything the weight guidance reads from state. */
@@ -62,8 +138,8 @@ export interface ProgressionContext {
   date: string;
   /** Prototype `S.lifts`. */
   lifts: Readonly<Record<string, LiftRecord>>;
-  /** Prototype `EX_META`. */
-  meta: ExerciseMetaTable;
+  /** Prototype `EX_META`: content/exercises.json, custom exercises added with `applyCustomTags`. */
+  catalog: Pick<ExerciseCatalog, 'meta'>;
   /** Prototype `S.settings.ex`. */
   overrides?: Readonly<Record<string, ExerciseOverride>>;
   /** Where today's session happens (prototype `whereNow()`); defaults to the gym. */
@@ -85,17 +161,18 @@ export interface Suggestion {
 const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
 
 /**
- * Type, rep range and step: the user's setting wins, else `meta` (unknown names: other, 8–12). With
- * dumbbells at home the range rises to at least 10–20 unless the user set the low end.
+ * Type, rep range and step: the user's setting wins, else the catalogue's meta (unknown names: other,
+ * 8–12; see `metaFor`). With dumbbells at home the range rises to at least 10–20 unless the user set
+ * the low end. `override` is prototype-shaped; build it from Settings with `overridesFromSettings`.
  *
- * Mirrors prototype `exInfo(name)` (`whereNow()` passed in as `where`).
+ * Mirrors prototype `exInfo(name)` (`EX_META` read from `catalog.meta`, `whereNow()` passed in as `where`).
  */
-export function exInfo(name: string, meta: ExerciseMetaTable, override?: ExerciseOverride | null, where: Where = 'gym'): ExInfo {
-  const m = meta[name] || (['other', 8, 12] as const);
+export function exInfo(name: string, catalog: Pick<ExerciseCatalog, 'meta'>, override?: ExerciseOverride | null, where: Where = 'gym'): ExInfo {
+  const m = metaFor(name, catalog);
   const o = override || {};
-  const type = o.type || m[0];
+  const type = o.type || (m.type as ExType);
   const homeDb = type === 'dumbbell' && !o.lo && where === 'dumbbells';
-  return { type, lo: o.lo || (homeDb ? Math.max(10, m[1]) : m[1]), hi: o.hi || (homeDb ? Math.max(20, m[2]) : m[2]), step: o.step !== undefined ? o.step : DEFAULT_STEP[type] };
+  return { type, lo: o.lo || (homeDb ? Math.max(10, m.rep_low) : m.rep_low), hi: o.hi || (homeDb ? Math.max(20, m.rep_high) : m.rep_high), step: o.step !== undefined ? o.step : DEFAULT_STEP[type] };
 }
 
 /** Mirrors prototype `noLoad(t)`: bodyweight and timed holds have no weight to suggest. */
@@ -143,7 +220,7 @@ function topOf(sets: readonly LiftSet[], info: ExInfo): number {
   return sets.reduce((m, s) => (info.type === 'assisted' ? Math.min(m, s.w) : Math.max(m, s.w)), (sets[0] as LiftSet).w);
 }
 
-const infoFor = (name: string, c: ProgressionContext): ExInfo => exInfo(name, c.meta, (c.overrides || {})[name], c.where);
+const infoFor = (name: string, c: ProgressionContext): ExInfo => exInfo(name, c.catalog, (c.overrides || {})[name], c.where);
 
 /**
  * Double progression with safety rules, from the last session. Top of the range on every set with

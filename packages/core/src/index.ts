@@ -13,9 +13,45 @@ export { num } from './num';
  * - `ACTIVITY_MULTIPLIER` mirrors prototype `ACTIVITY[k].m`.
  * - `PACE_ADJ` mirrors prototype `PACE[k].adj`.
  * - `TRAIN_NET_MET` mirrors prototype `TRAIN_NET_MET`.
+ * - `DEFICIT_CAP_KCAL` mirrors the 750 kcal deficit cap in prototype `calcTargets`.
  */
-export { calcTargets, bmrOf, ACTIVITY_MULTIPLIER, PACE_ADJ, TRAIN_NET_MET } from './targets';
+export { calcTargets, bmrOf, ACTIVITY_MULTIPLIER, PACE_ADJ, TRAIN_NET_MET, DEFICIT_CAP_KCAL } from './targets';
 export type { TargetsProfile, TargetsResult, Sex, Activity, Goal, Pace, Special } from './targets';
+
+/**
+ * Setup flow: validation, the saved profile, and the results screen's values.
+ * - `validateSetupStep` mirrors prototype `validateStep()` (step passed in), returning a `SetupError` code, not copy.
+ * - `validateSetup` runs `validateSetupStep` over steps 0–3, as "Continue" does one step at a time.
+ * - `normaliseSetup` mirrors the cleaning in `validateStep()` plus the `su-apply` step of `setupAction`, in contract `Profile` names.
+ * - `toTargetsProfile` maps contract `Profile` names to the prototype names `calcTargets` reads.
+ * - `ftInToCm` mirrors the ft/in → cm step of `validateStep()`; `cmToFtIn` mirrors `heightText(cm)` and `startSetup`.
+ * - `setupSummary` mirrors the values in prototype `setupResultHtml()`: burn range, pace, deficit percent, notes.
+ * - `AGE_MIN`/`AGE_MAX`, `HEIGHT_MIN_CM`/`HEIGHT_MAX_CM`, `WEIGHT_MIN_KG`/`WEIGHT_MAX_KG` mirror the limits in `validateStep()`.
+ * - `SESSION_MINUTES`, `DAY_CHOICES` mirror the chips in `renderSetup()`; `SETUP_STEPS` its "of 4"; `SCREEN_QUESTIONS` is `SCREEN_Q.length`.
+ * - `BURN_RANGE`, `PACE_STEADY_KCAL` mirror the 0.9/1.1 range and ±20 kcal pace bands in `setupResultHtml()`.
+ */
+export {
+  validateSetupStep,
+  validateSetup,
+  normaliseSetup,
+  toTargetsProfile,
+  ftInToCm,
+  cmToFtIn,
+  setupSummary,
+  AGE_MIN,
+  AGE_MAX,
+  HEIGHT_MIN_CM,
+  HEIGHT_MAX_CM,
+  WEIGHT_MIN_KG,
+  WEIGHT_MAX_KG,
+  SESSION_MINUTES,
+  DAY_CHOICES,
+  SETUP_STEPS,
+  SCREEN_QUESTIONS,
+  BURN_RANGE,
+  PACE_STEADY_KCAL,
+} from './setup';
+export type { SetupAnswers, SetupError, SetupProfile, SetupTargets, PreviousProfile, HeightUnit, SetupSummary, SetupPace, SetupNote } from './setup';
 
 /**
  * Health check.
@@ -86,19 +122,45 @@ export { resolveSession, resolveName, candidates, ruleMatches, activeRules, isEx
 export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplEntry, CandidateOptions, Candidate, CandidateWhy, ResolveState } from './exclusions';
 
 /**
- * Weight guidance. `ExerciseMetaTable` is prototype `EX_META` (`name → [type, lo, hi]`), passed in.
+ * Weight guidance. Prototype `EX_META` is the catalogue's `meta` (`ExerciseMeta`: content/exercises.json
+ * `meta`, `name → { type, rep_low, rep_high }`), read through `ProgressionContext.catalog`.
  * - `suggestBase` mirrors prototype `suggestBase(ex)`; `applyMods` mirrors `applyMods(sug, ex)` (state passed in).
  *   Prototype `suggestFor(ex)` is `applyMods(suggestBase(ex, c), ex, c)`.
- * - `exInfo`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord` mirror the prototype functions of the same name.
+ * - `exInfo` mirrors prototype `exInfo(name)`; `metaFor` mirrors its `EX_META[name] || ['other',8,12]` step.
+ * - `applyCustomTags` mirrors prototype `applyCustomTags()` (custom tags merged, meta added when missing);
+ *   `customExerciseMeta` mirrors its type-from-equipment, 8–12 step.
+ * - `overridesFromSettings` turns contract `Settings.exercise_overrides` into prototype `S.settings.ex` (what `exInfo` reads).
+ * - `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord` mirror the prototype functions of the same name.
  * - `DEFAULT_STEP` mirrors prototype `DEFAULT_STEP`.
  * - `setTarget` mirrors prototype `setTarget(ex, j, sug)` (in-session rating adjustments).
  * - `tickFill`, `rampRate`, `rampTickFill` mirror the `tick`, ramp `rate`/`rerate` and `ramp-tick` steps of prototype `workoutAction`.
  */
-export { suggestBase, applyMods, exInfo, lastFor, snap, harder, easier, kgLabel, noLoad, repWord, DEFAULT_STEP, setTarget, tickFill, rampRate, rampTickFill } from './progression';
+export {
+  suggestBase,
+  applyMods,
+  exInfo,
+  metaFor,
+  customExerciseMeta,
+  applyCustomTags,
+  overridesFromSettings,
+  lastFor,
+  snap,
+  harder,
+  easier,
+  kgLabel,
+  noLoad,
+  repWord,
+  DEFAULT_STEP,
+  setTarget,
+  tickFill,
+  rampRate,
+  rampTickFill,
+} from './progression';
 export type {
   ExType,
-  ExerciseMetaTable,
+  ExerciseMeta,
   ExerciseOverride,
+  SettingsExerciseOverride,
   ExInfo,
   Rate,
   LiftSet,
@@ -110,4 +172,18 @@ export type {
   ModsContext,
   SetEntry,
   SetTarget,
+  ScoreEntry,
 } from './progression';
+
+/**
+ * Stalls, the recovery-week card and personal bests. Records are prototype `S.lifts[name]` with
+ * `hist` and `pbToast` (contract `LiftStat.history`, `pb_toast_date`).
+ * - `sessionScore`, `stalled`, `stalledList`, `inRange`, `checkBest`, `stallCard` mirror the prototype functions of the same name (state passed in).
+ * - `updateLift` mirrors prototype `updateLift(ex)`: the new record, its history and whether to toast a personal best.
+ * - `recoveryCard` mirrors the "several stalls → recovery week" card in prototype `renderStart()`.
+ * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`.
+ * - `addDays` mirrors prototype `addDays(s, n)`.
+ */
+export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, checkBest, updateLift } from './stalls';
+export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './stalls';
+export { addDays } from './dates';

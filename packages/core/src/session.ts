@@ -1,4 +1,5 @@
 import { beginnerRamp, exerciseCap, older, type PlanProfile, type SessionLog, type Where } from './plan';
+import type { ExerciseMeta } from './progression';
 
 /**
  * Exercise tags, as in prototype `TAGS` (built with `TG`), with content/exercises.json's field names.
@@ -19,7 +20,7 @@ export interface ExerciseTag {
 export type AwayMap = Readonly<Record<string, readonly (string | null)[]>>;
 
 /**
- * The exercise content the session rules read: the `tags`, `cards` and `away_map` fields of
+ * The exercise content the rules read: the `tags`, `meta`, `cards` and `away_map` fields of
  * content/exercises.json, passed in as is (other fields are ignored). It is content data (spec item 4),
  * not rules, so it is passed in rather than copied here. `tags` key order matters: `focusPick` breaks
  * ties by it, as the prototype does with `Object.entries(TAGS)` (built-in tags first, then user custom
@@ -28,6 +29,8 @@ export type AwayMap = Readonly<Record<string, readonly (string | null)[]>>;
 export interface ExerciseCatalog {
   /** Prototype `TAGS`, custom tags included. */
   tags: Readonly<Record<string, ExerciseTag>>;
+  /** Prototype `EX_META` (type and rep range per exercise), custom exercises included. */
+  meta: Readonly<Record<string, ExerciseMeta>>;
   /** Prototype `CARDS`: only whether a name has a card is read, never a card's fields. */
   cards: Readonly<Record<string, unknown>>;
   /** Prototype `AWAY`, at `away_map.dumbbells_bodyweight`. */

@@ -2,7 +2,7 @@ import type { ExerciseCatalog, ExerciseTag } from '../src/index';
 import { loadGolden, prototypeSource, sliceBlock, sliceLine } from './helpers';
 
 /** A tag as the prototype and golden/exercises.json write it (prototype `TG`). */
-interface ShortTag {
+export interface ShortTag {
   p: string;
   f: string;
   eq: string;
@@ -31,11 +31,29 @@ function longTag(t: ShortTag): ExerciseTag {
   return { pattern: t.p, family: t.f, equipment: t.eq, difficulty: t.d, primary: t.m, secondary: t.s, joints: t.j };
 }
 
-/** The exercise content from golden/exercises.json, renamed to the content/exercises.json shape the port takes. */
+/** Prototype `EX_META` as golden/progression.json's `exerciseMeta` holds it (`name → [type, lo, hi]`). */
+export type MetaTable = Record<string, [string, number, number]>;
+
+/**
+ * The exercise content from golden/exercises.json (and `exerciseMeta` from golden/progression.json),
+ * renamed to the content/exercises.json shape the port takes.
+ */
 export function goldenCatalog(): ExerciseCatalog {
   const g = goldenExercises();
   const tags = Object.fromEntries(Object.entries(g.tags).map(([n, t]) => [n, longTag(t)]));
-  return { tags, cards: g.cards, away_map: { dumbbells_bodyweight: g.awayMap_dumbbells_bodyweight } };
+  const metaTable = loadGolden<{ exerciseMeta: MetaTable }>('progression').exerciseMeta;
+  const meta = Object.fromEntries(Object.entries(metaTable).map(([n, [type, rep_low, rep_high]]) => [n, { type, rep_low, rep_high }]));
+  return { tags, meta, cards: g.cards, away_map: { dumbbells_bodyweight: g.awayMap_dumbbells_bodyweight } };
+}
+
+/** The other way: a catalogue's meta as prototype `EX_META`, for the sliced prototype functions. */
+export function metaTable(meta: ExerciseCatalog['meta']): MetaTable {
+  return Object.fromEntries(Object.entries(meta).map(([n, m]) => [n, [m.type, m.rep_low, m.rep_high]]));
+}
+
+/** A content-named tag in the prototype's short names (for the sliced prototype functions). */
+export function shortTag(t: ExerciseTag): ShortTag {
+  return { p: t.pattern, f: t.family, eq: t.equipment, d: t.difficulty, m: [...t.primary], s: [...t.secondary], j: [...t.joints] };
 }
 
 /** Prototype state the sliced functions read, plus test-only hooks for the stubs. */
