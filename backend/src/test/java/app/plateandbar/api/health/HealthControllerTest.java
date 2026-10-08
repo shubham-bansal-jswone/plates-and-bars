@@ -4,12 +4,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import app.plateandbar.api.auth.SecurityConfig;
-import app.plateandbar.api.common.ApiExceptionHandler;
+import app.plateandbar.api.support.WebMvcAuthSlice;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,7 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.mockito.Mockito;
 
 @WebMvcTest(HealthController.class)
-@Import({SecurityConfig.class, ApiExceptionHandler.class})
+@WebMvcAuthSlice
 class HealthControllerTest {
 
     @Autowired MockMvc mvc;
@@ -50,7 +48,7 @@ class HealthControllerTest {
     }
 
     @Test
-    void bearerTokenIsNotAcceptedYetUntilAuthLands() throws Exception {
+    void malformedBearerTokenIs401Unauthorized() throws Exception {
         mvc.perform(get("/api/v1/sync/pull").header("Authorization", "Bearer abc"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
