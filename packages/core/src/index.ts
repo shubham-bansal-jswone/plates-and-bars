@@ -258,3 +258,16 @@ export {
   userFoodFacts,
 } from './food';
 export type { FlexEntry, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
+
+/**
+ * Targets screen: weekly muscle coverage, planned vs done, and the focus-muscle picker. Workouts and
+ * sets come in contract shapes (`Workout`, `WorkoutSet`); focus is contract `Settings.focus`.
+ * - `plannedCoverage` mirrors prototype `weeklyCoverage()` (state passed in); `coverageTemplates` its week's template list.
+ * - `doneCoverage` mirrors prototype `actualCoverage()` (the 7 days ending on `date`, one `CoverageDay` per date as prototype `loadDays` gives them).
+ * - `coverageRows` mirrors the rows of prototype `coverageHtml()` and `fillActualCoverage()`.
+ * - `weeklyCoverage` returns both meters' rows (planned and done).
+ * - `focusPicker` mirrors prototype `focusHtml()`; `toggleFocus` mirrors prototype `focusAction(a, b)`.
+ * - `COVER_SHOW` mirrors prototype `COVER_SHOW`; `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` are its 6, 12 and 3.
+ */
+export { plannedCoverage, coverageTemplates, doneCoverage, coverageRows, weeklyCoverage, focusPicker, toggleFocus, COVER_SHOW, COVER_LOW, COVER_FULL, FOCUS_MAX } from './coverage';
+export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, CoverageDay, CoverageRow, WeeklyCoverageInput, FocusPicker, FocusToggleResult } from './coverage';
