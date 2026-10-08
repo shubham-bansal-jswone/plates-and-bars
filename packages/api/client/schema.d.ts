@@ -363,8 +363,8 @@ export interface components {
             fat_g: number;
         };
         /**
-         * @description Where a row's values come from. Only the sources listed in ADR 002
-         *     (`docs/adr/002-food-data-sources.md`) are allowed.
+         * @description Where a row's values come from. Only the sources listed in ADR 005
+         *     (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed.
          */
         FoodSource: {
             /**
@@ -372,10 +372,11 @@ export interface components {
              *     (paneer, curd, milk). `own_recipe`: calculated from our recipes. `kitchen_test`:
              *     weighed in our kitchen tests. `label_typical`: packaged foods using typical
              *     nutrition-label values across common brands; in the prototype these are whey
-             *     protein, Greek yogurt and makhana.
+             *     protein, Greek yogurt and makhana. `own_estimate`: our own rough estimate, not
+             *     weighed or cooked to a recipe (for example restaurant dishes).
              * @enum {string}
              */
-            code: "usda_fdc" | "fssai" | "own_recipe" | "kitchen_test" | "label_typical";
+            code: "usda_fdc" | "fssai" | "own_recipe" | "kitchen_test" | "label_typical" | "own_estimate";
             /**
              * @example USDA FoodData Central (SR Legacy)
              * @example Typical label values (packaged food)

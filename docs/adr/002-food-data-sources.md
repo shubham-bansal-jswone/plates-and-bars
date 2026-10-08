@@ -1,6 +1,6 @@
 # ADR 002: Food data sources (no IFCT or INDB)
 
-- Status: Accepted
+- Status: Superseded by [ADR 005](005-food-data-sources-own-estimates.md)
 - Date: 2026-10-08
 - Amended 2026-10-08: corrected in place the same day it merged (issue #5). Recorded the packaged-food source the prototype already used when this ADR was written (an omission, not a new source), replaced an unsupported licensing claim with its actual source, and aligned the wording on adding a source with the ADR index.
 
