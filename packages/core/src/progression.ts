@@ -56,8 +56,8 @@ export interface LiftRecord extends LiftSession {
   prev?: LiftSession | null;
   /** Last 8 session scores, `e` rounded to 0.1 (prototype `hist`; written by `updateLift`). */
   hist?: readonly ScoreEntry[];
-  /** Day the personal-best toast was last shown (prototype `pbToast`; contract `pb_toast_date`). */
-  pbToast?: string;
+  /** Day the personal-best toast was last shown, null if never (prototype `pbToast`; contract `pb_toast_date`). */
+  pbToast?: string | null;
 }
 
 /** One session's score in a lift's history (prototype `hist[i]`; contract `history[i]` with `score`). */

@@ -154,37 +154,51 @@ describe('personal bests', () => {
   });
 });
 
-describe('PINNED QUIRK tests', () => {
-  it('PINNED QUIRK: updateLift drops pbToast, so the best toast repeats on every tick, rating or form change that day', () => {
+describe('personal-best toast once a day (#121)', () => {
+  it('a same-day record keeps pbToast, so later ticks that day do not toast again; the next day can', () => {
     const L = lift(hist(80), { date: '2026-10-01' });
     const first = updateLift(L, { sets: [set('70', '10')] }, DATE, 'barbell');
-    expect(first?.toast).toBe(true);
+    expect(first).toMatchObject({ toast: true, record: { pbToast: DATE } });
     const second = updateLift(first?.record, { sets: [set('70', '10'), set('70', '9')] }, DATE, 'barbell');
-    expect(second?.toast).toBe(true); // checkBest alone would have said false: pbToast was today
-    expect(checkBest(first?.record, 80, DATE)).toBe(false);
+    expect(second).toMatchObject({ toast: false, record: { pbToast: DATE } });
+    const third = updateLift(second?.record, { sets: [set('75', '10')] }, '2026-10-08', 'barbell');
+    expect(third).toMatchObject({ toast: true, record: { pbToast: '2026-10-08' } });
   });
 
+  it('carries a null pbToast (contract pb_toast_date) and still toasts', () => {
+    const today = lift([...hist(80), { date: DATE, e: 80 }], { date: DATE, pbToast: null });
+    expect(updateLift(today, { sets: [set('70', '10')] }, DATE, 'barbell')).toMatchObject({ toast: true, record: { pbToast: DATE } });
+    expect(updateLift(today, { sets: [set('60', '5')] }, DATE, 'barbell')?.record.pbToast).toBeNull();
+  });
+});
+
+describe('PINNED QUIRK tests', () => {
+  // Spec question #122 (fix later in prototype and core together).
   it('PINNED QUIRK: with negative assisted scores the margins flip: an equal session is a best and never stalls', () => {
     const L = lift(hist(-10), { date: '2026-10-01' });
     expect(updateLift(L, { sets: [set('30', '10')] }, DATE, 'assisted')?.toast).toBe(true); // −10 > −10 × 1.005
     expect(stalled('A', { A: lift(hist(-10, -10, -10, -10)) })).toBe(false); // −10 ≤ −10.1 is false
   });
 
+  // Spec question #123 (kept).
   it('PINNED QUIRK: when every earlier score is 0, no improvement counts as a best', () => {
     const L = lift(hist(0), { date: '2026-10-01' });
     expect(updateLift(L, { sets: [set('0', '10')] }, '2026-10-02', 'machine')?.record.hist?.at(-1)?.e).toBe(0);
     expect(updateLift(L, { sets: [set('100', '10')] }, DATE, 'machine')?.toast).toBe(false);
   });
 
+  // Spec question #123 (kept).
   it('PINNED QUIRK: exactly 0.5% better is a best, because 100 × 1.005 is 100.49999… in floating point', () => {
     expect(checkBest({ hist: hist(100, 100.5) }, 100, DATE)).toBe(true);
   });
 
+  // Spec question #123 (kept).
   it('PINNED QUIRK: bodyweight scores total reps, so an extra easy set is a personal best', () => {
     const L = lift(hist(30), { date: '2026-10-01' });
     expect(updateLift(L, { sets: [set('0', '10'), set('0', '10'), set('0', '10'), set('0', '3')] }, DATE, 'bodyweight')?.toast).toBe(true);
   });
 
+  // Spec question #122 (fix later in prototype and core together).
   it('PINNED QUIRK: unticking every set today leaves today’s record and score in place', () => {
     const today = updateLift(lift(hist(80)), { sets: [set('70', '10')] }, DATE, 'barbell')?.record;
     expect(updateLift(today, { sets: [set('70', '10', false)] }, DATE, 'barbell')).toBeNull();
@@ -292,27 +306,47 @@ describe('stalls and personal bests: differential against the prototype', () => 
 
   it('updateLift (record, history, best toast) matches over 3,000 random sequences of ticks across days', () => {
     let toasts = 0;
+    let strict = 0;
+    let sameDay = 0;
     for (let k = 0; k < 3000; k++) {
       const name = pick(names);
       const ov: ExerciseOverride | undefined = pick([undefined, { type: 'assisted' as const }, { type: 'bodyweight' as const }]);
       const type = exInfo(name, meta, ov).type;
       let L: LiftRecord | undefined = r() < 0.7 ? { date: pick(dates.slice(0, 5)), sets: [{ w: 50, r: 8 }], hist: randHist(), ...(r() < 0.5 ? { n: 3, first: '2026-08-01' } : {}), ...(r() < 0.4 ? { prev: { date: '2026-08-20', sets: [] } } : {}) } : undefined;
-      Object.assign(proto.S, { lifts: L ? { [name]: clone(L) } : {}, settings: { ex: ov ? { [name]: ov } : {} } });
+      Object.assign(proto.S, { settings: { ex: ov ? { [name]: ov } : {} } });
       let date = pick(dates);
       for (let step = 0; step < 6; step++) {
         if (r() < 0.3) date = pick(dates);
         const form = pick([undefined, null, 'yes', 'no'] as const);
         const ex = { name, sets: Array.from({ length: 1 + Math.floor(r() * 4) }, entry), ...(form !== undefined ? { form } : {}) };
+        proto.S.lifts = L ? { [name]: clone(L) } : {}; // both start each step from the port's record
         proto.S.date = date;
         proto.toasts.length = 0;
         proto.updateLift(clone(ex));
+        // #121: on a same-day repeat after a toast, core keeps pbToast and does not toast again; the
+        // prototype drops it (it gets the same fix in a later spec-change PR). Only the toast flag and
+        // pbToast are excluded there; everything else is still compared.
+        const carried = !!L && L.date === date && L.pbToast !== undefined;
+        const before = L;
         const u = updateLift(L, ex, date, type);
         if (u) L = u.record;
         toasts += u?.toast ? 1 : 0;
-        expect(proto.toasts.length).toBe(u?.toast ? 1 : 0);
-        expect(proto.S.lifts[name]).toEqual(L ? clone(L) : undefined);
+        const got = proto.S.lifts[name] as LiftRecord | undefined;
+        if (carried && u) {
+          sameDay++;
+          const { pbToast: _p, ...protoRest } = got as LiftRecord;
+          const { pbToast, ...mine } = u.record;
+          expect(protoRest).toEqual(clone(mine));
+          expect(pbToast).toBe(u.toast ? date : (before as LiftRecord).pbToast);
+        } else {
+          strict++;
+          expect(proto.toasts.length).toBe(u?.toast ? 1 : 0);
+          expect(got).toEqual(L ? clone(L) : undefined);
+        }
       }
     }
+    expect(strict).toBeGreaterThan(10000);
+    expect(sameDay).toBeGreaterThan(100);
     expect(toasts).toBeGreaterThan(100);
   });
 });

@@ -29,7 +29,9 @@ export function stalled(name: string, lifts: Readonly<Record<string, LiftRecord>
 }
 
 /**
- * Stalled lifts last done within 21 days of `date`, in `lifts` key order.
+ * Stalled lifts last done within 21 days of `date`, in `lifts` key order. Callers must keep the
+ * prototype's order, the order each lift was first trained (insertion order of `S.lifts`): it decides
+ * which 3 names the recovery card shows.
  *
  * Mirrors prototype `stalledList()` (`S.lifts`, `S.date` passed in).
  */
@@ -162,8 +164,9 @@ export interface LiftUpdate {
  * or the record is newer than `date`. Then runs `checkBest` against the best score before today; when
  * it toasts, the new record's `pbToast` is `date`.
  *
- * The new record keeps only these fields, as in the prototype: an earlier `pbToast` is dropped
- * (see the PINNED QUIRK test).
+ * Deliberate difference from the prototype (#121): a record from the same day keeps its `pbToast`,
+ * so the best toast shows at most once a day (contract `pb_toast_date`). The prototype drops it and
+ * toasts again on every later tick; it gets the same fix in a later spec-change PR.
  *
  * Mirrors prototype `updateLift(ex)` (record, `S.date` and `exInfo(name).type` passed in).
  */
@@ -181,6 +184,7 @@ export function updateLift(
   else if (L.date < date)
     record = { date, sets, form, n: (L.n || (L.prev ? 2 : 1)) + 1, first: L.first || (L.prev ? L.prev.date : L.date), prev: { date: L.date, sets: L.sets, form: L.form || null } };
   else return null;
+  if (L && L.date === date && L.pbToast !== undefined) record.pbToast = L.pbToast; // #121
   const hist = (L && L.hist ? L.hist : []).filter((x) => x.date !== date);
   const beforeBest = hist.length ? Math.max(...hist.map((x) => x.e)) : 0;
   hist.push({ date, e: Math.round(sessionScore(sets, type) * 10) / 10 });
