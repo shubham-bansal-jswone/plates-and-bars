@@ -2,7 +2,7 @@
 
 Astro static site (TypeScript strict) for Cloudflare Pages. Pages: landing, `/privacy` and `/terms` (both drafts pending lawyer review under India's DPDP Act 2023). The account deletion and attributions pages come later.
 
-Fonts: system font stack only. Colours: the prototype's `:root` tokens (light, and dark via `prefers-color-scheme`).
+Fonts: Bricolage Grotesque (SIL OFL 1.1) self-hosted in `public/fonts/` with its licence, `font-display: swap`, system font stack as fallback; no external requests. Colours: the prototype's `:root` tokens (light, and dark via `prefers-color-scheme`).
 
 ## Commands (run in `apps/site`)
 
