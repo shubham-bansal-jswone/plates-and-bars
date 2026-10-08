@@ -34,12 +34,18 @@ describe('migrate', () => {
     for (const t of ['workouts', 'workout_sets', 'lift_stats']) expect(MIGRATIONS[2]).toContain(`CREATE TABLE IF NOT EXISTS ${t}`);
   });
 
-  it('upgrades a version-1 database by applying v2 and v3 only', async () => {
+  it('v4 creates the user_settings table, apart from the v1 settings flags table', () => {
+    expect(MIGRATIONS[3]).toContain('CREATE TABLE IF NOT EXISTS user_settings');
+    expect(MIGRATIONS[3]).not.toMatch(/IF NOT EXISTS settings\b/);
+  });
+
+  it('upgrades a version-1 database by applying v2 to v4 only', async () => {
     const { db, log } = fakeDb(1);
     expect(await migrate(db)).toBe(MIGRATIONS.length);
     expect(log).not.toContain(MIGRATIONS[0]);
     expect(log).toContain(MIGRATIONS[1]);
     expect(log).toContain(MIGRATIONS[2]);
+    expect(log).toContain(MIGRATIONS[3]);
   });
 
   it('does not re-apply migrations already recorded', async () => {

@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { normaliseSetup } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
 import { SetupScreen } from '../src/screens/SetupScreen';
-import { loadConsent, loadProfile, saveConsent } from '../src/db/records';
+import { loadConsent, loadProfile, saveConsent, saveProfile } from '../src/db/records';
+import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { SCREEN_Q } from '../src/setup/copy';
 import { memoryDb, withProfile } from './helpers';
 
@@ -204,5 +205,40 @@ describe('setup flow', () => {
     await press('Skip for now');
     expect(mockReplace).toHaveBeenCalledWith('/');
     expect(await loadProfile(db)).toBeNull();
+  });
+});
+
+describe('redo and recalculate setup', () => {
+  beforeEach(() => mockReplace.mockClear());
+  const stored = () => ({
+    ...buildProfile(
+      { ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] },
+      new Date(2026, 8, 1),
+    ),
+    cleared: '2026-09-02',
+  });
+
+  it('recalculate opens on the results, and saving keeps created and cleared', async () => {
+    const db = memoryDb();
+    const before = stored();
+    await saveProfile(db, before);
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen recalc />));
+    expect(await screen.findByLabelText('1,990 kcal')).toBeTruthy();
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/targets'));
+    expect(await loadProfile(db)).toMatchObject({ created: before.created, cleared: '2026-09-02', targets: before.targets });
+  });
+
+  it('redo starts at the first question with the stored answers filled in', async () => {
+    const db = memoryDb();
+    await saveProfile(db, stored());
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    expect(screen.getByLabelText('Age').props.value).toBe('30');
+    expect(screen.getByLabelText('Weight in kg').props.value).toBe('82');
+    await press('Continue');
+    expect(screen.queryByText('Choose male or female for the calorie formula.')).toBeNull();
   });
 });
