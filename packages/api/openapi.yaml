@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.1
+  version: 0.1.2
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -287,8 +287,8 @@ paths:
                   cursor: null
                   changes: {}
               pushMealAndSet:
-                summary: Push a logged meal, a ticked set and a deleted water entry
-                description: Natural-key ids (here `workouts:2026-10-08`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
+                summary: Push a logged meal, a ticked set, its lift stats and a deleted water entry
+                description: Natural-key ids (here `workouts:2026-10-08` and `lift_stats:Barbell Bench Press`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
                 value:
                   cursor: c_000000000000a3f1
                   changes:
@@ -320,6 +320,33 @@ paths:
                         done: true
                         rate: right
                         t: '2026-10-08T12:31:00Z'
+                    lift_stats:
+                      - id: d03da8fc-3a9f-5d42-830a-f841270004ef
+                        version: 2
+                        updated_at: '2026-10-08T12:31:02Z'
+                        deleted_at: null
+                        exercise: Barbell Bench Press
+                        date: '2026-10-08'
+                        sets:
+                          - { weight_kg: 60, reps: 8, rate: right }
+                        form: null
+                        sessions: 3
+                        first: '2026-10-01'
+                        prev:
+                          date: '2026-10-05'
+                          sets:
+                            - { weight_kg: 60, reps: 7, rate: hard }
+                          form: 'yes'
+                          prev:
+                            date: '2026-10-01'
+                            sets:
+                              - { weight_kg: 60, reps: 6, rate: fail }
+                            form: null
+                        history:
+                          - { date: '2026-10-01', score: 72 }
+                          - { date: '2026-10-05', score: 74 }
+                          - { date: '2026-10-08', score: 76 }
+                        pb_toast_date: null
                     water_logs:
                       - id: 2a7d9c4e-5b1f-4a3e-8c6d-0e9f1b2a3c4d
                         version: 1
@@ -1381,6 +1408,20 @@ components:
           type: [string, 'null']
           enum: [easy, right, hard, fail, null]
 
+    LiftSession:
+      type: object
+      description: 'An earlier session in a lift record. Prototype: `L.prev`.'
+      required: [date, sets, form]
+      properties:
+        date:
+          $ref: '#/components/schemas/LocalDate'
+        sets:
+          type: array
+          items: { $ref: '#/components/schemas/LiftSet' }
+        form:
+          type: [string, 'null']
+          enum: ['yes', 'no', null]
+
     LiftStat:
       description: |
         Per-exercise history used for weight suggestions and stalls.
@@ -1409,18 +1450,21 @@ components:
               $ref: '#/components/schemas/LocalDate'
               description: Day of the first session.
             prev:
-              type: [object, 'null']
               description: The session before the latest.
-              required: [date, sets, form]
-              properties:
-                date:
-                  $ref: '#/components/schemas/LocalDate'
-                sets:
-                  type: array
-                  items: { $ref: '#/components/schemas/LiftSet' }
-                form:
-                  type: [string, 'null']
-                  enum: ['yes', 'no', null]
+              oneOf:
+                - allOf:
+                    - $ref: '#/components/schemas/LiftSession'
+                    - type: object
+                      properties:
+                        prev:
+                          description: |
+                            The session before `prev`; used to evaluate 'below the rep range two
+                            sessions running' against sessions before today (#101). One level only:
+                            it never carries a `prev` of its own. Older records may omit it.
+                          oneOf:
+                            - $ref: '#/components/schemas/LiftSession'
+                            - type: 'null'
+                - type: 'null'
             history:
               type: array
               maxItems: 8
