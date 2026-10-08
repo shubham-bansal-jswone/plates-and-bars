@@ -46,6 +46,23 @@ test('grams logging: a weight-only label must carry its grams', () => {
   assert.ok(withFood((f) => { f.serving.grams = null; }, paneer()).some((e) => e.includes('is in grams but serving.grams')));
 });
 
+test('grams: label weight must match, and a weightless label must have null grams', () => {
+  const dal = load().foods.findIndex((f) => f.name === 'Dal');
+  assert.ok(withFood((f) => { f.serving.grams = null; }, dal).some((e) => e.includes('is in grams but serving.grams')));
+  const milk = load().foods.findIndex((f) => f.name === 'Toned milk');
+  assert.ok(withFood((f) => { f.serving.grams = 250; }, milk).some((e) => e.includes('has no weight in grams')));
+  assert.ok(withFood((f) => { f.serving.grams = 0; }, paneer()).some((e) => e.includes('serving.grams')));
+});
+
+test('each remaining field check fails on a bad value', () => {
+  assert.ok(withFood((f) => { f.name_hi = ''; }).some((e) => e.includes('name_hi must be')));
+  assert.ok(withFood((f) => { f.updated_at = 'yesterday'; }).some((e) => e.includes('updated_at must be')));
+  assert.ok(withFood((f) => { f.fruit_veg_servings = -1; }).some((e) => e.includes('fruit_veg_servings must be')));
+  assert.ok(withFood((f) => { delete f.fruit_veg_servings; }).some((e) => e.includes('"fruit_veg_servings" missing')));
+  assert.ok(withFood((f) => { f.source.name = ' '; }).some((e) => e.includes('source.name missing')));
+  assert.ok(withFood((f) => { f.per_serving.added_sugar_g = 99; }).some((e) => e.includes('added_sugar_g exceeds carbs_g')));
+});
+
 test('schema: unknown and missing fields, bad id', () => {
   assert.ok(withFood((f) => { f.extra = 1; }).some((e) => e.includes('unknown field "extra"')));
   assert.ok(withFood((f) => { delete f.aliases; }).some((e) => e.includes('field "aliases" missing')));

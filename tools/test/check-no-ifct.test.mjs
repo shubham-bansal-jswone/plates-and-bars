@@ -18,6 +18,11 @@ test('fixture mentioning IFCT or INDB (any case) fails with file and line', () =
   assert.match(r.stderr, /foods\.json:2/);
 });
 
+test('spelled-out names fail too', () => {
+  assert.deepEqual(scanContent(`${here}/fixtures/ifct-names`), ['a.json:2: "Indian Food Composition Tables"', 'b.json:2: "indian nutrient databank"']);
+  assert.equal(run(`${here}/fixtures/ifct-names`).status, 1);
+});
+
 test('clean fixture passes', () => {
   assert.deepEqual(scanContent(`${here}/fixtures/clean-content`), []);
   assert.equal(run(`${here}/fixtures/clean-content`).status, 0);

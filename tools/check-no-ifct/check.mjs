@@ -1,8 +1,8 @@
-// Fails if "IFCT" or "INDB" (any case) appears anywhere under a content folder: in file names or contents.
+// Fails if "IFCT", "INDB" or their spelled-out names (any case) appears anywhere under a content folder: in file names or contents.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const BANNED = /ifct|indb/i;
+const BANNED = /ifct|indb|indian food composition tables?|indian nutrient data ?bank/i;
 
 /** @returns {string[]} one message per offending file name or line */
 export function scanContent(dir) {

@@ -10,8 +10,9 @@ const nonEmpty = (s) => typeof s === 'string' && s.trim() !== '';
 const num = (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
 const norm = (s) => s.trim().toLowerCase();
 
-// kcal should be close to 4*protein + 4*carbs + 9*fat. Alcohol and rounding make exact equality wrong,
-// so allow 15 kcal or 15 % of the label value, whichever is larger.
+// kcal should be close to 4*protein + 4*carbs + 9*fat. Rounding and fibre (about 2 kcal/g, counted as carbs)
+// make exact equality wrong, so allow 15 kcal or 15 % of the label value, whichever is larger.
+// Alcohol is not handled: drinks would need an explicit exemption or an alcohol field in the contract.
 export const kcalTolerance = (kcal) => Math.max(15, kcal * 0.15);
 
 function checkFood(f, errors) {
@@ -30,9 +31,10 @@ function checkFood(f, errors) {
   const s = f.serving ?? {};
   if (!nonEmpty(s.label)) err('serving.label must be a non-empty string');
   if (!('grams' in s) || (s.grams !== null && !(typeof s.grams === 'number' && s.grams > 0))) err('serving.grams must be a number > 0 or null');
-  // Grams logging: a label that is just a weight must carry that weight.
-  const plain = /^(\d+(?:\.\d+)?) g$/.exec(s.label ?? '');
+  // Grams logging (prototype `unitGrams`): the first "<n> g" in the label is the serving's grams.
+  const plain = /(\d+)\s*g\b/.exec(s.label ?? '');
   if (plain && s.grams !== Number(plain[1])) err(`serving label "${s.label}" is in grams but serving.grams is ${s.grams}`);
+  if (!plain && s.grams !== null && s.grams !== undefined) err(`serving.grams is ${s.grams} but label "${s.label}" has no weight in grams`);
 
   const n = f.per_serving ?? {};
   for (const k of NUTRIENTS) {
@@ -42,7 +44,7 @@ function checkFood(f, errors) {
   }
   if (NUTRIENTS.every((k) => k in n && (n[k] === null || num(n[k])))) {
     const macro = n.protein_g + n.carbs_g + n.fat_g;
-    if (typeof s.grams === 'number' && macro > s.grams + 0.05) err(`macros total ${macro} g, more than the ${s.grams} g serving`);
+    if (/^\d+ g$/.test(s.label) && typeof s.grams === 'number' && macro > s.grams + 0.05) err(`macros total ${macro} g, more than the ${s.grams} g serving`);
     if (n.fibre_g !== null && n.fibre_g > n.carbs_g) err('fibre_g exceeds carbs_g (carbs include fibre)');
     if (n.added_sugar_g !== null && n.added_sugar_g > n.carbs_g) err('added_sugar_g exceeds carbs_g');
     const calc = 4 * n.protein_g + 4 * n.carbs_g + 9 * n.fat_g;

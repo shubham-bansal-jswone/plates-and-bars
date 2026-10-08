@@ -2,6 +2,8 @@
 // Pure and deterministic: row order follows the golden file; ids are derived from names.
 import { createHash } from 'node:crypto';
 
+// Any change to a food's values must bump this, or synced clients never see it. Ids come from names,
+// so renaming a food changes its id.
 export const UPDATED_AT = '2026-10-08T00:00:00Z';
 const ID_NAMESPACE = 'plate-and-bar/foods/v1';
 
@@ -48,16 +50,17 @@ export const SOURCES = {
 // "calculated from USDA public-domain ingredient data using standard home recipes; paneer, curd and milk
 // follow FSSAI composition standards; packaged foods (whey, Greek yogurt, makhana) use typical label
 // values", plus ADR 002 (USDA for plain foods, own recipes for dishes). Single plain foods are usda_fdc and
-// composed dishes are own_recipe.
+// composed dishes are own_recipe. Chicken breast, cooked is the raw value divided by a cooking yield and
+// buttermilk is 80 g curd in the prototype's grocery map, so both are own_recipe.
 const FSSAI = ['Paneer', 'Curd / dahi', 'Toned milk'];
 const LABEL = ['Whey protein', 'Greek yogurt, plain', 'Makhana, roasted'];
 const USDA = [
-  'Chicken breast, cooked', 'Egg, whole', 'Egg white', 'Soya chunks, dry', 'Oats, dry', 'Ghee', 'Banana',
+  'Egg, whole', 'Egg white', 'Soya chunks, dry', 'Oats, dry', 'Ghee', 'Banana',
   'Apple', 'Almonds', 'Roasted chana', 'Peanuts, roasted', 'Sweet potato, boiled', 'Brown bread', 'Peanut butter',
 ];
 const RECIPE = [
   'Roti / chapati', 'Rice, cooked', 'Dal', 'Rajma / chole', 'Mixed veg sabzi', 'Paneer bhurji', 'Chicken curry',
-  'Poha', 'Upma', 'Idli', 'Dosa, plain', 'Sambar', 'Aloo paratha', 'Sprouts salad', 'Tea with milk & sugar',
+  'Poha', 'Upma', 'Idli', 'Dosa, plain', 'Sambar', 'Aloo paratha', 'Sprouts salad', 'Tea with milk & sugar', 'Chicken breast, cooked', 'Buttermilk (chaas)',
   'Sabudana khichdi', 'Kuttu atta roti', 'Fruit bowl',
 ];
 export const SOURCE_OF = {};
@@ -65,20 +68,37 @@ for (const [code, names] of [['fssai', FSSAI], ['label_typical', LABEL], ['usda_
   for (const n of names) SOURCE_OF[n] = code;
 }
 
-// Not in content: nothing in the repo says where these values come from (the prototype note and ADR 002 do
-// not cover alcohol, and buttermilk is not named among the FSSAI-derived dairy foods). Reported in the PR.
-export const HELD_BACK = ['Buttermilk (chaas)', 'Beer', 'Whisky, rum or vodka', 'Wine'];
+// Not in content until Shubham decides: the prototype note and ADR 002 do not cover alcohol. Reported in the PR.
+export const HELD_BACK = ['Beer', 'Whisky, rum or vodka', 'Wine'];
 
 // Fruit and veg servings (80 g each) per serving: PRODUCE in the prototype.
 export const PRODUCE = {
   'Mixed veg sabzi': 1, 'Sprouts salad': 1, 'Fruit bowl': 2, Banana: 1, Apple: 1, Sambar: 0.5, 'Sweet potato, boiled': 1,
 };
 
-// Grams logging needs the serving to be a plain weight such as "100 g". A weight inside brackets,
-// like "1 medium (30 g atta)", is an ingredient weight, not the serving, so grams stays null.
+// Grams logging: ported from `unitGrams` in the prototype, the first "<n> g" in the serving label
+// ("100 g" gives 100, "1 medium (30 g atta)" gives 30). Whether a bracketed ingredient weight should
+// count is a spec question, not decided here.
 export function servingGrams(label) {
-  const m = /^(\d+(?:\.\d+)?) g$/.exec(label);
+  const m = /(\d+)\s*g\b/.exec(label);
   return m ? Number(m[1]) : null;
+}
+
+// Multi-word aliases that the prototype matches as one phrase (foodMatch checks the whole query as a
+// substring of the alias string). Everything else in the golden alias string is one word per alias.
+export const ALIAS_PHRASES = [
+  'fox nut', 'phool makhana', 'lotus seed', 'cottage cheese', 'protein shake', 'flattened rice', 'chana masala',
+  'bhuna chana', 'fruit chaat', 'desi ghee', 'sprouted moong', 'anda safedi',
+];
+
+export function splitAliases(str) {
+  const out = [];
+  const words = str.split(/\s+/).filter(Boolean);
+  for (let i = 0; i < words.length; i++) {
+    const pair = ALIAS_PHRASES.find((p) => p === `${words[i]} ${words[i + 1]}`);
+    if (pair) { out.push(pair); i++; } else out.push(words[i]);
+  }
+  return out;
 }
 
 // Deterministic UUID (version 5 layout, SHA-1) from a fixed namespace string and the food name.
@@ -105,7 +125,7 @@ export function importFoods(golden) {
       id: foodId(f.name),
       name: f.name,
       name_hi: null,
-      aliases: (golden.aliases[f.name] ?? '').split(/\s+/).filter(Boolean),
+      aliases: splitAliases(golden.aliases[f.name] ?? ''),
       serving: { label: f.unit, grams: servingGrams(f.unit) },
       per_serving: {
         kcal: f.kcal, protein_g: f.protein, carbs_g: f.carbs, fibre_g: fibre, added_sugar_g: sugar, fat_g: f.fat,

@@ -14,7 +14,7 @@
       ],
       "serving": {
         "label": "1 medium (30 g atta)",
-        "grams": null
+        "grams": 30
       },
       "per_serving": {
         "kcal": 102,
@@ -46,7 +46,7 @@
       ],
       "serving": {
         "label": "1 cup (50 g raw)",
-        "grams": null
+        "grams": 50
       },
       "per_serving": {
         "kcal": 182,
@@ -81,7 +81,7 @@
       ],
       "serving": {
         "label": "1 katori (35 g dal)",
-        "grams": null
+        "grams": 35
       },
       "per_serving": {
         "kcal": 161,
@@ -108,13 +108,12 @@
       "aliases": [
         "rajmah",
         "chhole",
-        "chana",
-        "masala",
+        "chana masala",
         "chickpea"
       ],
       "serving": {
         "label": "1 katori (40 g dry)",
-        "grams": null
+        "grams": 40
       },
       "per_serving": {
         "kcal": 191,
@@ -172,8 +171,7 @@
       "name": "Paneer",
       "name_hi": null,
       "aliases": [
-        "cottage",
-        "cheese"
+        "cottage cheese"
       ],
       "serving": {
         "label": "100 g",
@@ -246,10 +244,10 @@
       },
       "fruit_veg_servings": 0,
       "source": {
-        "code": "usda_fdc",
-        "name": "USDA FoodData Central (SR Legacy)",
-        "licence": "Public domain (CC0 1.0)",
-        "url": "https://fdc.nal.usda.gov/",
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
         "reference": null
       },
       "updated_at": "2026-10-08T00:00:00Z"
@@ -320,8 +318,7 @@
       "name": "Egg white",
       "name_hi": null,
       "aliases": [
-        "anda",
-        "safedi"
+        "anda safedi"
       ],
       "serving": {
         "label": "1 large",
@@ -437,8 +434,7 @@
       "name": "Whey protein",
       "name_hi": null,
       "aliases": [
-        "protein",
-        "shake"
+        "protein shake"
       ],
       "serving": {
         "label": "1 scoop",
@@ -527,8 +523,7 @@
       "aliases": [
         "aval",
         "chivda",
-        "flattened",
-        "rice"
+        "flattened rice"
       ],
       "serving": {
         "label": "1 plate",
@@ -843,8 +838,7 @@
       "name": "Roasted chana",
       "name_hi": null,
       "aliases": [
-        "bhuna",
-        "chana"
+        "bhuna chana"
       ],
       "serving": {
         "label": "30 g",
@@ -874,8 +868,7 @@
       "name_hi": null,
       "aliases": [
         "ankurit",
-        "sprouted",
-        "moong"
+        "sprouted moong"
       ],
       "serving": {
         "label": "1 katori",
@@ -904,8 +897,7 @@
       "name": "Ghee",
       "name_hi": null,
       "aliases": [
-        "desi",
-        "ghee"
+        "desi ghee"
       ],
       "serving": {
         "label": "1 tsp",
@@ -993,12 +985,9 @@
       "name": "Makhana, roasted",
       "name_hi": null,
       "aliases": [
-        "fox",
-        "nut",
-        "phool",
-        "makhana",
-        "lotus",
-        "seed"
+        "fox nut",
+        "phool makhana",
+        "lotus seed"
       ],
       "serving": {
         "label": "30 g",
@@ -1112,12 +1101,41 @@
       "updated_at": "2026-10-08T00:00:00Z"
     },
     {
+      "id": "40cc21ca-faba-5d58-975f-4787067bc34a",
+      "name": "Buttermilk (chaas)",
+      "name_hi": null,
+      "aliases": [
+        "chhaas",
+        "mattha"
+      ],
+      "serving": {
+        "label": "1 glass",
+        "grams": null
+      },
+      "per_serving": {
+        "kcal": 46,
+        "protein_g": 2.5,
+        "carbs_g": 3.7,
+        "fibre_g": 0,
+        "added_sugar_g": 0,
+        "fat_g": 2.4
+      },
+      "fruit_veg_servings": 0,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "updated_at": "2026-10-08T00:00:00Z"
+    },
+    {
       "id": "ea659996-1298-5266-acf7-0bdd5cdf1b9a",
       "name": "Fruit bowl",
       "name_hi": null,
       "aliases": [
-        "fruit",
-        "chaat"
+        "fruit chaat"
       ],
       "serving": {
         "label": "1 bowl",
