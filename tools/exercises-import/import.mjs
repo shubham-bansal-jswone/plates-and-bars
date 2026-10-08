@@ -23,6 +23,32 @@ export function expandTags(tags) {
   return out;
 }
 
+// Card keys named after how the prototype renders them (openHowTo, learnHtml, feelHtml).
+export const CARD_KEYS = {
+  f: 'where_to_feel',
+  s: 'setup',
+  c: 'key_cues',
+  m: 'common_mistakes',
+  w: 'misplaced_feel',
+  b: 'breathing',
+  e: 'easier_version',
+  h: 'harder_version',
+};
+const CARD_REQUIRED = ['f', 's', 'c', 'm', 'w'];
+
+export function expandCard(card) {
+  const extra = Object.keys(card).filter((k) => !(k in CARD_KEYS));
+  if (extra.length) throw new Error(`unknown card field(s): ${extra.join(', ')}`);
+  for (const k of CARD_REQUIRED) {
+    if (!(k in card)) throw new Error(`card field "${k}" missing`);
+  }
+  const out = {};
+  for (const [short, long] of Object.entries(CARD_KEYS)) {
+    if (short in card) out[long] = card[short];
+  }
+  return out;
+}
+
 export function importExercises(golden) {
   const required = ['tags', 'ladders', 'awayMap_dumbbells_bodyweight', 'cards', 'library'];
   for (const k of required) {
@@ -36,13 +62,21 @@ export function importExercises(golden) {
       throw new Error(`${name}: ${e.message}`);
     }
   }
+  const cards = {};
+  for (const [name, c] of Object.entries(golden.cards)) {
+    try {
+      cards[name] = expandCard(c);
+    } catch (e) {
+      throw new Error(`${name}: ${e.message}`);
+    }
+  }
   return {
     schema_version: 1,
     source: 'docs/spec/golden/exercises.json',
     tags,
     ladders: golden.ladders,
     away_map: { dumbbells_bodyweight: golden.awayMap_dumbbells_bodyweight },
-    cards: golden.cards,
+    cards,
     library: golden.library,
   };
 }

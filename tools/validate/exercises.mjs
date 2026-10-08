@@ -27,17 +27,27 @@ function checkTags(name, t, errors) {
 }
 
 function checkCard(name, c, errors) {
-  if (typeof c.f !== 'string' || !c.f) errors.push(`${name}: card "f" must be a non-empty string`);
-  // The prototype renders f, s, c, m and w without guards; b, e and h are optional.
-  for (const f of ['s', 'c', 'm', 'w']) {
+  // The prototype reads where_to_feel, setup, key_cues, common_mistakes and
+  // misplaced_feel without guards; breathing, easier_version and harder_version
+  // are optional. See tools/README.md for the key mapping.
+  if (typeof c.where_to_feel !== 'string' || !c.where_to_feel) {
+    errors.push(`${name}: card "where_to_feel" must be a non-empty string`);
+  }
+  for (const f of ['setup', 'key_cues', 'common_mistakes', 'misplaced_feel']) {
     if (!Array.isArray(c[f]) || c[f].length === 0) errors.push(`${name}: card "${f}" must be a non-empty array`);
   }
-  if (Array.isArray(c.w) && !c.w.every((x) => Array.isArray(x) && x.length === 2 && x.every((y) => typeof y === 'string'))) {
-    errors.push(`${name}: card "w" entries must be [label, fix] string pairs`);
+  for (const f of ['setup', 'key_cues', 'common_mistakes']) {
+    if (Array.isArray(c[f]) && !c[f].every((x) => typeof x === 'string')) errors.push(`${name}: card "${f}" entries must be strings`);
   }
-  for (const f of ['b', 'e', 'h']) {
+  const w = c.misplaced_feel;
+  if (Array.isArray(w) && !w.every((x) => Array.isArray(x) && x.length === 2 && x.every((y) => typeof y === 'string'))) {
+    errors.push(`${name}: card "misplaced_feel" entries must be [label, fix] string pairs`);
+  }
+  for (const f of ['breathing', 'easier_version', 'harder_version']) {
     if (f in c && typeof c[f] !== 'string') errors.push(`${name}: card "${f}" must be a string`);
   }
+  const known = ['where_to_feel', 'setup', 'key_cues', 'common_mistakes', 'misplaced_feel', 'breathing', 'easier_version', 'harder_version'];
+  for (const k of Object.keys(c)) if (!known.includes(k)) errors.push(`${name}: unknown card field "${k}"`);
 }
 
 /**
