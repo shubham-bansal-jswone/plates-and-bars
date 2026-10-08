@@ -1,6 +1,7 @@
 import content from '../../../content/exercises.json';
 import { applyFocus, mapForWhere, sessionSets, TEMPLATES, type ExerciseCatalog } from '../src/index';
-import { goldenCatalog } from './prototype-plan';
+import { loadGolden } from './helpers';
+import { goldenCatalog, metaTable, type MetaTable } from './prototype-plan';
 
 // content/exercises.json is passed to the session functions as is; this assignment is the type check.
 const fromContent: ExerciseCatalog = content;
@@ -11,6 +12,13 @@ describe('content/exercises.json against golden/exercises.json', () => {
     expect(fromContent.tags).toEqual(golden.tags);
     // focusPick breaks ties by tag order, so exercise order and field order must match too.
     expect(JSON.stringify(fromContent.tags)).toBe(JSON.stringify(golden.tags));
+  });
+
+  it('meta equals golden/progression.json exerciseMeta (prototype EX_META), key order included', () => {
+    const table = loadGolden<{ exerciseMeta: MetaTable }>('progression').exerciseMeta;
+    expect(metaTable(fromContent.meta)).toEqual(table);
+    expect(JSON.stringify(metaTable(fromContent.meta))).toBe(JSON.stringify(table));
+    expect(JSON.stringify(fromContent.meta)).toBe(JSON.stringify(golden.meta));
   });
 
   it('away map equals the golden away map, key order included', () => {
