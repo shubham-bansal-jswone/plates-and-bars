@@ -49,20 +49,54 @@ export interface SessionModsInput {
 /**
  * Today's session modifiers and the light flag for set counts.
  *
- * `light` is what `sessionSets` takes: check-in "light", re-entry of 30% or more, lab hold or
- * `needsClearance`. `mods.light`, the stored flag, leaves re-entry out (as the prototype does).
+ * `setsLight` is what `sessionSets` takes as `light`: check-in "light", re-entry of 30% or more, lab
+ * hold or `needsClearance`. `mods.light`, the stored flag, leaves re-entry out (as the prototype does),
+ * so never pass `mods.light` to `sessionSets`.
  *
  * Mirrors the `short`, `deload`, `reentry`, `light` and `w.mods` steps of prototype `buildSession(t)`
  * (state passed in). The prototype stores `short` and `deload` as whatever falsy value it computed
  * (`undefined`, `''`, `null`); here they are booleans with the same truthiness.
  */
-export function sessionMods(i: SessionModsInput): { light: boolean; mods: SessionMods } {
+export function sessionMods(i: SessionModsInput): { setsLight: boolean; mods: SessionMods } {
   const short = !!i.time && i.time !== 'usual';
   const deload = inRange(i.deload, i.date);
   const reentry = i.reentry && inRange(i.reentry, i.date) ? i.reentry.pct : 0;
   const held = !!i.labHold || needsClearance(i.profile);
-  const light = i.ciChoice === 'light' || reentry >= 0.3 || held;
-  return { light, mods: { light: i.ciChoice === 'light' || held, short, where: i.where, deload, reentry } };
+  const setsLight = i.ciChoice === 'light' || reentry >= 0.3 || held;
+  return { setsLight, mods: { light: i.ciChoice === 'light' || held, short, where: i.where, deload, reentry } };
+}
+
+/**
+ * One part of the workout screen's "Today: …" note, in the order shown:
+ * - `deload`: recovery week, fewer sets, about 10% lighter;
+ * - `reentry`: easing back in, about `pct`% lighter (whole percent);
+ * - `light`: lighter session, 1 fewer set, no weight increases;
+ * - `short`: short session, main exercises only;
+ * - `where`: the dumbbells-only or bodyweight version.
+ */
+export type ModsNotePart =
+  | { kind: 'deload' }
+  | { kind: 'reentry'; pct: number }
+  | { kind: 'light' }
+  | { kind: 'short' }
+  | { kind: 'where'; where: Exclude<Where, 'gym'> };
+
+/**
+ * The parts of the "Today: …" note for a workout's stored mods; empty when there is nothing to say (no
+ * note shown). A recovery week wins over re-entry and hides "lighter session"; re-entry shows
+ * `Math.round(reentry * 100)`.
+ *
+ * Mirrors prototype `modsNote(m)`, returning codes instead of copy.
+ */
+export function modsNote(m: Partial<SessionMods> | null | undefined): ModsNotePart[] {
+  if (!m) return [];
+  const parts: ModsNotePart[] = [];
+  if (m.deload) parts.push({ kind: 'deload' });
+  else if (m.reentry) parts.push({ kind: 'reentry', pct: Math.round(m.reentry * 100) });
+  if (m.light && !m.deload) parts.push({ kind: 'light' });
+  if (m.short) parts.push({ kind: 'short' });
+  if (m.where && m.where !== 'gym') parts.push({ kind: 'where', where: m.where === 'dumbbells' ? 'dumbbells' : 'bodyweight' });
+  return parts;
 }
 
 /**

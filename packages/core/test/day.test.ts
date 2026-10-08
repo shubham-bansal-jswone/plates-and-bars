@@ -1,5 +1,6 @@
 import {
   mergeSecondSession,
+  modsNote,
   planList,
   secondSessionChoices,
   sessionMods,
@@ -7,6 +8,7 @@ import {
   templateName,
   type AdjRange,
   type CiChoice,
+  type ModsNotePart,
   type HealthProfile,
   type PlanProfile,
   type ReentryRange,
@@ -26,19 +28,19 @@ const DATE = '2026-05-13';
 describe('sessionMods', () => {
   const base: SessionModsInput = { date: DATE, where: 'gym' };
   it('a plain day: nothing on', () => {
-    expect(sessionMods(base)).toEqual({ light: false, mods: { light: false, short: false, where: 'gym', deload: false, reentry: 0 } });
+    expect(sessionMods(base)).toEqual({ setsLight: false, mods: { light: false, short: false, where: 'gym', deload: false, reentry: 0 } });
   });
   it('check-in light, lab hold and clearance make the stored mods light', () => {
     expect(sessionMods({ ...base, ciChoice: 'light' }).mods.light).toBe(true);
     expect(sessionMods({ ...base, ciChoice: 'swap' }).mods.light).toBe(false);
-    expect(sessionMods({ ...base, labHold: true })).toMatchObject({ light: true, mods: { light: true } });
-    expect(sessionMods({ ...base, profile: { screen: ['no', 'yes'] } })).toMatchObject({ light: true, mods: { light: true } });
-    expect(sessionMods({ ...base, profile: { screen: ['no', 'yes'], cleared: '2026-01-01' } }).light).toBe(false);
+    expect(sessionMods({ ...base, labHold: true })).toMatchObject({ setsLight: true, mods: { light: true } });
+    expect(sessionMods({ ...base, profile: { screen: ['no', 'yes'] } })).toMatchObject({ setsLight: true, mods: { light: true } });
+    expect(sessionMods({ ...base, profile: { screen: ['no', 'yes'], cleared: '2026-01-01' } }).setsLight).toBe(false);
   });
   it('re-entry of 30% makes the sets light but not the stored flag (pins the prototype)', () => {
     const r: ReentryRange = { from: DATE, until: '2026-05-26', pct: 0.3 };
-    expect(sessionMods({ ...base, reentry: r })).toEqual({ light: true, mods: { light: false, short: false, where: 'gym', deload: false, reentry: 0.3 } });
-    expect(sessionMods({ ...base, reentry: { ...r, pct: 0.15 } })).toMatchObject({ light: false, mods: { reentry: 0.15 } });
+    expect(sessionMods({ ...base, reentry: r })).toEqual({ setsLight: true, mods: { light: false, short: false, where: 'gym', deload: false, reentry: 0.3 } });
+    expect(sessionMods({ ...base, reentry: { ...r, pct: 0.15 } })).toMatchObject({ setsLight: false, mods: { reentry: 0.15 } });
     expect(sessionMods({ ...base, reentry: { ...r, from: '2026-05-14' } }).mods.reentry).toBe(0);
   });
   it('short when the time answer is not "usual"; deload when the recovery week covers the date', () => {
@@ -47,6 +49,61 @@ describe('sessionMods', () => {
     expect(sessionMods({ ...base, deload: { until: DATE } }).mods.deload).toBe(true);
     expect(sessionMods({ ...base, deload: { until: '2026-05-12' } }).mods.deload).toBe(false);
     expect(sessionMods({ ...base, where: 'bodyweight' }).mods.where).toBe('bodyweight');
+  });
+});
+
+describe('modsNote', () => {
+  it('nothing to say: no parts', () => {
+    expect(modsNote(null)).toEqual([]);
+    expect(modsNote(undefined)).toEqual([]);
+    expect(modsNote({ light: false, short: false, where: 'gym', deload: false, reentry: 0 })).toEqual([]);
+  });
+  it('a recovery week wins over re-entry and hides "lighter session"', () => {
+    expect(modsNote({ light: true, short: true, where: 'dumbbells', deload: true, reentry: 0.3 })).toEqual([
+      { kind: 'deload' },
+      { kind: 'short' },
+      { kind: 'where', where: 'dumbbells' },
+    ]);
+  });
+  it('re-entry as a whole percent, then light, short and where in order', () => {
+    expect(modsNote({ light: true, short: true, where: 'bodyweight', deload: false, reentry: 0.15 })).toEqual([
+      { kind: 'reentry', pct: 15 },
+      { kind: 'light' },
+      { kind: 'short' },
+      { kind: 'where', where: 'bodyweight' },
+    ]);
+    expect(modsNote({ reentry: 0.3 })).toEqual([{ kind: 'reentry', pct: 30 }]);
+  });
+  it(`matches prototype modsNote over ${RUNS} random mods`, () => {
+    // The prototype's copy for each code, used only to compare with its HTML.
+    const copy = (x: ModsNotePart): string =>
+      x.kind === 'deload'
+        ? 'recovery week: fewer sets, about 10% lighter'
+        : x.kind === 'reentry'
+          ? `easing back in: about ${x.pct}% lighter`
+          : x.kind === 'light'
+            ? 'lighter session: 1 fewer set, no weight increases'
+            : x.kind === 'short'
+              ? 'short session: main exercises only'
+              : x.where === 'dumbbells'
+                ? 'dumbbells-only version'
+                : 'bodyweight version';
+    const r = rng(31);
+    const pickOf = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
+    for (let k = 0; k < RUNS; k++) {
+      const m =
+        r() < 0.05
+          ? pickOf([null, undefined])
+          : {
+              ...(r() < 0.9 ? { light: r() < 0.4 } : {}),
+              ...(r() < 0.9 ? { short: r() < 0.3 } : {}),
+              ...(r() < 0.9 ? { where: pickOf<Where>(['gym', 'dumbbells', 'bodyweight']) } : {}),
+              ...(r() < 0.9 ? { deload: r() < 0.25 } : {}),
+              ...(r() < 0.9 ? { reentry: pickOf([0, 0, 0.15, 0.3, 0.125, 0.333]) } : {}),
+            };
+      const parts = modsNote(m);
+      expect(parts.length ? `<p class="note">Today: ${parts.map(copy).join('; ')}.</p>` : '').toBe(proto.modsNote(clone(m)));
+    }
   });
 });
 
@@ -94,10 +151,10 @@ describe('sessionMods and templateName match prototype buildSession', () => {
       const p = proto.mods(t);
 
       const got = sessionMods({ date, ciChoice, time, where, profile, labHold: !!labHold?.on, deload, reentry });
-      expect(got.light).toBe(p.light);
+      expect(got.setsLight).toBe(p.light);
       expect(got.mods).toEqual({ light: p.mods.light, short: !!p.mods.short, where: p.mods.where, deload: !!p.mods.deload, reentry: p.mods.reentry });
       expect(templateName(t, where)).toBe(p.template);
-      if (got.light !== got.mods.light) lightDiffers++;
+      if (got.setsLight !== got.mods.light) lightDiffers++;
     }
     expect(lightDiffers).toBeGreaterThan(0);
   });
@@ -174,6 +231,9 @@ describe('mergeSecondSession', () => {
       mods: { light: true, short: true, where: 'dumbbells' },
     });
     expect(built.exercises[1]).toEqual({ name: 'Squat' });
+    expect(old.exercises).toHaveLength(2);
+    expect(old.mods.light).toBe(false);
+    expect(old.template).toBe('Push A (dumbbells only)');
   });
   it('defaults: "Session" with no template, base becomes t, light false with no mods', () => {
     expect(mergeSecondSession({ exercises: [], template: null, base: '', mods: null }, 'Pull A', { exercises: [] })).toEqual({

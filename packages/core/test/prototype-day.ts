@@ -14,6 +14,7 @@ export interface ProtoDay {
   /** The `vol` sum of `renderWorkout()` over `S.day.workout`. */
   volume(): number;
   secondSessionHtml(): string;
+  modsNote(m: unknown): string;
   /** `addSecondSession(t)` with `buildSession(t)` stubbed to set the workout's exercises and mods to `built`. */
   addSecondSession(t: string, built: { exercises: unknown[]; mods: unknown }): void;
 }
@@ -31,7 +32,7 @@ function pick(block: string, prefixes: string[]): string {
 }
 
 /**
- * Runs the prototype's session-mods, template-name, volume and second-session rules, sliced out of the
+ * Runs the prototype's session-mods, template-name, mods-note, volume and second-session rules, sliced out of the
  * HTML, against a fake `S`. `labHoldOn`, `needsClearance`, `screenFlag`, `inRange`, `adjState`,
  * `planList` and `num` are the prototype's own; `whereNow` reads `S.day.workout.where`, and UI calls
  * (`esc`, `saveDay`, `render`, `toast`) are stubbed.
@@ -66,10 +67,11 @@ export function loadDay(): ProtoDay {
     '  return vol;',
     '}',
     sliceBlock(src, 'function secondSessionHtml(){', '}'),
+    sliceBlock(src, 'function modsNote(m){', '}'),
     'function buildSession(t){ const b = JSON.parse(JSON.stringify(BUILT)); S.day.workout.exercises = b.exercises; S.day.workout.mods = b.mods; }',
     'const saveDay = () => {}, render = () => {}, toast = () => {};',
     sliceBlock(src, 'function addSecondSession(t){', '}'),
-    'return { S, mods, volume, secondSessionHtml, addSecondSession: (t, built) => { BUILT = built; addSecondSession(t); } };',
+    'return { S, mods, volume, secondSessionHtml, modsNote, addSecondSession: (t, built) => { BUILT = built; addSecondSession(t); } };',
   ].join('\n');
   return new Function(code)() as ProtoDay;
 }
