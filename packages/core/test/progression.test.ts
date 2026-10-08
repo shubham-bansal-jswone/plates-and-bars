@@ -203,17 +203,20 @@ describe('find-your-weight ramp', () => {
 });
 
 describe('PINNED QUIRK tests', () => {
+  // Spec question #102.
   it('PINNED QUIRK: a comma in a bodyweight +kg field becomes "NaN" in the next set', () => {
     const info = exInfo('Push-ups', meta);
     const t = setTarget([{ w: '2,5', r: '10', done: true }], 1, { mode: 'bw', reps: 11, w: '', text: '', reason: '' }, info);
     expect(tickFill({ w: '', r: '' }, t, info)).toEqual({ w: 'NaN', r: '10', ok: true });
   });
 
+  // Spec question #104.
   it('PINNED QUIRK: returning (55%) and deload (−10%) stack', () => {
     const c = ctx('Hack Squat', rec([[100, 10]]), { returning: { 'Hack Squat': { until: DATE } }, mods: { deload: true } });
     expect(applyMods(suggestBase({ name: 'Hack Squat' }, c), { name: 'Hack Squat' }, c).w).toBe(50);
   });
 
+  // Spec question #103.
   it('PINNED QUIRK: an assisted bridge keeps the same assistance; an assisted return adds 45% of the suggestion, not of the old top', () => {
     const last = rec([[30, 10], [30, 10]]);
     const c = ctx('Assisted Pull-up', last);
@@ -223,15 +226,18 @@ describe('PINNED QUIRK tests', () => {
     expect(applyMods(s, { name: 'Assisted Pull-up' }, ret).w).toBe(35); // 25 + snap(11.25, 5)
   });
 
+  // Spec question #104.
   it('PINNED QUIRK: the big-jump fallback says "kg" with no "each" or "assist"', () => {
     expect(sug('Assisted Pull-up', rec([[30, 10]])).reason).toContain('go back to 30 kg and add reps');
     expect(sug('Lateral Raise', rec([[5, 15]])).reason).toContain('go back to 5 kg and add reps');
   });
 
+  // Spec question #104.
   it('PINNED QUIRK: bodyweight targets are not raised to the range bottom', () => {
     expect(sug('Push-ups', rec([[0, 3]]))).toMatchObject({ reps: 4, text: '4 reps a set' });
   });
 
+  // Spec question #101.
   it('PINNED QUIRK: once today is logged, "two sessions running" no longer counts the older session', () => {
     const prev = { date: '2026-09-28', sets: [{ w: 60, r: 6 }] };
     expect(sug('Hack Squat', rec([[60, 6]], { prev }))).toMatchObject({ mode: 'down' });
