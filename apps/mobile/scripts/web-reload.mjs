@@ -41,6 +41,38 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/`;
 
+// The app's SQLite file lives in the origin's private file system; its size and modified time change when a write lands.
+const opfsStamp = (page) =>
+  page.evaluate(async () => {
+    const out = [];
+    const walk = async (dir, path) => {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind === 'directory') await walk(h, `${path}${name}/`);
+        else {
+          const f = await h.getFile();
+          out.push(`${path}${name}:${f.size}:${f.lastModified}`);
+        }
+      }
+    };
+    await walk(await navigator.storage.getDirectory(), '/');
+    return out.sort().join('|');
+  });
+// Resolves once storage differs from `before` and has stayed the same for 500 ms (the write queue is idle).
+async function savedSince(page, before, timeout = 15000) {
+  const end = Date.now() + timeout;
+  let last = before;
+  let since = Date.now();
+  while (Date.now() < end) {
+    await new Promise((r) => setTimeout(r, 100));
+    const now = await opfsStamp(page);
+    if (now !== last) {
+      last = now;
+      since = Date.now();
+    } else if (now !== before && Date.now() - since >= 500) return;
+  }
+  throw new Error('the write never reached storage');
+}
+
 const browser = await launch({ executablePath: chrome, headless: true, args: ['--no-sandbox'] });
 let ok = false;
 try {
@@ -141,11 +173,12 @@ try {
   await page.waitForSelector(`${sel('I’ve logged everything I ate today')}[aria-checked="true"]`, { timeout: 20000 });
   console.log('after reload: the food log and the "logged everything" tick persisted');
   // Flex: plan a bigger day (+300), reload, the target still includes it.
+  const before = await opfsStamp(page);
   await click('Plan a bigger day');
   await click('+300 kcal today');
   await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 20000 });
   console.log('flex: +300 kcal today raised the target to 2,290');
-  await new Promise((r) => setTimeout(r, 3000));
+  await savedSince(page, before); // wait for the write to reach storage instead of sleeping
   await page.reload({ waitUntil: 'load' });
   const flexed = await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 8000 }).catch(() => null);
   if (!flexed) {

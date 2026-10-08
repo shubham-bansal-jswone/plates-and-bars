@@ -91,11 +91,13 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         {todaysFlex.length ? (
           <View style={styles.gap}>
             <Note>{flexDelta > 0 ? `Today’s target includes +${flexDelta} kcal for a bigger meal, balanced over the next few days.` : `Today’s target is ${-flexDelta} kcal lower to balance an earlier bigger day.`}</Note>
-            <Button label="Undo" kind="link" onPress={() => undo((todaysFlex[0] as { id: string }).id)} />
+            {/* TODO(#178): this undoes the first of today's plans, not the newest; fix with the spec change in the prototype and core. */}
+            <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysFlex[0]!.id)} />
           </View>
         ) : null}
         <View style={styles.gap}>
-          <Button label="Plan a bigger day" kind="ghost" onPress={() => setFlexOpen(!flexOpen)} />
+          {/* TODO: move these chips into the "What should I eat next?" card (as in the prototype) once that card exists. */}
+          <Button label="Plan a bigger day" kind="ghost" expanded={flexOpen} onPress={() => setFlexOpen(!flexOpen)} />
           {flexOpen ? (
             <>
               <View style={styles.wrap}>

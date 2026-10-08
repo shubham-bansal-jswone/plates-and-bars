@@ -49,10 +49,16 @@ export function Button({
   label,
   onPress,
   kind = 'primary',
+  a11yLabel,
+  expanded,
 }: {
   label: string;
   onPress: () => void;
   kind?: 'primary' | 'ghost' | 'link';
+  /** Spoken label when it needs more than the visible text. */
+  a11yLabel?: string;
+  /** For a button that shows or hides something: announces open or closed. */
+  expanded?: boolean;
 }) {
   const c = useTheme();
   const bg = kind === 'primary' ? c.brand : 'transparent';
@@ -60,7 +66,8 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={a11yLabel ?? label}
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
       onPress={onPress}
       style={[styles.btn, kind === 'link' ? styles.link : { backgroundColor: bg, borderColor: c.brand, borderWidth: 1 }]}
     >

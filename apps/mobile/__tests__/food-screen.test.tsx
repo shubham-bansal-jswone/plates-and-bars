@@ -76,10 +76,36 @@ describe('Food screen', () => {
       const db = await setup();
       await plan('+500 kcal today');
       await waitFor(async () => expect((await flexOf(db)).length).toBeGreaterThan(1));
-      await fireEvent.press(screen.getByLabelText('Undo'));
+      await fireEvent.press(screen.getByLabelText('Undo bigger day'));
       expect(screen.getByLabelText('0 of 1,990 kcal eaten')).toBeTruthy();
-      expect(screen.queryByLabelText('Undo')).toBeNull();
+      expect(screen.queryByLabelText('Undo bigger day')).toBeNull();
       await waitFor(async () => expect(await flexOf(db)).toEqual([]));
+    });
+
+    it('announces whether the chips are open', async () => {
+      await setup();
+      expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: false });
+      await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
+      expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: true });
+    });
+
+    it('PINNED QUIRK (#178): with two plans on today, Undo removes the earlier plan, not the newest', async () => {
+      const db = await setup();
+      await plan('+300 kcal today');
+      const first = (await waitFor(async () => {
+        const f = await flexOf(db);
+        expect(f.length).toBe(4);
+        return f;
+      }))[0]!.id;
+      await plan('+500 kcal today');
+      await waitFor(async () => expect((await flexOf(db)).length).toBeGreaterThan(4));
+      await fireEvent.press(screen.getByLabelText('Undo bigger day'));
+      await waitFor(async () => {
+        const left = await flexOf(db);
+        expect(left.length).toBeGreaterThan(0);
+        expect(left.some((x) => x.id === first)).toBe(false);
+      });
+      expect(screen.getByLabelText('0 of 2,490 kcal eaten')).toBeTruthy();
     });
 
     it('says what could not be spread when the next days have no room', async () => {
