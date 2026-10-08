@@ -17,6 +17,9 @@ updates:
     ignore:
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
+      # CI runs Node 22; @types/node must not jump past it (#82)
+      - dependency-name: "@types/node"
+        versions: [">=23"]
   - package-ecosystem: npm
     directory: /packages/core
     schedule:
@@ -24,9 +27,26 @@ updates:
     ignore:
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
+      # CI runs Node 22; @types/node must not jump past it (#82)
+      - dependency-name: "@types/node"
+        versions: [">=23"]
+  - package-ecosystem: npm
+    directory: /apps/mobile
+    schedule:
+      interval: weekly
+    ignore:
+      # CI runs Node 22; @types/node must not jump past it (#82)
+      - dependency-name: "@types/node"
+        versions: [">=23"]
+  - package-ecosystem: npm
+    directory: /tools
+    schedule:
+      interval: weekly
   - package-ecosystem: gradle
     directory: /backend
     schedule:
       interval: weekly
-  # Add an npm entry for /apps/mobile in the PR that creates it (Dependabot
-  # errors on a directory that does not exist). See infra/README.md.
+    ignore:
+      # Boot 4 migration is a separate piece of work (#82)
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major"]
