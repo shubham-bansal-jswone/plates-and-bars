@@ -1,31 +1,37 @@
 import { beginnerRamp, exerciseCap, older, type PlanProfile, type SessionLog, type Where } from './plan';
 
 /**
- * Exercise tags, as in prototype `TAGS` (built with `TG`): movement pattern `p`, family `f`,
- * equipment `eq`, difficulty `d` (1–3), primary muscles `m`, secondary `s`, joints loaded `j`.
+ * Exercise tags, as in prototype `TAGS` (built with `TG`), with content/exercises.json's field names.
+ * Prototype short name in brackets: movement `pattern` (`p`), `family` (`f`), `equipment` (`eq`),
+ * `difficulty` 1–3 (`d`), `primary` muscles (`m`), `secondary` muscles (`s`), `joints` loaded (`j`).
  */
 export interface ExerciseTag {
-  p: string;
-  f: string;
-  eq: string;
-  d: number;
-  m: readonly string[];
-  s: readonly string[];
-  j: readonly string[];
+  pattern: string;
+  family: string;
+  equipment: string;
+  difficulty: number;
+  primary: readonly string[];
+  secondary: readonly string[];
+  joints: readonly string[];
 }
 
+/** Prototype `AWAY`: gym name → [dumbbells-only, bodyweight-only]; `null` leaves it out. */
+export type AwayMap = Readonly<Record<string, readonly (string | null)[]>>;
+
 /**
- * The exercise content the session rules read. It is content data (spec item 4), not rules, so it is
- * passed in rather than copied here. `tags` key order matters: `focusPick` breaks ties by it, as the
- * prototype does with `Object.entries(TAGS)` (built-in tags first, then user custom tags).
+ * The exercise content the session rules read: the `tags`, `cards` and `away_map` fields of
+ * content/exercises.json, passed in as is (other fields are ignored). It is content data (spec item 4),
+ * not rules, so it is passed in rather than copied here. `tags` key order matters: `focusPick` breaks
+ * ties by it, as the prototype does with `Object.entries(TAGS)` (built-in tags first, then user custom
+ * tags).
  */
 export interface ExerciseCatalog {
   /** Prototype `TAGS`, custom tags included. */
   tags: Readonly<Record<string, ExerciseTag>>;
-  /** Prototype `CARDS`: only whether a name has a card is read. */
+  /** Prototype `CARDS`: only whether a name has a card is read, never a card's fields. */
   cards: Readonly<Record<string, unknown>>;
-  /** Prototype `AWAY`: gym name → [dumbbells-only, bodyweight-only]; `null` leaves it out. */
-  away: Readonly<Record<string, readonly [string | null, string | null]>>;
+  /** Prototype `AWAY`, at `away_map.dumbbells_bodyweight`. */
+  away_map: { readonly dumbbells_bodyweight: AwayMap };
 }
 
 /** One exercise in a session being built. `bridge`: the old exercise kept for 2 weeks after a swap. */
@@ -50,14 +56,15 @@ const PULL_M = ['lats', 'upper-back', 'rear-delt', 'biceps', 'forearms'];
 const LOWER_M = ['quads', 'hams', 'glutes', 'calves'];
 
 /**
- * Template names for training away from a gym: each name maps through `away` (dumbbells or
+ * Template names for training away from a gym: each name maps through the away map (dumbbells or
  * bodyweight column), names mapped to `null` drop out, and duplicates keep their first place.
  *
- * Mirrors prototype `mapForWhere(names, where)`.
+ * Mirrors prototype `mapForWhere(names, where)` (`AWAY` read from the catalogue's `away_map`).
  */
-export function mapForWhere(names: readonly string[], where: Where, away: ExerciseCatalog['away']): string[] {
+export function mapForWhere(names: readonly string[], where: Where, catalog: Pick<ExerciseCatalog, 'away_map'>): string[] {
   if (where === 'gym') return [...names];
   const k = where === 'dumbbells' ? 0 : 1;
+  const away = catalog.away_map.dumbbells_bodyweight;
   const seen = new Set<string>();
   const out: string[] = [];
   for (const n of names) {
@@ -120,7 +127,7 @@ function focusList(focus: readonly string[] | null | undefined): string[] {
 export function isFocus(name: string, focus: readonly string[] | null | undefined, tags: ExerciseCatalog['tags']): boolean {
   const t = tags[name];
   const F = focusList(focus);
-  return !!t && t.m.some((m) => F.includes(m));
+  return !!t && t.primary.some((m) => F.includes(m));
 }
 
 /** What `applyFocus` reads from state. */
@@ -146,10 +153,10 @@ export function focusPick(m: string, taken: ReadonlySet<string>, where: Where, s
   const lifts = state.lifts || {};
   const excluded = state.isExcluded ?? (() => false);
   const best = Object.entries(catalog.tags)
-    .filter(([n, t]) => t.m.includes(m) && !taken.has(n) && !excluded(n) && (!allow || allow.includes(t.eq)) && catalog.cards[n])
+    .filter(([n, t]) => t.primary.includes(m) && !taken.has(n) && !excluded(n) && (!allow || allow.includes(t.equipment)) && catalog.cards[n])
     .map(([n, t]) => ({
       n,
-      sc: (t.m[0] === m ? 3 : 0) + (t.m.length === 1 ? 2 : 0) + (lifts[n] ? 2 : 0) - (p.exp === 'new' && t.d === 3 ? 5 : 0) - t.j.length * 0.5,
+      sc: (t.primary[0] === m ? 3 : 0) + (t.primary.length === 1 ? 2 : 0) + (lifts[n] ? 2 : 0) - (p.exp === 'new' && t.difficulty === 3 ? 5 : 0) - t.joints.length * 0.5,
     }))
     .sort((a, b) => b.sc - a.sc);
   return best[0] ? best[0].n : null;
@@ -170,13 +177,13 @@ export function applyFocus(items: readonly SessionItem[], t: string, where: Wher
   let out = items.slice();
   const cap = exerciseCap(state.profile) + out.filter((x) => x.bridge).length;
   for (const m of F) {
-    if (out.some((x) => tags[x.name] && tags[x.name]?.m.includes(m))) continue;
+    if (out.some((x) => tags[x.name] && tags[x.name]?.primary.includes(m))) continue;
     const n = focusPick(m, new Set(out.map((x) => x.name)), where || 'gym', state, catalog);
     if (!n) continue;
     out.push({ name: n, focus: true });
   }
   const foc = (x: SessionItem) => isFocus(x.name, state.focus, tags);
-  const comp = (x: SessionItem) => !!tags[x.name] && COMPOUND.has((tags[x.name] as ExerciseTag).p);
+  const comp = (x: SessionItem) => !!tags[x.name] && COMPOUND.has((tags[x.name] as ExerciseTag).pattern);
   const fc = out.filter((x) => foc(x) && comp(x) && !x.bridge);
   const fi = out.filter((x) => foc(x) && !comp(x) && !x.bridge);
   const rest = out.filter((x) => !fc.includes(x) && !fi.includes(x));
@@ -213,7 +220,7 @@ export function setsFor(name: string, base: number, profile: PlanProfile | null 
   const t = tags[name];
   let n = base;
   if (beginnerRamp(profile, date)) n = 2;
-  else if (t && t.p === 'calf') n = Math.max(n, 4);
+  else if (t && t.pattern === 'calf') n = Math.max(n, 4);
   return n;
 }
 

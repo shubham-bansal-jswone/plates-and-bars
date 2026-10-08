@@ -38,8 +38,9 @@ export type { PlanProfile, PlanState, SessionEntry, SessionLog, Split, WeekPlan,
 export { mondayOf, daysBetween, weekdayOf } from './dates';
 
 /**
- * Session building: home mapping, trim, focus, sets.
- * - `mapForWhere` mirrors prototype `mapForWhere(names, where)` (the home mapping; `AWAY` passed in).
+ * Session building: home mapping, trim, focus, sets. `ExerciseCatalog` is content/exercises.json as is
+ * (prototype `TAGS`, `CARDS`, `AWAY` under content's names: see `ExerciseTag`).
+ * - `mapForWhere` mirrors prototype `mapForWhere(names, where)` (the home mapping; `AWAY` read from the catalogue's `away_map.dumbbells_bodyweight`).
  * - `trimSession` mirrors prototype `trimSession(items, t)`.
  * - `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed` mirror the prototype functions of the same name.
  * - `shortSession` mirrors the check-in short-session cut inline in prototype `buildSession`.
@@ -63,6 +64,7 @@ export {
 export type {
   ExerciseTag,
   ExerciseCatalog,
+  AwayMap,
   SessionItem,
   ReplaceRules,
   TrimState,

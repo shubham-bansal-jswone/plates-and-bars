@@ -13,7 +13,7 @@ import {
   type SessionLog,
 } from '../src/index';
 import { loadGolden } from './helpers';
-import { goldenCatalog, loadProto, rng } from './prototype-plan';
+import { loadProto, rng } from './prototype-plan';
 
 interface GoldenPlan {
   templates: Record<string, string[]>;
@@ -111,7 +111,7 @@ describe('dates', () => {
 });
 
 describe('planned: differential against the prototype source', () => {
-  const proto = loadProto(goldenCatalog());
+  const proto = loadProto();
   const r = rng(19);
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
   const days: (number | null | undefined)[] = [undefined, null, 0, 1, 2, 3, 4, 5, 6, 7];
