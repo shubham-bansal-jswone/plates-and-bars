@@ -33,10 +33,43 @@ test('null away alternative is allowed', () => {
   assert.deepEqual(validateExercises(content, {}), []);
 });
 
-test('card missing "w" fails', () => {
+test('card missing "misplaced_feel" fails', () => {
   const content = read(`${repo}/content/exercises.json`);
-  delete content.cards['Push-ups'].w;
-  assert.ok(validateExercises(content, {}).includes('Push-ups: card "w" must be a non-empty array'));
+  delete content.cards['Push-ups'].misplaced_feel;
+  assert.ok(validateExercises(content, {}).includes('Push-ups: card "misplaced_feel" must be a non-empty array'));
+});
+
+test('card missing any required field fails', () => {
+  for (const f of ['where_to_feel', 'setup', 'key_cues', 'common_mistakes', 'misplaced_feel']) {
+    const content = read(`${repo}/content/exercises.json`);
+    delete content.cards['Push-ups'][f];
+    assert.ok(validateExercises(content, {}).some((e) => e.startsWith(`Push-ups: card "${f}"`)), f);
+  }
+});
+
+test('optional card fields may be absent but must be strings when present', () => {
+  const content = read(`${repo}/content/exercises.json`);
+  const card = content.cards['Push-ups'];
+  for (const f of ['breathing', 'easier_version', 'harder_version']) delete card[f];
+  assert.deepEqual(validateExercises(content, {}), []);
+  card.breathing = 5;
+  card.easier_version = ['x'];
+  const errors = validateExercises(content, {});
+  assert.ok(errors.includes('Push-ups: card "breathing" must be a string'));
+  assert.ok(errors.includes('Push-ups: card "easier_version" must be a string'));
+});
+
+test('old one-letter card keys are rejected', () => {
+  const content = read(`${repo}/content/exercises.json`);
+  content.cards['Push-ups'].f = 'x';
+  const errors = validateExercises(content, {});
+  assert.ok(errors.includes('Push-ups: unknown card field "f"'));
+});
+
+test('misplaced_feel entries must be [label, fix] pairs', () => {
+  const content = read(`${repo}/content/exercises.json`);
+  content.cards['Push-ups'].misplaced_feel = [['only label']];
+  assert.ok(validateExercises(content, {}).includes('Push-ups: card "misplaced_feel" entries must be [label, fix] string pairs'));
 });
 
 test('broken library reference fails', () => {
@@ -45,4 +78,12 @@ test('broken library reference fails', () => {
   const errors = validateExercises(content, {});
   assert.ok(errors.includes('Nonexistent Press: no tags (used in library "Chest")'));
   assert.ok(errors.includes('Nonexistent Press: no card (used in library "Chest")'));
+});
+
+test('non-string entries in setup, key_cues and common_mistakes fail', () => {
+  for (const f of ['setup', 'key_cues', 'common_mistakes']) {
+    const content = read(`${repo}/content/exercises.json`);
+    content.cards['Push-ups'][f].push(false);
+    assert.ok(validateExercises(content, {}).includes(`Push-ups: card "${f}" entries must be strings`), f);
+  }
 });
