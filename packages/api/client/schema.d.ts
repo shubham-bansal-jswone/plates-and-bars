@@ -144,23 +144,26 @@ export interface paths {
          *     key use a deterministic UUIDv5 so two offline devices produce the same id:
          *     UUIDv5 (RFC 9562, formerly RFC 4122: SHA-1, version 5) with namespace = the
          *     user's id (`User.id`, parsed as a UUID) and name = the UTF-8 bytes of
-         *     `<table>:<key>`, written in lowercase canonical form. The key per table:
+         *     `<table>:<key>` (never case-folded). The resulting id is written in lowercase
+         *     canonical form. The key per table:
          *
          *     | Table | Key | Example name |
          *     | --- | --- | --- |
          *     | `profiles` | the literal `me` | `profiles:me` |
          *     | `settings` | the literal `me` | `settings:me` |
          *     | `day_notes`, `workouts`, `weights`, `measurements` | `date` as `YYYY-MM-DD` | `day_notes:2026-10-08` |
-         *     | `lift_stats` | `exercise`, exactly as stored | `lift_stats:Barbell Bench Press` |
-         *     | `swaps` | `from` (the source exercise), exactly as stored | `swaps:Barbell Bench Press` |
+         *     | `lift_stats` | the record's `exercise` field, as sent | `lift_stats:Barbell Bench Press` |
+         *     | `swaps` | the record's `from` field (the source exercise), as sent | `swaps:Barbell Bench Press` |
          *
          *     Exercise names are used unnormalised: no trimming, case folding or Unicode
          *     normalisation. All other tables use random UUIDv4 ids. Test vectors (user id,
          *     table, key, expected id) are in `packages/api/test-vectors/sync-ids.json`.
-         *     The server recomputes the id of every pushed natural-key record (comparing
-         *     case-insensitively); if one does not match, the whole request fails with 400
-         *     `invalid_request`, nothing is applied, and `details` names that record's `id`
-         *     (issue `natural_key_id`).
+         *     Devices send lowercase ids; the server lowercases any id it receives and echoes it
+         *     lowercased in `applied` and `conflicts`. The server recomputes the id of every
+         *     pushed natural-key record; if one does not match, the whole request fails with 400
+         *     `invalid_request` and nothing is applied. The error's `details` entry carries the
+         *     record's path in `field` (`changes.<table>[<i>].id`) and the issue
+         *     `natural_key_id`, never the id value.
          *
          *     **New records.** A record unknown to the server is stored as version 1 and listed
          *     in `applied`, whatever `version` the device sent.
@@ -634,7 +637,10 @@ export interface components {
         };
         /** @description One working or ramp set within a workout. */
         WorkoutSet: components["schemas"]["SyncMeta"] & {
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Id of the workout this set belongs to; for natural-key workouts, the UUIDv5 of `workouts:<date>`.
+             */
             workout_id: string;
             /** @description Matches a `name` in the workout's `exercises`. */
             exercise: string;
