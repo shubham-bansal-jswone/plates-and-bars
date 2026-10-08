@@ -52,4 +52,7 @@ jobs:
           # apps/mobile through micromatch 4 in Metro (expo -> @expo/metro -> metro-file-map) and
           # Jest: build and test tooling, not in the app bundle. Remove when braces ships a fix
           # or micromatch drops it (tracked in #79).
-          allow-ghsas: GHSA-vfj7-8cjw-p6xm
+          # node-forge <= 1.4.0 (high, GHSA-86w9-cpqp-85rv) has no patched release; 1.4.0 is the
+          # latest. It reaches apps/mobile only through @expo/cli (code-signing certificates for
+          # the CLI), which is build tooling, not in the app bundle. Same exit rule, #79.
+          allow-ghsas: GHSA-vfj7-8cjw-p6xm, GHSA-86w9-cpqp-85rv
