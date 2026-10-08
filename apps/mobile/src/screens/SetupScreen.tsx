@@ -261,7 +261,7 @@ function SetupFlow({ recalc }: { recalc: boolean }) {
         )}
         <Text style={{ color: c.muted }}>{step < STEPS ? `Step ${step + 1} of ${STEPS}` : 'Your targets'}</Text>
         {stored ? (
-          <Button kind="link" label="Cancel" onPress={() => router.back()} />
+          <Button kind="link" label="Cancel" onPress={() => (router.canGoBack() ? router.back() : router.replace('/targets' as never))} />
         ) : (
           <Button
             kind="link"

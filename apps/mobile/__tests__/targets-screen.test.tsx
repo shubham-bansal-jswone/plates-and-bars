@@ -9,7 +9,12 @@ import { memoryDb, withProfile } from './helpers';
 
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: mockPush }) }));
+const mockFocus = { n: 0 };
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ replace: jest.fn(), push: mockPush }),
+  // Runs the callback when the screen mounts and each time `mockFocus.n` changes on a re-render (the tab being shown again).
+  useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [mockFocus.n]),
+}));
 
 const loadSettingsRaw = async (db: ReturnType<typeof memoryDb>) => JSON.parse(db.rows.get('user_settings:me') ?? 'null');
 
@@ -134,6 +139,7 @@ describe('TargetsScreen', () => {
       await render(withProfile(db, <TargetsScreen db={db} />));
       for (const m of ['Chest', 'Lats', 'Abs']) await fireEvent.press(await screen.findByLabelText(m));
       await waitFor(async () => expect((await loadSettings(db))?.focus).toEqual(['chest', 'lats', 'abs']));
+      expect(await screen.findByText('Focus: chest, lats and abs')).toBeTruthy();
       expect(screen.getByText(/Training abs builds them/)).toBeTruthy();
       expect(screen.getByText(/aim for about 12–16 weekly sets/)).toBeTruthy();
       await fireEvent.press(screen.getByLabelText('Hamstrings'));
@@ -158,6 +164,23 @@ describe('TargetsScreen', () => {
       const planned = screen.getByLabelText(/^Weekly coverage: your plan, Chest: \d+ sets/);
       expect(planned).toBeTruthy();
       expect(screen.getByLabelText(/^Done in the last 7 days, Calves: 0 sets, low$/)).toBeTruthy();
+    });
+
+    it('reads the done meter again when the tab is shown again', async () => {
+      const db = memoryDb();
+      await saveProfile(db, goldenProfile());
+      const ui = () => withProfile(db, <TargetsScreen db={db} now={() => new Date(2026, 9, 8)} />);
+      const { rerender } = await render(ui());
+      expect(await screen.findByLabelText(/^Done in the last 7 days, Chest: 0 sets/)).toBeTruthy();
+      const wk = { id: null, version: 0, updated_at: 'x', deleted_at: null, date: '2026-10-08', template: 'Push B', base: 'Push B', where: null, cardio_min: null, mods: {}, exercises: [{ name: 'Barbell Bench Press' }], ci_choice: null };
+      db.rows.set('workouts:2026-10-08', JSON.stringify(wk));
+      for (let j = 0; j < 3; j++)
+        db.sets.set(`s${j}`, { date: '2026-10-08', kind: 'work', done: 1, deleted: 0, data: JSON.stringify({ exercise: 'Barbell Bench Press', kind: 'work', done: true, deleted_at: null }) });
+      // still mounted, nothing changed on screen
+      expect(screen.getByLabelText(/^Done in the last 7 days, Chest: 0 sets/)).toBeTruthy();
+      mockFocus.n++;
+      await rerender(ui());
+      expect(await screen.findByLabelText(/^Done in the last 7 days, Chest: 3 sets/)).toBeTruthy();
     });
   });
 });
