@@ -19,7 +19,7 @@ class RateLimiterTest {
     @BeforeEach
     void setUp() {
         clock = new MutableClock(Instant.parse("2026-10-08T06:30:00Z"));
-        limiter = new RateLimiter(clock);
+        limiter = new RateLimiter(clock, 1000);
     }
 
     @Test
@@ -80,5 +80,21 @@ class RateLimiterTest {
         clock.advance(Duration.ofMinutes(5));
         limiter.consume("s", "fresh", l);
         assertThat(limiter.trackedKeys()).isEqualTo(1);
+    }
+
+    @Test
+    void cacheNeverExceedsItsMaximumUnderManyDistinctKeys() {
+        RateLimiter small = new RateLimiter(clock, 100);
+        Limit l = new Limit(5, Duration.ofHours(1));
+        for (int i = 0; i < 10_000; i++) {
+            small.consume("ip", "2001:db8:" + i + "::/64", l);
+            assertThat(small.trackedKeys()).isLessThanOrEqualTo(100);
+        }
+        assertThat(small.trackedKeys()).isPositive();
+        // Limits still work for a key that is held.
+        for (int i = 0; i < 5; i++) {
+            small.consume("ip", "held", l);
+        }
+        assertThatThrownBy(() -> small.consume("ip", "held", l)).isInstanceOf(RateLimitedException.class);
     }
 }

@@ -18,5 +18,5 @@ import app.plateandbar.api.ratelimit.RateLimitConfig;
 @Retention(RetentionPolicy.RUNTIME)
 @Import({SecurityConfig.class, ApiExceptionHandler.class, AuthConfig.class, ClockConfig.class, JwtService.class, RateLimitConfig.class})
 // Generous limits so unrelated tests never trip them; the rate-limit tests override these.
-@TestPropertySource(properties = {"app.rate-limit.public-per-ip.capacity=100000", "app.rate-limit.authenticated-per-user.capacity=100000"})
+@TestPropertySource(properties = {"app.rate-limit.public-per-ip.capacity=100000", "app.rate-limit.health-per-ip.capacity=100000", "app.rate-limit.authenticated-per-user.capacity=100000"})
 public @interface WebMvcAuthSlice {}

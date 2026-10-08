@@ -47,6 +47,21 @@ class ClientIpResolverTest {
         assertThat(r.resolve(req("10.0.0.5", "198.51.100.7, not-an-ip"))).isEqualTo("10.0.0.5");
         assertThat(r.resolve(req("10.0.0.5", "localhost"))).isEqualTo("10.0.0.5");
         assertThat(r.resolve(req("10.0.0.5", "10.0.0.7"))).isEqualTo("10.0.0.5");
+        // A hop with a port is not an IP literal, so the peer is used.
+        assertThat(r.resolve(req("10.0.0.5", "198.51.100.7:4711"))).isEqualTo("10.0.0.5");
+    }
+
+    @Test
+    void onlyStrictIpLiteralsAreParsedAndNamesAreNeverResolved() {
+        // Hex-looking names such as dead.beef.cafe are hostnames, not addresses: rejected before any lookup.
+        for (String s : new String[] {"dead.beef.cafe", "localhost", "1.2.3", "256.1.1.1", "1.2.3.4.5", "1.2.3.4:80", "a.b", "", "1.2.3.4%eth0", "example.com"}) {
+            assertThat(ClientIpResolver.parseLiteral(s)).as(s).isNull();
+        }
+        assertThat(ClientIpResolver.parseLiteral("198.51.100.7")).isNotNull();
+        assertThat(ClientIpResolver.parseLiteral("2001:db8::1")).isNotNull();
+        assertThat(ClientIpResolver.parseLiteral("::ffff:1.2.3.4")).isNotNull();
+        ClientIpResolver r = new ClientIpResolver(List.of("10.0.0.0/8"));
+        assertThat(r.resolve(req("10.0.0.5", "dead.beef.cafe"))).isEqualTo("10.0.0.5");
     }
 
     @Test

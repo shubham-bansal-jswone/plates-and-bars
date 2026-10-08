@@ -68,6 +68,10 @@ public class RateLimitProperties {
         }
     }
 
+    /** /health, per client IP (probes and uptime monitors; generous). */
+    private Limit healthPerIp = new Limit(120, Duration.ofMinutes(1));
+    /** Most distinct (scope, key) buckets held in memory; the least recently used are evicted beyond this. */
+    private long maxTrackedKeys = 100_000;
     /** Every endpoint under /auth, per client IP (Google sign-in, email start and verify, refresh). */
     private Limit publicPerIp = new Limit(30, Duration.ofMinutes(1));
     /** Extra cap on code requests per client IP. */
@@ -84,6 +88,22 @@ public class RateLimitProperties {
             new Caps(new Limit(10, Duration.ofHours(1)), new Limit(20, Duration.ofDays(1)));
     /** IPs or CIDR ranges of reverse proxies whose X-Forwarded-For header is believed. Empty: never. */
     private List<String> trustedProxies = new ArrayList<>();
+
+    public Limit getHealthPerIp() {
+        return healthPerIp;
+    }
+
+    public void setHealthPerIp(Limit v) {
+        this.healthPerIp = v;
+    }
+
+    public long getMaxTrackedKeys() {
+        return maxTrackedKeys;
+    }
+
+    public void setMaxTrackedKeys(long v) {
+        this.maxTrackedKeys = v;
+    }
 
     public Limit getPublicPerIp() {
         return publicPerIp;

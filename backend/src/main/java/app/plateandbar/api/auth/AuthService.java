@@ -105,9 +105,10 @@ public class AuthService {
         Instant expiresAt = now.plus(CODE_TTL);
         tx.executeWithoutResult(s -> {
             codes.deleteExpired(now);
-            failures.deleteOlderThan(now.minus(longestFailureWindow()));
             codes.replace(email, hashCode(email, code), expiresAt, now);
         });
+        // Pruning is a separate statement, outside the code-row transaction, so it cannot take part in a deadlock.
+        failures.deleteOlderThan(now.minus(longestFailureWindow()));
         try {
             mail.sendSignInCode(email, code, expiresAt);
         } catch (RuntimeException e) {

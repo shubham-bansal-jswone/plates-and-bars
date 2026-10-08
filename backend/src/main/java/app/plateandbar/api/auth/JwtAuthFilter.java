@@ -2,6 +2,8 @@ package app.plateandbar.api.auth;
 
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
+import app.plateandbar.api.ratelimit.RateLimitFilter;
+import app.plateandbar.api.ratelimit.RateLimitedException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,10 +27,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwt;
     private final ObjectMapper mapper;
+    private final Consumer<HttpServletRequest> onRejectedToken;
 
-    public JwtAuthFilter(JwtService jwt, ObjectMapper mapper) {
+    /**
+     * @param onRejectedToken called for every request whose bearer token is rejected, before the 401 is sent;
+     *     it may throw {@link RateLimitedException} so that garbage tokens count against the per-IP limit.
+     */
+    public JwtAuthFilter(JwtService jwt, ObjectMapper mapper, Consumer<HttpServletRequest> onRejectedToken) {
         this.jwt = jwt;
         this.mapper = mapper;
+        this.onRejectedToken = onRejectedToken;
     }
 
     @Override
@@ -47,6 +56,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         .setAuthentication(UsernamePasswordAuthenticationToken.authenticated(userId, null, List.of()));
             } catch (ApiException e) {
                 SecurityContextHolder.clearContext();
+                try {
+                    onRejectedToken.accept(request);
+                } catch (RateLimitedException limited) {
+                    RateLimitFilter.writeRateLimited(mapper, response, limited);
+                    return;
+                }
                 response.setStatus(e.status().value());
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                 mapper.writeValue(response.getOutputStream(), ErrorResponse.of(e.code(), e.getMessage()));

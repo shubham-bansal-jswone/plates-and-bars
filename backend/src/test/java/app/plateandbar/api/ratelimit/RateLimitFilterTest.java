@@ -35,6 +35,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @TestPropertySource(properties = {
     "app.rate-limit.public-per-ip.capacity=4",
     "app.rate-limit.public-per-ip.window=60s",
+    "app.rate-limit.health-per-ip.capacity=6",
+    "app.rate-limit.health-per-ip.window=60s",
     "app.rate-limit.email-start-per-ip.capacity=2",
     "app.rate-limit.email-start-per-ip.window=1h",
     "app.rate-limit.email-verify-per-ip.capacity=3",
@@ -170,10 +172,32 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void healthIsNeverLimited() throws Exception {
-        for (int i = 0; i < 20; i++) {
+    void healthHasItsOwnGenerousPerIpLimit() throws Exception {
+        for (int i = 0; i < 6; i++) {
             mvc.perform(from("203.0.113.60", get("/api/v1/health"))).andExpect(status().isOk());
         }
+        mvc.perform(from("203.0.113.60", get("/api/v1/health")))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.code").value("rate_limited"));
+        // Health traffic does not eat the auth bucket.
+        mvc.perform(refresh("203.0.113.60")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void garbageAndExpiredBearerTokensCountAgainstThePerIpLimit() throws Exception {
+        for (int i = 0; i < 4; i++) {
+            mvc.perform(from("203.0.113.90", get("/api/v1/sync/pull").header("Authorization", "Bearer not.a.jwt")))
+                    .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(from("203.0.113.90", get("/api/v1/sync/pull").header("Authorization", "Bearer not.a.jwt")))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.code").value("rate_limited"));
+        // Recovers with time like any other per-IP limit.
+        clock.advance(Duration.ofSeconds(15));
+        mvc.perform(from("203.0.113.90", get("/api/v1/sync/pull").header("Authorization", "Bearer not.a.jwt")))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -94,14 +94,36 @@ public class ClientIpResolver {
         return addr.getHostAddress();
     }
 
-    /** Parses IP literals only; never triggers a DNS lookup. */
-    private static InetAddress parseLiteral(String s) {
-        if (s == null || s.isEmpty() || !LITERAL.matcher(s).matches() || !(s.contains(".") || s.contains(":"))) {
+    private static final Pattern IPV4 = Pattern.compile("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})");
+
+    /**
+     * Parses IP literals only and returns null for anything else, never resolving a name. IPv4 is parsed by hand
+     * (four decimal octets), so {@code dead.beef.cafe} is rejected and nothing reaches DNS. IPv6 must contain a
+     * colon, which makes {@code InetAddress.getByName} parse it as a literal; a hop with a port ({@code 1.2.3.4:80})
+     * is therefore not an IPv4 literal and is rejected too.
+     */
+    static InetAddress parseLiteral(String s) {
+        if (s == null || s.isEmpty() || s.length() > 45) {
             return null;
         }
         try {
+            var m = IPV4.matcher(s);
+            if (m.matches()) {
+                byte[] b = new byte[4];
+                for (int i = 0; i < 4; i++) {
+                    int v = Integer.parseInt(m.group(i + 1));
+                    if (v > 255) {
+                        return null;
+                    }
+                    b[i] = (byte) v;
+                }
+                return InetAddress.getByAddress(b);
+            }
+            if (s.indexOf(':') < 0 || !LITERAL.matcher(s).matches()) {
+                return null;
+            }
             return InetAddress.getByName(s);
-        } catch (UnknownHostException e) {
+        } catch (UnknownHostException | NumberFormatException e) {
             return null;
         }
     }

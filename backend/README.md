@@ -26,12 +26,16 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   `Error` shape with `Retry-After` (seconds):
   - Per client IP on every `/auth/*` endpoint including `/auth/google` (default 30 per minute, one shared bucket),
     plus stricter buckets for `/auth/email/start` (10 per hour) and `/auth/email/verify` (30 per hour).
-  - Per user id on every authenticated endpoint (120 per minute). Requests without a valid token use the IP bucket.
+  - Per user id on every authenticated endpoint (120 per minute). Requests without a token, or with a rejected
+    (invalid or expired) one, count against the IP bucket instead, so garbage tokens cannot be replayed for free.
   - Per address on `/auth/email/start`: 5 codes per hour and 10 per day.
   - Per address wrong-code cap across all codes: 10 per hour and 20 per day, rolling, persisted in
     `email_verify_failures` (V3). A new code does not reset it; while capped even the right code is refused.
     It is in the database, not memory, so a restart or deploy cannot be used to reset a guessing budget.
-  - `/health` is never limited. Limits are configuration (`app.rate-limit.*`, see below).
+  - `/health` has its own generous per-IP limit (120 per minute) so probes are never throttled in practice.
+  - Buckets live in a bounded Caffeine cache (Apache-2.0): at most `app.rate-limit.max-tracked-keys` (100000), idle
+    buckets expire after their longest window. Eviction under pressure can forgive an evicted key; the email guessing
+    cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
 - Not yet: sync tables (#28).
 
 ## Run
@@ -78,7 +82,7 @@ cd backend
 | `GOOGLE_CLIENT_IDS` | empty | Comma-separated OAuth client ids accepted as the Google ID token audience; empty refuses every Google sign-in |
 
 Rate limits are `app.rate-limit.<name>.capacity` and `.window` (a duration such as `60s`), for
-`public-per-ip`, `email-start-per-ip`, `email-verify-per-ip`, `authenticated-per-user`, and
+`health-per-ip`, `public-per-ip`, `email-start-per-ip`, `email-verify-per-ip`, `authenticated-per-user`, and
 `email-start-per-address` and `verify-failures-per-address` (each with `burst` and `sustained`). Set them in
 `application.yml` or as environment variables (`APP_RATELIMIT_PUBLICPERIP_CAPACITY=60`).
 
@@ -87,7 +91,8 @@ Rate limits are `app.rate-limit.<name>.capacity` and `.window` (a duration such 
 The client IP is the socket peer. `X-Forwarded-For` is ignored unless the peer is listed in
 `app.rate-limit.trusted-proxies` (env `APP_RATELIMIT_TRUSTEDPROXIES`, comma-separated IPs or CIDR ranges, empty by
 default). For a trusted peer the header is read from the right and the first hop that is not itself a trusted
-proxy is the client; a malformed header falls back to the peer. Behind a reverse proxy set the list to the proxy's
+proxy is the client; a malformed header, or a hop that is not a plain IP literal (a hostname, or an address
+with a port such as `1.2.3.4:80`), falls back to the proxy's address. Hostnames are never resolved. Staging sits behind a reverse proxy (Caddy, #36), so `trusted-proxies` must be set there. Behind a reverse proxy set the list to the proxy's
 address, otherwise every request shares the proxy's bucket. IPv6 clients are keyed by their /64. The in-memory
 buckets are per process: run one instance, or move them to a shared store before scaling out.
 

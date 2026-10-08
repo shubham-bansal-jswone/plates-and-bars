@@ -10,8 +10,8 @@ import org.springframework.context.annotation.Configuration;
 public class RateLimitConfig {
 
     @Bean
-    RateLimiter rateLimiter(Clock clock) {
-        return new RateLimiter(clock);
+    RateLimiter rateLimiter(Clock clock, RateLimitProperties props) {
+        return new RateLimiter(clock, props.getMaxTrackedKeys());
     }
 
     @Bean

@@ -183,6 +183,40 @@ class RateLimitIT {
     }
 
     @Test
+    void parallelWrongGuessesCannotOvershootTheCap() throws Exception {
+        String email = uniq();
+        burnOneCode(email);
+        assertThat(start(email).getStatusCode().value()).isEqualTo(202);
+        for (int i = 0; i < 4; i++) {
+            assertThat(verify(email, wrongCode()).getStatusCode().value()).isEqualTo(401);
+        }
+        assertThat(failureRows(email)).isEqualTo(9);
+
+        String wrong = wrongCode();
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<Integer>> results = new java.util.ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            results.add(pool.submit(() -> {
+                go.await();
+                return verify(email, wrong).getStatusCode().value();
+            }));
+        }
+        go.countDown();
+        int unauthorized = 0;
+        int limited = 0;
+        for (var f : results) {
+            int code = f.get(60, java.util.concurrent.TimeUnit.SECONDS);
+            if (code == 401) unauthorized++;
+            if (code == 429) limited++;
+        }
+        pool.shutdown();
+        assertThat(unauthorized).isEqualTo(1);
+        assertThat(limited).isEqualTo(7);
+        assertThat(failureRows(email)).isEqualTo(10);
+    }
+
+    @Test
     void dailyCapHoldsAfterTheHourlyWindowClears() {
         String email = uniq();
         burnOneCode(email);

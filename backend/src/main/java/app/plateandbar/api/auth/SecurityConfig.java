@@ -37,6 +37,9 @@ public class SecurityConfig {
             throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, ex) -> writeUnauthorized(mapper, response);
         AccessDeniedHandler denied = (request, response, ex) -> writeUnauthorized(mapper, response);
+        RateLimitFilter rateLimitFilter = new RateLimitFilter(limiter, clientIps, limits, mapper);
+        // A rejected bearer token is answered before the rate-limit filter runs, so it is counted here.
+        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtService, mapper, rateLimitFilter::limitByIp);
         http.csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -46,8 +49,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/health", "/api/v1/auth/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(denied))
-                .addFilterBefore(new JwtAuthFilter(jwtService, mapper), AnonymousAuthenticationFilter.class)
-                .addFilterAfter(new RateLimitFilter(limiter, clientIps, limits, mapper), JwtAuthFilter.class)
+                .addFilterBefore(jwtFilter, AnonymousAuthenticationFilter.class)
+                .addFilterAfter(rateLimitFilter, JwtAuthFilter.class)
                 .cors(Customizer.withDefaults());
         return http.build();
     }
