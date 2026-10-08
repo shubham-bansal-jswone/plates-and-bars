@@ -5,7 +5,8 @@ import { noLoad, type ExInfo, type ExType, type ExerciseOverride, type LiftRecor
 /**
  * Session score: total reps for bodyweight and timed exercises; for assisted, the best effective
  * load `reps × max(0, bodyweight − assistance)` (#122), or `reps × 2 − assistance` when `bodyweight`
- * (the profile's weight) is unknown (absent, null or 0); otherwise the best Epley estimate
+ * is unknown (absent, null or 0). Callers pass the latest logged weight if any, else contract
+ * `Profile.weight_kg` (as prototype `workoutBurn` does); otherwise the best Epley estimate
  * `w × (1 + r/30)`. Empty `sets` gives 0 for bodyweight and timed, `-Infinity` otherwise (never
  * scored: `updateLift` removes today's record instead).
  *
@@ -162,8 +163,8 @@ export interface LiftUpdate {
 
 /**
  * Rebuilds an exercise's record from today's ticked sets (a set counts when weight or reps is
- * non-zero) and adds today's score (`sessionScore`, with the profile's `bodyweight` for assisted
- * machines) to its history (rounded to 0.1, last 8 kept, today's earlier score replaced). A record from an earlier day becomes `prev`, carrying its own `prev` (one level, without
+ * non-zero) and adds today's score (`sessionScore`, with `bodyweight` for assisted machines: the
+ * latest logged weight if any, else contract `Profile.weight_kg`) to its history (rounded to 0.1, last 8 kept, today's earlier score replaced). A record from an earlier day becomes `prev`, carrying its own `prev` (one level, without
  * a further `prev`) so the weight guidance can still see two sessions before today (#101).
  *
  * With no counted sets left and a record from `date` (#122): today's record is removed and the session

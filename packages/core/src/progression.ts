@@ -297,9 +297,10 @@ export interface ModsContext extends ProgressionContext {
   /** Exercises coming back after an exclusion (prototype `S.settings.returning`). */
   returning?: Readonly<Record<string, { until: string }>>;
   /**
-   * The profile's weight in kg (prototype `S.settings.profile.weight`; contract `Profile.weight`), for
-   * assisted machines, where the effective load is bodyweight − assistance (#103). Absent, null or 0:
-   * unknown.
+   * Bodyweight in kg for assisted machines, where the effective load is bodyweight − assistance (#103).
+   * Callers pass the latest logged weight if any, else contract `Profile.weight_kg` (as prototype
+   * `workoutBurn` reads `latestWeight(S.date) || profile.weight`; the prototype's `applyMods` itself
+   * reads `S.settings.profile.weight`). Absent, null or 0: unknown.
    */
   bodyweight?: number | null;
 }
