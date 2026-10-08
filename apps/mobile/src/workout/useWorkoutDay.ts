@@ -7,6 +7,7 @@ import {
   setTarget,
   tickFill,
   updateLift,
+  type LiftRecord,
   type Rate,
   type SessionLog,
 } from '@plate-and-bar/core';
@@ -15,14 +16,14 @@ import { localDate } from '../setup/logic';
 import type { Profile } from '../setup/types';
 import { buildSession, type CheckIn } from './buildSession';
 import { guidance, progressionContext } from './guidance';
-import { blankRow, exerciseRecord, exercisesFrom, liftRecord, liftStat, setRecord, stamp, type ExState } from './model';
-import type { LiftStat, Workout } from './types';
+import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState } from './model';
+import type { Workout } from './types';
 
 export interface Day {
   ready: boolean;
   workout: Workout | null;
   exs: ExState[];
-  lifts: Record<string, LiftStat>;
+  lifts: Record<string, LiftRecord>;
   sessions: SessionLog;
 }
 
@@ -61,7 +62,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
         ready: true,
         workout,
         exs: workout ? exercisesFrom(workout, sets) : [],
-        lifts: Object.fromEntries(lifts.map((l) => [l.exercise, l])),
+        lifts,
         sessions,
       });
     })().catch(() => notify('Couldn’t read your saved workout.'));
@@ -91,13 +92,11 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     if (!profile) return;
     const ctx = progressionContext(date, d.lifts, profile, d.workout);
     const { info } = guidance(ex, ctx, d.workout);
-    const prev = d.lifts[ex.name];
-    const res = updateLift(prev ? liftRecord(prev) : undefined, { sets: ex.sets, form: ex.form }, date, info.type);
+    const res = updateLift(d.lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type);
     if (!res) return;
-    const next = liftStat(ex.name, res.record, prev, now());
-    ref.current = { ...ref.current, lifts: { ...ref.current.lifts, [ex.name]: next } };
+    ref.current = { ...ref.current, lifts: { ...ref.current.lifts, [ex.name]: res.record } };
     setDay(ref.current);
-    await saveLift(db, next);
+    await saveLift(db, ex.name, res.record);
     if (res.toast) notify(`New personal best on ${ex.name}`);
   };
 

@@ -1,14 +1,14 @@
-import { applyMods, exInfo, suggestBase, type ExInfo, type ProgressionContext, type Suggestion, type WorkoutMods } from '@plate-and-bar/core';
+import { applyMods, exInfo, suggestBase, type ExInfo, type LiftRecord, type ProgressionContext, type Suggestion, type WorkoutMods } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
 import { catalog } from './catalog';
-import { liftRecord, type ExState } from './model';
-import type { LiftStat, Workout } from './types';
+import type { ExState } from './model';
+import type { Workout } from './types';
 
 /** What core reads about today, from the stored records. */
-export function progressionContext(date: string, lifts: Readonly<Record<string, LiftStat>>, profile: Profile, workout: Workout | null): ProgressionContext {
+export function progressionContext(date: string, lifts: Readonly<Record<string, LiftRecord>>, profile: Profile, workout: Workout | null): ProgressionContext {
   return {
     date,
-    lifts: Object.fromEntries(Object.entries(lifts).map(([n, l]) => [n, liftRecord(l)])),
+    lifts,
     catalog,
     where: workout?.where ?? profile.where,
     profile,

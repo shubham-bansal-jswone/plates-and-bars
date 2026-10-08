@@ -19,7 +19,7 @@ export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<s
         return [...n].map(([workout_date, c]) => ({ workout_date, n: c })) as T[];
       }
       const table = /FROM (\w+)/.exec(sql)![1];
-      return [...rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, data]) => ({ data })) as T[];
+      return [...rows].filter(([k]) => k.startsWith(`${table}:`)).map(([k, data]) => ({ key: k.slice(table!.length + 1), data })) as T[];
     },
     async getFirstAsync<T>(sql: string, ...p: (string | number)[]) {
       const table = /FROM (\w+)/.exec(sql)![1];

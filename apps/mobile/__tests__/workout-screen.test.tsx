@@ -3,7 +3,8 @@ import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { catalog } from '../src/workout/catalog';
-import type { LiftStat, Workout, WorkoutSet } from '../src/workout/types';
+import type { LiftRecord } from '@plate-and-bar/core';
+import type { Workout, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }) }));
@@ -52,25 +53,20 @@ async function mount(db: Db, opts: { now?: () => Date; focus?: string[] } = {}) 
   await render(withProfile(db, <WorkoutScreen db={db} now={opts.now ?? THURSDAY} focus={opts.focus} />));
 }
 
-/** A previous session: 3 sets at the top of the range, so the suggestion is one step up. */
+/** A previous session in core's lift record shape: 3 sets at the top of the range, so the suggestion is one step up. */
 async function seedLift(db: Db, name: string, w: number, scores?: number[]) {
-  const set = { weight_kg: w, reps: catalog.meta[name]?.rep_high ?? 12, rate: 'right' as const };
-  const stat: LiftStat = {
-    id: null,
-    version: 1,
-    updated_at: '2026-10-05T10:00:00Z',
-    deleted_at: null,
-    exercise: name,
+  const set = { w, r: catalog.meta[name]?.rep_high ?? 12, rate: 'right' as const };
+  const rec: LiftRecord = {
     date: '2026-10-05',
     sets: [set, set, set],
     form: 'yes',
-    sessions: 2,
+    n: 2,
     first: '2026-09-20',
     prev: null,
-    history: (scores ?? [Math.round(w * (1 + set.reps / 30) * 10) / 10]).map((score, i) => ({ date: `2026-09-${20 + i}`, score })),
-    pb_toast_date: null,
+    hist: (scores ?? [Math.round(w * (1 + set.r / 30) * 10) / 10]).map((e, i) => ({ date: `2026-09-${20 + i}`, e })),
+    pbToast: null,
   };
-  db.rows.set(`lift_stats:${name}`, JSON.stringify(stat));
+  db.rows.set(`lift_stats:${name}`, JSON.stringify(rec));
 }
 
 const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
@@ -172,12 +168,13 @@ describe('Workout tab: logging sets', () => {
     expect(s).toMatchObject({ exercise: 'Barbell Bench Press', kind: 'work', set_index: 0, weight_kg: 62.5, reps: 6, done: true, rate: null });
     expect(s.t).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
 
-    await waitFor(() => expect(stored<LiftStat>(db, 'lift_stats:Barbell Bench Press').date).toBe(DATE));
-    const l = stored<LiftStat>(db, 'lift_stats:Barbell Bench Press');
-    expect(Object.keys(l).sort()).toEqual(['date', 'deleted_at', 'exercise', 'first', 'form', 'history', 'id', 'pb_toast_date', 'prev', 'sessions', 'sets', 'updated_at', 'version']);
-    expect(l).toMatchObject({ id: null, version: 1, sessions: 3, first: '2026-09-20', pb_toast_date: null, sets: [{ weight_kg: 62.5, reps: 6, rate: null }] });
-    expect(l.prev).toMatchObject({ date: '2026-10-05' });
-    expect(l.history.at(-1)).toEqual({ date: DATE, score: 75 });
+    // lift_stats keeps core's own record shape, as updateLift returns it.
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').date).toBe(DATE));
+    const l = stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press');
+    expect(l).toMatchObject({ n: 3, first: '2026-09-20', form: null, sets: [{ w: 62.5, r: 6, rate: null }] });
+    expect(l.pbToast).toBeUndefined();
+    expect(l.prev).toMatchObject({ date: '2026-10-05', form: 'yes' });
+    expect(l.hist?.at(-1)).toEqual({ date: DATE, e: 75 });
 
     expect(screen.getByText('Rest 2:30')).toBeTruthy();
     expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
@@ -209,7 +206,7 @@ describe('Workout tab: logging sets', () => {
     for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
     await press('Overhead Cable Extension form: Not really');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'));
-    expect(stored<LiftStat>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no');
+    expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no');
   });
 
   it('keeps what was ticked after the app is reopened', async () => {
@@ -285,7 +282,7 @@ describe('Workout tab: personal best', () => {
     await press('Mark Barbell Bench Press set 1 done');
     // 70 kg x 10 scores 93.3 against a best of 90: more than 0.5% better.
     expect(await screen.findByText('New personal best on Barbell Bench Press')).toBeTruthy();
-    expect(stored<LiftStat>(db, 'lift_stats:Barbell Bench Press').pb_toast_date).toBe(DATE);
+    expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
 
     await act(async () => void jest.advanceTimersByTime(3000));
     expect(screen.queryByText(/New personal best/)).toBeNull();
@@ -294,7 +291,7 @@ describe('Workout tab: personal best', () => {
     await press('Mark Barbell Bench Press set 2 done');
     await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
     expect(screen.queryByText(/New personal best/)).toBeNull();
-    expect(stored<LiftStat>(db, 'lift_stats:Barbell Bench Press').pb_toast_date).toBe(DATE);
+    expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
   });
 
   it('does not toast when the session is not a new best', async () => {

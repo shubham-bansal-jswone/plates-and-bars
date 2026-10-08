@@ -110,9 +110,11 @@ try {
   await click(markLabel);
   await page.waitForSelector(`${sel(markLabel)}[aria-checked="true"]`, { timeout: 20000 });
   console.log(`workout: started "${startLabel}", ticked ${exName} set 1 (40 kg x 9)`);
-  await new Promise((r) => setTimeout(r, 500)); // let the SQLite writes finish before the page goes away
+  await new Promise((r) => setTimeout(r, 3000)); // each edit is its own SQLite commit; let them all finish before the page goes away
   await page.reload({ waitUntil: 'load' });
-  await click('Workout');
+  // A reload keeps the route, so the Workout tab is already open; open it only if the app landed elsewhere.
+  const back = await page.waitForSelector(sel(markLabel), { timeout: 8000 }).catch(() => null);
+  if (!back) await click('Workout');
   await page.waitForSelector(`${sel(markLabel)}[aria-checked="true"]`, { timeout: 20000 });
   const [kg, reps] = await Promise.all([`${exName} set 1 kg`, `${exName} set 1 reps`].map((l) => page.$eval(sel(l), (e) => e.value)));
   if (kg !== '40' || reps !== '9') throw new Error(`ticked set came back as ${kg} x ${reps}`);

@@ -1,8 +1,9 @@
 import type { Rate } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
-// Contract records (packages/api/openapi.yaml), snake_case. Workout and LiftStat are natural-key tables:
-// their contract id is a UUIDv5 that needs the user's namespace, so `id` stays null locally.
+// Contract records (packages/api/openapi.yaml), snake_case. Workout is a natural-key table:
+// its contract id is a UUIDv5 that needs the user's namespace, so `id` stays null locally.
+// Lift records are not here: lift_stats keeps core's own record shape (see src/db/workouts.ts).
 // TODO(#31): fill in `id` (and `WorkoutSet.workout_id`, the UUIDv5 of `workouts:<date>`) once the store is bound to a user.
 
 export type Form = 'yes' | 'no' | null;
@@ -43,25 +44,4 @@ export interface WorkoutSet extends Omit<SyncMeta, 'id'> {
   done: boolean;
   rate: Rate | null;
   t: string | null;
-}
-
-/** Contract `LiftSet`. */
-export interface LiftStatSet {
-  weight_kg: number;
-  reps: number;
-  rate: Rate | null;
-}
-
-/** Contract `LiftStat`: one per exercise. */
-export interface LiftStat extends Omit<SyncMeta, 'id'> {
-  id: null;
-  exercise: string;
-  date: string;
-  sets: LiftStatSet[];
-  form: Form;
-  sessions: number;
-  first: string;
-  prev: { date: string; sets: LiftStatSet[]; form: Form } | null;
-  history: { date: string; score: number }[];
-  pb_toast_date: string | null;
 }

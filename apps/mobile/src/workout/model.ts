@@ -1,6 +1,6 @@
-import { num, type LiftRecord, type Rate, type SetEntry } from '@plate-and-bar/core';
+import { num, type Rate, type SetEntry } from '@plate-and-bar/core';
 import { newId } from '../db/records';
-import type { Form, LiftStat, LiftStatSet, Workout, WorkoutExercise, WorkoutSet } from './types';
+import type { Form, Workout, WorkoutExercise, WorkoutSet } from './types';
 
 /** A set row as the screen edits it: weight and reps are the typed text. */
 export interface Row extends SetEntry {
@@ -69,40 +69,4 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
     sets: rows(x.name, 'work'),
     ramp: rows(x.name, 'ramp'),
   }));
-}
-
-const toSets = (s: readonly { w: number; r: number; rate?: Rate | null }[]): LiftStatSet[] => s.map((x) => ({ weight_kg: x.w, reps: x.r, rate: x.rate ?? null }));
-const fromSets = (s: readonly LiftStatSet[]) => s.map((x) => ({ w: x.weight_kg, r: x.reps, rate: x.rate }));
-
-/** Contract LiftStat to the record core reads (prototype `S.lifts[name]`). */
-export function liftRecord(l: LiftStat): LiftRecord {
-  return {
-    date: l.date,
-    sets: fromSets(l.sets),
-    form: l.form,
-    n: l.sessions,
-    first: l.first,
-    prev: l.prev ? { date: l.prev.date, sets: fromSets(l.prev.sets), form: l.prev.form } : null,
-    hist: l.history.map((h) => ({ date: h.date, e: h.score })),
-    pbToast: l.pb_toast_date,
-  };
-}
-
-/** The record core returned, as a contract LiftStat. */
-export function liftStat(exercise: string, r: LiftRecord, prev: LiftStat | undefined, now: Date): LiftStat {
-  return {
-    id: null,
-    version: prev ? prev.version : 0,
-    updated_at: stamp(now),
-    deleted_at: null,
-    exercise,
-    date: r.date,
-    sets: toSets(r.sets),
-    form: r.form ?? null,
-    sessions: r.n ?? 1,
-    first: r.first ?? r.date,
-    prev: r.prev ? { date: r.prev.date, sets: toSets(r.prev.sets), form: r.prev.form ?? null } : null,
-    history: (r.hist ?? []).map((h) => ({ date: h.date, score: h.e })),
-    pb_toast_date: r.pbToast ?? null,
-  };
 }

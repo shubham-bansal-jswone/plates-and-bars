@@ -21,8 +21,9 @@ export const MIGRATIONS: readonly string[] = [
      key TEXT PRIMARY KEY NOT NULL,
      data TEXT NOT NULL
    );`,
-  // v3: training records, each a contract-shaped JSON document. workouts and lift_stats are natural-key
-  // tables (key = date, key = exercise); workout_sets are keyed by their random id and carry plain columns
+  // v3: training records. workouts (contract Workout) and workout_sets (contract WorkoutSet) are JSON documents;
+  // lift_stats holds core's own lift record per exercise, mapped to the contract at sync time (#135). workouts and
+  // lift_stats are natural-key tables (key = date, key = exercise); workout_sets are keyed by their random id and carry plain columns
   // for the local joins (workout date, kind, done), since their contract workout_id is not known until #31.
   `CREATE TABLE IF NOT EXISTS workouts (
      key TEXT PRIMARY KEY NOT NULL,

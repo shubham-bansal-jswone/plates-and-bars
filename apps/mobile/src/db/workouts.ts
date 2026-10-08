@@ -1,6 +1,6 @@
-import type { SessionLog } from '@plate-and-bar/core';
+import type { LiftRecord, SessionLog } from '@plate-and-bar/core';
 import type { StoreDb } from './records';
-import type { LiftStat, Workout, WorkoutSet } from '../workout/types';
+import type { Workout, WorkoutSet } from '../workout/types';
 
 /** The statements the training store needs, on top of the record store's. */
 export interface WorkoutDb extends StoreDb {
@@ -32,13 +32,18 @@ export async function saveSet(db: StoreDb, date: string, s: WorkoutSet): Promise
   );
 }
 
-export async function loadLifts(db: WorkoutDb): Promise<LiftStat[]> {
-  const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM lift_stats');
-  return rows.map((r) => JSON.parse(r.data) as LiftStat);
+// lift_stats holds core's own lift record (`LiftRecord`: sets {w, r, rate}, hist, pbToast, ...) as is, one row per
+// exercise, so the weight guidance and `updateLift` read and write it with no field mapping in the app.
+// It is mapped to the contract's LiftStat (weight_kg, reps, sessions, history, pb_toast_date, ...) at sync time
+// by core's mapper (#135).
+
+export async function loadLifts(db: WorkoutDb): Promise<Record<string, LiftRecord>> {
+  const rows = await db.getAllAsync<{ key: string; data: string }>('SELECT key, data FROM lift_stats');
+  return Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.data) as LiftRecord]));
 }
 
-export async function saveLift(db: StoreDb, l: LiftStat): Promise<void> {
-  await db.runAsync('INSERT OR REPLACE INTO lift_stats (key, data) VALUES (?, ?)', l.exercise, JSON.stringify(l));
+export async function saveLift(db: StoreDb, exercise: string, record: LiftRecord): Promise<void> {
+  await db.runAsync('INSERT OR REPLACE INTO lift_stats (key, data) VALUES (?, ?)', exercise, JSON.stringify(record));
 }
 
 /**
