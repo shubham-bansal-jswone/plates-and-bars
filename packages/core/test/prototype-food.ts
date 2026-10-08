@@ -148,6 +148,7 @@ export function loadFood(): ProtoFood {
     sliceLine(src, 'const addDays = '),
     'function planFlexRun(extra, settings, date, today, id){ const keepS = S.settings, keepD = S.date; S.settings = settings; S.date = date; let TOAST = "";',
     '  const toast = t => { TOAST = t; }, saveSoon = () => {}, TODAY = () => today, newId = () => id;',
+    sliceLine(src, 'function kcalTarget(date){'),
     sliceBlock(src, 'function planFlex(extra){', '}'),
     '  try { planFlex(extra); return { flex:S.settings.flex, toast:TOAST }; } finally { S.settings = keepS; S.date = keepD; } }',
     'function flexUndo(flex, v){ const S = { settings:{ flex } }, b = { dataset:{ v } }, saveSoon = () => {}, renderFood = () => {}; switch("flex-undo"){',
