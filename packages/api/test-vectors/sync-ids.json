@@ -1,0 +1,137 @@
+{
+  "description": "Shared test vectors for natural-key sync record ids (see POST /sync in openapi.yaml). id = UUIDv5(namespace = user_id as a UUID, name = UTF-8 bytes of `<table>:<key>`), lowercase canonical form. Backend and app tests both load this file.",
+  "rfc_example": {
+    "description": "RFC 9562 (which obsoletes RFC 4122) Appendix A.4: UUIDv5 of www.example.com in the DNS namespace. Proves the implementation before the cases below.",
+    "namespace": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "name": "www.example.com",
+    "id": "2ed6657d-e927-568b-95e1-2665a8aea6a2"
+  },
+  "cases": [
+    {
+      "note": "One profile per user",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "profiles",
+      "key": "me",
+      "name": "profiles:me",
+      "name_utf8_hex": "70726f66696c65733a6d65",
+      "id": "bb9a1205-b5d1-57ac-8f72-619bdb573f77"
+    },
+    {
+      "note": "One settings record per user",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "settings",
+      "key": "me",
+      "name": "settings:me",
+      "name_utf8_hex": "73657474696e67733a6d65",
+      "id": "8e73d325-779b-5a79-845c-b29eb0d86202"
+    },
+    {
+      "note": "Date key",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "day_notes",
+      "key": "2026-10-08",
+      "name": "day_notes:2026-10-08",
+      "name_utf8_hex": "6461795f6e6f7465733a323032362d31302d3038",
+      "id": "da278f3c-5e4f-58a1-b11b-9fa6917c4397"
+    },
+    {
+      "note": "Same date as day_notes: the table prefix makes the ids differ",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "workouts",
+      "key": "2026-10-08",
+      "name": "workouts:2026-10-08",
+      "name_utf8_hex": "776f726b6f7574733a323032362d31302d3038",
+      "id": "1f4a42d9-c524-5352-88d6-369ef187a482"
+    },
+    {
+      "note": "Date key",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "weights",
+      "key": "2026-10-08",
+      "name": "weights:2026-10-08",
+      "name_utf8_hex": "776569676874733a323032362d31302d3038",
+      "id": "640dee2b-d92d-5a00-bd03-568962bf90ea"
+    },
+    {
+      "note": "Date key",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "measurements",
+      "key": "2026-10-08",
+      "name": "measurements:2026-10-08",
+      "name_utf8_hex": "6d6561737572656d656e74733a323032362d31302d3038",
+      "id": "97153fec-8526-517a-a4fc-0273e18fe8b2"
+    },
+    {
+      "note": "Exercise name exactly as stored",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "lift_stats",
+      "key": "Barbell Bench Press",
+      "name": "lift_stats:Barbell Bench Press",
+      "name_utf8_hex": "6c6966745f73746174733a42617262656c6c2042656e6368205072657373",
+      "id": "d03da8fc-3a9f-5d42-830a-f841270004ef"
+    },
+    {
+      "note": "Not normalised: case changes the id",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "lift_stats",
+      "key": "barbell bench press",
+      "name": "lift_stats:barbell bench press",
+      "name_utf8_hex": "6c6966745f73746174733a62617262656c6c2062656e6368207072657373",
+      "id": "86a33534-b25d-5a0f-82b3-9cc849b092ce"
+    },
+    {
+      "note": "Non-ASCII exercise name (Devanagari), UTF-8 bytes",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "lift_stats",
+      "key": "दंड बैठक",
+      "name": "lift_stats:दंड बैठक",
+      "name_utf8_hex": "6c6966745f73746174733ae0a4a6e0a482e0a4a120e0a4ace0a588e0a4a0e0a495",
+      "id": "a3099266-cd9b-5db0-b89e-75f1b91cabca"
+    },
+    {
+      "note": "Non-ASCII, precomposed e-acute (U+00E9)",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "lift_stats",
+      "key": "Café Curl",
+      "name": "lift_stats:Café Curl",
+      "name_utf8_hex": "6c6966745f73746174733a436166c3a9204375726c",
+      "id": "55fd2d41-3faf-5737-a20a-8849fde72167"
+    },
+    {
+      "note": "Same text decomposed (e + U+0301): no Unicode normalisation, so a different id",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "lift_stats",
+      "key": "Café Curl",
+      "name": "lift_stats:Café Curl",
+      "name_utf8_hex": "6c6966745f73746174733a43616665cc81204375726c",
+      "id": "d314a5e5-739d-5171-b6a2-08db15c49f62"
+    },
+    {
+      "note": "Key is the source exercise (`from`)",
+      "user_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "table": "swaps",
+      "key": "Barbell Bench Press",
+      "name": "swaps:Barbell Bench Press",
+      "name_utf8_hex": "73776170733a42617262656c6c2042656e6368205072657373",
+      "id": "340b5063-a641-51d0-b6f4-8981d9fb398b"
+    },
+    {
+      "note": "Another user: same name, different namespace, different id",
+      "user_id": "0f8e7d6c-5b4a-4c3d-9e2f-1a0b9c8d7e6f",
+      "table": "profiles",
+      "key": "me",
+      "name": "profiles:me",
+      "name_utf8_hex": "70726f66696c65733a6d65",
+      "id": "1cd94f1c-e9fc-567c-8693-8202a6ef089b"
+    },
+    {
+      "note": "Another user, date key",
+      "user_id": "0f8e7d6c-5b4a-4c3d-9e2f-1a0b9c8d7e6f",
+      "table": "day_notes",
+      "key": "2026-10-08",
+      "name": "day_notes:2026-10-08",
+      "name_utf8_hex": "6461795f6e6f7465733a323032362d31302d3038",
+      "id": "ce61e2ae-c651-581d-92fc-6fa99c80539a"
+    }
+  ]
+}
