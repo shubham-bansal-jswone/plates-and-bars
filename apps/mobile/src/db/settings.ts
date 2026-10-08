@@ -6,7 +6,10 @@ const KEY = 'me';
 
 export async function loadSettings(db: StoreDb): Promise<Settings | null> {
   const row = await db.getFirstAsync<{ data: string }>('SELECT data FROM user_settings WHERE key = ?', KEY);
-  return row ? (JSON.parse(row.data) as Settings) : null;
+  if (!row) return null;
+  const s = JSON.parse(row.data) as Settings;
+  // Contract 0.1.3: flex entries carry a plan id. Drop any stored without one rather than crash on it.
+  return { ...s, flex: (s.flex ?? []).filter((f) => typeof f?.id === 'string' && f.id !== '') };
 }
 
 export async function saveSettings(db: StoreDb, s: Settings): Promise<void> {

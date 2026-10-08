@@ -24,7 +24,7 @@ type Db = ReturnType<typeof memoryDb>;
 async function setup(opts: { flex?: number; withProfile?: boolean; db?: Db } = {}) {
   const db = opts.db ?? memoryDb();
   if (opts.withProfile !== false) await saveProfile(db, profile());
-  if (opts.flex) await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: [{ date: DATE, kcal_delta: opts.flex }] });
+  if (opts.flex) await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: [{ id: 'flex-1', date: DATE, kcal_delta: opts.flex }] });
   await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
   await screen.findByRole('header', { name: 'Food' });
   return db;

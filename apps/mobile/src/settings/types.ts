@@ -1,3 +1,4 @@
+import type { FlexEntry } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
 /**
@@ -19,7 +20,7 @@ export interface Settings extends Omit<SyncMeta, 'id'> {
   diet: 'any' | 'egg' | 'veg';
   water_sizes: { glass_ml: number; bottle_ml: number };
   exercise_overrides: Record<string, { type: string; step_kg: number; rep_low: number; rep_high: number }>;
-  flex: { date: string; kcal_delta: number }[];
+  flex: FlexEntry[];
   returning: Record<string, { until: string }>;
   ladder_stay: Record<string, string>;
   checkin_seen: string | null;
