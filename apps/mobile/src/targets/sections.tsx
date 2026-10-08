@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
 import { loadSets, loadWorkout, loadLifts, type WorkoutDb } from '../db/workouts';
@@ -8,7 +9,7 @@ import type { Profile } from '../setup/types';
 import type { Settings } from '../settings/types';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from '../workout/catalog';
-import { MUSCLE } from '../workout/copy';
+import { MUSCLE, listJoin } from '../workout/copy';
 import { Chip } from '../workout/parts';
 import type { Workout, WorkoutSet } from '../workout/types';
 
@@ -25,7 +26,7 @@ export function FocusSection({ focus, onChange, notify }: { focus: readonly stri
     const r = toggleFocus(focus, m);
     if (r.result === 'full') return notify(`Up to ${FOCUS_MAX} focus muscles. Remove one first.`);
     onChange(r.focus);
-    notify(r.focus.length ? `Focus: ${r.focus.map(lower).join(', ')}` : 'No focus muscles');
+    notify(r.focus.length ? `Focus: ${listJoin(r.focus.map(lower))}` : 'No focus muscles');
   };
   return (
     <View style={styles.gap}>
@@ -58,6 +59,9 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   const [rows, setRows] = useState<{ planned: CoverageRow[]; done: CoverageRow[] } | null>(null);
   const [failed, setFailed] = useState(false);
   const { adjustments } = settings;
+  // Tab screens stay mounted, so the numbers are read again each time the tab is shown (prototype rebuilds on show).
+  const [shown, setShown] = useState(0);
+  useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
   useEffect(() => {
     let live = true;
     (async () => {
@@ -70,7 +74,7 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
     return () => {
       live = false;
     };
-  }, [db, profile, adjustments, today]);
+  }, [db, profile, adjustments, today, shown]);
   return (
     <View style={styles.gap}>
       {failed ? <Hint>Couldn’t read your coverage.</Hint> : null}

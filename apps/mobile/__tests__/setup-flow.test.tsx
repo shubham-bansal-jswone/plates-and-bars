@@ -9,7 +9,8 @@ import { memoryDb, withProfile } from './helpers';
 
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, back: mockBack }) }));
+let mockCanGoBack = true;
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, back: mockBack, canGoBack: () => mockCanGoBack }) }));
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
@@ -253,5 +254,20 @@ describe('redo and recalculate setup', () => {
     expect(screen.queryByLabelText('Skip for now')).toBeNull();
     await press('Cancel');
     expect(mockBack).toHaveBeenCalled();
+  });
+
+  it('Cancel with no history (reload, deep link) goes to targets', async () => {
+    mockBack.mockClear();
+    mockReplace.mockClear();
+    mockCanGoBack = false;
+    const db = memoryDb();
+    await saveProfile(db, stored());
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    await press('Cancel');
+    mockCanGoBack = true;
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith('/targets');
   });
 });
