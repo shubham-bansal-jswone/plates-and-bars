@@ -7,7 +7,9 @@
 
 ## Context
 
-ADR 002 limits food values to five sources and bans IFCT and INDB. The eating-out table (`content/eatout.json`, #160, #162) holds restaurant dishes whose values are our own rough estimates: they were never weighed in a kitchen test or cooked to one of our recipes. None of the five sources describes them, so they were filed under `own_recipe`, which overstates how they were made. ADR 002 says a new source needs a new ADR that supersedes it; this is that ADR. Everything else in ADR 002 is restated here unchanged.
+Carried over from ADR 002: Most users eat Indian home food, which global databases cover poorly. The obvious Indian sources are IFCT (Indian Food Composition Tables) and INDB. The development plan rules them out, and its launch checklist requires "No IFCT or INDB data anywhere in the app or database"; this ADR, like ADR 002, records that prohibition rather than a licensing analysis of its own. Food values are also the base of every calorie and macro number the app shows, so where each value came from must be traceable.
+
+What changed: ADR 002 limits food values to five sources and bans IFCT and INDB. The eating-out table (`content/eatout.json`, #160, #162) holds restaurant dishes whose values are our own rough estimates: they were never weighed in a kitchen test or cooked to one of our recipes. None of the five sources describes them, so they were filed under `own_recipe`, which overstates how they were made. ADR 002 says a new source needs a new ADR that supersedes it; this is that ADR. ADR 002's context above and its decision and consequences below are restated unchanged; the only additions are the sixth source and one consequence about estimate rows.
 
 ## Decision
 
