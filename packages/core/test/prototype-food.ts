@@ -26,6 +26,13 @@ export interface ProtoMyFood {
   veg?: number;
 }
 
+/** Prototype flex entry (an item in `settings.flex`). */
+export interface ProtoFlex {
+  id: string;
+  date: string;
+  d: number;
+}
+
 export interface ProtoFood {
   S: { date: string; day: { meals: ProtoMeal[]; complete?: boolean }; settings: { kcal: number; myFoods: ProtoMyFood[] } };
   FOODS: ProtoFoodRow[];
@@ -45,6 +52,10 @@ export interface ProtoFood {
   setKcalTarget(k: number): void;
   /** The prototype's own `kcalTarget(date)` (with `calcTargets` and `labHoldOn`) against `S.settings`. */
   realKcalTarget(date: string, settings: Record<string, unknown>): number;
+  /** The prototype's own `planFlex(extra)` against `settings`, with `S.date`, `TODAY()` and `newId()` set; returns the new flex and the toast. */
+  planFlex(extra: number, settings: Record<string, unknown>, date: string, today: string, id: string): { flex: ProtoFlex[]; toast: string };
+  /** `case 'flex-undo'` on `flex` with button value `v`. */
+  flexUndo(flex: ProtoFlex[], v: string): ProtoFlex[];
   /** `case 'serv'` from servings `serv` with button step `d`. */
   serv(serv: number, d: string): number;
   /** The "high protein" badge check of `foodListHtml()` on a food row. */
@@ -85,6 +96,8 @@ export function loadFood(): ProtoFood {
   if (!servLine) throw new Error('prototype: case serv reshaped');
   const badge = listHtml.join('\n').match(/\$\{(f\[2\] && f\[3\]\*100\/f\[2\] >= 8) \?/);
   if (!badge) throw new Error('prototype: high-protein badge reshaped');
+  const undoLine = pickLines.find((l) => l.startsWith("    case 'flex-undo': "));
+  if (!undoLine) throw new Error('prototype: case flex-undo reshaped');
   const addCustom = sliceBlock(src, "    case 'addcustom': {", '    }').split('\n').slice(1, -1).join('\n').replaceAll('break;', 'return;');
   const code = [
     'const S = { date:"2026-10-08", day:{ meals:[] }, settings:{ kcal:2000, myFoods:[] } };',
@@ -129,6 +142,17 @@ export function loadFood(): ProtoFood {
     'const realKcalTarget = (() => {',
     sliceLine(src, 'function kcalTarget(date){'),
     '  return (date, settings) => { const keep = S.settings; S.settings = settings; try { return kcalTarget(date); } finally { S.settings = keep; } }; })();',
+    sliceLine(src, 'const pad = '),
+    sliceLine(src, 'const ymd = '),
+    sliceLine(src, 'const parseYmd = '),
+    sliceLine(src, 'const addDays = '),
+    'function planFlexRun(extra, settings, date, today, id){ const keepS = S.settings, keepD = S.date; S.settings = settings; S.date = date; let TOAST = "";',
+    '  const toast = t => { TOAST = t; }, saveSoon = () => {}, TODAY = () => today, newId = () => id;',
+    sliceBlock(src, 'function planFlex(extra){', '}'),
+    '  try { planFlex(extra); return { flex:S.settings.flex, toast:TOAST }; } finally { S.settings = keepS; S.date = keepD; } }',
+    'function flexUndo(flex, v){ const S = { settings:{ flex } }, b = { dataset:{ v } }, saveSoon = () => {}, renderFood = () => {}; switch("flex-undo"){',
+    replaceOnce(undoLine, 'renderFood(); return;', 'return S.settings.flex;'),
+    '  } }',
     'function serv(s0, d){ const FS = { serv:s0 }; const $ = () => ({}); const b = { dataset:{ d } };',
     '  ' + servLine.replace("case 'serv': ", '').replace(/ \$\('#servV'\)\.textContent = r1\(FS\.serv\); break;$/, ''),
     '  return FS.serv; }',
@@ -140,7 +164,7 @@ export function loadFood(): ProtoFood {
     addCustom,
     '  })();',
     '  const out = { toast:TOAST, meal:MEAL, myFoods:S.settings.myFoods }; S.settings.myFoods = keep; return out; }',
-    'return { S, FOODS, FIB, PRODUCE, ALIAS, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, serv, highProtein, addCustom };',
+    'return { S, FOODS, FIB, PRODUCE, ALIAS, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, planFlex: planFlexRun, flexUndo, serv, highProtein, addCustom };',
   ].join('\n');
   return new Function(code)() as ProtoFood;
 }
