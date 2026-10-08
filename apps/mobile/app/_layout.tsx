@@ -1,9 +1,10 @@
-import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SQLiteProvider } from 'expo-sqlite';
+import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DB_NAME, MIGRATIONS, migrate } from '../src/db/migrations';
+import { ProfileProvider } from '../src/state/ProfileProvider';
+import { Gate } from '../src/state/Gate';
 
 async function initDb(db: SQLiteDatabase): Promise<void> {
   const version = await migrate(db);
@@ -12,21 +13,22 @@ async function initDb(db: SQLiteDatabase): Promise<void> {
   }
 }
 
-// expo-sqlite on web needs wasm + SharedArrayBuffer; the M0 web build skips the local DB.
-function Shell() {
+function Providers() {
+  const db = useSQLiteContext();
   return (
-    <>
+    <ProfileProvider db={db}>
       <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false }} />
-    </>
+      <Gate />
+    </ProfileProvider>
   );
 }
 
+// Same database and migrations on Android, iOS and web (web uses expo-sqlite's wasm build).
 export default function RootLayout() {
-  if (Platform.OS === 'web') return <Shell />;
   return (
     <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
-      <Shell />
+      <Providers />
     </SQLiteProvider>
   );
 }
