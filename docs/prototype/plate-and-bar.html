@@ -2921,13 +2921,19 @@ function combosFast(info){
 /* ---------- flexible days (a bigger meal spread over the next days) ---------- */
 function kcalTarget(date){ if(labHoldOn() && S.settings.profile) return Math.max(S.settings.kcal, Math.round(calcTargets(S.settings.profile).tdee/10)*10); return S.settings.kcal + ((S.settings.flex || []).filter(x => x.date === date).reduce((a, x) => a + x.d, 0)); }
 function planFlex(extra){
-  const floor = S.settings.profile ? calcTargets(S.settings.profile).floor : 1200;
-  let spread = 3; while(spread < 6 && S.settings.kcal - extra/spread < floor) spread++;
-  const per = Math.round(extra/spread/10)*10, id = newId();
+  const floor = S.settings.profile ? calcTargets(S.settings.profile).floor : 1200, id = newId(), f10 = x => Math.floor(x/10)*10;
   S.settings.flex = (S.settings.flex || []).filter(x => x.date >= addDays(TODAY(), -7));
+  const days = [1, 2, 3, 4, 5, 6].map(i => addDays(S.date, i));
+  const room = days.map(d => { const flexed = S.settings.kcal + S.settings.flex.filter(x => x.date === d).reduce((a, x) => a + x.d, 0); return Math.max(0, f10(Math.min(kcalTarget(d), flexed) - floor)); });
+  let spread = 3, cuts = null, left = 0;
+  for(; spread <= 6 && !cuts; spread++){ const per = f10(extra/spread); if(room.slice(0, spread).every(r => r >= per)) cuts = room.slice(0, spread).map(() => per); }
+  spread--;
+  if(!cuts){ const top = Math.max(...room), fill = l => room.reduce((a, r) => a + Math.min(r, l), 0); let lvl = 0; while(lvl < top && fill(lvl + 10) <= extra) lvl += 10; cuts = room.map(r => Math.min(r, lvl)); left = Math.max(0, extra - fill(top)); }
+  const per = Math.max(...cuts), even = cuts.every(c => c === per);
   S.settings.flex.push({ id, date:S.date, d:extra });
-  for(let i = 1; i <= spread; i++) S.settings.flex.push({ id, date:addDays(S.date, i), d:-per });
-  saveSoon('settings', S.settings); toast(`Today +${extra} kcal; the next ${spread} days ${per} lower`);
+  cuts.forEach((c, i) => { if(c > 0) S.settings.flex.push({ id, date:days[i], d:-c }); });
+  saveSoon('settings', S.settings);
+  toast(`Today +${extra} kcal${per > 0 ? `; the next ${spread} days ${even ? '' : 'up to '}${per} lower` : ''}${left ? `; ${left} kcal could not be spread without going below your minimum` : ''}`);
 }
 function flexNoteHtml(){
   const f = (S.settings.flex || []).filter(x => x.date === S.date); if(!f.length) return '';

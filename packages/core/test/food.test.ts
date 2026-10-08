@@ -12,6 +12,7 @@ import {
   kcalTarget,
   DEFAULT_KCAL_TARGET,
   planFlex,
+  flexToast,
   undoFlex,
   FLEX_FLOOR_DEFAULT,
   stepServings,
@@ -28,6 +29,8 @@ import {
   toTargetsProfile,
   type KcalTargetProfile,
   type FlexEntry,
+  type PlanFlexInput,
+  type PlanFlexResult,
   type UserFoodFields,
   type FoodFacts,
   type FoodLogFacts,
@@ -421,69 +424,185 @@ describe('kcalTarget', () => {
 });
 
 describe('planFlex and undoFlex', () => {
-  // No golden cases exist for planFlex (spec-question #167); numbers below are worked by hand and the
-  // differential test runs the prototype's own planFlex and case 'flex-undo'.
+  // Decided in #167: no day goes below the floor. The cases below are worked by hand (the golden generator
+  // is #99); each also runs through the prototype's own planFlex. The differential test covers the rest.
   const base: KcalTargetProfile = { sex: 'female', age: 30, height_cm: 165, weight_kg: 70, activity: 'sitting', days: 3, minutes: 60, goal: 'lose', pace: 'moderate', special: 'none', targets: { kcal: 1800 } };
   const male: KcalTargetProfile = { ...base, sex: 'male' };
+  const holdMan: KcalTargetProfile = { sex: 'male', age: 30, height_cm: 175, weight_kg: 80, activity: 'sitting', days: 3, minutes: 60, goal: 'lose', pace: 'moderate', special: 'none', targets: { kcal: 2000 } };
   const at = { date: '2026-10-08', today: '2026-10-08', id: 'p1', flex: null };
   const cuts = (f: FlexEntry[]) => f.filter((x) => x.kcal_delta < 0).map((x) => [x.date, x.kcal_delta]);
+  const protoRun = (input: PlanFlexInput, prof: KcalTargetProfile | null) =>
+    proto.planFlex(
+      input.extra,
+      {
+        kcal: prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET,
+        profile: prof && { ...toTargetsProfile(prof) },
+        flex: input.flex ? input.flex.map((x) => ({ id: x.id, date: x.date, d: x.kcal_delta })) : input.flex === null ? null : undefined,
+        labHold: input.labHold === undefined ? undefined : { on: input.labHold },
+      },
+      input.date,
+      input.today,
+      input.id,
+    );
 
-  it('no profile: +500 today, 170 off each of the next 3 days, one id on every entry', () => {
+  interface FlexCase {
+    name: string;
+    profile: KcalTargetProfile | null;
+    input: Partial<PlanFlexInput> & { extra: number };
+    cuts: [string, number][];
+    result: Omit<PlanFlexResult, 'flex'>;
+    toast: string;
+    /** The lowest target on a cut day afterwards (lab hold off), checked against the floor. */
+    lowest?: number;
+  }
+  const other800: FlexEntry[] = [
+    { id: 'p0', date: '2026-10-08', kcal_delta: 800 },
+    { id: 'p0', date: '2026-10-09', kcal_delta: -260 },
+    { id: 'p0', date: '2026-10-10', kcal_delta: -260 },
+    { id: 'p0', date: '2026-10-11', kcal_delta: -260 },
+  ];
+  const cases: FlexCase[] = [
+    {
+      // rule 2: 800 / 3 = 266.7 rounds down to 260, so the cuts total 780, never 810
+      name: 'rounding: no profile, +800 over 3 days of 260',
+      profile: null,
+      input: { extra: 800 },
+      cuts: [['2026-10-09', -260], ['2026-10-10', -260], ['2026-10-11', -260]],
+      result: { spread: 3, per: 260, even: true, leftover: 0 },
+      toast: 'Today +800 kcal; the next 3 days 260 lower',
+      lowest: 1640,
+    },
+    {
+      // rule 2: room 1367 - 1200 = 167 rounds down to 160; 500 / 3 = 166.7 rounds down to 160: the day is 1207, not 1197
+      name: 'rounding: target 1367, +500 stays above the floor',
+      profile: { ...base, targets: { kcal: 1367 } },
+      input: { extra: 500 },
+      cuts: [['2026-10-09', -160], ['2026-10-10', -160], ['2026-10-11', -160]],
+      result: { spread: 3, per: 160, even: true, leftover: 0 },
+      toast: 'Today +500 kcal; the next 3 days 160 lower',
+      lowest: 1207,
+    },
+    {
+      // spread grows: male floor 1500, room 200; 800/3 = 260 > 200, 800/4 = 200 fits
+      name: 'spread: male 1700, +800 over 4 days of 200',
+      profile: { ...male, targets: { kcal: 1700 } },
+      input: { extra: 800 },
+      cuts: [['2026-10-09', -200], ['2026-10-10', -200], ['2026-10-11', -200], ['2026-10-12', -200]],
+      result: { spread: 4, per: 200, even: true, leftover: 0 },
+      toast: 'Today +800 kcal; the next 4 days 200 lower',
+      lowest: 1500,
+    },
+    {
+      // rules 1 and 3: room 100 a day; even 6 days (130) does not fit, so each day takes 100 and 200 is left over
+      name: 'leftover: target 1300, +800 fills 6 days to the floor',
+      profile: { ...base, targets: { kcal: 1300 } },
+      input: { extra: 800 },
+      cuts: [['2026-10-09', -100], ['2026-10-10', -100], ['2026-10-11', -100], ['2026-10-12', -100], ['2026-10-13', -100], ['2026-10-14', -100]],
+      result: { spread: 6, per: 100, even: true, leftover: 200 },
+      toast: 'Today +800 kcal; the next 6 days 100 lower; 200 kcal could not be spread without going below your minimum',
+      lowest: 1200,
+    },
+    {
+      // rule 3: target already at the floor, no room at all; today still gets the extra
+      name: 'leftover: target 1200, +300 cannot be spread at all',
+      profile: { ...base, targets: { kcal: 1200 } },
+      input: { extra: 300 },
+      cuts: [],
+      result: { spread: 6, per: 0, even: true, leftover: 300 },
+      toast: 'Today +300 kcal; 300 kcal could not be spread without going below your minimum',
+    },
+    {
+      // rule 1: an earlier +800 plan left days 9-11 at 1240 (room 40); days 12-14 have room 300.
+      // No even split fits, so the days fill level: 3 x 40 + 3 x 220 = 780 (230 would be 810 > 800).
+      name: 'other plans: a second +800 at target 1500 keeps every day at or above 1200',
+      profile: { ...base, targets: { kcal: 1500 } },
+      input: { extra: 800, id: 'p2', flex: other800 },
+      cuts: [
+        ['2026-10-09', -260], ['2026-10-10', -260], ['2026-10-11', -260],
+        ['2026-10-09', -40], ['2026-10-10', -40], ['2026-10-11', -40], ['2026-10-12', -220], ['2026-10-13', -220], ['2026-10-14', -220],
+      ],
+      result: { spread: 6, per: 220, even: false, leftover: 0 },
+      toast: 'Today +800 kcal; the next 6 days up to 220 lower',
+      lowest: 1200,
+    },
+    {
+      // rule 1, lab hold: kcalTarget is 2390 (maintenance) on every day while the hold is on, but day 9 has
+      // another plan's -400, so its room is min(2390, 1600) - 1500 = 100. Level fill: 100 + 5 x 140 = 800.
+      name: 'lab hold: the cut is checked against the target the day returns to when the hold ends',
+      profile: holdMan,
+      input: { extra: 800, labHold: true, flex: [{ id: 'p0', date: '2026-10-09', kcal_delta: -400 }] },
+      cuts: [['2026-10-09', -400], ['2026-10-09', -100], ['2026-10-10', -140], ['2026-10-11', -140], ['2026-10-12', -140], ['2026-10-13', -140], ['2026-10-14', -140]],
+      result: { spread: 6, per: 140, even: false, leftover: 0 },
+      toast: 'Today +800 kcal; the next 6 days up to 140 lower',
+      lowest: 1500,
+    },
+    {
+      // rounding down: under 30 kcal there is nothing to cut and no entry is added
+      name: 'tiny extra: +20 adds only today’s entry',
+      profile: null,
+      input: { extra: 20 },
+      cuts: [],
+      result: { spread: 3, per: 0, even: true, leftover: 0 },
+      toast: 'Today +20 kcal',
+    },
+  ];
+
+  it.each(cases)('hand-worked case: $name', (c) => {
+    const input: PlanFlexInput = { ...at, ...c.input };
+    const out = planFlex(input, c.profile);
+    const { flex, ...result } = out;
+    expect(result).toEqual(c.result);
+    expect(cuts(flex)).toEqual(c.cuts);
+    expect(flex.filter((x) => x.id === input.id && x.kcal_delta > 0)).toEqual([{ id: input.id, date: '2026-10-08', kcal_delta: c.input.extra }]);
+    expect(flexToast(c.input.extra, out)).toBe(c.toast);
+    const want = protoRun(input, c.profile);
+    expect(flex).toEqual(want.flex.map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d })));
+    expect(want.toast).toBe(c.toast);
+    const newCut = flex.filter((x) => x.id === input.id && x.kcal_delta < 0).map((x) => kcalTarget(x.date, { flex }, c.profile));
+    if (c.lowest !== undefined) expect(Math.min(...newCut)).toBe(c.lowest);
+    expect(-flex.filter((x) => x.id === input.id && x.kcal_delta < 0).reduce((a, x) => a + x.kcal_delta, 0) + c.result.leftover).toBeLessThanOrEqual(c.input.extra);
+  });
+
+  it('no profile: +500 today, 160 off each of the next 3 days, one id on every entry', () => {
     const out = planFlex({ ...at, extra: 500 }, null);
     expect(out).toEqual({
       spread: 3,
-      per: 170,
+      per: 160,
+      even: true,
+      leftover: 0,
       flex: [
         { id: 'p1', date: '2026-10-08', kcal_delta: 500 },
-        { id: 'p1', date: '2026-10-09', kcal_delta: -170 },
-        { id: 'p1', date: '2026-10-10', kcal_delta: -170 },
-        { id: 'p1', date: '2026-10-11', kcal_delta: -170 },
+        { id: 'p1', date: '2026-10-09', kcal_delta: -160 },
+        { id: 'p1', date: '2026-10-10', kcal_delta: -160 },
+        { id: 'p1', date: '2026-10-11', kcal_delta: -160 },
       ],
     });
     expect(FLEX_FLOOR_DEFAULT).toBe(1200);
     expect(kcalTarget('2026-10-08', { flex: out.flex }, null)).toBe(DEFAULT_KCAL_TARGET + 500);
-    expect(kcalTarget('2026-10-09', { flex: out.flex }, null)).toBe(DEFAULT_KCAL_TARGET - 170);
+    expect(kcalTarget('2026-10-09', { flex: out.flex }, null)).toBe(DEFAULT_KCAL_TARGET - 160);
   });
 
-  it('spreads over more days while the cut would go below the floor', () => {
-    // female floor 1200: 1500 - 300/3 = 1400 ok; 1500 - 800/3 = 1233 ok; 1300 - 800/3 < 1200, /4 = 1100, /5 = 1140, /6 = 1166.7: stops at 6
+  it('spreads over more days while the even cut does not fit', () => {
+    // female floor 1200, room 300: 300/3 = 100 and 800/3 = 260 fit
     expect(planFlex({ ...at, extra: 300 }, { ...base, targets: { kcal: 1500 } })).toMatchObject({ spread: 3, per: 100 });
-    expect(planFlex({ ...at, extra: 800 }, { ...base, targets: { kcal: 1500 } })).toMatchObject({ spread: 3, per: 270 });
-    // male floor 1500: 1800 - 800/3 = 1533 ok; 1700: /3 1433, /4 1500 ok -> 4 days of 200
-    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1800 } })).toMatchObject({ spread: 3, per: 270 });
-    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1700 } })).toMatchObject({ spread: 4, per: 200 });
-    expect(cuts(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1700 } }).flex)).toEqual([
-      ['2026-10-09', -200],
-      ['2026-10-10', -200],
-      ['2026-10-11', -200],
-      ['2026-10-12', -200],
-    ]);
+    expect(planFlex({ ...at, extra: 800 }, { ...base, targets: { kcal: 1500 } })).toMatchObject({ spread: 3, per: 260 });
+    // male floor 1500: 1800 has room 300 -> 3 days; 1730 has room 230: 260 no, 200 fits -> 4 days
+    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1800 } })).toMatchObject({ spread: 3, per: 260 });
+    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1730 } })).toMatchObject({ spread: 4, per: 200 });
+    // room 170: 5 days of 160; room 140: 6 days of 130
+    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1670 } })).toMatchObject({ spread: 5, per: 160, leftover: 0 });
+    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1640 } })).toMatchObject({ spread: 6, per: 130, even: true, leftover: 0 });
   });
 
-  it('PINNED QUIRK (#167): at 6 days the cut still goes below the floor', () => {
-    const out = planFlex({ ...at, extra: 800 }, { ...base, targets: { kcal: 1300 } });
-    expect(out).toMatchObject({ spread: 6, per: 130 });
-    expect(kcalTarget('2026-10-09', { flex: out.flex }, { ...base, targets: { kcal: 1300 } })).toBe(1170); // under 1200
-  });
-
-  it('PINNED QUIRK (#167): rounding the cut up can put a day under the floor; cuts need not total the extra', () => {
-    // 1367 - 500/3 = 1200.3 passes, but the cut rounds to 170: 1197
-    const out = planFlex({ ...at, extra: 500 }, { ...base, targets: { kcal: 1367 } });
-    expect(out).toMatchObject({ spread: 3, per: 170 });
-    expect(1367 - out.per).toBe(1197);
-    // 800 over 3 days: 270 each, 810 in all
-    expect(planFlex({ ...at, extra: 800 }, null).flex.reduce((a, x) => a + x.kcal_delta, 0)).toBe(-10);
-  });
-
-  it('PINNED QUIRK (#167): existing flex entries on the cut days are not looked at', () => {
+  it('a day with no room gets no entry; the others take the rest', () => {
+    // day 10 already at the floor (1500 - 300); rooms [300, 0, 300, 300, 300, 300]
     const prof = { ...base, targets: { kcal: 1500 } };
-    const first = planFlex({ ...at, extra: 800 }, prof);
-    const second = planFlex({ ...at, id: 'p2', extra: 800, flex: first.flex }, prof);
-    expect(second.spread).toBe(3);
-    expect(kcalTarget('2026-10-09', { flex: second.flex }, prof)).toBe(960);
+    const out = planFlex({ ...at, id: 'p2', extra: 500, flex: [{ id: 'p0', date: '2026-10-10', kcal_delta: -300 }] }, prof);
+    expect(out).toMatchObject({ spread: 6, per: 100, even: false, leftover: 0 });
+    expect(cuts(out.flex.filter((x) => x.id === 'p2'))).toEqual([['2026-10-09', -100], ['2026-10-11', -100], ['2026-10-12', -100], ['2026-10-13', -100], ['2026-10-14', -100]]);
   });
 
-  it('PINNED QUIRK (#167): drops entries dated before today - 7 (today, not the planned date), keeps later ones, crosses month ends, leaves the input alone', () => {
+  it('decided: keep (#167): drops entries dated before today - 7 (today, not the planned date), keeps later ones, crosses month ends, leaves the input alone', () => {
     const old: FlexEntry[] = [
       { id: 'o', date: '2026-09-30', kcal_delta: 300 },
       { id: 'k', date: '2026-10-01', kcal_delta: -100 },
@@ -503,6 +622,12 @@ describe('planFlex and undoFlex', () => {
     expect(planFlex({ ...at, extra: 300, flex: undefined }, null).flex).toHaveLength(4);
   });
 
+  it('pruned entries no longer limit the cut', () => {
+    // the -700 on 2026-10-09 is older than today - 7, so it is dropped before the rooms are worked out
+    const out = planFlex({ extra: 300, date: '2026-10-08', today: '2026-10-20', id: 'p1', flex: [{ id: 'o', date: '2026-10-09', kcal_delta: -700 }] }, null);
+    expect(out).toMatchObject({ spread: 3, per: 100, even: true, leftover: 0 });
+  });
+
   it('undoFlex removes every entry of the plan and nothing else', () => {
     const a = planFlex({ ...at, extra: 500 }, null).flex;
     const b = planFlex({ ...at, id: 'p2', date: '2026-10-09', extra: 300, flex: a }, null).flex;
@@ -513,28 +638,41 @@ describe('planFlex and undoFlex', () => {
     expect(undoFlex(undefined, 'p1')).toEqual([]);
   });
 
-  it(`matches prototype planFlex and case 'flex-undo' over ${RUNS} random plans`, () => {
+  it(`matches prototype planFlex and case 'flex-undo' over ${RUNS} random plans; no new cut takes a day below the floor`, () => {
     const r = rng(2923);
-    const days = ['2026-09-28', '2026-09-30', '2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-31', '2026-12-30', '2027-01-02'];
+    const days = ['2026-09-28', '2026-09-30', '2026-10-01', '2026-10-05', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-12', '2026-10-31', '2026-11-01', '2026-12-30', '2027-01-02'];
     const ids = ['a', 'b', 'c'];
+    let leftovers = 0;
+    let uneven = 0;
+    let holds = 0;
     for (let i = 0; i < RUNS; i++) {
       const prof = r() < 0.15 ? null : randomProfile(r);
-      const flex: FlexEntry[] = Array.from({ length: Math.floor(r() * 6) }, () => ({ id: pickOf(r, ids), date: pickOf(r, days), kcal_delta: pickOf(r, [300, 500, 800, -100, -170, -270]) }));
+      const flex: FlexEntry[] = Array.from({ length: Math.floor(r() * 8) }, () => ({ id: pickOf(r, ids), date: pickOf(r, days), kcal_delta: pickOf(r, [300, 500, 800, -100, -170, -270, -400]) }));
       const extra = r() < 0.7 ? pickOf(r, [300, 500, 800]) : Math.round(r() * 3000);
       const date = pickOf(r, days);
       const today = pickOf(r, days);
-      const settings = {
-        kcal: prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET,
-        profile: prof && { ...toTargetsProfile(prof) },
-        flex: r() < 0.1 ? undefined : flex.map((x) => ({ id: x.id, date: x.date, d: x.kcal_delta })),
-      };
-      const got = planFlex({ extra, date, today, id: 'new', flex: settings.flex === undefined ? undefined : flex }, prof);
-      const want = proto.planFlex(extra, settings, date, today, 'new');
+      const labHold = pickOf(r, [true, false, undefined]);
+      const input: PlanFlexInput = { extra, date, today, id: 'new', flex: r() < 0.1 ? undefined : flex, labHold };
+      const got = planFlex(input, prof);
+      const want = protoRun(input, prof);
       expect(got.flex).toEqual(want.flex.map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d })));
-      expect(`Today +${extra} kcal; the next ${got.spread} days ${got.per} lower`).toBe(want.toast);
+      expect(flexToast(extra, got)).toBe(want.toast);
       const undo = pickOf(r, [...ids, 'new']);
       expect(undoFlex(got.flex, undo)).toEqual(proto.flexUndo(want.flex, undo).map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d })));
+      const floor = prof ? calcTargets(toTargetsProfile(prof)).floor : FLEX_FLOOR_DEFAULT;
+      const mine = got.flex.filter((x) => x.id === 'new' && x.kcal_delta < 0);
+      for (const x of mine) {
+        expect(kcalTarget(x.date, { flex: got.flex }, prof)).toBeGreaterThanOrEqual(floor);
+        expect(-x.kcal_delta % 10).toBe(0);
+      }
+      expect(-mine.reduce((a, x) => a + x.kcal_delta, 0) + got.leftover).toBeLessThanOrEqual(extra);
+      if (got.leftover > 0) leftovers++;
+      if (!got.even && got.per > 0) uneven++;
+      if (labHold && prof && mine.length) holds++;
     }
+    expect(leftovers).toBeGreaterThan(50);
+    expect(uneven).toBeGreaterThan(50);
+    expect(holds).toBeGreaterThan(50);
   });
 });
 

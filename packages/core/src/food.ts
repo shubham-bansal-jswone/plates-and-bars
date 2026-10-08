@@ -260,42 +260,84 @@ export interface PlanFlexInput {
   id: string;
   /** Contract `Settings.flex`. */
   flex: readonly FlexEntry[] | null | undefined;
+  /** Lab hold on (prototype `labHoldOn()`), as for `kcalTarget`. */
+  labHold?: boolean | undefined;
 }
 
-/** `planFlex`'s answer: the new `Settings.flex`, plus the numbers for the toast. */
+/** `planFlex`'s answer: the new `Settings.flex`, plus the numbers for the toast (`flexToast`). */
 export interface PlanFlexResult {
   flex: FlexEntry[];
-  /** Number of following days that take the cut (3 to 6). */
+  /** Number of following days looked at (3 to 6); a day with no room gets no entry. */
   spread: number;
-  /** The cut on each of those days, to the nearest 10 kcal. */
+  /** The largest cut on any of those days (a multiple of 10; 0 when nothing was cut). */
   per: number;
+  /** True when every one of the `spread` days takes the same cut `per`. */
+  even: boolean;
+  /** Kcal of `extra` that could not be taken off without going below the floor (0 normally). */
+  leftover: number;
+}
+
+/** Rounds down to a multiple of 10 (prototype `f10` in `planFlex`). */
+const floor10 = (x: number): number => Math.floor(x / 10) * 10;
+
+/**
+ * Plans a bigger day: `extra` kcal on `date`, taken back over the following days without taking any day
+ * below the floor (`calcTargets` floor with a profile, else 1200). Entries dated before `today` - 7 are
+ * dropped first. Each of the next 6 days has room = its target minus the floor, rounded down to 10 (never
+ * below 0); the target is the lower of `kcalTarget` for that day with and without the lab hold, so other
+ * flex plans count and a cut stays safe when the hold ends. `spread` is the first of 3..6 where every one of
+ * the first `spread` days has room for `extra / spread` rounded down to 10; each of them takes that cut.
+ * If none fits, all 6 days are filled level, each up to its room, in steps of 10, never more than `extra`
+ * in total; `leftover` is what is still over when all 6 days are at their room. Rounding down can leave up
+ * to 10 kcal a day of `extra` uncut; that is not counted as leftover. Days with a cut of 0 get no entry.
+ * All new entries carry `id`.
+ *
+ * Mirrors prototype `planFlex(extra)` (state and id passed in; the toast is `flexToast`). Decided in #167.
+ */
+export function planFlex(input: PlanFlexInput, profile: KcalTargetProfile | null | undefined): PlanFlexResult {
+  const { extra, date, today, id, labHold } = input;
+  const floor = profile ? calcTargets(toTargetsProfile(profile)).floor : FLEX_FLOOR_DEFAULT;
+  const cutoff = addDays(today, -7);
+  const flex = (input.flex ?? []).filter((x) => x.date >= cutoff);
+  const days = [1, 2, 3, 4, 5, 6].map((i) => addDays(date, i));
+  const room = days.map((d) => Math.max(0, floor10(Math.min(kcalTarget(d, { flex, labHold }, profile), kcalTarget(d, { flex }, profile)) - floor)));
+  let spread = 3;
+  let cuts: number[] | null = null;
+  let leftover = 0;
+  for (; spread <= 6 && !cuts; spread++) {
+    const per = floor10(extra / spread);
+    const first = room.slice(0, spread);
+    if (first.every((r) => r >= per)) cuts = first.map(() => per);
+  }
+  spread--;
+  if (!cuts) {
+    const top = Math.max(...room);
+    const fill = (l: number): number => room.reduce((a, r) => a + Math.min(r, l), 0);
+    let lvl = 0;
+    while (lvl < top && fill(lvl + 10) <= extra) lvl += 10;
+    cuts = room.map((r) => Math.min(r, lvl));
+    leftover = Math.max(0, extra - fill(top));
+  }
+  const per = Math.max(...cuts);
+  const even = cuts.every((c) => c === per);
+  flex.push({ id, date, kcal_delta: extra });
+  cuts.forEach((c, i) => {
+    if (c > 0) flex.push({ id, date: days[i] as string, kcal_delta: -c });
+  });
+  return { flex, spread, per, even, leftover };
 }
 
 /**
- * Plans a bigger day: `extra` kcal on `date`, taken back over the next `spread` days. `spread` starts at
- * 3 and grows (up to 6) while the saved target minus the unrounded `extra / spread` is below the floor
- * (`calcTargets` floor with a profile, else 1200). Each cut is `extra / spread` to the nearest 10. Entries
- * dated before `today` - 7 are dropped first. All new entries carry `id`.
+ * The toast after `planFlex`, e.g. `Today +800 kcal; the next 3 days 260 lower`, `... the next 6 days up to
+ * 150 lower` when the cuts differ, plus `; 200 kcal could not be spread without going below your minimum`
+ * when there is leftover.
  *
- * Faithful quirks (pinned in tests, #167): at 6 days the cut can still go below the floor; rounding the cut up
- * can put a day up to 5 kcal under it; the cuts can total a little more or less than `extra`; other flex
- * entries and the lab hold are not looked at.
- *
- * Mirrors prototype `planFlex(extra)` (state and id passed in; the toast is
- * `Today +${extra} kcal; the next ${spread} days ${per} lower`).
+ * Mirrors the prototype's `toast(...)` call in `planFlex(extra)`.
  */
-export function planFlex(input: PlanFlexInput, profile: KcalTargetProfile | null | undefined): PlanFlexResult {
-  const { extra, date, today, id } = input;
-  const kcal = profile ? profile.targets.kcal : DEFAULT_KCAL_TARGET;
-  const floor = profile ? calcTargets(toTargetsProfile(profile)).floor : FLEX_FLOOR_DEFAULT;
-  let spread = 3;
-  while (spread < 6 && kcal - extra / spread < floor) spread++;
-  const per = Math.round(extra / spread / 10) * 10;
-  const cutoff = addDays(today, -7);
-  const flex = (input.flex ?? []).filter((x) => x.date >= cutoff);
-  flex.push({ id, date, kcal_delta: extra });
-  for (let i = 1; i <= spread; i++) flex.push({ id, date: addDays(date, i), kcal_delta: -per });
-  return { flex, spread, per };
+export function flexToast(extra: number, result: Pick<PlanFlexResult, 'spread' | 'per' | 'even' | 'leftover'>): string {
+  const cut = result.per > 0 ? `; the next ${result.spread} days ${result.even ? '' : 'up to '}${result.per} lower` : '';
+  const left = result.leftover ? `; ${result.leftover} kcal could not be spread without going below your minimum` : '';
+  return `Today +${extra} kcal${cut}${left}`;
 }
 
 /**
