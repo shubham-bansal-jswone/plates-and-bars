@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expandTags, importExercises, serialize } from '../exercises-import/import.mjs';
+import { expandCard, expandTags, importExercises, serialize } from '../exercises-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const golden = JSON.parse(readFileSync(`${repo}/docs/spec/golden/exercises.json`, 'utf8'));
@@ -28,7 +28,6 @@ test('import preserves ladders, away map, cards and library untouched', () => {
   const out = importExercises(golden);
   assert.deepEqual(out.ladders, golden.ladders);
   assert.deepEqual(out.away_map.dumbbells_bodyweight, golden.awayMap_dumbbells_bodyweight);
-  assert.deepEqual(out.cards, golden.cards);
   assert.deepEqual(out.library, golden.library);
   assert.deepEqual(Object.keys(out.tags), Object.keys(golden.tags));
   assert.equal(out.tags['Barbell Bench Press'].pattern, 'h-press');
@@ -42,4 +41,30 @@ test('import is deterministic', () => {
 test('content/exercises.json equals a fresh import of the golden file', () => {
   const committed = readFileSync(`${repo}/content/exercises.json`, 'utf8');
   assert.equal(committed, serialize(importExercises(golden)));
+});
+
+test('expandCard maps short keys to long names and keeps optional ones optional', () => {
+  const base = { f: 'Chest', s: ['a'], c: ['b'], m: ['c'], w: [['l', 'fix']] };
+  assert.deepEqual(expandCard(base), {
+    where_to_feel: 'Chest', setup: ['a'], key_cues: ['b'], common_mistakes: ['c'], misplaced_feel: [['l', 'fix']],
+  });
+  assert.deepEqual(expandCard({ ...base, b: 'x', e: 'y', h: 'z' }), {
+    where_to_feel: 'Chest', setup: ['a'], key_cues: ['b'], common_mistakes: ['c'], misplaced_feel: [['l', 'fix']],
+    breathing: 'x', easier_version: 'y', harder_version: 'z',
+  });
+});
+
+test('expandCard rejects missing required and unknown fields', () => {
+  assert.throws(() => expandCard({ f: 'x', s: [], c: [], m: [] }), /"w" missing/);
+  assert.throws(() => expandCard({ f: 'x', s: [], c: [], m: [], w: [], z: 1 }), /unknown/);
+});
+
+test('every golden card expands with the same values under long names', () => {
+  const out = importExercises(golden);
+  assert.deepEqual(Object.keys(out.cards), Object.keys(golden.cards));
+  const g = golden.cards['Barbell Bench Press'];
+  const c = out.cards['Barbell Bench Press'];
+  assert.equal(c.where_to_feel, g.f);
+  assert.deepEqual(c.misplaced_feel, g.w);
+  assert.equal(c.breathing, g.b);
 });

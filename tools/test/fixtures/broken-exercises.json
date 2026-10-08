@@ -6,7 +6,7 @@
   "ladders": { "hpress": { "label": "Chest press", "steps": [["Bench A"], ["Bench B"]] } },
   "away_map": { "dumbbells_bodyweight": { "Bench A": ["Floor Press", null] } },
   "cards": {
-    "Bench A": { "f": "Chest", "s": ["Set up."], "c": ["Press."], "m": ["Bouncing."] }
+    "Bench A": { "where_to_feel": "Chest", "setup": ["Set up."], "key_cues": ["Press."], "common_mistakes": ["Bouncing."] }
   },
   "library": { "Chest": ["Bench A"] }
 }
