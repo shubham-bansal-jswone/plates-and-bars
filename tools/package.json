@@ -1,0 +1,13 @@
+{
+  "name": "plates-and-bars-tools",
+  "private": true,
+  "type": "module",
+  "description": "Content tooling: importers and validators. No runtime dependencies.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "lint": "node lint.mjs",
+    "test": "node --test test/*.test.mjs",
+    "import:exercises": "node exercises-import/cli.mjs",
+    "validate:exercises": "node validate/cli.mjs"
+  }
+}

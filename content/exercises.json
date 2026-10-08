@@ -1,0 +1,3205 @@
+{
+  "schema_version": 1,
+  "source": "docs/spec/golden/exercises.json",
+  "tags": {
+    "Barbell Bench Press": {
+      "pattern": "h-press",
+      "family": "bench",
+      "equipment": "barbell",
+      "difficulty": 3,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "triceps",
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow",
+        "wrist"
+      ]
+    },
+    "Dumbbell Bench Press": {
+      "pattern": "h-press",
+      "family": "bench",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "triceps",
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Incline Dumbbell Press": {
+      "pattern": "h-press",
+      "family": "bench",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "front-delt",
+        "triceps"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Close-Grip Bench Press": {
+      "pattern": "h-press",
+      "family": "bench",
+      "equipment": "barbell",
+      "difficulty": 3,
+      "primary": [
+        "triceps",
+        "chest"
+      ],
+      "secondary": [
+        "front-delt"
+      ],
+      "joints": [
+        "elbow",
+        "wrist",
+        "shoulder"
+      ]
+    },
+    "Machine Chest Press": {
+      "pattern": "h-press",
+      "family": "chestpress",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "triceps",
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Dumbbell Floor Press": {
+      "pattern": "h-press",
+      "family": "bench",
+      "equipment": "dumbbell",
+      "difficulty": 1,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "triceps"
+      ],
+      "joints": [
+        "elbow"
+      ]
+    },
+    "Push-ups": {
+      "pattern": "h-press",
+      "family": "pushup",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "triceps",
+        "front-delt",
+        "abs"
+      ],
+      "joints": [
+        "wrist",
+        "shoulder"
+      ]
+    },
+    "Decline Push-ups": {
+      "pattern": "h-press",
+      "family": "pushup",
+      "equipment": "bodyweight",
+      "difficulty": 2,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "front-delt",
+        "triceps"
+      ],
+      "joints": [
+        "wrist",
+        "shoulder"
+      ]
+    },
+    "Pec Deck Fly": {
+      "pattern": "fly",
+      "family": "fly",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Cable Crossover": {
+      "pattern": "fly",
+      "family": "fly",
+      "equipment": "cable",
+      "difficulty": 2,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Dumbbell Fly": {
+      "pattern": "fly",
+      "family": "fly",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Seated Dumbbell Press": {
+      "pattern": "v-press",
+      "family": "ohp",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "front-delt",
+        "side-delt"
+      ],
+      "secondary": [
+        "triceps"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Machine Shoulder Press": {
+      "pattern": "v-press",
+      "family": "ohp",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "front-delt",
+        "side-delt"
+      ],
+      "secondary": [
+        "triceps"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Standing Barbell Press": {
+      "pattern": "v-press",
+      "family": "ohp",
+      "equipment": "barbell",
+      "difficulty": 3,
+      "primary": [
+        "front-delt",
+        "side-delt"
+      ],
+      "secondary": [
+        "triceps",
+        "abs"
+      ],
+      "joints": [
+        "shoulder",
+        "lower-back",
+        "wrist"
+      ]
+    },
+    "Pike Push-ups": {
+      "pattern": "v-press",
+      "family": "pushup",
+      "equipment": "bodyweight",
+      "difficulty": 2,
+      "primary": [
+        "front-delt"
+      ],
+      "secondary": [
+        "triceps"
+      ],
+      "joints": [
+        "shoulder",
+        "wrist"
+      ]
+    },
+    "Lateral Raise": {
+      "pattern": "raise",
+      "family": "lateral",
+      "equipment": "dumbbell",
+      "difficulty": 1,
+      "primary": [
+        "side-delt"
+      ],
+      "secondary": [],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Cable Lateral Raise": {
+      "pattern": "raise",
+      "family": "lateral",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "side-delt"
+      ],
+      "secondary": [],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Rear Delt Fly": {
+      "pattern": "rear",
+      "family": "rear",
+      "equipment": "dumbbell",
+      "difficulty": 1,
+      "primary": [
+        "rear-delt"
+      ],
+      "secondary": [
+        "upper-back"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Face Pull": {
+      "pattern": "rear",
+      "family": "rear",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "rear-delt"
+      ],
+      "secondary": [
+        "upper-back"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Prone Y-T-W Raise": {
+      "pattern": "rear",
+      "family": "rear",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "rear-delt",
+        "upper-back"
+      ],
+      "secondary": [],
+      "joints": []
+    },
+    "Rope Pushdown": {
+      "pattern": "tri",
+      "family": "pushdown",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "triceps"
+      ],
+      "secondary": [],
+      "joints": [
+        "elbow"
+      ]
+    },
+    "Overhead Cable Extension": {
+      "pattern": "tri",
+      "family": "overhead-ext",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "triceps"
+      ],
+      "secondary": [],
+      "joints": [
+        "elbow",
+        "shoulder"
+      ]
+    },
+    "Overhead Dumbbell Extension": {
+      "pattern": "tri",
+      "family": "overhead-ext",
+      "equipment": "dumbbell",
+      "difficulty": 1,
+      "primary": [
+        "triceps"
+      ],
+      "secondary": [],
+      "joints": [
+        "elbow",
+        "shoulder"
+      ]
+    },
+    "Assisted Dips": {
+      "pattern": "dip",
+      "family": "dips",
+      "equipment": "machine",
+      "difficulty": 2,
+      "primary": [
+        "triceps",
+        "chest"
+      ],
+      "secondary": [
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Bench Dips": {
+      "pattern": "dip",
+      "family": "dips",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "triceps"
+      ],
+      "secondary": [
+        "chest",
+        "front-delt"
+      ],
+      "joints": [
+        "shoulder",
+        "wrist",
+        "elbow"
+      ]
+    },
+    "Lat Pulldown": {
+      "pattern": "v-pull",
+      "family": "pulldown",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "lats"
+      ],
+      "secondary": [
+        "biceps",
+        "rear-delt"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Straight-Arm Pulldown": {
+      "pattern": "v-pull",
+      "family": "pulldown",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "lats"
+      ],
+      "secondary": [
+        "abs"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Assisted Pull-up": {
+      "pattern": "v-pull",
+      "family": "pullup",
+      "equipment": "machine",
+      "difficulty": 2,
+      "primary": [
+        "lats"
+      ],
+      "secondary": [
+        "biceps",
+        "upper-back"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Bodyweight Pull-up": {
+      "pattern": "v-pull",
+      "family": "pullup",
+      "equipment": "bodyweight",
+      "difficulty": 3,
+      "primary": [
+        "lats"
+      ],
+      "secondary": [
+        "biceps",
+        "upper-back"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Weighted Pull-up": {
+      "pattern": "v-pull",
+      "family": "pullup",
+      "equipment": "bodyweight",
+      "difficulty": 3,
+      "primary": [
+        "lats"
+      ],
+      "secondary": [
+        "biceps",
+        "upper-back"
+      ],
+      "joints": [
+        "shoulder",
+        "elbow"
+      ]
+    },
+    "Seated Cable Row": {
+      "pattern": "h-pull",
+      "family": "row",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "upper-back",
+        "lats"
+      ],
+      "secondary": [
+        "biceps",
+        "rear-delt"
+      ],
+      "joints": [
+        "lower-back",
+        "elbow"
+      ]
+    },
+    "Chest-Supported Row": {
+      "pattern": "h-pull",
+      "family": "row",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "upper-back",
+        "lats"
+      ],
+      "secondary": [
+        "rear-delt",
+        "biceps"
+      ],
+      "joints": [
+        "elbow"
+      ]
+    },
+    "One-Arm Dumbbell Row": {
+      "pattern": "h-pull",
+      "family": "row",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "lats",
+        "upper-back"
+      ],
+      "secondary": [
+        "biceps"
+      ],
+      "joints": [
+        "elbow",
+        "lower-back"
+      ]
+    },
+    "Barbell Row": {
+      "pattern": "h-pull",
+      "family": "row",
+      "equipment": "barbell",
+      "difficulty": 3,
+      "primary": [
+        "upper-back",
+        "lats"
+      ],
+      "secondary": [
+        "biceps",
+        "lower-back"
+      ],
+      "joints": [
+        "lower-back",
+        "elbow"
+      ]
+    },
+    "Dumbbell Curl": {
+      "pattern": "curl",
+      "family": "curl",
+      "equipment": "dumbbell",
+      "difficulty": 1,
+      "primary": [
+        "biceps"
+      ],
+      "secondary": [
+        "forearms"
+      ],
+      "joints": [
+        "elbow"
+      ]
+    },
+    "Hammer Curl": {
+      "pattern": "curl",
+      "family": "curl",
+      "equipment": "dumbbell",
+      "difficulty": 1,
+      "primary": [
+        "biceps"
+      ],
+      "secondary": [
+        "forearms"
+      ],
+      "joints": [
+        "elbow"
+      ]
+    },
+    "Cable Curl": {
+      "pattern": "curl",
+      "family": "curl",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "biceps"
+      ],
+      "secondary": [
+        "forearms"
+      ],
+      "joints": [
+        "elbow"
+      ]
+    },
+    "Preacher Curl": {
+      "pattern": "curl",
+      "family": "curl",
+      "equipment": "barbell",
+      "difficulty": 1,
+      "primary": [
+        "biceps"
+      ],
+      "secondary": [
+        "forearms"
+      ],
+      "joints": [
+        "elbow"
+      ]
+    },
+    "Goblet Squat": {
+      "pattern": "squat",
+      "family": "squat",
+      "equipment": "dumbbell",
+      "difficulty": 1,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [
+        "abs"
+      ],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Hack Squat": {
+      "pattern": "squat",
+      "family": "squat",
+      "equipment": "machine",
+      "difficulty": 2,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee",
+        "hip"
+      ]
+    },
+    "Leg Press": {
+      "pattern": "squat",
+      "family": "squat",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Barbell Back Squat": {
+      "pattern": "squat",
+      "family": "squat",
+      "equipment": "barbell",
+      "difficulty": 3,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [
+        "lower-back",
+        "abs"
+      ],
+      "joints": [
+        "knee",
+        "hip",
+        "lower-back"
+      ]
+    },
+    "Bodyweight Squat": {
+      "pattern": "squat",
+      "family": "squat",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Wall Sit (seconds)": {
+      "pattern": "squat",
+      "family": "squat",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "quads"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Dumbbell Split Squat": {
+      "pattern": "lunge",
+      "family": "lunge",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Split Squat": {
+      "pattern": "lunge",
+      "family": "lunge",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Walking Lunge": {
+      "pattern": "lunge",
+      "family": "lunge",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Leg Extension": {
+      "pattern": "knee-ext",
+      "family": "legext",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "quads"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Lying Leg Curl": {
+      "pattern": "knee-flex",
+      "family": "legcurl",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "hams"
+      ],
+      "secondary": [
+        "calves"
+      ],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Seated Leg Curl": {
+      "pattern": "knee-flex",
+      "family": "legcurl",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "hams"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Hip Thrust": {
+      "pattern": "hip-ext",
+      "family": "thrust",
+      "equipment": "barbell",
+      "difficulty": 2,
+      "primary": [
+        "glutes"
+      ],
+      "secondary": [
+        "hams"
+      ],
+      "joints": [
+        "hip"
+      ]
+    },
+    "Glute Bridge": {
+      "pattern": "hip-ext",
+      "family": "thrust",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "glutes"
+      ],
+      "secondary": [
+        "hams"
+      ],
+      "joints": [
+        "hip"
+      ]
+    },
+    "Single-Leg Glute Bridge": {
+      "pattern": "hip-ext",
+      "family": "thrust",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "glutes",
+        "hams"
+      ],
+      "secondary": [],
+      "joints": [
+        "hip"
+      ]
+    },
+    "Cable Pull-through": {
+      "pattern": "hinge",
+      "family": "hinge",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "glutes",
+        "hams"
+      ],
+      "secondary": [
+        "lower-back"
+      ],
+      "joints": [
+        "hip",
+        "lower-back"
+      ]
+    },
+    "Dumbbell Romanian Deadlift": {
+      "pattern": "hinge",
+      "family": "hinge",
+      "equipment": "dumbbell",
+      "difficulty": 2,
+      "primary": [
+        "hams",
+        "glutes"
+      ],
+      "secondary": [
+        "lower-back"
+      ],
+      "joints": [
+        "lower-back",
+        "hip"
+      ]
+    },
+    "Barbell Romanian Deadlift": {
+      "pattern": "hinge",
+      "family": "hinge",
+      "equipment": "barbell",
+      "difficulty": 3,
+      "primary": [
+        "hams",
+        "glutes"
+      ],
+      "secondary": [
+        "lower-back"
+      ],
+      "joints": [
+        "lower-back",
+        "hip"
+      ]
+    },
+    "Deadlift": {
+      "pattern": "hinge",
+      "family": "hinge",
+      "equipment": "barbell",
+      "difficulty": 3,
+      "primary": [
+        "glutes",
+        "hams",
+        "lower-back"
+      ],
+      "secondary": [
+        "upper-back",
+        "quads"
+      ],
+      "joints": [
+        "lower-back",
+        "hip",
+        "knee"
+      ]
+    },
+    "Standing Calf Raise": {
+      "pattern": "calf",
+      "family": "calf",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "calves"
+      ],
+      "secondary": [],
+      "joints": [
+        "ankle"
+      ]
+    },
+    "Seated Calf Raise": {
+      "pattern": "calf",
+      "family": "calf",
+      "equipment": "machine",
+      "difficulty": 1,
+      "primary": [
+        "calves"
+      ],
+      "secondary": [],
+      "joints": [
+        "ankle"
+      ]
+    },
+    "Single-Leg Calf Raise": {
+      "pattern": "calf",
+      "family": "calf",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "calves"
+      ],
+      "secondary": [],
+      "joints": [
+        "ankle"
+      ]
+    },
+    "Cable Crunch": {
+      "pattern": "core-flex",
+      "family": "crunch",
+      "equipment": "cable",
+      "difficulty": 1,
+      "primary": [
+        "abs"
+      ],
+      "secondary": [],
+      "joints": []
+    },
+    "Crunch": {
+      "pattern": "core-flex",
+      "family": "crunch",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "abs"
+      ],
+      "secondary": [],
+      "joints": []
+    },
+    "Hanging Knee Raise": {
+      "pattern": "core-flex",
+      "family": "legraise",
+      "equipment": "bodyweight",
+      "difficulty": 2,
+      "primary": [
+        "abs"
+      ],
+      "secondary": [
+        "forearms"
+      ],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Lying Leg Raise": {
+      "pattern": "core-flex",
+      "family": "legraise",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "abs"
+      ],
+      "secondary": [],
+      "joints": [
+        "lower-back"
+      ]
+    },
+    "Plank (seconds)": {
+      "pattern": "core-stab",
+      "family": "plank",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "abs"
+      ],
+      "secondary": [],
+      "joints": [
+        "shoulder"
+      ]
+    },
+    "Dead Bug": {
+      "pattern": "core-stab",
+      "family": "plank",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "abs"
+      ],
+      "secondary": [],
+      "joints": []
+    },
+    "Single-Leg Balance (seconds)": {
+      "pattern": "core-stab",
+      "family": "balance",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "abs"
+      ],
+      "secondary": [
+        "glutes",
+        "calves"
+      ],
+      "joints": [
+        "ankle"
+      ]
+    },
+    "Incline Push-ups": {
+      "pattern": "h-press",
+      "family": "pushup",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "triceps",
+        "front-delt"
+      ],
+      "joints": [
+        "wrist",
+        "shoulder"
+      ]
+    },
+    "Archer Push-ups": {
+      "pattern": "h-press",
+      "family": "pushup",
+      "equipment": "bodyweight",
+      "difficulty": 3,
+      "primary": [
+        "chest"
+      ],
+      "secondary": [
+        "triceps",
+        "front-delt"
+      ],
+      "joints": [
+        "wrist",
+        "shoulder"
+      ]
+    },
+    "Bulgarian Split Squat": {
+      "pattern": "lunge",
+      "family": "lunge",
+      "equipment": "bodyweight",
+      "difficulty": 2,
+      "primary": [
+        "quads",
+        "glutes"
+      ],
+      "secondary": [],
+      "joints": [
+        "knee"
+      ]
+    },
+    "Backpack Row": {
+      "pattern": "h-pull",
+      "family": "row",
+      "equipment": "bodyweight",
+      "difficulty": 1,
+      "primary": [
+        "lats",
+        "upper-back"
+      ],
+      "secondary": [
+        "biceps",
+        "rear-delt"
+      ],
+      "joints": [
+        "lower-back",
+        "elbow"
+      ]
+    }
+  },
+  "ladders": {
+    "squat": {
+      "label": "Squat",
+      "steps": [
+        [
+          "Goblet Squat"
+        ],
+        [
+          "Dumbbell Split Squat"
+        ],
+        [
+          "Hack Squat",
+          "Leg Press"
+        ],
+        [
+          "Barbell Back Squat"
+        ]
+      ]
+    },
+    "hpress": {
+      "label": "Chest press",
+      "steps": [
+        [
+          "Machine Chest Press"
+        ],
+        [
+          "Dumbbell Bench Press",
+          "Incline Dumbbell Press"
+        ],
+        [
+          "Barbell Bench Press"
+        ]
+      ]
+    },
+    "vpress": {
+      "label": "Overhead press",
+      "steps": [
+        [
+          "Machine Shoulder Press"
+        ],
+        [
+          "Seated Dumbbell Press"
+        ],
+        [
+          "Standing Barbell Press"
+        ]
+      ]
+    },
+    "row": {
+      "label": "Row",
+      "steps": [
+        [
+          "Chest-Supported Row",
+          "Seated Cable Row"
+        ],
+        [
+          "One-Arm Dumbbell Row"
+        ],
+        [
+          "Barbell Row"
+        ]
+      ]
+    },
+    "pullup": {
+      "label": "Pull-up",
+      "steps": [
+        [
+          "Lat Pulldown"
+        ],
+        [
+          "Assisted Pull-up"
+        ],
+        [
+          "Bodyweight Pull-up"
+        ],
+        [
+          "Weighted Pull-up"
+        ]
+      ]
+    },
+    "hinge": {
+      "label": "Hinge",
+      "steps": [
+        [
+          "Cable Pull-through"
+        ],
+        [
+          "Dumbbell Romanian Deadlift"
+        ],
+        [
+          "Barbell Romanian Deadlift"
+        ],
+        [
+          "Deadlift"
+        ]
+      ]
+    },
+    "bwpush": {
+      "label": "Push-up",
+      "steps": [
+        [
+          "Incline Push-ups"
+        ],
+        [
+          "Push-ups"
+        ],
+        [
+          "Decline Push-ups"
+        ],
+        [
+          "Archer Push-ups"
+        ]
+      ]
+    },
+    "bwsquat": {
+      "label": "Bodyweight squat",
+      "steps": [
+        [
+          "Bodyweight Squat"
+        ],
+        [
+          "Split Squat"
+        ],
+        [
+          "Bulgarian Split Squat"
+        ]
+      ]
+    },
+    "bridge": {
+      "label": "Bridge",
+      "steps": [
+        [
+          "Glute Bridge"
+        ],
+        [
+          "Single-Leg Glute Bridge"
+        ]
+      ]
+    }
+  },
+  "away_map": {
+    "dumbbells_bodyweight": {
+      "Machine Chest Press": [
+        "Dumbbell Floor Press",
+        "Push-ups"
+      ],
+      "Incline Dumbbell Press": [
+        "Incline Dumbbell Press",
+        "Decline Push-ups"
+      ],
+      "Seated Dumbbell Press": [
+        "Seated Dumbbell Press",
+        "Pike Push-ups"
+      ],
+      "Lateral Raise": [
+        "Lateral Raise",
+        null
+      ],
+      "Rope Pushdown": [
+        "Overhead Dumbbell Extension",
+        "Bench Dips"
+      ],
+      "Lat Pulldown": [
+        "One-Arm Dumbbell Row",
+        "Backpack Row"
+      ],
+      "Seated Cable Row": [
+        "One-Arm Dumbbell Row",
+        "Backpack Row"
+      ],
+      "Face Pull": [
+        "Rear Delt Fly",
+        "Prone Y-T-W Raise"
+      ],
+      "Dumbbell Curl": [
+        "Dumbbell Curl",
+        null
+      ],
+      "Hammer Curl": [
+        "Hammer Curl",
+        null
+      ],
+      "Hack Squat": [
+        "Goblet Squat",
+        "Bodyweight Squat"
+      ],
+      "Leg Press": [
+        "Dumbbell Split Squat",
+        "Bulgarian Split Squat"
+      ],
+      "Lying Leg Curl": [
+        "Single-Leg Glute Bridge",
+        "Single-Leg Glute Bridge"
+      ],
+      "Leg Extension": [
+        "Goblet Squat",
+        "Wall Sit (seconds)"
+      ],
+      "Standing Calf Raise": [
+        "Single-Leg Calf Raise",
+        "Single-Leg Calf Raise"
+      ],
+      "Cable Crunch": [
+        "Crunch",
+        "Crunch"
+      ],
+      "Barbell Bench Press": [
+        "Dumbbell Floor Press",
+        "Push-ups"
+      ],
+      "Machine Shoulder Press": [
+        "Seated Dumbbell Press",
+        "Pike Push-ups"
+      ],
+      "Pec Deck Fly": [
+        "Dumbbell Fly",
+        "Push-ups"
+      ],
+      "Cable Lateral Raise": [
+        "Lateral Raise",
+        null
+      ],
+      "Overhead Cable Extension": [
+        "Overhead Dumbbell Extension",
+        "Bench Dips"
+      ],
+      "Chest-Supported Row": [
+        "One-Arm Dumbbell Row",
+        "Backpack Row"
+      ],
+      "Assisted Pull-up": [
+        "One-Arm Dumbbell Row",
+        "Backpack Row"
+      ],
+      "One-Arm Dumbbell Row": [
+        "One-Arm Dumbbell Row",
+        "Backpack Row"
+      ],
+      "Rear Delt Fly": [
+        "Rear Delt Fly",
+        "Prone Y-T-W Raise"
+      ],
+      "Cable Curl": [
+        "Dumbbell Curl",
+        null
+      ],
+      "Goblet Squat": [
+        "Goblet Squat",
+        "Bodyweight Squat"
+      ],
+      "Seated Leg Curl": [
+        "Single-Leg Glute Bridge",
+        "Single-Leg Glute Bridge"
+      ],
+      "Hip Thrust": [
+        "Glute Bridge",
+        "Glute Bridge"
+      ],
+      "Seated Calf Raise": [
+        "Single-Leg Calf Raise",
+        "Single-Leg Calf Raise"
+      ],
+      "Hanging Knee Raise": [
+        "Lying Leg Raise",
+        "Lying Leg Raise"
+      ]
+    }
+  },
+  "cards": {
+    "Machine Chest Press": {
+      "f": "Chest, front of shoulders, triceps",
+      "s": [
+        "Set the seat so the handles line up with the middle of your chest.",
+        "Sit with your back flat against the pad and feet flat on the floor.",
+        "Grip the handles with your wrists straight."
+      ],
+      "c": [
+        "Squeeze your shoulder blades back and down",
+        "Press until your arms are nearly straight, without locking out hard",
+        "Lower slowly until you feel a stretch across your chest"
+      ],
+      "m": [
+        "Seat too high or low, so the press drifts into the shoulders",
+        "Shoulders rolling forward at the end of each rep",
+        "Letting the weight stack bang between reps"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Lower the seat a notch and keep your shoulder blades pinned back the whole time."
+        ],
+        [
+          "Mostly triceps",
+          "Let the handles come back a little further for a fuller chest stretch."
+        ]
+      ],
+      "h": "Dumbbell bench press"
+    },
+    "Incline Dumbbell Press": {
+      "f": "Upper chest, front of shoulders, triceps",
+      "s": [
+        "Set the bench to a low incline, about 30°.",
+        "Sit with the dumbbells on your thighs, then kick them up one at a time as you lie back.",
+        "Feet planted, shoulder blades pulled back."
+      ],
+      "c": [
+        "Lower the dumbbells to the sides of your upper chest",
+        "Keep elbows about 45° from your body, not flared straight out",
+        "Press up and slightly in, without clanking the dumbbells"
+      ],
+      "m": [
+        "Bench set too steep, turning it into a shoulder press",
+        "Elbows flared out to 90°",
+        "Dropping the weights quickly at the bottom"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Lower the bench angle and tuck your elbows in a little more."
+        ],
+        [
+          "Mostly triceps",
+          "Lower a bit further for a fuller stretch instead of stopping short."
+        ]
+      ],
+      "e": "Machine Chest Press",
+      "h": "Heavier dumbbells, then incline barbell press"
+    },
+    "Seated Dumbbell Press": {
+      "f": "Shoulders (front and side), triceps",
+      "s": [
+        "Set the bench upright, or one notch back from vertical.",
+        "Kick the dumbbells up to shoulder height, palms facing forward.",
+        "Back against the pad, feet planted."
+      ],
+      "c": [
+        "Press straight up until your arms are nearly straight",
+        "Keep your lower back against the pad, ribs down",
+        "Lower until the dumbbells are about ear level"
+      ],
+      "m": [
+        "Arching the lower back off the pad",
+        "Short reps that stop at the forehead",
+        "Banging the dumbbells together at the top"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Ribs down, squeeze your glutes, and use a lighter weight."
+        ],
+        [
+          "Mostly triceps",
+          "Lower a little deeper, to about ear level."
+        ]
+      ],
+      "e": "Machine Shoulder Press",
+      "h": "Standing barbell press"
+    },
+    "Lateral Raise": {
+      "f": "Side of shoulders",
+      "s": [
+        "Stand tall holding light dumbbells at your sides.",
+        "Keep a soft bend in your elbows and lean very slightly forward."
+      ],
+      "c": [
+        "Lead with your elbows and raise out to the sides",
+        "Stop at shoulder height",
+        "Lower slowly, over about 2 seconds"
+      ],
+      "m": [
+        "Swinging the body to lift heavier weights",
+        "Shrugging the shoulders up toward the ears",
+        "Raising above shoulder height"
+      ],
+      "w": [
+        [
+          "Traps or neck",
+          "Use lighter dumbbells, keep your shoulders down, and think “reach out” rather than “lift up”."
+        ],
+        [
+          "Front of shoulders",
+          "Raise slightly in front of your body rather than straight out, with palms facing the floor."
+        ]
+      ],
+      "e": "Seated lateral raise with lighter dumbbells",
+      "h": "Cable Lateral Raise"
+    },
+    "Rope Pushdown": {
+      "f": "Back of the upper arms (triceps)",
+      "s": [
+        "Attach a rope to a high pulley.",
+        "Stand close with a slight forward lean, elbows at your sides."
+      ],
+      "c": [
+        "Keep your elbows pinned to your sides",
+        "Push down and spread the rope ends apart at the bottom",
+        "Let the rope rise only until your forearms are just above parallel"
+      ],
+      "m": [
+        "Elbows drifting forward so the shoulders take over",
+        "Leaning your body weight onto the rope",
+        "Rushing the way back up"
+      ],
+      "w": [
+        [
+          "Shoulders or chest",
+          "Use a lighter weight and keep your elbows glued to your sides."
+        ],
+        [
+          "Wrists or forearms",
+          "Loosen your grip and keep your wrists straight."
+        ]
+      ],
+      "h": "Overhead Cable Extension"
+    },
+    "Lat Pulldown": {
+      "f": "Lats (sides of the upper back), biceps",
+      "s": [
+        "Set the thigh pad so your legs are locked in.",
+        "Grip slightly wider than your shoulders, palms facing away.",
+        "Sit tall with a slight lean back."
+      ],
+      "c": [
+        "Start each rep by pulling your shoulders down, away from your ears",
+        "Pull the bar to your upper chest, driving your elbows down",
+        "Let the bar rise slowly until your arms are straight"
+      ],
+      "m": [
+        "Leaning far back and swinging",
+        "Pulling the bar behind the neck",
+        "Pulling with the arms only, elbows pointing backward"
+      ],
+      "w": [
+        [
+          "Mostly biceps",
+          "Think of pulling with your elbows, not your hands, and hold the bar a little more loosely."
+        ],
+        [
+          "Neck or upper traps",
+          "Pull your shoulders down first and lean back less."
+        ]
+      ],
+      "h": "Assisted Pull-up"
+    },
+    "Seated Cable Row": {
+      "f": "Middle back, lats, rear shoulders, biceps",
+      "s": [
+        "Sit with your feet on the platform, knees slightly bent.",
+        "Grab the handle and sit tall with your chest up."
+      ],
+      "c": [
+        "Pull the handle to your lower ribs",
+        "Squeeze your shoulder blades together at the end",
+        "Let your arms straighten forward slowly without rounding your back"
+      ],
+      "m": [
+        "Rocking the torso back and forth for momentum",
+        "Rounding the lower back",
+        "Shrugging the shoulders toward the ears"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Keep your torso still and upright, and reduce the weight."
+        ],
+        [
+          "Mostly biceps",
+          "Lead with your elbows and think about squeezing your back together."
+        ]
+      ],
+      "e": "Chest-Supported Row",
+      "h": "One-Arm Dumbbell Row"
+    },
+    "Face Pull": {
+      "f": "Rear shoulders, upper back",
+      "s": [
+        "Set the rope at about face height.",
+        "Hold the rope ends with your palms facing in.",
+        "Step back until your arms are straight and stand tall."
+      ],
+      "c": [
+        "Pull the rope toward your eyes, hands moving apart",
+        "Keep your elbows high, at or above shoulder level",
+        "Finish with your hands beside your ears, pause briefly"
+      ],
+      "m": [
+        "Too much weight and leaning back",
+        "Elbows dropping, turning it into a row",
+        "Shrugging the shoulders up"
+      ],
+      "w": [
+        [
+          "Biceps or forearms",
+          "Use a lighter weight and pull with your elbows high and wide."
+        ],
+        [
+          "Neck or traps",
+          "Keep your shoulders down and slow the movement."
+        ]
+      ],
+      "e": "Rear Delt Fly"
+    },
+    "Dumbbell Curl": {
+      "f": "Biceps",
+      "s": [
+        "Stand tall with dumbbells at your sides, palms facing forward.",
+        "Keep your elbows close to your body."
+      ],
+      "c": [
+        "Curl up without moving your elbows forward",
+        "Squeeze at the top",
+        "Lower slowly all the way down"
+      ],
+      "m": [
+        "Swinging the body to lift the weight",
+        "Elbows drifting forward",
+        "Half reps that skip the bottom"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Keep your elbows still by your sides and use lighter dumbbells."
+        ],
+        [
+          "Forearms",
+          "Relax your grip slightly and keep your wrists straight."
+        ]
+      ],
+      "e": "Cable Curl",
+      "h": "Preacher Curl"
+    },
+    "Hammer Curl": {
+      "f": "Biceps and the top of the forearm",
+      "s": [
+        "Stand tall with dumbbells at your sides, palms facing each other."
+      ],
+      "c": [
+        "Keep your palms facing in the whole time",
+        "Curl up with your elbows fixed at your sides",
+        "Lower under control"
+      ],
+      "m": [
+        "Swinging the body",
+        "Elbows drifting forward",
+        "Dropping the weight on the way down"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Pin your elbows to your sides and lighten the load."
+        ]
+      ]
+    },
+    "Hack Squat": {
+      "f": "Front of thighs, glutes",
+      "s": [
+        "Back and hips flat against the pad, shoulders under the shoulder pads.",
+        "Feet shoulder-width apart in the middle of the platform.",
+        "Release the safety handles."
+      ],
+      "c": [
+        "Knees travel in line with your toes",
+        "Lower until your thighs are about parallel",
+        "Push through your whole foot"
+      ],
+      "m": [
+        "Heels lifting",
+        "Hips peeling off the pad",
+        "Knees caving in",
+        "Bouncing at the bottom"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Keep your hips pressed into the pad, and only go as deep as you can keep them there."
+        ],
+        [
+          "Knees more than thighs",
+          "Move your feet slightly higher on the platform and control the bottom of each rep."
+        ]
+      ],
+      "e": "Goblet Squat",
+      "h": "Barbell back squat"
+    },
+    "Leg Press": {
+      "f": "Thighs, glutes",
+      "s": [
+        "Sit with your back and hips flat against the pad.",
+        "Feet shoulder-width apart in the middle of the platform.",
+        "Release the safety handles."
+      ],
+      "c": [
+        "Lower until your knees reach about 90°, keeping your hips down",
+        "Knees track over your toes",
+        "Press through your whole foot without locking your knees"
+      ],
+      "m": [
+        "Lower back rounding off the pad at the bottom",
+        "Locking the knees hard at the top",
+        "Heels lifting off the platform"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Reduce the depth so your hips stay on the pad."
+        ],
+        [
+          "Mostly glutes, not thighs",
+          "Move your feet slightly lower on the platform."
+        ]
+      ],
+      "e": "Goblet Squat",
+      "h": "Hack Squat"
+    },
+    "Lying Leg Curl": {
+      "f": "Hamstrings (back of the thighs)",
+      "s": [
+        "Lie face down with your knees just off the edge of the pad.",
+        "The ankle pad sits just above your heels.",
+        "Hold the handles."
+      ],
+      "c": [
+        "Keep your hips pressed into the pad",
+        "Curl your heels toward your glutes",
+        "Lower slowly until your legs are almost straight"
+      ],
+      "m": [
+        "Hips lifting off the pad",
+        "Swinging the weight up",
+        "Letting it drop quickly"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Press your hips down and lighten the weight."
+        ],
+        [
+          "Calves cramping",
+          "Point your toes slightly and reduce the weight."
+        ]
+      ],
+      "h": "Seated Leg Curl"
+    },
+    "Leg Extension": {
+      "f": "Front of thighs",
+      "s": [
+        "Adjust the back rest so your knees line up with the machine’s pivot point.",
+        "The shin pad sits just above your ankles."
+      ],
+      "c": [
+        "Straighten your legs fully and squeeze briefly",
+        "Lower slowly",
+        "Keep your hips down on the seat and hold the handles"
+      ],
+      "m": [
+        "Swinging the weight up",
+        "Hips lifting off the seat",
+        "Rushing the lowering"
+      ],
+      "w": [
+        [
+          "Shins",
+          "Move the pad slightly lower, just above the ankle."
+        ],
+        [
+          "Knees more than thighs",
+          "Check your knees line up with the pivot, and use a lighter weight with slower reps."
+        ]
+      ]
+    },
+    "Standing Calf Raise": {
+      "f": "Calves",
+      "s": [
+        "Shoulders under the pads, balls of your feet on the edge of the step."
+      ],
+      "c": [
+        "Lower your heels for a full stretch",
+        "Rise as high as you can onto your toes",
+        "Pause for 1 second at the top and the bottom"
+      ],
+      "m": [
+        "Bouncing through short reps",
+        "Bending the knees to help",
+        "Rolling onto the outside of the feet"
+      ],
+      "w": [
+        [
+          "Arches of the feet",
+          "Spread your weight across the ball of each foot and stretch between sets."
+        ]
+      ],
+      "h": "Single-leg calf raise"
+    },
+    "Cable Crunch": {
+      "f": "Abs",
+      "s": [
+        "Kneel facing a high pulley with the rope held beside your head.",
+        "Hips stay stacked over your knees."
+      ],
+      "c": [
+        "Crunch by curling your ribs toward your hips",
+        "Keep your hips still, don’t sit back",
+        "Pause, then return slowly"
+      ],
+      "m": [
+        "Pulling with the arms",
+        "Sitting back onto the heels",
+        "Using too much weight"
+      ],
+      "w": [
+        [
+          "Hip flexors or thighs",
+          "Keep your hips fixed above your knees and round your spine instead."
+        ],
+        [
+          "Arms",
+          "Keep your hands fixed beside your head; your arms don’t move."
+        ]
+      ],
+      "b": "Breathe out as you crunch down, in as you come back up."
+    },
+    "Barbell Bench Press": {
+      "f": "Chest, front of shoulders, triceps",
+      "s": [
+        "Set the safety arms just below chest height, or have a spotter.",
+        "Lie with your eyes under the bar, feet flat on the floor.",
+        "Grip slightly wider than shoulder width; pull your shoulder blades back and down."
+      ],
+      "c": [
+        "Lower the bar to mid-chest with elbows about 45° from your body",
+        "Touch lightly, no bouncing",
+        "Press up and slightly back over your shoulders"
+      ],
+      "m": [
+        "Bouncing the bar off the chest",
+        "Elbows flared out to 90°",
+        "Hips lifting off the bench",
+        "Wrists bent back"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Keep your shoulder blades pinned and elbows tucked to about 45°."
+        ],
+        [
+          "Mostly triceps",
+          "Grip a little wider."
+        ]
+      ],
+      "e": "Incline Dumbbell Press or Machine Chest Press",
+      "h": "Heavier bench, paused reps"
+    },
+    "Machine Shoulder Press": {
+      "f": "Shoulders, triceps",
+      "s": [
+        "Set the seat so the handles start at about shoulder height.",
+        "Back flat against the pad."
+      ],
+      "c": [
+        "Press up until your arms are nearly straight",
+        "Ribs down, back stays on the pad",
+        "Lower under control to shoulder level"
+      ],
+      "m": [
+        "Arching off the pad",
+        "Shrugging the shoulders up",
+        "Locking the elbows hard at the top"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Ribs down and glutes squeezed, and reduce the weight."
+        ],
+        [
+          "Neck or traps",
+          "Keep your shoulders down, away from your ears."
+        ]
+      ],
+      "h": "Seated Dumbbell Press"
+    },
+    "Pec Deck Fly": {
+      "f": "Chest",
+      "s": [
+        "Set the seat so the handles are at chest level.",
+        "Keep a slight bend in your elbows."
+      ],
+      "c": [
+        "Bring your hands together in a hugging arc",
+        "Squeeze your chest when your hands meet",
+        "Open slowly until you feel a stretch, not further"
+      ],
+      "m": [
+        "Letting the arms travel too far back",
+        "Bending the elbows more, turning it into a press",
+        "Rushing the reps"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Raise the seat slightly and stop the arms before they go too far back."
+        ],
+        [
+          "Biceps",
+          "Keep a fixed slight bend in the elbows throughout."
+        ]
+      ],
+      "h": "Cable Crossover"
+    },
+    "Cable Lateral Raise": {
+      "f": "Side of shoulders",
+      "s": [
+        "Set the pulley at its lowest point.",
+        "Stand side-on and hold the handle with your far hand, cable crossing in front of your body."
+      ],
+      "c": [
+        "Raise your arm out to the side to shoulder height",
+        "Lead with the elbow",
+        "Lower slowly"
+      ],
+      "m": [
+        "Leaning away from the machine to cheat",
+        "Shrugging",
+        "Going too heavy"
+      ],
+      "w": [
+        [
+          "Traps or neck",
+          "Use a lighter weight, keep your shoulder down and reach out wide."
+        ]
+      ],
+      "e": "Lateral Raise"
+    },
+    "Overhead Cable Extension": {
+      "f": "Back of the upper arms (triceps)",
+      "s": [
+        "Attach a rope to a low or middle pulley and face away from the machine.",
+        "Hold the rope behind your head, staggered stance, slight forward lean."
+      ],
+      "c": [
+        "Elbows point forward and stay close together",
+        "Extend your arms fully",
+        "Let your hands travel back behind your head for a deep stretch"
+      ],
+      "m": [
+        "Elbows flaring out wide",
+        "Arching the lower back",
+        "Partial reps"
+      ],
+      "w": [
+        [
+          "Shoulders",
+          "Use a lighter weight and keep your elbows closer together."
+        ],
+        [
+          "Lower back",
+          "Brace your core and lean forward a little more."
+        ]
+      ],
+      "e": "Rope Pushdown"
+    },
+    "Chest-Supported Row": {
+      "f": "Middle back, lats, rear shoulders",
+      "s": [
+        "Adjust the machine so the chest pad supports your upper chest.",
+        "Grip the handles with your arms straight."
+      ],
+      "c": [
+        "Keep your chest on the pad",
+        "Pull your elbows back past your body",
+        "Squeeze your shoulder blades together, then lower slowly"
+      ],
+      "m": [
+        "Lifting the chest off the pad",
+        "Shrugging",
+        "Cutting reps short"
+      ],
+      "w": [
+        [
+          "Mostly biceps",
+          "Think “elbows back”, not “hands back”."
+        ],
+        [
+          "Upper traps",
+          "Pull your elbows back and slightly down, not up toward your ears."
+        ]
+      ],
+      "h": "One-Arm Dumbbell Row"
+    },
+    "Assisted Pull-up": {
+      "f": "Lats, biceps",
+      "s": [
+        "Set the assistance weight. More weight means more help.",
+        "Kneel or stand on the platform and grip slightly wider than your shoulders."
+      ],
+      "c": [
+        "Start each rep by pulling your shoulders down",
+        "Pull until your chin is over the bar",
+        "Lower all the way to straight arms, under control"
+      ],
+      "m": [
+        "Half reps",
+        "Swinging or kicking",
+        "Shrugging at the top"
+      ],
+      "w": [
+        [
+          "Mostly biceps",
+          "Think about driving your elbows down to your sides."
+        ]
+      ],
+      "e": "Lat Pulldown",
+      "h": "Bodyweight pull-up"
+    },
+    "One-Arm Dumbbell Row": {
+      "f": "Lats, middle back",
+      "s": [
+        "Put one knee and the same-side hand on a flat bench, back flat.",
+        "Let the dumbbell hang straight down from your shoulder."
+      ],
+      "c": [
+        "Pull the dumbbell toward your hip",
+        "Keep your elbow close to your body",
+        "Lower until your arm is straight and you feel a stretch"
+      ],
+      "m": [
+        "Twisting the torso to lift the weight",
+        "Rounding the back",
+        "Flaring the elbow out and pulling toward the chest"
+      ],
+      "w": [
+        [
+          "Biceps",
+          "Hold the dumbbell loosely and drive your elbow back toward your hip."
+        ],
+        [
+          "Lower back",
+          "Keep your back flat and lean on the bench for support."
+        ]
+      ],
+      "e": "Chest-Supported Row",
+      "h": "Barbell row"
+    },
+    "Rear Delt Fly": {
+      "f": "Rear shoulders, upper back",
+      "s": [
+        "Lie chest-down on an incline bench, or sit at the end of a bench and lean forward.",
+        "Hold light dumbbells below you, palms facing each other, elbows soft."
+      ],
+      "c": [
+        "Raise the dumbbells out to the sides",
+        "Lead with your elbows",
+        "Stop at shoulder level and lower slowly"
+      ],
+      "m": [
+        "Too heavy, so you swing",
+        "Shrugging the shoulders up",
+        "Bending the elbows more as you lift"
+      ],
+      "w": [
+        [
+          "Traps or neck",
+          "Use lighter weights and think of moving your arms wide rather than squeezing your back."
+        ]
+      ],
+      "h": "Face Pull"
+    },
+    "Cable Curl": {
+      "f": "Biceps",
+      "s": [
+        "Attach a straight bar or rope to a low pulley.",
+        "Stand close with your elbows at your sides."
+      ],
+      "c": [
+        "Curl up with your elbows still",
+        "Squeeze at the top",
+        "Lower slowly to straight arms"
+      ],
+      "m": [
+        "Swinging",
+        "Elbows drifting forward",
+        "Leaning back"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Keep your elbows pinned and use a lighter weight."
+        ]
+      ],
+      "h": "Dumbbell Curl"
+    },
+    "Goblet Squat": {
+      "f": "Thighs, glutes",
+      "s": [
+        "Hold one dumbbell upright against your chest, elbows pointing down.",
+        "Feet shoulder-width apart, toes turned slightly out."
+      ],
+      "c": [
+        "Sit down between your heels with your chest up",
+        "Push your knees out in line with your toes",
+        "Stand up by pushing through your whole foot"
+      ],
+      "m": [
+        "Heels lifting (a small plate under the heels helps)",
+        "Knees caving in",
+        "Chest dropping forward"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Keep the dumbbell close and your chest tall, and only go as deep as your back stays neutral."
+        ],
+        [
+          "Arms or shoulders",
+          "Hold the dumbbell close to your chest and use a weight you can hold comfortably."
+        ]
+      ],
+      "e": "Box squat (sitting down to a bench)",
+      "h": "Hack Squat or Leg Press"
+    },
+    "Seated Leg Curl": {
+      "f": "Hamstrings (back of the thighs)",
+      "s": [
+        "Back against the pad, knees lined up with the pivot point.",
+        "Lower pad just above your heels; thigh pad locked down firmly."
+      ],
+      "c": [
+        "Curl your heels down and under",
+        "Squeeze briefly at the bottom",
+        "Return slowly until your legs are almost straight"
+      ],
+      "m": [
+        "Thigh pad too loose",
+        "Swinging the weight",
+        "Rushing the return"
+      ],
+      "w": [
+        [
+          "Calves cramping",
+          "Point your toes slightly and reduce the weight."
+        ]
+      ],
+      "e": "Lying Leg Curl"
+    },
+    "Hip Thrust": {
+      "f": "Glutes",
+      "s": [
+        "Upper back against the edge of a bench, just below the shoulder blades.",
+        "Bar with a pad across the crease of your hips, feet flat about shoulder-width.",
+        "At the top, your shins should be about vertical."
+      ],
+      "c": [
+        "Tuck your chin and keep your ribs down",
+        "Drive your hips up through your heels until your body is flat from shoulders to knees",
+        "Squeeze your glutes for 1 second at the top"
+      ],
+      "m": [
+        "Over-arching the lower back at the top",
+        "Feet too far out or too close in",
+        "Rushing the reps"
+      ],
+      "w": [
+        [
+          "Hamstrings",
+          "Move your feet slightly closer to your hips."
+        ],
+        [
+          "Thighs",
+          "Move your feet slightly further away."
+        ],
+        [
+          "Lower back",
+          "Ribs down, chin tucked, and stop when your hips are level."
+        ]
+      ],
+      "b": "Breathe in at the bottom, out as you drive up.",
+      "e": "Glute bridge on the floor"
+    },
+    "Seated Calf Raise": {
+      "f": "Calves (lower part)",
+      "s": [
+        "Knee pad snug on your lower thighs, balls of your feet on the platform."
+      ],
+      "c": [
+        "Lower your heels for a full stretch",
+        "Push up as high as you can",
+        "Pause at the top and the bottom"
+      ],
+      "m": [
+        "Bouncing",
+        "Short range of motion",
+        "Going too heavy to move fully"
+      ],
+      "w": [
+        [
+          "Arches of the feet",
+          "Spread your weight across the ball of each foot."
+        ]
+      ]
+    },
+    "Hanging Knee Raise": {
+      "f": "Abs, hip flexors",
+      "s": [
+        "Hang from a bar, or use a captain’s chair with your forearms on the pads.",
+        "Keep your shoulders engaged, not fully relaxed."
+      ],
+      "c": [
+        "Curl your pelvis up as your knees rise",
+        "Bring your knees toward your chest",
+        "Lower slowly without swinging"
+      ],
+      "m": [
+        "Swinging the body",
+        "Lifting only the thighs without curling the pelvis",
+        "Dropping the legs quickly"
+      ],
+      "w": [
+        [
+          "Only hip flexors",
+          "Focus on tilting your pelvis up at the top, with smaller, slower reps."
+        ],
+        [
+          "Grip gives out first",
+          "Use a captain’s chair or lifting straps."
+        ]
+      ],
+      "b": "Breathe out as your knees come up.",
+      "e": "Lying knee raises on a bench",
+      "h": "Hanging leg raise"
+    },
+    "Push-ups": {
+      "f": "Chest, triceps, front shoulders",
+      "s": [
+        "Hands slightly wider than shoulders, body in a straight line from head to heels."
+      ],
+      "c": [
+        "Brace your core and squeeze your glutes",
+        "Lower until your chest is a fist from the floor",
+        "Elbows about 45° from your body"
+      ],
+      "m": [
+        "Hips sagging or piking up",
+        "Half reps"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Squeeze your glutes and tuck your pelvis slightly."
+        ]
+      ],
+      "e": "Push-ups with hands on a bench",
+      "h": "Decline Push-ups"
+    },
+    "Decline Push-ups": {
+      "f": "Upper chest, shoulders, triceps",
+      "s": [
+        "Feet on a bench or step, hands on the floor."
+      ],
+      "c": [
+        "Keep a straight line from head to heels",
+        "Lower your chest between your hands",
+        "Press the floor away"
+      ],
+      "m": [
+        "Hips sagging",
+        "Elbows flaring wide"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Brace harder or use a lower step."
+        ]
+      ],
+      "e": "Push-ups",
+      "h": "Pike Push-ups"
+    },
+    "Pike Push-ups": {
+      "f": "Shoulders, triceps",
+      "s": [
+        "Hips high so your body makes an upside-down V, hands shoulder-width."
+      ],
+      "c": [
+        "Lower the top of your head toward the floor between your hands",
+        "Elbows track back, not out",
+        "Push back up to the V"
+      ],
+      "m": [
+        "Hips dropping into a regular push-up",
+        "Going too deep before you’re strong enough"
+      ],
+      "w": [
+        [
+          "Neck",
+          "Keep your chin slightly tucked and control the depth."
+        ]
+      ],
+      "e": "Decline Push-ups",
+      "h": "Seated Dumbbell Press"
+    },
+    "Dumbbell Floor Press": {
+      "f": "Chest, triceps",
+      "s": [
+        "Lie on the floor, knees bent, a dumbbell in each hand above your chest."
+      ],
+      "c": [
+        "Lower until your upper arms touch the floor",
+        "Pause briefly, no bouncing",
+        "Press up and slightly in"
+      ],
+      "m": [
+        "Slamming elbows into the floor",
+        "Flaring elbows to 90°"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Tuck your elbows to about 45°."
+        ]
+      ],
+      "h": "Dumbbell Bench Press"
+    },
+    "Dumbbell Fly": {
+      "f": "Chest",
+      "s": [
+        "Lie on a bench, dumbbells above your chest, palms facing in, soft elbows."
+      ],
+      "c": [
+        "Open your arms in a wide arc",
+        "Stop when you feel a stretch across your chest",
+        "Squeeze back up as if hugging a tree"
+      ],
+      "m": [
+        "Going too deep and straining the shoulders",
+        "Turning it into a press"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Lighter weights and a shorter range."
+        ]
+      ],
+      "e": "Pec Deck Fly"
+    },
+    "Overhead Dumbbell Extension": {
+      "f": "Triceps",
+      "s": [
+        "Sit or stand holding one dumbbell overhead with both hands."
+      ],
+      "c": [
+        "Keep elbows pointing forward and close",
+        "Lower behind your head for a deep stretch",
+        "Extend fully without arching your back"
+      ],
+      "m": [
+        "Elbows flaring out",
+        "Arching the lower back"
+      ],
+      "w": [
+        [
+          "Shoulders",
+          "Use a lighter weight and keep elbows closer."
+        ]
+      ],
+      "h": "Overhead Cable Extension"
+    },
+    "Bench Dips": {
+      "f": "Triceps",
+      "s": [
+        "Hands on the edge of a bench behind you, legs out in front."
+      ],
+      "c": [
+        "Keep your back close to the bench",
+        "Lower until elbows are about 90°",
+        "Press up through your palms"
+      ],
+      "m": [
+        "Going too deep and straining the shoulders",
+        "Shoulders shrugging up"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Shorter range and bend your knees to make it easier."
+        ]
+      ],
+      "h": "Assisted Dips"
+    },
+    "Prone Y-T-W Raise": {
+      "f": "Upper back, rear shoulders",
+      "s": [
+        "Lie face down on the floor or an incline bench, arms hanging or by your sides."
+      ],
+      "c": [
+        "Raise arms into a Y, then a T, then a W shape",
+        "Squeeze your shoulder blades gently",
+        "Move slowly, thumbs up"
+      ],
+      "m": [
+        "Shrugging toward the ears",
+        "Lifting the chest with the lower back"
+      ],
+      "w": [
+        [
+          "Neck",
+          "Keep your chin tucked and shoulders down."
+        ]
+      ],
+      "h": "Face Pull"
+    },
+    "Bodyweight Squat": {
+      "f": "Quads, glutes",
+      "s": [
+        "Feet shoulder-width, toes slightly out."
+      ],
+      "c": [
+        "Sit back and down between your heels",
+        "Knees in line with toes",
+        "Chest up, stand tall at the top"
+      ],
+      "m": [
+        "Heels lifting",
+        "Knees caving in"
+      ],
+      "w": [
+        [
+          "Knees",
+          "Sit back more and control the depth."
+        ]
+      ],
+      "h": "Goblet Squat"
+    },
+    "Dumbbell Split Squat": {
+      "f": "Quads, glutes",
+      "s": [
+        "Long stride stance, back heel up, a dumbbell in each hand."
+      ],
+      "c": [
+        "Drop the back knee straight down",
+        "Front knee over the middle of the foot",
+        "Push through the front heel"
+      ],
+      "m": [
+        "Stance too short",
+        "Front heel lifting"
+      ],
+      "w": [
+        [
+          "Front knee",
+          "Lengthen your stance."
+        ]
+      ],
+      "e": "Split Squat",
+      "h": "Hack Squat"
+    },
+    "Split Squat": {
+      "f": "Quads, glutes",
+      "s": [
+        "Long stride stance, back heel up, hands on hips."
+      ],
+      "c": [
+        "Drop the back knee straight down",
+        "Keep your torso upright",
+        "Push through the front heel"
+      ],
+      "m": [
+        "Stance too short",
+        "Leaning far forward"
+      ],
+      "w": [
+        [
+          "Front knee",
+          "Lengthen your stance."
+        ]
+      ],
+      "h": "Dumbbell Split Squat"
+    },
+    "Walking Lunge": {
+      "f": "Quads, glutes",
+      "s": [
+        "Stand tall, dumbbells at your sides if you use them."
+      ],
+      "c": [
+        "Long step, drop the back knee toward the floor",
+        "Front knee over the middle of the foot",
+        "Drive up and step through"
+      ],
+      "m": [
+        "Short steps",
+        "Wobbling knees"
+      ],
+      "w": [
+        [
+          "Knees",
+          "Take longer steps and slow down."
+        ]
+      ],
+      "e": "Split Squat"
+    },
+    "Glute Bridge": {
+      "f": "Glutes",
+      "s": [
+        "Lie on your back, knees bent, feet flat near your hips."
+      ],
+      "c": [
+        "Drive hips up through your heels",
+        "Squeeze glutes for 1 second at the top",
+        "Ribs down, don’t over-arch"
+      ],
+      "m": [
+        "Pushing through toes",
+        "Over-arching the lower back"
+      ],
+      "w": [
+        [
+          "Hamstrings",
+          "Bring your feet closer to your hips."
+        ]
+      ],
+      "h": "Hip Thrust"
+    },
+    "Single-Leg Glute Bridge": {
+      "f": "Glutes, hamstrings",
+      "s": [
+        "As a glute bridge, with one leg extended or knee pulled in."
+      ],
+      "c": [
+        "Keep hips level",
+        "Drive through the planted heel",
+        "Pause at the top"
+      ],
+      "m": [
+        "Hips twisting",
+        "Rushing reps"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Lower the height and brace your core."
+        ]
+      ],
+      "e": "Glute Bridge"
+    },
+    "Wall Sit (seconds)": {
+      "f": "Quads",
+      "s": [
+        "Back against a wall, slide down until thighs are about parallel."
+      ],
+      "c": [
+        "Knees over ankles",
+        "Back flat on the wall",
+        "Breathe steadily"
+      ],
+      "m": [
+        "Knees past toes",
+        "Holding your breath"
+      ],
+      "w": [
+        [
+          "Knees",
+          "Slide up a little higher."
+        ]
+      ],
+      "h": "Bodyweight Squat"
+    },
+    "Single-Leg Calf Raise": {
+      "f": "Calves",
+      "s": [
+        "Stand on one foot on a step edge, holding a support."
+      ],
+      "c": [
+        "Lower the heel for a full stretch",
+        "Rise as high as you can",
+        "Pause at top and bottom"
+      ],
+      "m": [
+        "Bouncing",
+        "Bending the knee to cheat"
+      ],
+      "w": [
+        [
+          "Foot arch",
+          "Spread weight across the ball of the foot."
+        ]
+      ],
+      "e": "Standing Calf Raise"
+    },
+    "Crunch": {
+      "f": "Abs",
+      "s": [
+        "Lie on your back, knees bent, hands lightly beside your head."
+      ],
+      "c": [
+        "Curl your ribs toward your hips",
+        "Lift shoulders only a few inches",
+        "Lower slowly"
+      ],
+      "m": [
+        "Pulling on your neck",
+        "Sitting all the way up"
+      ],
+      "w": [
+        [
+          "Neck",
+          "Keep hands light and look at the ceiling."
+        ]
+      ],
+      "h": "Cable Crunch"
+    },
+    "Lying Leg Raise": {
+      "f": "Abs, hip flexors",
+      "s": [
+        "Lie on your back, hands under your hips or holding a bench."
+      ],
+      "c": [
+        "Press your lower back into the floor",
+        "Raise legs with a slight knee bend",
+        "Lower slowly without arching"
+      ],
+      "m": [
+        "Lower back lifting",
+        "Swinging the legs"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Bend your knees more and shorten the range."
+        ]
+      ],
+      "h": "Hanging Knee Raise"
+    },
+    "Dumbbell Bench Press": {
+      "f": "Chest, triceps, front shoulders",
+      "s": [
+        "Lie on a flat bench, dumbbells at chest level, feet planted, shoulder blades back."
+      ],
+      "c": [
+        "Lower to the sides of your chest",
+        "Elbows about 45°",
+        "Press up and slightly in"
+      ],
+      "m": [
+        "Elbows flaring to 90°",
+        "Bouncing at the bottom"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Pin your shoulder blades and tuck elbows."
+        ]
+      ],
+      "e": "Machine Chest Press",
+      "h": "Barbell Bench Press"
+    },
+    "Barbell Back Squat": {
+      "f": "Quads, glutes",
+      "s": [
+        "Use safety bars set just below your bottom position.",
+        "Bar on your upper back, hands just wider than shoulders, feet shoulder-width."
+      ],
+      "c": [
+        "Brace your core before each rep",
+        "Sit down between your heels, knees in line with toes",
+        "Drive up through the whole foot"
+      ],
+      "m": [
+        "Knees caving in",
+        "Chest collapsing forward",
+        "Heels lifting"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Brace harder and only go as deep as you keep a neutral back."
+        ]
+      ],
+      "e": "Hack Squat"
+    },
+    "Standing Barbell Press": {
+      "f": "Shoulders, triceps",
+      "s": [
+        "Bar at collarbone height, hands just outside shoulders, feet hip-width."
+      ],
+      "c": [
+        "Squeeze glutes and brace",
+        "Press straight up, moving your head back then through",
+        "Lock out with the bar over your mid-foot"
+      ],
+      "m": [
+        "Leaning back and arching",
+        "Pressing the bar forward"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Squeeze glutes harder and use less weight."
+        ]
+      ],
+      "e": "Seated Dumbbell Press"
+    },
+    "Barbell Row": {
+      "f": "Upper back, lats",
+      "s": [
+        "Hinge forward about 45°, back flat, bar hanging at arm’s length."
+      ],
+      "c": [
+        "Pull the bar to your lower ribs",
+        "Squeeze shoulder blades together",
+        "Lower under control, back stays flat"
+      ],
+      "m": [
+        "Standing up as you pull",
+        "Rounding the back"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Use a chest-supported row instead."
+        ]
+      ],
+      "e": "One-Arm Dumbbell Row"
+    },
+    "Bodyweight Pull-up": {
+      "f": "Lats, biceps",
+      "s": [
+        "Hang from a bar, hands slightly wider than shoulders."
+      ],
+      "c": [
+        "Pull shoulders down first",
+        "Drive elbows down until your chin clears the bar",
+        "Lower all the way under control"
+      ],
+      "m": [
+        "Kipping or swinging",
+        "Half reps"
+      ],
+      "w": [
+        [
+          "Mostly biceps",
+          "Think elbows down to your sides."
+        ]
+      ],
+      "e": "Assisted Pull-up",
+      "h": "Weighted Pull-up"
+    },
+    "Weighted Pull-up": {
+      "f": "Lats, biceps",
+      "s": [
+        "Add weight with a belt or a dumbbell between your feet."
+      ],
+      "c": [
+        "Same form as a strict pull-up",
+        "Full hang at the bottom",
+        "Chin over the bar"
+      ],
+      "m": [
+        "Adding weight before 8+ clean reps",
+        "Shortening the range"
+      ],
+      "w": [
+        [
+          "Elbows",
+          "Reduce the weight."
+        ]
+      ],
+      "e": "Bodyweight Pull-up"
+    },
+    "Cable Pull-through": {
+      "f": "Glutes, hamstrings",
+      "s": [
+        "Low pulley with a rope, face away, rope between your legs."
+      ],
+      "c": [
+        "Push hips back, soft knees",
+        "Back stays flat",
+        "Drive hips forward and squeeze glutes"
+      ],
+      "m": [
+        "Squatting instead of hinging",
+        "Pulling with the arms"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Shorter range and lighter weight."
+        ]
+      ],
+      "h": "Dumbbell Romanian Deadlift"
+    },
+    "Dumbbell Romanian Deadlift": {
+      "f": "Hamstrings, glutes",
+      "s": [
+        "Stand holding dumbbells in front of your thighs, soft knees."
+      ],
+      "c": [
+        "Push hips back, dumbbells close to your legs",
+        "Back flat, stop at a hamstring stretch",
+        "Drive hips forward to stand"
+      ],
+      "m": [
+        "Rounding the back",
+        "Turning it into a squat"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Less depth and lighter weight; stop when your back wants to round."
+        ]
+      ],
+      "e": "Cable Pull-through",
+      "h": "Barbell Romanian Deadlift"
+    },
+    "Barbell Romanian Deadlift": {
+      "f": "Hamstrings, glutes",
+      "s": [
+        "Start standing with the bar at hip height, soft knees."
+      ],
+      "c": [
+        "Push hips back, bar sliding down your thighs",
+        "Back flat, stop at a hamstring stretch",
+        "Squeeze glutes to stand"
+      ],
+      "m": [
+        "Rounding the back",
+        "Bar drifting away from the legs"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Reduce the range and weight."
+        ]
+      ],
+      "e": "Dumbbell Romanian Deadlift",
+      "h": "Deadlift"
+    },
+    "Deadlift": {
+      "f": "Glutes, hamstrings, lower back",
+      "s": [
+        "Bar over mid-foot, shins close, hands just outside the knees."
+      ],
+      "c": [
+        "Brace and pull the slack out of the bar",
+        "Push the floor away, bar close to your legs",
+        "Stand tall, hips and shoulders rising together"
+      ],
+      "m": [
+        "Rounding the back",
+        "Jerking the bar off the floor"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Lower the weight and get coached on the setup."
+        ]
+      ],
+      "e": "Barbell Romanian Deadlift"
+    },
+    "Cable Crossover": {
+      "f": "Chest",
+      "s": [
+        "Pulleys high, a handle in each hand, step forward with a staggered stance."
+      ],
+      "c": [
+        "Soft elbows, bring hands together in an arc",
+        "Squeeze at the middle",
+        "Open slowly to a stretch"
+      ],
+      "m": [
+        "Bending the elbows into a press",
+        "Leaning far forward"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Don’t let the arms travel too far back."
+        ]
+      ],
+      "e": "Pec Deck Fly"
+    },
+    "Close-Grip Bench Press": {
+      "f": "Triceps, chest",
+      "s": [
+        "Hands about shoulder-width on the bar, safety arms set."
+      ],
+      "c": [
+        "Elbows close to your body",
+        "Lower to the lower chest",
+        "Press up and back"
+      ],
+      "m": [
+        "Grip too narrow (wrist strain)",
+        "Elbows flaring"
+      ],
+      "w": [
+        [
+          "Wrists",
+          "Widen your grip slightly."
+        ]
+      ],
+      "e": "Rope Pushdown"
+    },
+    "Assisted Dips": {
+      "f": "Triceps, chest",
+      "s": [
+        "Set the assistance, grip the bars, arms straight."
+      ],
+      "c": [
+        "Lower until elbows reach about 90°",
+        "Slight forward lean",
+        "Press back up"
+      ],
+      "m": [
+        "Going too deep",
+        "Shrugging"
+      ],
+      "w": [
+        [
+          "Front of shoulders",
+          "Shorter range."
+        ]
+      ],
+      "h": "Bench Dips"
+    },
+    "Straight-Arm Pulldown": {
+      "f": "Lats",
+      "s": [
+        "High pulley with a bar or rope, step back, slight hip hinge."
+      ],
+      "c": [
+        "Arms nearly straight",
+        "Pull the bar down to your thighs in an arc",
+        "Control it back up"
+      ],
+      "m": [
+        "Bending the elbows into a pushdown",
+        "Using body swing"
+      ],
+      "w": [
+        [
+          "Triceps",
+          "Keep elbows soft but fixed."
+        ]
+      ],
+      "h": "Lat Pulldown"
+    },
+    "Preacher Curl": {
+      "f": "Biceps",
+      "s": [
+        "Upper arms flat on the preacher pad."
+      ],
+      "c": [
+        "Curl up without lifting your elbows",
+        "Squeeze at the top",
+        "Lower fully but slowly"
+      ],
+      "m": [
+        "Dropping fast at the bottom",
+        "Lifting elbows off the pad"
+      ],
+      "w": [
+        [
+          "Elbows",
+          "Lighter weight and stop just short of full lockout."
+        ]
+      ],
+      "e": "Dumbbell Curl"
+    },
+    "Plank (seconds)": {
+      "f": "Abs",
+      "s": [
+        "Forearms on the floor, body in a straight line."
+      ],
+      "c": [
+        "Squeeze glutes and brace",
+        "Elbows under shoulders",
+        "Breathe steadily"
+      ],
+      "m": [
+        "Hips sagging",
+        "Hips too high"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Tuck your pelvis and squeeze glutes."
+        ]
+      ],
+      "h": "Dead Bug"
+    },
+    "Dead Bug": {
+      "f": "Abs",
+      "s": [
+        "Lie on your back, arms up, knees bent at 90° over hips."
+      ],
+      "c": [
+        "Press your lower back into the floor",
+        "Lower opposite arm and leg slowly",
+        "Return and switch sides"
+      ],
+      "m": [
+        "Lower back arching",
+        "Moving too fast"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Shorten the range of the moving leg."
+        ]
+      ],
+      "e": "Crunch"
+    },
+    "Single-Leg Balance (seconds)": {
+      "f": "Balance, ankles, hips",
+      "s": [
+        "Stand next to a wall or sturdy chair you can touch if needed."
+      ],
+      "c": [
+        "Stand tall on one leg, eyes forward",
+        "Hold for the time, then switch legs",
+        "Progress by holding the support more lightly"
+      ],
+      "m": [
+        "Standing far from any support",
+        "Holding your breath"
+      ],
+      "w": [
+        [
+          "Dizzy or unsteady",
+          "Hold the support with both hands and keep the hold short."
+        ]
+      ]
+    },
+    "Incline Push-ups": {
+      "f": "Chest, triceps, front shoulders",
+      "s": [
+        "Hands on a sturdy table, bed edge or wall, body in a straight line."
+      ],
+      "c": [
+        "Lower your chest to the edge with elbows at about 45°",
+        "Keep hips in line with your body",
+        "Push away until arms are straight"
+      ],
+      "m": [
+        "Hips sagging",
+        "Using a surface that can slide"
+      ],
+      "w": [
+        [
+          "Wrists",
+          "Make a fist or use push-up handles."
+        ]
+      ],
+      "h": "Push-ups"
+    },
+    "Archer Push-ups": {
+      "f": "Chest, triceps",
+      "s": [
+        "Hands very wide, fingers pointing out."
+      ],
+      "c": [
+        "Shift your weight to one arm as you lower",
+        "Keep the other arm nearly straight",
+        "Alternate sides each rep"
+      ],
+      "m": [
+        "Hips twisting",
+        "Going too deep before you’re ready"
+      ],
+      "w": [
+        [
+          "Shoulder",
+          "Use a smaller shift toward one side."
+        ]
+      ],
+      "e": "Decline Push-ups"
+    },
+    "Bulgarian Split Squat": {
+      "f": "Quads, glutes",
+      "s": [
+        "Back foot on a chair or bed behind you, front foot a big step forward."
+      ],
+      "c": [
+        "Drop the back knee straight down",
+        "Front knee over the middle of the foot",
+        "Push through the front heel"
+      ],
+      "m": [
+        "Front foot too close",
+        "Wobbling knee"
+      ],
+      "w": [
+        [
+          "Front knee",
+          "Move the front foot further forward."
+        ]
+      ],
+      "e": "Split Squat"
+    },
+    "Backpack Row": {
+      "f": "Upper back, lats",
+      "s": [
+        "Load a backpack with books or water bottles and weigh it.",
+        "Hinge forward with a flat back, one hand on a chair or table for support."
+      ],
+      "c": [
+        "Pull the bag toward your hip",
+        "Squeeze your shoulder blades",
+        "Lower slowly until your arm is straight"
+      ],
+      "m": [
+        "Rounding the back",
+        "Jerking the bag up"
+      ],
+      "w": [
+        [
+          "Lower back",
+          "Support yourself on the table and use a lighter bag."
+        ]
+      ],
+      "h": "Bodyweight Pull-up"
+    }
+  },
+  "library": {
+    "Chest": [
+      "Barbell Bench Press",
+      "Incline Dumbbell Press",
+      "Machine Chest Press",
+      "Pec Deck Fly",
+      "Cable Crossover",
+      "Push-ups",
+      "Dumbbell Bench Press"
+    ],
+    "Shoulders": [
+      "Seated Dumbbell Press",
+      "Machine Shoulder Press",
+      "Lateral Raise",
+      "Cable Lateral Raise",
+      "Rear Delt Fly",
+      "Face Pull",
+      "Standing Barbell Press"
+    ],
+    "Triceps": [
+      "Rope Pushdown",
+      "Overhead Cable Extension",
+      "Close-Grip Bench Press",
+      "Assisted Dips"
+    ],
+    "Back": [
+      "Lat Pulldown",
+      "Seated Cable Row",
+      "Chest-Supported Row",
+      "One-Arm Dumbbell Row",
+      "Assisted Pull-up",
+      "Straight-Arm Pulldown",
+      "Barbell Row",
+      "Bodyweight Pull-up",
+      "Weighted Pull-up"
+    ],
+    "Biceps": [
+      "Dumbbell Curl",
+      "Hammer Curl",
+      "Cable Curl",
+      "Preacher Curl"
+    ],
+    "Legs": [
+      "Hack Squat",
+      "Leg Press",
+      "Goblet Squat",
+      "Walking Lunge",
+      "Leg Extension",
+      "Lying Leg Curl",
+      "Seated Leg Curl",
+      "Hip Thrust",
+      "Standing Calf Raise",
+      "Seated Calf Raise",
+      "Barbell Back Squat",
+      "Cable Pull-through",
+      "Dumbbell Romanian Deadlift",
+      "Barbell Romanian Deadlift",
+      "Deadlift"
+    ],
+    "Core": [
+      "Cable Crunch",
+      "Hanging Knee Raise",
+      "Plank (seconds)",
+      "Dead Bug"
+    ],
+    "Away from the gym": [
+      "Push-ups",
+      "Decline Push-ups",
+      "Pike Push-ups",
+      "Dumbbell Floor Press",
+      "Dumbbell Fly",
+      "Overhead Dumbbell Extension",
+      "Bench Dips",
+      "Prone Y-T-W Raise",
+      "Bodyweight Squat",
+      "Dumbbell Split Squat",
+      "Split Squat",
+      "Glute Bridge",
+      "Single-Leg Glute Bridge",
+      "Wall Sit (seconds)",
+      "Single-Leg Calf Raise",
+      "Crunch",
+      "Lying Leg Raise",
+      "Incline Push-ups",
+      "Archer Push-ups",
+      "Bulgarian Split Squat",
+      "Backpack Row"
+    ]
+  }
+}

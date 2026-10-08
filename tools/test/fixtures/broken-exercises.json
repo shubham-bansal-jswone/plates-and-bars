@@ -1,0 +1,12 @@
+{
+  "tags": {
+    "Bench A": { "pattern": "h-press", "family": "bench", "equipment": "barbell", "difficulty": 3, "primary": ["pecs"], "secondary": [], "joints": [] },
+    "Bench B": { "pattern": "h-press", "family": "bench", "equipment": "dumbbell", "difficulty": 9, "primary": ["chest"], "secondary": [], "joints": [] }
+  },
+  "ladders": { "hpress": { "label": "Chest press", "steps": [["Bench A"], ["Bench B"]] } },
+  "away_map": { "dumbbells_bodyweight": { "Bench A": ["Floor Press", null] } },
+  "cards": {
+    "Bench A": { "f": "Chest", "s": ["Set up."], "c": ["Press."], "m": ["Bouncing."] }
+  },
+  "library": { "Chest": ["Bench A"] }
+}
