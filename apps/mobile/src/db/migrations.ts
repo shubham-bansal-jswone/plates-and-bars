@@ -12,6 +12,15 @@ export const MIGRATIONS: readonly string[] = [
      key TEXT PRIMARY KEY NOT NULL,
      value TEXT NOT NULL
    );`,
+  // v2: the user's Profile and Consent records, each a contract-shaped JSON document under a fixed local key
+  `CREATE TABLE IF NOT EXISTS profiles (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );
+   CREATE TABLE IF NOT EXISTS consents (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );`,
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {
