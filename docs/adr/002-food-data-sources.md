@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-08
 - Amended 2026-10-08: corrected in place the same day it merged (issue #5). Recorded the packaged-food source the prototype already used when this ADR was written (an omission, not a new source), replaced an unsupported licensing claim with its actual source, and aligned the wording on adding a source with the ADR index.
+- Amended 2026-10-08: added a sixth source, our own estimates (code `own_estimate`, issue #164), decided under Shubham's delegation; he can overturn it. The IFCT/INDB ban is unchanged.
 
 ## Context
 
@@ -17,6 +18,7 @@ Most users eat Indian home food, which global databases cover poorly. The obviou
   3. Our own recipes, calculated from (1) and (2) raw ingredients by weight.
   4. Our own kitchen tests: dishes weighed while cooking.
   5. Typical label values for packaged foods (in the prototype: whey protein, Greek yogurt, makhana): nutrition facts read by us from manufacturers' product labels, recorded as typical values across common brands rather than as one brand's product. No label database is copied. Source code `label_typical` in the API.
+  6. Our own estimates: rough values we estimate ourselves for dishes that were never weighed or cooked to a recipe, such as restaurant dishes (`content/eatout.json`). These are our own values, not imported data, so no third-party licence applies; they must still not be taken from IFCT or INDB. Source code `own_estimate` in the API.
 - Every food row records its source and licence (`foods` and `food_sources` tables; `source` on each food in the API), and the app has an attribution screen.
 - Carbohydrate is always total carbohydrate including fibre; fibre is stored and shown separately.
 - Hindi and everyday names are aliases on our own rows, not imported data.
