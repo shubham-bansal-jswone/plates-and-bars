@@ -363,8 +363,8 @@ export interface components {
             fat_g: number;
         };
         /**
-         * @description Where a row's values come from. Only the sources listed in ADR 002
-         *     (`docs/adr/002-food-data-sources.md`) are allowed.
+         * @description Where a row's values come from. Only the sources listed in ADR 005
+         *     (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed.
          */
         FoodSource: {
             /**
