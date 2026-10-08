@@ -1,6 +1,7 @@
 # ADR 004: Account identity and device ownership
 
 - Status: Accepted
+- Amended 2026-10-08: corrected an inaccurate consequence about recycled email addresses (#68). The decision is unchanged.
 - Date: 2026-10-08
 
 ## Context
@@ -20,7 +21,8 @@ ADR 003 left two questions open (#17). First, whether a Google sign-in and an em
 
 - Backend: `auth_identities` holds `(provider, provider_subject)` unique per row and many rows per user; lookup is by subject, linking by normalised verified email. For email-code sign-in the subject is the normalised email.
 - Accepted risk: a non-Google-hosted address that Google once verified but the person no longer owns could link to an existing email-code account. Google re-verifies on sign-in, and the alternative (Workspace-only linking) would break the fallback for ordinary Gmail users.
-- A Google-side email change does not break sign-in, since the identity is keyed by `sub`. A recycled email address cannot take over an account, since an existing Google identity is never re-pointed by email.
+- A Google-side email change does not break sign-in, since the identity is keyed by `sub`, and an existing Google identity is never re-pointed by email.
+- Control of the email address is the credential for email-code sign-in. If a provider recycles an address, its new owner can sign in to the old account by email code, or by a new Google account whose verified email matches. This is accepted as inherent to email-code sign-in (#68); the mitigation is the per-address limits on code issue and guessing in #43, and a re-verification step for long-idle accounts can be added later if needed.
 - A refused different-user sign-in may already have created that user's account on the server (first sign-in creates the account). That is harmless: it holds no data.
 - No sign-out endpoint exists in contract v0, so after "Discard and sign out" the server-side refresh token stays valid until it expires or is rotated. The device deletes its copy, which is the only place the token lives. Accepted for M0; a later contract PR may add `POST /auth/sign-out` to revoke the family.
 - The app needs one Jest or Maestro test proving that a record queued by user A is never pushed with user B's token (#31).
