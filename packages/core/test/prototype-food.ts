@@ -41,8 +41,16 @@ export interface ProtoFood {
   fibreTarget(): number;
   fibreHtml(): string;
   dayComplete(d: { meals: ProtoMeal[]; complete?: boolean }): boolean;
-  /** Sets what `kcalTarget(S.date)` returns. */
+  /** Sets what `kcalTarget(S.date)` returns for `fibreTarget` and `fibreHtml`. */
   setKcalTarget(k: number): void;
+  /** The prototype's own `kcalTarget(date)` (with `calcTargets` and `labHoldOn`) against `S.settings`. */
+  realKcalTarget(date: string, settings: Record<string, unknown>): number;
+  /** `case 'serv'` from servings `serv` with button step `d`. */
+  serv(serv: number, d: string): number;
+  /** The "high protein" badge check of `foodListHtml()` on a food row. */
+  highProtein(f: ProtoFoodRow): boolean;
+  /** `case 'addcustom'` with form values keyed by input id; returns the toast, added meal and saved my foods. */
+  addCustom(v: Record<string, string>, save: boolean, myFoods: ProtoMyFood[]): { toast: string; meal: ProtoMeal | null; myFoods: ProtoMyFood[] };
 }
 
 /** Lines from the first starting with `start` up to and including the first ending with `end`. */
@@ -73,6 +81,11 @@ export function loadFood(): ProtoFood {
   const ugLine = pickLines.find((l) => l.startsWith('      const ug = unitGrams(f), g = num(FS.g)'));
   const errLine = pickLines.find((l) => l.startsWith('      if(g > 0 && !ug){ toast('));
   if (!ugLine || !errLine) throw new Error('prototype: case pick reshaped');
+  const servLine = pickLines.find((l) => l.startsWith("    case 'serv': FS.serv = "));
+  if (!servLine) throw new Error('prototype: case serv reshaped');
+  const badge = listHtml.join('\n').match(/\$\{(f\[2\] && f\[3\]\*100\/f\[2\] >= 8) \?/);
+  if (!badge) throw new Error('prototype: high-protein badge reshaped');
+  const addCustom = sliceBlock(src, "    case 'addcustom': {", '    }').split('\n').slice(1, -1).join('\n').replaceAll('break;', 'return;');
   const code = [
     'const S = { date:"2026-10-08", day:{ meals:[] }, settings:{ kcal:2000, myFoods:[] } };',
     'let KT = 2000; const kcalTarget = () => KT; const whyLink = () => "";',
@@ -107,7 +120,27 @@ export function loadFood(): ProtoFood {
     ugLine,
     replaceOnce(errLine, 'break;', 'return { err:true };').replace(/toast\([^;]*\);/, ''),
     '  return { qty }; }',
-    'return { S, FOODS, FIB, PRODUCE, ALIAS, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; } };',
+    sliceBlock(src, 'const ACTIVITY = {', '};'),
+    sliceLine(src, 'const PACE = '),
+    sliceLine(src, 'const TRAIN_NET_MET = '),
+    sliceLine(src, 'const bmrOf = '),
+    sliceBlock(src, 'function calcTargets(p){', '}'),
+    sliceLine(src, 'const labHoldOn = '),
+    'const realKcalTarget = (() => {',
+    sliceLine(src, 'function kcalTarget(date){'),
+    '  return (date, settings) => { const keep = S.settings; S.settings = settings; try { return kcalTarget(date); } finally { S.settings = keep; } }; })();',
+    'function serv(s0, d){ const FS = { serv:s0 }; const $ = () => ({}); const b = { dataset:{ d } };',
+    '  ' + servLine.replace("case 'serv': ", '').replace(/ \$\('#servV'\)\.textContent = r1\(FS\.serv\); break;$/, ''),
+    '  return FS.serv; }',
+    `const highProtein = f => !!(${badge[1]});`,
+    'function addCustom(v, save, my){ let TOAST = "", MEAL = null; const keep = S.settings.myFoods; S.settings.myFoods = my;',
+    '  const $ = sel => sel === "#cfSave" ? { checked:save } : { value: v[sel.slice(1)] ?? "", focus(){} };',
+    '  const toast = t => { TOAST = t; }, addMeal = m => { MEAL = m; }, saveSoon = () => {}, render = () => {}, sheet = { close(){} };',
+    '  (() => {',
+    addCustom,
+    '  })();',
+    '  const out = { toast:TOAST, meal:MEAL, myFoods:S.settings.myFoods }; S.settings.myFoods = keep; return out; }',
+    'return { S, FOODS, FIB, PRODUCE, ALIAS, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, serv, highProtein, addCustom };',
   ].join('\n');
   return new Function(code)() as ProtoFood;
 }
