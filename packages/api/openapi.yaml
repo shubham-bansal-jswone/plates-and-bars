@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.0
+  version: 0.1.1
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -242,8 +242,31 @@ paths:
 
         **Record ids** are UUIDs made on the device. Records that are unique per natural
         key use a deterministic UUIDv5 so two offline devices produce the same id:
-        namespace = the user's id, name = `<table>:<key>`, for example
-        `day_notes:2026-10-08`. The key for each such table is given in its schema.
+        UUIDv5 (RFC 9562, formerly RFC 4122: SHA-1, version 5) with namespace = the
+        user's id (`User.id`, parsed as a UUID) and name = the UTF-8 bytes of
+        `<table>:<key>` (never case-folded). The resulting id is written in lowercase
+        canonical form. The key per table:
+
+        | Table | Key | Example name |
+        | --- | --- | --- |
+        | `profiles` | the literal `me` | `profiles:me` |
+        | `settings` | the literal `me` | `settings:me` |
+        | `day_notes`, `workouts`, `weights`, `measurements` | `date` as `YYYY-MM-DD` | `day_notes:2026-10-08` |
+        | `lift_stats` | the record's `exercise` field, as sent | `lift_stats:Barbell Bench Press` |
+        | `swaps` | the record's `from` field (the source exercise), as sent | `swaps:Barbell Bench Press` |
+
+        Exercise names are used unnormalised: no trimming, case folding or Unicode
+        normalisation. All other tables use random UUIDv4 ids. Test vectors (user id,
+        table, key, expected id) are in `packages/api/test-vectors/sync-ids.json`.
+        Devices send lowercase ids; the server lowercases any id it receives and echoes it
+        lowercased in `applied` and `conflicts`. The server recomputes the id of every
+        pushed natural-key record; if one does not match, the whole request fails with 400
+        `invalid_request` and nothing is applied. The error's `details` entry carries the
+        record's path in `field` (`changes.<table>[<i>].id`) and the issue
+        `natural_key_id`, never the id value.
+
+        **New records.** A record unknown to the server is stored as version 1 and listed
+        in `applied`, whatever `version` the device sent.
 
         **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
         synced records have no table. The app rebuilds them locally after every pull; see
@@ -265,6 +288,7 @@ paths:
                   changes: {}
               pushMealAndSet:
                 summary: Push a logged meal, a ticked set and a deleted water entry
+                description: Natural-key ids (here `workouts:2026-10-08`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
                 value:
                   cursor: c_000000000000a3f1
                   changes:
@@ -287,7 +311,7 @@ paths:
                         version: 3
                         updated_at: '2026-10-08T12:31:02Z'
                         deleted_at: null
-                        workout_id: 8d3f6a2b-1e4c-5a7d-9b0e-3c2f1a4d6e8b
+                        workout_id: 1f4a42d9-c524-5352-88d6-369ef187a482
                         exercise: Barbell Bench Press
                         kind: work
                         set_index: 0
@@ -312,6 +336,7 @@ paths:
                 $ref: '#/components/schemas/SyncResponse'
               examples:
                 withConflict:
+                  description: Natural-key ids (here `workouts:2026-10-08` and `weights:2026-10-08`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
                   value:
                     cursor: c_000000000000a40c
                     has_more: false
@@ -333,7 +358,7 @@ paths:
                           version: 4
                           updated_at: '2026-10-08T12:31:40Z'
                           deleted_at: null
-                          workout_id: 8d3f6a2b-1e4c-5a7d-9b0e-3c2f1a4d6e8b
+                          workout_id: 1f4a42d9-c524-5352-88d6-369ef187a482
                           exercise: Barbell Bench Press
                           kind: work
                           set_index: 0
@@ -344,7 +369,7 @@ paths:
                           t: '2026-10-08T12:31:00Z'
                     changes:
                       weights:
-                        - id: 5c8e1f2a-9d3b-5e4c-a1f0-7b6d2e3c4a5f
+                        - id: 640dee2b-d92d-5a00-bd03-568962bf90ea
                           version: 1
                           updated_at: '2026-10-08T06:05:00Z'
                           deleted_at: null
@@ -1022,7 +1047,9 @@ components:
         id:
           type: string
           format: uuid
-          description: Made on the device. Random UUIDv4, or UUIDv5 for natural-key tables.
+          description: |
+            Made on the device. Random UUIDv4, or UUIDv5 for natural-key tables
+            (encoding under `POST /sync`, Record ids).
         version:
           type: integer
           minimum: 0
@@ -1309,6 +1336,7 @@ components:
             workout_id:
               type: string
               format: uuid
+              description: 'Id of the workout this set belongs to; for natural-key workouts, the UUIDv5 of `workouts:<date>`.'
             exercise:
               type: string
               description: Matches a `name` in the workout's `exercises`.
