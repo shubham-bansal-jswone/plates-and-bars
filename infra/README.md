@@ -6,7 +6,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 
 | File | Trigger | What it does |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `backend` run only when relevant |
+| `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
 | `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
 | `.github/dependabot.yml` | weekly | Updates for GitHub Actions, npm (`packages/api`, `packages/core`, `apps/mobile`, `tools`) and `backend` (gradle) |
@@ -43,7 +43,7 @@ Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (
 
 - gitleaks (v8.30.1, binary downloaded and verified against a SHA-256 hard-coded in the workflow, no licence needed) scans only the PR's own commits on pull requests (`--log-opts="HEAD^1..HEAD"` on the tested merge commit, so a finding on another branch cannot fail unrelated PRs) and main's full history (`--log-opts="HEAD"`, not `--all`) on push to `main` and weekly, with the root `.gitleaks.toml`. That file allowlists only the `jwt` rule, only for `packages/api/openapi.yaml` and `packages/api/client/schema.d.ts`, because the contract's examples contain deliberately fake JWTs (`id_token`, access tokens). It is path-based, not fingerprint-based, so changing the examples needs no update; a second entry allowlists `generic-api-key` in the same files only on lines naming `access_token`, `refresh_token` or `id_token` (the same fake examples). Every other rule, and `generic-api-key` on other lines, stays active.
 - `dependency-review-action` fails PRs that add dependencies with known high-severity advisories (free on public repos; checked 2026-10-08 that this repo is public).
-- Dependabot covers GitHub Actions, `packages/api`, `packages/core` and `backend`, and ignores `typescript` semver-major in the two npm packages and `gradle/actions/*` semver-major (Dependabot names the action `gradle/actions/setup-gradle`; see Pins). It also ignores `org.springframework.boot` semver-major on `backend` (until the Boot 4 migration) and `@types/node` versions `>=23` in the npm packages (CI runs Node 22). Infra adds an `npm` entry to `.github/dependabot.yml` when a new npm folder lands (other lanes do not edit it), because Dependabot errors on directories that do not exist yet.
+- Dependabot entries (weekly): GitHub Actions, npm for `packages/api`, `packages/core`, `apps/mobile` and `tools`, and gradle for `backend`. Ignores: `typescript` semver-major in `packages/api` and `packages/core`; `gradle/actions/*` semver-major (Dependabot names the action `gradle/actions/setup-gradle`; see Pins); `org.springframework.boot` semver-major on `backend` (until the Boot 4 migration); `@types/node` versions `>=23` in the TS lanes (`packages/api`, `packages/core`, `apps/mobile`, CI runs Node 22), not in `/tools`. Infra adds an `npm` entry to `.github/dependabot.yml` when a new npm folder lands (other lanes do not edit it), because Dependabot errors on directories that do not exist yet.
 - Recommended, a setting rather than code: enable Secret scanning and Push protection under Settings, Code security.
 
 ## Branch protection for `main` (to be set by Shubham)
