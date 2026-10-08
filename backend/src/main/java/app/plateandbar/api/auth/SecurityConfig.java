@@ -13,17 +13,17 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 /**
- * Everything under /api/v1 needs a bearer token except /api/v1/health.
- * JWT validation is not wired yet (issue #33), so for now every protected request is rejected
- * with 401 {@code unauthorized} in the contract's Error shape.
+ * Everything under /api/v1 needs a valid access JWT except /api/v1/health and /api/v1/auth/*
+ * (see {@link JwtAuthFilter}). Failures use the contract's Error shape.
  */
 @Configuration
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper mapper) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper mapper, JwtService jwtService) throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, ex) -> writeUnauthorized(mapper, response);
         AccessDeniedHandler denied = (request, response, ex) -> writeUnauthorized(mapper, response);
         http.csrf(AbstractHttpConfigurer::disable)
@@ -32,9 +32,10 @@ public class SecurityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers("/api/v1/health").permitAll()
+                        .requestMatchers("/api/v1/health", "/api/v1/auth/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(denied))
+                .addFilterBefore(new JwtAuthFilter(jwtService, mapper), AnonymousAuthenticationFilter.class)
                 .cors(Customizer.withDefaults());
         return http.build();
     }

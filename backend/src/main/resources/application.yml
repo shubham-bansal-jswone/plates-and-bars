@@ -13,3 +13,8 @@ server:
 
 app:
   version: ${APP_VERSION:0.1.0}
+  auth:
+    # Environment only. No default: the app refuses to start without a key of at least 32 bytes.
+    jwt-signing-key: ${JWT_SIGNING_KEY:}
+    # Comma-separated OAuth client ids (audiences) accepted in Google ID tokens.
+    google-client-ids: ${GOOGLE_CLIENT_IDS:}
