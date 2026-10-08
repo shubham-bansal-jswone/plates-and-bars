@@ -1,0 +1,6 @@
+*
+!backend
+!packages/api/openapi.yaml
+backend/build
+backend/.gradle
+**/.git

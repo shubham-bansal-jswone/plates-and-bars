@@ -15,11 +15,21 @@ logging:
     org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolver: INFO
     # TRACE here prints exception-handler arguments, including validation exceptions with the rejected value.
     org.springframework.web.method.HandlerMethod: INFO
+    # These print whole request and response bodies (sync records: food, weight, health answers) at DEBUG or TRACE.
+    org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor: INFO
+    org.springframework.web.servlet.mvc.method.annotation.HttpEntityMethodProcessor: INFO
+    # Prints every bound SQL parameter at TRACE, which includes the stored record JSON.
+    org.springframework.jdbc.core.StatementCreatorUtils: INFO
+    # Tomcat's HTTP/1.1 processor can print raw request bytes at DEBUG or TRACE.
+    org.apache.coyote.http11: INFO
 
 server:
   port: ${PORT:8080}
 
 app:
+  sync:
+    # Largest accepted POST /sync body in bytes; bigger is 400 invalid_request.
+    max-body-bytes: ${SYNC_MAX_BODY_BYTES:2097152}
   version: ${APP_VERSION:0.1.0}
   auth:
     # Environment only. No default: the app refuses to start without a key of at least 32 bytes.
