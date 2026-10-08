@@ -667,6 +667,13 @@ export interface components {
             /** @enum {string|null} */
             rate: "easy" | "right" | "hard" | "fail" | null;
         };
+        /** @description An earlier session in a lift record. Prototype: `L.prev`. */
+        LiftSession: {
+            date: components["schemas"]["LocalDate"];
+            sets: components["schemas"]["LiftSet"][];
+            /** @enum {string|null} */
+            form: "yes" | "no" | null;
+        };
         /**
          * @description Per-exercise history used for weight suggestions and stalls.
          *     One per exercise; id = UUIDv5(`lift_stats:<exercise>`). Prototype: `lifts[name]`.
@@ -683,12 +690,15 @@ export interface components {
             /** @description Day of the first session. */
             first: components["schemas"]["LocalDate"];
             /** @description The session before the latest. */
-            prev: {
-                date: components["schemas"]["LocalDate"];
-                sets: components["schemas"]["LiftSet"][];
-                /** @enum {string|null} */
-                form: "yes" | "no" | null;
-            } | null;
+            prev: (components["schemas"]["LiftSession"] & {
+                /**
+                 * @description The session before `prev`; used to evaluate 'below the rep range two
+                 *     sessions running' against sessions before today (#101). One level only:
+                 *     a nested `prev` that has its own `prev` key (even null) fails validation.
+                 *     Older records may omit it.
+                 */
+                prev?: (components["schemas"]["LiftSession"] & unknown) | null;
+            }) | null;
             /** @description Last 8 session scores. Prototype: `hist` with `e`. */
             history: {
                 date: components["schemas"]["LocalDate"];
