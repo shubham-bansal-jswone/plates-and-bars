@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "source": "docs/spec/golden/exercises.json",
+  "meta_source": "docs/spec/golden/progression.json",
   "tags": {
     "Barbell Bench Press": {
       "pattern": "h-press",
@@ -1091,6 +1092,363 @@
         "lower-back",
         "elbow"
       ]
+    }
+  },
+  "meta": {
+    "Barbell Bench Press": {
+      "type": "barbell",
+      "rep_low": 6,
+      "rep_high": 10
+    },
+    "Incline Dumbbell Press": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Machine Chest Press": {
+      "type": "machine",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Pec Deck Fly": {
+      "type": "machine",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Cable Crossover": {
+      "type": "cable",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Push-ups": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 20
+    },
+    "Seated Dumbbell Press": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Machine Shoulder Press": {
+      "type": "machine",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Lateral Raise": {
+      "type": "dumbbell",
+      "rep_low": 12,
+      "rep_high": 15
+    },
+    "Cable Lateral Raise": {
+      "type": "cable",
+      "rep_low": 12,
+      "rep_high": 15
+    },
+    "Rear Delt Fly": {
+      "type": "dumbbell",
+      "rep_low": 12,
+      "rep_high": 15
+    },
+    "Face Pull": {
+      "type": "cable",
+      "rep_low": 12,
+      "rep_high": 15
+    },
+    "Rope Pushdown": {
+      "type": "cable",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Overhead Cable Extension": {
+      "type": "cable",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Close-Grip Bench Press": {
+      "type": "barbell",
+      "rep_low": 6,
+      "rep_high": 10
+    },
+    "Assisted Dips": {
+      "type": "assisted",
+      "rep_low": 6,
+      "rep_high": 12
+    },
+    "Lat Pulldown": {
+      "type": "machine",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Seated Cable Row": {
+      "type": "machine",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Chest-Supported Row": {
+      "type": "machine",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "One-Arm Dumbbell Row": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Assisted Pull-up": {
+      "type": "assisted",
+      "rep_low": 6,
+      "rep_high": 10
+    },
+    "Straight-Arm Pulldown": {
+      "type": "cable",
+      "rep_low": 12,
+      "rep_high": 15
+    },
+    "Dumbbell Curl": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Hammer Curl": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Cable Curl": {
+      "type": "cable",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Preacher Curl": {
+      "type": "barbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Hack Squat": {
+      "type": "machine",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Leg Press": {
+      "type": "machine",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Goblet Squat": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Walking Lunge": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Leg Extension": {
+      "type": "machine",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Lying Leg Curl": {
+      "type": "machine",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Seated Leg Curl": {
+      "type": "machine",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Hip Thrust": {
+      "type": "barbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Standing Calf Raise": {
+      "type": "machine",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Seated Calf Raise": {
+      "type": "machine",
+      "rep_low": 12,
+      "rep_high": 15
+    },
+    "Cable Crunch": {
+      "type": "cable",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Hanging Knee Raise": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 15
+    },
+    "Plank (seconds)": {
+      "type": "time",
+      "rep_low": 20,
+      "rep_high": 60
+    },
+    "Dead Bug": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Dumbbell Floor Press": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Decline Push-ups": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 15
+    },
+    "Pike Push-ups": {
+      "type": "bodyweight",
+      "rep_low": 6,
+      "rep_high": 12
+    },
+    "Overhead Dumbbell Extension": {
+      "type": "dumbbell",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Bench Dips": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 15
+    },
+    "Prone Y-T-W Raise": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Bodyweight Squat": {
+      "type": "bodyweight",
+      "rep_low": 12,
+      "rep_high": 20
+    },
+    "Dumbbell Split Squat": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Split Squat": {
+      "type": "bodyweight",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Single-Leg Glute Bridge": {
+      "type": "bodyweight",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Glute Bridge": {
+      "type": "bodyweight",
+      "rep_low": 12,
+      "rep_high": 20
+    },
+    "Wall Sit (seconds)": {
+      "type": "time",
+      "rep_low": 30,
+      "rep_high": 60
+    },
+    "Single-Leg Calf Raise": {
+      "type": "bodyweight",
+      "rep_low": 10,
+      "rep_high": 20
+    },
+    "Crunch": {
+      "type": "bodyweight",
+      "rep_low": 12,
+      "rep_high": 20
+    },
+    "Dumbbell Fly": {
+      "type": "dumbbell",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Lying Leg Raise": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 15
+    },
+    "Dumbbell Bench Press": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Barbell Back Squat": {
+      "type": "barbell",
+      "rep_low": 6,
+      "rep_high": 10
+    },
+    "Standing Barbell Press": {
+      "type": "barbell",
+      "rep_low": 6,
+      "rep_high": 10
+    },
+    "Barbell Row": {
+      "type": "barbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Bodyweight Pull-up": {
+      "type": "bodyweight",
+      "rep_low": 5,
+      "rep_high": 10
+    },
+    "Weighted Pull-up": {
+      "type": "other",
+      "rep_low": 5,
+      "rep_high": 8
+    },
+    "Cable Pull-through": {
+      "type": "cable",
+      "rep_low": 10,
+      "rep_high": 15
+    },
+    "Dumbbell Romanian Deadlift": {
+      "type": "dumbbell",
+      "rep_low": 8,
+      "rep_high": 12
+    },
+    "Barbell Romanian Deadlift": {
+      "type": "barbell",
+      "rep_low": 8,
+      "rep_high": 10
+    },
+    "Deadlift": {
+      "type": "barbell",
+      "rep_low": 5,
+      "rep_high": 8
+    },
+    "Single-Leg Balance (seconds)": {
+      "type": "time",
+      "rep_low": 20,
+      "rep_high": 40
+    },
+    "Incline Push-ups": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 20
+    },
+    "Archer Push-ups": {
+      "type": "bodyweight",
+      "rep_low": 5,
+      "rep_high": 12
+    },
+    "Bulgarian Split Squat": {
+      "type": "bodyweight",
+      "rep_low": 8,
+      "rep_high": 15
+    },
+    "Backpack Row": {
+      "type": "other",
+      "rep_low": 10,
+      "rep_high": 20
     }
   },
   "ladders": {

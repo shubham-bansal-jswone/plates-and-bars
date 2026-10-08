@@ -49,7 +49,18 @@ export function expandCard(card) {
   return out;
 }
 
-export function importExercises(golden) {
+// Per-exercise type and rep range. The golden table (docs/spec/golden/progression.json,
+// `exerciseMeta`) holds [type, lo, hi]; names follow the contract's
+// Settings.exercise_overrides (type, rep_low, rep_high).
+export function expandMeta(m) {
+  if (!Array.isArray(m) || m.length !== 3) throw new Error('meta must be [type, lo, hi]');
+  return { type: m[0], rep_low: m[1], rep_high: m[2] };
+}
+
+export function importExercises(golden, progression) {
+  if (!progression || typeof progression.exerciseMeta !== 'object') {
+    throw new Error('progression golden is missing "exerciseMeta"');
+  }
   const required = ['tags', 'ladders', 'awayMap_dumbbells_bodyweight', 'cards', 'library'];
   for (const k of required) {
     if (!(k in golden)) throw new Error(`golden exercises file is missing "${k}"`);
@@ -70,10 +81,20 @@ export function importExercises(golden) {
       throw new Error(`${name}: ${e.message}`);
     }
   }
+  const meta = {};
+  for (const [name, m] of Object.entries(progression.exerciseMeta)) {
+    try {
+      meta[name] = expandMeta(m);
+    } catch (e) {
+      throw new Error(`${name}: ${e.message}`);
+    }
+  }
   return {
     schema_version: 1,
     source: 'docs/spec/golden/exercises.json',
+    meta_source: 'docs/spec/golden/progression.json',
     tags,
+    meta,
     ladders: golden.ladders,
     away_map: { dumbbells_bodyweight: golden.awayMap_dumbbells_bodyweight },
     cards,
