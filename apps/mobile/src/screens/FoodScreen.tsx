@@ -81,7 +81,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} onRemove={f.remove} onAdd={() => setAdding(m)} />
         ))}
         {f.logs.length ? (
-          <Pressable accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} onPress={() => f.setComplete(!complete)} style={styles.check}>
+          <Pressable accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
             <View style={[styles.box, { borderColor: c.brand, backgroundColor: complete ? c.brand : 'transparent' }]}>{complete ? <Text style={{ color: c.onBrand, fontWeight: '800' }}>✓</Text> : null}</View>
             <Text style={{ color: c.ink, flex: 1 }}>I’ve logged everything I ate today <Text style={{ color: c.muted }}>(only complete days are used for your real calorie burn)</Text></Text>
           </Pressable>
