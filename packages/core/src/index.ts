@@ -203,3 +203,15 @@ export { addDays } from './dates';
  */
 export { restFor, restLabel, nextInList, warmupSets, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC } from './workout';
 export type { WarmupSet, Checkin, CheckinReason, CheckinResult } from './workout';
+
+/**
+ * Workout day: session modifiers, display name, volume and the second session. Results that are
+ * stored come in contract shapes (`Workout.mods`, `Workout.template`, `Workout.base`, `Workout.ci_choice`).
+ * - `sessionMods` mirrors the `short`, `deload`, `reentry`, `light` and `w.mods` steps of prototype `buildSession(t)` (state passed in).
+ * - `templateName` mirrors the `w.template` step of prototype `buildSession(t)`.
+ * - `sessionVolume` mirrors the `vol` sum in prototype `renderWorkout()`.
+ * - `secondSessionChoices` mirrors prototype `secondSessionHtml()` (the offer rule and its chips).
+ * - `mergeSecondSession` mirrors prototype `addSecondSession(t)` (the built session passed in).
+ */
+export { sessionMods, templateName, sessionVolume, secondSessionChoices, mergeSecondSession } from './day';
+export type { CiChoice, ReentryRange, SessionMods, SessionModsInput, VolumeSet, SecondSessionDay } from './day';
