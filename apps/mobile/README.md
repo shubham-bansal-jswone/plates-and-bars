@@ -34,6 +34,42 @@ npx expo export --platform web   # production web bundle; proves Metro resolves 
 
 ## Notes
 
-- On web the local database is skipped (expo-sqlite web needs wasm and cross-origin isolation); Android and iOS open it on start.
+- The local database opens on Android, iOS and web (expo-sqlite's wasm build on web, same migrations). It needs a cross-origin isolated page; see "Run it in a browser".
+- Token storage on web is the documented no-op: expo-secure-store has no web backend, so `saveTokens` stores nothing and `loadTokens` returns null (web sign-in will use in-memory tokens plus the refresh flow when auth lands). Profile and consent are in SQLite, not in tokens.
+- "Skip for now" leaves setup for this session; Targets then shows "Start setup". The next launch opens setup again while no profile exists.
+- `Profile.id` is null locally: Profile is a natural-key table, so its UUIDv5 (`profiles:me`) is computed when the store is bound to a signed-in user (#31) or at push time. Consent rows are dated records with random ids (expo-crypto `randomUUID`, MIT); a later consent adds a row and never overwrites an earlier one.
+- The app opens to `/setup` when no profile is stored (consent first, then four steps, then results) and to Targets when one is. Profile and Consent are stored as the contract's snake_case JSON in the `profiles` and `consents` tables (`src/db/records.ts`).
 - Placeholder screens for Food, Workout and Progress come with later issues.
 - Verified with the commands above, not on an Android emulator or device.
+
+## Run it in a browser
+
+Dev server (sends `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, set in `metro.config.js`):
+
+```
+cd apps/mobile
+npm ci
+npx expo start --web --port 8081     # open http://localhost:8081
+```
+
+Static export, served with the same headers (the export includes `dist/_headers` from `public/_headers`, which Cloudflare Pages applies):
+
+```
+npx expo export --platform web
+cat > dist/serve.json <<'JSON'
+{"headers":[{"source":"**","headers":[
+  {"key":"Cross-Origin-Opener-Policy","value":"same-origin"},
+  {"key":"Cross-Origin-Embedder-Policy","value":"require-corp"}]}]}
+JSON
+npx serve@latest dist -l 8080 --single      # open http://localhost:8080
+```
+
+Without the two headers the page is not cross-origin isolated and the database does not open on web.
+
+Check that data survives a reload (needs a local Chrome; set `CHROME_PATH` if it is not in a standard place):
+
+```
+npx expo export --platform web && node scripts/web-reload.mjs
+```
+
+It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the static export has no service worker, so the page itself cannot load offline; that is expected and only logged), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.

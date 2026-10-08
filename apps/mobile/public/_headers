@@ -1,0 +1,5 @@
+# Cloudflare Pages: copied into dist/ by `npx expo export --platform web`.
+# expo-sqlite on web needs cross-origin isolation (SharedArrayBuffer).
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp

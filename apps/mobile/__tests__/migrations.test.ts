@@ -14,12 +14,27 @@ function fakeDb(startVersion: number | null, failOn?: string) {
 }
 
 describe('migrate', () => {
-  it('creates the version table and applies migration 1 on a fresh database', async () => {
+  it('creates the version table and applies every migration in order on a fresh database', async () => {
     const { db, log } = fakeDb(null);
     expect(await migrate(db)).toBe(MIGRATIONS.length);
     expect(log.some((l) => l.includes('schema_version (version INTEGER'))).toBe(true);
-    expect(log).toContain(MIGRATIONS[0]);
-    expect(log).toContain('INSERT INTO schema_version (version) VALUES (?) 1');
+    MIGRATIONS.forEach((m, i) => {
+      expect(log).toContain(m);
+      expect(log).toContain(`INSERT INTO schema_version (version) VALUES (?) ${i + 1}`);
+    });
+    expect(log.indexOf(MIGRATIONS[0] as string)).toBeLessThan(log.indexOf(MIGRATIONS[1] as string));
+  });
+
+  it('v2 creates the profiles and consents tables', () => {
+    expect(MIGRATIONS[1]).toContain('CREATE TABLE IF NOT EXISTS profiles');
+    expect(MIGRATIONS[1]).toContain('CREATE TABLE IF NOT EXISTS consents');
+  });
+
+  it('upgrades a version-1 database by applying only v2', async () => {
+    const { db, log } = fakeDb(1);
+    expect(await migrate(db)).toBe(2);
+    expect(log).not.toContain(MIGRATIONS[0]);
+    expect(log).toContain(MIGRATIONS[1]);
   });
 
   it('does not re-apply migrations already recorded', async () => {
