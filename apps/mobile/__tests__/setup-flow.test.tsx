@@ -8,7 +8,8 @@ import { SCREEN_Q } from '../src/setup/copy';
 import { memoryDb, withProfile } from './helpers';
 
 const mockReplace = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) }));
+const mockBack = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, back: mockBack }) }));
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
@@ -240,5 +241,17 @@ describe('redo and recalculate setup', () => {
     expect(screen.getByLabelText('Weight in kg').props.value).toBe('82');
     await press('Continue');
     expect(screen.queryByText('Choose male or female for the calorie formula.')).toBeNull();
+  });
+
+  it('a redo offers Cancel, which goes back, instead of Skip for now', async () => {
+    mockBack.mockClear();
+    const db = memoryDb();
+    await saveProfile(db, stored());
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    expect(screen.queryByLabelText('Skip for now')).toBeNull();
+    await press('Cancel');
+    expect(mockBack).toHaveBeenCalled();
   });
 });

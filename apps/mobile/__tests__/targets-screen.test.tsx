@@ -4,13 +4,14 @@ import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
-import type { TargetsRules } from '../src/targets/rules';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: mockPush }) }));
+
+const loadSettingsRaw = async (db: ReturnType<typeof memoryDb>) => JSON.parse(db.rows.get('user_settings:me') ?? 'null');
 
 const g = golden.find((c) => c.input.id === 'male-30-lose-moderate')!;
 
@@ -67,15 +68,14 @@ describe('TargetsScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/setup');
   });
 
-  it('offers Recalculate targets and Redo setup, which open the setup route', async () => {
+  it('offers Redo setup, which opens the setup route asking to stay there; Recalculate waits for weigh-ins', async () => {
     mockPush.mockClear();
     const db = memoryDb();
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
-    await fireEvent.press(await screen.findByLabelText('Recalculate targets'));
-    expect(mockPush).toHaveBeenLastCalledWith('/setup?recalc=1');
-    await fireEvent.press(screen.getByLabelText('Redo setup'));
-    expect(mockPush).toHaveBeenLastCalledWith('/setup');
+    expect(screen.queryByLabelText('Recalculate targets')).toBeNull();
+    await fireEvent.press(await screen.findByLabelText('Redo setup'));
+    expect(mockPush).toHaveBeenLastCalledWith('/setup?redo=1');
   });
 
   describe('rest timer', () => {
@@ -112,57 +112,52 @@ describe('TargetsScreen', () => {
     });
   });
 
-  describe('focus muscles and coverage', () => {
-    // Stand-in for core's rules (#148): the screen only calls them, the limit here is the test's.
-    const rules = (over: Partial<TargetsRules> = {}): TargetsRules => ({
-      focusChoices: ['chest', 'lats', 'hams'],
-      focusMax: 2,
-      toggleFocus: (cur, m) => (cur.includes(m) ? cur.filter((x) => x !== m) : cur.length >= 2 ? null : [...cur, m]),
-      coverage: async () => [
-        { muscle: 'chest', planned: 12, done: 6, low: false },
-        { muscle: 'hams', planned: 3, done: 0, low: true },
-      ],
-      ...over,
-    });
+  it('says so, and refuses to write, when the stored settings cannot be read', async () => {
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), focus: ['abs'] });
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('user_settings')) throw new Error('corrupt');
+      return read(sql, ...p);
+    }) as typeof db.getFirstAsync;
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    expect(await screen.findByText(/Couldn’t read your saved settings/)).toBeTruthy();
+    await fireEvent(screen.getByLabelText('Start a rest timer after each set'), 'valueChange', false);
+    expect((await loadSettingsRaw(db))).toMatchObject({ focus: ['abs'], rest_off: false });
+  });
 
-    it('shows neither section while core has no rules', async () => {
+  describe('focus muscles and coverage (core rules)', () => {
+    it('stores the focus muscles, refuses a 4th with core’s limit, and shows the abs note', async () => {
       const db = memoryDb();
       await saveProfile(db, goldenProfile());
-      await render(withProfile(db, <TargetsScreen db={db} rules={null} />));
-      await screen.findByLabelText('Start a rest timer after each set');
-      expect(screen.queryByText('Focus muscles')).toBeNull();
-      expect(screen.queryByText('Weekly coverage')).toBeNull();
-    });
-
-    it('stores the focus muscles core allows and refuses the one over its limit', async () => {
-      const db = memoryDb();
-      await saveProfile(db, goldenProfile());
-      await render(withProfile(db, <TargetsScreen db={db} rules={rules()} />));
-      await fireEvent.press(await screen.findByLabelText('Chest'));
-      await fireEvent.press(screen.getByLabelText('Lats'));
-      await waitFor(async () => expect((await loadSettings(db))?.focus).toEqual(['chest', 'lats']));
+      await render(withProfile(db, <TargetsScreen db={db} />));
+      for (const m of ['Chest', 'Lats', 'Abs']) await fireEvent.press(await screen.findByLabelText(m));
+      await waitFor(async () => expect((await loadSettings(db))?.focus).toEqual(['chest', 'lats', 'abs']));
+      expect(screen.getByText(/Training abs builds them/)).toBeTruthy();
+      expect(screen.getByText(/aim for about 12–16 weekly sets/)).toBeTruthy();
       await fireEvent.press(screen.getByLabelText('Hamstrings'));
-      expect(await screen.findByText('Up to 2 focus muscles. Remove one first.')).toBeTruthy();
-      expect((await loadSettings(db))?.focus).toEqual(['chest', 'lats']);
-      expect(screen.getByLabelText('Chest').props.accessibilityState.selected).toBe(true);
-      expect(screen.getByLabelText('Hamstrings').props.accessibilityState.selected).toBe(false);
+      expect(await screen.findByText('Up to 3 focus muscles. Remove one first.')).toBeTruthy();
+      expect((await loadSettings(db))?.focus).toEqual(['chest', 'lats', 'abs']);
       await fireEvent.press(screen.getByLabelText('Chest'));
-      await waitFor(async () => expect((await loadSettings(db))?.focus).toEqual(['lats']));
+      await waitFor(async () => expect((await loadSettings(db))?.focus).toEqual(['lats', 'abs']));
+      expect(screen.getByLabelText('Lats').props.accessibilityState.selected).toBe(true);
     });
 
-    it('lists planned against done per muscle, as core returns them', async () => {
+    it('shows planned from the plan and done from logged sets, through core', async () => {
       const db = memoryDb();
       await saveProfile(db, goldenProfile());
-      await render(withProfile(db, <TargetsScreen db={db} rules={rules()} />));
-      expect(await screen.findByLabelText('Chest: 12 sets planned, 6 done')).toBeTruthy();
-      expect(screen.getByLabelText('Hamstrings: 3 sets planned, 0 done, low')).toBeTruthy();
-    });
-
-    it('says so when coverage cannot be read', async () => {
-      const db = memoryDb();
-      await saveProfile(db, goldenProfile());
-      await render(withProfile(db, <TargetsScreen db={db} rules={rules({ coverage: async () => Promise.reject(new Error('x')) })} />));
-      expect(await screen.findByText('Couldn’t read your coverage.')).toBeTruthy();
+      const wk = { id: null, version: 0, updated_at: 'x', deleted_at: null, date: '2026-10-08', template: 'Push B', base: 'Push B', where: null, cardio_min: null, mods: {}, exercises: [{ name: 'Barbell Bench Press' }], ci_choice: null };
+      db.rows.set('workouts:2026-10-08', JSON.stringify(wk));
+      for (let j = 0; j < 3; j++)
+        db.sets.set(`s${j}`, { date: '2026-10-08', kind: 'work', done: 1, deleted: 0, data: JSON.stringify({ exercise: 'Barbell Bench Press', kind: 'work', done: true, deleted_at: null }) });
+      await render(withProfile(db, <TargetsScreen db={db} now={() => new Date(2026, 9, 8)} />));
+      const done = await screen.findByLabelText('Done in the last 7 days, Chest: 3 sets, low');
+      expect(done).toBeTruthy();
+      // planned: core's count for the 6-day split, no hard-coded figure here
+      const planned = screen.getByLabelText(/^Weekly coverage: your plan, Chest: \d+ sets/);
+      expect(planned).toBeTruthy();
+      expect(screen.getByLabelText(/^Done in the last 7 days, Calves: 0 sets, low$/)).toBeTruthy();
     });
   });
 });

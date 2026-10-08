@@ -8,6 +8,8 @@ interface SettingsState {
   settings: Settings;
   /** True after a write to SQLite failed; cleared by the next successful write. */
   saveFailed: boolean;
+  /** True when the stored record could not be read: writes are refused, so defaults never replace it. */
+  loadFailed: boolean;
   /** Replaces the focus muscles. The caller (the Targets screen, with core's rules) decides what is allowed. */
   setFocus(focus: readonly string[]): void;
   setRestOff(off: boolean): void;
@@ -23,6 +25,8 @@ const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 export function SettingsProvider({ db, children }: { db: StoreDb; children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const blocked = useRef(false);
   const [settings, setState] = useState<Settings>(() => defaultSettings(stamp(new Date())));
   const ref = useRef(settings);
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -37,7 +41,12 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
         setState(s);
       }
       setReady(true);
-    })().catch(() => live && setReady(true));
+    })().catch(() => {
+      if (!live) return;
+      blocked.current = true;
+      setLoadFailed(true);
+      setReady(true);
+    });
     return () => {
       live = false;
     };
@@ -45,6 +54,7 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
 
   const change = useCallback(
     (patch: Partial<Settings>) => {
+      if (blocked.current) return;
       const next = { ...ref.current, ...patch, updated_at: stamp(new Date()) };
       ref.current = next;
       setState(next);
@@ -58,7 +68,7 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
   const setFocus = useCallback((focus: readonly string[]) => change({ focus: [...focus] }), [change]);
   const setRestOff = useCallback((rest_off: boolean) => change({ rest_off }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, setFocus, setRestOff }), [ready, settings, saveFailed, setFocus, setRestOff]);
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

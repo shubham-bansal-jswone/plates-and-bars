@@ -260,14 +260,18 @@ function SetupFlow({ recalc }: { recalc: boolean }) {
           <View />
         )}
         <Text style={{ color: c.muted }}>{step < STEPS ? `Step ${step + 1} of ${STEPS}` : 'Your targets'}</Text>
-        <Button
-          kind="link"
-          label="Skip for now"
-          onPress={() => {
-            skipSetup();
-            router.replace('/' as never);
-          }}
-        />
+        {stored ? (
+          <Button kind="link" label="Cancel" onPress={() => router.back()} />
+        ) : (
+          <Button
+            kind="link"
+            label="Skip for now"
+            onPress={() => {
+              skipSetup();
+              router.replace('/' as never);
+            }}
+          />
+        )}
       </View>
       {profile ? (
         <>

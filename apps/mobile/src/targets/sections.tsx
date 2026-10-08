@@ -1,80 +1,105 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import type { WorkoutDb } from '../db/workouts';
+import { addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
+import { loadSets, loadWorkout, loadLifts, type WorkoutDb } from '../db/workouts';
 import { fmt } from '../format';
 import { Hint, Label } from '../components/ui';
 import type { Profile } from '../setup/types';
 import type { Settings } from '../settings/types';
 import { useTheme } from '../theme/useTheme';
+import { catalog } from '../workout/catalog';
 import { MUSCLE } from '../workout/copy';
 import { Chip } from '../workout/parts';
-import type { CoverageRow, TargetsRules } from './rules';
+import type { Workout, WorkoutSet } from '../workout/types';
 
 const name = (m: string) => {
   const t = MUSCLE[m] ?? m;
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
+const lower = (m: string) => name(m).toLowerCase();
 
-/** Focus muscles (prototype `focusHtml`): chips for the muscles core offers; core decides what a tap does. */
-export function FocusSection({ rules, focus, onChange, notify }: { rules: TargetsRules; focus: readonly string[]; onChange: (f: readonly string[]) => void; notify: (msg: string) => void }) {
+/** Focus muscles (prototype `focusHtml`, `focusAction`): the chips, notes and limit all come from core. */
+export function FocusSection({ focus, onChange, notify }: { focus: readonly string[]; onChange: (f: readonly string[]) => void; notify: (msg: string) => void }) {
+  const picker = focusPicker(focus);
   const press = (m: string) => {
-    const next = rules.toggleFocus(focus, m);
-    if (!next) return notify(`Up to ${rules.focusMax} focus muscles. Remove one first.`);
-    notify(next.length ? `Focus: ${next.map((x) => name(x).toLowerCase()).join(', ')}` : 'No focus muscles');
-    onChange(next);
+    const r = toggleFocus(focus, m);
+    if (r.result === 'full') return notify(`Up to ${FOCUS_MAX} focus muscles. Remove one first.`);
+    onChange(r.focus);
+    notify(r.focus.length ? `Focus: ${r.focus.map(lower).join(', ')}` : 'No focus muscles');
   };
   return (
     <View style={styles.gap}>
       <Label>Focus muscles</Label>
-      <Hint>Pick up to {rules.focusMax}. They get an extra set, come earlier in the session, and get an exercise added on days that train that area.</Hint>
+      <Hint>Pick up to {FOCUS_MAX}. They get an extra set, come earlier in the session, and get an exercise added on days that train that area.</Hint>
       <View style={styles.wrap} accessibilityLabel="Focus muscles">
-        {rules.focusChoices.map((m) => (
-          <Chip key={m} label={name(m)} pressed={focus.includes(m)} onPress={() => press(m)} />
+        {picker.chips.map((ch) => (
+          <Chip key={ch.muscle} label={name(ch.muscle)} pressed={ch.pressed} onPress={() => press(ch.muscle)} />
         ))}
       </View>
-      {focus.length ? <Hint>Other muscles keep enough work to maintain them. Check your focus muscles in the coverage meter below.</Hint> : null}
+      {picker.absNote ? <Hint>Training abs builds them, but doesn’t burn belly fat by itself; that comes from the calorie deficit.</Hint> : null}
+      {picker.volumeHint ? <Hint>Other muscles keep enough work to maintain them; aim for about 12–16 weekly sets on your focus muscles in the coverage meter.</Hint> : null}
     </View>
   );
 }
 
-/** Weekly coverage, planned and done (prototype `coverageHtml` and "Done in the last 7 days"). */
-export function CoverageSection({ rules, db, profile, settings, today }: { rules: TargetsRules; db: WorkoutDb; profile: Profile; settings: Settings; today: string }) {
-  const c = useTheme();
-  const [rows, setRows] = useState<CoverageRow[] | null>(null);
+/** The 7 days ending `today`, as stored (core's `doneCoverage` input). */
+async function loadDays(db: WorkoutDb, today: string): Promise<CoverageDay[]> {
+  const dates = Array.from({ length: 7 }, (_, k) => addDays(today, k - 6));
+  return Promise.all(
+    dates.map(async (date) => {
+      const [workout, sets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
+      return { date, workout: workout as Workout | null, sets: sets as WorkoutSet[] };
+    }),
+  );
+}
+
+/** Planned and done weekly coverage (prototype `coverageHtml` and "Done in the last 7 days"); rows come from core. */
+export function CoverageSection({ db, profile, settings, today }: { db: WorkoutDb; profile: Profile; settings: Settings; today: string }) {
+  const [rows, setRows] = useState<{ planned: CoverageRow[]; done: CoverageRow[] } | null>(null);
   const [failed, setFailed] = useState(false);
+  const { adjustments } = settings;
   useEffect(() => {
     let live = true;
-    rules
-      .coverage({ db, profile, settings, today })
-      .then((r) => live && setRows(r))
-      .catch(() => live && setFailed(true));
+    (async () => {
+      const [days, lifts] = await Promise.all([loadDays(db, today), loadLifts(db)]);
+      if (!live) return;
+      // Exclusions and swaps are not stored in the app yet, so none are passed.
+      const planned = plannedCoverage({ date: today, profile, weekPlan: adjustments.weekPlan as WeekPlan | undefined, lifts }, catalog);
+      setRows({ planned: coverageRows(planned), done: coverageRows(doneCoverage(today, days, catalog.tags)) });
+    })().catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
-  }, [rules, db, profile, settings, today]);
-  const top = Math.max(1, ...(rows ?? []).map((r) => Math.max(r.planned, r.done)));
+  }, [db, profile, adjustments, today]);
   return (
     <View style={styles.gap}>
-      <Label>Weekly coverage</Label>
       {failed ? <Hint>Couldn’t read your coverage.</Hint> : null}
       {!rows && !failed ? <Hint>Loading…</Hint> : null}
-      {rows?.map((r) => (
-        <View key={r.muscle} accessible accessibilityLabel={`${name(r.muscle)}: ${fmt(r.planned)} sets planned, ${fmt(r.done)} done${r.low ? ', low' : ''}`} style={styles.row}>
+      {rows ? (
+        <>
+          <Meter title="Weekly coverage: your plan" rows={rows.planned} />
+          <Hint>Approximate hard sets per week from your plan, counting secondary muscles as half. Around 10 is a good target for most muscles; under 6 is flagged.</Hint>
+          <Meter title="Done in the last 7 days" rows={rows.done} />
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
+  const c = useTheme();
+  return (
+    <View style={styles.gap} accessibilityLabel={title}>
+      <Label>{title}</Label>
+      {rows.map((r) => (
+        <View key={r.muscle} accessible accessibilityLabel={`${title}, ${name(r.muscle)}: ${fmt(r.shown)} sets${r.low ? ', low' : ''}`} style={styles.row}>
           <Text style={[styles.muscle, { color: c.ink }]}>{name(r.muscle)}</Text>
-          <View style={styles.bars}>
-            <View style={[styles.track, { backgroundColor: c.track }]}>
-              <View style={{ width: `${(r.planned / top) * 100}%`, height: 8, borderRadius: 4, backgroundColor: r.low ? c.danger : c.brand }} />
-            </View>
-            <View style={[styles.track, { backgroundColor: c.track }]}>
-              <View style={{ width: `${(r.done / top) * 100}%`, height: 8, borderRadius: 4, backgroundColor: c.carbs }} />
-            </View>
+          <View style={[styles.track, { backgroundColor: c.track }]}>
+            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: 4, backgroundColor: r.low ? c.danger : c.brand }} />
           </View>
-          <Text style={{ color: r.low ? c.danger : c.ink, fontWeight: '700', minWidth: 64, textAlign: 'right' }}>
-            {fmt(r.done)} / {fmt(r.planned)}
-          </Text>
+          <Text style={{ color: r.low ? c.danger : c.ink, fontWeight: '700', minWidth: 28, textAlign: 'right' }}>{fmt(r.shown)}</Text>
         </View>
       ))}
-      {rows ? <Hint>Hard sets this week: done out of planned. Secondary muscles count as half.</Hint> : null}
     </View>
   );
 }
@@ -84,6 +109,5 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   muscle: { width: 110, fontSize: 14 },
-  bars: { flex: 1, gap: 3 },
-  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  track: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
 });

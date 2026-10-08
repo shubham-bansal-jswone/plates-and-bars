@@ -2,12 +2,13 @@ import type { Status } from './ProfileProvider';
 
 /**
  * Where the app should be, or null to stay put. No profile means setup; a profile means the Targets
- * screen on first open. With a profile the setup route stays reachable (redo and recalculate); the setup
- * screen itself moves on to Targets once it saves.
+ * screen on first open. With a profile a bare `/setup` (a reload or restored URL) goes to Targets; setup stays
+ * open only when the Targets screen asked for it (`redo`: `/setup?redo=1` or `?recalc=1`).
  */
-export function gateRedirect(o: { status: Status; hasProfile: boolean; pathname: string; firstOpen: boolean; skipped?: boolean }): string | null {
+export function gateRedirect(o: { status: Status; hasProfile: boolean; pathname: string; firstOpen: boolean; skipped?: boolean; redo?: boolean }): string | null {
   if (o.status !== 'ready') return null;
   if (!o.hasProfile) return o.skipped || o.pathname === '/setup' ? null : '/setup';
+  if (o.pathname === '/setup') return o.redo ? null : '/targets';
   if (o.firstOpen && o.pathname === '/') return '/targets';
   return null;
 }

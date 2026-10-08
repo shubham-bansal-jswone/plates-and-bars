@@ -41,7 +41,7 @@ export function defaultSettings(updatedAt: string): Settings {
     rest_off: false,
     custom_tags: {},
     diet: 'any',
-    // The prototype's default glass and bottle sizes (renderTargets).
+    // The prototype's default glass and bottle sizes (renderTargets). TODO(#158): import core's defaults.
     water_sizes: { glass_ml: 250, bottle_ml: 1000 },
     exercise_overrides: {},
     flex: [],
