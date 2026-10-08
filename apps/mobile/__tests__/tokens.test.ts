@@ -28,7 +28,8 @@ describe('tokens on web', () => {
       getItemAsync: () => { throw new Error('unsupported'); },
       deleteItemAsync: () => { throw new Error('unsupported'); },
     }));
-    const web = await import('../src/secure/tokens');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- dynamic import is unsupported in Jest CJS
+    const web = require('../src/secure/tokens') as typeof import('../src/secure/tokens');
     await web.saveTokens({ access: 'a', refresh: 'r' });
     expect(await web.loadTokens()).toBeNull();
     await web.clearTokens();
