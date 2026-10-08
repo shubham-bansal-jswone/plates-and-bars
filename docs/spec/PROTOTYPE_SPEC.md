@@ -61,6 +61,8 @@ These change the scope table in the Development Plan. Treat them as v1 unless ma
 
 Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fractional numbers; `foods.json` and `progression.json` hold at most one decimal, as the prototype holds them.
 
+**Floor and rounding (decided on #41).** The floor is applied before the target is rounded to 10, so a floored target can sit up to 9 kcal above TDEE (e.g. TDEE 1,199.8 gives 1,200 with `floored: true` and a weekly change that rounds to 0). Kept: the floor is a safety minimum and rounding up honours it.
+
 **Health check:** any "yes" or pregnancy → `needsClearance` until the user taps "My doctor has cleared me": sessions are light (one fewer set, no weight increases) and a card explains why.
 
 ---
@@ -85,6 +87,10 @@ Session build order (`buildSession`):
 6. Age 60+: append "Single-Leg Balance (seconds)", 2 sets.
 
 Weekly coverage meter: planned (from templates) and done (last 7 days of logged sets). Primary muscle = 1 per set, secondary = 0.5. Under 6 is flagged; ~10 is the target, 12–16 for focus muscles.
+
+**Missing training days (decided on #72).** `splitFor` treats `days === 0` as no plan but a missing or null `days` as the full 6-day plan, while `calcTargets` treats null as 0 training days. Kept as is: setup makes days (0 to 7) a required answer, so a set-up profile always has it; the case only arises before setup or with damaged data.
+
+**Rotation counting (decided on #73).** `trimSession` counts every stored session entry for the template. Entries are stored only when at least one work set is done (`saveDay` deletes the entry when sets return to 0), so empty entries never occur. Today's entry counts once its first set is logged, so today's preview moves to the next rotation after training; the started workout's exercises are already fixed and do not change. Kept as is.
 
 ---
 
