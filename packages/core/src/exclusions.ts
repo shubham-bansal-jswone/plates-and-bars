@@ -105,9 +105,9 @@ export interface CandidateOptions {
   where: Where;
   /**
    * Exercises already in the session, left out. Unlike the prototype, which leaves out today's workout
-   * unless `ignoreSession` is set, the port leaves out nothing unless the caller lists the session's
-   * names here. Callers other than `resolveName` (which ignores the session, as the prototype does)
-   * must pass today's names, as the prototype's "can't do" sheet and `applyCant` rely on it.
+   * unless `ignoreSession` is set (then `o.taken`), the port leaves out nothing unless the caller lists
+   * the session's names here. `resolveName` passes its `taken` names; other callers must pass today's
+   * names, as the prototype's "can't do" sheet and `applyCant` rely on it.
    */
   inSession?: readonly string[];
   /** Draft rules also excluded (prototype `o.rules`). */
@@ -213,32 +213,78 @@ export interface ResolveState {
   lifts?: Readonly<Record<string, unknown>>;
 }
 
-function resolveWith(name: string, where: Where, s: ResolveState, repl: Readonly<Record<string, ReplEntry>>, catalog: Pick<ExerciseCatalog, 'tags'>, depth: number): string | null {
+/**
+ * A swap target or stored pick where the user trains: at the gym the name itself; away from it, its
+ * away-map version (dumbbells or bodyweight column), else the name itself when its equipment is there
+ * (or it has no tags), else `null`, meaning keep the original exercise (#109).
+ *
+ * Mirrors prototype `homeName(n, where)` (`AWAY` read from the catalogue's `away_map`).
+ */
+export function homeName(n: string, where: Where, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>): string | null {
+  if (where === 'gym') return n;
+  const away = catalog.away_map.dumbbells_bodyweight[n];
+  const a = away ? away[where === 'dumbbells' ? 0 : 1] : n;
+  if (!a) return null;
+  const t = catalog.tags[a];
+  return !t || (where === 'dumbbells' ? ['dumbbell', 'bodyweight'] : ['bodyweight']).includes(t.equipment) ? a : null;
+}
+
+/** Rule scopes from most to least specific (prototype `SCOPE_RANK`): a stored pick comes from the most specific rule holding one. */
+export const SCOPE_RANK: Readonly<Record<ExclusionScope, number>> = { exercise: 0, family: 1, pattern: 2, joint: 3 };
+
+/** `taken`: names left out of the candidates; `null`: return `undefined` where a candidate is needed. */
+function resolveWith(
+  name: string,
+  where: Where,
+  s: ResolveState,
+  repl: Readonly<Record<string, ReplEntry>>,
+  catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>,
+  depth: number,
+  taken: readonly string[] | null,
+): string | null | undefined {
   const { tags } = catalog;
   if (depth > 3) return name;
   const excluded = (n: string) => isExcluded(n, s.exclusions, tags);
   const rp = repl[name];
-  if (rp && rp.to && !excluded(rp.to)) return resolveWith(rp.to, where, s, repl, catalog, depth + 1);
+  const to = rp && rp.to ? homeName(rp.to, where, catalog) : null;
+  if (to && !excluded(to)) return resolveWith(to, where, s, repl, catalog, depth + 1, taken);
   if (excluded(name)) {
-    const r = activeRules(s.exclusions).find((x) => ruleMatches(x, name, tags));
-    const pick = r && r.to ? r.to[name] : undefined;
+    const rs = activeRules(s.exclusions).filter((x) => ruleMatches(x, name, tags));
+    const r = rs[0];
+    const pr = [...rs].sort((a, b) => SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope]).find((x) => x.to && x.to[name] !== undefined);
+    const pick = pr ? pr.to[name] : undefined;
     if (pick === null) return null;
-    if (pick && !excluded(pick)) return pick;
-    const c = candidates(name, { where, joint: r && r.scope === 'joint' ? r.key : null, pain: !!r && r.reason === 'pain' }, s.exclusions, s.lifts || {}, catalog);
+    const p = pick ? homeName(pick, where, catalog) : null;
+    if (p && !excluded(p)) return resolveWith(p, where, s, repl, catalog, depth + 1, taken);
+    if (taken === null) return undefined;
+    const c = candidates(name, { where, joint: r && r.scope === 'joint' ? r.key : null, pain: !!r && r.reason === 'pain', inSession: taken }, s.exclusions, s.lifts || {}, catalog);
     return c[0] ? c[0].name : null;
   }
   return name;
 }
 
 /**
- * What one template exercise becomes: follows a swap (unless its target is excluded), then, if the
- * exercise is excluded, the replacement picked for it under the first matching rule (`null` = skip),
- * else the best candidate, else nothing. Stops after 4 swaps and returns the name reached.
+ * What one template exercise becomes: follows a swap whose target, mapped for `where` (`homeName`), is
+ * not excluded; then, if the exercise is excluded, the pick stored under the most specific matching
+ * rule that holds one (`SCOPE_RANK`; `null` = skip), mapped for `where` and followed through swaps,
+ * else the best candidate leaving out `taken`, else nothing. Candidates are weighed by the first
+ * matching rule (its joint, and pain). Stops after 4 steps and returns the name reached.
  *
- * Mirrors prototype `resolveName(name, where, depth)`.
+ * Mirrors prototype `resolveName(name, where, depth, taken)`; leaving `taken` out ignores the session.
  */
-export function resolveName(name: string, where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags'>): string | null {
-  return resolveWith(name, where, state, replFromSwaps(state.swaps), catalog, 0);
+export function resolveName(name: string, where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>, taken: readonly string[] = []): string | null {
+  return resolveWith(name, where, state, replFromSwaps(state.swaps), catalog, 0, taken) as string | null;
+}
+
+/** A resolved session and the excluded names left out because no replacement was found. */
+export interface ResolvedSession {
+  items: SessionItem[];
+  /**
+   * Excluded exercises with no stored pick and no candidate outside the session (#110): their slot
+   * stays empty. Show the "fewer sets" note for each (prototype: "<name> is left out with no
+   * replacement, so your <primary muscles> get fewer sets each week.").
+   */
+  lost: string[];
 }
 
 /**
@@ -247,28 +293,54 @@ export function resolveName(name: string, where: Where, state: ResolveState, cat
  * item until `bridge_until`, when the swap resolved straight to its target and the old exercise is
  * not excluded.
  *
- * Replacements for excluded exercises come from `candidates` with the session ignored, as in the
- * prototype. `catalog.tags` must already include custom-exercise tags (contract `ExerciseTags`), merged
- * in by the caller as prototype `applyCustomTags` does; otherwise a custom exercise only matches
- * `exercise` rules and gets no replacement.
+ * A replacement candidate for an excluded exercise leaves out every name already in the session: the
+ * names resolved without a candidate, their bridges, and candidates picked for earlier slots (#110).
+ * `catalog.tags` must already include custom-exercise tags (contract `ExerciseTags`), merged in by the
+ * caller as prototype `applyCustomTags` does; otherwise a custom exercise only matches `exercise`
+ * rules and gets no replacement.
+ *
+ * Mirrors prototype `resolveSession(names, where, lost)`, `lost` returned instead of filled in.
+ */
+export function resolveSessionWithLost(names: readonly string[], where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>): ResolvedSession {
+  const repl = replFromSwaps(state.swaps);
+  const bridged = (n: string, r: string | null | undefined): boolean => {
+    const rp = repl[n];
+    return !!rp && !!rp.bridgeUntil && rp.bridgeUntil >= state.date && r === rp.to && !isExcluded(n, state.exclusions, catalog.tags);
+  };
+  const first = names.map((n) => resolveWith(n, where, state, repl, catalog, 0, null));
+  const taken: string[] = [];
+  names.forEach((n, i) => {
+    const f = first[i];
+    if (f) taken.push(f);
+    if (bridged(n, f)) taken.push(n);
+  });
+  const items: SessionItem[] = [];
+  const lost: string[] = [];
+  const seen = new Set<string>();
+  names.forEach((n, i) => {
+    let r = first[i];
+    if (r === undefined) {
+      r = resolveWith(n, where, state, repl, catalog, 0, taken);
+      if (r) taken.push(r);
+      else lost.push(n);
+    }
+    if (r && !seen.has(r)) {
+      seen.add(r);
+      items.push({ name: r });
+    }
+    if (bridged(n, r) && !seen.has(n)) {
+      seen.add(n);
+      items.push({ name: n, bridge: true });
+    }
+  });
+  return { items, lost };
+}
+
+/**
+ * `resolveSessionWithLost(...).items`.
  *
  * Mirrors prototype `resolveSession(names, where)`.
  */
-export function resolveSession(names: readonly string[], where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags'>): SessionItem[] {
-  const repl = replFromSwaps(state.swaps);
-  const out: SessionItem[] = [];
-  const seen = new Set<string>();
-  for (const n of names) {
-    const r = resolveWith(n, where, state, repl, catalog, 0);
-    if (r && !seen.has(r)) {
-      seen.add(r);
-      out.push({ name: r });
-    }
-    const rp = repl[n];
-    if (rp && rp.bridgeUntil && rp.bridgeUntil >= state.date && r === rp.to && !seen.has(n) && !isExcluded(n, state.exclusions, catalog.tags)) {
-      seen.add(n);
-      out.push({ name: n, bridge: true });
-    }
-  }
-  return out;
+export function resolveSession(names: readonly string[], where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>): SessionItem[] {
+  return resolveSessionWithLost(names, where, state, catalog).items;
 }
