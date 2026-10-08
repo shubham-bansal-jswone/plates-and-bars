@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { fibreTarget, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, showAddedSugar, type FoodFacts } from '@plate-and-bar/core';
+import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, H1, Hint, Page } from '../components/ui';
+import { Button, H1, Hint, Note, Page } from '../components/ui';
+import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
 import { catalogFoods } from '../food/catalog';
@@ -25,7 +26,8 @@ const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 export function FoodScreen({ db, now = () => new Date() }: Props) {
   const c = useTheme();
   const { profile, status } = useProfile();
-  const { ready: settingsReady, settings } = useSettings();
+  const { ready: settingsReady, settings, loadFailed, setFlex } = useSettings();
+  const [flexOpen, setFlexOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [adding, setAdding] = useState<Meal | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,13 +41,28 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;
 
-  // TODO(#159): flex chips (+300/+500/+800) once core has the flex rules; the target already includes today's flex entries.
-  // Lab hold is not stored yet, so it is off here.
+  // TODO(#159 follow-up): the lab hold is not stored yet, so it is off for the target and for planning a flex.
   const target = kcalTarget(f.date, { flex: settings.flex }, profile);
   const facts: FoodFacts[] = [...catalogFoods, ...f.mineFacts];
   const t = logTotals(f.logs, facts);
   const left = target - t.kcal;
   const complete = f.note?.complete === true;
+  const todaysFlex = settings.flex.filter((x) => x.date === f.date);
+  const flexDelta = todaysFlex.reduce((a, x) => a + x.kcal_delta, 0);
+  const blocked = (): boolean => {
+    if (loadFailed) notify('Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.');
+    return loadFailed;
+  };
+  const plan = (extra: number) => {
+    if (blocked()) return;
+    const r = planFlex({ extra, date: f.date, today: f.date, id: newId(), flex: settings.flex }, profile);
+    setFlex(r.flex);
+    setFlexOpen(false);
+    notify(flexToast(extra, r));
+  };
+  const undo = (id: string) => {
+    if (!blocked()) setFlex(undoFlex(settings.flex, id));
+  };
 
   return (
     <View style={styles.fill}>
@@ -56,10 +73,9 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           <Text style={{ color: c.muted }}>{left < 0 ? 'kcal over' : 'kcal left'}</Text>
           <Text style={{ color: c.ink }}>{`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`}</Text>
         </View>
-        {/* TODO(core): no default macro targets in core (prototype DEFAULT_SETTINGS has them), so without setup only the grams eaten show. */}
-        <Macro name="Protein" v={t.protein_g} goal={profile?.targets.protein_g} color={c.protein} />
-        <Macro name="Carbs" v={t.carbs_g} goal={profile?.targets.carbs_g} color={c.carbs} />
-        <Macro name="Fat" v={t.fat_g} goal={profile?.targets.fat_g} color={c.fat} />
+        <Macro name="Protein" v={t.protein_g} goal={profile?.targets.protein_g ?? DEFAULT_PROTEIN_TARGET} color={c.protein} />
+        <Macro name="Carbs" v={t.carbs_g} goal={profile?.targets.carbs_g ?? DEFAULT_CARBS_TARGET} color={c.carbs} />
+        <Macro name="Fat" v={t.fat_g} goal={profile?.targets.fat_g ?? DEFAULT_FAT_TARGET} color={c.fat} />
         {f.logs.length ? (
           <View style={styles.gap}>
             <View style={styles.wrap}>
@@ -72,6 +88,23 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         ) : (
           <Hint>Nothing logged for this day yet. Add food under a meal.</Hint>
         )}
+        {todaysFlex.length ? (
+          <View style={styles.gap}>
+            <Note>{flexDelta > 0 ? `Today’s target includes +${flexDelta} kcal for a bigger meal, balanced over the next few days.` : `Today’s target is ${-flexDelta} kcal lower to balance an earlier bigger day.`}</Note>
+            <Button label="Undo" kind="link" onPress={() => undo((todaysFlex[0] as { id: string }).id)} />
+          </View>
+        ) : null}
+        <View style={styles.gap}>
+          <Button label="Plan a bigger day" kind="ghost" onPress={() => setFlexOpen(!flexOpen)} />
+          {flexOpen ? (
+            <>
+              <View style={styles.wrap}>
+                {[300, 500, 800].map((x) => <Button key={x} label={`+${x} kcal today`} kind="ghost" onPress={() => plan(x)} />)}
+              </View>
+              <Hint>For a wedding, party or big meal out. The extra is taken off the next few days, never below your minimum.</Hint>
+            </>
+          ) : null}
+        </View>
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} onRemove={f.remove} onAdd={() => setAdding(m)} />
         ))}
@@ -88,15 +121,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   );
 }
 
-function Macro({ name, v, goal, color }: { name: string; v: number; goal: number | undefined; color: string }) {
+function Macro({ name, v, goal, color }: { name: string; v: number; goal: number; color: string }) {
   const c = useTheme();
-  if (goal === undefined)
-    return (
-      <View accessible accessibilityLabel={`${name} ${fmt(v)} g`} style={styles.between}>
-        <Text style={{ color: c.ink, fontWeight: '700' }}>{name}</Text>
-        <Text style={{ color: c.muted }}>{`${fmt(v)} g`}</Text>
-      </View>
-    );
   const left = goal - v;
   return (
     <View accessible accessibilityLabel={`${name} ${fmt(v)} of ${fmt(goal)} g, ${left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}`} style={styles.gap}>

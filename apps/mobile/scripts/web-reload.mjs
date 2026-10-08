@@ -1,6 +1,6 @@
 // Serves dist/ with the cross-origin isolation headers, completes setup in headless Chrome, reloads,
 // (with the network off for the setup itself) and checks the stored profile survives (the app opens straight to Targets).
-// Then starts today's workout, ticks a set, reloads and checks the ticked set came back from SQLite. Run `npx expo export --platform web` first.
+// Then starts today's workout, ticks a set, reloads and checks the ticked set came back from SQLite; logs food and a +300 flex the same way. Run `npx expo export --platform web` first.
 // Needs a local Chrome/Chromium (set CHROME_PATH if not found).
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -140,6 +140,19 @@ try {
   }
   await page.waitForSelector(`${sel('I’ve logged everything I ate today')}[aria-checked="true"]`, { timeout: 20000 });
   console.log('after reload: the food log and the "logged everything" tick persisted');
+  // Flex: plan a bigger day (+300), reload, the target still includes it.
+  await click('Plan a bigger day');
+  await click('+300 kcal today');
+  await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 20000 });
+  console.log('flex: +300 kcal today raised the target to 2,290');
+  await new Promise((r) => setTimeout(r, 3000));
+  await page.reload({ waitUntil: 'load' });
+  const flexed = await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 8000 }).catch(() => null);
+  if (!flexed) {
+    await click('Food');
+    await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 20000 });
+  }
+  console.log('after reload: today\u2019s target still includes the +300 flex (2,290 kcal)');
   ok = true;
 } catch (e) {
   console.error('FAILED:', e.message);
