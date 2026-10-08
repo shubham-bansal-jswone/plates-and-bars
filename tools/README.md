@@ -1,9 +1,11 @@
 # tools
 
-Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm run lint && npm test && node validate/cli.mjs`.
+Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm run lint && npm test && node validate/cli.mjs && node validate/foods-cli.mjs && node check-no-ifct/cli.mjs`.
 
 - `exercises-import/` regenerates `content/exercises.json` from `docs/spec/golden/exercises.json` (`npm run import:exercises`).
-- `validate/` checks `content/exercises.json` (`npm run validate:exercises`).
+- `validate/` checks `content/exercises.json` (`npm run validate:exercises`) and `content/foods.json` (`npm run validate:foods`).
+- `foods-import/` regenerates `content/foods.json` from `docs/spec/golden/foods.json` (`npm run import:foods`).
+- `check-no-ifct/` exits non-zero if "IFCT" or "INDB" (any case) appears in a file name or file under `content/` (`npm run check:sources`). CI wiring lives in `.github/workflows/` (infra).
 
 ## Exercise card keys
 
@@ -27,3 +29,19 @@ optional ones, and rejects any other card key.
 
 `misplaced_feel` must be non-empty. That is a content rule rather than a rendering requirement: every card
 should offer at least one "felt it in the wrong place" fix.
+
+## Food rows
+
+`content/foods.json` rows follow `Food` in `packages/api/openapi.yaml` (per-serving values, carbs include fibre).
+`source` is the contract `FoodSource` object, so its `reference` is the source id (null until a USDA FDC id is recorded).
+
+- `source`: packaged whey, Greek yogurt and makhana are `label_typical`; paneer, curd and toned milk are `fssai`
+  (prototype note); single plain foods are `usda_fdc` and composed dishes are `own_recipe` (ADR 002).
+- `HELD_BACK` in `foods-import/import.mjs` lists golden foods whose source the repo does not state; they are left out
+  of `content/foods.json` rather than guessed. A golden food that is in neither `SOURCE_OF` nor `HELD_BACK` fails the import.
+- `serving.grams` is set only when the label is a plain weight such as `100 g`; a weight in brackets
+  (`1 medium (30 g atta)`) is an ingredient weight and leaves it null.
+- `aliases` are the golden alias string split on spaces (the prototype matches a query as a substring of that string).
+- `name_hi` is null: the golden file has no Hindi script names. `id` is a deterministic name-based UUID; `updated_at` is fixed.
+- `fruit_veg_servings` comes from `PRODUCE` in the prototype (a test compares them).
+- Validator macro rule: kcal within 15 kcal or 15 % of 4/4/9 (fibre counts as carbs, so high-fibre foods read a little low).
