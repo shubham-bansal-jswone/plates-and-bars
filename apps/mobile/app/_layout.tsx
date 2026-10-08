@@ -4,6 +4,7 @@ import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DB_NAME, MIGRATIONS, migrate } from '../src/db/migrations';
 import { ProfileProvider } from '../src/state/ProfileProvider';
+import { SettingsProvider } from '../src/state/SettingsProvider';
 import { Gate } from '../src/state/Gate';
 
 async function initDb(db: SQLiteDatabase): Promise<void> {
@@ -17,9 +18,11 @@ function Providers() {
   const db = useSQLiteContext();
   return (
     <ProfileProvider db={db}>
-      <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false }} />
-      <Gate />
+      <SettingsProvider db={db}>
+        <StatusBar style="auto" />
+        <Stack screenOptions={{ headerShown: false }} />
+        <Gate />
+      </SettingsProvider>
     </ProfileProvider>
   );
 }

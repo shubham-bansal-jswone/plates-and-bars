@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
+import { saveSettings } from '../src/db/settings';
+import { defaultSettings } from '../src/settings/types';
 import { loadSessionLog, saveSet } from '../src/db/workouts';
 import { setRecord, blankRow, type ExState } from '../src/workout/model';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -43,16 +45,17 @@ function profile() {
 
 type Db = ReturnType<typeof memoryDb>;
 
-async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[]; where?: 'gym' | 'dumbbells' } = {}) {
+async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[]; restOff?: boolean; where?: 'gym' | 'dumbbells' } = {}) {
   const db = memoryDb();
+  if (opts.focus || opts.restOff) await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), focus: opts.focus ?? [], rest_off: !!opts.restOff });
   await saveProfile(db, { ...profile(), where: opts.where ?? 'gym' });
   for (const [name, w] of Object.entries(opts.lifts ?? {})) await seedLift(db, name, w, opts.hist?.[name]);
   await mount(db, opts);
   return db;
 }
 
-async function mount(db: Db, opts: { now?: () => Date; focus?: string[] } = {}) {
-  await render(withProfile(db, <WorkoutScreen db={db} now={opts.now ?? THURSDAY} focus={opts.focus} />));
+async function mount(db: Db, opts: { now?: () => Date } = {}) {
+  await render(withProfile(db, <WorkoutScreen db={db} now={opts.now ?? THURSDAY} />));
 }
 
 /** A previous session in core's lift record shape: 3 sets at the top of the range, so the suggestion is one step up. */
@@ -181,6 +184,14 @@ describe('Workout tab: logging sets', () => {
     expect(screen.getByText('Rest 2:30')).toBeTruthy();
     expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
     expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true);
+    expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();
+  });
+
+  it('with the rest timer turned off in settings, ticking a set shows no rest timer but still saves', async () => {
+    const db = await started({ restOff: true });
+    await press('Mark Barbell Bench Press set 1 done');
+    await waitFor(() => expect(storedSets(db).find((s) => s.done)).toBeTruthy());
+    expect(screen.queryByLabelText('Rest timer')).toBeNull();
     expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();
   });
 
