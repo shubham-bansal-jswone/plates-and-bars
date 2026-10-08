@@ -11,17 +11,12 @@ import {
   type LiftRecord,
   type SessionItem,
   type SessionLog,
+  type Checkin,
   type Where,
 } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
 import { catalog } from './catalog';
 
-export interface CheckIn {
-  sleep?: string;
-  sore?: string;
-  energy?: string;
-  time?: string;
-}
 
 export interface BuildInput {
   template: string;
@@ -31,7 +26,7 @@ export interface BuildInput {
   sessions: SessionLog;
   lifts: Readonly<Record<string, LiftRecord>>;
   ciChoice: 'light' | 'swap' | 'orig' | null;
-  checkin: CheckIn;
+  checkin: Checkin;
   /** Focus muscles (contract `Settings.focus`); empty until the app stores settings. */
   focus: readonly string[];
 }

@@ -7,6 +7,7 @@ import {
   setTarget,
   tickFill,
   updateLift,
+  type Checkin,
   type LiftRecord,
   type Rate,
   type SessionLog,
@@ -14,7 +15,7 @@ import {
 import { loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import type { Profile } from '../setup/types';
-import { buildSession, type CheckIn } from './buildSession';
+import { buildSession } from './buildSession';
 import { guidance, progressionContext } from './guidance';
 import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState } from './model';
 import type { Workout } from './types';
@@ -110,7 +111,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
   };
 
   const start = useCallback(
-    async (template: string, checkin: CheckIn, ciChoice: Workout['ci_choice']) => {
+    async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice']) => {
       if (!profile) return;
       const d = clone(ref.current);
       const sessions = await loadSessionLog(db);

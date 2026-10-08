@@ -1,10 +1,9 @@
 import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
-import { COMPOUND, isFocus, kgLabel, harder, noLoad, num, repWord, setTarget, type ExInfo, type Rate, type Suggestion } from '@plate-and-bar/core';
+import { harder, isFocus, kgLabel, noLoad, num, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
 import { Button, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
 import { MUSCLE, RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin } from './copy';
-import { restLabel, warmupWeights } from './gaps';
 import type { ExState, Row } from './model';
 import { Card, Chip } from './parts';
 
@@ -28,8 +27,8 @@ interface Props {
   info: ExInfo;
   sug: Suggestion;
   focus: readonly string[];
-  /** This is the session's first compound exercise (the one that gets the warm-up line). */
-  firstCompound: boolean;
+  /** Core's warm-up sets for this exercise, or null when no warm-up line shows. */
+  warm: [WarmupSet, WarmupSet] | null;
   act: Actions;
 }
 
@@ -73,7 +72,7 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
 }
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, firstCompound, act }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
   const c = useTheme();
   const nl = noLoad(info.type);
   const rw = repWord(info.type);
@@ -82,7 +81,6 @@ export function ExerciseCard({ ex, info, sug, focus, firstCompound, act }: Props
   const working = ex.sets.some((s) => s.done);
   const allDone = ex.sets.length > 0 && ex.sets.every((s) => s.done);
   const showRamp = sug.mode === 'new' && !working && !ex.skipRamp;
-  const warm = firstCompound && !working && !nl && info.type !== 'assisted' && tag && COMPOUND.has(tag.pattern) && typeof sug.w === 'number' && sug.w > 0 ? warmupWeights(sug.w, info) : null;
   const rampPh = (j: number) => {
     const p = ex.ramp[j - 1];
     return { w: p && p.done && p.rate === 'easy' ? String(r1(harder(num(p.w), info))) : 'kg', r: String(j === 0 ? info.lo + 2 : info.lo) };
@@ -96,7 +94,7 @@ export function ExerciseCard({ ex, info, sug, focus, firstCompound, act }: Props
       <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
         {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
         {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
-        {'\n'}Rest {restLabel(ex.name)} between sets{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
+        {'\n'}Rest {restLabel(ex.name, catalog.tags)} between sets{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
       </Text>
       {tag ? (
         <Text style={{ color: c.ink, fontSize: 14 }}>
@@ -150,7 +148,7 @@ export function ExerciseCard({ ex, info, sug, focus, firstCompound, act }: Props
       ) : null}
       {warm ? (
         <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
-          <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>8 reps at {kgLabel(warm[0], info)}, then 4 at {kgLabel(warm[1], info)}. Not logged.
+          <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
         </Text>
       ) : null}
 

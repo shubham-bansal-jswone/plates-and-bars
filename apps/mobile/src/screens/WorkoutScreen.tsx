@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { COMPOUND, beginnerRamp, isFocus, num, planList, planned } from '@plate-and-bar/core';
+import { beginnerRamp, checkinFlags, isFocus, nextInList, num, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
 import { Button, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
 import { useTheme } from '../theme/useTheme';
-import { buildSession, type CheckIn } from '../workout/buildSession';
+import { buildSession } from '../workout/buildSession';
 import { catalog } from '../workout/catalog';
-import { CHECKIN, MUSCLE, listJoin } from '../workout/copy';
+import { CHECKIN, MUSCLE, REASON_TEXT, listJoin } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
-import { checkinFlags, nextInList, restFor } from '../workout/gaps';
 import { guidance, progressionContext } from '../workout/guidance';
 import { Card, Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
@@ -39,7 +38,7 @@ export function WorkoutScreen({ db, now = () => new Date(), focus = NO_FOCUS }: 
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const startRest = useCallback((name: string, label: string) => {
-    const total = restFor(name);
+    const total = restFor(name, catalog.tags);
     const t = Date.now();
     setRest({ id: t, end: t + total * 1000, total, label });
   }, []);
@@ -78,16 +77,16 @@ type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 function StartView({ w, profile, focus }: { w: W; profile: Prof; focus: readonly string[] }) {
   const c = useTheme();
   const { date, day } = w;
-  const [ci, setCi] = useState<CheckIn>({});
+  const [ci, setCi] = useState<Checkin>({});
   const [choice, setChoice] = useState<Workout['ci_choice']>(null);
   const plan = planned(date, { profile, sessions: day.sessions });
-  const flags = checkinFlags(ci);
   const nextT = plan ? nextInList(plan, profile) : null;
+  const flags = checkinFlags(ci, nextT);
   const startT = choice === 'swap' && nextT ? nextT : plan;
-  const pick = (k: keyof CheckIn, v: string) => {
-    const next = { ...ci, [k]: ci[k] === v ? undefined : v };
+  const pick = <K extends keyof Checkin>(k: K, v: NonNullable<Checkin[K]>) => {
+    const next: Checkin = { ...ci, [k]: ci[k] === v ? undefined : v };
     setCi(next);
-    if (!checkinFlags(next).length) setChoice(null);
+    if (!checkinFlags(next, nextT).flagged) setChoice(null);
   };
   const built = startT
     ? buildSession({ template: startT, date, profile, where: profile.where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null).lifts, ciChoice: choice, checkin: ci, focus })
@@ -137,19 +136,19 @@ function StartView({ w, profile, focus }: { w: W; profile: Prof; focus: readonly
                 </View>
               </View>
             ))}
-            {flags.length ? (
+            {flags.flagged ? (
               <View style={{ gap: 6 }}>
                 <Note>
-                  Lighter session suggested. With {flags.join(' and ')}, keep the same exercises with 1 fewer set each and no weight increases today.
-                  {ci.sore === 'very' && nextT ? ` Or swap with ${nextT}, which uses different muscles.` : ''}
+                  Lighter session suggested. With {flags.reasons.map((r) => REASON_TEXT[r]).join(' and ')}, keep the same exercises with 1 fewer set each and no weight increases today.
+                  {flags.swapTo ? ` Or swap with ${flags.swapTo}, which uses different muscles.` : ''}
                 </Note>
                 <View style={styles.wrap}>
                   <Chip label="Lighter session" pressed={choice === 'light'} onPress={() => setChoice('light')} />
-                  {ci.sore === 'very' && nextT ? <Chip label={`Swap with ${nextT}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}
+                  {flags.swapTo ? <Chip label={`Swap with ${flags.swapTo}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}
                   <Chip label="Keep original" pressed={choice === 'orig'} onPress={() => setChoice('orig')} />
                 </View>
               </View>
-            ) : ci.sleep && ci.energy && ci.sore ? (
+            ) : flags.good ? (
               <Hint>Good to go.</Hint>
             ) : null}
             {built?.mods.short ? <Hint>{ci.time} minutes: the main {built.exercises.length} exercises only.</Hint> : null}
@@ -183,10 +182,6 @@ function SessionView({ w, profile, focus, onHowTo }: { w: W; profile: Prof; focu
         vol += num(s.w) * num(s.r);
       }
     }
-  const firstCompound = day.exs.findIndex((e) => {
-    const t = catalog.tags[e.name];
-    return !!t && COMPOUND.has(t.pattern);
-  });
   const mods = wk.mods as { light?: boolean; short?: boolean; where?: string };
   const notes = [
     mods.light && 'lighter session: 1 fewer set, no weight increases',
@@ -220,7 +215,7 @@ function SessionView({ w, profile, focus, onHowTo }: { w: W; profile: Prof; focu
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1>Second session</H1> : null}
-            <ExerciseCard ex={ex} info={info} sug={sug} focus={focus} firstCompound={firstCompound === i} act={act} />
+            <ExerciseCard ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, catalog.tags)} act={act} />
           </View>
         );
       })}
