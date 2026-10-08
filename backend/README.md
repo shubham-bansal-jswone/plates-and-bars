@@ -34,8 +34,9 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     It is in the database, not memory, so a restart or deploy cannot be used to reset a guessing budget.
   - `/health` has its own generous per-IP limit (120 per minute) so probes are never throttled in practice.
   - Buckets live in a bounded Caffeine cache (Apache-2.0): at most `app.rate-limit.max-tracked-keys` (100000), idle
-    buckets expire after their longest window. Eviction under pressure can forgive an evicted key; the email guessing
-    cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
+    buckets expire after their longest window. Address-keyed buckets (code issuance) have their own cache
+    (`app.rate-limit.address-max-tracked-keys`) so an IP-keyed flood cannot evict them. Within a cache, eviction under
+    pressure can forgive an evicted key; the email guessing cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
 - Not yet: sync tables (#28).
 
 ## Run

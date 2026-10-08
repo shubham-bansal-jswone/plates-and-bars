@@ -72,6 +72,8 @@ public class RateLimitProperties {
     private Limit healthPerIp = new Limit(120, Duration.ofMinutes(1));
     /** Most distinct (scope, key) buckets held in memory; the least recently used are evicted beyond this. */
     private long maxTrackedKeys = 100_000;
+    /** Same bound for the separate cache of per-address buckets, so IP floods cannot evict them. */
+    private long addressMaxTrackedKeys = 100_000;
     /** Every endpoint under /auth, per client IP (Google sign-in, email start and verify, refresh). */
     private Limit publicPerIp = new Limit(30, Duration.ofMinutes(1));
     /** Extra cap on code requests per client IP. */
@@ -95,6 +97,14 @@ public class RateLimitProperties {
 
     public void setHealthPerIp(Limit v) {
         this.healthPerIp = v;
+    }
+
+    public long getAddressMaxTrackedKeys() {
+        return addressMaxTrackedKeys;
+    }
+
+    public void setAddressMaxTrackedKeys(long v) {
+        this.addressMaxTrackedKeys = v;
     }
 
     public long getMaxTrackedKeys() {

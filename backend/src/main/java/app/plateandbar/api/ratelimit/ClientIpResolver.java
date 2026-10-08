@@ -119,7 +119,10 @@ public class ClientIpResolver {
                 }
                 return InetAddress.getByAddress(b);
             }
-            if (s.indexOf(':') < 0 || !LITERAL.matcher(s).matches()) {
+            // getByName treats a string as a literal only if it starts with a hex digit or ':'; anything else
+            // (for example ".:") would go to the system resolver.
+            if (s.indexOf(':') < 0 || !LITERAL.matcher(s).matches()
+                    || Character.digit(s.charAt(0), 16) < 0 && s.charAt(0) != ':') {
                 return null;
             }
             return InetAddress.getByName(s);

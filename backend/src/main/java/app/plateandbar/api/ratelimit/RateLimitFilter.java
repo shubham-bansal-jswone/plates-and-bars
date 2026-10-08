@@ -44,19 +44,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String scope = "";
+        String scope;
         try {
             String path = request.getRequestURI();
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (!path.startsWith(AUTH_PREFIX) && !path.equals(HEALTH) && auth != null && auth.isAuthenticated()
                     && !(auth instanceof AnonymousAuthenticationToken)) {
                 scope = "user";
-                limiter.consume(scope, auth.getName(), props.getAuthenticatedPerUser());
+                try {
+                    limiter.consume(scope, auth.getName(), props.getAuthenticatedPerUser());
+                } catch (RateLimitedException e) {
+                    log.debug("Rate limit hit: {}", scope);
+                    throw e;
+                }
             } else {
                 scope = limitByIp(request);
             }
         } catch (RateLimitedException e) {
-            log.debug("Rate limit hit: {}", scope);
+            // Already logged (once) where it was raised.
             writeRateLimited(mapper, response, e);
             return;
         }

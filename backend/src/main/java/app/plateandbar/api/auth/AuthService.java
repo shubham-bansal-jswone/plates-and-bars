@@ -65,7 +65,7 @@ public class AuthService {
             RefreshTokenRepository refreshTokens,
             EmailCodeRepository codes,
             EmailVerifyFailureRepository failures,
-            RateLimiter limiter,
+            @org.springframework.beans.factory.annotation.Qualifier("addressRateLimiter") RateLimiter limiter,
             RateLimitProperties limits,
             PlatformTransactionManager txManager,
             Clock clock,

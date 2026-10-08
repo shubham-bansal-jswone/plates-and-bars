@@ -54,7 +54,7 @@ class ClientIpResolverTest {
     @Test
     void onlyStrictIpLiteralsAreParsedAndNamesAreNeverResolved() {
         // Hex-looking names such as dead.beef.cafe are hostnames, not addresses: rejected before any lookup.
-        for (String s : new String[] {"dead.beef.cafe", "localhost", "1.2.3", "256.1.1.1", "1.2.3.4.5", "1.2.3.4:80", "a.b", "", "1.2.3.4%eth0", "example.com"}) {
+        for (String s : new String[] {"dead.beef.cafe", "localhost", "1.2.3", "256.1.1.1", "1.2.3.4.5", "1.2.3.4:80", "a.b", "", "1.2.3.4%eth0", "example.com", ".:", ".a:b", "-:1"}) {
             assertThat(ClientIpResolver.parseLiteral(s)).as(s).isNull();
         }
         assertThat(ClientIpResolver.parseLiteral("198.51.100.7")).isNotNull();

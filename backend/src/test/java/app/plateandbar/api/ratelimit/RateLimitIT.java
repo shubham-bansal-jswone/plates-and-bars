@@ -45,6 +45,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
+            "app.rate-limit.max-tracked-keys=50",
             "app.rate-limit.public-per-ip.capacity=100000",
             "app.rate-limit.email-start-per-ip.capacity=100000",
             "app.rate-limit.email-verify-per-ip.capacity=100000",
@@ -92,6 +93,7 @@ class RateLimitIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired MutableClock clock;
     @Autowired CapturingMail mail;
+    @Autowired RateLimiter ipLimiter;
 
     private ListAppender<ILoggingEvent> logs;
     // TRACE for our code only; framework loggers stay at their defaults (Spring Security TRACE prints the peer address itself).
@@ -180,6 +182,20 @@ class RateLimitIT {
         clock.advance(Duration.ofMinutes(61));
         assertThat(start(email).getStatusCode().value()).isEqualTo(202);
         assertThat(verify(email, mail.lastCode.get()).getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void ipKeyFloodCannotEvictAnAddressBucket() {
+        String victim = uniq();
+        for (int i = 0; i < 5; i++) {
+            assertThat(start(victim).getStatusCode().value()).isEqualTo(202);
+        }
+        // Twice the IP limiter's maximum in distinct keys.
+        for (int i = 0; i < 100; i++) {
+            ipLimiter.consume("public-ip", "2001:db8:" + i + "::/64", new RateLimitProperties.Limit(5, Duration.ofHours(1)));
+        }
+        assertThat(ipLimiter.trackedKeys()).isLessThanOrEqualTo(50);
+        assertRateLimited(start(victim));
     }
 
     @Test
