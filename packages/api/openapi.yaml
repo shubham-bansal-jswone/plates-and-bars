@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.2.0
+  version: 0.1.1
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -285,6 +285,7 @@ paths:
                   changes: {}
               pushMealAndSet:
                 summary: Push a logged meal, a ticked set and a deleted water entry
+                description: Natural-key ids (here `workouts:2026-10-08`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
                 value:
                   cursor: c_000000000000a3f1
                   changes:
@@ -307,7 +308,7 @@ paths:
                         version: 3
                         updated_at: '2026-10-08T12:31:02Z'
                         deleted_at: null
-                        workout_id: 8d3f6a2b-1e4c-5a7d-9b0e-3c2f1a4d6e8b
+                        workout_id: 1f4a42d9-c524-5352-88d6-369ef187a482
                         exercise: Barbell Bench Press
                         kind: work
                         set_index: 0
@@ -332,6 +333,7 @@ paths:
                 $ref: '#/components/schemas/SyncResponse'
               examples:
                 withConflict:
+                  description: Natural-key ids (here `workouts:2026-10-08` and `weights:2026-10-08`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
                   value:
                     cursor: c_000000000000a40c
                     has_more: false
@@ -353,7 +355,7 @@ paths:
                           version: 4
                           updated_at: '2026-10-08T12:31:40Z'
                           deleted_at: null
-                          workout_id: 8d3f6a2b-1e4c-5a7d-9b0e-3c2f1a4d6e8b
+                          workout_id: 1f4a42d9-c524-5352-88d6-369ef187a482
                           exercise: Barbell Bench Press
                           kind: work
                           set_index: 0
@@ -364,7 +366,7 @@ paths:
                           t: '2026-10-08T12:31:00Z'
                     changes:
                       weights:
-                        - id: 5c8e1f2a-9d3b-5e4c-a1f0-7b6d2e3c4a5f
+                        - id: 640dee2b-d92d-5a00-bd03-568962bf90ea
                           version: 1
                           updated_at: '2026-10-08T06:05:00Z'
                           deleted_at: null
