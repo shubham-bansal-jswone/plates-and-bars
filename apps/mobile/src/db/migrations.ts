@@ -16,9 +16,11 @@ export const MIGRATIONS: readonly string[] = [
 
 export async function migrate(db: MigrationDb): Promise<number> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
-  await db.execAsync('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);');
+  await db.execAsync('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY NOT NULL);');
   const row = await db.getFirstAsync<{ version: number }>('SELECT MAX(version) AS version FROM schema_version');
   const current = row?.version ?? 0;
+  // Database written by a newer app: never downgrade, report the real stored version.
+  if (current > MIGRATIONS.length) return current;
   for (let v = current; v < MIGRATIONS.length; v++) {
     await db.execAsync('BEGIN');
     try {

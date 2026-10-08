@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import { clearTokens, loadTokens, saveTokens } from '../src/secure/tokens';
 
 jest.mock('expo-secure-store', () => {
@@ -17,6 +16,21 @@ describe('tokens', () => {
     expect(await loadTokens()).toEqual({ access: 'a', refresh: 'r' });
     await clearTokens();
     expect(await loadTokens()).toBeNull();
-    expect(SecureStore.getItemAsync).toBeDefined();
+  });
+});
+
+describe('tokens on web', () => {
+  it('are a no-op that never throws', async () => {
+    jest.resetModules();
+    jest.doMock('react-native', () => ({ Platform: { OS: 'web' } }));
+    jest.doMock('expo-secure-store', () => ({
+      setItemAsync: () => { throw new Error('unsupported'); },
+      getItemAsync: () => { throw new Error('unsupported'); },
+      deleteItemAsync: () => { throw new Error('unsupported'); },
+    }));
+    const web = await import('../src/secure/tokens');
+    await web.saveTokens({ access: 'a', refresh: 'r' });
+    expect(await web.loadTokens()).toBeNull();
+    await web.clearTokens();
   });
 });

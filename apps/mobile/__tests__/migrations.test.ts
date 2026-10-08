@@ -1,9 +1,12 @@
 import { MIGRATIONS, migrate, type MigrationDb } from '../src/db/migrations';
 
-function fakeDb(startVersion: number | null) {
+function fakeDb(startVersion: number | null, failOn?: string) {
   const log: string[] = [];
   const db: MigrationDb = {
-    execAsync: async (sql) => void log.push(sql),
+    execAsync: async (sql) => {
+      log.push(sql);
+      if (failOn && sql === failOn) throw new Error('boom');
+    },
     getFirstAsync: async <T,>() => ({ version: startVersion }) as T,
     runAsync: async (sql, ...p) => void log.push(`${sql} ${p.join(',')}`),
   };
@@ -22,6 +25,20 @@ describe('migrate', () => {
   it('does not re-apply migrations already recorded', async () => {
     const { db, log } = fakeDb(MIGRATIONS.length);
     await migrate(db);
+    expect(log).not.toContain(MIGRATIONS[0]);
+  });
+
+  it('rolls back and records no version when a migration fails', async () => {
+    const { db, log } = fakeDb(null, MIGRATIONS[0]);
+    await expect(migrate(db)).rejects.toThrow('boom');
+    expect(log).toContain('ROLLBACK');
+    expect(log).not.toContain('COMMIT');
+    expect(log.some((l) => l.startsWith('INSERT INTO schema_version'))).toBe(false);
+  });
+
+  it('returns the stored version when the database is newer than the app', async () => {
+    const { db, log } = fakeDb(MIGRATIONS.length + 3);
+    expect(await migrate(db)).toBe(MIGRATIONS.length + 3);
     expect(log).not.toContain(MIGRATIONS[0]);
   });
 });
