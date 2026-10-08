@@ -23,7 +23,10 @@ ext['testcontainers.version'] = '1.21.4'
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    // JWT signing/verification and Google JWKS verification (brings nimbus-jose-jwt, Apache-2.0).
+    implementation 'org.springframework.security:spring-security-oauth2-jose'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     runtimeOnly 'com.mysql:mysql-connector-j'
@@ -37,6 +40,9 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // The signing key is environment-only; tests use a throwaway one.
+    environment 'JWT_SIGNING_KEY', 'test-only-signing-key-0123456789-abcdefghij'
+    environment 'GOOGLE_CLIENT_IDS', 'test-client-id.apps.googleusercontent.com'
 }
 
 // Only the executable jar is produced (the Dockerfile copies build/libs/*.jar).
