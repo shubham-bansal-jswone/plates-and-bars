@@ -12,7 +12,7 @@ import {
   type Rate,
   type SessionLog,
 } from '@plate-and-bar/core';
-import { loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
+import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
@@ -103,8 +103,17 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     const ex = d.exs[i];
     if (!profile || !ex) return;
     const { info } = guidance(ex, progressionContext(date, d.lifts, profile, d.workout), d.workout);
-    const res = updateLift(d.lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type);
+    // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
+    const res = updateLift(d.lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, profile.weight_kg);
     if (!res) return;
+    if (res.record === null) {
+      // No ticked sets left and no earlier session: the lift's record is deleted (a tombstone in lift_stats).
+      const { [ex.name]: _gone, ...rest } = ref.current.lifts;
+      ref.current = { ...ref.current, lifts: rest };
+      setDay(ref.current);
+      await deleteLift(db, ex.name, stamp(now()));
+      return;
+    }
     ref.current = { ...ref.current, lifts: { ...ref.current.lifts, [ex.name]: res.record } };
     setDay(ref.current);
     await saveLift(db, ex.name, res.record);

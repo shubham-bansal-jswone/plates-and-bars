@@ -411,3 +411,36 @@ describe('stored set records', () => {
     expect(await loadSessionLog(db)).toEqual({});
   });
 });
+
+describe('Workout tab: unticking every set', () => {
+  const tickLabel = 'Mark Barbell Bench Press set 1 done';
+
+  it('deletes the lift record (a tombstone) when there was no earlier session', async () => {
+    const db = await setup();
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '40');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '9');
+    await press(tickLabel);
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').date).toBe(DATE));
+    await press(tickLabel);
+    await waitFor(() => expect(JSON.parse(db.rows.get('lift_stats:Barbell Bench Press') as string).deleted_at).toMatch(/Z$/));
+    // The tombstone is skipped on load: the lift reads as never done.
+    await screen.unmount();
+    await mount(db);
+    await screen.findByText('Push B');
+    expect(screen.getAllByText('First time: find your weight').length).toBeGreaterThan(0);
+  });
+
+  it('restores the session before when there was one', async () => {
+    const db = await setup({ lifts: { 'Barbell Bench Press': 60 } });
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    await press(tickLabel);
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').date).toBe(DATE));
+    await press(tickLabel);
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').date).toBe('2026-10-05'));
+    expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press')).toMatchObject({ n: 2, sets: [{ w: 60 }, { w: 60 }, { w: 60 }] });
+    expect(screen.getByText('Suggested: 62.5 kg × 6–10 reps')).toBeTruthy();
+  });
+});

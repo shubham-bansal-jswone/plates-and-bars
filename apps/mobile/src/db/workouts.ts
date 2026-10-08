@@ -40,11 +40,17 @@ export async function saveSet(db: StoreDb, date: string, s: WorkoutSet): Promise
 
 export async function loadLifts(db: WorkoutDb): Promise<Record<string, LiftRecord>> {
   const rows = await db.getAllAsync<{ key: string; data: string }>('SELECT key, data FROM lift_stats');
-  return Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.data) as LiftRecord]));
+  const live = rows.map((r) => [r.key, JSON.parse(r.data) as LiftRecord & { deleted_at?: string }] as const).filter(([, l]) => !l.deleted_at);
+  return Object.fromEntries(live);
 }
 
 export async function saveLift(db: StoreDb, exercise: string, record: LiftRecord): Promise<void> {
   await db.runAsync('INSERT OR REPLACE INTO lift_stats (key, data) VALUES (?, ?)', exercise, JSON.stringify(record));
+}
+
+/** Deletes an exercise's lift record: a tombstone row (`deleted_at`) that `loadLifts` skips and sync can push. */
+export async function deleteLift(db: StoreDb, exercise: string, at: string): Promise<void> {
+  await db.runAsync('INSERT OR REPLACE INTO lift_stats (key, data) VALUES (?, ?)', exercise, JSON.stringify({ deleted_at: at }));
 }
 
 /**

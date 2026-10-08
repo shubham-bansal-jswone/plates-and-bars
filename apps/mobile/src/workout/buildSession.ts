@@ -49,6 +49,7 @@ export interface BuiltSession {
 export function buildSession(i: BuildInput): BuiltSession {
   const names = mapForWhere([...(TEMPLATES[i.template] ?? [])], i.where, catalog);
   const resolve = { exclusions: [], swaps: [], lifts: i.lifts, date: i.date };
+  // TODO: once exclusions are stored, use resolveSessionWithLost and show its `lost` note in the preview (#110).
   const all: SessionItem[] = resolveSession(names, i.where, resolve, catalog);
   const state = { profile: i.profile, sessions: i.sessions };
   let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, catalog);
