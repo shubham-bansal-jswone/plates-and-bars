@@ -236,6 +236,8 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  * Food screen support.
  * - `kcalTarget` mirrors prototype `kcalTarget(date)` (flex days, lab-hold override; settings and profile passed in);
  *   `DEFAULT_KCAL_TARGET` mirrors `DEFAULT_SETTINGS.kcal`.
+ * - `planFlex` mirrors prototype `planFlex(extra)` (state and plan id passed in); `FLEX_FLOOR_DEFAULT` its 1200.
+ * - `undoFlex` mirrors prototype `case 'flex-undo'`.
  * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
  * - `customFood` mirrors prototype `case 'addcustom'`, plus `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
@@ -246,6 +248,9 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
 export {
   kcalTarget,
   DEFAULT_KCAL_TARGET,
+  planFlex,
+  undoFlex,
+  FLEX_FLOOR_DEFAULT,
   stepServings,
   SERVINGS_MIN,
   SERVINGS_MAX,
@@ -257,7 +262,7 @@ export {
   FOOD_NAME_MAX,
   userFoodFacts,
 } from './food';
-export type { FlexEntry, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
+export type { FlexEntry, PlanFlexInput, PlanFlexResult, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
 
 /**
  * Targets screen: weekly muscle coverage, planned vs done, and the focus-muscle picker. Workouts and
