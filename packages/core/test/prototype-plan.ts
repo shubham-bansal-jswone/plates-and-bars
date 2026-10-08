@@ -1,16 +1,41 @@
 import type { ExerciseCatalog, ExerciseTag } from '../src/index';
 import { loadGolden, prototypeSource, sliceBlock, sliceLine } from './helpers';
 
+/** A tag as the prototype and golden/exercises.json write it (prototype `TG`). */
+interface ShortTag {
+  p: string;
+  f: string;
+  eq: string;
+  d: number;
+  m: string[];
+  s: string[];
+  j: string[];
+}
+
 interface GoldenExercises {
-  tags: Record<string, ExerciseTag>;
+  tags: Record<string, ShortTag>;
   cards: Record<string, unknown>;
   awayMap_dumbbells_bodyweight: Record<string, [string | null, string | null]>;
 }
 
-/** The exercise content from golden/exercises.json, in the shape the port takes. */
+/** golden/exercises.json as the prototype holds it (short tag names, flat away map). */
+function goldenExercises(): GoldenExercises {
+  return loadGolden<GoldenExercises>('exercises');
+}
+
+/**
+ * The only place the prototype's short tag names map to content's names. Key order follows
+ * content/exercises.json (and tools/exercises-import), so tag objects compare equal key by key.
+ */
+function longTag(t: ShortTag): ExerciseTag {
+  return { pattern: t.p, family: t.f, equipment: t.eq, difficulty: t.d, primary: t.m, secondary: t.s, joints: t.j };
+}
+
+/** The exercise content from golden/exercises.json, renamed to the content/exercises.json shape the port takes. */
 export function goldenCatalog(): ExerciseCatalog {
-  const g = loadGolden<GoldenExercises>('exercises');
-  return { tags: g.tags, cards: g.cards, away: g.awayMap_dumbbells_bodyweight };
+  const g = goldenExercises();
+  const tags = Object.fromEntries(Object.entries(g.tags).map(([n, t]) => [n, longTag(t)]));
+  return { tags, cards: g.cards, away_map: { dumbbells_bodyweight: g.awayMap_dumbbells_bodyweight } };
 }
 
 /** Prototype state the sliced functions read, plus test-only hooks for the stubs. */
@@ -40,11 +65,13 @@ export interface Proto {
 }
 
 /**
- * Runs the prototype's own plan-engine functions, sliced out of the HTML, against a fresh fake `S`.
+ * Runs the prototype's own plan-engine functions, sliced out of the HTML, against a fresh fake `S`,
+ * with `TAGS`, `CARDS` and `AWAY` from golden/exercises.json as the prototype holds them.
  * Exclusions are stubbed (`isExcluded` reads `S.settings.excl`, a list of names; no rules), as are
  * `lastFor`, `needsClearance`, `labHoldOn` (off) and `whereNow`.
  */
-export function loadProto(catalog: ExerciseCatalog): Proto {
+export function loadProto(): Proto {
+  const g = goldenExercises();
   const src = prototypeSource();
   const code = [
     'const S = { date:"", settings:{}, sessions:{ entries:{} }, lifts:{}, day:{ workout:{} }, last:{}, clearance:false };',
@@ -90,7 +117,7 @@ export function loadProto(catalog: ExerciseCatalog): Proto {
     'const whereNow = () => S.day.workout.where || (S.settings.profile && S.settings.profile.where) || "gym";',
     'return { S, planned, mapForWhere, resolveSession, trimSession, applyFocus, setsFor, buildSession, TEMPLATES, SPLITS };',
   ].join('\n');
-  return new Function('TAGS', 'CARDS', 'AWAY', code)(catalog.tags, catalog.cards, catalog.away) as Proto;
+  return new Function('TAGS', 'CARDS', 'AWAY', code)(g.tags, g.cards, g.awayMap_dumbbells_bodyweight) as Proto;
 }
 
 /** Small seeded PRNG (mulberry32) so the differential grids are reproducible. */

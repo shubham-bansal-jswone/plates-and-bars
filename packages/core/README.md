@@ -24,8 +24,12 @@ unrounded (bmr, movement, training, digestion, tdee, weekly). Display them with 
 prototype's `fmt` does. `kcal`, `protein`, `fat` and `carbs` come back already rounded.
 
 The session rules read exercise content (prototype `TAGS`, `CARDS`, `AWAY`) through an
-`ExerciseCatalog` argument instead of copying it: that data belongs to `content/` (spec item 4). Tests
-build the catalogue from `golden/exercises.json`. Exclusions and swaps (`resolveSession`) are not
+`ExerciseCatalog` argument instead of copying it: that data belongs to `content/` (spec item 4). Pass
+`content/exercises.json` as is: tags use content's names (`pattern`, `family`, `equipment`,
+`difficulty`, `primary`, `secondary`, `joints`) and the away map is read from
+`away_map.dumbbells_bodyweight`; of `cards`, only whether a name has one is read. Tests build the
+catalogue from `golden/exercises.json`, renaming the prototype's short tag names in
+`test/prototype-plan.ts`, and a test checks that content/exercises.json matches it. Exclusions and swaps (`resolveSession`) are not
 ported yet; callers pass already-resolved session items to `trimSession`.
 
 ## Running
