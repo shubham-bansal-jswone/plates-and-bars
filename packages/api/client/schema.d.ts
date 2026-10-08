@@ -884,8 +884,19 @@ export interface components {
                     rep_high: number;
                 };
             };
-            /** @description Calorie moves between days (last 7 days). */
+            /**
+             * @description Calorie moves between days (last 7 days). One "bigger meal" plan adds several
+             *     entries: the extra kcal on its day and an equal cut on each of the next days.
+             *     All entries of one plan share an `id`, and undo removes every entry with that id.
+             */
             flex: {
+                /**
+                 * Format: uuid
+                 * @description Id of the flex plan this entry belongs to: a random UUIDv4 made on the device
+                 *     when the plan is made. Every entry of the plan has the same id, so it is not
+                 *     unique within `flex`. Undo removes all entries with this id. Prototype: `id`.
+                 */
+                id: string;
                 date: components["schemas"]["LocalDate"];
                 /** @description Prototype: `d`. */
                 kcal_delta: number;
