@@ -56,15 +56,10 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           <Text style={{ color: c.muted }}>{left < 0 ? 'kcal over' : 'kcal left'}</Text>
           <Text style={{ color: c.ink }}>{`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`}</Text>
         </View>
-        {profile ? (
-          <>
-            <Macro name="Protein" v={t.protein_g} goal={profile.targets.protein_g} color={c.protein} />
-            <Macro name="Carbs" v={t.carbs_g} goal={profile.targets.carbs_g} color={c.carbs} />
-            <Macro name="Fat" v={t.fat_g} goal={profile.targets.fat_g} color={c.fat} />
-          </>
-        ) : (
-          <Hint>Finish setup to see your protein, carbs and fat targets.</Hint>
-        )}
+        {/* TODO(core): no default macro targets in core (prototype DEFAULT_SETTINGS has them), so without setup only the grams eaten show. */}
+        <Macro name="Protein" v={t.protein_g} goal={profile?.targets.protein_g} color={c.protein} />
+        <Macro name="Carbs" v={t.carbs_g} goal={profile?.targets.carbs_g} color={c.carbs} />
+        <Macro name="Fat" v={t.fat_g} goal={profile?.targets.fat_g} color={c.fat} />
         {f.logs.length ? (
           <View style={styles.gap}>
             <View style={styles.wrap}>
@@ -78,7 +73,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           <Hint>Nothing logged for this day yet. Add food under a meal.</Hint>
         )}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} onRemove={f.remove} onAdd={() => setAdding(m)} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} onRemove={f.remove} onAdd={() => setAdding(m)} />
         ))}
         {f.logs.length ? (
           <Pressable accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -93,8 +88,15 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   );
 }
 
-function Macro({ name, v, goal, color }: { name: string; v: number; goal: number; color: string }) {
+function Macro({ name, v, goal, color }: { name: string; v: number; goal: number | undefined; color: string }) {
   const c = useTheme();
+  if (goal === undefined)
+    return (
+      <View accessible accessibilityLabel={`${name} ${fmt(v)} g`} style={styles.between}>
+        <Text style={{ color: c.ink, fontWeight: '700' }}>{name}</Text>
+        <Text style={{ color: c.muted }}>{`${fmt(v)} g`}</Text>
+      </View>
+    );
   const left = goal - v;
   return (
     <View accessible accessibilityLabel={`${name} ${fmt(v)} of ${fmt(goal)} g, ${left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}`} style={styles.gap}>
@@ -107,9 +109,9 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   );
 }
 
-function MealSection({ meal, items, onRemove, onAdd }: { meal: Meal; items: FoodLog[]; onRemove: (id: string) => void; onAdd: () => void }) {
+function MealSection({ meal, items, facts, onRemove, onAdd }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; onRemove: (id: string) => void; onAdd: () => void }) {
   const c = useTheme();
-  const kcal = items.reduce((a, m) => a + m.kcal * m.qty, 0);
+  const kcal = logTotals(items, facts).kcal;
   return (
     <View style={styles.gap}>
       <View style={styles.between}>

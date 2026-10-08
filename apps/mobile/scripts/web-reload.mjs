@@ -124,7 +124,7 @@ try {
   // Food: log a roti under breakfast and tick "logged everything", reload, check both came back from SQLite.
   await click('Food');
   await click('+ Add to breakfast');
-  await click('Add Roti / chapati');
+  await (await page.waitForSelector('[aria-label^="Add Roti / chapati"]', { timeout: 20000 })).evaluate((e) => e.click());
   await page.waitForSelector(sel('Done'), { timeout: 20000 });
   await click('Done');
   await page.waitForSelector(sel('102 of 1,990 kcal eaten'), { timeout: 20000 });
