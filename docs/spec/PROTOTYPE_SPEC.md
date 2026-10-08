@@ -14,7 +14,7 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - #101: "Below the range two sessions running → drop" reads sessions before today only (`prevOf`), so ticking today's first set no longer flips the advice from drop to hold. To keep that session, `updateLift` now stores the earlier session's own `prev` (one level, as `{date, sets, form}`) inside the new record's `prev` when a new day starts.
 - #102: the bodyweight "+kg" value carried to the next set is parsed with `num()` (`setTarget`), so "2,5" gives 2.5 instead of "NaN"; an empty field stays empty.
 - #121: `updateLift` keeps `pbToast` when the existing record is from the same date, so the personal-best toast shows at most once a day per lift.
-- #129: at 0 training days, setup (`validateStep` step 2) saves `exp` and `minutes` as null and `where` as `gym` when not picked; it still does not ask where you train. A stale "New to lifting" no longer triggers the beginner ramp on hand-picked sessions.
+- #129: at 0 training days, setup (`validateStep` step 2) saves `exp` and `minutes` as null and `where` as `gym` when not picked; it still does not ask where you train. A stale "New to lifting" no longer triggers the beginner ramp on hand-picked sessions or changes which focus exercises are picked (`focusPick`).
 
 These change the scope table in the Development Plan. Treat them as v1 unless marked otherwise.
 
