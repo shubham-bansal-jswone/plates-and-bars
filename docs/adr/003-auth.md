@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-08
+- Amended 2026-10-08: recorded the address-lockout consequence of the per-address rate limits (#43). No decision changed.
 
 ## Context
 
@@ -25,3 +26,4 @@ The app is offline-first, so a user may open it on a gym floor with no signal lo
 - The backend must store a token family per sign-in to revoke it on reuse.
 - Email sign-in depends on a mail provider and rate limits; the 202-always rule means the app cannot tell a user that an address has no account.
 - Adding Sign in with Apple later is additive (a new sign-in endpoint and identity type) and needs its own contract PR.
+- Per-address limits on email codes (issuance per hour and per day, and a cap on wrong guesses across codes, #43) can be used to lock a victim's address out of email-code sign-in: anyone can keep its issuance or guess cap exhausted, and the victim receives up to the daily issuance limit of code emails. Accepted for M0 (recorded 2026-10-08): the caps are what stop brute force, Google sign-in is unaffected, and per-IP limits slow a single attacker. Revisit if abuse appears (e.g. CAPTCHA on repeated issuance).
