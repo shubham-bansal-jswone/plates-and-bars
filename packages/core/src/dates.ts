@@ -33,3 +33,10 @@ export function mondayOf(date: string): string {
 export function daysBetween(a: string, b: string): number {
   return Math.round((parseYmd(b).getTime() - parseYmd(a).getTime()) / 864e5);
 }
+
+/** `date` moved by `n` calendar days. Mirrors prototype `addDays(s, n)`. */
+export function addDays(date: string, n: number): string {
+  const d = parseYmd(date);
+  d.setUTCDate(d.getUTCDate() + n);
+  return ymd(d);
+}
