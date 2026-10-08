@@ -1,5 +1,6 @@
 // Serves dist/ with the cross-origin isolation headers, completes setup in headless Chrome, reloads,
-// (with the network off for the setup itself) and checks the stored profile survives (the app opens straight to Targets). Run `npx expo export --platform web` first.
+// (with the network off for the setup itself) and checks the stored profile survives (the app opens straight to Targets).
+// Then starts today's workout, ticks a set, reloads and checks the ticked set came back from SQLite. Run `npx expo export --platform web` first.
 // Needs a local Chrome/Chromium (set CHROME_PATH if not found).
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -98,6 +99,26 @@ try {
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector(sel('1,990 kcal'), { timeout: 20000 });
   console.log('after reload: targets screen shows 1,990 kcal without setup (profile read back from SQLite)');
+  // Workout: start today's session (the planned one, or the first other template on a rest day), tick a set.
+  await click('Workout');
+  const startLabel = await page.waitForSelector('[aria-label^="Start "]', { timeout: 20000 }).then((e) => e.evaluate((x) => x.getAttribute('aria-label')));
+  await click(startLabel);
+  const markLabel = await page.waitForSelector('[aria-label^="Mark "][aria-label$=" set 1 done"]', { timeout: 20000 }).then((e) => e.evaluate((x) => x.getAttribute('aria-label')));
+  const exName = markLabel.slice('Mark '.length, -' set 1 done'.length);
+  await type(`${exName} set 1 kg`, '40');
+  await type(`${exName} set 1 reps`, '9');
+  await click(markLabel);
+  await page.waitForSelector(`${sel(markLabel)}[aria-checked="true"]`, { timeout: 20000 });
+  console.log(`workout: started "${startLabel}", ticked ${exName} set 1 (40 kg x 9)`);
+  await new Promise((r) => setTimeout(r, 3000)); // each edit is its own SQLite commit; let them all finish before the page goes away
+  await page.reload({ waitUntil: 'load' });
+  // A reload keeps the route, so the Workout tab is already open; open it only if the app landed elsewhere.
+  const back = await page.waitForSelector(sel(markLabel), { timeout: 8000 }).catch(() => null);
+  if (!back) await click('Workout');
+  await page.waitForSelector(`${sel(markLabel)}[aria-checked="true"]`, { timeout: 20000 });
+  const [kg, reps] = await Promise.all([`${exName} set 1 kg`, `${exName} set 1 reps`].map((l) => page.$eval(sel(l), (e) => e.value)));
+  if (kg !== '40' || reps !== '9') throw new Error(`ticked set came back as ${kg} x ${reps}`);
+  console.log('after reload: the ticked set persisted (40 kg x 9, done) and the session is still open');
   ok = true;
 } catch (e) {
   console.error('FAILED:', e.message);

@@ -30,11 +30,16 @@ describe('migrate', () => {
     expect(MIGRATIONS[1]).toContain('CREATE TABLE IF NOT EXISTS consents');
   });
 
-  it('upgrades a version-1 database by applying only v2', async () => {
+  it('v3 creates the workouts, workout_sets and lift_stats tables', () => {
+    for (const t of ['workouts', 'workout_sets', 'lift_stats']) expect(MIGRATIONS[2]).toContain(`CREATE TABLE IF NOT EXISTS ${t}`);
+  });
+
+  it('upgrades a version-1 database by applying v2 and v3 only', async () => {
     const { db, log } = fakeDb(1);
-    expect(await migrate(db)).toBe(2);
+    expect(await migrate(db)).toBe(MIGRATIONS.length);
     expect(log).not.toContain(MIGRATIONS[0]);
     expect(log).toContain(MIGRATIONS[1]);
+    expect(log).toContain(MIGRATIONS[2]);
   });
 
   it('does not re-apply migrations already recorded', async () => {

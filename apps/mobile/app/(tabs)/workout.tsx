@@ -1,4 +1,6 @@
-import { Placeholder } from '../../src/screens/Placeholder';
+import { useSQLiteContext } from 'expo-sqlite';
+import { WorkoutScreen } from '../../src/screens/WorkoutScreen';
+
 export default function Workout() {
-  return <Placeholder title="Workout" />;
+  return <WorkoutScreen db={useSQLiteContext()} />;
 }
