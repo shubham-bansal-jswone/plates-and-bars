@@ -6,7 +6,10 @@ const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 const coreRoot = path.resolve(__dirname, '../../packages/core');
 
-config.watchFolders = [...(config.watchFolders ?? []), coreRoot];
+// content/ is imported as JSON (exercise tags, cards, meta); it also lies outside the project root.
+const contentRoot = path.resolve(__dirname, '../../content');
+
+config.watchFolders = [...(config.watchFolders ?? []), coreRoot, contentRoot];
 // Resolve dependencies of linked packages/core from this app's node_modules only.
 config.resolver.nodeModulesPaths = [path.resolve(__dirname, 'node_modules')];
 // expo-sqlite's web build imports a .wasm file.
