@@ -49,7 +49,7 @@ export const SOURCES = {
 // Source per golden food. Basis: the prototype note (docs/prototype/plate-and-bar.html, food list hint):
 // "calculated from USDA public-domain ingredient data using standard home recipes; paneer, curd and milk
 // follow FSSAI composition standards; packaged foods (whey, Greek yogurt, makhana) use typical label
-// values", plus ADR 002 (USDA for plain foods, own recipes for dishes). Single plain foods are usda_fdc and
+// values", plus ADR 005 (USDA for plain foods, own recipes for dishes). Single plain foods are usda_fdc and
 // composed dishes are own_recipe. Chicken breast, cooked is the raw value divided by a cooking yield and
 // buttermilk is 80 g curd in the prototype's grocery map, so both are own_recipe.
 const FSSAI = ['Paneer', 'Curd / dahi', 'Toned milk'];
@@ -68,7 +68,7 @@ for (const [code, names] of [['fssai', FSSAI], ['label_typical', LABEL], ['usda_
   for (const n of names) SOURCE_OF[n] = code;
 }
 
-// Not in content until Shubham decides: the prototype note and ADR 002 do not cover alcohol. Reported in the PR.
+// Not in content until Shubham decides: the prototype note and ADR 005 do not cover alcohol. Reported in the PR.
 export const HELD_BACK = ['Beer', 'Whisky, rum or vodka', 'Wine'];
 
 // Fruit and veg servings (80 g each) per serving: PRODUCE in the prototype.
