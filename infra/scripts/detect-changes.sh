@@ -17,7 +17,7 @@ if [ -n "$base" ] && ! git rev-parse --verify --quiet "$base^{commit}" > /dev/nu
   base=""
 fi
 if [ -n "$base" ]; then
-  changed="$(git diff --name-only "$base" HEAD)"
+  changed="$(git diff --name-only "$base"...HEAD)"
 else
   changed="" # run everything that exists
 fi

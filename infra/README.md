@@ -13,7 +13,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 
 Why one `ci.yml` instead of a workflow per folder with `on.paths`: a path-filtered workflow that does not trigger never reports, so a required check would stay "pending" forever. Instead, `infra/scripts/detect-changes.sh` does the path filtering and non-applicable jobs are skipped, which branch protection treats as passing.
 
-On PRs both scripts diff `HEAD^1` against `HEAD`: CI checks out the tested merge commit, whose first parent is the current tip of the base branch, so a base that moved after the PR was opened does not add unrelated files. If the rev does not resolve, `detect-changes.sh` runs every job and `lane-check.sh` skips with a notice. Locally pass any rev, e.g. `origin/main`.
+On PRs both scripts diff `HEAD^1` against `HEAD`: CI checks out the tested merge commit, whose first parent is the current tip of the base branch, so a base that moved after the PR was opened does not add unrelated files. If the rev does not resolve, `detect-changes.sh` runs every job and `lane-check.sh` skips with a notice. The scripts use the three-dot form (`base...HEAD`), which equals the plain diff for `HEAD^1` on a merge commit and, locally with `origin/main`, ignores files main gained since you branched. `lane-check.sh` with no argument uses the merge base with `origin/main`.
 
 A job runs when (a) its folder contains the build file below and (b) the PR touched the folder or something it depends on (or `ci.yml` / `infra/scripts/`). Pushes to `main` run every job whose folder exists. Until a folder has its build file the job is skipped.
 
@@ -42,7 +42,7 @@ Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (
 
 - gitleaks (v8.30.1, binary downloaded and verified against a SHA-256 hard-coded in the workflow, no licence needed) scans full history on every PR and push, plus weekly, with the root `.gitleaks.toml`. That file allowlists only the `jwt` rule, only for `packages/api/openapi.yaml` and `packages/api/client/schema.d.ts`, because the contract's examples contain deliberately fake JWTs (`id_token`, access tokens). It is path-based, not fingerprint-based, so changing the examples needs no update; a second entry allowlists `generic-api-key` in the same files only on lines naming `access_token`, `refresh_token` or `id_token` (the same fake examples). Every other rule, and `generic-api-key` on other lines, stays active.
 - `dependency-review-action` fails PRs that add dependencies with known high-severity advisories (free on public repos; checked 2026-10-08 that this repo is public).
-- Dependabot covers GitHub Actions, `packages/api`, `packages/core` and `backend`, and ignores `typescript` semver-major in the two npm packages and `gradle/actions` semver-major (see Pin). Infra adds the `npm` entry for `apps/mobile` in `.github/dependabot.yml` when it lands (other lanes do not edit it), because Dependabot errors on directories that do not exist yet.
+- Dependabot covers GitHub Actions, `packages/api`, `packages/core` and `backend`, and ignores `typescript` semver-major in the two npm packages and `gradle/actions/*` semver-major (Dependabot names the action `gradle/actions/setup-gradle`; see Pins). Infra adds the `npm` entry for `apps/mobile` in `.github/dependabot.yml` when it lands (other lanes do not edit it), because Dependabot errors on directories that do not exist yet.
 - Recommended, a setting rather than code: enable Secret scanning and Push protection under Settings, Code security.
 
 ## Branch protection for `main` (to be set by Shubham)
@@ -60,7 +60,7 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 
 Do not require `lane-check (warns only)`; it only annotates. Skipped jobs (folder absent or untouched) count as passing, so requiring all of the above is safe now. Note that `dependency-review` only runs on PRs, so it will not report on pushes to `main`; that is fine for PR-based protection.
 
-Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions` majors (ignored, so a human re-checks the licence). gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
+Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions/*` majors (ignored, so a human re-checks the licence). gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
 
 ### setup-gradle licence decision (checked 2026-10-08)
 

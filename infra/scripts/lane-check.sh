@@ -4,10 +4,11 @@
 # are one lane there, so they pass. Files outside every lane are ignored.
 # Usage: lane-check.sh [base-rev]   (run from the repo root, head = HEAD)
 #   CI passes HEAD^1: HEAD is the tested merge commit and its first parent is
-#   the current base tip. Defaults to HEAD^1. If the rev does not resolve the
+#   the current base tip. Without an argument, uses the merge base with
+#   origin/main (local runs), or HEAD^1 if origin/main is absent. If the rev does not resolve the
 #   check is skipped with a notice (it only warns, so this never blocks).
 set -euo pipefail
-base="${1:-HEAD^1}"
+base="${1:-$(git merge-base origin/main HEAD 2>/dev/null || echo HEAD^1)}"
 if ! git rev-parse --verify --quiet "$base^{commit}" > /dev/null; then
   echo "::notice::base '$base' does not resolve; lane check skipped"
   exit 0
@@ -41,7 +42,7 @@ classify() {
     done <<< "$map"
   done
 }
-hits="$(git diff --name-only "$base" HEAD | classify)"
+hits="$(git diff --name-only "$base"...HEAD | classify)"
 lanes="$(printf '%s\n' "$hits" | cut -f1 | grep . | sort -u || true)"
 n="$(printf '%s\n' "$lanes" | grep -c . || true)"
 
