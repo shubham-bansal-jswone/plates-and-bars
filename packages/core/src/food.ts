@@ -201,6 +201,15 @@ export function dayComplete(day: CompleteFlag | null | undefined, logs: readonly
 /** Prototype `DEFAULT_SETTINGS.kcal`: the calorie target before setup (no profile). */
 export const DEFAULT_KCAL_TARGET = 1900;
 
+/** Prototype `DEFAULT_SETTINGS.protein`: the protein target in grams before setup (no profile). */
+export const DEFAULT_PROTEIN_TARGET = 150;
+
+/** Prototype `DEFAULT_SETTINGS.carbs`: the carbs target in grams before setup (no profile). */
+export const DEFAULT_CARBS_TARGET = 190;
+
+/** Prototype `DEFAULT_SETTINGS.fat`: the fat target in grams before setup (no profile). */
+export const DEFAULT_FAT_TARGET = 60;
+
 /** One calorie move between days (contract `Settings.flex` item; prototype `{ id, date, d }`). */
 export interface FlexEntry {
   /** The flex plan's id (a UUIDv4); every entry of one plan shares it (contract 0.1.3). */
