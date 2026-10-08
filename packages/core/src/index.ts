@@ -72,3 +72,30 @@ export type {
   SessionSetsOptions,
   SessionExercise,
 } from './session';
+
+/**
+ * Weight guidance. `ExerciseMetaTable` is prototype `EX_META` (`name → [type, lo, hi]`), passed in.
+ * - `suggestBase` mirrors prototype `suggestBase(ex)`; `applyMods` mirrors `applyMods(sug, ex)` (state passed in).
+ *   Prototype `suggestFor(ex)` is `applyMods(suggestBase(ex, c), ex, c)`.
+ * - `exInfo`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord` mirror the prototype functions of the same name.
+ * - `DEFAULT_STEP` mirrors prototype `DEFAULT_STEP`.
+ * - `setTarget` mirrors prototype `setTarget(ex, j, sug)` (in-session rating adjustments).
+ * - `tickFill`, `rampRate`, `rampTickFill` mirror the `tick`, ramp `rate`/`rerate` and `ramp-tick` steps of prototype `workoutAction`.
+ */
+export { suggestBase, applyMods, exInfo, lastFor, snap, harder, easier, kgLabel, noLoad, repWord, DEFAULT_STEP, setTarget, tickFill, rampRate, rampTickFill } from './progression';
+export type {
+  ExType,
+  ExerciseMetaTable,
+  ExerciseOverride,
+  ExInfo,
+  Rate,
+  LiftSet,
+  LiftSession,
+  LiftRecord,
+  ProgressionContext,
+  Suggestion,
+  WorkoutMods,
+  ModsContext,
+  SetEntry,
+  SetTarget,
+} from './progression';
