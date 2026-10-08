@@ -9,7 +9,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `backend` run only when relevant |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
 | `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
-| `.github/dependabot.yml` | weekly | Updates for GitHub Actions, `packages/api`, `packages/core` (npm) and `backend` (gradle) |
+| `.github/dependabot.yml` | weekly | Updates for GitHub Actions, npm (`packages/api`, `packages/core`, `apps/mobile`, `tools`) and `backend` (gradle) |
 
 Why one `ci.yml` instead of a workflow per folder with `on.paths`: a path-filtered workflow that does not trigger never reports, so a required check would stay "pending" forever. Instead, `infra/scripts/detect-changes.sh` does the path filtering and non-applicable jobs are skipped, which branch protection treats as passing.
 
@@ -24,8 +24,9 @@ CI runs exactly these commands from the folder. Match them; do not expect other 
 | Folder | Detected by | Commands | Also runs when |
 | --- | --- | --- | --- |
 | `packages/api` | `package.json` | `npm ci`, `npm run check` (lint, generate, stale diff, typecheck), untracked-files check on `client/`; plus `npm audit --audit-level=high --omit=dev` as the separate `npm audit (api)` job | |
-| `packages/core` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/api`, `docs/spec/golden/` or `docs/prototype/` changes |
-| `apps/mobile` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/core` or `packages/api` changes |
+| `packages/core` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/api`, `content/` (drift test), `docs/spec/golden/` or `docs/prototype/` changes |
+| `apps/mobile` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npx expo export --platform web` (catches Metro resolution breaks) | `packages/core` or `packages/api` changes |
+| `tools` | `package.json` | `npm ci`, `npm run lint`, `npm test`, `node validate/cli.mjs` (Node 22; whatever those scripts and validator CLIs cover) | `content/`, `docs/spec/golden/` or `docs/prototype/` changes |
 | `backend` | `build.gradle` or `build.gradle.kts` | `./gradlew build --no-daemon` (JDK 21 Temurin; Docker is available for Testcontainers) | `packages/api/openapi.yaml` changes |
 
 Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (needed by `npm ci` and the npm cache), and the scripts `lint`, `typecheck`, `test` in `package.json`. For `backend`: a committed Gradle wrapper (`gradlew`, executable) and tests wired into `build`. If the lane needs different commands or a Node/JDK version, change them via an Infra issue.
@@ -42,7 +43,7 @@ Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (
 
 - gitleaks (v8.30.1, binary downloaded and verified against a SHA-256 hard-coded in the workflow, no licence needed) scans only the PR's own commits on pull requests (`--log-opts="HEAD^1..HEAD"` on the tested merge commit, so a finding on another branch cannot fail unrelated PRs) and main's full history (`--log-opts="HEAD"`, not `--all`) on push to `main` and weekly, with the root `.gitleaks.toml`. That file allowlists only the `jwt` rule, only for `packages/api/openapi.yaml` and `packages/api/client/schema.d.ts`, because the contract's examples contain deliberately fake JWTs (`id_token`, access tokens). It is path-based, not fingerprint-based, so changing the examples needs no update; a second entry allowlists `generic-api-key` in the same files only on lines naming `access_token`, `refresh_token` or `id_token` (the same fake examples). Every other rule, and `generic-api-key` on other lines, stays active.
 - `dependency-review-action` fails PRs that add dependencies with known high-severity advisories (free on public repos; checked 2026-10-08 that this repo is public).
-- Dependabot covers GitHub Actions, `packages/api`, `packages/core` and `backend`, and ignores `typescript` semver-major in the two npm packages and `gradle/actions/*` semver-major (Dependabot names the action `gradle/actions/setup-gradle`; see Pins). Infra adds the `npm` entry for `apps/mobile` in `.github/dependabot.yml` when it lands (other lanes do not edit it), because Dependabot errors on directories that do not exist yet.
+- Dependabot covers GitHub Actions, `packages/api`, `packages/core` and `backend`, and ignores `typescript` semver-major in the two npm packages and `gradle/actions/*` semver-major (Dependabot names the action `gradle/actions/setup-gradle`; see Pins). It also ignores `org.springframework.boot` semver-major on `backend` (until the Boot 4 migration) and `@types/node` versions `>=23` in the npm packages (CI runs Node 22). Infra adds an `npm` entry to `.github/dependabot.yml` when a new npm folder lands (other lanes do not edit it), because Dependabot errors on directories that do not exist yet.
 - Recommended, a setting rather than code: enable Secret scanning and Push protection under Settings, Code security.
 
 ## Branch protection for `main` (to be set by Shubham)
@@ -53,6 +54,7 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 - `api (lint, types, stale client)`
 - `core (lint, types, tests)`
 - `mobile (lint, types, tests)`
+- `tools (lint, tests, validate)`
 - `backend (gradle build)`
 - `gitleaks`
 - `dependency-review`
