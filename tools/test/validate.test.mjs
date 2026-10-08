@@ -61,7 +61,6 @@ test('optional card fields may be absent but must be strings when present', () =
 
 test('old one-letter card keys are rejected', () => {
   const content = read(`${repo}/content/exercises.json`);
-  content.cards['Push-ups'].w2 = 1;
   content.cards['Push-ups'].f = 'x';
   const errors = validateExercises(content, {});
   assert.ok(errors.includes('Push-ups: unknown card field "f"'));
