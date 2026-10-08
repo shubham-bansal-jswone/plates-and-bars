@@ -26,6 +26,27 @@ function checkTags(name, t, errors) {
   if ('joints' in t && !Array.isArray(t.joints)) errors.push(`${name}: joints must be an array`);
 }
 
+// Keep in sync with the keys of `defaultStep` in docs/spec/golden/progression.json.
+export const EXERCISE_TYPES = ['barbell', 'dumbbell', 'machine', 'cable', 'assisted', 'bodyweight', 'other', 'time'];
+
+const isPosInt = (n) => Number.isInteger(n) && n > 0;
+
+// Every exercise with tags must have meta (no default is documented), and meta may not
+// name an exercise without tags.
+function checkMeta(name, m, errors) {
+  if (typeof m !== 'object' || m === null || Array.isArray(m)) {
+    errors.push(`${name}: meta must be an object`);
+    return;
+  }
+  if (!EXERCISE_TYPES.includes(m.type)) errors.push(`${name}: meta type must be one of ${EXERCISE_TYPES.join(', ')}`);
+  if (!isPosInt(m.rep_low)) errors.push(`${name}: meta rep_low must be a positive integer`);
+  if (!isPosInt(m.rep_high)) errors.push(`${name}: meta rep_high must be a positive integer`);
+  if (isPosInt(m.rep_low) && isPosInt(m.rep_high) && m.rep_low > m.rep_high) {
+    errors.push(`${name}: meta rep_low must be <= rep_high`);
+  }
+  for (const k of Object.keys(m)) if (!['type', 'rep_low', 'rep_high'].includes(k)) errors.push(`${name}: unknown meta field "${k}"`);
+}
+
 function checkCard(name, c, errors) {
   // The prototype reads where_to_feel, setup, key_cues, common_mistakes and
   // misplaced_feel without guards; breathing, easier_version and harder_version
@@ -61,6 +82,12 @@ export function validateExercises(content, templates = {}) {
 
   for (const [n, t] of Object.entries(tags)) checkTags(n, t, errors);
   for (const [n, c] of Object.entries(cards)) checkCard(n, c, errors);
+  const meta = content.meta ?? {};
+  for (const [n, m] of Object.entries(meta)) {
+    checkMeta(n, m, errors);
+    if (!(n in tags)) errors.push(`${n}: meta without tags`);
+  }
+  for (const n of Object.keys(tags)) if (!(n in meta)) errors.push(`${n}: no meta (type and rep range)`);
 
   const refs = new Map(); // name -> Set of where
   const ref = (name, where) => {
