@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   wrap: { gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { flexGrow: 1, flexBasis: 110, borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
+  tile: { flexGrow: 1, flexBasis: '45%', borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
   num: { fontSize: 26, fontWeight: '800' },
   card: { borderWidth: 2, borderRadius: 12, padding: 12, gap: 6 },
 });

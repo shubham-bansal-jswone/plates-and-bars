@@ -12,7 +12,7 @@ export function TargetsScreen() {
       <Page>
         <H1>Your setup</H1>
         <Hint>Answer a few questions and the app works out your calorie burn and targets.</Hint>
-        <Button label="Start setup" onPress={() => router.replace('/setup' as never)} />
+        <Button label="Start setup" onPress={() => router.push('/setup' as never)} />
       </Page>
     );
   }

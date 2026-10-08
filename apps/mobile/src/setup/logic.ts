@@ -13,7 +13,6 @@ import {
 } from '@plate-and-bar/core';
 import { SCREEN_Q } from './copy';
 import type { Profile } from './types';
-import { newId } from '../db/records';
 
 // Answer-collection rules ported from the prototype's `validateStep` and `su-apply`.
 // Candidates to move into packages/core (see PR notes); the screens only call these.
@@ -117,7 +116,7 @@ export function buildProfile(d: Draft, now: Date): Profile {
   };
   const t = calcTargets(toTargetsProfile(base));
   return {
-    id: newId(),
+    id: null,
     version: 0,
     updated_at: now.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     deleted_at: null,

@@ -7,7 +7,7 @@ import { useProfile } from './ProfileProvider';
 
 /** Sends the user to setup or Targets as the stored profile requires; covers the screen while loading. */
 export function Gate() {
-  const { status, profile } = useProfile();
+  const { status, profile, skipped } = useProfile();
   const pathname = usePathname();
   const router = useRouter();
   const c = useTheme();
@@ -15,10 +15,10 @@ export function Gate() {
 
   useEffect(() => {
     if (status !== 'ready') return;
-    const to = gateRedirect({ status, hasProfile: !!profile, pathname, firstOpen: firstOpen.current });
+    const to = gateRedirect({ status, hasProfile: !!profile, pathname, firstOpen: firstOpen.current, skipped });
     firstOpen.current = false;
     if (to) router.replace(to as never);
-  }, [status, profile, pathname, router]);
+  }, [status, profile, skipped, pathname, router]);
 
   if (status === 'ready') return null;
   return (

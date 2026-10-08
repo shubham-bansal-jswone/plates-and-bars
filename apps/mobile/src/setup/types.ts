@@ -17,7 +17,13 @@ export interface StoredTargets {
 }
 
 /** Contract `Profile`, snake_case as in packages/api/openapi.yaml. */
-export interface Profile extends SyncMeta {
+export interface Profile extends Omit<SyncMeta, 'id'> {
+  /**
+   * Null locally. Profile is a natural-key table (one per user): its contract id is the UUIDv5 of
+   * `profiles:me`, computed once the store is bound to a signed-in user (#31) or at push time.
+   * TODO(#31): fill in `id` then; no device namespace is invented here (see /sync "Record ids").
+   */
+  id: null;
   sex: Sex;
   age: number;
   height_cm: number;

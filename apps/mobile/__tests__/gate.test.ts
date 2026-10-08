@@ -8,4 +8,5 @@ describe('gateRedirect', () => {
   it('opens to targets when a profile exists', () => expect(gateRedirect({ ...base, hasProfile: true })).toBe('/targets'));
   it('leaves setup once a profile exists', () => expect(gateRedirect({ ...base, hasProfile: true, pathname: '/setup', firstOpen: false })).toBe('/targets'));
   it('does not pull the user back to targets later', () => expect(gateRedirect({ ...base, hasProfile: true, firstOpen: false })).toBeNull());
+  it('stays out of setup after Skip for now', () => expect(gateRedirect({ ...base, skipped: true })).toBeNull());
 });

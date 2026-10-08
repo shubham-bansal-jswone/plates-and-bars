@@ -1,4 +1,8 @@
+import { randomUUID } from 'expo-crypto';
 import type { Consent, Profile } from '../setup/types';
+
+/** A random UUIDv4 for records that are not natural-key (expo-crypto, MIT). */
+export const newId = (): string => randomUUID();
 
 /** The subset of expo-sqlite's database the record store needs. */
 export interface StoreDb {
@@ -6,28 +10,28 @@ export interface StoreDb {
   runAsync(sql: string, ...params: (string | number)[]): Promise<unknown>;
 }
 
-// One profile and one consent per install. The key is local; ids are random until sync exists,
-// then the sync client re-keys natural-key tables to UUIDv5 (contract: `POST /sync`, Record ids).
+// One profile per install, under the local key 'me'. Its record id stays null until the store is bound
+// to a user (see `Profile.id`). Consents are dated records, one row per agreement, keyed by their random id.
 const KEY = 'me';
 
-export function newId(): string {
-  const b = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
-  b[6] = ((b[6] as number) & 0x0f) | 0x40;
-  b[8] = ((b[8] as number) & 0x3f) | 0x80;
-  const h = b.map((x) => x.toString(16).padStart(2, '0')).join('');
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+export async function loadProfile(db: StoreDb): Promise<Profile | null> {
+  const row = await db.getFirstAsync<{ data: string }>('SELECT data FROM profiles WHERE key = ?', KEY);
+  return row ? (JSON.parse(row.data) as Profile) : null;
 }
 
-async function read<T>(db: StoreDb, table: 'profiles' | 'consents'): Promise<T | null> {
-  const row = await db.getFirstAsync<{ data: string }>(`SELECT data FROM ${table} WHERE key = ?`, KEY);
-  return row ? (JSON.parse(row.data) as T) : null;
+export async function saveProfile(db: StoreDb, p: Profile): Promise<void> {
+  await db.runAsync('INSERT OR REPLACE INTO profiles (key, data) VALUES (?, ?)', KEY, JSON.stringify(p));
 }
 
-async function write(db: StoreDb, table: 'profiles' | 'consents', doc: object): Promise<void> {
-  await db.runAsync(`INSERT OR REPLACE INTO ${table} (key, data) VALUES (?, ?)`, KEY, JSON.stringify(doc));
+/** The most recent consent record. */
+export async function loadConsent(db: StoreDb): Promise<Consent | null> {
+  const row = await db.getFirstAsync<{ data: string }>(
+    "SELECT data FROM consents ORDER BY json_extract(data, '$.given_at') DESC LIMIT 1",
+  );
+  return row ? (JSON.parse(row.data) as Consent) : null;
 }
 
-export const loadProfile = (db: StoreDb) => read<Profile>(db, 'profiles');
-export const loadConsent = (db: StoreDb) => read<Consent>(db, 'consents');
-export const saveProfile = (db: StoreDb, p: Profile) => write(db, 'profiles', p);
-export const saveConsent = (db: StoreDb, c: Consent) => write(db, 'consents', c);
+/** Adds a consent record; earlier ones are kept. */
+export async function saveConsent(db: StoreDb, c: Consent): Promise<void> {
+  await db.runAsync('INSERT INTO consents (key, data) VALUES (?, ?)', c.id, JSON.stringify(c));
+}

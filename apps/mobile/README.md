@@ -36,6 +36,8 @@ npx expo export --platform web   # production web bundle; proves Metro resolves 
 
 - The local database opens on Android, iOS and web (expo-sqlite's wasm build on web, same migrations). It needs a cross-origin isolated page; see "Run it in a browser".
 - Token storage on web is the documented no-op: expo-secure-store has no web backend, so `saveTokens` stores nothing and `loadTokens` returns null (web sign-in will use in-memory tokens plus the refresh flow when auth lands). Profile and consent are in SQLite, not in tokens.
+- "Skip for now" leaves setup for this session; Targets then shows "Start setup". The next launch opens setup again while no profile exists.
+- `Profile.id` is null locally: Profile is a natural-key table, so its UUIDv5 (`profiles:me`) is computed when the store is bound to a signed-in user (#31) or at push time. Consent rows are dated records with random ids (expo-crypto `randomUUID`, MIT); a later consent adds a row and never overwrites an earlier one.
 - The app opens to `/setup` when no profile is stored (consent first, then four steps, then results) and to Targets when one is. Profile and Consent are stored as the contract's snake_case JSON in the `profiles` and `consents` tables (`src/db/records.ts`).
 - Placeholder screens for Food, Workout and Progress come with later issues.
 - Verified with the commands above, not on an Android emulator or device.
@@ -70,4 +72,4 @@ Check that data survives a reload (needs a local Chrome; set `CHROME_PATH` if it
 npx expo export --platform web && node scripts/web-reload.mjs
 ```
 
-It serves `dist/` with the headers, completes setup in headless Chrome, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.
+It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the static export has no service worker, so the page itself cannot load offline; that is expected and only logged), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.

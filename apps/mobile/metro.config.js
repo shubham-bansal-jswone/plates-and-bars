@@ -14,16 +14,19 @@ config.resolver.assetExts.push('wasm');
 
 // expo-sqlite on web runs SQLite in a worker and needs SharedArrayBuffer, which browsers only allow on
 // cross-origin isolated pages. Expo's dev server serves the HTML before Metro's middleware runs, so
-// `server.enhanceMiddleware` cannot reach it; set the headers on every response of this dev process instead.
+// `server.enhanceMiddleware` cannot reach it; this sets the headers on responses of the dev server process.
+// TODO: drop this for `enhanceMiddleware` once Expo's middleware order lets it see the HTML.
 // The production host sends the same headers from public/_headers.
-const http = require('http');
-const writeHead = http.ServerResponse.prototype.writeHead;
-http.ServerResponse.prototype.writeHead = function (...args) {
-  if (!this.headersSent) {
-    this.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    this.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-  }
-  return writeHead.apply(this, args);
-};
+if (!process.argv.includes('export')) {
+  const http = require('http');
+  const writeHead = http.ServerResponse.prototype.writeHead;
+  http.ServerResponse.prototype.writeHead = function (...args) {
+    if (!this.headersSent) {
+      if (!this.hasHeader('Cross-Origin-Opener-Policy')) this.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      if (!this.hasHeader('Cross-Origin-Embedder-Policy')) this.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    }
+    return writeHead.apply(this, args);
+  };
+}
 
 module.exports = config;

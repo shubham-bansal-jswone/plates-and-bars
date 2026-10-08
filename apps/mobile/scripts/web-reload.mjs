@@ -1,5 +1,5 @@
 // Serves dist/ with the cross-origin isolation headers, completes setup in headless Chrome, reloads,
-// and checks the stored profile survives (the app opens straight to Targets). Run `npx expo export --platform web` first.
+// (with the network off for the setup itself) and checks the stored profile survives (the app opens straight to Targets). Run `npx expo export --platform web` first.
 // Needs a local Chrome/Chromium (set CHROME_PATH if not found).
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -56,11 +56,16 @@ try {
     await el.type(v);
   };
   page.on('console', (m) => m.type() === 'error' && console.log('console.error:', m.text().slice(0, 300)));
-  page.on('requestfailed', (r) => console.log('requestfailed:', r.url(), r.failure()?.errorText));
+  let offlineNavFailed = false;
+  page.on('requestfailed', (r) => {
+    if (r.isNavigationRequest() && r.failure()?.errorText === 'net::ERR_INTERNET_DISCONNECTED') offlineNavFailed = true;
+  });
   // The app redirects to /setup while loading, which Chrome reports as an aborted first navigation.
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
   await page.waitForSelector('[aria-label="Continue"]', { timeout: 30000 });
   console.log('crossOriginIsolated:', await page.evaluate(() => crossOriginIsolated));
+  // Offline first: after the first load the whole setup flow runs with the network off.
+  await page.setOfflineMode(true);
   await click('I understand and agree to my data being stored as described');
   await click('Continue');
   await click('Male');
@@ -84,7 +89,12 @@ try {
   await click('See my targets');
   await click('Use these targets');
   await page.waitForSelector(sel('1,990 kcal'), { timeout: 20000 });
-  console.log('before reload: targets screen shows 1,990 kcal');
+  console.log('offline: setup completed and Targets shows 1,990 kcal with the network off');
+  // The static export has no service worker or other offline cache for the app shell, so a reload while
+  // offline cannot fetch index.html; that is expected and only logged. Persistence is asserted online below.
+  await page.reload({ waitUntil: 'load' }).catch(() => {});
+  console.log('reload while offline:', offlineNavFailed ? 'page request failed (no offline cache), as expected' : 'page loaded');
+  await page.setOfflineMode(false);
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector(sel('1,990 kcal'), { timeout: 20000 });
   console.log('after reload: targets screen shows 1,990 kcal without setup (profile read back from SQLite)');

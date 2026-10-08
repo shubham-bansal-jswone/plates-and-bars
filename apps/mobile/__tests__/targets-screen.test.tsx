@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import golden from '../../../docs/spec/golden/targets.json';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
@@ -6,7 +6,8 @@ import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn() }) }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: mockPush }) }));
 
 const g = golden.find((c) => c.input.id === 'male-30-lose-moderate')!;
 
@@ -53,5 +54,12 @@ describe('TargetsScreen', () => {
     expect(await screen.findByText('Check with your doctor first')).toBeTruthy();
     expect(screen.getByLabelText('My doctor has cleared me')).toBeTruthy();
     expect(screen.getByText(/^Home plan: bodyweight/)).toBeTruthy();
+  });
+
+  it('with no profile offers Start setup, which opens the setup route', async () => {
+    mockPush.mockClear();
+    await render(withProfile(memoryDb(), <TargetsScreen />));
+    await fireEvent.press(await screen.findByLabelText('Start setup'));
+    expect(mockPush).toHaveBeenCalledWith('/setup');
   });
 });

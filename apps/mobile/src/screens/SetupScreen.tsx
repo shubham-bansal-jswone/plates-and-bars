@@ -11,6 +11,8 @@ import { useTheme } from '../theme/useTheme';
 type Pick = <K extends keyof Draft>(k: K, v: Draft[K]) => void;
 const entries = <K extends string>(o: Record<K, readonly [string, string]>) => Object.entries(o) as [K, readonly [string, string]][];
 
+const SAVE_ERROR = 'Could not save on this device. Please try again.';
+
 function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
   const c = useTheme();
   const [ok, setOk] = useState(false);
@@ -44,7 +46,7 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
         label="Continue"
         onPress={() => {
           if (!ok) setErr(CONSENT.needsTick);
-          else void onContinue();
+          else onContinue().catch(() => setErr(SAVE_ERROR));
         }}
       />
     </Page>
@@ -52,6 +54,7 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
 }
 
 function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
+  const c = useTheme();
   if (step === 0)
     return (
       <>
@@ -178,7 +181,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
         <Label>Quick health check</Label>
         {SCREEN_Q.map((q, i) => (
           <View key={q} style={{ gap: 6, marginBottom: 8 }}>
-            <Text style={{ fontSize: 15, lineHeight: 21 }}>{q}</Text>
+            <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{q}</Text>
             <Group label={q}>
               <View style={layout.row}>
                 {(['no', 'yes'] as const).map((a) => (
@@ -211,7 +214,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
 
 /** Consent first, then four question steps, then the results; "Use these targets" saves the profile. */
 export function SetupScreen() {
-  const { status, consent, giveConsent, setProfile } = useProfile();
+  const { status, consent, giveConsent, setProfile, skipSetup } = useProfile();
   const router = useRouter();
   const c = useTheme();
   const [d, setD] = useState<Draft>(emptyDraft);
@@ -247,14 +250,28 @@ export function SetupScreen() {
           <View />
         )}
         <Text style={{ color: c.muted }}>{step < STEPS ? `Step ${step + 1} of ${STEPS}` : 'Your targets'}</Text>
+        <Button
+          kind="link"
+          label="Skip for now"
+          onPress={() => {
+            skipSetup();
+            router.replace('/' as never);
+          }}
+        />
       </View>
       {profile ? (
         <>
           <ResultsView profile={profile} />
+          {err ? <ErrorText>{err}</ErrorText> : null}
           <Button
             label="Use these targets"
             onPress={async () => {
-              await setProfile(profile);
+              try {
+                await setProfile(profile);
+              } catch {
+                setErr(SAVE_ERROR);
+                return;
+              }
               router.replace('/targets' as never);
             }}
           />

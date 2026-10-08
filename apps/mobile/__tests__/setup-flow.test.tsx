@@ -1,12 +1,14 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import golden from '../../../docs/spec/golden/targets.json';
 import { SetupScreen } from '../src/screens/SetupScreen';
-import { loadConsent, loadProfile } from '../src/db/records';
+import { loadConsent, loadProfile, saveConsent } from '../src/db/records';
 import { SCREEN_Q } from '../src/setup/copy';
 import { memoryDb, withProfile } from './helpers';
 
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) }));
+
+jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const g = golden.find((c) => c.input.id === 'male-30-lose-moderate')!;
 const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
@@ -72,6 +74,7 @@ describe('setup flow', () => {
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/targets'));
     const p = await loadProfile(db);
     expect(p).toMatchObject({
+      id: null,
       sex: 'male',
       age: 30,
       height_cm: 165,
@@ -119,5 +122,62 @@ describe('setup flow', () => {
     await press('Use these targets');
     await waitFor(async () => expect(await loadProfile(db)).not.toBeNull());
     expect(await loadProfile(db)).toMatchObject({ days: 0, exp: null, minutes: null, special: 'breastfeeding', where: 'bodyweight' });
+  });
+
+  it('profile id stays null locally; consent ids are random and earlier consents are kept', async () => {
+    const db = memoryDb();
+    await render(withProfile(db, <SetupScreen />));
+    await consent();
+    const keys = [...db.rows.keys()].filter((k) => k.startsWith('consents:'));
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/^consents:[0-9a-f-]{36}$/);
+    await saveConsent(db, { ...(await loadConsent(db))!, id: 'second', given_at: '2099-01-01T00:00:00Z' });
+    expect([...db.rows.keys()].filter((k) => k.startsWith('consents:'))).toHaveLength(2);
+    expect((await loadConsent(db))!.id).toBe('second');
+  });
+
+  it('shows an error and stays on consent when the write fails', async () => {
+    const db = memoryDb();
+    db.failWrites = true;
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Before you start');
+    await fireEvent(screen.getByLabelText('I understand and agree to my data being stored as described'), 'valueChange', true);
+    await press('Continue');
+    expect(await screen.findByText('Could not save on this device. Please try again.')).toBeTruthy();
+    expect(screen.getByText('Before you start')).toBeTruthy();
+  });
+
+  it('shows an error and stays on the results when saving the profile fails', async () => {
+    const db = memoryDb();
+    await render(withProfile(db, <SetupScreen />));
+    await consent();
+    await press('Female');
+    await fireEvent.changeText(screen.getByLabelText('Age'), '30');
+    await fireEvent.changeText(screen.getByLabelText('Height feet'), '5');
+    await fireEvent.changeText(screen.getByLabelText('Height inches'), '4');
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '70');
+    await press('Continue');
+    await press('Some walking. Errands and short walks (~5,000–7,500 steps)');
+    await press('Continue');
+    await press('None yet');
+    await press('At a gym. Machines, cables, barbells and dumbbells');
+    await press('Continue');
+    await press('Maintain. Keep weight steady and get stronger');
+    for (const q of SCREEN_Q) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
+    await press('See my targets');
+    db.failWrites = true;
+    await press('Use these targets');
+    expect(await screen.findByText('Could not save on this device. Please try again.')).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(await loadProfile(db)).toBeNull();
+  });
+
+  it('Skip for now leaves setup without a profile', async () => {
+    const db = memoryDb();
+    await render(withProfile(db, <SetupScreen />));
+    await consent();
+    await press('Skip for now');
+    expect(mockReplace).toHaveBeenCalledWith('/');
+    expect(await loadProfile(db)).toBeNull();
   });
 });

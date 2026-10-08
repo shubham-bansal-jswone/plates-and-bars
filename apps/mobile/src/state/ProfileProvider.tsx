@@ -10,6 +10,9 @@ interface ProfileState {
   status: Status;
   profile: Profile | null;
   consent: Consent | null;
+  /** True after "Skip for now" this session: the app stays out of setup until the next launch. */
+  skipped: boolean;
+  skipSetup(): void;
   /** Writes the consent record to the local database, then updates state. */
   giveConsent(): Promise<void>;
   /** Writes the profile, then updates state. */
@@ -27,6 +30,8 @@ export function ProfileProvider({ db, children }: { db: StoreDb; children: React
   const [status, setStatus] = useState<Status>('loading');
   const [profile, setProfileState] = useState<Profile | null>(null);
   const [consent, setConsent] = useState<Consent | null>(null);
+  const [skipped, setSkipped] = useState(false);
+  const skipSetup = useCallback(() => setSkipped(true), []);
 
   useEffect(() => {
     let live = true;
@@ -74,8 +79,8 @@ export function ProfileProvider({ db, children }: { db: StoreDb; children: React
   }, [db, profile]);
 
   const value = useMemo(
-    () => ({ status, profile, consent, giveConsent, setProfile, markCleared }),
-    [status, profile, consent, giveConsent, setProfile, markCleared],
+    () => ({ status, profile, consent, skipped, skipSetup, giveConsent, setProfile, markCleared }),
+    [status, profile, consent, skipped, skipSetup, giveConsent, setProfile, markCleared],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
