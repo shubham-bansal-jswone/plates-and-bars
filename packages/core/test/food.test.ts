@@ -9,6 +9,21 @@ import {
   showAddedSugar,
   unitGrams,
   FRUIT_VEG_TARGET,
+  kcalTarget,
+  DEFAULT_KCAL_TARGET,
+  stepServings,
+  SERVINGS_MIN,
+  SERVINGS_MAX,
+  SERVINGS_STEP,
+  highProtein,
+  customFood,
+  saveMyFood,
+  MY_FOODS_MAX,
+  userFoodFacts,
+  calcTargets,
+  toTargetsProfile,
+  type KcalTargetProfile,
+  type UserFoodFields,
   type FoodFacts,
   type FoodLogFacts,
   type GramsFood,
@@ -136,7 +151,7 @@ describe('golden foods.json against the prototype tables and content/foods.json'
     }
   });
 
-  it('PINNED QUIRK: content lacks the prototype’s drinks and the eat-out "Cola (330 ml)" fibre row', () => {
+  it('PINNED QUIRK (#151): content lacks the prototype’s drinks and the eat-out "Cola (330 ml)" fibre row', () => {
     expect(protoCatalog.filter((p) => !foods.some((f) => f.name === p.name)).map((f) => f.name)).toEqual(['Beer', 'Whisky, rum or vodka', 'Wine', 'Cola (330 ml)']);
     // So a logged Cola from eating out counts 35 g added sugar in the prototype, and none with content.
     const cola: FoodLogFacts = { name: 'Cola (330 ml)', qty: 1, kcal: 140, protein_g: 0, carbs_g: 35, fat_g: 0 };
@@ -162,7 +177,7 @@ describe('searchFoods', () => {
     expect(searchFoods('', foods)).toHaveLength(foods.length);
     expect(searchFoods('zzz', foods)).toEqual([]);
   });
-  it('PINNED QUIRK: a query can span two aliases, since aliases are matched as one string', () => {
+  it('PINNED QUIRK (#151): a query can span two aliases, since aliases are matched as one string', () => {
     expect(searchFoods('fulka rotli', foods).map((f) => f.name)).toEqual(['Roti / chapati']);
     expect(searchFoods('gh mu', foods).map((f) => f.name)).toEqual(['Chicken breast, cooked', 'Chicken curry']); // "murgh murg"
     expect(searchFoods('peg spirit', protoCatalog).map((f) => f.name)).toEqual(['Whisky, rum or vodka']);
@@ -172,7 +187,7 @@ describe('searchFoods', () => {
     expect(searchFoods('thali', [...mine, ...foods])).toEqual(mine);
     expect(searchFoods('a', [...mine, ...foods])[0]).toBe(mine[0]);
   });
-  it('PINNED QUIRK: the prototype gives a user food the aliases of a shared food with the same name', () => {
+  it('PINNED QUIRK (#151): the prototype gives a user food the aliases of a shared food with the same name', () => {
     proto.S.settings.myFoods = [{ name: 'Dal', unit: '1 bowl', kcal: 200, p: 9, c: 30, f: 5 }];
     expect(proto.search('toor')).toEqual(['Dal', 'Dal']);
     expect(searchFoods('toor', [{ name: 'Dal' }, ...foods]).map((f) => f.name)).toEqual(['Dal']);
@@ -198,7 +213,7 @@ describe('unitGrams and quantityFromGrams', () => {
     expect(unitGrams('12g')).toBe(12);
     expect(unitGrams('1 glass (250 ml)')).toBe(0);
     expect(unitGrams('30 gm')).toBe(0);
-    expect(unitGrams('1.5 g scoop')).toBe(5); // PINNED QUIRK: decimals lose their whole part
+    expect(unitGrams('1.5 g scoop')).toBe(5); // PINNED QUIRK (#151): decimals lose their whole part
   });
   it('grams over the serving weight, to 0.1; the bracketed weight is the dry weight (#97)', () => {
     expect(quantityFromGrams(byName('Rice, cooked'), 75)).toEqual({ kind: 'grams', qty: 1.5 });
@@ -213,8 +228,10 @@ describe('unitGrams and quantityFromGrams', () => {
     expect(quantityFromGrams(byName('Idli'), 50)).toEqual({ kind: 'not-in-grams' });
     expect(quantityFromGrams(byName('Idli'), 'abc')).toEqual({ kind: 'servings' });
   });
-  it('PINNED QUIRK: a tiny amount rounds to 0 servings, which is logged', () => {
-    expect(quantityFromGrams(byName('Paneer'), 4)).toEqual({ kind: 'grams', qty: 0 });
+  it('grams that round to 0 servings are too small (#150: the prototype logs qty 0)', () => {
+    expect(quantityFromGrams(byName('Paneer'), 4)).toEqual({ kind: 'too-small' });
+    expect(quantityFromGrams(byName('Paneer'), 5)).toEqual({ kind: 'grams', qty: 0.1 });
+    expect(proto.pick('Paneer', '4', 1)).toEqual({ qty: 0 });
   });
   it(`matches prototype case 'pick' over ${RUNS} random foods and inputs`, () => {
     const r = rng(97);
@@ -223,10 +240,11 @@ describe('unitGrams and quantityFromGrams', () => {
       proto.S.settings.myFoods = my;
       const all = [...my.map(userFood), ...protoCatalog.slice(0, proto.FOODS.length)];
       const f = pickOf(r, all);
-      const g = pickOf(r, ['', '0', '-5', 'abc', '1', '4', '15', '35', '49.95', '2,5', ' 120 ', String(Math.round(r() * 5000) / 10), String(r() * 1000)]);
+      const g = pickOf(r, ['', '0', '-5', 'abc', '0,4', '1', '4', '15', '35', '49.95', '2,5', ' 120 ', String(Math.round(r() * 5000) / 10), String(r() * 1000)]);
       const serv = pickOf(r, [0.5, 1, 1.5, 2, 10]);
       const p = proto.pick(f.name, g, serv);
-      const want = 'err' in p ? { kind: 'not-in-grams' } : num(g) > 0 ? { kind: 'grams', qty: p.qty } : { kind: 'servings' };
+      // The one exception to the prototype: qty 0 from grams is `too-small` (#150).
+      const want = 'err' in p ? { kind: 'not-in-grams' } : num(g) > 0 ? (p.qty === 0 ? { kind: 'too-small' } : { kind: 'grams', qty: p.qty }) : { kind: 'servings' };
       expect([f.name, g, quantityFromGrams(f, g)]).toEqual([f.name, g, want]);
       if (!('err' in p) && !(num(g) > 0)) expect(p.qty).toBe(serv);
     }
@@ -266,6 +284,16 @@ describe('logTotals, fruitVegServings, fibreTarget, showAddedSugar', () => {
     expect([showAddedSugar({ added_sugar_g: 9.99 }), showAddedSugar({ added_sugar_g: 10 })]).toEqual([false, true]);
     expect(showAddedSugar(logTotals([logOf(byName('Tea with milk & sugar'), 2)], foods))).toBe(true);
     expect(FRUIT_VEG_TARGET).toBe(5);
+  });
+  it('PINNED QUIRK (#151): the added-sugar check reads the unrounded value, so 9.6 g is hidden though it would show as 10', () => {
+    const tea = { ...logOf(byName('Tea with milk & sugar')), qty: 1.92 };
+    const t = logTotals([tea], foods);
+    expect(t.added_sugar_g).toBeCloseTo(9.6, 10);
+    expect(Math.round(t.added_sugar_g)).toBe(10);
+    expect(showAddedSugar(t)).toBe(false);
+    proto.S.day.meals = [{ name: tea.name, qty: tea.qty, kcal: tea.kcal, p: tea.protein_g, c: tea.carbs_g, f: tea.fat_g }];
+    expect(proto.fibreHtml()).not.toContain('Added sugar');
+    proto.S.day.meals = [];
   });
   it(`match prototype totals, fibreTotals and fibreHtml over ${RUNS} random days`, () => {
     const r = rng(25);
@@ -308,9 +336,13 @@ describe('dayComplete', () => {
     expect(dayComplete(undefined, three.slice(0, 2), 1000)).toBe(false);
     expect(dayComplete({}, [...three.slice(0, 2), { ...three[2]!, deleted_at: '2026-10-08T10:00:00Z' }], 1000)).toBe(false);
   });
-  it('PINNED QUIRK: three items in one meal count as three meals, and the fallback applies to today too', () => {
-    const breakfast = [logOf(byName('Egg, whole'), 10), logOf(byName('Roti / chapati'), 4), logOf(byName('Toned milk'), 2)];
+  const breakfast = [logOf(byName('Egg, whole'), 10), logOf(byName('Roti / chapati'), 4), logOf(byName('Toned milk'), 2)];
+  it('PINNED QUIRK (#151): three items in one meal count as three meals', () => {
     expect(dayComplete({ complete: null }, breakfast, 1500)).toBe(true);
+  });
+  it('PINNED QUIRK (#150): the fallback applies to today too (no date is read; the spec-change batch adds it)', () => {
+    // The same untouched day is complete whether it is today or earlier: dayComplete takes no date.
+    expect(dayComplete({ date: '2026-10-08', complete: null } as { complete: null }, breakfast, 1500)).toBe(true);
   });
   it(`matches prototype dayComplete over ${RUNS} random days`, () => {
     const r = rng(75);
@@ -323,5 +355,190 @@ describe('dayComplete', () => {
       if (complete !== undefined) (d as { complete?: boolean | null }).complete = complete;
       expect(dayComplete({ complete }, meals.map(toLog), kcal)).toBe(proto.dayComplete(d));
     }
+  });
+});
+
+// ---------- food screen support (#152) ----------
+const ACTS = ['sitting', 'light', 'feet', 'physical'] as const;
+const GOALS = ['lose', 'recomp', 'maintain', 'gain'] as const;
+function randomProfile(r: () => number): KcalTargetProfile {
+  const sex = pickOf(r, ['male', 'female'] as const);
+  const days = Math.floor(r() * 8);
+  return {
+    sex,
+    age: 18 + Math.floor(r() * 73),
+    height_cm: Math.round((140 + r() * 60) * 10) / 10,
+    weight_kg: Math.round((40 + r() * 110) * 10) / 10,
+    activity: pickOf(r, ACTS),
+    days,
+    minutes: days ? pickOf(r, [30, 45, 60, 75, 90] as const) : null,
+    goal: pickOf(r, GOALS),
+    pace: pickOf(r, ['gentle', 'moderate'] as const),
+    special: sex === 'female' ? pickOf(r, ['none', 'pregnant', 'breastfeeding'] as const) : 'none',
+    targets: { kcal: Math.round((1200 + r() * 2400) / 10) * 10 },
+  };
+}
+
+describe('kcalTarget', () => {
+  const p: KcalTargetProfile = { sex: 'male', age: 30, height_cm: 175, weight_kg: 80, activity: 'sitting', days: 3, minutes: 60, goal: 'lose', pace: 'moderate', special: 'none', targets: { kcal: 2000 } };
+  const flex = [
+    { date: '2026-10-08', kcal_delta: 500 },
+    { date: '2026-10-09', kcal_delta: -167 },
+    { date: '2026-10-09', kcal_delta: -100 },
+  ];
+  it('the saved target plus that day’s flex entries', () => {
+    expect(kcalTarget('2026-10-08', { flex }, p)).toBe(2500);
+    expect(kcalTarget('2026-10-09', { flex }, p)).toBe(1733);
+    expect(kcalTarget('2026-10-10', { flex }, p)).toBe(2000);
+    expect(kcalTarget('2026-10-10', { flex: null }, p)).toBe(2000);
+    expect(kcalTarget('2026-10-08', { flex }, null)).toBe(DEFAULT_KCAL_TARGET + 500);
+  });
+  it('lab hold: at least maintenance to the nearest 10, flex ignored; no profile: the flex rule', () => {
+    const tdee = Math.round(calcTargets(toTargetsProfile(p)).tdee / 10) * 10;
+    expect(tdee).toBe(2390); // maintenance, above the 2000 target; the +500 flex for the day is ignored
+    expect(kcalTarget('2026-10-08', { flex, labHold: true }, p)).toBe(tdee);
+    expect(kcalTarget('2026-10-08', { flex, labHold: true }, { ...p, targets: { kcal: 4000 } })).toBe(4000);
+    expect(kcalTarget('2026-10-08', { flex, labHold: true }, null)).toBe(DEFAULT_KCAL_TARGET + 500);
+  });
+  it(`matches prototype kcalTarget over ${RUNS} random profiles, flex days and lab holds`, () => {
+    const r = rng(2922);
+    const dates = ['2026-10-07', '2026-10-08', '2026-10-09'];
+    for (let i = 0; i < RUNS; i++) {
+      const prof = r() < 0.15 ? null : randomProfile(r);
+      const fl = Array.from({ length: Math.floor(r() * 5) }, () => ({ date: pickOf(r, dates), kcal_delta: pickOf(r, [300, 500, 800, -100, -167, -250]) }));
+      const hold = pickOf(r, [true, false, undefined]);
+      const date = pickOf(r, dates);
+      const settings = {
+        kcal: prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET,
+        profile: prof && { ...toTargetsProfile(prof) },
+        flex: fl.map((x) => ({ id: 'x', date: x.date, d: x.kcal_delta })),
+        labHold: hold === undefined ? undefined : { on: hold },
+      };
+      expect(kcalTarget(date, { flex: fl, labHold: hold }, prof)).toBe(proto.realKcalTarget(date, settings));
+    }
+  });
+});
+
+describe('stepServings and highProtein', () => {
+  it('0.5 to 10 in steps of 0.5', () => {
+    expect([SERVINGS_MIN, SERVINGS_MAX, SERVINGS_STEP]).toEqual([0.5, 10, 0.5]);
+    expect([stepServings(1, 1), stepServings(1, -1), stepServings(0.5, -1), stepServings(10, 1), stepServings(9.8, 1)]).toEqual([1.5, 0.5, 0.5, 10, 10]);
+  });
+  it('matches prototype case serv from every reachable value and some others', () => {
+    for (let s = 0.5; s <= 10; s += 0.5)
+      for (const d of [1, -1] as const) expect(stepServings(s, d)).toBe(proto.serv(s, String(d * 0.5)));
+    for (const s of [0, 0.3, 1.2, 12]) for (const d of [1, -1] as const) expect(stepServings(s, d)).toBe(proto.serv(s, String(d * 0.5)));
+  });
+  it('high protein: kcal above 0 and at least 8 g protein per 100 kcal', () => {
+    expect(highProtein(byName('Chicken breast, cooked'))).toBe(true);
+    expect(highProtein(byName('Roti / chapati'))).toBe(false);
+    expect(highProtein({ per_serving: { kcal: 100, protein_g: 8 } })).toBe(true);
+    expect(highProtein({ per_serving: { kcal: 100, protein_g: 7.99 } })).toBe(false);
+    expect(highProtein({ per_serving: { kcal: 0, protein_g: 5 } })).toBe(false);
+  });
+  it(`matches the prototype badge on every food and ${RUNS} random ones`, () => {
+    for (const f of protoCatalog.slice(0, proto.FOODS.length)) {
+      const row = proto.FOODS.find((x) => x[0] === f.name);
+      expect([f.name, highProtein(f)]).toEqual([f.name, proto.highProtein(row!)]);
+    }
+    const r = rng(8);
+    for (let i = 0; i < RUNS; i++) {
+      const kcal = pickOf(r, [0, 50, 100, 125, 250, Math.round(r() * 600), r() * 600]);
+      const p = pickOf(r, [0, 4, 8, 10, 20, kcal * 0.08, Math.round(r() * 400) / 10]);
+      expect(highProtein({ per_serving: { kcal, protein_g: p } })).toBe(proto.highProtein(['x', '1', kcal, p, 0, 0]));
+    }
+  });
+});
+
+describe('customFood and saveMyFood', () => {
+  const base = { name: 'Office thali', kcal: '', protein: '20', carbs: '90', fat: '25', qty: '', unit: '' };
+  it('kcal from macros when empty, quantity 1 when empty or 0, unit "1 serving" when empty', () => {
+    const r = customFood(base);
+    expect(r).toEqual({
+      kind: 'ok',
+      log: { name: 'Office thali', qty: 1, kcal: 665, protein_g: 20, carbs_g: 90, fat_g: 25 },
+      food: { name: 'Office thali', unit: '1 serving', kcal: 665, protein_g: 20, carbs_g: 90, fat_g: 25, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' },
+    });
+    expect(customFood({ ...base, kcal: '700,5', qty: '0', unit: ' 1 plate ', name: '  Thali ' })).toMatchObject({ log: { name: 'Thali', qty: 1, kcal: 700.5 }, food: { unit: '1 plate' } });
+    expect(customFood({ ...base, protein: '0.1', carbs: '', fat: '' })).toEqual({ kind: 'no-kcal' }); // round(0.4) = 0
+  });
+  it('no name, then no calories', () => {
+    expect(customFood({ ...base, name: '  ' })).toEqual({ kind: 'no-name' });
+    expect(customFood({ ...base, protein: '', carbs: '', fat: '' })).toEqual({ kind: 'no-kcal' });
+    expect(customFood({ ...base, name: '', protein: '', carbs: '', fat: '' })).toEqual({ kind: 'no-name' });
+  });
+  it('PINNED QUIRK: a negative quantity or calorie value is kept', () => {
+    expect(customFood({ ...base, qty: '-2', kcal: '-100' })).toMatchObject({ log: { qty: -2, kcal: -100 } });
+  });
+  it('saving puts the food first, drops the same name and keeps 60', () => {
+    const list = Array.from({ length: 60 }, (_, i) => ({ name: `F${i}` }));
+    expect(saveMyFood(list, { name: 'New' }).map((f) => f.name)).toEqual(['New', ...list.slice(0, 59).map((f) => f.name)]);
+    expect(saveMyFood(list, { name: 'F10' }).map((f) => f.name)).toEqual(['F10', ...list.filter((f) => f.name !== 'F10').map((f) => f.name)]);
+    expect(MY_FOODS_MAX).toBe(60);
+  });
+  it(`matches prototype case addcustom over ${RUNS} random forms`, () => {
+    const r = rng(60);
+    const vals = ['', '0', '-3', 'abc', '1,5', '12', '250', ' 7.25 ', String(Math.round(r() * 1000) / 10)];
+    for (let i = 0; i < RUNS; i++) {
+      const v = {
+        cfName: pickOf(r, ['', '  ', 'Thali', ' Lassi ', ...NEW_NAMES]),
+        cfK: pickOf(r, vals),
+        cfP: pickOf(r, vals),
+        cfC: pickOf(r, vals),
+        cfF: pickOf(r, vals),
+        cfQ: pickOf(r, vals),
+        cfU: pickOf(r, ['', '  ', '1 plate', ' 200 g ']),
+      };
+      const save = r() < 0.6;
+      const my = Array.from({ length: pickOf(r, [0, 3, 59, 60, 61]) }, (_, k) => ({ name: k < 8 ? (NEW_NAMES[k] as string) : `F${k}`, unit: '1 serving', kcal: 1, p: 0, c: 0, f: 0 }));
+      const p = proto.addCustom(v, save, my);
+      const got = customFood({ name: v.cfName, kcal: v.cfK, protein: v.cfP, carbs: v.cfC, fat: v.cfF, qty: v.cfQ, unit: v.cfU });
+      if (got.kind === 'no-name') expect(p.toast).toBe('Give the food a name.');
+      else if (got.kind === 'no-kcal') expect(p.toast).toBe('Enter calories or at least one macro.');
+      else {
+        const m = p.meal!;
+        expect(got.log).toEqual({ name: m.name, qty: m.qty, kcal: m.kcal, protein_g: m.p, carbs_g: m.c, fat_g: m.f });
+        if (save) {
+          const saved = saveMyFood(my.map((x) => ({ ...x }) as ProtoMyFood), { name: got.food.name, unit: got.food.unit, kcal: got.food.kcal, p: got.food.protein_g, c: got.food.carbs_g, f: got.food.fat_g });
+          expect(saved).toEqual(p.myFoods);
+        } else expect(p.myFoods).toBe(my);
+      }
+      if (got.kind !== 'ok') expect(p.meal).toBeNull();
+    }
+  });
+});
+
+describe('userFoodFacts', () => {
+  const u: UserFoodFields = { name: 'Office thali', unit: '', kcal: 665, protein_g: 20, carbs_g: 90, fat_g: 25, fibre_g: 6, added_sugar_g: null, fruit_veg_servings: 1, origin: 'custom' };
+  it('maps a contract UserFood to every food-maths input', () => {
+    const f = userFoodFacts(u);
+    expect(f).toEqual({ name: 'Office thali', aliases: [], serving: { label: '1 serving', grams: null }, per_serving: { kcal: 665, protein_g: 20, carbs_g: 90, fat_g: 25, fibre_g: 6, added_sugar_g: null }, fruit_veg_servings: 1 });
+    expect(userFoodFacts({ ...u, unit: '1 bowl (250 g)' }).serving).toEqual({ label: '1 bowl (250 g)', grams: 250 });
+    const log = { name: 'Office thali', qty: 2, kcal: 665, protein_g: 20, carbs_g: 90, fat_g: 25 };
+    expect(logTotals([log], [...foods, f])).toMatchObject({ fibre_g: 12, added_sugar_g: 0, withoutFibre: 0 });
+    expect(fruitVegServings([log], [...foods, f])).toBe(2);
+    expect(searchFoods('thali', [f, ...foods])).toEqual([f]);
+    expect(quantityFromGrams(userFoodFacts({ ...u, unit: '200 g' }), 300)).toEqual({ kind: 'grams', qty: 1.5 });
+  });
+  it(`gives the same totals, search and grams as the prototype's myFoods over ${RUNS} random days`, () => {
+    const r = rng(1529);
+    for (let i = 0; i < RUNS; i++) {
+      const my = randomMyFoods(r, true);
+      const meals = randomMeals(r, my);
+      proto.S.settings.myFoods = my;
+      const users = my.map((m) => userFoodFacts({ name: m.name, unit: m.unit, kcal: m.kcal, protein_g: m.p, carbs_g: m.c, fat_g: m.f, fibre_g: m.fib ?? null, added_sugar_g: m.sug ?? null, fruit_veg_servings: m.veg ?? null }));
+      const logs = meals.map(toLog);
+      const pf = proto.fibreTotals(meals);
+      expect(logTotals(logs, [...protoCatalog, ...users])).toMatchObject({ fibre_g: pf.fib, added_sugar_g: pf.sug, withoutFibre: pf.unknown });
+      expect(fruitVegServings(logs, [...protoCatalog, ...users])).toBe(pf.veg);
+      const g = pickOf(r, ['', '50', '4', '300']);
+      for (const [k, u2] of users.entries()) {
+        if (protoCatalog.some((c) => c.name === u2.name)) continue; // prototype pick finds the user food first by name only when names differ
+        const p = proto.pick(my[k]!.name, g, 1);
+        const want = 'err' in p ? 'not-in-grams' : num(g) > 0 ? (p.qty === 0 ? 'too-small' : 'grams') : 'servings';
+        expect(quantityFromGrams(u2, g).kind).toBe(want);
+      }
+    }
+    proto.S.settings.myFoods = [];
   });
 });

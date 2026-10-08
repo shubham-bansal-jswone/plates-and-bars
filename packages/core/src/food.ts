@@ -1,4 +1,6 @@
 import { num } from './num';
+import { toTargetsProfile, type SetupProfile } from './setup';
+import { calcTargets } from './targets';
 
 /**
  * Food maths for the food screen (PROTOTYPE_SPEC section 5). Foods come in content/foods.json's `Food`
@@ -68,7 +70,9 @@ export type GramsQuantity =
   /** Grams entered and the serving has a gram weight: log `qty` servings (grams / serving grams, to 0.1). */
   | { kind: 'grams'; qty: number }
   /** Grams entered but the serving has no gram weight: log nothing ("… is measured in …, not grams. Use servings."). */
-  | { kind: 'not-in-grams' };
+  | { kind: 'not-in-grams' }
+  /** Grams round to 0 servings: log nothing and ask for a larger amount (#150; the prototype logs qty 0). */
+  | { kind: 'too-small' };
 
 /** Fruit and veg servings goal shown as "of 5 servings" (prototype `fibreHtml`). */
 export const FRUIT_VEG_TARGET = 5;
@@ -102,16 +106,18 @@ export function unitGrams(label: string): number {
 /**
  * Servings to log for grams typed in the food list's grams box. `grams` is the raw input, parsed with
  * `num` (comma decimals accepted). For bracketed weights the grams are the dry or ingredient weight (#97).
- * The quantity is rounded to 0.1 and can be 0 for tiny amounts, as in the prototype.
+ * The quantity is rounded to 0.1. When that gives 0 the result is `too-small` (decided on #150; the
+ * prototype logs qty 0 and follows in the next spec-change batch).
  *
- * Mirrors the `ug`, `g`, `qty` and "not grams" steps of prototype `case 'pick'`.
+ * Mirrors the `ug`, `g`, `qty` and "not grams" steps of prototype `case 'pick'`, except `too-small`.
  */
 export function quantityFromGrams(food: GramsFood, grams: number | string): GramsQuantity {
   const ug = food.serving.grams ?? 0;
   const g = num(grams);
   if (!(g > 0)) return { kind: 'servings' };
   if (!ug) return { kind: 'not-in-grams' };
-  return { kind: 'grams', qty: Math.round((g / ug) * 10) / 10 };
+  const qty = Math.round((g / ug) * 10) / 10;
+  return qty ? { kind: 'grams', qty } : { kind: 'too-small' };
 }
 
 /** The first food named `name` with fibre data, as prototype `fibOf` (shared `FIB`, then the user's foods). */
@@ -189,4 +195,157 @@ export function dayComplete(day: CompleteFlag | null | undefined, logs: readonly
   let kcal = 0;
   for (const m of meals) kcal += m.kcal * m.qty;
   return meals.length >= 3 && kcal >= kcalTarget * 0.75;
+}
+
+/** Prototype `DEFAULT_SETTINGS.kcal`: the calorie target before setup (no profile). */
+export const DEFAULT_KCAL_TARGET = 1900;
+
+/** One calorie move between days (contract `Settings.flex` item; prototype `{ date, d }`). */
+export interface FlexEntry {
+  date: string;
+  kcal_delta: number;
+}
+
+/** What `kcalTarget` reads from settings. */
+export interface KcalTargetSettings {
+  /** Contract `Settings.flex`. */
+  flex?: readonly FlexEntry[] | null | undefined;
+  /** Lab hold on (prototype `labHoldOn()`; not synced in v0). */
+  labHold?: boolean | undefined;
+}
+
+/** What `kcalTarget` reads from the profile: the `calcTargets` answers and the saved target. */
+export type KcalTargetProfile = Pick<SetupProfile, 'sex' | 'age' | 'height_cm' | 'weight_kg' | 'activity' | 'days' | 'minutes' | 'goal' | 'pace' | 'special'> & {
+  targets: { kcal: number };
+};
+
+/**
+ * The calorie target for `date`. Normally the saved target (`profile.targets.kcal`, or
+ * `DEFAULT_KCAL_TARGET` with no profile) plus that date's flex entries. During a lab hold with a
+ * profile it is the larger of the saved target and maintenance (`calcTargets` tdee, to the nearest
+ * 10), and flex entries are ignored.
+ *
+ * Mirrors prototype `kcalTarget(date)` (settings and profile passed in).
+ */
+export function kcalTarget(date: string, settings: KcalTargetSettings, profile: KcalTargetProfile | null | undefined): number {
+  const kcal = profile ? profile.targets.kcal : DEFAULT_KCAL_TARGET;
+  if (settings.labHold && profile) return Math.max(kcal, Math.round(calcTargets(toTargetsProfile(profile)).tdee / 10) * 10);
+  return kcal + (settings.flex ?? []).filter((x) => x.date === date).reduce((a, x) => a + x.kcal_delta, 0);
+}
+
+/** Servings stepper limits and step (prototype `case 'serv'`: 0.5 to 10, ± 0.5; starts at 1). */
+export const SERVINGS_MIN = 0.5;
+export const SERVINGS_MAX = 10;
+export const SERVINGS_STEP = 0.5;
+
+/**
+ * The servings after one tap of − (`dir` −1) or + (`dir` 1), kept within 0.5 to 10. Show with one decimal.
+ *
+ * Mirrors prototype `case 'serv'`.
+ */
+export function stepServings(servings: number, dir: 1 | -1): number {
+  return Math.max(SERVINGS_MIN, Math.min(SERVINGS_MAX, servings + dir * SERVINGS_STEP));
+}
+
+/**
+ * The list's "high protein" badge: energy above 0 and at least 8 g protein per 100 kcal.
+ *
+ * Mirrors the badge check in prototype `foodListHtml()`.
+ */
+export function highProtein(food: { per_serving: { kcal: number; protein_g: number } }): boolean {
+  return !!food.per_serving.kcal && (food.per_serving.protein_g * 100) / food.per_serving.kcal >= 8;
+}
+
+/** The custom-food form's raw inputs (strings as typed; parsed with `num`). */
+export interface CustomFoodInput {
+  name: string;
+  kcal: string | number;
+  protein: string | number;
+  carbs: string | number;
+  fat: string | number;
+  /** Servings eaten; empty or 0 means 1. */
+  qty: string | number;
+  /** Serving size, e.g. "1 plate"; empty means "1 serving". */
+  unit: string;
+}
+
+/** A user food in contract `UserFood` fields (without sync fields). */
+export interface UserFoodFields {
+  name: string;
+  unit: string;
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fibre_g: number | null;
+  added_sugar_g: number | null;
+  fruit_veg_servings: number | null;
+  origin: 'custom' | 'recipe' | 'kitchen_test';
+}
+
+/** Result of `customFood`. */
+export type CustomFoodResult =
+  /** No name: "Give the food a name." */
+  | { kind: 'no-name' }
+  /** No calories and no macros: "Enter calories or at least one macro." */
+  | { kind: 'no-kcal' }
+  /** The log to add (contract `FoodLog` values) and the food to save if "Save to my foods" is ticked. */
+  | { kind: 'ok'; log: { name: string; qty: number; kcal: number; protein_g: number; carbs_g: number; fat_g: number }; food: UserFoodFields };
+
+/**
+ * The custom-food form. Calories, when 0 or empty, come from the macros (round(p×4 + c×4 + f×9));
+ * entered calories and macros are kept unrounded. The saved food has no fibre, sugar or fruit and veg data.
+ *
+ * Mirrors prototype `case 'addcustom'` (checks, log and saved food).
+ */
+export function customFood(input: CustomFoodInput): CustomFoodResult {
+  const name = input.name.trim();
+  const p = num(input.protein), c = num(input.carbs), f = num(input.fat);
+  let k = num(input.kcal);
+  if (!k) k = Math.round(p * 4 + c * 4 + f * 9);
+  if (!name) return { kind: 'no-name' };
+  if (!k) return { kind: 'no-kcal' };
+  const qty = num(input.qty) || 1;
+  return {
+    kind: 'ok',
+    log: { name, qty, kcal: k, protein_g: p, carbs_g: c, fat_g: f },
+    food: { name, unit: input.unit.trim() || '1 serving', kcal: k, protein_g: p, carbs_g: c, fat_g: f, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' },
+  };
+}
+
+/** Most foods kept in "my foods" (prototype `.slice(0,60)`). */
+export const MY_FOODS_MAX = 60;
+
+/**
+ * "My foods" after saving `food`: it goes first, any food of the same name is dropped, and only the
+ * first 60 are kept. Pass the list newest first; foods missing from the result are to be deleted.
+ *
+ * Mirrors the save step of prototype `case 'addcustom'`.
+ */
+export function saveMyFood<T extends { name: string }>(myFoods: readonly T[], food: T): T[] {
+  return [food, ...myFoods.filter((x) => x.name !== food.name)].slice(0, MY_FOODS_MAX);
+}
+
+/** A user food in the shape every food-maths function reads (see `userFoodFacts`). */
+export interface UserFoodFacts extends SearchableFood, GramsFood, FoodFacts {
+  serving: { label: string; grams: number | null };
+  per_serving: { kcal: number; protein_g: number; carbs_g: number; fat_g: number; fibre_g: number | null; added_sugar_g: number | null };
+}
+
+/**
+ * A contract `UserFood` as the food-maths inputs read it (search, grams, fibre, fruit and veg, badge):
+ * no aliases, `serving.label` from `unit` ("1 serving" when empty, as prototype `allFoods()`), and
+ * `serving.grams` from `unitGrams(label)` (null for 0).
+ *
+ * Mirrors the `myFoods` mapping in prototype `allFoods()` and the `myFoods` reads in `fibOf` and `produceOf`.
+ */
+export function userFoodFacts(u: Pick<UserFoodFields, 'name' | 'unit' | 'kcal' | 'protein_g' | 'carbs_g' | 'fat_g' | 'fibre_g' | 'added_sugar_g' | 'fruit_veg_servings'>): UserFoodFacts {
+  const label = u.unit || '1 serving';
+  return {
+    name: u.name,
+    aliases: [],
+    serving: { label, grams: unitGrams(label) || null },
+    per_serving: { kcal: u.kcal, protein_g: u.protein_g, carbs_g: u.carbs_g, fat_g: u.fat_g, fibre_g: u.fibre_g, added_sugar_g: u.added_sugar_g },
+    fruit_veg_servings: u.fruit_veg_servings,
+  };
 }

@@ -222,7 +222,7 @@ export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInpu
  * contract's `FoodLog` shape; logs with `deleted_at` set are left out.
  * - `searchFoods` mirrors the query and `foodMatch(f, q)` filter of prototype `foodListHtml()` (list order kept).
  * - `unitGrams` mirrors prototype `unitGrams(f)` (label passed in; content carries it as `serving.grams`).
- * - `quantityFromGrams` mirrors the grams steps of prototype `case 'pick'` (`serving.grams`, #97).
+ * - `quantityFromGrams` mirrors the grams steps of prototype `case 'pick'` (`serving.grams`, #97), plus `too-small` (#150).
  * - `logTotals` mirrors prototype `totals(meals)` plus the fibre, added sugar and unknown parts of `fibreTotals(meals)`.
  * - `fibreTarget` mirrors prototype `fibreTarget()` (today's calorie target passed in).
  * - `fruitVegServings` mirrors the `veg` part of prototype `fibreTotals(meals)` (`produceOf`); `FRUIT_VEG_TARGET` its "of 5".
@@ -231,3 +231,27 @@ export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInpu
  */
 export { searchFoods, unitGrams, quantityFromGrams, logTotals, fibreTarget, fruitVegServings, showAddedSugar, dayComplete, FRUIT_VEG_TARGET } from './food';
 export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, CompleteFlag, GramsQuantity } from './food';
+
+/**
+ * Food screen support.
+ * - `kcalTarget` mirrors prototype `kcalTarget(date)` (flex days, lab-hold override; settings and profile passed in);
+ *   `DEFAULT_KCAL_TARGET` mirrors `DEFAULT_SETTINGS.kcal`.
+ * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
+ * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
+ * - `customFood` mirrors prototype `case 'addcustom'`; `saveMyFood` its save step, `MY_FOODS_MAX` its 60.
+ * - `userFoodFacts` mirrors the `myFoods` mapping of prototype `allFoods()`, `fibOf` and `produceOf` (contract `UserFood` in).
+ */
+export {
+  kcalTarget,
+  DEFAULT_KCAL_TARGET,
+  stepServings,
+  SERVINGS_MIN,
+  SERVINGS_MAX,
+  SERVINGS_STEP,
+  highProtein,
+  customFood,
+  saveMyFood,
+  MY_FOODS_MAX,
+  userFoodFacts,
+} from './food';
+export type { FlexEntry, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
