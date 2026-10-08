@@ -26,14 +26,14 @@ const names = (xs: readonly { name: string }[]) => xs.map((x) => x.name);
 /** Template → home mapping → trim → focus, with no exclusions, swaps or history. */
 function session(where: Where, t: string, focus: string[], profile: PlanProfile, timesDone = 0): string[] {
   const sessions = Object.fromEntries(Array.from({ length: timesDone }, (_, i) => [`2026-09-${String(i + 1).padStart(2, '0')}`, { t, n: 9 }]));
-  const trimmed = trimSession(items(mapForWhere(tpl(t), where, catalog.away)), t, { profile, sessions });
+  const trimmed = trimSession(items(mapForWhere(tpl(t), where, catalog)), t, { profile, sessions });
   return names(applyFocus(trimmed, t, where, { profile, focus }, catalog));
 }
 
 describe('sessions: golden/sessions.json', () => {
   const golden = loadGolden<Record<string, string[]>>('sessions');
-  // The fixture does not record its profile. Every case holds 4 exercises, which is the 45-minute cap,
-  // with no sessions logged (rotation offset 0) and no exclusions.
+  // The fixture pins only 4 exercises, rotation offset 0: it does not record a profile, history or
+  // exclusions. 45 minutes gives the 4-exercise cap; no sessions logged gives offset 0.
   const profile: PlanProfile = { minutes: 45 };
 
   it('has 18 cases', () => {
@@ -49,13 +49,13 @@ describe('sessions: golden/sessions.json', () => {
 
 describe('mapForWhere (home mapping)', () => {
   it('leaves gym names alone', () => {
-    expect(mapForWhere(tpl('Pull A'), 'gym', catalog.away)).toEqual(tpl('Pull A'));
+    expect(mapForWhere(tpl('Pull A'), 'gym', catalog)).toEqual(tpl('Pull A'));
   });
 
   it('drops null mappings and duplicates, keeping first place', () => {
     // Lateral Raise has no bodyweight version; both rows map to Backpack Row.
-    expect(mapForWhere(tpl('Upper A'), 'bodyweight', catalog.away)).toEqual(['Push-ups', 'Backpack Row', 'Pike Push-ups', 'Bench Dips']);
-    expect(mapForWhere(['Unknown Lift'], 'dumbbells', catalog.away)).toEqual(['Unknown Lift']);
+    expect(mapForWhere(tpl('Upper A'), 'bodyweight', catalog)).toEqual(['Push-ups', 'Backpack Row', 'Pike Push-ups', 'Bench Dips']);
+    expect(mapForWhere(['Unknown Lift'], 'dumbbells', catalog)).toEqual(['Unknown Lift']);
   });
 });
 
@@ -77,8 +77,9 @@ describe('trimSession', () => {
 
   // Prototype quirk, pinned on purpose: the rotation counts every stored entry for the template,
   // including entries with no sets logged and the current day's own entry, so finishing today's
-  // session moves today's preview to the next rotation.
-  it('PINNED QUIRK: rotation counts empty and same-day entries', () => {
+  // session moves today's preview to the next rotation. (trimSession takes no date, so the
+  // same-day half is the caller's concern; this pins that an empty entry counts.)
+  it('PINNED QUIRK: rotation counts empty entries', () => {
     const s = { profile: { minutes: 45 }, sessions: { '2026-10-07': { t: 'Legs A', n: 0 } } };
     expect(names(trimSession(legs, 'Legs A', s))).toEqual(at(1));
   });
@@ -109,7 +110,7 @@ describe('applyFocus', () => {
     const out = applyFocus(items(['Machine Chest Press', 'Incline Dumbbell Press', 'Seated Dumbbell Press', 'Lateral Raise']), 'Push A', 'gym', { profile: { minutes: 45 }, focus: ['abs'] }, catalog);
     const added = out.find((x) => x.focus);
     expect(added).toBeDefined();
-    expect(tags[added?.name as string]?.m).toContain('abs');
+    expect(tags[added?.name as string]?.primary).toContain('abs');
     expect(out).toHaveLength(4);
     expect(names(out).slice(0, 2)).toEqual(['Machine Chest Press', expect.any(String)]);
   });
@@ -122,7 +123,7 @@ describe('applyFocus', () => {
 
   it('picks home-friendly, unexcluded exercises and none when nothing fits', () => {
     const p = focusPick('lats', new Set(), 'bodyweight', {}, catalog);
-    expect(tags[p as string]?.eq).toBe('bodyweight');
+    expect(tags[p as string]?.equipment).toBe('bodyweight');
     expect(focusPick('lats', new Set(), 'gym', { isExcluded: () => true }, catalog)).toBeNull();
     expect(applyFocus(items(['Push-ups']), 'Pull A', 'bodyweight', { focus: ['forearms'], isExcluded: () => true }, catalog)).toEqual(items(['Push-ups']));
   });
@@ -190,7 +191,7 @@ describe('sessionSets', () => {
 });
 
 describe('session building: differential against the prototype buildSession', () => {
-  const proto = loadProto(catalog);
+  const proto = loadProto();
   const r = rng(1919);
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
   const some = <T>(xs: readonly T[], p: number): T[] => xs.filter(() => r() < p);
@@ -203,7 +204,7 @@ describe('session building: differential against the prototype buildSession', ()
   it('mapForWhere matches for every template and place', () => {
     for (const t of templateNames)
       for (const where of ['gym', 'dumbbells', 'bodyweight'] as const)
-        expect(mapForWhere(tpl(t), where, catalog.away)).toEqual(proto.mapForWhere([...tpl(t)], where));
+        expect(mapForWhere(tpl(t), where, catalog)).toEqual(proto.mapForWhere([...tpl(t)], where));
   });
 
   it('matches on 4,000 random states', () => {
@@ -231,7 +232,7 @@ describe('session building: differential against the prototype buildSession', ()
 
       // Port pipeline. resolveSession (exclusions and swaps) is not ported yet, so both sides use the prototype's.
       const where: Where = workout.where || profile.where || 'gym';
-      const resolved = proto.resolveSession(mapForWhere(tpl(t), where, catalog.away), where);
+      const resolved = proto.resolveSession(mapForWhere(tpl(t), where, catalog), where);
       expect(trimSession(resolved, t, { profile, sessions, repl })).toEqual(proto.trimSession(resolved, t));
       let its = trimSession(resolved, t, { profile, sessions, repl });
       const focusState = { profile, focus, lifts, isExcluded: (n: string) => excl.includes(n) };
