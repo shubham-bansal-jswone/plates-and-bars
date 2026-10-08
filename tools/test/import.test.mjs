@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CARD_KEYS, expandCard, expandTags, importExercises, serialize } from '../exercises-import/import.mjs';
+import { CARD_KEYS, expandCard, expandMeta, expandTags, importExercises, serialize } from '../exercises-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const golden = JSON.parse(readFileSync(`${repo}/docs/spec/golden/exercises.json`, 'utf8'));
+const progression = JSON.parse(readFileSync(`${repo}/docs/spec/golden/progression.json`, 'utf8'));
 
 test('expandTags maps short names to contract names', () => {
   assert.deepEqual(
@@ -25,7 +26,7 @@ test('expandTags rejects missing and unknown fields', () => {
 });
 
 test('import preserves ladders, away map, cards and library untouched', () => {
-  const out = importExercises(golden);
+  const out = importExercises(golden, progression);
   assert.deepEqual(out.ladders, golden.ladders);
   assert.deepEqual(out.away_map.dumbbells_bodyweight, golden.awayMap_dumbbells_bodyweight);
   assert.deepEqual(out.library, golden.library);
@@ -35,12 +36,12 @@ test('import preserves ladders, away map, cards and library untouched', () => {
 });
 
 test('import is deterministic', () => {
-  assert.equal(serialize(importExercises(golden)), serialize(importExercises(structuredClone(golden))));
+  assert.equal(serialize(importExercises(golden, progression)), serialize(importExercises(structuredClone(golden), progression)));
 });
 
 test('content/exercises.json equals a fresh import of the golden file', () => {
   const committed = readFileSync(`${repo}/content/exercises.json`, 'utf8');
-  assert.equal(committed, serialize(importExercises(golden)));
+  assert.equal(committed, serialize(importExercises(golden, progression)));
 });
 
 test('expandCard maps short keys to long names and keeps optional ones optional', () => {
@@ -60,11 +61,26 @@ test('expandCard rejects missing required and unknown fields', () => {
 });
 
 test('every golden card expands to long names and reverses to the golden card exactly', () => {
-  const out = importExercises(golden);
+  const out = importExercises(golden, progression);
   assert.deepEqual(Object.keys(out.cards), Object.keys(golden.cards));
   const back = Object.fromEntries(Object.entries(CARD_KEYS).map(([short, long]) => [long, short]));
   for (const [name, card] of Object.entries(out.cards)) {
     const reversed = Object.fromEntries(Object.entries(card).map(([k, v]) => [back[k], v]));
     assert.deepEqual(reversed, golden.cards[name], name);
   }
+});
+
+test('content meta equals the golden exerciseMeta table', () => {
+  const content = JSON.parse(readFileSync(`${repo}/content/exercises.json`, 'utf8'));
+  assert.deepEqual(
+    Object.entries(content.meta).map(([n, m]) => [n, [m.type, m.rep_low, m.rep_high]]),
+    Object.entries(progression.exerciseMeta),
+  );
+});
+
+test('every golden exercise has meta and import rejects a missing table', () => {
+  const out = importExercises(golden, progression);
+  assert.deepEqual(Object.keys(out.meta).sort(), Object.keys(out.tags).sort());
+  assert.throws(() => importExercises(golden, {}), /exerciseMeta/);
+  assert.throws(() => expandMeta(['barbell', 6]), /\[type, lo, hi\]/);
 });

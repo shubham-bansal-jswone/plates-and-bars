@@ -87,3 +87,24 @@ test('non-string entries in setup, key_cues and common_mistakes fail', () => {
     assert.ok(validateExercises(content, {}).includes(`Push-ups: card "${f}" entries must be strings`), f);
   }
 });
+
+test('meta: type, rep_low and rep_high are checked', () => {
+  const base = read(`${repo}/content/exercises.json`);
+  const bad = (m) => validateExercises({ ...base, meta: { ...base.meta, 'Deadlift': m } }, {});
+  assert.deepEqual(bad({ type: 'barbell', rep_low: 5, rep_high: 8 }), []);
+  assert.match(bad({ type: 'kettlebell', rep_low: 5, rep_high: 8 }).join(), /type must be one of/);
+  assert.match(bad({ type: 'barbell', rep_low: 9, rep_high: 8 }).join(), /rep_low must be <= rep_high/);
+  assert.match(bad({ type: 'barbell', rep_low: 0, rep_high: 8 }).join(), /rep_low must be a positive integer/);
+  assert.match(bad({ type: 'barbell', rep_low: 5, rep_high: 8.5 }).join(), /rep_high must be a positive integer/);
+  assert.match(bad({ type: 'barbell', rep_low: 5, rep_high: 8, x: 1 }).join(), /unknown meta field/);
+});
+
+test('meta: an exercise with tags but no meta, or meta without tags, fails', () => {
+  const base = read(`${repo}/content/exercises.json`);
+  const { Deadlift, ...rest } = base.meta;
+  assert.match(validateExercises({ ...base, meta: rest }, {}).join(), /Deadlift: no meta/);
+  assert.match(
+    validateExercises({ ...base, meta: { ...base.meta, Ghost: Deadlift } }, {}).join(),
+    /Ghost: meta without tags/,
+  );
+});

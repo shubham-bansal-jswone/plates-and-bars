@@ -2,7 +2,7 @@
 
 Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm run lint && npm test && node validate/cli.mjs && node validate/foods-cli.mjs && node check-no-ifct/cli.mjs`.
 
-- `exercises-import/` regenerates `content/exercises.json` from `docs/spec/golden/exercises.json` (`npm run import:exercises`).
+- `exercises-import/` regenerates `content/exercises.json` from `docs/spec/golden/exercises.json` plus `exerciseMeta` in `docs/spec/golden/progression.json` (`npm run import:exercises`). `meta` maps each exercise to `{type, rep_low, rep_high}` (names as in the contract's `exercise_overrides`; the golden table's `lo`/`hi`). Default step, the fallback for unknown exercises and the home-dumbbell raise are rules and stay in core. The validator requires meta for every exercise.
 - `validate/` checks `content/exercises.json` (`npm run validate:exercises`) and `content/foods.json` (`npm run validate:foods`).
 - `foods-import/` regenerates `content/foods.json` from `docs/spec/golden/foods.json` (`npm run import:foods`).
 - `check-no-ifct/` exits non-zero if "IFCT" or "INDB" (any case) appears in a file name or file under `content/` (`npm run check:sources`). CI wiring lives in `.github/workflows/` (infra).
