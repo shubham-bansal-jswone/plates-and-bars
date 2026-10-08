@@ -4,10 +4,29 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Licence rule (#51): setup-gradle must stay on its MIT path
+      # (cache-provider: basic). A major bump can change defaults or licensing,
+      # so a human reviews it and edits this file.
+      - dependency-name: "gradle/actions/*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /packages/api
     schedule:
       interval: weekly
-  # Add npm entries for /packages/core and /apps/mobile and a gradle entry for
-  # /backend in the PR that creates each folder (Dependabot errors on a
-  # directory that does not exist). See infra/README.md.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: npm
+    directory: /packages/core
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: gradle
+    directory: /backend
+    schedule:
+      interval: weekly
+  # Add an npm entry for /apps/mobile in the PR that creates it (Dependabot
+  # errors on a directory that does not exist). See infra/README.md.

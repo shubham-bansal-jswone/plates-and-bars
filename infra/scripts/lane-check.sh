@@ -2,9 +2,17 @@
 # Warns (never fails) when a PR touches files owned by more than one lane in
 # the "Lanes" table of docs/AGENTS.md. Contract PRs (packages/api + docs/adr)
 # are one lane there, so they pass. Files outside every lane are ignored.
-# Usage: lane-check.sh <base-sha>   (run from the repo root, head = HEAD)
+# Usage: lane-check.sh [base-rev]   (run from the repo root, head = HEAD)
+#   CI passes HEAD^1: HEAD is the tested merge commit and its first parent is
+#   the current base tip. Without an argument, uses the merge base with
+#   origin/main (local runs), or HEAD^1 if origin/main is absent. If the rev does not resolve the
+#   check is skipped with a notice (it only warns, so this never blocks).
 set -euo pipefail
-base="$1"
+base="${1:-$(git merge-base origin/main HEAD 2>/dev/null || echo HEAD^1)}"
+if ! git rev-parse --verify --quiet "$base^{commit}" > /dev/null; then
+  echo "::notice::base '$base' does not resolve; lane check skipped"
+  exit 0
+fi
 agents=docs/AGENTS.md
 
 # lane rows: "| Agent | Owns | Never touches |"; emit "<agent>\t<path>" per backticked path in Owns
