@@ -187,3 +187,14 @@ export type {
 export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, checkBest, updateLift } from './stalls';
 export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './stalls';
 export { addDays } from './dates';
+
+/**
+ * Workout screen: rest timer, warm-up line, next template and the check-in.
+ * - `restFor`, `restLabel` mirror the prototype functions of the same name (`TAGS` passed in);
+ *   `REST_COMPOUND_SEC`, `REST_OTHER_SEC` are its 150 and 75 seconds.
+ * - `warmupSets` mirrors the numbers and conditions of prototype `warmupHtml(ex, i, sug)`.
+ * - `nextInList` mirrors prototype `nextInList(t)` (profile passed in).
+ * - `checkinFlags` mirrors the `flagged`, `why`, swap and "Good to go" steps of the check-in in prototype `renderStart()`.
+ */
+export { restFor, restLabel, nextInList, warmupSets, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC } from './workout';
+export type { WarmupSet, Checkin, CheckinReason, CheckinResult } from './workout';
