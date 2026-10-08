@@ -17,6 +17,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Health check | `needsClearance`, `screenFlag` | `needsClearance`, `screenFlag` | none (unit tests) |
 | Plan engine | `planned`, `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `beginnerRamp`, `older`, `TEMPLATES`, `ORDER`, `SPLITS` | same names (`beginnerRamp` is inline in `setsFor`) | `plan.json` |
 | Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
+| Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction` | `progression.json` |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()` | none |
 
 `calcTargets` returns the same fields as the prototype, unrounded where the prototype leaves them
@@ -31,6 +32,11 @@ The session rules read exercise content (prototype `TAGS`, `CARDS`, `AWAY`) thro
 catalogue from `golden/exercises.json`, renaming the prototype's short tag names in
 `test/prototype-plan.ts`, and a test checks that content/exercises.json matches it. Exclusions and swaps (`resolveSession`) are not
 ported yet; callers pass already-resolved session items to `trimSession`.
+
+The weight guidance reads prototype `EX_META` (`name → [type, lo, hi]`) through a `meta` argument.
+content/exercises.json does not carry it yet, so tests pass golden/progression.json's `exerciseMeta`,
+and a test checks it equals the prototype's `EX_META`. Stalls and personal bests (`stalled`,
+`sessionScore`, `checkBest`) are not ported yet.
 
 ## Running
 
