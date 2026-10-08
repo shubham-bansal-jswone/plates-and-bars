@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EXERCISE_TYPES } from '../validate/exercises.mjs';
 import { CARD_KEYS, expandCard, expandMeta, expandTags, importExercises, serialize } from '../exercises-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -36,7 +37,7 @@ test('import preserves ladders, away map, cards and library untouched', () => {
 });
 
 test('import is deterministic', () => {
-  assert.equal(serialize(importExercises(golden, progression)), serialize(importExercises(structuredClone(golden), progression)));
+  assert.equal(serialize(importExercises(golden, progression)), serialize(importExercises(structuredClone(golden), structuredClone(progression))));
 });
 
 test('content/exercises.json equals a fresh import of the golden file', () => {
@@ -83,4 +84,8 @@ test('every golden exercise has meta and import rejects a missing table', () => 
   assert.deepEqual(Object.keys(out.meta).sort(), Object.keys(out.tags).sort());
   assert.throws(() => importExercises(golden, {}), /exerciseMeta/);
   assert.throws(() => expandMeta(['barbell', 6]), /\[type, lo, hi\]/);
+});
+
+test('EXERCISE_TYPES equals the golden defaultStep keys', () => {
+  assert.deepEqual([...EXERCISE_TYPES].sort(), Object.keys(progression.defaultStep).sort());
 });
