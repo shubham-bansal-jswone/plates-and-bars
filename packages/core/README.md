@@ -21,7 +21,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Exclusions and swaps | `resolveSession`, `resolveName`, `candidates`, `ruleMatches`, `activeRules`, `isExcluded`, `replFromSwaps` | same names; `replFromSwaps` builds `settings.repl` from contract swaps | `exercises.json` (catalogue only; differential tests) |
 | Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `metaFor`, `applyCustomTags`, `customExerciseMeta`, `overridesFromSettings`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction`; `metaFor` is the `['other',8,12]` fallback in `exInfo`, `customExerciseMeta` the meta step of `applyCustomTags`; `overridesFromSettings` renames contract `exercise_overrides` to `settings.ex` | `progression.json` |
 | Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction` | none (differential tests) |
-| Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET` | `foodListHtml` query and `foodMatch`, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete` | `foods.json` (plus differential tests) |
+| Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET`, `kcalTarget`, `DEFAULT_KCAL_TARGET`, `stepServings`, `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP`, `highProtein`, `customFood`, `saveMyFood`, `MY_FOODS_MAX`, `FOOD_NAME_MAX`, `userFoodFacts` | `foodListHtml` query, `foodMatch` and badge, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete`, `kcalTarget`, `case 'serv'`, `case 'addcustom'`, `allFoods` | `foods.json` (plus differential tests) |
 | Coverage and focus picker | `plannedCoverage`, `coverageTemplates`, `doneCoverage`, `coverageRows`, `weeklyCoverage`, `focusPicker`, `toggleFocus`, `COVER_SHOW`, `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` | `weeklyCoverage`, `actualCoverage`, `coverageHtml`/`fillActualCoverage` rows, `focusHtml`, `focusAction`, `COVER_SHOW` | none (differential tests) |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
 
@@ -71,6 +71,15 @@ the log's exact name, as the prototype does (`food_id` is not read): pass the sh
 user's foods as `FoodFacts`. Totals come back unrounded; show energy, fibre and sugar with `Math.round`
 and fruit and veg to 0.1, as the prototype does. `dayComplete` takes the settings calorie target, not the
 flexed one, and applies its fallback (3 or more logs, 75% of target) to every day, today included.
+`quantityFromGrams` returns `too-small` where the prototype logs 0 servings (#150; the prototype
+follows in the next spec-change batch), and `customFood` returns `name-too-long` for a trimmed name over
+`FOOD_NAME_MAX` (200) characters, the contract limit, and `invalid` for a negative calorie or macro value or
+a quantity at or below 0 (#150). `MY_FOODS_MAX` (60) caps the my-foods list only; recipe and kitchen-test
+saves keep the prototype's 80. Turn a contract `UserFood` into the food-maths inputs with
+`userFoodFacts`. A log takes fibre from the first food with its name *and* fibre data, where the
+prototype takes the first user food with its name and then checks its fibre; the two differ only when
+two user foods share a name, which the prototype's save prevents but the contract does not (#151,
+revisit with `food_id` lookups).
 
 ## Running
 
