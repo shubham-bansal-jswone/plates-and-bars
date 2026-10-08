@@ -483,7 +483,7 @@ describe('planFlex and undoFlex', () => {
     expect(kcalTarget('2026-10-09', { flex: second.flex }, prof)).toBe(960);
   });
 
-  it('drops entries dated before today - 7, keeps later ones, crosses month ends, leaves the input alone', () => {
+  it('PINNED QUIRK (#167): drops entries dated before today - 7 (today, not the planned date), keeps later ones, crosses month ends, leaves the input alone', () => {
     const old: FlexEntry[] = [
       { id: 'o', date: '2026-09-30', kcal_delta: 300 },
       { id: 'k', date: '2026-10-01', kcal_delta: -100 },
