@@ -69,3 +69,7 @@ test('schema: unknown and missing fields, bad id', () => {
   assert.ok(withFood((f) => { f.id = 'nope'; }).some((e) => e.includes('id must be')));
   assert.deepEqual(validateFoods({ foods: [] }), ['foods must be a non-empty array']);
 });
+
+test('own_estimate is an accepted source code', () => {
+  assert.ok(!withFood((f) => { f.source.code = 'own_estimate'; }).some((e) => e.includes('is not one of')));
+});
