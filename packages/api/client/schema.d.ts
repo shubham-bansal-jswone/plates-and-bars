@@ -142,8 +142,31 @@ export interface paths {
          *
          *     **Record ids** are UUIDs made on the device. Records that are unique per natural
          *     key use a deterministic UUIDv5 so two offline devices produce the same id:
-         *     namespace = the user's id, name = `<table>:<key>`, for example
-         *     `day_notes:2026-10-08`. The key for each such table is given in its schema.
+         *     UUIDv5 (RFC 9562, formerly RFC 4122: SHA-1, version 5) with namespace = the
+         *     user's id (`User.id`, parsed as a UUID) and name = the UTF-8 bytes of
+         *     `<table>:<key>` (never case-folded). The resulting id is written in lowercase
+         *     canonical form. The key per table:
+         *
+         *     | Table | Key | Example name |
+         *     | --- | --- | --- |
+         *     | `profiles` | the literal `me` | `profiles:me` |
+         *     | `settings` | the literal `me` | `settings:me` |
+         *     | `day_notes`, `workouts`, `weights`, `measurements` | `date` as `YYYY-MM-DD` | `day_notes:2026-10-08` |
+         *     | `lift_stats` | the record's `exercise` field, as sent | `lift_stats:Barbell Bench Press` |
+         *     | `swaps` | the record's `from` field (the source exercise), as sent | `swaps:Barbell Bench Press` |
+         *
+         *     Exercise names are used unnormalised: no trimming, case folding or Unicode
+         *     normalisation. All other tables use random UUIDv4 ids. Test vectors (user id,
+         *     table, key, expected id) are in `packages/api/test-vectors/sync-ids.json`.
+         *     Devices send lowercase ids; the server lowercases any id it receives and echoes it
+         *     lowercased in `applied` and `conflicts`. The server recomputes the id of every
+         *     pushed natural-key record; if one does not match, the whole request fails with 400
+         *     `invalid_request` and nothing is applied. The error's `details` entry carries the
+         *     record's path in `field` (`changes.<table>[<i>].id`) and the issue
+         *     `natural_key_id`, never the id value.
+         *
+         *     **New records.** A record unknown to the server is stored as version 1 and listed
+         *     in `applied`, whatever `version` the device sent.
          *
          *     **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
          *     synced records have no table. The app rebuilds them locally after every pull; see
@@ -437,7 +460,8 @@ export interface components {
         SyncMeta: {
             /**
              * Format: uuid
-             * @description Made on the device. Random UUIDv4, or UUIDv5 for natural-key tables.
+             * @description Made on the device. Random UUIDv4, or UUIDv5 for natural-key tables
+             *     (encoding under `POST /sync`, Record ids).
              */
             id: string;
             /**
@@ -613,7 +637,10 @@ export interface components {
         };
         /** @description One working or ramp set within a workout. */
         WorkoutSet: components["schemas"]["SyncMeta"] & {
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Id of the workout this set belongs to; for natural-key workouts, the UUIDv5 of `workouts:<date>`.
+             */
             workout_id: string;
             /** @description Matches a `name` in the workout's `exercises`. */
             exercise: string;
