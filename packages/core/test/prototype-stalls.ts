@@ -1,5 +1,5 @@
-import type { ExerciseMetaTable } from '../src/index';
 import { prototypeSource, sliceBlock, sliceLine } from './helpers';
+import type { MetaTable } from './prototype-plan';
 
 export interface ProtoStalls {
   S: { date: string; lifts: Record<string, unknown>; settings: { adj?: unknown; ex?: unknown }; where: string };
@@ -29,7 +29,7 @@ function recoverySnippet(src: string): string {
  * against a fake `S`, with `EX_META` passed in. UI calls are stubbed (`whyLink` → '', `sidewaysOf` →
  * none, `saveSoon`, `saveSettings`, `render`); toasts are recorded.
  */
-export function loadStalls(meta: ExerciseMetaTable): ProtoStalls {
+export function loadStalls(meta: MetaTable): ProtoStalls {
   const src = prototypeSource();
   const code = [
     'const S = { date:"", lifts:{}, settings:{}, where:"gym", day:{ workout:{} } };',

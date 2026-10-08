@@ -1,3 +1,4 @@
+import content from '../../../content/exercises.json';
 import {
   addDays,
   checkBest,
@@ -12,7 +13,7 @@ import {
   stallRange,
   updateLift,
   type AdjState,
-  type ExerciseMetaTable,
+  type ExerciseCatalog,
   type ExerciseOverride,
   type ExType,
   type LiftRecord,
@@ -20,13 +21,12 @@ import {
   type SetEntry,
   type Where,
 } from '../src/index';
-import { loadGolden } from './helpers';
-import { rng } from './prototype-plan';
+import { metaTable, rng } from './prototype-plan';
 import { loadStalls } from './prototype-stalls';
 
 // No golden fixture covers stalls or personal bests; these rules are checked against the prototype's
 // own functions (differential tests below) and by hand-worked unit tests.
-const meta = loadGolden<{ exerciseMeta: ExerciseMetaTable }>('progression').exerciseMeta;
+const catalog: ExerciseCatalog = content;
 const DATE = '2026-10-07'; // a Wednesday; its Monday is 2026-10-05
 const hist = (...es: number[]): ScoreEntry[] => es.map((e, i) => ({ date: addDays('2026-09-01', i * 3), e }));
 const lift = (h: ScoreEntry[], more: Partial<LiftRecord> = {}): LiftRecord => ({ date: '2026-10-01', sets: [{ w: 60, r: 10 }], hist: h, ...more });
@@ -93,7 +93,7 @@ describe('recovery-week card', () => {
 
 describe('stall card', () => {
   const lifts = { 'Hack Squat': lift(hist(100, 100, 100, 100)), 'Lateral Raise': lift(hist(10, 10, 10, 10)) };
-  const info = exInfo('Hack Squat', meta);
+  const info = exInfo('Hack Squat', catalog);
   it('range bottom 8+: heavier 6–8; below 8: lighter 10–12', () => {
     expect(stallCard({ name: 'Hack Squat', sets: [] }, lifts, info)).toEqual({ key: 'stall:Hack Squat:2026-10-01', heavy: true, range: [6, 8] });
     expect(stallCard({ name: 'Hack Squat', sets: [] }, lifts, { ...info, lo: 6 })).toMatchObject({ heavy: false, range: [10, 12] });
@@ -206,11 +206,11 @@ describe('PINNED QUIRK tests', () => {
 });
 
 describe('stalls and personal bests: differential against the prototype', () => {
-  const proto = loadStalls(meta);
+  const proto = loadStalls(metaTable(catalog.meta));
   const r = rng(105);
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
   const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
-  const names = [...Object.keys(meta), 'Mystery Lift'];
+  const names = [...Object.keys(catalog.meta), 'Mystery Lift'];
   const types: ExType[] = ['barbell', 'dumbbell', 'machine', 'cable', 'assisted', 'bodyweight', 'time', 'other'];
   const dates = ['2026-09-10', '2026-09-15', '2026-09-16', '2026-09-28', '2026-10-01', '2026-10-05', DATE, '2026-10-11', '2026-10-12'];
   const scores = [-12, -10, -9.9, 0, 50, 50.5, 50.6, 100, 100.5, 100.6, 101, 101.1, 140];
@@ -270,7 +270,7 @@ describe('stalls and personal bests: differential against the prototype', () => 
       const where: Where = pick(['gym', 'dumbbells', 'bodyweight']);
       const ex = { name, sets: Array.from({ length: Math.floor(r() * 3) }, entry) };
       Object.assign(proto.S, { date, lifts: clone(lifts), settings: { adj: clone(adj), ex: ov ? { [name]: clone(ov) } : {} }, where });
-      const info = exInfo(name, meta, ov, where);
+      const info = exInfo(name, catalog, ov, where);
       const card = stallCard(ex, lifts, info, adj);
       const html = proto.stallCard(clone(ex));
       if (!card) expect(html).toBe('');
@@ -311,7 +311,7 @@ describe('stalls and personal bests: differential against the prototype', () => 
     for (let k = 0; k < 3000; k++) {
       const name = pick(names);
       const ov: ExerciseOverride | undefined = pick([undefined, { type: 'assisted' as const }, { type: 'bodyweight' as const }]);
-      const type = exInfo(name, meta, ov).type;
+      const type = exInfo(name, catalog, ov).type;
       let L: LiftRecord | undefined = r() < 0.7 ? { date: pick(dates.slice(0, 5)), sets: [{ w: 50, r: 8 }], hist: randHist(), ...(r() < 0.5 ? { n: 3, first: '2026-08-01' } : {}), ...(r() < 0.4 ? { prev: { date: '2026-08-20', sets: [] } } : {}) } : undefined;
       Object.assign(proto.S, { settings: { ex: ov ? { [name]: ov } : {} } });
       let date = pick(dates);
