@@ -44,7 +44,7 @@ These change the scope table in the Development Plan. Treat them as v1 unless ma
 - Training/day: `days × (minutes/60) × 4 × kg / 7` (≈5 METs lifting, net of resting 1).
 - TDEE = (BMR + movement + training) / 0.9 (digestion ≈ 10%).
 - Goal adjustment: lose gentle −15%, lose moderate −20%, recomp −10%, maintain 0, gain +7%. Pregnant/breastfeeding: never a deficit.
-- Deficit capped at 750 kcal; floor 1,500 (men) / 1,200 (women), never above TDEE. Round to 10.
+- Deficit capped at 750 kcal; floor 1,500 (men) / 1,200 (women), never above TDEE before rounding. Round to 10.
 - Protein: 2.0 g/kg (lose, recomp) else 1.8 g/kg, on a reference weight at BMI 27 when BMI > 30; rounded to 5.
 - Fat: max(25% of kcal, 0.6 g/kg). Carbs: the rest.
 
@@ -61,7 +61,7 @@ These change the scope table in the Development Plan. Treat them as v1 unless ma
 
 Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fractional numbers; `foods.json` and `progression.json` hold at most one decimal, as the prototype holds them.
 
-**Floor and rounding (decided on #41).** The floor is applied before the target is rounded to 10, so a floored target can sit up to 9 kcal above TDEE (e.g. TDEE 1,199.8 gives 1,200 with `floored: true` and a weekly change that rounds to 0). Kept: the floor is a safety minimum and rounding up honours it.
+**Floor and rounding (decided on #41).** A floored target is `min(floor, TDEE)`, then rounded to 10. When TDEE is at or above the floor the target is exactly the floor. When TDEE is below the floor the target is TDEE rounded to the nearest 10: up to 5 kcal above TDEE (TDEE 1,195 gives 1,200) or below it, and below the floor itself (TDEE 1,150 gives 1,150). Kept: such users eat at maintenance, and the rounding gap is at most 5 kcal.
 
 **Health check:** any "yes" or pregnancy → `needsClearance` until the user taps "My doctor has cleared me": sessions are light (one fewer set, no weight increases) and a card explains why.
 
@@ -90,7 +90,7 @@ Weekly coverage meter: planned (from templates) and done (last 7 days of logged 
 
 **Missing training days (decided on #72).** `splitFor` treats `days === 0` as no plan but a missing or null `days` as the full 6-day plan, while `calcTargets` treats null as 0 training days. Kept as is: setup makes days (0 to 7) a required answer, so a set-up profile always has it; the case only arises before setup or with damaged data.
 
-**Rotation counting (decided on #73).** `trimSession` counts every stored session entry for the template. Entries are stored only when at least one work set is done (`saveDay` deletes the entry when sets return to 0), so empty entries never occur. Today's entry counts once its first set is logged, so today's preview moves to the next rotation after training; the started workout's exercises are already fixed and do not change. Kept as is.
+**Rotation counting (decided on #73).** `trimSession` counts every stored session entry for the template, whatever its date. Entries are stored only while at least one work set (not warm-up) is done (`saveDay` deletes the entry when sets return to 0), so empty entries never occur. Today's preview is shown only while today has no exercises, so today's own entry never shifts it; a started workout's exercises are fixed when built on Start. Because counting ignores dates, a past day's preview also counts later sessions, and a second session of the same template counts today's entry. Kept as is.
 
 ---
 
