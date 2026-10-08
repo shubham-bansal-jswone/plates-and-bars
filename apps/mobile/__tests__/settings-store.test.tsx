@@ -47,4 +47,11 @@ describe('settings store', () => {
     const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
     await waitFor(() => expect(result.current.settings.focus).toEqual(['abs']));
   });
+
+  it('drops stored flex entries that have no plan id instead of crashing', async () => {
+    const db = memoryDb();
+    const ok = { id: 'p1', date: '2026-10-09', kcal_delta: -200 };
+    await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), flex: [{ date: '2026-10-08', kcal_delta: 200 } as never, ok] });
+    expect((await loadSettings(db))?.flex).toEqual([ok]);
+  });
 });
