@@ -39,6 +39,19 @@ describe('migrate', () => {
     expect(MIGRATIONS[3]).not.toMatch(/IF NOT EXISTS settings\b/);
   });
 
+  it('v5 creates the food_logs, day_notes and user_foods tables with only CREATE statements', () => {
+    for (const t of ['food_logs', 'day_notes', 'user_foods']) expect(MIGRATIONS[4]).toContain(`CREATE TABLE IF NOT EXISTS ${t}`);
+    expect(MIGRATIONS[4]).not.toMatch(/DROP|DELETE|ALTER/i);
+  });
+
+  it('upgrades a version-4 database by applying v5 only, keeping existing data', async () => {
+    const { db, log } = fakeDb(4);
+    expect(await migrate(db)).toBe(MIGRATIONS.length);
+    expect(log).toContain(MIGRATIONS[4]);
+    for (let i = 0; i < 4; i++) expect(log).not.toContain(MIGRATIONS[i]);
+    expect(log.some((l) => /DROP|DELETE/i.test(l))).toBe(false);
+  });
+
   it('upgrades a version-1 database by applying v2 to v4 only', async () => {
     const { db, log } = fakeDb(1);
     expect(await migrate(db)).toBe(MIGRATIONS.length);

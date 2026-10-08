@@ -7,11 +7,10 @@ import vm from 'node:vm';
 export const UPDATED_AT = '2026-10-08T00:00:00Z';
 const ID_NAMESPACE = 'plate-and-bar/eatout/v1';
 
-// The prototype calls these "rough restaurant estimates" (not weighed, not from a database), so they are the
-// project's own estimates. No FoodSource code says "estimate"; own_recipe is the closest permitted one and the
-// name/licence text says what it is. Whether the contract needs an own_estimate code is raised in the PR.
+// The prototype calls these "rough restaurant estimates" (not weighed, not from a database): the project's own
+// estimates, FoodSource code own_estimate (ADR 005).
 export const SOURCE = {
-  code: 'own_recipe',
+  code: 'own_estimate',
   name: 'Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)',
   licence: 'Own work',
   url: null,
