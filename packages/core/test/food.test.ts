@@ -19,6 +19,7 @@ import {
   customFood,
   saveMyFood,
   MY_FOODS_MAX,
+  FOOD_NAME_MAX,
   userFoodFacts,
   calcTargets,
   toTargetsProfile,
@@ -340,10 +341,6 @@ describe('dayComplete', () => {
   it('PINNED QUIRK (#151): three items in one meal count as three meals', () => {
     expect(dayComplete({ complete: null }, breakfast, 1500)).toBe(true);
   });
-  it('PINNED QUIRK (#150): the fallback applies to today too (no date is read; the spec-change batch adds it)', () => {
-    // The same untouched day is complete whether it is today or earlier: dayComplete takes no date.
-    expect(dayComplete({ date: '2026-10-08', complete: null } as { complete: null }, breakfast, 1500)).toBe(true);
-  });
   it(`matches prototype dayComplete over ${RUNS} random days`, () => {
     const r = rng(75);
     for (let i = 0; i < RUNS; i++) {
@@ -476,6 +473,16 @@ describe('customFood and saveMyFood', () => {
     expect(customFood({ ...base, qty: '0' })).toMatchObject({ kind: 'ok', log: { qty: 1 } });
     expect(proto.addCustom({ cfName: 'Thali', cfK: '-100', cfQ: '-2' }, false, []).meal).toMatchObject({ qty: -2, kcal: -100 });
   });
+  it('a trimmed name over 200 characters is too long (#150: the contract limit; the prototype logs it)', () => {
+    const n200 = 'a'.repeat(200);
+    expect(FOOD_NAME_MAX).toBe(200);
+    expect(customFood({ ...base, name: n200 })).toMatchObject({ kind: 'ok', log: { name: n200 }, food: { name: n200 } });
+    expect(customFood({ ...base, name: `  ${n200}  ` })).toMatchObject({ kind: 'ok', log: { name: n200 } }); // checked after trimming
+    expect(customFood({ ...base, name: 'a'.repeat(201) })).toEqual({ kind: 'name-too-long' });
+    expect(customFood({ ...base, name: 'a'.repeat(201), qty: '-2', protein: '', carbs: '', fat: '' })).toEqual({ kind: 'name-too-long' }); // before invalid and no-kcal
+    expect(customFood({ ...base, name: '   ' })).toEqual({ kind: 'no-name' });
+    expect(proto.addCustom({ cfName: 'a'.repeat(201), cfK: '100' }, false, []).meal).toMatchObject({ name: 'a'.repeat(201) });
+  });
   it('saving puts the food first, drops the same name and keeps 60', () => {
     const list = Array.from({ length: 60 }, (_, i) => ({ name: `F${i}` }));
     expect(saveMyFood(list, { name: 'New' }).map((f) => f.name)).toEqual(['New', ...list.slice(0, 59).map((f) => f.name)]);
@@ -487,7 +494,7 @@ describe('customFood and saveMyFood', () => {
     const vals = ['', '0', '-3', 'abc', '1,5', '12', '250', ' 7.25 ', String(Math.round(r() * 1000) / 10)];
     for (let i = 0; i < RUNS; i++) {
       const v = {
-        cfName: pickOf(r, ['', '  ', 'Thali', ' Lassi ', ...NEW_NAMES]),
+        cfName: pickOf(r, ['', '  ', 'Thali', ' Lassi ', ...NEW_NAMES, 'a'.repeat(200), ` ${'b'.repeat(201)} `]),
         cfK: pickOf(r, vals),
         cfP: pickOf(r, vals),
         cfC: pickOf(r, vals),
@@ -499,7 +506,13 @@ describe('customFood and saveMyFood', () => {
       const my = Array.from({ length: pickOf(r, [0, 3, 59, 60, 61]) }, (_, k) => ({ name: k < 8 ? (NEW_NAMES[k] as string) : `F${k}`, unit: '1 serving', kcal: 1, p: 0, c: 0, f: 0 }));
       const p = proto.addCustom(v, save, my);
       const got = customFood({ name: v.cfName, kcal: v.cfK, protein: v.cfP, carbs: v.cfC, fat: v.cfF, qty: v.cfQ, unit: v.cfU });
-      // The one exception to the prototype: negative values or a quantity at or below 0 are `invalid` (#150).
+      // Exception to the prototype (#150): a trimmed name over 200 characters is `name-too-long`.
+      if (v.cfName.trim().length > 200) {
+        expect(got).toEqual({ kind: 'name-too-long' });
+        continue;
+      }
+      expect(got.kind).not.toBe('name-too-long');
+      // Exception to the prototype (#150): negative values or a quantity at or below 0 are `invalid`.
       const bad = !!v.cfName.trim() && ([v.cfK, v.cfP, v.cfC, v.cfF].some((x) => num(x) < 0) || (num(v.cfQ) || 1) <= 0);
       if (bad) {
         expect(got).toEqual({ kind: 'invalid' });

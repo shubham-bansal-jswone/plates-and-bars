@@ -238,7 +238,9 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  *   `DEFAULT_KCAL_TARGET` mirrors `DEFAULT_SETTINGS.kcal`.
  * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
- * - `customFood` mirrors prototype `case 'addcustom'`; `saveMyFood` its save step, `MY_FOODS_MAX` its 60.
+ * - `customFood` mirrors prototype `case 'addcustom'`, plus `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
+ *   contract limit) and `invalid` (#150); `saveMyFood` its save step, `MY_FOODS_MAX` its 60 (the my-foods list only;
+ *   recipe and kitchen-test saves keep the prototype's 80).
  * - `userFoodFacts` mirrors the `myFoods` mapping of prototype `allFoods()`, `fibOf` and `produceOf` (contract `UserFood` in).
  */
 export {
@@ -252,6 +254,7 @@ export {
   customFood,
   saveMyFood,
   MY_FOODS_MAX,
+  FOOD_NAME_MAX,
   userFoodFacts,
 } from './food';
 export type { FlexEntry, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';

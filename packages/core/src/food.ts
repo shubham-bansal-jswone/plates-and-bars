@@ -287,6 +287,8 @@ export interface UserFoodFields {
 export type CustomFoodResult =
   /** No name: "Give the food a name." */
   | { kind: 'no-name' }
+  /** The trimmed name is longer than `FOOD_NAME_MAX` (200) characters, the contract limit (#150; the prototype logs it). */
+  | { kind: 'name-too-long' }
   /** A negative calorie or macro value, or a quantity at or below 0 (#150; the prototype logs it). */
   | { kind: 'invalid' }
   /** No calories and no macros: "Enter calories or at least one macro." */
@@ -294,14 +296,18 @@ export type CustomFoodResult =
   /** The log to add (contract `FoodLog` values) and the food to save if "Save to my foods" is ticked. */
   | { kind: 'ok'; log: { name: string; qty: number; kcal: number; protein_g: number; carbs_g: number; fat_g: number }; food: UserFoodFields };
 
+/** Longest food name the contract accepts; `customFood` rejects longer names (#150). */
+export const FOOD_NAME_MAX = 200;
+
 /**
  * The custom-food form. Calories, when 0 or empty, come from the macros (round(p×4 + c×4 + f×9));
  * entered calories and macros are kept unrounded. The saved food has no fibre, sugar or fruit and veg data.
- * A quantity left empty or 0 is 1. After the name check, a negative calorie or macro value, or a
+ * A quantity left empty or 0 is 1. A trimmed name longer than 200 characters (the contract limit) gives
+ * `name-too-long` (decided on #150). After the name checks, a negative calorie or macro value, or a
  * quantity still at or below 0, gives `invalid` (decided on #150; the prototype logs it and follows in
  * the next spec-change batch).
  *
- * Mirrors prototype `case 'addcustom'` (checks, log and saved food), except `invalid`.
+ * Mirrors prototype `case 'addcustom'` (checks, log and saved food), except `name-too-long` and `invalid`.
  */
 export function customFood(input: CustomFoodInput): CustomFoodResult {
   const name = input.name.trim();
@@ -309,6 +315,7 @@ export function customFood(input: CustomFoodInput): CustomFoodResult {
   let k = num(input.kcal);
   if (!k) k = Math.round(p * 4 + c * 4 + f * 9);
   if (!name) return { kind: 'no-name' };
+  if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
   const qty = num(input.qty) || 1;
   if (k < 0 || p < 0 || c < 0 || f < 0 || qty <= 0) return { kind: 'invalid' };
   if (!k) return { kind: 'no-kcal' };
@@ -319,7 +326,10 @@ export function customFood(input: CustomFoodInput): CustomFoodResult {
   };
 }
 
-/** Most foods kept in "my foods" (prototype `.slice(0,60)`). */
+/**
+ * Most foods kept in the "my foods" list only (prototype `.slice(0,60)` in `case 'addcustom'`). Recipe and
+ * kitchen-test saves keep 80 in the prototype (lines 2370 and 3607); this cap does not cover them.
+ */
 export const MY_FOODS_MAX = 60;
 
 /**
