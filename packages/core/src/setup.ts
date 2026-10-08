@@ -1,6 +1,7 @@
 import type { ScreenAnswer, ScreenAnswers } from './health';
 import { screenFlag } from './health';
 import { num } from './num';
+import { older } from './plan';
 import type { Experience, Where } from './plan';
 import { calcTargets } from './targets';
 import type { Activity, Goal, Pace, Sex, Special, TargetsProfile, TargetsResult } from './targets';
@@ -52,9 +53,9 @@ export interface SetupAnswers {
   activity: Activity | '';
   where?: Where | '';
   /** `null` until a chip is picked. */
-  days: number | null;
+  days: (typeof DAY_CHOICES)[number] | null;
   exp?: Experience | '';
-  minutes?: number | null;
+  minutes?: (typeof SESSION_MINUTES)[number] | null;
   goal: Goal | '';
   /** Absent counts as `moderate` (the prototype's starting value). */
   pace?: Pace;
@@ -282,7 +283,7 @@ export interface SetupSummary {
   deficitPct: number;
   /** `loss` when kcal is more than 20 below TDEE, `gain` when more than 20 above, else `steady`. */
   pace: SetupPace;
-  /** Kg a week, rounded to 0.1 and positive: loss for `loss`, gain for `gain`; `null` for `steady`. */
+  /** Kg a week rounded to 0.1, never negative (0 for a change under 0.05 kg): loss for `loss`, gain for `gain`; `null` for `steady`. */
   paceKg: number | null;
   notes: SetupNote[];
 }
@@ -305,7 +306,7 @@ export function setupSummary(
   if (r.floored) notes.push('floored');
   if (screenFlag(p)) notes.push('screen');
   if (p.where && p.where !== 'gym') notes.push(p.where === 'dumbbells' ? 'home_dumbbells' : 'home_bodyweight');
-  if (p.age >= 60) notes.push('older');
+  if (older(p)) notes.push('older');
   if (r.capped) notes.push('capped');
   return { targets: r, burnLow: r.tdee * (1 - BURN_RANGE), burnHigh: r.tdee * (1 + BURN_RANGE), deficitPct, pace, paceKg, notes };
 }

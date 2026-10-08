@@ -20,6 +20,11 @@ import {
   toTargetsProfile,
   validateSetup,
   validateSetupStep,
+  beginnerRamp,
+  dayTemplate,
+  exerciseCap,
+  planList,
+  type PlanProfile,
   type SetupAnswers,
   type SetupError,
   type SetupNote,
@@ -103,7 +108,8 @@ describe('validateSetupStep', () => {
     expect(code(0, { weight: '300.1' })).toBe('weight_out_of_range');
     expect(code(0, { weight: '72,5' })).toBeNull();
   });
-  it('PINNED QUIRK: limits apply before rounding, so 29.96 kg fails although it saves as 30', () => {
+  // PINNED QUIRK (#131, decided: keep): limits apply before rounding.
+  it('PINNED QUIRK #131: limits apply before rounding, so 29.96 kg fails although it saves as 30', () => {
     expect(code(0, { weight: '29.96' })).toBe('weight_out_of_range');
     expect(code(0, { cm: '119.96' })).toBe('height_cm_out_of_range');
   });
@@ -157,6 +163,19 @@ describe('normaliseSetup', () => {
   });
   it('throws on incomplete answers', () => {
     expect(() => normaliseSetup(valid({ goal: '' }), TODAY)).toThrow('normaliseSetup: step 3: goal_missing');
+  });
+});
+
+describe('normaliseSetup output feeds the plan engine', () => {
+  it('is accepted as a PlanProfile (type-checked) and read as such', () => {
+    const p: PlanProfile = normaliseSetup(valid({ days: 3, exp: 'new', minutes: 45 }), TODAY);
+    expect(planList(p)).toHaveLength(3);
+    expect(exerciseCap(p)).toBe(exerciseCap({ minutes: 45 }));
+    expect(beginnerRamp(p, TODAY)).toBe(true);
+    const none: PlanProfile = normaliseSetup(valid({ days: 0 }), TODAY);
+    expect(none.exp).toBeNull();
+    expect(beginnerRamp(none, TODAY)).toBe(false);
+    expect(dayTemplate(TODAY, none)).toBeNull();
   });
 });
 
@@ -245,10 +264,10 @@ function randomCase(r: () => number): Case {
   const cm = often([dec(140, 210, pick([0, 1, 2]))], ['', '119.96', '120', '230', '230.01', dec(100, 250, 1), '170,5']);
   const weight = often([dec(40, 160, pick([0, 1, 2]))], ['', '29.96', '30', '300', '300.04', dec(10, 320, 2), '72,55']);
   const activity = often(['sitting', 'light', 'feet', 'physical'] as const, [''] as const, 0.95);
-  const days = often([0, 0, 1, 2, 3, 4, 5, 6, 7], [null]);
+  const days = often([0, 0, 1, 2, 3, 4, 5, 6, 7] as const, [null]);
   const where = often(['gym', 'dumbbells', 'bodyweight'] as const, [undefined, ''] as const, 0.85);
   const exp = often(['new', 'some', 'exp'] as const, [undefined, ''] as const, 0.85);
-  const minutes = often(SESSION_MINUTES, [null, 0], 0.9);
+  const minutes = often(SESSION_MINUTES, [null], 0.9);
   const goal = often(['lose', 'recomp', 'maintain', 'gain'] as const, [''] as const, 0.95);
   const pace = pick(['gentle', 'moderate'] as const);
   let screen: Record<number, 'yes' | 'no'> | undefined;
