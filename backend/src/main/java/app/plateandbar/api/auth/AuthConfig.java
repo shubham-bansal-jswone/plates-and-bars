@@ -34,12 +34,23 @@ public class AuthConfig {
     /** Bounded timeouts, cached keys, a minimum gap between refetches, RS256 only. */
     static GoogleIdTokenVerifier create(
             String jwksUri, long refetchGapMillis, java.util.List<String> clientIds, java.time.Clock clock) {
+        return create(jwksUri, refetchGapMillis, TimeUnit.HOURS.toMillis(1), clientIds, clock);
+    }
+
+    /** Cache TTL is a parameter so tests can expire the cache in real time; production uses one hour. */
+    static GoogleIdTokenVerifier create(
+            String jwksUri,
+            long refetchGapMillis,
+            long cacheTtlMillis,
+            java.util.List<String> clientIds,
+            java.time.Clock clock) {
         DefaultResourceRetriever http = new DefaultResourceRetriever(2000, 2000, 51_200);
         // Records whether the last fetch returned a parseable key set (see GoogleIdTokenVerifier).
         java.util.concurrent.atomic.AtomicBoolean loaded = new java.util.concurrent.atomic.AtomicBoolean(false);
         com.nimbusds.jose.util.ResourceRetriever retriever = url -> {
             try {
                 com.nimbusds.jose.util.Resource r = http.retrieveResource(url);
+                // Parsing here only decides the flag; Nimbus parses the returned content again for real.
                 com.nimbusds.jose.jwk.JWKSet.parse(r.getContent());
                 loaded.set(true);
                 return r;
@@ -52,8 +63,13 @@ public class AuthConfig {
         };
         JWKSource<SecurityContext> source;
         try {
-            source = JWKSourceBuilder.create(new URL(jwksUri), retriever)
-                    .cache(TimeUnit.HOURS.toMillis(1), TimeUnit.SECONDS.toMillis(15))
+            JWKSourceBuilder<SecurityContext> builder = JWKSourceBuilder.create(new URL(jwksUri), retriever)
+                    .cache(cacheTtlMillis, Math.min(TimeUnit.SECONDS.toMillis(15), cacheTtlMillis / 4));
+            if (cacheTtlMillis < TimeUnit.HOURS.toMillis(1)) {
+                // Test-only short TTLs cannot fit Nimbus's default 30 s refresh-ahead window.
+                builder = builder.refreshAheadCache(false);
+            }
+            source = builder
                     .rateLimited(refetchGapMillis)
                     .retrying(true)
                     .build();

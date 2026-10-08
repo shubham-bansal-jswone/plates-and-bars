@@ -174,4 +174,53 @@ class GoogleJwksStubTest {
         });
         server.start();
     }
+
+    @Test
+    void keysLoadedThenGoogleGoesDownThenRecovers() throws Exception {
+        int port = server.getAddress().getPort();
+        var v = AuthConfig.create(url(), 2000, List.of(CLIENT), clock);
+        RSAKey stranger = new RSAKeyGenerator(2048).keyID("unknown").generate();
+        assertThat(v.verify(token(served)).subject()).isEqualTo("sub-1");
+        assertThat(fetches.get()).isEqualTo(1);
+        Thread.sleep(2200);
+
+        restart(port, 503, "unavailable");
+        int before = fetches.get();
+        // Unknown kid: failed refetch (500). Nimbus does not count a failed fetch toward the rate limit, so the
+        // second call refetches (and retries) again; either way it must stay 500, never 401.
+        assertThatThrownBy(() -> v.verify(token(stranger))).isInstanceOf(JwtException.class);
+        // The source retries a failed fetch once, so a failed refetch costs up to two requests.
+        int afterFailure = fetches.get();
+        assertThat(afterFailure).isGreaterThan(before);
+        for (int i = 0; i < 4; i++) {
+            assertThatThrownBy(() -> v.verify(token(stranger))).isInstanceOf(JwtException.class);
+        }
+        assertThat(fetches.get()).isGreaterThanOrEqualTo(afterFailure);
+        afterFailure = fetches.get();
+        // A known kid is still served from cache.
+        assertThat(v.verify(token(served)).subject()).isEqualTo("sub-1");
+        assertThat(fetches.get()).isEqualTo(afterFailure);
+
+        restart(port, 200, null);
+        Thread.sleep(2200);
+        int beforeRecovery = fetches.get();
+        assertUnauthorized(v, token(stranger));
+        int afterRecovery = fetches.get();
+        assertThat(afterRecovery).isGreaterThan(beforeRecovery);
+        // Nimbus's limiter may let one more refetch through after a failed one; after that it holds.
+        assertUnauthorized(v, token(stranger));
+        int settled = fetches.get();
+        assertUnauthorized(v, token(stranger));
+        assertThat(fetches.get()).isEqualTo(settled);
+    }
+
+    @Test
+    void cacheExpiresWhileGoogleIsDownIs500Repeatedly() throws Exception {
+        int port = server.getAddress().getPort();
+        var v = AuthConfig.create(url(), 100, 500, List.of(CLIENT), clock);
+        assertThat(v.verify(token(served)).subject()).isEqualTo("sub-1");
+        restart(port, 503, "unavailable");
+        Thread.sleep(700);
+        assertOutage(v);
+    }
 }

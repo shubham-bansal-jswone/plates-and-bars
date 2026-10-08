@@ -34,7 +34,7 @@ public class GoogleIdTokenVerifier {
 
     private final java.util.function.BooleanSupplier keySetLoaded;
 
-    public GoogleIdTokenVerifier(NimbusJwtDecoder decoder, List<String> clientIds, Clock clock) {
+    GoogleIdTokenVerifier(NimbusJwtDecoder decoder, List<String> clientIds, Clock clock) {
         this(decoder, clientIds, clock, () -> true);
     }
 
