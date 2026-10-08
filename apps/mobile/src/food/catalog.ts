@@ -9,3 +9,14 @@ export interface CatalogFood extends SearchableFood, GramsFood, FoodFacts {
 }
 
 export const catalogFoods = foods.foods as unknown as CatalogFood[];
+
+import eatout from '../../../../content/eatout.json';
+
+/** One eating-out cuisine (content/eatout.json): smart-pick tips and dishes in the food row shape. */
+export interface Cuisine {
+  name: string;
+  tips: string[];
+  dishes: CatalogFood[];
+}
+
+export const cuisines = eatout.cuisines as unknown as Cuisine[];
