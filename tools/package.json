@@ -8,6 +8,9 @@
     "lint": "node lint.mjs",
     "test": "node --test test/*.test.mjs",
     "import:exercises": "node exercises-import/cli.mjs",
-    "validate:exercises": "node validate/cli.mjs"
+    "validate:exercises": "node validate/cli.mjs",
+    "import:foods": "node foods-import/cli.mjs",
+    "validate:foods": "node validate/foods-cli.mjs",
+    "check:sources": "node check-no-ifct/cli.mjs"
   }
 }
