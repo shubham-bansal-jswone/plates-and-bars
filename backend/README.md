@@ -55,9 +55,8 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   (`SyncRequestValidator`, networknt json-schema-validator). The validator reads the one
   `packages/api/openapi.yaml`: Gradle's `processResources` copies it onto the classpath, so there is no second
   copy to drift. Any problem is 400 `invalid_request` for the whole request with `details` naming the field and the
-  failed keyword, never the value. Beyond the schema: no id twice in one request, ids stored lower-cased (applied
-  and conflict entries echo the id as the device sent it; pulled records use the lower-case form, so the app
-  should lower-case ids), and natural-key tables (`profiles`, `settings`, `day_notes`, `workouts`, `weights`,
+  failed keyword, never the value. Beyond the schema: no id twice in one request, ids lower-cased (stored, and echoed
+  lower-cased in `applied`, `conflicts` and pulls, as the contract says), and natural-key tables (`profiles`, `settings`, `day_notes`, `workouts`, `weights`,
   `measurements`, `lift_stats`, `swaps`) must use the UUIDv5 of `<table>:<key>` in the user's namespace.
 - **Unknown record fields are dropped**, deliberately: the deploy-order rule is that the backend always ships a
   contract version before any app sends the fields it adds, so a field the server does not know is never a field

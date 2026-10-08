@@ -282,17 +282,17 @@ class SyncEngineIT extends SyncITBase {
     }
 
     @Test
-    void idsAreEchoedExactlyAsTheDeviceSentThem() {
+    void idsAreLowerCasedInEveryResponse() {
         String user = newUser();
         String lower = id();
         String upper = lower.toUpperCase();
         Resp first = ok(user, req(null).add(SyncTable.water_logs, waterLog(upper, 0, MID, null, 250)).build());
-        assertThat(only(first.body().path("applied")).path("id").asText()).isEqualTo(upper);
+        assertThat(only(first.body().path("applied")).path("id").asText()).isEqualTo(lower);
         Resp retry = ok(user, req(null).add(SyncTable.water_logs, waterLog(upper, 0, MID, null, 250)).build());
         JsonNode c = only(retry.body().path("conflicts"));
-        assertThat(c.path("id").asText()).isEqualTo(upper);
-        assertThat(c.path("server_record").path("id").asText()).isEqualTo(upper);
-        // Pulls use the stored, lower-case spelling.
+        assertThat(c.path("id").asText()).isEqualTo(lower);
+        assertThat(c.path("server_record").path("id").asText()).isEqualTo(lower);
+        // Pulls agree.
         assertThat(pulled(ok(user, req(null).build()), "water_logs", lower)).isNotNull();
     }
 

@@ -109,7 +109,7 @@ public class SyncService {
                     }
                     applied.add(json.createObjectNode()
                             .put("table", table.name())
-                            .put("id", in.sentId())
+                            .put("id", in.id())
                             .put("version", version));
                     continue;
                 }
@@ -189,13 +189,11 @@ public class SyncService {
     private ObjectNode conflict(SyncTable table, Incoming in, Stored server, String resolution) {
         ObjectNode c = json.createObjectNode();
         c.put("table", table.name());
-        c.put("id", in.sentId());
+        c.put("id", in.id());
         c.put("client_version", in.version());
         c.put("server_version", server.version());
         c.put("resolution", resolution);
-        ObjectNode serverRecord = record(server);
-        serverRecord.put("id", in.sentId()); // as the device spelled it
-        c.set("server_record", serverRecord);
+        c.set("server_record", record(server));
         return c;
     }
 

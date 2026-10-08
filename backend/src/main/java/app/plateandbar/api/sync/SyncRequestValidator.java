@@ -27,8 +27,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 /**
- * Validates a {@code POST /sync} body against the schemas in the contract (a copy of
- * {@code packages/api/openapi.yaml} on the classpath; a test fails if it drifts from the original), then
+ * Validates a {@code POST /sync} body against the schemas in the contract ({@code packages/api/openapi.yaml},
+ * put on the classpath by Gradle's {@code processResources}, so there is no second copy), then
  * applies the rules a schema cannot express. Any problem rejects the whole request with 400
  * {@code invalid_request}. Details name the field and the failed keyword only, never the value.
  */
@@ -41,7 +41,7 @@ public class SyncRequestValidator {
 
     /** A pushed record, parsed. Timestamps are as sent; the service clamps them. */
     record Incoming(
-            SyncTable table, String id, String sentId, int version, Instant updatedAt, Instant deletedAt, ObjectNode data) {}
+            SyncTable table, String id, int version, Instant updatedAt, Instant deletedAt, ObjectNode data) {}
 
     /** {@code cursor} is null on a first sync. */
     record Parsed(String cursor, List<Incoming> records) {}
@@ -138,7 +138,7 @@ public class SyncRequestValidator {
                 data.set(f, rec.get(f));
             }
         }
-        return new Incoming(table, id, rec.path("id").asText(), rec.path("version").asInt(), updatedAt, deletedAt, data);
+        return new Incoming(table, id, rec.path("version").asInt(), updatedAt, deletedAt, data);
     }
 
     private static Instant instant(JsonNode node, String path) {

@@ -47,6 +47,11 @@ dependencies {
 
 // The sync request validator reads the contract itself: the one openapi.yaml, never a copy.
 tasks.named('processResources') {
+    doFirst {
+        if (!file('../packages/api/openapi.yaml').exists()) {
+            throw new GradleException('../packages/api/openapi.yaml is missing: build from a full checkout (see Dockerfile)')
+        }
+    }
     from('../packages/api') {
         include 'openapi.yaml'
     }
