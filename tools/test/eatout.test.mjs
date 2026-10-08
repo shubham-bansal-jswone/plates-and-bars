@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateEatOut } from '../validate/foods.mjs';
-import { ALCOHOLIC, dishId, extractEatOut, importEatOut, serialize } from '../eatout-import/import.mjs';
+import { dishId, extractEatOut, importEatOut, serialize } from '../eatout-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
@@ -31,7 +31,7 @@ test('prototype values are carried over unchanged, in prototype order', () => {
 
 test('alcoholic drinks are flagged and only they', () => {
   const flagged = load().cuisines.flatMap((c) => c.dishes).filter((d) => d.alcohol).map((d) => d.name);
-  assert.deepEqual(flagged, ALCOHOLIC);
+  assert.deepEqual(flagged, ['Beer (330 ml)', 'Whisky, rum or vodka (30 ml)', 'Wine (150 ml)', 'Cocktail, sweet (200 ml)']);
 });
 
 test('every dish has a permitted source and licence', () => {
@@ -55,6 +55,15 @@ test('macro sanity applies to dishes; alcohol only lifts the upper kcal bound', 
   assert.ok(mutate((c) => { delete drinks(c)[0].alcohol; }).some((e) => e.includes('does not match macros')));
   assert.ok(mutate((c) => { drinks(c)[0].per_serving.kcal = 1; }).some((e) => e.includes('below what the macros give')));
   assert.ok(mutate((c) => { drinks(c)[0].alcohol = false; }).some((e) => e.includes('alcohol must be true')));
+});
+
+test('alcohol flag outside Drinks fails even when kcal would otherwise be exempt', () => {
+  const e = mutate((c) => {
+    const naan = c.cuisines[0].dishes.find((d) => d.name === 'Butter naan');
+    naan.alcohol = true;
+    naan.per_serving.kcal = 900;
+  });
+  assert.ok(e.some((m) => m.includes('only allowed in the Drinks cuisine')));
 });
 
 test('structure: cuisine mismatch, empty tips, unknown fields, empty file', () => {

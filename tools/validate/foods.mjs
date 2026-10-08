@@ -50,7 +50,7 @@ function checkFood(f, errors, opts = {}) {
     if (n.added_sugar_g !== null && n.added_sugar_g > n.carbs_g) err('added_sugar_g exceeds carbs_g');
     const calc = 4 * n.protein_g + 4 * n.carbs_g + 9 * n.fat_g;
     if (opts.alcohol) {
-      if (n.kcal < calc - kcalTolerance(calc)) err(`kcal ${n.kcal} is below what the macros give (4/4/9 gives ${calc.toFixed(0)})`);
+      if (n.kcal < calc - kcalTolerance(n.kcal)) err(`kcal ${n.kcal} is below what the macros give (4/4/9 gives ${calc.toFixed(0)})`);
     } else if (Math.abs(calc - n.kcal) > kcalTolerance(n.kcal)) err(`kcal ${n.kcal} does not match macros (4/4/9 gives ${calc.toFixed(0)})`);
   }
 
@@ -109,6 +109,7 @@ export function validateEatOut(content) {
     for (const d of c.dishes) {
       if (d.cuisine !== c.name) errors.push(`${d.name}: cuisine "${d.cuisine}" does not match its group "${c.name}"`);
       if ('alcohol' in d && d.alcohol !== true) errors.push(`${d.name}: alcohol must be true when present`);
+      if (d.alcohol === true && c.name !== 'Drinks') errors.push(`${d.name}: alcohol is only allowed in the Drinks cuisine`);
       checkFood(d, errors, { extraKeys: ['cuisine', 'alcohol'], alcohol: d.alcohol === true });
       if (typeof d.name === 'string') {
         const k = norm(d.name);
