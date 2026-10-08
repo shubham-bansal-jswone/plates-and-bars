@@ -265,6 +265,14 @@ export {
 export type { FlexEntry, PlanFlexInput, PlanFlexResult, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
 
 /**
+ * Macro targets before setup (no profile), for the Food tab's ring and legend.
+ * - `DEFAULT_PROTEIN_TARGET`, `DEFAULT_CARBS_TARGET`, `DEFAULT_FAT_TARGET` mirror prototype `DEFAULT_SETTINGS.protein`,
+ *   `.carbs` and `.fat` (150, 190 and 60 g). They are fixed numbers in the prototype, not worked out from
+ *   `DEFAULT_KCAL_TARGET`, though they add up to it (150 × 4 + 190 × 4 + 60 × 9 = 1900 kcal).
+ */
+export { DEFAULT_PROTEIN_TARGET, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET } from './food';
+
+/**
  * Targets screen: weekly muscle coverage, planned vs done, and the focus-muscle picker. Workouts and
  * sets come in contract shapes (`Workout`, `WorkoutSet`); focus is contract `Settings.focus`.
  * - `plannedCoverage` mirrors prototype `weeklyCoverage()` (state passed in); `coverageTemplates` its week's template list.
