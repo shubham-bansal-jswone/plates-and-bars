@@ -32,3 +32,17 @@ test('null away alternative is allowed', () => {
   content.away_map.dumbbells_bodyweight['Lateral Raise'] = ['Lateral Raise', null];
   assert.deepEqual(validateExercises(content, {}), []);
 });
+
+test('card missing "w" fails', () => {
+  const content = read(`${repo}/content/exercises.json`);
+  delete content.cards['Push-ups'].w;
+  assert.ok(validateExercises(content, {}).includes('Push-ups: card "w" must be a non-empty array'));
+});
+
+test('broken library reference fails', () => {
+  const content = read(`${repo}/content/exercises.json`);
+  content.library.Chest.push('Nonexistent Press');
+  const errors = validateExercises(content, {});
+  assert.ok(errors.includes('Nonexistent Press: no tags (used in library "Chest")'));
+  assert.ok(errors.includes('Nonexistent Press: no card (used in library "Chest")'));
+});

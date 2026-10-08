@@ -8,7 +8,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const files = [];
 const walk = (dir) => {
   for (const name of readdirSync(dir)) {
-    if (name === 'node_modules' || name === 'raw') continue;
+    if (name === 'node_modules') continue;
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p);
     else if (p.endsWith('.mjs')) files.push(p);

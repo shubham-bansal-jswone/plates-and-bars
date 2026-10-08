@@ -2,6 +2,7 @@
 // Every exercise referenced by a template, ladder, away map or library must have
 // tags and a card.
 
+// Keep in sync with `Muscle` in packages/api/openapi.yaml.
 export const MUSCLES = [
   'chest', 'front-delt', 'side-delt', 'rear-delt', 'triceps', 'lats', 'upper-back',
   'biceps', 'forearms', 'quads', 'hams', 'glutes', 'calves', 'abs', 'lower-back',
@@ -27,8 +28,15 @@ function checkTags(name, t, errors) {
 
 function checkCard(name, c, errors) {
   if (typeof c.f !== 'string' || !c.f) errors.push(`${name}: card "f" must be a non-empty string`);
-  for (const f of ['s', 'c', 'm']) {
+  // The prototype renders f, s, c, m and w without guards; b, e and h are optional.
+  for (const f of ['s', 'c', 'm', 'w']) {
     if (!Array.isArray(c[f]) || c[f].length === 0) errors.push(`${name}: card "${f}" must be a non-empty array`);
+  }
+  if (Array.isArray(c.w) && !c.w.every((x) => Array.isArray(x) && x.length === 2 && x.every((y) => typeof y === 'string'))) {
+    errors.push(`${name}: card "w" entries must be [label, fix] string pairs`);
+  }
+  for (const f of ['b', 'e', 'h']) {
+    if (f in c && typeof c[f] !== 'string') errors.push(`${name}: card "${f}" must be a string`);
   }
 }
 
