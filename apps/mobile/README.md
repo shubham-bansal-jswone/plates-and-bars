@@ -21,7 +21,7 @@ npx expo export --platform web   # production web bundle; proves Metro resolves 
 
 - Metro: `metro.config.js` adds `packages/core` to `watchFolders`, because the symlink's real path is outside the app root.
 - Jest: `jest-expo` transforms TypeScript with Babel. The real path (`packages/core/src`) is not under `node_modules`, so it is transformed; no extra mapping is needed.
-- Dependencies of core: only `apps/mobile` is installed in CI, so core's own `node_modules` may not exist. Babel injects `@babel/runtime` imports into core's source, which must resolve from this app: Jest uses `moduleDirectories: ['node_modules', '<rootDir>/node_modules']`, Metro uses `resolver.nodeModulesPaths` plus `disableHierarchicalLookup`. Test this by deleting `packages/core/node_modules` first.
+- Dependencies of core: only `apps/mobile` is installed in CI, so core's own `node_modules` may not exist. Babel injects `@babel/runtime` imports into core's source, which must resolve from this app: Jest uses `moduleDirectories: ['node_modules', '<rootDir>/node_modules']`, Metro uses `resolver.nodeModulesPaths`. Test this by deleting `packages/core/node_modules` first.
 - TypeScript: resolves through the symlink and `types` in core's `package.json`.
 
 ## Layout

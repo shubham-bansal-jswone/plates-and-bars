@@ -9,7 +9,6 @@ const coreRoot = path.resolve(__dirname, '../../packages/core');
 config.watchFolders = [...(config.watchFolders ?? []), coreRoot];
 // Resolve dependencies of linked packages/core from this app's node_modules only.
 config.resolver.nodeModulesPaths = [path.resolve(__dirname, 'node_modules')];
-config.resolver.disableHierarchicalLookup = true;
 // expo-sqlite's web build imports a .wasm file.
 config.resolver.assetExts.push('wasm');
 
