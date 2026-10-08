@@ -74,6 +74,18 @@ export type {
 } from './session';
 
 /**
+ * Exclusions and swaps. Exclusions and swaps come in the contract's `Exclusion` and `Swap` shapes
+ * (prototype `settings.excl`, `settings.repl`); tags from the catalogue.
+ * - `resolveSession` mirrors prototype `resolveSession(names, where)` (state passed in).
+ * - `resolveName` mirrors prototype `resolveName(name, where, depth)`.
+ * - `candidates` mirrors prototype `candidates(name, o)`; `why` is returned as facts, not text.
+ * - `ruleMatches`, `activeRules`, `isExcluded` mirror the prototype functions of the same name.
+ * - `replFromSwaps` builds prototype `settings.repl` from contract swaps (for `trimSession`'s `repl`).
+ */
+export { resolveSession, resolveName, candidates, ruleMatches, activeRules, isExcluded, replFromSwaps } from './exclusions';
+export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplEntry, CandidateOptions, Candidate, CandidateWhy, ResolveState } from './exclusions';
+
+/**
  * Weight guidance. `ExerciseMetaTable` is prototype `EX_META` (`name → [type, lo, hi]`), passed in.
  * - `suggestBase` mirrors prototype `suggestBase(ex)`; `applyMods` mirrors `applyMods(sug, ex)` (state passed in).
  *   Prototype `suggestFor(ex)` is `applyMods(suggestBase(ex, c), ex, c)`.
