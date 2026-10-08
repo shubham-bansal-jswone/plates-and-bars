@@ -48,3 +48,6 @@ jobs:
       - uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
+          # braces (high) reaches apps/mobile only through jest 29 (dev tooling, not shipped)
+          # and has no patched release; jest 30 needs Expo SDK 58. Remove this waiver in #58.
+          allow-ghsas: GHSA-vfj7-8cjw-p6xm
