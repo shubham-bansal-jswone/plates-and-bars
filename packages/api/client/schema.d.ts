@@ -694,9 +694,10 @@ export interface components {
                 /**
                  * @description The session before `prev`; used to evaluate 'below the rep range two
                  *     sessions running' against sessions before today (#101). One level only:
-                 *     it never carries a `prev` of its own. Older records may omit it.
+                 *     a nested `prev` that has its own `prev` key (even null) fails validation.
+                 *     Older records may omit it.
                  */
-                prev?: components["schemas"]["LiftSession"] | null;
+                prev?: (components["schemas"]["LiftSession"] & unknown) | null;
             }) | null;
             /** @description Last 8 session scores. Prototype: `hist` with `e`. */
             history: {

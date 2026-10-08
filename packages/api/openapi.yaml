@@ -1460,9 +1460,12 @@ components:
                           description: |
                             The session before `prev`; used to evaluate 'below the rep range two
                             sessions running' against sessions before today (#101). One level only:
-                            it never carries a `prev` of its own. Older records may omit it.
+                            a nested `prev` that has its own `prev` key (even null) fails validation.
+                            Older records may omit it.
                           oneOf:
-                            - $ref: '#/components/schemas/LiftSession'
+                            - allOf:
+                                - $ref: '#/components/schemas/LiftSession'
+                                - not: { required: [prev] }
                             - type: 'null'
                 - type: 'null'
             history:
