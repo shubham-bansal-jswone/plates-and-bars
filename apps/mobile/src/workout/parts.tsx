@@ -5,7 +5,8 @@ import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
 
 /** A toggle chip (prototype `.chip` with `aria-pressed`). */
-export function Chip({ label, pressed, onPress }: { label: string; pressed?: boolean; onPress: () => void }) {
+/** `label` is the spoken name; `text` (default the label) is what shows. */
+export function Chip({ label, text, pressed, onPress }: { label: string; text?: string; pressed?: boolean; onPress: () => void }) {
   const c = useTheme();
   return (
     <Pressable
@@ -16,7 +17,7 @@ export function Chip({ label, pressed, onPress }: { label: string; pressed?: boo
       onPress={onPress}
       style={[styles.chip, { borderColor: pressed ? c.brand : c.line, backgroundColor: pressed ? c.tint : c.surface, borderWidth: pressed ? 2 : 1 }]}
     >
-      <Text style={{ color: c.ink, fontWeight: '600', fontSize: 15 }}>{label}</Text>
+      <Text style={{ color: c.ink, fontWeight: '600', fontSize: 15 }}>{text ?? label}</Text>
     </Pressable>
   );
 }
@@ -68,10 +69,11 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
     <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
       <View style={styles.restRow}>
         <View style={{ flexShrink: 1 }}>
-          <Text accessibilityLiveRegion="polite" style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
+          {/* Announced at start (the label line) and at the end only, not every second. */}
+          <Text accessibilityLiveRegion={left ? 'none' : 'polite'} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
             {left ? `Rest ${mmss(left)}` : 'Rest done, go!'}
           </Text>
-          <Text style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
+          <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
         </View>
         <View style={styles.restBtns}>
           <Button label="+30 s" kind="ghost" onPress={onAdd} />
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
   toast: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden', fontSize: 15, fontWeight: '600', maxWidth: 520 },
-  rest: { position: 'absolute', left: 8, right: 8, bottom: 8, borderWidth: 1, borderRadius: 14, padding: 10, gap: 8, maxWidth: 560, alignSelf: 'center', width: '100%' },
+  rest: { position: 'absolute', left: 8, right: 8, bottom: 8, borderWidth: 1, borderRadius: 14, padding: 10, gap: 8, maxWidth: 560 },
   restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
   restBtns: { flexDirection: 'row', gap: 8 },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },

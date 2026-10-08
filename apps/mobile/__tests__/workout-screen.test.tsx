@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
+import { loadSessionLog, saveSet } from '../src/db/workouts';
+import { setRecord, blankRow, type ExState } from '../src/workout/model';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { catalog } from '../src/workout/catalog';
 import type { LiftRecord } from '@plate-and-bar/core';
@@ -41,9 +43,9 @@ function profile() {
 
 type Db = ReturnType<typeof memoryDb>;
 
-async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[] } = {}) {
+async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[]; where?: 'gym' | 'dumbbells' } = {}) {
   const db = memoryDb();
-  await saveProfile(db, profile());
+  await saveProfile(db, { ...profile(), where: opts.where ?? 'gym' });
   for (const [name, w] of Object.entries(opts.lifts ?? {})) await seedLift(db, name, w, opts.hist?.[name]);
   await mount(db, opts);
   return db;
@@ -303,5 +305,109 @@ describe('Workout tab: personal best', () => {
     await press('Mark Barbell Bench Press set 1 done');
     await waitFor(() => expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true));
     expect(screen.queryByText(/New personal best/)).toBeNull();
+  });
+});
+
+describe('Workout tab: write ordering and guards', () => {
+  const lifts = { 'Barbell Bench Press': 60, 'Machine Shoulder Press': 30, 'Pec Deck Fly': 25, 'Cable Lateral Raise': 10, 'Overhead Cable Extension': 20 };
+
+  it('two quick presses of Start make one session with unique set indexes', async () => {
+    const db = await setup();
+    const start = await screen.findByLabelText('Start Push B');
+    let logReads = 0;
+    const orig = db.getAllAsync;
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('GROUP BY')) logReads++;
+      return orig(sql, ...p);
+    }) as typeof orig;
+    await act(async () => {
+      start.props.onClick({});
+      start.props.onClick({});
+    });
+    await screen.findByText('Push B');
+    expect(logReads).toBe(1);
+    await waitFor(() => expect(storedSets(db)).toHaveLength(15));
+    const keys = storedSets(db).map((s) => `${s.exercise}/${s.kind}/${s.set_index}`);
+    expect(new Set(keys).size).toBe(15);
+  });
+
+  it('two quick presses of a second-session chip add the session once', async () => {
+    const db = await setup({ lifts });
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    for (const n of PUSH_B) await press(`Mark ${n} set 1 done`);
+    await press('Training again later today?');
+    const add = screen.getByLabelText('Add Pull B');
+    await act(async () => {
+      add.props.onClick({});
+      add.props.onClick({});
+    });
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).template).toBe('Push B + Pull B'));
+    await waitFor(() => expect(storedSets(db).length).toBeGreaterThan(15));
+    const keys = storedSets(db).map((s) => `${s.exercise}/${s.kind}/${s.set_index}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('a rating given straight after a tick is kept in lift_stats even when the tick saves slowly', async () => {
+    const db = await setup({ lifts });
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    db.lag = (sql) => (sql.includes('workout_sets') ? 40 : 0);
+    await press('Mark Barbell Bench Press set 1 done');
+    await press('Barbell Bench Press set 1: Easy');
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').sets[0]?.rate).toBe('easy'), { timeout: 3000 });
+    await waitFor(() => expect(storedSets(db).find((s) => s.done)?.rate).toBe('easy'), { timeout: 3000 });
+  });
+
+  it('a form answer on one exercise is kept when a tick on another saves slowly', async () => {
+    const db = await setup({ lifts });
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
+    await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(3));
+    db.lag = (sql) => (sql.includes('INTO workouts') || sql.includes('workout_sets') ? 40 : 0);
+    await press('Mark Barbell Bench Press set 1 done');
+    await press('Overhead Cable Extension form: Not really');
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'), { timeout: 3000 });
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no'), { timeout: 3000 });
+    expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').date).toBe(DATE);
+  });
+
+  it('keeps the check-in choice when another template is started', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Sleep last night: Poor');
+    await press('Lighter session');
+    await press('Start Pull B');
+    await waitFor(() => expect(db.rows.get(`workouts:${DATE}`)).toBeDefined());
+    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ base: 'Pull B', ci_choice: 'light', mods: { light: true } });
+  });
+
+  it('names the template with the away-from-gym suffix', async () => {
+    const db = await setup({ where: 'dumbbells' });
+    await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+    await waitFor(() => expect(db.rows.get(`workouts:${DATE}`)).toBeDefined());
+    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Push B (dumbbells only)', base: 'Push B' });
+  });
+});
+
+describe('stored set records', () => {
+  const ex = (): ExState => ({ name: 'Pec Deck Fly', part: 1, bridge: false, form: null, found: null, skipRamp: false, ramp: [], sets: [{ ...blankRow(), w: '-5', r: '-3', done: true }] });
+
+  it('never stores a negative weight or reps (contract minimum 0)', () => {
+    const r = setRecord(ex(), 'work', 0, new Date(2026, 9, 8));
+    expect(r.weight_kg).toBe(0);
+    expect(r.reps).toBe(0);
+  });
+
+  it('counts only sets that are not deleted in the session log', async () => {
+    const db = memoryDb();
+    const e = ex();
+    e.sets[0] = { ...blankRow(), w: '20', r: '10', done: true };
+    db.rows.set(`workouts:${DATE}`, JSON.stringify({ date: DATE, base: 'Push B', template: 'Push B', deleted_at: null }));
+    await saveSet(db, DATE, setRecord(e, 'work', 0, new Date(2026, 9, 8)));
+    expect(await loadSessionLog(db)).toEqual({ [DATE]: { t: 'Push B', n: 1 } });
+    await saveSet(db, DATE, { ...setRecord(e, 'work', 0, new Date(2026, 9, 8)), deleted_at: '2026-10-08T10:00:00Z' });
+    expect(await loadSessionLog(db)).toEqual({});
   });
 });

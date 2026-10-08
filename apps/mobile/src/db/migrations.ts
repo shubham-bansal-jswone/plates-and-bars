@@ -24,7 +24,7 @@ export const MIGRATIONS: readonly string[] = [
   // v3: training records. workouts (contract Workout) and workout_sets (contract WorkoutSet) are JSON documents;
   // lift_stats holds core's own lift record per exercise, mapped to the contract at sync time (#135). workouts and
   // lift_stats are natural-key tables (key = date, key = exercise); workout_sets are keyed by their random id and carry plain columns
-  // for the local joins (workout date, kind, done), since their contract workout_id is not known until #31.
+  // for the local joins (workout date, kind, done, deleted), since their contract workout_id is not known until #31.
   `CREATE TABLE IF NOT EXISTS workouts (
      key TEXT PRIMARY KEY NOT NULL,
      data TEXT NOT NULL
@@ -34,6 +34,7 @@ export const MIGRATIONS: readonly string[] = [
      workout_date TEXT NOT NULL,
      kind TEXT NOT NULL,
      done INTEGER NOT NULL,
+     deleted INTEGER NOT NULL DEFAULT 0,
      data TEXT NOT NULL
    );
    CREATE INDEX IF NOT EXISTS workout_sets_by_date ON workout_sets (workout_date);

@@ -16,6 +16,7 @@ import { loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, sa
 import { localDate } from '../setup/logic';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
+import { mergeSecond, templateName } from './pending-core';
 import { guidance, progressionContext } from './guidance';
 import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState } from './model';
 import type { Workout } from './types';
@@ -72,27 +73,36 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     };
   }, [db, date, commit, notify]);
 
-  const safely = useCallback(
-    async (write: () => Promise<void>) => {
-      try {
-        await write();
-      } catch {
-        notify('Couldn’t save that. Try again.');
-      }
+  // Every save goes through one FIFO queue, so they finish in the order the user acted, and each save reads
+  // the latest state from the ref when it runs (not the snapshot from when it was queued).
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const enqueue = useCallback(
+    (write: () => Promise<void>) => {
+      queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
+      return queue.current;
     },
     [notify],
   );
+  /** Start and second session build from stored history; a second tap while one runs is ignored. */
+  const building = useRef(false);
 
-  const writeWorkout = (d: Day) => saveWorkout(db, { ...(d.workout as Workout), exercises: d.exs.map(exerciseRecord), updated_at: stamp(now()) });
-  const writeSets = async (d: Day, ex: ExState, kind: 'work' | 'ramp', indexes: number[]) => {
-    for (const j of indexes) await saveSet(db, date, setRecord(ex, kind, j, now()));
+  const writeWorkout = async () => {
+    const d = ref.current;
+    if (d.workout) await saveWorkout(db, { ...d.workout, exercises: d.exs.map(exerciseRecord), updated_at: stamp(now()) });
+  };
+  const writeSets = async (i: number, kind: 'work' | 'ramp', indexes: number[]) => {
+    for (const j of indexes) {
+      const ex = ref.current.exs[i];
+      if (ex && (kind === 'work' ? ex.sets : ex.ramp)[j]) await saveSet(db, date, setRecord(ex, kind, j, now()));
+    }
   };
 
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
-  const syncLift = async (d: Day, ex: ExState) => {
-    if (!profile) return;
-    const ctx = progressionContext(date, d.lifts, profile, d.workout);
-    const { info } = guidance(ex, ctx, d.workout);
+  const syncLift = async (i: number) => {
+    const d = ref.current;
+    const ex = d.exs[i];
+    if (!profile || !ex) return;
+    const { info } = guidance(ex, progressionContext(date, d.lifts, profile, d.workout), d.workout);
     const res = updateLift(d.lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type);
     if (!res) return;
     ref.current = { ...ref.current, lifts: { ...ref.current.lifts, [ex.name]: res.record } };
@@ -101,90 +111,100 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     if (res.toast) notify(`New personal best on ${ex.name}`);
   };
 
-  /** Applies `fn` to a copy of today's exercise `i`, shows it, then runs `persist` on the result. */
-  const change = (i: number, fn: (ex: ExState, d: Day) => boolean | void, persist: (d: Day, ex: ExState) => Promise<void>) => {
+  /** Applies `fn` to a copy of today's exercise `i` and shows it at once; `persist` is queued. */
+  const change = (i: number, fn: (ex: ExState, d: Day) => boolean | void, persist: () => Promise<void>) => {
     const d = clone(ref.current);
     const ex = d.exs[i];
     if (!ex || fn(ex, d) === false) return;
     commit(d);
-    void safely(() => persist(d, ex));
+    void enqueue(persist);
   };
 
   const start = useCallback(
     async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice']) => {
-      if (!profile) return;
-      const d = clone(ref.current);
-      const sessions = await loadSessionLog(db);
-      const built = buildSession({
-        template,
-        date,
-        profile,
-        where: profile.where,
-        sessions,
-        lifts: progressionContext(date, d.lifts, profile, null).lifts,
-        ciChoice,
-        checkin,
-        focus,
-      });
-      const workout: Workout = {
-        id: null,
-        version: 0,
-        updated_at: stamp(now()),
-        deleted_at: null,
-        date,
-        template,
-        base: template,
-        where: null,
-        cardio_min: null,
-        mods: built.mods,
-        exercises: [],
-        ci_choice: ciChoice,
-      };
-      d.workout = workout;
-      d.sessions = sessions;
-      d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
-      commit(d);
-      await safely(async () => {
-        await writeWorkout(d);
-        for (const ex of d.exs) await writeSets(d, ex, 'work', Array.from(ex.sets.keys()));
-      });
+      if (!profile || building.current || ref.current.workout) return;
+      building.current = true;
+      try {
+        const sessions = await loadSessionLog(db);
+        const d = clone(ref.current);
+        const built = buildSession({
+          template,
+          date,
+          profile,
+          where: profile.where,
+          sessions,
+          lifts: d.lifts,
+          ciChoice,
+          checkin,
+          focus,
+        });
+        d.workout = {
+          id: null,
+          version: 0,
+          updated_at: stamp(now()),
+          deleted_at: null,
+          date,
+          template: templateName(template, profile.where),
+          base: template,
+          where: null,
+          cardio_min: null,
+          mods: built.mods,
+          exercises: [],
+          ci_choice: ciChoice,
+        };
+        d.sessions = sessions;
+        d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        commit(d);
+        await enqueue(async () => {
+          await writeWorkout();
+          for (let i = 0; i < d.exs.length; i++) await writeSets(i, 'work', Array.from((d.exs[i] as ExState).sets.keys()));
+        });
+      } finally {
+        building.current = false;
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, commit, safely],
+    [db, profile, date, focus, commit, enqueue],
   );
 
   const addSecond = useCallback(
     async (template: string) => {
-      if (!profile || !ref.current.workout) return;
-      const d = clone(ref.current);
-      const old = d.workout as Workout;
-      const sessions = await loadSessionLog(db);
-      const built = buildSession({
-        template,
-        date,
-        profile,
-        where: profile.where,
-        sessions,
-        lifts: progressionContext(date, d.lifts, profile, old).lifts,
-        ciChoice: old.ci_choice,
-        checkin: {},
-        focus,
-      });
-      const have = new Set(d.exs.map((e) => e.name));
-      const added: ExState[] = built.exercises
-        .filter((e) => !have.has(e.name))
-        .map((e) => ({ name: e.name, part: 2, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
-      d.exs = [...d.exs, ...added];
-      d.workout = { ...old, template: `${old.template || 'Session'} + ${template}`, base: old.base || template, mods: { ...old.mods, light: !!(old.mods.light || built.mods.light) } };
-      commit(d);
-      notify(`${template} added to today`);
-      await safely(async () => {
-        await writeWorkout(d);
-        for (const ex of added) await writeSets(d, ex, 'work', Array.from(ex.sets.keys()));
-      });
+      if (!profile || building.current || !ref.current.workout) return;
+      building.current = true;
+      try {
+        const sessions = await loadSessionLog(db);
+        const d = clone(ref.current);
+        const old = d.workout as Workout;
+        const built = buildSession({
+          template,
+          date,
+          profile,
+          where: profile.where,
+          sessions,
+          lifts: d.lifts,
+          ciChoice: old.ci_choice,
+          checkin: {},
+          focus,
+        });
+        const have = new Set(d.exs.map((e) => e.name));
+        const first = d.exs.length;
+        const added: ExState[] = built.exercises
+          .filter((e) => !have.has(e.name))
+          .map((e) => ({ name: e.name, part: 2, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        d.exs = [...d.exs, ...added];
+        d.workout = { ...old, ...mergeSecond(old, template, built.mods.light) };
+        commit(d);
+        notify(`${template} added to today`);
+        await enqueue(async () => {
+          await writeWorkout();
+          for (let k = 0; k < added.length; k++) await writeSets(first + k, 'work', Array.from((added[k] as ExState).sets.keys()));
+        });
+      } finally {
+        building.current = false;
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, commit, safely, notify],
+    [db, profile, date, focus, commit, enqueue, notify],
   );
 
   const editSet = (i: number, kind: 'work' | 'ramp', j: number, field: 'w' | 'r', value: string) =>
@@ -193,7 +213,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
       (ex) => {
         ((kind === 'work' ? ex.sets : ex.ramp)[j] as Record<'w' | 'r', string>)[field] = value;
       },
-      (d, ex) => writeSets(d, ex, kind, [j]),
+      () => writeSets(i, kind, [j]),
     );
 
   const tick = (i: number, j: number) => {
@@ -228,10 +248,10 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
         if (nj >= 0) startRest(ex.name, `Next: set ${nj + 1} of ${ex.name}`);
         else if (nx) startRest(ex.name, `Next: ${nx.name}`);
       },
-      async (d, ex) => {
-        await writeSets(d, ex, 'work', [j]);
-        await writeWorkout(d);
-        await syncLift(d, ex);
+      async () => {
+        await writeSets(i, 'work', [j]);
+        await writeWorkout();
+        await syncLift(i);
       },
     );
   };
@@ -242,9 +262,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
       (ex) => {
         (ex.sets[j] as { rate: Rate | null }).rate = value;
       },
-      async (d, ex) => {
-        await writeSets(d, ex, 'work', [j]);
-        await syncLift(d, ex);
+      async () => {
+        await writeSets(i, 'work', [j]);
+        await syncLift(i);
       },
     );
 
@@ -254,14 +274,13 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
       (ex) => {
         ex.form = form;
       },
-      async (d, ex) => {
-        await writeWorkout(d);
-        await syncLift(d, ex);
+      async () => {
+        await writeWorkout();
+        await syncLift(i);
       },
     );
 
-  const rampStart = (i: number) =>
-    change(i, (ex) => void (ex.ramp = [blankRow()]), async (d, ex) => writeSets(d, ex, 'ramp', [0]));
+  const rampStart = (i: number) => change(i, (ex) => void (ex.ramp = [blankRow()]), () => writeSets(i, 'ramp', [0]));
 
   const rampSkip = (i: number) =>
     change(
@@ -271,11 +290,10 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
         ex.skipRamp = true;
         ex.found = null;
       },
-      async (d) => writeWorkout(d),
+      () => writeWorkout(),
     );
 
-  const rampAdd = (i: number) =>
-    change(i, (ex) => void ex.ramp.push(blankRow()), async (d, ex) => writeSets(d, ex, 'ramp', [ex.ramp.length - 1]));
+  const rampAdd = (i: number) => change(i, (ex) => void ex.ramp.push(blankRow()), () => writeSets(i, 'ramp', [(ref.current.exs[i]?.ramp.length ?? 1) - 1]));
 
   const rampTick = (i: number, j: number) => {
     const d0 = ref.current;
@@ -304,9 +322,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
         s.done = true;
         s.t = stamp(now());
       },
-      async (d, ex) => {
-        await writeSets(d, ex, 'ramp', [j]);
-        await writeWorkout(d);
+      async () => {
+        await writeSets(i, 'ramp', [j]);
+        await writeWorkout();
       },
     );
   };
@@ -324,9 +342,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
         ex.found = r.found;
         if (r.addSet) ex.ramp.push(blankRow());
       },
-      async (d, ex) => {
-        await writeSets(d, ex, 'ramp', Array.from(ex.ramp.keys()));
-        await writeWorkout(d);
+      async () => {
+        await writeSets(i, 'ramp', Array.from((ref.current.exs[i]?.ramp ?? []).keys()));
+        await writeWorkout();
       },
     );
   };

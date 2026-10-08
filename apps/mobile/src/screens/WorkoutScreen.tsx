@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { beginnerRamp, checkinFlags, isFocus, nextInList, num, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
+import { beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
+import { fmt } from '../format';
 import { Button, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
@@ -11,6 +12,7 @@ import { CHECKIN, MUSCLE, REASON_TEXT, listJoin } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { guidance, progressionContext } from '../workout/guidance';
 import { Card, Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
+import { secondSessionOffered, volumeKg } from '../workout/pending-core';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 
@@ -131,7 +133,7 @@ function StartView({ w, profile, focus }: { w: W; profile: Prof; focus: readonly
                 <Text style={{ color: c.ink, fontSize: 14 }}>{q.label}</Text>
                 <View style={styles.wrap}>
                   {q.options.map(([v, l]) => (
-                    <Chip key={v} label={`${q.label}: ${l}`} pressed={ci[q.key] === v} onPress={() => pick(q.key, v)} />
+                    <Chip key={v} label={`${q.label}: ${l}`} text={l} pressed={ci[q.key] === v} onPress={() => pick(q.key, v)} />
                   ))}
                 </View>
               </View>
@@ -158,7 +160,7 @@ function StartView({ w, profile, focus }: { w: W; profile: Prof; focus: readonly
       ) : null}
       <View style={styles.wrap}>
         {others.map((k) => (
-          <Chip key={k} label={`Start ${k}`} onPress={() => void w.start(k, ci, null)} />
+          <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice)} />
         ))}
       </View>
     </Page>
@@ -173,13 +175,11 @@ function SessionView({ w, profile, focus, onHowTo }: { w: W; profile: Prof; focu
   const ctx = progressionContext(date, day.lifts, profile, wk);
   let done = 0;
   let all = 0;
-  let vol = 0;
   for (const ex of day.exs)
     for (const s of ex.sets) {
       all++;
       if (s.done) {
         done++;
-        vol += num(s.w) * num(s.r);
       }
     }
   const mods = wk.mods as { light?: boolean; short?: boolean; where?: string };
@@ -188,14 +188,15 @@ function SessionView({ w, profile, focus, onHowTo }: { w: W; profile: Prof; focu
     mods.short && 'short session: main exercises only',
     mods.where && mods.where !== 'gym' && (mods.where === 'dumbbells' ? 'dumbbells-only version' : 'bodyweight version'),
   ].filter(Boolean);
-  const second = day.exs.every((e) => e.sets.some((s) => s.done)) && !/\+/.test(wk.template ?? '');
+  const second = secondSessionOffered(day.exs, wk.template);
+  const vol = volumeKg(day.exs);
   const list = (planList(profile) as readonly string[]).filter((t) => t !== wk.base);
 
   return (
     <Page>
       <H1>{wk.template || 'Session'}</H1>
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={{ color: c.muted, fontSize: 14 }}>
-        {done} of {all} sets done, {Math.round(vol).toLocaleString('en-IN')} kg lifted
+        {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
       {day.exs.map((ex, i) => {
@@ -228,7 +229,7 @@ function SessionView({ w, profile, focus, onHowTo }: { w: W; profile: Prof; focu
               <Hint>Twice-a-day training is for experienced lifters with enough recovery. Pick different muscles from this morning’s session.</Hint>
               <View style={styles.wrap}>
                 {list.map((t) => (
-                  <Chip key={t} label={`Add ${t}`} onPress={() => void w.addSecond(t)} />
+                  <Chip key={t} label={`Add ${t}`} text={t} onPress={() => void w.addSecond(t)} />
                 ))}
               </View>
             </>

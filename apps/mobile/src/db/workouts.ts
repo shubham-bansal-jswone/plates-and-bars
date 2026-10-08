@@ -23,11 +23,12 @@ export async function loadSets(db: WorkoutDb, date: string): Promise<WorkoutSet[
 
 export async function saveSet(db: StoreDb, date: string, s: WorkoutSet): Promise<void> {
   await db.runAsync(
-    'INSERT OR REPLACE INTO workout_sets (key, workout_date, kind, done, data) VALUES (?, ?, ?, ?, ?)',
+    'INSERT OR REPLACE INTO workout_sets (key, workout_date, kind, done, deleted, data) VALUES (?, ?, ?, ?, ?, ?)',
     s.id,
     date,
     s.kind,
     s.done ? 1 : 0,
+    s.deleted_at ? 1 : 0,
     JSON.stringify(s),
   );
 }
@@ -52,7 +53,7 @@ export async function saveLift(db: StoreDb, exercise: string, record: LiftRecord
  */
 export async function loadSessionLog(db: WorkoutDb): Promise<SessionLog> {
   const counts = await db.getAllAsync<{ workout_date: string; n: number }>(
-    "SELECT workout_date, COUNT(*) AS n FROM workout_sets WHERE kind = 'work' AND done = 1 GROUP BY workout_date",
+    "SELECT workout_date, COUNT(*) AS n FROM workout_sets WHERE kind = 'work' AND done = 1 AND deleted = 0 GROUP BY workout_date",
   );
   const log: Record<string, { t: string; n: number }> = {};
   for (const c of counts) {

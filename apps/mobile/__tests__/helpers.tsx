@@ -4,18 +4,19 @@ import type { StoreDb } from '../src/db/records';
 import type { WorkoutDb } from '../src/db/workouts';
 
 /** In-memory stand-in for the two statements the record store uses; rows keyed by table and key. */
-export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; data: string }>; failWrites: boolean } {
+export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>; failWrites: boolean; lag?: (sql: string) => number } {
   const rows = new Map<string, string>();
-  const sets = new Map<string, { date: string; kind: string; done: number; data: string }>();
+  const sets = new Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>();
   const db = {
     rows,
     sets,
     failWrites: false,
+    lag: undefined as undefined | ((sql: string) => number),
     async getAllAsync<T>(sql: string, ...p: (string | number)[]) {
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
       if (sql.includes('GROUP BY workout_date')) {
         const n = new Map<string, number>();
-        for (const s of sets.values()) if (s.kind === 'work' && s.done === 1) n.set(s.date, (n.get(s.date) ?? 0) + 1);
+        for (const s of sets.values()) if (s.kind === 'work' && s.done === 1 && s.deleted === 0) n.set(s.date, (n.get(s.date) ?? 0) + 1);
         return [...n].map(([workout_date, c]) => ({ workout_date, n: c })) as T[];
       }
       const table = /FROM (\w+)/.exec(sql)![1];
@@ -34,9 +35,11 @@ export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<s
     },
     async runAsync(sql: string, ...p: (string | number)[]) {
       if (db.failWrites) throw new Error('disk full');
+      const lag = db.lag;
+      if (lag) await new Promise((r) => setTimeout(r, lag(sql)));
       const table = /INTO (\w+)/.exec(sql)![1];
       if (table === 'workout_sets') {
-        sets.set(String(p[0]), { date: String(p[1]), kind: String(p[2]), done: Number(p[3]), data: String(p[4]) });
+        sets.set(String(p[0]), { date: String(p[1]), kind: String(p[2]), done: Number(p[3]), deleted: Number(p[4]), data: String(p[5]) });
         return;
       }
       rows.set(`${table}:${p[0]}`, String(p[1]));

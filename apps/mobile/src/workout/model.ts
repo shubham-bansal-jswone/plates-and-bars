@@ -44,8 +44,9 @@ export function setRecord(e: ExState, kind: 'work' | 'ramp', index: number, now:
     exercise: e.name,
     kind,
     set_index: index,
-    weight_kg: row.w === '' ? null : num(row.w),
-    reps: row.r === '' ? null : Math.round(num(row.r)),
+    // The contract's minimum is 0 for both, so a typed negative is stored as 0.
+    weight_kg: row.w === '' ? null : Math.max(0, num(row.w)),
+    reps: row.r === '' ? null : Math.max(0, Math.round(num(row.r))),
     done: row.done,
     rate: row.rate,
     t: row.t,

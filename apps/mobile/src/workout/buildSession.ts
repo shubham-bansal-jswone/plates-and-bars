@@ -2,7 +2,6 @@ import {
   applyFocus,
   lastFor,
   mapForWhere,
-  needsClearance,
   resolveSession,
   sessionSets,
   shortSession,
@@ -16,6 +15,7 @@ import {
 } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
 import { catalog } from './catalog';
+import { sessionMods } from './pending-core';
 
 
 export interface BuildInput {
@@ -53,20 +53,19 @@ export function buildSession(i: BuildInput): BuiltSession {
   const state = { profile: i.profile, sessions: i.sessions };
   let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, catalog);
   items = shortSession(items, i.checkin.time);
-  const short = !!i.checkin.time && i.checkin.time !== 'usual';
-  const light = i.ciChoice === 'light' || needsClearance(i.profile);
+  const mods = sessionMods({ ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile });
   const sets = sessionSets(items, {
     profile: i.profile,
     date: i.date,
     focus: i.focus,
     tags: catalog.tags,
     lastSets: (n) => lastFor(n, i.lifts, i.date)?.sets.length,
-    light,
+    light: mods.light,
   });
   const kept = new Set(items.map((x) => x.name));
   return {
     exercises: sets.map((e) => ({ name: e.name, sets: e.sets, bridge: !!e.bridge })),
-    mods: { light, short, where: i.where, deload: false, reentry: 0 },
+    mods,
     left: all.filter((x) => !kept.has(x.name)).map((x) => x.name),
     focus: items.filter((x) => x.focus).map((x) => x.name),
   };

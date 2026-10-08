@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
-import { harder, isFocus, kgLabel, noLoad, num, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
+import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
 import { Button, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
@@ -36,13 +36,13 @@ function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: 
   const c = useTheme();
   if (!row.done) return null;
   if (row.rate)
-    return <Chip label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} pressed onPress={() => onRate(null)} />;
+    return <Chip label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} text={RATE_LABEL[row.rate]} pressed onPress={() => onRate(null)} />;
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: c.muted, fontSize: 14 }}>How did that feel?</Text>
       <View style={styles.wrap}>
         {RATE_ORDER.map((k) => (
-          <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} onPress={() => onRate(k)} />
+          <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => onRate(k)} />
         ))}
       </View>
     </View>
@@ -81,10 +81,12 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
   const working = ex.sets.some((s) => s.done);
   const allDone = ex.sets.length > 0 && ex.sets.every((s) => s.done);
   const showRamp = sug.mode === 'new' && !working && !ex.skipRamp;
+  // Ramp placeholders and the first ramp set's reps come from core's `rampTickFill`.
   const rampPh = (j: number) => {
-    const p = ex.ramp[j - 1];
-    return { w: p && p.done && p.rate === 'easy' ? String(r1(harder(num(p.w), info))) : 'kg', r: String(j === 0 ? info.lo + 2 : info.lo) };
+    const f = rampTickFill(ex.ramp, j, info);
+    return { w: f.w || 'kg', r: f.r };
   };
+  const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, info).r;
 
   return (
     <Card>
@@ -114,7 +116,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
           {ex.ramp.length === 0 ? (
             <>
               <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>
-                1. Do {info.lo + 2} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
+                1. Do {firstRampReps} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
               </Text>
               <View style={styles.wrap}>
                 <Button label={`Start the ramp for ${ex.name}`} onPress={act.rampStart} />
@@ -140,10 +142,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
             </>
           )}
         </View>
-      ) : sug.reason || sug.text ? (
+      ) : sug.reason ? (
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
           <Text style={{ color: c.ink, fontWeight: '700' }}>Suggested: {sug.text}</Text>
-          {sug.reason ? <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text> : null}
+          <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
         </View>
       ) : null}
       {warm ? (
@@ -174,8 +176,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
           <View style={{ gap: 4 }}>
             <Text style={{ color: c.muted, fontSize: 14 }}>Did your form stay solid on every set?</Text>
             <View style={styles.wrap}>
-              <Chip label={`${ex.name} form: Yes`} onPress={() => act.form('yes')} />
-              <Chip label={`${ex.name} form: Not really`} onPress={() => act.form('no')} />
+              <Chip label={`${ex.name} form: Yes`} text="Yes" onPress={() => act.form('yes')} />
+              <Chip label={`${ex.name} form: Not really`} text="Not really" onPress={() => act.form('no')} />
             </View>
           </View>
         )
