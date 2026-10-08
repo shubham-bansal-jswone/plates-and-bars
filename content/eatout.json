@@ -1,0 +1,968 @@
+{
+  "schema_version": 1,
+  "source": "docs/prototype/plate-and-bar.html (EATOUT)",
+  "cuisines": [
+    {
+      "name": "North Indian",
+      "tips": [
+        "Tandoori and tikka dishes over makhani or malai gravies",
+        "Dal or rajma over dal makhani",
+        "Tandoori roti over butter naan",
+        "Share a gravy dish and add a salad or raita"
+      ],
+      "dishes": [
+        {
+          "id": "4e77052e-1779-549a-99cf-5b61ebc0b360",
+          "name": "Tandoori chicken (half)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "North Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 400,
+            "protein_g": 50,
+            "carbs_g": 5,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 20
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "5d5fdf4f-7023-524c-b32f-7f025e6aa1cd",
+          "name": "Paneer tikka (6 pieces)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "North Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 350,
+            "protein_g": 20,
+            "carbs_g": 10,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 25
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "ffd1852e-11c4-528f-b246-7bc518f8bc47",
+          "name": "Dal makhani (1 katori)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "North Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 330,
+            "protein_g": 12,
+            "carbs_g": 30,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 18
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "1d633927-fdb7-5ef5-ae21-832b894c7719",
+          "name": "Butter chicken (1 katori)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "North Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 490,
+            "protein_g": 30,
+            "carbs_g": 12,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 36
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "1ae15d1d-1bb0-548d-9255-10f13ecc92fc",
+          "name": "Tandoori roti",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "North Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 120,
+            "protein_g": 4,
+            "carbs_g": 24,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 1
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "92f534c4-d00a-5a49-b6d4-f8cf3d7b4506",
+          "name": "Butter naan",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "North Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 300,
+            "protein_g": 8,
+            "carbs_g": 45,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 10
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "28a74ec7-381b-5d8b-a18b-be9184a64d74",
+          "name": "Jeera rice (1 plate)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "North Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 350,
+            "protein_g": 6,
+            "carbs_g": 65,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 8
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "name": "South Indian",
+      "tips": [
+        "Idli or plain dosa over vada or ghee roast",
+        "Ask for extra sambar: more protein and fibre",
+        "Go easy on coconut chutney"
+      ],
+      "dishes": [
+        {
+          "id": "0a052520-8ef1-52ab-b0ba-6c133bb687f8",
+          "name": "Masala dosa",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "South Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 450,
+            "protein_g": 9,
+            "carbs_g": 60,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 18
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "9e818b7a-c9b8-5463-b394-7774c86cc2b6",
+          "name": "Idli (3) with sambar",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "South Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 260,
+            "protein_g": 9,
+            "carbs_g": 48,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 3
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "ce38dc9c-cee4-5e21-b0ea-3acbf38ba5a0",
+          "name": "Medu vada (2)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "South Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 340,
+            "protein_g": 8,
+            "carbs_g": 30,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 20
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "1607b75e-52c9-52ce-b9e8-8065b4609bc3",
+          "name": "Curd rice (1 plate)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "South Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 330,
+            "protein_g": 9,
+            "carbs_g": 50,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 10
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "615a6d1d-01d6-5c10-9afc-79e722ebd04f",
+          "name": "Uttapam",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "South Indian",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 350,
+            "protein_g": 9,
+            "carbs_g": 55,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 10
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "name": "Indo-Chinese",
+      "tips": [
+        "Dry dishes over gravy and fried starters",
+        "Clear soup to start",
+        "Half portion of fried rice or noodles with a protein dish"
+      ],
+      "dishes": [
+        {
+          "id": "1ff6b49a-ac9a-5b0a-a932-1f16b8b6a721",
+          "name": "Chilli chicken, dry",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Indo-Chinese",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 450,
+            "protein_g": 30,
+            "carbs_g": 20,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 28
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "8b630434-f8ec-5178-b445-3c450054da86",
+          "name": "Chicken manchow soup",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Indo-Chinese",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 180,
+            "protein_g": 10,
+            "carbs_g": 15,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 8
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "2eaa4da1-d1a3-5314-8b52-47b33c77440b",
+          "name": "Veg fried rice (1 plate)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Indo-Chinese",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 550,
+            "protein_g": 10,
+            "carbs_g": 80,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 20
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "5d937496-f087-56cb-b4aa-0d0ddfcbc843",
+          "name": "Hakka noodles (1 plate)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Indo-Chinese",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 600,
+            "protein_g": 12,
+            "carbs_g": 85,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 22
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "e3b843ba-6983-5efe-bf7a-960eb74dd89e",
+          "name": "Chilli paneer, dry",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Indo-Chinese",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 480,
+            "protein_g": 22,
+            "carbs_g": 20,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 34
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "name": "Fast food",
+      "tips": [
+        "Grilled over crispy",
+        "Skip the fries or share them",
+        "Diet drink or water instead of a regular cola"
+      ],
+      "dishes": [
+        {
+          "id": "c6e4f5d6-f100-5544-87e3-c1fbdfbc6254",
+          "name": "Chicken burger",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Fast food",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 450,
+            "protein_g": 22,
+            "carbs_g": 45,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 20
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "dc093b13-09c4-5059-8f47-82c88ac12c25",
+          "name": "Pizza slice (medium)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Fast food",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 280,
+            "protein_g": 12,
+            "carbs_g": 32,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 11
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "95b24b1e-f43a-588e-a1f8-56e49264b13b",
+          "name": "Fries (medium)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Fast food",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 330,
+            "protein_g": 4,
+            "carbs_g": 43,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 16
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "99115da8-096c-5cc0-be57-6c199366e665",
+          "name": "Grilled chicken wrap",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Fast food",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 420,
+            "protein_g": 28,
+            "carbs_g": 40,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 15
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "4cc02fd0-0a33-5f64-82bb-8193a283ac3b",
+          "name": "Cola (330 ml)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Fast food",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 140,
+            "protein_g": 0,
+            "carbs_g": 35,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 0
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "name": "Biryani",
+      "tips": [
+        "One plate, not seconds; add raita and salad",
+        "Chicken over mutton for less fat",
+        "Skip the side of fried starters"
+      ],
+      "dishes": [
+        {
+          "id": "268cd784-6840-5dbe-ac3c-d6e03d99795a",
+          "name": "Chicken biryani (1 plate)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Biryani",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 700,
+            "protein_g": 32,
+            "carbs_g": 80,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 26
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "407f7629-14aa-5393-88a4-56acb3090a02",
+          "name": "Veg biryani (1 plate)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Biryani",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 550,
+            "protein_g": 12,
+            "carbs_g": 85,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 17
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "4317acbb-0b72-5ea2-9f00-8a83178257eb",
+          "name": "Raita (1 katori)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Biryani",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 100,
+            "protein_g": 4,
+            "carbs_g": 8,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 5
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "33485fbc-77ed-5822-a483-1faf8b584f31",
+          "name": "Chicken kebab (4 pieces)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Biryani",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 300,
+            "protein_g": 32,
+            "carbs_g": 4,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 17
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "name": "Drinks",
+      "tips": [
+        "Alcohol has 7 kcal per gram and no protein, and slows recovery; keep it to an occasional drink",
+        "Spirits with soda or diet mixers over sugary cocktails",
+        "Alternate each drink with a glass of water",
+        "Eat a protein-rich meal; avoid fried bar snacks"
+      ],
+      "dishes": [
+        {
+          "id": "ad116a90-2b45-5bac-adb0-94aad6dd18c5",
+          "name": "Beer (330 ml)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Drinks",
+          "alcohol": true,
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 150,
+            "protein_g": 1.6,
+            "carbs_g": 13,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 0
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "cf147325-1e2a-5959-9299-a268d96823dc",
+          "name": "Whisky, rum or vodka (30 ml)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Drinks",
+          "alcohol": true,
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 70,
+            "protein_g": 0,
+            "carbs_g": 0,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 0
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "119e9948-93a8-51d9-80ea-c644f63b27a8",
+          "name": "Wine (150 ml)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Drinks",
+          "alcohol": true,
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 125,
+            "protein_g": 0.1,
+            "carbs_g": 4,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 0
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "a484360b-b43d-5266-9d29-a8d88d4f96d3",
+          "name": "Cocktail, sweet (200 ml)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Drinks",
+          "alcohol": true,
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 250,
+            "protein_g": 0,
+            "carbs_g": 30,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 0
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "ad2ea101-665b-58e7-963d-9b348bbc1aa9",
+          "name": "Peanut masala (1 plate)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Drinks",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 300,
+            "protein_g": 12,
+            "carbs_g": 15,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 22
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        },
+        {
+          "id": "1f1440eb-c7a0-5d97-842d-137fb3cdb3c6",
+          "name": "Chicken tikka (6 pieces)",
+          "name_hi": null,
+          "aliases": [],
+          "cuisine": "Drinks",
+          "serving": {
+            "label": "1 serving",
+            "grams": null
+          },
+          "per_serving": {
+            "kcal": 280,
+            "protein_g": 35,
+            "carbs_g": 4,
+            "fibre_g": null,
+            "added_sugar_g": null,
+            "fat_g": 14
+          },
+          "fruit_veg_servings": 0,
+          "source": {
+            "code": "own_recipe",
+            "name": "Plate & Bar own estimate for a typical restaurant portion (not weighed; portions and oil vary)",
+            "licence": "Own work",
+            "url": null,
+            "reference": null
+          },
+          "updated_at": "2026-10-08T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}
