@@ -236,7 +236,8 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  * Food screen support.
  * - `kcalTarget` mirrors prototype `kcalTarget(date)` (flex days, lab-hold override; settings and profile passed in);
  *   `DEFAULT_KCAL_TARGET` mirrors `DEFAULT_SETTINGS.kcal`.
- * - `planFlex` mirrors prototype `planFlex(extra)` (state and plan id passed in); `FLEX_FLOOR_DEFAULT` its 1200.
+ * - `planFlex` mirrors prototype `planFlex(extra)` (state and plan id passed in; never below the floor, #167);
+ *   `FLEX_FLOOR_DEFAULT` its 1200; `flexToast` its toast.
  * - `undoFlex` mirrors prototype `case 'flex-undo'`.
  * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
@@ -249,6 +250,7 @@ export {
   kcalTarget,
   DEFAULT_KCAL_TARGET,
   planFlex,
+  flexToast,
   undoFlex,
   FLEX_FLOOR_DEFAULT,
   stepServings,
