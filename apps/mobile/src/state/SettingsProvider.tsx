@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../db/settings';
 import type { StoreDb } from '../db/records';
+import type { FlexEntry } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 
 interface SettingsState {
@@ -13,6 +14,8 @@ interface SettingsState {
   /** Replaces the focus muscles. The caller (the Targets screen, with core's rules) decides what is allowed. */
   setFocus(focus: readonly string[]): void;
   setRestOff(off: boolean): void;
+  /** Replaces the flex entries (the Food tab plans them with core's `planFlex`/`undoFlex`). */
+  setFlex(flex: readonly FlexEntry[]): void;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -68,7 +71,9 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
   const setFocus = useCallback((focus: readonly string[]) => change({ focus: [...focus] }), [change]);
   const setRestOff = useCallback((rest_off: boolean) => change({ rest_off }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff]);
+  const setFlex = useCallback((flex: readonly FlexEntry[]) => change({ flex: [...flex] }), [change]);
+
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

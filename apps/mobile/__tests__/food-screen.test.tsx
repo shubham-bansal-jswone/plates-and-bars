@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
-import { saveSettings } from '../src/db/settings';
+import { loadSettings, saveSettings } from '../src/db/settings';
+import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET } from '@plate-and-bar/core';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { cuisines } from '../src/food/catalog';
@@ -45,7 +46,91 @@ describe('Food screen', () => {
   it('shows the default target and a setup hint without a profile', async () => {
     await setup({ withProfile: false });
     expect(screen.getByLabelText('0 of 1,900 kcal eaten')).toBeTruthy();
-    expect(screen.getByLabelText('Protein 0 g')).toBeTruthy();
+    expect(screen.getByLabelText(`Protein 0 of ${DEFAULT_PROTEIN_TARGET} g, ${DEFAULT_PROTEIN_TARGET} g to go`)).toBeTruthy();
+    expect(screen.getByLabelText(`Carbs 0 of ${DEFAULT_CARBS_TARGET} g, ${DEFAULT_CARBS_TARGET} g to go`)).toBeTruthy();
+    expect(screen.getByLabelText(`Fat 0 of ${DEFAULT_FAT_TARGET} g, ${DEFAULT_FAT_TARGET} g to go`)).toBeTruthy();
+  });
+
+  describe('flex chips', () => {
+    const flexOf = async (db: Db) => (await loadSettings(db))?.flex ?? [];
+    const plan = async (label: string) => {
+      await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
+      await fireEvent.press(screen.getByLabelText(label));
+    };
+
+    it('+300 adds entries sharing one UUID, raises today’s target, saves, and shows core’s toast', async () => {
+      const db = await setup();
+      await plan('+300 kcal today');
+      expect(screen.getByLabelText('0 of 2,290 kcal eaten')).toBeTruthy();
+      expect(await screen.findByText(/^Today \+300 kcal; the next 3 days 100 lower/)).toBeTruthy();
+      expect(screen.getByText(/includes \+300 kcal for a bigger meal/)).toBeTruthy();
+      await waitFor(async () => expect((await flexOf(db)).length).toBe(4));
+      const flex = await flexOf(db);
+      expect(flex[0]).toMatchObject({ date: DATE, kcal_delta: 300 });
+      expect(new Set(flex.map((x) => x.id)).size).toBe(1);
+      expect(flex[0]!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(flex.slice(1).map((x) => x.kcal_delta)).toEqual([-100, -100, -100]);
+    });
+
+    it('Undo removes every entry of the plan and restores the target', async () => {
+      const db = await setup();
+      await plan('+500 kcal today');
+      await waitFor(async () => expect((await flexOf(db)).length).toBeGreaterThan(1));
+      await fireEvent.press(screen.getByLabelText('Undo bigger day'));
+      expect(screen.getByLabelText('0 of 1,990 kcal eaten')).toBeTruthy();
+      expect(screen.queryByLabelText('Undo bigger day')).toBeNull();
+      await waitFor(async () => expect(await flexOf(db)).toEqual([]));
+    });
+
+    it('announces whether the chips are open', async () => {
+      await setup();
+      expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: false });
+      await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
+      expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: true });
+    });
+
+    it('PINNED QUIRK (#178): with two plans on today, Undo removes the earlier plan, not the newest', async () => {
+      const db = await setup();
+      await plan('+300 kcal today');
+      const first = (await waitFor(async () => {
+        const f = await flexOf(db);
+        expect(f.length).toBe(4);
+        return f;
+      }))[0]!.id;
+      await plan('+500 kcal today');
+      await waitFor(async () => expect((await flexOf(db)).length).toBeGreaterThan(4));
+      await fireEvent.press(screen.getByLabelText('Undo bigger day'));
+      await waitFor(async () => {
+        const left = await flexOf(db);
+        expect(left.length).toBeGreaterThan(0);
+        expect(left.some((x) => x.id === first)).toBe(false);
+      });
+      expect(screen.getByLabelText('0 of 2,490 kcal eaten')).toBeTruthy();
+    });
+
+    it('says what could not be spread when the next days have no room', async () => {
+      const room = Array.from({ length: 6 }, (_, i) => ({ id: 'old', date: `2026-10-${String(9 + i).padStart(2, '0')}`, kcal_delta: -790 }));
+      const db = memoryDb();
+      await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: room });
+      await setup({ db });
+      await plan('+800 kcal today');
+      expect(await screen.findByText(/kcal could not be spread without going below your minimum/)).toBeTruthy();
+    });
+
+    it('refuses to plan when the saved settings could not be read, and writes nothing', async () => {
+      const db = memoryDb();
+      const read = db.getFirstAsync.bind(db);
+      db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+        if (sql.includes('user_settings')) throw new Error('corrupt');
+        return read(sql, ...p);
+      }) as typeof db.getFirstAsync;
+      await setup({ db });
+      await plan('+300 kcal today');
+      expect(await screen.findByText(/Couldn’t read your saved settings/)).toBeTruthy();
+      expect(screen.getByLabelText('0 of 1,990 kcal eaten')).toBeTruthy();
+      await act(async () => {});
+      expect(docs(db, 'user_settings')).toHaveLength(0);
+    });
   });
 
   it('logs a food by servings into SQLite at once, with running totals and the fibre row', async () => {
