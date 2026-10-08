@@ -1,6 +1,7 @@
 # ADR 003: Auth (Google and email code sign-in, JWT with rotating refresh tokens)
 
 - Status: Accepted
+- Amended 2026-10-08: recorded the per-address code limits added with rate limiting (#43) and their lockout consequence. The per-code rule is unchanged.
 - Date: 2026-10-08
 
 ## Context
@@ -12,7 +13,7 @@ The app is offline-first, so a user may open it on a gym floor with no signal lo
 - **Sign-in methods:** Google sign-in (`POST /auth/google`, the device sends a Google ID token that the backend verifies) and an emailed 6-digit one-time code (`POST /auth/email/start`, then `POST /auth/email/verify`). The first successful sign-in creates the account. Two methods mean email still works if Google sign-in fails.
 - **Sign in with Apple is deferred to iOS (v1.1).** Apple requires it when other third-party sign-ins are offered on iOS, and Android and the web do not need it.
 - **No account enumeration:** `/auth/email/start` always answers 202 for a well-formed address, whether or not an account exists, and is rate-limited per address and per IP.
-- **Codes:** single-use, short expiry, invalidated after 5 wrong attempts; the user then requests a new code.
+- **Codes:** single-use, short expiry, invalidated after 5 wrong attempts; the user then requests a new code. Rate limiting (#43) adds per-address caps: codes issued per hour and per day, and wrong guesses counted across codes, so requesting a new code does not reset the guessing budget.
 - **Access token:** a JWT valid for 15 minutes, sent as a bearer token.
 - **Refresh token:** opaque, single-use, stored server-side (`refresh_tokens`) and on the device in secure storage. Lifetime 90 days, extended on rotation: each `POST /auth/refresh` invalidates the old token and returns a new one valid for 90 days from that refresh.
 - **Reuse revokes the session:** presenting an already-rotated refresh token is treated as theft, and every token descended from the same sign-in is revoked; the user must sign in again.
@@ -24,4 +25,5 @@ The app is offline-first, so a user may open it on a gym floor with no signal lo
 - Two requests racing to refresh with the same token look like reuse and end the session, so the app must serialise refreshes (one in flight at a time).
 - The backend must store a token family per sign-in to revoke it on reuse.
 - Email sign-in depends on a mail provider and rate limits; the 202-always rule means the app cannot tell a user that an address has no account.
+- The per-address caps let anyone lock a victim's address out of email-code sign-in by keeping its issuance or guess cap exhausted, and the victim receives up to the daily issuance limit of code emails. Per-IP limits do not prevent this: one source stays well within them while holding one address capped; they only limit how many addresses one source can hold. Devices already signed in are unaffected, and Google sign-in still works where the address is also a verified Google account. Accepted for M0, because the caps are what stop brute-force guessing. If abuse appears, the fix is per-(address, client) caps under a higher address-wide ceiling.
 - Adding Sign in with Apple later is additive (a new sign-in endpoint and identity type) and needs its own contract PR.
