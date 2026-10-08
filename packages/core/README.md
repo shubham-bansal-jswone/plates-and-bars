@@ -19,7 +19,8 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
 | Exclusions and swaps | `resolveSession`, `resolveName`, `candidates`, `ruleMatches`, `activeRules`, `isExcluded`, `replFromSwaps` | same names; `replFromSwaps` builds `settings.repl` from contract swaps | `exercises.json` (catalogue only; differential tests) |
 | Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction` | `progression.json` |
-| Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()` | none |
+| Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction` | none (differential tests) |
+| Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
 
 `calcTargets` returns the same fields as the prototype, unrounded where the prototype leaves them
 unrounded (bmr, movement, training, digestion, tdee, weekly). Display them with `Math.round`, as the
@@ -40,8 +41,13 @@ names passed in `inSession` (the prototype leaves out today's workout by default
 
 The weight guidance reads prototype `EX_META` (`name → [type, lo, hi]`) through a `meta` argument.
 content/exercises.json does not carry it yet, so tests pass golden/progression.json's `exerciseMeta`,
-and a test checks it equals the prototype's `EX_META`. Stalls and personal bests (`stalled`,
-`sessionScore`, `checkBest`) are not ported yet.
+and a test checks it equals the prototype's `EX_META`.
+
+Stalls and personal bests read each lift's `hist` (scores rounded to 0.1, last 8) and `pbToast`
+(contract `LiftStat.history` with `score`, and `pb_toast_date`). `updateLift` writes both, as the
+prototype does after every tick, rating or form change, except that a same-day record keeps its
+`pbToast` so the best toast shows at most once a day (#121; the prototype follows in a spec-change PR). Cards come back as facts (key, names, rep
+range), not HTML; the stall card's "Or switch to …" button (`sidewaysOf`) waits for the ladder port.
 
 ## Running
 

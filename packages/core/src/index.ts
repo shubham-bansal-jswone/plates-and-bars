@@ -110,4 +110,18 @@ export type {
   ModsContext,
   SetEntry,
   SetTarget,
+  ScoreEntry,
 } from './progression';
+
+/**
+ * Stalls, the recovery-week card and personal bests. Records are prototype `S.lifts[name]` with
+ * `hist` and `pbToast` (contract `LiftStat.history`, `pb_toast_date`).
+ * - `sessionScore`, `stalled`, `stalledList`, `inRange`, `checkBest`, `stallCard` mirror the prototype functions of the same name (state passed in).
+ * - `updateLift` mirrors prototype `updateLift(ex)`: the new record, its history and whether to toast a personal best.
+ * - `recoveryCard` mirrors the "several stalls → recovery week" card in prototype `renderStart()`.
+ * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`.
+ * - `addDays` mirrors prototype `addDays(s, n)`.
+ */
+export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, checkBest, updateLift } from './stalls';
+export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './stalls';
+export { addDays } from './dates';
