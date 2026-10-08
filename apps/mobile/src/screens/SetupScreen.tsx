@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, layout } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
-import { DAY_CHOICES, SESSION_MINUTES, STEPS, buildProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
+import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
+import { buildProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useTheme } from '../theme/useTheme';
 
@@ -128,14 +129,6 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
       <>
         <H1>How do you train?</H1>
         <View style={layout.field}>
-          <Label>Where do you train?</Label>
-          <Group label="Where do you train?">
-            {entries(WHERE).map(([k, [l, s]]) => (
-              <Choice key={k} label={l} sub={s} selected={d.where === k} onPress={() => set('where', k)} />
-            ))}
-          </Group>
-        </View>
-        <View style={layout.field}>
           <Label>Sessions per week</Label>
           <Group label="Sessions per week">
             <View style={layout.row}>
@@ -147,6 +140,14 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
         </View>
         {d.days ? (
           <>
+            <View style={layout.field}>
+              <Label>Where do you train?</Label>
+              <Group label="Where do you train?">
+                {entries(WHERE).map(([k, [l, s]]) => (
+                  <Choice key={k} label={l} sub={s} selected={d.where === k} onPress={() => set('where', k)} />
+                ))}
+              </Group>
+            </View>
             <View style={layout.field}>
               <Label>Training experience</Label>
               <Group label="Training experience">

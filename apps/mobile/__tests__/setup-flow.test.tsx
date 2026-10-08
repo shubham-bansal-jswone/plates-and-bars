@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { normaliseSetup } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import { loadConsent, loadProfile, saveConsent } from '../src/db/records';
@@ -93,6 +94,31 @@ describe('setup flow', () => {
       deleted_at: null,
       targets: { kcal: g.output.kcal, protein_g: g.output.protein, carbs_g: g.output.carbs, fat_g: g.output.fat },
     });
+    const { id, version, updated_at, deleted_at, ...stored } = p!;
+    expect(id).toBeNull();
+    expect(version).toBe(0);
+    expect(deleted_at).toBeNull();
+    expect(updated_at).toMatch(/Z$/);
+    expect(stored).toEqual(
+      normaliseSetup(
+        {
+          sex: 'male',
+          age: '30',
+          unit: 'cm',
+          cm: '165',
+          weight: '82',
+          activity: 'sitting',
+          where: 'gym',
+          days: 6,
+          exp: 'some',
+          minutes: 60,
+          goal: 'lose',
+          pace: 'moderate',
+          screen: ['no', 'no', 'no', 'no', 'no', 'no'],
+        },
+        p!.created,
+      ),
+    );
     expect(p!.created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(await loadConsent(db)).toMatchObject({ kind: 'data_storage', text_version: '2026-10-07', version: 0 });
   });
@@ -111,17 +137,17 @@ describe('setup flow', () => {
     await press('Some walking. Errands and short walks (~5,000–7,500 steps)');
     await press('Continue');
     await press('None yet');
-    await press('At home, no equipment. Bodyweight, plus a backpack for rows');
+    expect(screen.queryByText('Where do you train?')).toBeNull();
     expect(screen.queryByLabelText('60 min')).toBeNull();
     await press('Continue');
     await press('Maintain. Keep weight steady and get stronger');
     for (const q of SCREEN_Q) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
     await press('See my targets');
     expect(screen.getByText(/^For 60 and over/)).toBeTruthy();
-    expect(screen.getByText(/^Home plan: bodyweight/)).toBeTruthy();
+    expect(screen.queryByText(/^Home plan/)).toBeNull();
     await press('Use these targets');
     await waitFor(async () => expect(await loadProfile(db)).not.toBeNull());
-    expect(await loadProfile(db)).toMatchObject({ days: 0, exp: null, minutes: null, special: 'breastfeeding', where: 'bodyweight' });
+    expect(await loadProfile(db)).toMatchObject({ days: 0, exp: null, minutes: null, special: 'breastfeeding', where: 'gym' });
   });
 
   it('profile id stays null locally; consent ids are random and earlier consents are kept', async () => {
@@ -160,7 +186,6 @@ describe('setup flow', () => {
     await press('Some walking. Errands and short walks (~5,000–7,500 steps)');
     await press('Continue');
     await press('None yet');
-    await press('At a gym. Machines, cables, barbells and dumbbells');
     await press('Continue');
     await press('Maintain. Keep weight steady and get stronger');
     for (const q of SCREEN_Q) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
