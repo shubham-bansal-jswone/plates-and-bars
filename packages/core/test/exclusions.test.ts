@@ -214,34 +214,40 @@ describe('PINNED QUIRK tests', () => {
     expect(resolveName('A', 'gym', st({ swaps: [swap('A', 'B'), swap('B', 'C'), swap('C', 'A')] }), catalog)).toBe('B');
   });
 
+  // Spec question #110.
   it('PINNED QUIRK: an exclusion replacement already in the session is dropped, so the session loses a slot', () => {
     // candidates() ignores the session here (ignoreSession), and resolveSession then drops the repeat.
     const s = st({ exclusions: [rule('exercise', 'Barbell Bench Press')] });
     expect(resolveSession(['Archer Push-ups', 'Barbell Bench Press'], 'gym', s, catalog)).toEqual([{ name: 'Archer Push-ups' }]);
   });
 
+  // Safe while the re-check card's due filter exists: #111.
   it('PINNED QUIRK: a timed rule past its `until` still applies until the user answers the re-check', () => {
     const s = st({ exclusions: [rule('exercise', 'Leg Press', { until: '2026-09-01', to: { 'Leg Press': null } })] });
     expect(resolveSession(['Leg Press'], 'gym', s, catalog)).toEqual([]);
   });
 
+  // Spec question #109.
   it('PINNED QUIRK: swap targets and stored picks ignore where; a gym exercise can land in a home session', () => {
     expect(resolveSession(['Dumbbell Split Squat'], 'dumbbells', st({ swaps: [swap('Dumbbell Split Squat', 'Hack Squat')] }), catalog)).toEqual([{ name: 'Hack Squat' }]);
     const s = st({ exclusions: [rule('exercise', 'Goblet Squat', { to: { 'Goblet Squat': 'Leg Press' } })] });
     expect(resolveSession(mapForWhere(['Hack Squat'], 'dumbbells', catalog), 'dumbbells', s, catalog)).toEqual([{ name: 'Leg Press' }]);
   });
 
+  // Spec question #109.
   it('PINNED QUIRK: a stored pick is not followed through swaps', () => {
     const s = st({ exclusions: [rule('exercise', 'Hack Squat', { to: { 'Hack Squat': 'Leg Press' } })], swaps: [swap('Leg Press', 'Barbell Back Squat')] });
     expect(resolveName('Hack Squat', 'gym', s, catalog)).toBe('Leg Press');
     expect(resolveName('Leg Press', 'gym', s, catalog)).toBe('Barbell Back Squat');
   });
 
+  // Spec question #109.
   it('PINNED QUIRK: only the first matching rule’s pick is used', () => {
     const s = st({ exclusions: [rule('joint', 'knee'), rule('exercise', 'Leg Press', { to: { 'Leg Press': null } })] });
     expect(resolveName('Leg Press', 'gym', s, catalog)).not.toBeNull();
   });
 
+  // Spec question #109.
   it('PINNED QUIRK: no bridge once the swap target is itself swapped or replaced', () => {
     const s = st({ swaps: [swap('Leg Press', 'Hack Squat', '2026-10-21'), swap('Hack Squat', 'Barbell Back Squat')] });
     expect(resolveSession(['Leg Press'], 'gym', s, catalog)).toEqual([{ name: 'Barbell Back Squat' }]);

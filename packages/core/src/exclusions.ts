@@ -103,7 +103,12 @@ export function isExcluded(name: string, exclusions: readonly Exclusion[], tags:
 export interface CandidateOptions {
   /** Equipment available (prototype `o.where`, falling back to today's workout, then gym). */
   where: Where;
-  /** Exercises already in the session, left out (prototype reads today's workout unless `ignoreSession`). */
+  /**
+   * Exercises already in the session, left out. Unlike the prototype, which leaves out today's workout
+   * unless `ignoreSession` is set, the port leaves out nothing unless the caller lists the session's
+   * names here. Callers other than `resolveName` (which ignores the session, as the prototype does)
+   * must pass today's names, as the prototype's "can't do" sheet and `applyCant` rely on it.
+   */
   inSession?: readonly string[];
   /** Draft rules also excluded (prototype `o.rules`). */
   rules?: readonly RuleMatch[];
@@ -148,6 +153,11 @@ export interface Candidate {
  * same pattern +6, difficulty gap −2 per step (or the form rule), pain −2 per joint, history +2.
  * Leaves out the exercise itself, session exercises, excluded ones, ones the equipment at `where`
  * can't do, and ones loading `joint`. Ties keep catalogue order (stable sort, as the prototype's).
+ *
+ * Leaves out nothing for being in the session unless `o.inSession` lists it (the prototype leaves out
+ * today's workout by default). `catalog.tags` must already include custom-exercise tags (contract
+ * `ExerciseTags`), merged in by the caller as prototype `applyCustomTags` does; otherwise a custom
+ * exercise gets no candidates.
  *
  * Mirrors prototype `candidates(name, o)` (state passed in; `why` as facts, see `CandidateWhy`).
  */
@@ -236,6 +246,11 @@ export function resolveName(name: string, where: Where, state: ResolveState, cat
  * repeats. After a swap made by a ladder step, the old exercise follows its replacement as a bridge
  * item until `bridge_until`, when the swap resolved straight to its target and the old exercise is
  * not excluded.
+ *
+ * Replacements for excluded exercises come from `candidates` with the session ignored, as in the
+ * prototype. `catalog.tags` must already include custom-exercise tags (contract `ExerciseTags`), merged
+ * in by the caller as prototype `applyCustomTags` does; otherwise a custom exercise only matches
+ * `exercise` rules and gets no replacement.
  *
  * Mirrors prototype `resolveSession(names, where)`.
  */

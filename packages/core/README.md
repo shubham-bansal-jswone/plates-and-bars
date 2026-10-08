@@ -34,7 +34,9 @@ catalogue from `golden/exercises.json`, renaming the prototype's short tag names
 `test/prototype-plan.ts`, and a test checks that content/exercises.json matches it. `resolveSession` takes exclusions and swaps in the
 contract's `Exclusion` and `Swap` shapes (records with `deleted_at` set are ignored; `until` is not read,
 as in the prototype) and returns the items `trimSession` expects; pass `replFromSwaps(swaps)` as
-`trimSession`'s `repl`. `candidates` returns the facts behind the prototype's `why` text, not the text.
+`trimSession`'s `repl`. `candidates` returns the facts behind the prototype's `why` text, not the text. Merge custom-exercise
+tags into `catalog.tags` first, as prototype `applyCustomTags` does. `candidates` leaves out only the
+names passed in `inSession` (the prototype leaves out today's workout by default).
 
 The weight guidance reads prototype `EX_META` (`name → [type, lo, hi]`) through a `meta` argument.
 content/exercises.json does not carry it yet, so tests pass golden/progression.json's `exerciseMeta`,
