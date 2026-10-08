@@ -29,8 +29,15 @@ jobs:
           curl -sSfL -o "/tmp/$tgz" "$base/$tgz"
           echo "$GITLEAKS_SHA256  /tmp/$tgz" | sha256sum -c -
           tar -xzf "/tmp/$tgz" -C /usr/local/bin gitleaks
-      - name: Scan history
-        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose
+      # gitleaks defaults to `git log --all`, so one branch's finding would fail every PR.
+      # PR: checkout is the tested merge commit; HEAD^1 is the base tip, so HEAD^1..HEAD is
+      # only the PR's own commits. Push to main and schedule: HEAD is main, full history.
+      - name: Scan PR commits
+        if: github.event_name == 'pull_request'
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --log-opts="HEAD^1..HEAD"
+      - name: Scan main history
+        if: github.event_name != 'pull_request'
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --log-opts="HEAD"
 
   dependency-review:
     name: dependency-review
