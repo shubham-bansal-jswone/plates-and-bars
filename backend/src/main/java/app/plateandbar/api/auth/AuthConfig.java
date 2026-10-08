@@ -34,7 +34,22 @@ public class AuthConfig {
     /** Bounded timeouts, cached keys, a minimum gap between refetches, RS256 only. */
     static GoogleIdTokenVerifier create(
             String jwksUri, long refetchGapMillis, java.util.List<String> clientIds, java.time.Clock clock) {
-        DefaultResourceRetriever retriever = new DefaultResourceRetriever(2000, 2000, 51_200);
+        DefaultResourceRetriever http = new DefaultResourceRetriever(2000, 2000, 51_200);
+        // Records whether the last fetch returned a parseable key set (see GoogleIdTokenVerifier).
+        java.util.concurrent.atomic.AtomicBoolean loaded = new java.util.concurrent.atomic.AtomicBoolean(false);
+        com.nimbusds.jose.util.ResourceRetriever retriever = url -> {
+            try {
+                com.nimbusds.jose.util.Resource r = http.retrieveResource(url);
+                com.nimbusds.jose.jwk.JWKSet.parse(r.getContent());
+                loaded.set(true);
+                return r;
+            } catch (java.io.IOException | java.text.ParseException e) {
+                loaded.set(false);
+                throw e instanceof java.text.ParseException
+                        ? new java.io.IOException("JWK set is not parseable", e)
+                        : (java.io.IOException) e;
+            }
+        };
         JWKSource<SecurityContext> source;
         try {
             source = JWKSourceBuilder.create(new URL(jwksUri), retriever)
@@ -47,6 +62,6 @@ public class AuthConfig {
         }
         DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
         processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, source));
-        return new GoogleIdTokenVerifier(new NimbusJwtDecoder(processor), clientIds, clock);
+        return new GoogleIdTokenVerifier(new NimbusJwtDecoder(processor), clientIds, clock, loaded::get);
     }
 }

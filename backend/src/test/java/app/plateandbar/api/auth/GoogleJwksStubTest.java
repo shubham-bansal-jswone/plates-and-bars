@@ -82,25 +82,96 @@ class GoogleJwksStubTest {
     }
 
     @Test
-    void unknownKeyIdTwiceWithinTheRateLimitWindowIs401Both() throws Exception {
+    void unknownKeyIdIs401WithoutRefetchingInsideTheWindow() throws Exception {
         var v = AuthConfig.create(url(), 30_000, List.of(CLIENT), clock);
         RSAKey stranger = new RSAKeyGenerator(2048).keyID("unknown").generate();
-        for (int i = 0; i < 2; i++) {
-            assertThatThrownBy(() -> v.verify(token(stranger)))
-                    .isInstanceOfSatisfying(ApiException.class, e -> {
-                        assertThat(e.status().value()).isEqualTo(401);
-                        assertThat(e.code()).isEqualTo("unauthorized");
-                    });
+        // First call loads the key set (1 fetch), the unknown kid then triggers a refetch (2 fetches).
+        assertUnauthorized(v, token(stranger));
+        assertThat(fetches.get()).isEqualTo(2);
+        assertUnauthorized(v, token(stranger));
+        assertThat(fetches.get()).isEqualTo(2);
+        assertUnauthorized(v, token(stranger));
+        assertThat(fetches.get()).isEqualTo(2);
+        // A good token is served from cache: no new fetch.
+        assertThat(v.verify(token(served)).subject()).isEqualTo("sub-1");
+        assertThat(fetches.get()).isEqualTo(2);
+    }
+
+    private void assertUnauthorized(GoogleIdTokenVerifier v, String token) {
+        assertThatThrownBy(() -> v.verify(token)).isInstanceOfSatisfying(ApiException.class, e -> {
+            assertThat(e.status().value()).isEqualTo(401);
+            assertThat(e.code()).isEqualTo("unauthorized");
+        });
+    }
+
+    private void assertOutage(GoogleIdTokenVerifier v) {
+        for (int i = 0; i < 4; i++) {
+            // A JwtException (not ApiException) reaches ApiExceptionHandler, which answers 500 internal.
+            assertThatThrownBy(() -> v.verify(token(served))).isInstanceOf(JwtException.class);
         }
-        // A good token still verifies afterwards.
+    }
+
+    @Test
+    void connectionRefusedIsAlways500ThenRecovers() throws Exception {
+        int port = server.getAddress().getPort();
+        server.stop(0);
+        var v = AuthConfig.create(url(), 30_000, List.of(CLIENT), clock);
+        assertOutage(v);
+        // Recovery: Google is back. The rate limit may delay the refetch, so use a short gap.
+        var v2 = AuthConfig.create(url(), 100, List.of(CLIENT), clock);
+        assertOutage(v2);
+        restart(port, 200, null);
+        Thread.sleep(150);
+        assertThat(v2.verify(token(served)).subject()).isEqualTo("sub-1");
+    }
+
+    @Test
+    void http503IsAlways500ThenRecovers() throws Exception {
+        int port = server.getAddress().getPort();
+        server.stop(0);
+        restart(port, 503, "unavailable");
+        var v = AuthConfig.create(url(), 100, List.of(CLIENT), clock);
+        assertOutage(v);
+        restart(port, 200, null);
+        Thread.sleep(150);
         assertThat(v.verify(token(served)).subject()).isEqualTo("sub-1");
     }
 
     @Test
-    void googleUnreachableIsAServerFaultNot401() {
-        String dead = url();
+    void nonJsonBodyIsAlways500ThenRecovers() throws Exception {
+        int port = server.getAddress().getPort();
         server.stop(0);
-        var v = AuthConfig.create(dead, 30_000, List.of(CLIENT), clock);
-        assertThatThrownBy(() -> v.verify(token(served))).isInstanceOf(JwtException.class);
+        restart(port, 200, "<html>not json</html>");
+        var v = AuthConfig.create(url(), 100, List.of(CLIENT), clock);
+        assertOutage(v);
+        restart(port, 200, null);
+        Thread.sleep(150);
+        assertThat(v.verify(token(served)).subject()).isEqualTo("sub-1");
+    }
+
+    @Test
+    void outageWithinTheRateLimitWindowStays500() throws Exception {
+        int port = server.getAddress().getPort();
+        server.stop(0);
+        restart(port, 503, "unavailable");
+        var v = AuthConfig.create(url(), 30_000, List.of(CLIENT), clock);
+        assertOutage(v); // calls 3 and 4 hit the rate limit but must still be 500
+    }
+
+    /** Restarts the stub on the same port; a null body serves the real key set. */
+    private void restart(int port, int status, String body) throws Exception {
+        if (server != null) {
+            server.stop(0);
+        }
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        server.createContext("/certs", ex -> {
+            fetches.incrementAndGet();
+            byte[] out = (body == null ? new JWKSet(served.toPublicJWK()).toString() : body)
+                    .getBytes(StandardCharsets.UTF_8);
+            ex.sendResponseHeaders(status, out.length);
+            ex.getResponseBody().write(out);
+            ex.close();
+        });
+        server.start();
     }
 }

@@ -32,7 +32,19 @@ public class GoogleIdTokenVerifier {
 
     private final JwtDecoder decoder;
 
+    private final java.util.function.BooleanSupplier keySetLoaded;
+
     public GoogleIdTokenVerifier(NimbusJwtDecoder decoder, List<String> clientIds, Clock clock) {
+        this(decoder, clientIds, clock, () -> true);
+    }
+
+    /**
+     * @param keySetLoaded true when the last JWKS fetch succeeded and parsed. Nimbus does not expose its
+     *     cache, so {@link AuthConfig} tracks this by wrapping the retriever.
+     */
+    public GoogleIdTokenVerifier(
+            NimbusJwtDecoder decoder, List<String> clientIds, Clock clock, java.util.function.BooleanSupplier keySetLoaded) {
+        this.keySetLoaded = keySetLoaded;
         JwtTimestampValidator timestamps = new JwtTimestampValidator(Duration.ofSeconds(60));
         timestamps.setClock(clock);
         OAuth2TokenValidator<Jwt> issuer = jwt -> {
@@ -72,13 +84,16 @@ public class GoogleIdTokenVerifier {
         } catch (BadJwtException e) {
             throw ApiException.unauthorized();
         } catch (JwtException e) {
-            if (keySourceOutage(e)) {
-                // Google's key endpoint unreachable or unparseable: a server fault, answered 500 internal.
-                throw e;
+            // Nimbus throws RateLimitReachedException both for an unknown key id inside the refetch window
+            // and for any call after a failed fetch (outage). Only the first is the caller's fault: it is a
+            // 401 when a key set is actually loaded. Otherwise Google's keys are unavailable, so rethrow
+            // and let the handler answer 500 internal (logged at ERROR) so clients retry.
+            if (!keySourceOutage(e) && keySetLoaded.getAsBoolean()) {
+                // Anyone can trigger this without limit, so no WARN.
+                log.debug("Google ID token refused: no matching key ({})", e.getClass().getSimpleName());
+                throw ApiException.unauthorized();
             }
-            // Includes the JWKS refetch rate limit hit by an unknown key id: the token is simply not valid.
-            log.warn("Google ID token refused: key not available ({})", e.getClass().getSimpleName());
-            throw ApiException.unauthorized();
+            throw e;
         }
         Object verified = jwt.getClaim("email_verified");
         boolean emailVerified = Boolean.TRUE.equals(verified) || "true".equals(verified);
