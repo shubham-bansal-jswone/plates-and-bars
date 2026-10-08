@@ -79,6 +79,13 @@ describe('suggestBase rules', () => {
     expect(sug('Hack Squat', rec([[60, 12, 'easy'], [60, 12, 'easy']], { first: '2026-10-01' }))).toMatchObject({ mode: 'up', w: 65 });
   });
 
+  it('2-week hold counts whole calendar days, also across a DST change (prototype: local Date difference)', () => {
+    // 2026-02-28 → 2026-03-14 spans the US clock change (2026-03-08): day 14, so no longer held.
+    const L = rec([[60, 12], [60, 12]], { date: '2026-03-10', first: '2026-02-28' });
+    expect(suggestBase({ name: 'Hack Squat' }, { date: '2026-03-13', lifts: { 'Hack Squat': L }, meta })).toMatchObject({ mode: 'hold' });
+    expect(suggestBase({ name: 'Hack Squat' }, { date: '2026-03-14', lifts: { 'Hack Squat': L }, meta })).toMatchObject({ mode: 'up', w: 65 });
+  });
+
   it('jump warning over 10%, or 5% at 60+', () => {
     expect(sug('Hack Squat', rec([[60, 12], [60, 12]])).reason).not.toContain('jump');
     expect(sug('Hack Squat', rec([[60, 12], [60, 12]]), { profile: { age: 60 } }).reason).toContain('8% jump');
@@ -243,7 +250,7 @@ describe('weight guidance: differential against the prototype', () => {
   const randSets = () =>
     Array.from({ length: 1 + Math.floor(r() * 4) }, () => {
       const rate = pick(rates);
-      return { w: pick([0, 2.5, 5, 10, 22.5, 25, 30, 50, 60, 100]), r: Math.floor(r() * 22), ...(rate !== undefined ? { rate } : {}) };
+      return { w: pick([0, 2.5, 5, 10, 22.5, 25, 30, 50, 60, 80, 100]), r: Math.floor(r() * 22), ...(rate !== undefined ? { rate } : {}) };
     });
 
   function randState(name: string) {

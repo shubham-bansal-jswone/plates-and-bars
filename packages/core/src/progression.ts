@@ -171,6 +171,9 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
   const allTop = work.every((s) => s.r >= info.hi);
   const L = c.lifts[ex.name];
   const first = L && L.first; // older records without a start date skip the 2-week cap
+  // Whole calendar days between the two local YYYY-MM-DD dates. The prototype subtracts local Date
+  // objects without rounding, so in a DST time zone a span across the clock change is an hour short
+  // (day 14 counts as 13.96 and still holds, once a year); never in Asia/Kolkata.
   const early = first ? daysBetween(first, c.date) < 14 : false;
   const lastRate = rates[rates.length - 1];
   const summary = `Last time: ${work.length} × ${kgLabelShort(top, info)}${work.map((s) => s.r).join(', ')} ${rw}${lastRate ? `, rated ${RATES[lastRate].toLowerCase()}` : ''}.`;
