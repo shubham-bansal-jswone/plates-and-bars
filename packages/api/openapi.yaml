@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.2
+  version: 0.1.3
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -1802,11 +1802,21 @@ components:
                     minimum: 1
             flex:
               type: array
-              description: Calorie moves between days (last 7 days).
+              description: |
+                Calorie moves between days (last 7 days). One "bigger meal" plan adds several
+                entries: the extra kcal on its day and an equal cut on each of the next days.
+                All entries of one plan share an `id`, and undo removes every entry with that id.
               items:
                 type: object
-                required: [date, kcal_delta]
+                required: [id, date, kcal_delta]
                 properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: |
+                      Id of the flex plan this entry belongs to: a random UUIDv4 made on the device
+                      when the plan is made. Every entry of the plan has the same id, so it is not
+                      unique within `flex`. Undo removes all entries with this id. Prototype: `id`.
                   date:
                     $ref: '#/components/schemas/LocalDate'
                   kcal_delta:
