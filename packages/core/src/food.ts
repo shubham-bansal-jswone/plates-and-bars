@@ -287,6 +287,8 @@ export interface UserFoodFields {
 export type CustomFoodResult =
   /** No name: "Give the food a name." */
   | { kind: 'no-name' }
+  /** A negative calorie or macro value, or a quantity at or below 0 (#150; the prototype logs it). */
+  | { kind: 'invalid' }
   /** No calories and no macros: "Enter calories or at least one macro." */
   | { kind: 'no-kcal' }
   /** The log to add (contract `FoodLog` values) and the food to save if "Save to my foods" is ticked. */
@@ -295,8 +297,11 @@ export type CustomFoodResult =
 /**
  * The custom-food form. Calories, when 0 or empty, come from the macros (round(p×4 + c×4 + f×9));
  * entered calories and macros are kept unrounded. The saved food has no fibre, sugar or fruit and veg data.
+ * A quantity left empty or 0 is 1. After the name check, a negative calorie or macro value, or a
+ * quantity still at or below 0, gives `invalid` (decided on #150; the prototype logs it and follows in
+ * the next spec-change batch).
  *
- * Mirrors prototype `case 'addcustom'` (checks, log and saved food).
+ * Mirrors prototype `case 'addcustom'` (checks, log and saved food), except `invalid`.
  */
 export function customFood(input: CustomFoodInput): CustomFoodResult {
   const name = input.name.trim();
@@ -304,8 +309,9 @@ export function customFood(input: CustomFoodInput): CustomFoodResult {
   let k = num(input.kcal);
   if (!k) k = Math.round(p * 4 + c * 4 + f * 9);
   if (!name) return { kind: 'no-name' };
-  if (!k) return { kind: 'no-kcal' };
   const qty = num(input.qty) || 1;
+  if (k < 0 || p < 0 || c < 0 || f < 0 || qty <= 0) return { kind: 'invalid' };
+  if (!k) return { kind: 'no-kcal' };
   return {
     kind: 'ok',
     log: { name, qty, kcal: k, protein_g: p, carbs_g: c, fat_g: f },

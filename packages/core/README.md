@@ -71,7 +71,8 @@ user's foods as `FoodFacts`. Totals come back unrounded; show energy, fibre and 
 and fruit and veg to 0.1, as the prototype does. `dayComplete` takes the settings calorie target, not the
 flexed one, and applies its fallback (3 or more logs, 75% of target) to every day, today included.
 `quantityFromGrams` returns `too-small` where the prototype logs 0 servings (#150; the prototype
-follows in the next spec-change batch). Turn a contract `UserFood` into the food-maths inputs with
+follows in the next spec-change batch), and `customFood` returns `invalid` for a negative calorie or macro
+value or a quantity at or below 0 (#150). Turn a contract `UserFood` into the food-maths inputs with
 `userFoodFacts`. A log takes fibre from the first food with its name *and* fibre data, where the
 prototype takes the first user food with its name and then checks its fibre; the two differ only when
 two user foods share a name, which the prototype's save prevents but the contract does not (#151,

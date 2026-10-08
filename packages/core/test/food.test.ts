@@ -467,8 +467,14 @@ describe('customFood and saveMyFood', () => {
     expect(customFood({ ...base, protein: '', carbs: '', fat: '' })).toEqual({ kind: 'no-kcal' });
     expect(customFood({ ...base, name: '', protein: '', carbs: '', fat: '' })).toEqual({ kind: 'no-name' });
   });
-  it('PINNED QUIRK: a negative quantity or calorie value is kept', () => {
-    expect(customFood({ ...base, qty: '-2', kcal: '-100' })).toMatchObject({ log: { qty: -2, kcal: -100 } });
+  it('a negative quantity, calorie or macro value is invalid (#150: the prototype logs it)', () => {
+    expect(customFood({ ...base, qty: '-2' })).toEqual({ kind: 'invalid' });
+    expect(customFood({ ...base, kcal: '-100' })).toEqual({ kind: 'invalid' });
+    expect(customFood({ ...base, fat: '-1' })).toEqual({ kind: 'invalid' });
+    expect(customFood({ ...base, protein: '-5', carbs: '5', fat: '' })).toEqual({ kind: 'invalid' }); // kcal 0 too: invalid first
+    expect(customFood({ ...base, name: '', qty: '-2' })).toEqual({ kind: 'no-name' });
+    expect(customFood({ ...base, qty: '0' })).toMatchObject({ kind: 'ok', log: { qty: 1 } });
+    expect(proto.addCustom({ cfName: 'Thali', cfK: '-100', cfQ: '-2' }, false, []).meal).toMatchObject({ qty: -2, kcal: -100 });
   });
   it('saving puts the food first, drops the same name and keeps 60', () => {
     const list = Array.from({ length: 60 }, (_, i) => ({ name: `F${i}` }));
@@ -493,9 +499,16 @@ describe('customFood and saveMyFood', () => {
       const my = Array.from({ length: pickOf(r, [0, 3, 59, 60, 61]) }, (_, k) => ({ name: k < 8 ? (NEW_NAMES[k] as string) : `F${k}`, unit: '1 serving', kcal: 1, p: 0, c: 0, f: 0 }));
       const p = proto.addCustom(v, save, my);
       const got = customFood({ name: v.cfName, kcal: v.cfK, protein: v.cfP, carbs: v.cfC, fat: v.cfF, qty: v.cfQ, unit: v.cfU });
+      // The one exception to the prototype: negative values or a quantity at or below 0 are `invalid` (#150).
+      const bad = !!v.cfName.trim() && ([v.cfK, v.cfP, v.cfC, v.cfF].some((x) => num(x) < 0) || (num(v.cfQ) || 1) <= 0);
+      if (bad) {
+        expect(got).toEqual({ kind: 'invalid' });
+        continue;
+      }
+      expect(got.kind).not.toBe('invalid');
       if (got.kind === 'no-name') expect(p.toast).toBe('Give the food a name.');
       else if (got.kind === 'no-kcal') expect(p.toast).toBe('Enter calories or at least one macro.');
-      else {
+      else if (got.kind === 'ok') {
         const m = p.meal!;
         expect(got.log).toEqual({ name: m.name, qty: m.qty, kcal: m.kcal, protein_g: m.p, carbs_g: m.c, fat_g: m.f });
         if (save) {
