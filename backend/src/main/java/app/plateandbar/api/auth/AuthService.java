@@ -5,6 +5,9 @@ import app.plateandbar.api.auth.AuthDtos.TokenPair;
 import app.plateandbar.api.auth.AuthDtos.UserDto;
 import app.plateandbar.api.auth.UserRepository.User;
 import app.plateandbar.api.common.ApiException;
+import app.plateandbar.api.ratelimit.RateLimitProperties;
+import app.plateandbar.api.ratelimit.RateLimitedException;
+import app.plateandbar.api.ratelimit.RateLimiter;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -47,6 +50,9 @@ public class AuthService {
     private final UserRepository users;
     private final RefreshTokenRepository refreshTokens;
     private final EmailCodeRepository codes;
+    private final EmailVerifyFailureRepository failures;
+    private final RateLimiter limiter;
+    private final RateLimitProperties limits;
     private final TransactionTemplate tx;
     private final Clock clock;
     private final byte[] codeKey;
@@ -58,6 +64,9 @@ public class AuthService {
             UserRepository users,
             RefreshTokenRepository refreshTokens,
             EmailCodeRepository codes,
+            EmailVerifyFailureRepository failures,
+            RateLimiter limiter,
+            RateLimitProperties limits,
             PlatformTransactionManager txManager,
             Clock clock,
             AuthProperties props) {
@@ -67,6 +76,9 @@ public class AuthService {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.codes = codes;
+        this.failures = failures;
+        this.limiter = limiter;
+        this.limits = limits;
         this.tx = new TransactionTemplate(txManager);
         this.clock = clock;
         this.codeKey = hmac(props.jwtSigningKey().getBytes(StandardCharsets.UTF_8), "email-code-v1");
@@ -82,11 +94,18 @@ public class AuthService {
 
     public EmailStartResponse startEmailSignIn(String rawEmail) {
         String email = Emails.normalise(rawEmail);
+        // Per address, before anything is written or sent. Applies whether or not an account exists.
+        limiter.consume(
+                "email-start-address",
+                email,
+                limits.getEmailStartPerAddress().getBurst(),
+                limits.getEmailStartPerAddress().getSustained());
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));
         Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
         Instant expiresAt = now.plus(CODE_TTL);
         tx.executeWithoutResult(s -> {
             codes.deleteExpired(now);
+            failures.deleteOlderThan(now.minus(longestFailureWindow()));
             codes.replace(email, hashCode(email, code), expiresAt, now);
         });
         try {
@@ -103,6 +122,12 @@ public class AuthService {
         TokenPair pair = inTxRetryingOnRace(() -> {
             Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
             var row = codes.findForUpdate(email);
+            // Cap on wrong codes per address across all codes. Checked under the code row lock so
+            // parallel guesses cannot overshoot it; a blocked attempt is refused even if the code is right.
+            long wait = failureCapWaitSeconds(email, now);
+            if (wait > 0) {
+                throw new RateLimitedException(wait);
+            }
             if (row.isEmpty()) {
                 return null;
             }
@@ -114,6 +139,7 @@ public class AuthService {
                     hashCode(email, code).getBytes(StandardCharsets.UTF_8),
                     c.codeHash().getBytes(StandardCharsets.UTF_8))) {
                 codes.recordWrongAttempt(email);
+                failures.record(email, now);
                 return null;
             }
             codes.markUsed(email, now);
@@ -124,6 +150,28 @@ public class AuthService {
             throw ApiException.invalidCode();
         }
         return pair;
+    }
+
+    private Duration longestFailureWindow() {
+        var caps = limits.getVerifyFailuresPerAddress();
+        return caps.getBurst().getWindow().compareTo(caps.getSustained().getWindow()) > 0
+                ? caps.getBurst().getWindow()
+                : caps.getSustained().getWindow();
+    }
+
+    /** Seconds until the address may try again, or 0 when under both caps (rolling windows). */
+    private long failureCapWaitSeconds(String email, Instant now) {
+        long wait = 0;
+        var caps = limits.getVerifyFailuresPerAddress();
+        for (var l : java.util.List.of(caps.getBurst(), caps.getSustained())) {
+            var recent = failures.newest(email, now.minus(l.getWindow()), l.getCapacity());
+            if (recent.size() >= l.getCapacity()) {
+                // Blocked until the oldest of the counted failures leaves the window.
+                Instant frees = recent.get(l.getCapacity() - 1).plus(l.getWindow());
+                wait = Math.max(wait, Math.max(1, Duration.between(now, frees).plusMillis(999).toSeconds()));
+            }
+        }
+        return wait;
     }
 
     public TokenPair refresh(String presented) {

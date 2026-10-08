@@ -27,6 +27,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     // JWT signing/verification and Google JWKS verification (brings nimbus-jose-jwt, Apache-2.0).
     implementation 'org.springframework.security:spring-security-oauth2-jose'
+    // In-memory token-bucket rate limits (Apache-2.0).
+    implementation 'com.bucket4j:bucket4j_jdk17-core:8.21.0'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     runtimeOnly 'com.mysql:mysql-connector-j'

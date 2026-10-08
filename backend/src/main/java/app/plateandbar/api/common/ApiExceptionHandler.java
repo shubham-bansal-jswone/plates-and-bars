@@ -1,5 +1,6 @@
 package app.plateandbar.api.common;
 
+import app.plateandbar.api.ratelimit.RateLimitedException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,14 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ErrorResponse> api(ApiException e) {
         return respond(e.status(), e.code(), e.getMessage(), null);
+    }
+
+    @ExceptionHandler(RateLimitedException.class)
+    ResponseEntity<ErrorResponse> rateLimited(RateLimitedException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", Long.toString(e.retryAfterSeconds()))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(ErrorResponse.of(e.code(), e.getMessage()));
     }
 
     @ExceptionHandler(ServiceUnavailableException.class)

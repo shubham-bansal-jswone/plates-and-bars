@@ -1,6 +1,10 @@
 package app.plateandbar.api.auth;
 
 import app.plateandbar.api.common.ErrorResponse;
+import app.plateandbar.api.ratelimit.ClientIpResolver;
+import app.plateandbar.api.ratelimit.RateLimitFilter;
+import app.plateandbar.api.ratelimit.RateLimitProperties;
+import app.plateandbar.api.ratelimit.RateLimiter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,7 +27,14 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper mapper, JwtService jwtService) throws Exception {
+    SecurityFilterChain filterChain(
+            HttpSecurity http,
+            ObjectMapper mapper,
+            JwtService jwtService,
+            RateLimiter limiter,
+            ClientIpResolver clientIps,
+            RateLimitProperties limits)
+            throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, ex) -> writeUnauthorized(mapper, response);
         AccessDeniedHandler denied = (request, response, ex) -> writeUnauthorized(mapper, response);
         http.csrf(AbstractHttpConfigurer::disable)
@@ -36,6 +47,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(denied))
                 .addFilterBefore(new JwtAuthFilter(jwtService, mapper), AnonymousAuthenticationFilter.class)
+                .addFilterAfter(new RateLimitFilter(limiter, clientIps, limits, mapper), JwtAuthFilter.class)
                 .cors(Customizer.withDefaults());
         return http.build();
     }
