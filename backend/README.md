@@ -20,7 +20,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   `token_expired` or `unauthorized` in the contract's `Error` shape. The principal is the user id string.
 - Mail goes through the `MailSender` interface. `LoggingMailSender` (local and staging) logs only that a code was
   issued, never the code or the address. A real provider is a later issue.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`.
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
@@ -37,7 +37,49 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     buckets expire after their longest window. Address-keyed buckets (code issuance) have their own cache
     (`app.rate-limit.address-max-tracked-keys`) so an IP-keyed flood cannot evict them. Within a cache, eviction under
     pressure can forgive an evicted key; the email guessing cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
-- Not yet: sync tables (#28).
+- Sync (#28, ADR 001): `POST /api/v1/sync`, the whole offline-first round trip in one transaction. See "Sync" below.
+- Not yet: `GET /me/export`, `DELETE /me`, foods, content and the AI proxy.
+
+## Sync
+
+Package `app.plateandbar.api.sync`. The user is always the token's principal; no body field names a user.
+
+- **Storage.** One table per contract `SyncTable` (`profiles`, `food_logs`, ... `settings`), all the same shape:
+  `user_id, id, version, updated_at, deleted_at, seq, data JSON`, primary key `(user_id, id)`. `data` holds the
+  record's other fields, so the engine is generic over tables. Foreign key to `users` with `ON DELETE CASCADE`.
+  `sync_state` holds one row per user with the change counter `seq`; `sync_conflicts` is the conflict log.
+  Deletes are soft (`deleted_at`).
+- **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
+  2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before
+  anything else (detail `too_many_records`), then the body is validated against the schemas in the contract
+  (`SyncRequestValidator`, networknt json-schema-validator). The validator reads the one
+  `packages/api/openapi.yaml`: Gradle's `processResources` copies it onto the classpath, so there is no second
+  copy to drift. Any problem is 400 `invalid_request` for the whole request with `details` naming the field and the
+  failed keyword, never the value. Beyond the schema: no id twice in one request, ids stored lower-cased (applied
+  and conflict entries echo the id as the device sent it; pulled records use the lower-case form, so the app
+  should lower-case ids), and natural-key tables (`profiles`, `settings`, `day_notes`, `workouts`, `weights`,
+  `measurements`, `lift_stats`, `swaps`) must use the UUIDv5 of `<table>:<key>` in the user's namespace.
+- **Unknown record fields are dropped**, deliberately: the deploy-order rule is that the backend always ships a
+  contract version before any app sends the fields it adds, so a field the server does not know is never a field
+  an app depends on.
+- **Locking.** Each sync locks the user's `sync_state` row (`SELECT ... FOR UPDATE`), so two devices of one user sync
+  one after the other and change numbers are assigned in commit order. The row is created with an upsert
+  (`INSERT ... ON DUPLICATE KEY UPDATE`) that takes the exclusive lock at once, so two first syncs of one user queue
+  rather than deadlock. Different users' syncs run in parallel; they share only the database's own row-level locks.
+- **Push**, per record with the version `v` the device last saw: no stored record means it is stored as version 1;
+  `v` equal to the stored version stores `version + 1`; otherwise a conflict. If the content apart from `version`
+  and `updated_at` equals the stored record (and both or neither are deleted) it is a retry: `server_won`, nothing
+  written, nothing logged. Otherwise the later `updated_at` wins and a tie goes to the server; the loser is
+  written to `sync_conflicts` with its version, `updated_at`, `deleted_at` and fields.
+- **Clock.** `updated_at` and `deleted_at` more than 5 minutes ahead of the server clock are stored as server time.
+- **Pull.** Records with `seq` greater than the cursor, oldest change first, at most 500 per response with
+  `has_more`. The cursor is `c_` plus the user's change number as 16 hex digits. A request's own writes are not
+  echoed back in the same response, but when `has_more` is true a device's own earlier writes can come back on a
+  later page (same version and content as it already holds, so adopting them is harmless). A first sync (cursor null) leaves tombstones out. A cursor this user has
+  never been given (ahead of their counter) or in any other shape is 400.
+- A token for an account that no longer exists is 401 `unauthorized`.
+- Nothing in this package logs. `application.yml` pins Spring's body and SQL-parameter loggers to INFO because
+  they print whole records at DEBUG or TRACE.
 
 ## Run
 
@@ -49,10 +91,11 @@ DB_URL=jdbc:mysql://localhost:3306/plateandbar DB_USER=plateandbar DB_PASSWORD=.
 curl localhost:8080/api/v1/health
 ```
 
-Docker (multi-stage, works on arm64 and amd64):
+Docker (multi-stage, works on arm64 and amd64). Build from the repository root, because the API reads
+`packages/api/openapi.yaml`; `backend/Dockerfile.dockerignore` limits the context to `backend/` and that file:
 
 ```sh
-docker build -t plateandbar-api backend
+docker build -f backend/Dockerfile -t plateandbar-api .
 docker run --rm -p 8080:8080 -e DB_URL=... -e DB_USER=... -e DB_PASSWORD=... \
   -e JWT_SIGNING_KEY=... -e GOOGLE_CLIENT_IDS=... plateandbar-api
 ```
@@ -65,9 +108,9 @@ cd backend
 ./gradlew test
 ```
 
-`HealthMigrationIT`, `AuthFlowIT` and `RateLimitIT` use Testcontainers to start MySQL 8, so Docker must be running.
-`HealthControllerTest`, `AuthControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
-`JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
+`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`) use Testcontainers to start MySQL 8, so Docker must be running.
+`HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
+`UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
 `JWT_SIGNING_KEY` and `GOOGLE_CLIENT_IDS` for tests; run tests from an IDE with the same variables.
 
 ## Environment variables
@@ -80,6 +123,7 @@ cd backend
 | `PORT` | `8080` | HTTP port |
 | `APP_VERSION` | `0.1.0` | Value returned as `version` by `/health` |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
+| `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted `POST /sync` body |
 | `GOOGLE_CLIENT_IDS` | empty | Comma-separated OAuth client ids accepted as the Google ID token audience; empty refuses every Google sign-in |
 
 Rate limits are `app.rate-limit.<name>.capacity` and `.window` (a duration such as `60s`), for
