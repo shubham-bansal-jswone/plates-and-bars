@@ -13,9 +13,45 @@ export { num } from './num';
  * - `ACTIVITY_MULTIPLIER` mirrors prototype `ACTIVITY[k].m`.
  * - `PACE_ADJ` mirrors prototype `PACE[k].adj`.
  * - `TRAIN_NET_MET` mirrors prototype `TRAIN_NET_MET`.
+ * - `DEFICIT_CAP_KCAL` mirrors the 750 kcal deficit cap in prototype `calcTargets`.
  */
-export { calcTargets, bmrOf, ACTIVITY_MULTIPLIER, PACE_ADJ, TRAIN_NET_MET } from './targets';
+export { calcTargets, bmrOf, ACTIVITY_MULTIPLIER, PACE_ADJ, TRAIN_NET_MET, DEFICIT_CAP_KCAL } from './targets';
 export type { TargetsProfile, TargetsResult, Sex, Activity, Goal, Pace, Special } from './targets';
+
+/**
+ * Setup flow: validation, the saved profile, and the results screen's values.
+ * - `validateSetupStep` mirrors prototype `validateStep()` (step passed in), returning a `SetupError` code, not copy.
+ * - `validateSetup` runs `validateSetupStep` over steps 0–3, as "Continue" does one step at a time.
+ * - `normaliseSetup` mirrors the cleaning in `validateStep()` plus the `su-apply` step of `setupAction`, in contract `Profile` names.
+ * - `toTargetsProfile` maps contract `Profile` names to the prototype names `calcTargets` reads.
+ * - `ftInToCm` mirrors the ft/in → cm step of `validateStep()`; `cmToFtIn` mirrors `heightText(cm)` and `startSetup`.
+ * - `setupSummary` mirrors the values in prototype `setupResultHtml()`: burn range, pace, deficit percent, notes.
+ * - `AGE_MIN`/`AGE_MAX`, `HEIGHT_MIN_CM`/`HEIGHT_MAX_CM`, `WEIGHT_MIN_KG`/`WEIGHT_MAX_KG` mirror the limits in `validateStep()`.
+ * - `SESSION_MINUTES`, `DAY_CHOICES` mirror the chips in `renderSetup()`; `SETUP_STEPS` its "of 4"; `SCREEN_QUESTIONS` is `SCREEN_Q.length`.
+ * - `BURN_RANGE`, `PACE_STEADY_KCAL` mirror the 0.9/1.1 range and ±20 kcal pace bands in `setupResultHtml()`.
+ */
+export {
+  validateSetupStep,
+  validateSetup,
+  normaliseSetup,
+  toTargetsProfile,
+  ftInToCm,
+  cmToFtIn,
+  setupSummary,
+  AGE_MIN,
+  AGE_MAX,
+  HEIGHT_MIN_CM,
+  HEIGHT_MAX_CM,
+  WEIGHT_MIN_KG,
+  WEIGHT_MAX_KG,
+  SESSION_MINUTES,
+  DAY_CHOICES,
+  SETUP_STEPS,
+  SCREEN_QUESTIONS,
+  BURN_RANGE,
+  PACE_STEADY_KCAL,
+} from './setup';
+export type { SetupAnswers, SetupError, SetupProfile, SetupTargets, PreviousProfile, HeightUnit, SetupSummary, SetupPace, SetupNote } from './setup';
 
 /**
  * Health check.

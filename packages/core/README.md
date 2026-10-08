@@ -14,6 +14,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Area | Exports | Prototype | Fixture |
 | --- | --- | --- | --- |
 | Setup targets | `calcTargets`, `bmrOf`, `ACTIVITY_MULTIPLIER`, `PACE_ADJ`, `TRAIN_NET_MET` | `calcTargets`, `bmrOf`, `ACTIVITY`, `PACE`, `TRAIN_NET_MET` | `targets.json` |
+| Setup flow | `validateSetupStep`, `validateSetup`, `normaliseSetup`, `toTargetsProfile`, `ftInToCm`, `cmToFtIn`, `setupSummary`, `AGE_MIN`, `AGE_MAX`, `HEIGHT_MIN_CM`, `HEIGHT_MAX_CM`, `WEIGHT_MIN_KG`, `WEIGHT_MAX_KG`, `SESSION_MINUTES`, `DAY_CHOICES`, `SETUP_STEPS`, `SCREEN_QUESTIONS`, `BURN_RANGE`, `PACE_STEADY_KCAL`, `DEFICIT_CAP_KCAL` | `validateStep`, `setupAction('su-apply')`, `heightText`, `setupResultHtml`, the `renderSetup` chips | none (differential tests) |
 | Health check | `needsClearance`, `screenFlag` | `needsClearance`, `screenFlag` | none (unit tests) |
 | Plan engine | `planned`, `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `beginnerRamp`, `older`, `TEMPLATES`, `ORDER`, `SPLITS` | same names (`beginnerRamp` is inline in `setsFor`) | `plan.json` |
 | Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
@@ -42,6 +43,13 @@ names passed in `inSession` (the prototype leaves out today's workout by default
 The weight guidance reads prototype `EX_META` (`name → [type, lo, hi]`) through a `meta` argument.
 content/exercises.json does not carry it yet, so tests pass golden/progression.json's `exerciseMeta`,
 and a test checks it equals the prototype's `EX_META`.
+
+Setup validation returns a `SetupError` code per prototype message, not the copy; the app maps codes
+to text. `normaliseSetup` returns the contract `Profile` fields (snake_case, targets included) that
+"Use these targets" saves. It differs from the prototype's stored object in three ways the contract
+asks for: at 0 days `exp` and `minutes` are `null` (the prototype stores `minutes: 0` and keeps any
+earlier `exp`), a missing `where` is `gym` (what prototype `homeWhere` reads), and `screen` is an array.
+`setupSummary` returns the results screen's numbers and which notes show, in the prototype's order.
 
 Stalls and personal bests read each lift's `hist` (scores rounded to 0.1, last 8) and `pbToast`
 (contract `LiftStat.history` with `score`, and `pb_toast_date`). `updateLift` writes both, as the
