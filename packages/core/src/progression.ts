@@ -112,6 +112,8 @@ export interface LiftSession {
   date: string;
   sets: readonly LiftSet[];
   form?: 'yes' | 'no' | null;
+  /** On a record's `prev` only: the session before it, one level deep (written by `updateLift`, #101). */
+  prev?: LiftSession | null;
 }
 
 /** Last record for an exercise (prototype `S.lifts[name]`); only the fields read here. */
@@ -226,7 +228,9 @@ const infoFor = (name: string, c: ProgressionContext): ExInfo => exInfo(name, c.
  * Double progression with safety rules, from the last session. Top of the range on every set with
  * no Hard or Couldn't finish: +1 step (assisted: 1 step less assistance), unless form slipped or it
  * is the first 14 days on the exercise (all sets Easy skips that hold). Below the range with a
- * failed set or two sessions running: drop ~7.5% (at least 1 step). Otherwise same weight, +1 rep.
+ * failed set or two sessions running: drop ~7.5% (at least 1 step). "Two sessions running" counts
+ * sessions before today only, so ticking a set today does not change the advice (#101). Otherwise
+ * same weight, +1 rep.
  * Bodyweight and timed exercises aim for one more rep.
  *
  * Mirrors prototype `suggestBase(ex)` (state passed in).
@@ -260,8 +264,8 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
     const target = Math.min(info.hi, Math.round(avg) + 1);
     return { mode: 'bw', reps: target, w: top || '', text: `${target} ${rw} a set`, reason: `${summary} Aim for one more rep per set.` };
   }
-  // Prototype prevOf(name, last): the record's prev, only when last is the record itself.
-  const prev = L && last === L ? L.prev : null;
+  // Prototype prevOf(name, last): the session before last, from sessions before today only (#101).
+  const prev = !L ? null : last === L ? L.prev : last === L.prev ? L.prev.prev || null : null;
   const prevAvgLow = !!prev && !!prev.sets.length && prev.sets.reduce((n, s) => n + s.r, 0) / prev.sets.length < info.lo;
   if (avg < info.lo && (prevAvgLow || anyFail)) {
     const nw = easier(top, info, 0.075);
@@ -351,7 +355,8 @@ export interface SetTarget {
 /**
  * Placeholder for working set `j`. After a ticked loaded set: Easy → +1 step at the suggested reps;
  * Couldn't finish → ~10% lighter, reps at least the range bottom; Hard → same weight and reps; else
- * same weight at the suggested reps. Otherwise the ramp's found weight, else the suggestion.
+ * same weight at the suggested reps. After a ticked bodyweight set: its added weight (parsed with
+ * `num`, so "2,5" is 2.5, #102) and reps. Otherwise the ramp's found weight, else the suggestion.
  *
  * Mirrors prototype `setTarget(ex, j, sug)` (`ex.sets`, `ex.found` and `exInfo` passed in).
  */
@@ -363,7 +368,7 @@ export function setTarget(sets: readonly SetEntry[], j: number, sug: Suggestion,
     if (p.rate === 'fail') return { w: easier(w, info, 0.1), r: Math.max(info.lo, num(p.r)) };
     return { w, r: p.rate === 'hard' ? num(p.r) : sug.reps || num(p.r) };
   }
-  if (p && p.done && noLoad(info.type)) return { w: p.w, r: num(p.r) || sug.reps };
+  if (p && p.done && noLoad(info.type)) return { w: p.w === '' ? '' : num(p.w), r: num(p.r) || sug.reps }; // #102
   if (found !== undefined && found !== null) return { w: found, r: info.lo };
   if (sug.w !== undefined && sug.w !== '') return { w: sug.w, r: sug.reps };
   return { w: '', r: sug.reps || '' };

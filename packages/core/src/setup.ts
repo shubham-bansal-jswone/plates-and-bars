@@ -225,12 +225,10 @@ export function toTargetsProfile(
  * Mirrors the cleaning half of prototype `validateStep()` (age rounded, height to 0.1 cm, weight to
  * 0.1 kg, `special` forced to `none` unless female) and the `su-apply` step of `setupAction`
  * (targets from `calcTargets`; `created` kept from the previous profile, else `today`; `cleared` kept).
- * Where the contract differs from the prototype's stored object:
- * - `days` 0: `exp` and `minutes` are `null` (the prototype stores `minutes: 0` and keeps any `exp`
- *   picked before switching to 0). Targets are the same: `calcTargets` reads null minutes as 0.
- * - `where` not picked (only possible at 0 days): `gym`, which is what prototype `homeWhere` reads
- *   for a missing `where`.
- * - `screen` is an array of 6, not an object keyed 0–5.
+ * At 0 days, `exp` and `minutes` are `null`, and `where` is `gym` when not picked (setup does not ask
+ * at 0 days), as prototype `validateStep` saves them (#129). Targets read null minutes as 0.
+ * Where the contract differs from the prototype's stored object: `screen` is an array of 6, not an
+ * object keyed 0–5.
  * Not done here: the prototype also logs `weight` as today's weigh-in when no weights exist yet.
  *
  * @param today `YYYY-MM-DD`, the local date (prototype `TODAY()`).
