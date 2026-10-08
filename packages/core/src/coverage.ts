@@ -61,6 +61,7 @@ export interface PlannedCoverageInput {
  * profile's `where` and resolved through exclusions and swaps, 3 sets per exercise and 2 per bridge.
  * Not trimmed to the session length and without focus additions or set changes, as in the prototype.
  * Untagged exercises count nothing. `catalog.tags` must already hold custom tags (`applyCustomTags`).
+ * Counting the untrimmed template from the profile's `where` is kept as the prototype has it (decided on #155).
  *
  * Mirrors prototype `weeklyCoverage()` (state passed in).
  */
@@ -75,19 +76,15 @@ export function plannedCoverage(input: PlannedCoverageInput, catalog: Pick<Exerc
   return sets;
 }
 
-/** The fields of a contract `Workout` that `doneCoverage` reads. */
+/** The fields of a contract `Workout` that `doneCoverage` reads. No id: the day entry links it to its sets. */
 export interface CoverageWorkout {
-  id: string;
-  /** `YYYY-MM-DD`. */
-  date: string;
   exercises: readonly { name: string }[];
   /** A tombstone: a non-null value means the workout was deleted. */
   deleted_at?: string | null;
 }
 
-/** The fields of a contract `WorkoutSet` that `doneCoverage` reads. */
+/** The fields of a contract `WorkoutSet` that `doneCoverage` reads. No `workout_id`: sets come with their day. */
 export interface CoverageSet {
-  workout_id: string;
   exercise: string;
   kind: 'work' | 'ramp';
   done: boolean;
@@ -95,25 +92,35 @@ export interface CoverageSet {
 }
 
 /**
- * Sets done per muscle in the 7 days ending on `date` (that day and the 6 before it): each ticked work
- * set (not ramp, not deleted) of an exercise in a workout (not deleted), primary muscles 1, secondary
- * one half. Sets whose exercise is not in their workout's `exercises` are not counted (the prototype
- * keeps sets inside exercises). Untagged exercises count nothing.
- *
- * Mirrors prototype `actualCoverage()` (days passed in as contract workouts and sets).
+ * One logged day: its workout (or `null` when nothing was stored) and that workout's sets, as the
+ * app's local store loads them per date. Sync-pulled records can be grouped into days by `workout_id`.
  */
-export function doneCoverage(date: string, workouts: readonly CoverageWorkout[], sets: readonly CoverageSet[], tags: ExerciseCatalog['tags']): MuscleSets {
+export interface CoverageDay {
+  /** `YYYY-MM-DD`. */
+  date: string;
+  workout: CoverageWorkout | null;
+  sets: readonly CoverageSet[];
+}
+
+/**
+ * Sets done per muscle in the 7 days ending on `date` (that day and the 6 before it): each ticked work
+ * set (not ramp, not deleted) of an exercise in the day's workout (not deleted), primary muscles 1,
+ * secondary one half. A day's sets only count toward its own workout; sets whose exercise is not in
+ * that workout's `exercises` are not counted (the prototype keeps sets inside exercises). Days outside
+ * the window are ignored. Pass one entry per date, as prototype `loadDays` does; a second entry for
+ * the same date is counted too. Untagged exercises count nothing.
+ *
+ * Mirrors prototype `actualCoverage()` (the `loadDays(S.date, 7)` days passed in).
+ */
+export function doneCoverage(date: string, days: readonly CoverageDay[], tags: ExerciseCatalog['tags']): MuscleSets {
   const week = new Set(Array.from({ length: 7 }, (_, k) => addDays(date, k - 6)));
-  const done = new Map<string, number>();
-  for (const s of sets) {
-    if (s.deleted_at || s.kind !== 'work' || !s.done) continue;
-    const k = `${s.workout_id}\u0000${s.exercise}`;
-    done.set(k, (done.get(k) ?? 0) + 1);
-  }
   const out: MuscleSets = {};
-  for (const w of workouts) {
-    if (w.deleted_at || !week.has(w.date)) continue;
-    for (const e of w.exercises) add(out, tags, e.name, done.get(`${w.id}\u0000${e.name}`) ?? 0);
+  for (const d of days) {
+    const w = d.workout;
+    if (!w || w.deleted_at || !week.has(d.date)) continue;
+    const done = new Map<string, number>();
+    for (const s of d.sets) if (!s.deleted_at && s.kind === 'work' && s.done) done.set(s.exercise, (done.get(s.exercise) ?? 0) + 1);
+    for (const e of w.exercises) add(out, tags, e.name, done.get(e.name) ?? 0);
   }
   return out;
 }
@@ -143,10 +150,9 @@ export function coverageRows(sets: Readonly<MuscleSets>): CoverageRow[] {
   });
 }
 
-/** What `weeklyCoverage` reads: `plannedCoverage`'s input plus the logged workouts and sets. */
+/** What `weeklyCoverage` reads: `plannedCoverage`'s input plus the logged days (see `doneCoverage`). */
 export interface WeeklyCoverageInput extends PlannedCoverageInput {
-  workouts: readonly CoverageWorkout[];
-  sets: readonly CoverageSet[];
+  days: readonly CoverageDay[];
 }
 
 /**
@@ -158,7 +164,7 @@ export interface WeeklyCoverageInput extends PlannedCoverageInput {
 export function weeklyCoverage(input: WeeklyCoverageInput, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>): { planned: CoverageRow[]; done: CoverageRow[] } {
   return {
     planned: coverageRows(plannedCoverage(input, catalog)),
-    done: coverageRows(doneCoverage(input.date, input.workouts, input.sets, catalog.tags)),
+    done: coverageRows(doneCoverage(input.date, input.days, catalog.tags)),
   };
 }
 
@@ -187,9 +193,10 @@ export type FocusToggleResult = 'added' | 'removed' | 'full';
 
 /**
  * Tapping focus chip `m`: removes it if picked, else adds it at the end unless 3 are already picked.
- * The whole stored list is read (not only the first 3). `m` is not checked against `COVER_SHOW`; the
- * picker offers only those. On `full` the list comes back unchanged and is not saved. The app's toast
- * after a change lists the new focus muscles, or "No focus muscles" when none are left.
+ * The whole stored list is read, not only the first 3 (kept as the prototype has it, decided on #155).
+ * `m` is not checked against `COVER_SHOW`; the picker offers only those. On `full` the list comes back
+ * unchanged and is not saved. The app's toast after a change lists the new focus muscles, or
+ * "No focus muscles" when none are left.
  *
  * Mirrors prototype `focusAction(a, b)`.
  */

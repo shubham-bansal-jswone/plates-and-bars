@@ -13,8 +13,8 @@ import {
   toggleFocus,
   weeklyCoverage,
   type CoverageRow,
+  type CoverageDay,
   type CoverageSet,
-  type CoverageWorkout,
   type Exclusion,
   type ExclusionScope,
   type PlanProfile,
@@ -32,8 +32,12 @@ const { tags } = catalog;
 const proto = loadCoverage();
 const DATE = '2026-10-08'; // a Thursday
 
-const workout = (id: string, date: string, names: string[], more: Partial<CoverageWorkout> = {}): CoverageWorkout => ({ id, date, exercises: names.map((name) => ({ name })), ...more });
-const set = (workout_id: string, exercise: string, done = true, more: Partial<CoverageSet> = {}): CoverageSet => ({ workout_id, exercise, kind: 'work', done, ...more });
+const set = (exercise: string, done = true, more: Partial<CoverageSet> = {}): CoverageSet => ({ exercise, kind: 'work', done, ...more });
+const day = (date: string, names: string[] | null, sets: CoverageSet[], deleted_at?: string): CoverageDay => ({
+  date,
+  workout: names ? { exercises: names.map((name) => ({ name })), ...(deleted_at ? { deleted_at } : {}) } : null,
+  sets,
+});
 
 /** A row as the prototype's meter draws it, with the prototype's own labels. */
 function rowHtml(r: CoverageRow): string {
@@ -95,26 +99,35 @@ describe('plannedCoverage', () => {
 });
 
 describe('doneCoverage', () => {
-  const W = (date: string) => workout(`w-${date}`, date, ['Leg Press', 'Lat Pulldown']);
+  const D = (date: string) => day(date, ['Leg Press', 'Lat Pulldown'], [set('Leg Press'), set('Leg Press'), set('Lat Pulldown', false)]);
 
   it('counts ticked work sets over the 7 days ending on the date', () => {
-    const ws = [W(DATE), W(addDays(DATE, -6)), W(addDays(DATE, -7)), W(addDays(DATE, 1))];
-    const sets = ws.flatMap((w) => [set(w.id, 'Leg Press'), set(w.id, 'Leg Press'), set(w.id, 'Lat Pulldown', false)]);
+    const days = [D(DATE), D(addDays(DATE, -6)), D(addDays(DATE, -7)), D(addDays(DATE, 1))];
     const lp = tags['Leg Press'];
     const want: Record<string, number> = {};
     for (const m of lp?.primary ?? []) want[m] = 4;
     for (const m of lp?.secondary ?? []) want[m] = (want[m] || 0) + 2;
     for (const m of tags['Lat Pulldown']?.primary ?? []) want[m] = (want[m] || 0) + 0;
     for (const m of tags['Lat Pulldown']?.secondary ?? []) want[m] = (want[m] || 0) + 0;
-    expect(doneCoverage(DATE, ws, sets, tags)).toEqual(want);
+    expect(doneCoverage(DATE, days, tags)).toEqual(want);
   });
 
-  it('skips ramp sets, deleted sets, deleted workouts, sets of other exercises and untagged exercises', () => {
-    const w = workout('a', DATE, ['Leg Press', 'My Sled']);
-    const sets = [set('a', 'Leg Press', true, { kind: 'ramp' }), set('a', 'Leg Press', true, { deleted_at: '2026-10-08T10:00:00Z' }), set('a', 'Hack Squat'), set('a', 'My Sled'), set('b', 'Leg Press')];
-    const got = doneCoverage(DATE, [w, workout('b', DATE, ['Leg Press'], { deleted_at: '2026-10-08T10:00:00Z' })], sets, tags);
+  it('two workouts on different days listing the same exercise count their own sets only', () => {
+    const one = doneCoverage(DATE, [day(DATE, ['Leg Press'], [set('Leg Press')])], tags);
+    const three = doneCoverage(DATE, [day(addDays(DATE, -2), ['Leg Press'], [set('Leg Press'), set('Leg Press')])], tags);
+    const both = doneCoverage(DATE, [day(DATE, ['Leg Press'], [set('Leg Press')]), day(addDays(DATE, -2), ['Leg Press'], [set('Leg Press'), set('Leg Press')])], tags);
+    for (const m of tags['Leg Press']?.primary ?? []) {
+      expect(one[m]).toBe(1);
+      expect(three[m]).toBe(2);
+      expect(both[m]).toBe(3);
+    }
+  });
+
+  it('skips ramp sets, deleted sets, deleted workouts, days with no workout, sets of other exercises and untagged exercises', () => {
+    const sets = [set('Leg Press', true, { kind: 'ramp' }), set('Leg Press', true, { deleted_at: '2026-10-08T10:00:00Z' }), set('Hack Squat'), set('My Sled')];
+    const got = doneCoverage(DATE, [day(DATE, ['Leg Press', 'My Sled'], sets), day(addDays(DATE, -1), ['Leg Press'], [set('Leg Press')], '2026-10-08T10:00:00Z'), day(addDays(DATE, -2), null, [set('Leg Press')])], tags);
     expect(Object.values(got).every((v) => v === 0)).toBe(true);
-    expect(doneCoverage(DATE, [], [], tags)).toEqual({});
+    expect(doneCoverage(DATE, [], tags)).toEqual({});
   });
 });
 
@@ -129,10 +142,10 @@ describe('coverageRows and weeklyCoverage', () => {
   });
 
   it('weeklyCoverage gives both meters', () => {
-    const w = workout('a', DATE, ['Leg Press']);
-    const got = weeklyCoverage({ date: DATE, profile: { days: 4 }, workouts: [w], sets: [set('a', 'Leg Press')] }, catalog);
+    const days = [day(DATE, ['Leg Press'], [set('Leg Press')])];
+    const got = weeklyCoverage({ date: DATE, profile: { days: 4 }, days }, catalog);
     expect(got.planned).toEqual(coverageRows(plannedCoverage({ date: DATE, profile: { days: 4 } }, catalog)));
-    expect(got.done).toEqual(coverageRows(doneCoverage(DATE, [w], [set('a', 'Leg Press')], tags)));
+    expect(got.done).toEqual(coverageRows(doneCoverage(DATE, days, tags)));
   });
 });
 
@@ -144,7 +157,7 @@ describe('focus picker', () => {
     expect(FOCUS_MAX).toBe(3);
   });
 
-  it('PINNED QUIRK: a stored list of more than 3 can still lose its 4th (unseen) muscle, and toggleFocus does not check COVER_SHOW', () => {
+  it('PINNED QUIRK (#155): a stored list of more than 3 can still lose its 4th (unseen) muscle, and toggleFocus does not check COVER_SHOW', () => {
     expect(toggleFocus(['chest', 'lats', 'abs', 'glutes'], 'glutes')).toEqual({ focus: ['chest', 'lats', 'abs'], result: 'removed' });
     expect(focusPicker(['chest', 'lats', 'abs', 'glutes']).chips.find((c) => c.muscle === 'glutes')?.pressed).toBe(false);
     expect(toggleFocus([], 'forearms')).toEqual({ focus: ['forearms'], result: 'added' });
@@ -174,8 +187,7 @@ describe('differential: the prototype’s own functions', () => {
     exclusions: Exclusion[];
     swaps: Swap[];
     lifts: Record<string, unknown>;
-    workouts: CoverageWorkout[];
-    sets: CoverageSet[];
+    days: CoverageDay[];
   }
 
   function randomCase(r: () => number): Case {
@@ -210,28 +222,31 @@ describe('differential: the prototype’s own functions', () => {
     const wr = r();
     const weekPlan: WeekPlan | null =
       wr < 0.5 ? null : { start: wr < 0.8 ? mondayOf(date) : addDays(mondayOf(date), pick([-7, 7])), list: r() < 0.9 ? pick(CONDENSED) : [pick(Object.keys(TEMPLATES)), 'No Such Day'] };
-    // Logged days around the 7-day window, in contract shapes.
-    const workouts: CoverageWorkout[] = [];
-    const sets: CoverageSet[] = [];
+    // Logged days around the 7-day window, one entry per date, in contract shapes (no ids, as stored locally).
+    const days: CoverageDay[] = [];
     for (let k = -9; k <= 1; k++) {
-      if (r() < 0.35) continue;
-      const id = `w${k}`;
+      if (r() < 0.3) continue;
+      if (r() < 0.05) {
+        days.push({ date: addDays(date, k), workout: null, sets: [] });
+        continue;
+      }
       const names = [...new Set(Array.from({ length: 1 + Math.floor(r() * 6) }, () => (r() < 0.05 ? pick(CUSTOM) : pick(all))))];
-      workouts.push({ id, date: addDays(date, k), exercises: names.map((name) => ({ name })), ...(r() < 0.05 ? { deleted_at: '2026-10-01T00:00:00Z' } : {}) });
+      const sets: CoverageSet[] = [];
       for (const n of names)
         for (let j = Math.floor(r() * 6); j > 0; j--)
-          sets.push({ workout_id: id, exercise: r() < 0.03 ? pick(all) : n, kind: r() < 0.15 ? 'ramp' : 'work', done: r() < 0.7, ...(r() < 0.05 ? { deleted_at: '2026-10-01T00:00:00Z' } : {}) });
+          sets.push({ exercise: r() < 0.03 ? pick(all) : n, kind: r() < 0.15 ? 'ramp' : 'work', done: r() < 0.7, ...(r() < 0.05 ? { deleted_at: '2026-10-01T00:00:00Z' } : {}) });
+      days.push({ date: addDays(date, k), workout: { exercises: names.map((name) => ({ name })), ...(r() < 0.05 ? { deleted_at: '2026-10-01T00:00:00Z' } : {}) }, sets });
     }
-    return { date, profile, weekPlan, exclusions, swaps, lifts, workouts, sets };
+    return { date, profile, weekPlan, exclusions, swaps, lifts, days };
   }
 
-  /** Contract workouts and sets → prototype day docs keyed by date (deleted records left out). */
+  /** Day entries in contract shapes → prototype day docs keyed by date (deleted records left out). */
   function toDays(c: Case): Record<string, ProtoDayDoc> {
     const out: Record<string, ProtoDayDoc> = {};
-    for (const w of c.workouts) {
-      if (w.deleted_at) continue;
-      const live = c.sets.filter((s) => s.workout_id === w.id && !s.deleted_at);
-      out[w.date] = {
+    for (const { date, workout: w, sets } of c.days) {
+      if (!w || w.deleted_at) continue;
+      const live = sets.filter((s) => !s.deleted_at);
+      out[date] = {
         meals: [],
         workout: {
           exercises: w.exercises.map((e) => ({
@@ -277,7 +292,7 @@ describe('differential: the prototype’s own functions', () => {
       const planned = plannedCoverage(c, catalog);
       expect(planned).toEqual(proto.weeklyCoverage());
       expect(proto.coverageHtml().split('\n')[0]).toBe(meterHtml(coverageRows(planned)));
-      const done = doneCoverage(c.date, c.workouts, c.sets, tags);
+      const done = doneCoverage(c.date, c.days, tags);
       expect(done).toEqual(await proto.actualCoverage());
       proto.S.dayCache = {};
       expect(await proto.fillActualCoverage()).toBe(meterHtml(coverageRows(done)));
@@ -286,7 +301,7 @@ describe('differential: the prototype’s own functions', () => {
       halves += Object.values(done).some((v) => v % 1 !== 0) ? 1 : 0;
       const rows = coverageRows(done);
       lowAndHigh += rows.some((x) => x.low && x.sets > 0) && rows.some((x) => x.barPct === 100) ? 1 : 0;
-      windowEdges += c.workouts.some((w) => w.date === addDays(c.date, -6)) && c.workouts.some((w) => w.date === addDays(c.date, -7)) ? 1 : 0;
+      windowEdges += c.days.some((d) => d.date === addDays(c.date, -6)) && c.days.some((d) => d.date === addDays(c.date, -7)) ? 1 : 0;
     }
     // The grid reaches the interesting branches.
     expect(weekPlans).toBeGreaterThan(500);
