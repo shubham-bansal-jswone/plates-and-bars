@@ -186,8 +186,8 @@ class GoogleJwksStubTest {
 
         restart(port, 503, "unavailable");
         int before = fetches.get();
-        // Unknown kid: failed refetch (500). Nimbus does not count a failed fetch toward the rate limit, so the
-        // second call refetches (and retries) again; either way it must stay 500, never 401.
+        // Unknown kid: failed refetch (500), never 401. The rate limiter lets two calls per window reach the
+        // network, and each failed fetch is retried once, so a window costs at most four requests.
         assertThatThrownBy(() -> v.verify(token(stranger))).isInstanceOf(JwtException.class);
         // The source retries a failed fetch once, so a failed refetch costs up to two requests.
         int afterFailure = fetches.get();
@@ -195,7 +195,7 @@ class GoogleJwksStubTest {
         for (int i = 0; i < 4; i++) {
             assertThatThrownBy(() -> v.verify(token(stranger))).isInstanceOf(JwtException.class);
         }
-        assertThat(fetches.get()).isGreaterThanOrEqualTo(afterFailure);
+        assertThat(fetches.get()).isLessThanOrEqualTo(before + 4);
         afterFailure = fetches.get();
         // A known kid is still served from cache.
         assertThat(v.verify(token(served)).subject()).isEqualTo("sub-1");
@@ -207,7 +207,7 @@ class GoogleJwksStubTest {
         assertUnauthorized(v, token(stranger));
         int afterRecovery = fetches.get();
         assertThat(afterRecovery).isGreaterThan(beforeRecovery);
-        // Nimbus's limiter may let one more refetch through after a failed one; after that it holds.
+        // The limiter's second call in this window may refetch once more; after that it holds.
         assertUnauthorized(v, token(stranger));
         int settled = fetches.get();
         assertUnauthorized(v, token(stranger));
