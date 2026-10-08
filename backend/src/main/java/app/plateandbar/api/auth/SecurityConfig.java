@@ -1,6 +1,10 @@
 package app.plateandbar.api.auth;
 
 import app.plateandbar.api.common.ErrorResponse;
+import app.plateandbar.api.ratelimit.ClientIpResolver;
+import app.plateandbar.api.ratelimit.RateLimitFilter;
+import app.plateandbar.api.ratelimit.RateLimitProperties;
+import app.plateandbar.api.ratelimit.RateLimiter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,9 +27,19 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper mapper, JwtService jwtService) throws Exception {
+    SecurityFilterChain filterChain(
+            HttpSecurity http,
+            ObjectMapper mapper,
+            JwtService jwtService,
+            RateLimiter limiter,
+            ClientIpResolver clientIps,
+            RateLimitProperties limits)
+            throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, ex) -> writeUnauthorized(mapper, response);
         AccessDeniedHandler denied = (request, response, ex) -> writeUnauthorized(mapper, response);
+        RateLimitFilter rateLimitFilter = new RateLimitFilter(limiter, clientIps, limits, mapper);
+        // A rejected bearer token is answered before the rate-limit filter runs, so it is counted here.
+        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtService, mapper, rateLimitFilter::limitByIp);
         http.csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -35,7 +49,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/health", "/api/v1/auth/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(denied))
-                .addFilterBefore(new JwtAuthFilter(jwtService, mapper), AnonymousAuthenticationFilter.class)
+                .addFilterBefore(jwtFilter, AnonymousAuthenticationFilter.class)
+                .addFilterAfter(rateLimitFilter, JwtAuthFilter.class)
                 .cors(Customizer.withDefaults());
         return http.build();
     }

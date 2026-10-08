@@ -9,8 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-// TODO(#43): per-address and per-IP rate limits (Bucket4j) on these endpoints, answering 429 rate_limited
-// with Retry-After. Not part of #33.
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {

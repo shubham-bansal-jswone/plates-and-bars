@@ -39,7 +39,19 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /** Real MySQL, real Flyway, real HTTP: sign-in, linking, code rules, refresh rotation, and log hygiene. */
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        // This class is about sign-in rules, not throttling (see RateLimitIT): lift the limits.
+        properties = {
+            "app.rate-limit.public-per-ip.capacity=100000",
+            "app.rate-limit.email-start-per-ip.capacity=100000",
+            "app.rate-limit.email-verify-per-ip.capacity=100000",
+            "app.rate-limit.authenticated-per-user.capacity=100000",
+            "app.rate-limit.email-start-per-address.burst.capacity=100000",
+            "app.rate-limit.email-start-per-address.sustained.capacity=100000",
+            "app.rate-limit.verify-failures-per-address.burst.capacity=100000",
+            "app.rate-limit.verify-failures-per-address.sustained.capacity=100000"
+        })
 class AuthFlowIT {
 
     @Container
