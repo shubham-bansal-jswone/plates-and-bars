@@ -10,7 +10,8 @@
     "generate": "openapi-typescript openapi.yaml -o client/schema.d.ts",
     "lint": "redocly lint openapi.yaml",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "npm run lint && npm run generate && git diff --exit-code -- client/schema.d.ts && npm run typecheck"
+    "test-vectors": "node test-vectors/verify.mjs",
+    "check": "npm run lint && npm run generate && git diff --exit-code -- client/schema.d.ts && npm run typecheck && npm run test-vectors"
   },
   "dependencies": {
     "openapi-fetch": "0.17.0"

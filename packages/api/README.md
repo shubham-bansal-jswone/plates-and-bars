@@ -5,6 +5,7 @@ The Plate & Bar API contract and the TypeScript client generated from it.
 - `openapi.yaml`: the contract (OpenAPI 3.1, base path `/api/v1`). Backend and app both build against it.
 - `client/schema.d.ts`: types generated from the spec by `openapi-typescript`. Do not edit by hand.
 - `client/index.ts`: `createClient(baseUrl, getToken)`, a typed client on `openapi-fetch` that adds the bearer token to each request.
+- `test-vectors/sync-ids.json`: shared vectors for natural-key sync ids (UUIDv5 of `<table>:<key>` in the user's namespace, see `POST /sync`). Backend and app tests load this file; `test-vectors/verify.mjs` checks it, and the natural-key ids in the `/sync` examples, against an independent UUIDv5.
 
 ## Commands
 
@@ -15,6 +16,7 @@ npm install
 npm run lint        # validate the spec (Redocly CLI, recommended rules)
 npm run generate    # regenerate client/schema.d.ts from openapi.yaml
 npm run typecheck   # type-check the client
+npm run test-vectors  # verify test-vectors/sync-ids.json
 npm run check       # all of the above, failing if schema.d.ts is out of date
 ```
 
