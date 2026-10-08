@@ -216,3 +216,31 @@ export type { WarmupSet, Checkin, CheckinReason, CheckinResult } from './workout
  */
 export { sessionMods, modsNote, templateName, sessionVolume, secondSessionChoices, mergeSecondSession } from './day';
 export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInput, VolumeSet, SecondSessionDay } from './day';
+
+/**
+ * Food screen maths. Foods in content/foods.json's `Food` shape (user foods as `FoodFacts`), logs in the
+ * contract's `FoodLog` shape; logs with `deleted_at` set are left out.
+ * - `searchFoods` mirrors the query and `foodMatch(f, q)` filter of prototype `foodListHtml()` (list order kept).
+ * - `unitGrams` mirrors prototype `unitGrams(f)` (label passed in; content carries it as `serving.grams`).
+ * - `quantityFromGrams` mirrors the grams steps of prototype `case 'pick'` (`serving.grams`, #97).
+ * - `logTotals` mirrors prototype `totals(meals)` plus the fibre, added sugar and unknown parts of `fibreTotals(meals)`.
+ * - `fibreTarget` mirrors prototype `fibreTarget()` (today's calorie target passed in).
+ * - `fruitVegServings` mirrors the `veg` part of prototype `fibreTotals(meals)` (`produceOf`); `FRUIT_VEG_TARGET` its "of 5".
+ * - `showAddedSugar` mirrors the `t.sug >= 10` check in prototype `fibreHtml()`.
+ * - `dayComplete` mirrors prototype `dayComplete(d)` (settings calorie target passed in).
+ */
+export { searchFoods, unitGrams, quantityFromGrams, logTotals, fibreTarget, fruitVegServings, showAddedSugar, dayComplete, FRUIT_VEG_TARGET } from './food';
+export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, CompleteFlag, GramsQuantity } from './food';
+
+/**
+ * Targets screen: weekly muscle coverage, planned vs done, and the focus-muscle picker. Workouts and
+ * sets come in contract shapes (`Workout`, `WorkoutSet`); focus is contract `Settings.focus`.
+ * - `plannedCoverage` mirrors prototype `weeklyCoverage()` (state passed in); `coverageTemplates` its week's template list.
+ * - `doneCoverage` mirrors prototype `actualCoverage()` (the 7 days ending on `date`, one `CoverageDay` per date as prototype `loadDays` gives them).
+ * - `coverageRows` mirrors the rows of prototype `coverageHtml()` and `fillActualCoverage()`.
+ * - `weeklyCoverage` returns both meters' rows (planned and done).
+ * - `focusPicker` mirrors prototype `focusHtml()`; `toggleFocus` mirrors prototype `focusAction(a, b)`.
+ * - `COVER_SHOW` mirrors prototype `COVER_SHOW`; `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` are its 6, 12 and 3.
+ */
+export { plannedCoverage, coverageTemplates, doneCoverage, coverageRows, weeklyCoverage, focusPicker, toggleFocus, COVER_SHOW, COVER_LOW, COVER_FULL, FOCUS_MAX } from './coverage';
+export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, CoverageDay, CoverageRow, WeeklyCoverageInput, FocusPicker, FocusToggleResult } from './coverage';
