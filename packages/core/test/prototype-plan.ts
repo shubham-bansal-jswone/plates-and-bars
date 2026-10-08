@@ -122,8 +122,10 @@ export function loadProto(): Proto {
     sliceBlock(src, 'function focusPick(m, taken, where){', '}'),
     sliceBlock(src, 'function applyFocus(items, t, where){', '}'),
     sliceBlock(src, 'function mapForWhere(names, where){', '}'),
-    sliceBlock(src, 'function resolveName(name, where, depth = 0){', '}'),
-    sliceBlock(src, 'function resolveSession(names, where){', '}'),
+    sliceBlock(src, 'function homeName(n, where){', '}'),
+    sliceLine(src, 'const SCOPE_RANK = '),
+    sliceBlock(src, 'function resolveName(name, where, depth = 0, taken){', '}'),
+    sliceBlock(src, 'function resolveSession(names, where, lost){', '}'),
     sliceBlock(src, 'function newExercise(name){', '}'),
     sliceBlock(src, 'function buildSession(t){', '}'),
     // stubs for what the slices call outside the plan engine

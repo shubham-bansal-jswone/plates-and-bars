@@ -2,6 +2,7 @@ import content from '../../../content/exercises.json';
 import {
   addDays,
   checkBest,
+  num,
   exInfo,
   inRange,
   recoveryCard,
@@ -41,8 +42,18 @@ describe('sessionScore', () => {
     expect(sessionScore([{ w: 10, r: 12 }, { w: 0, r: 8 }], 'bodyweight')).toBe(20);
     expect(sessionScore([{ w: 0, r: 45 }, { w: 0, r: 30 }], 'time')).toBe(75);
   });
-  it('assisted: best reps × 2 − assistance', () => {
+  it('assisted: best effective load, reps × max(0, bodyweight − assistance) (#122)', () => {
+    expect(sessionScore([{ w: 30, r: 10 }, { w: 20, r: 6 }], 'assisted', 80)).toBe(500); // max(10 × 50, 6 × 60)
+    expect(sessionScore([{ w: 90, r: 10 }], 'assisted', 80)).toBe(0); // more assistance than bodyweight: 0, never negative
+  });
+  it('assisted with no known bodyweight: best reps × 2 − assistance, as before', () => {
     expect(sessionScore([{ w: 30, r: 10 }, { w: 20, r: 6 }], 'assisted')).toBe(-8);
+    expect(sessionScore([{ w: 30, r: 10 }, { w: 20, r: 6 }], 'assisted', null)).toBe(-8);
+    expect(sessionScore([{ w: 30, r: 10 }, { w: 20, r: 6 }], 'assisted', 0)).toBe(-8);
+  });
+  it('bodyweight changes only assisted scores', () => {
+    expect(sessionScore([{ w: 60, r: 10 }], 'barbell', 80)).toBe(sessionScore([{ w: 60, r: 10 }], 'barbell'));
+    expect(sessionScore([{ w: 10, r: 12 }], 'bodyweight', 80)).toBe(12);
   });
   it('empty sets: 0 for bodyweight, -Infinity otherwise', () => {
     expect(sessionScore([], 'bodyweight')).toBe(0);
@@ -132,17 +143,17 @@ describe('personal bests', () => {
     const u = updateLift(L, { sets: [set('62,5', '10', true, 'hard')] }, DATE, 'barbell');
     expect(u?.toast).toBe(true);
     expect(u?.record).toMatchObject({ n: 2, first: '2026-10-01', prev: { date: '2026-10-01', sets: L.sets, form: 'no' }, pbToast: DATE, form: null });
-    expect(u?.record.sets).toEqual([{ w: 62.5, r: 10, rate: 'hard' }]);
-    expect(u?.record.hist).toEqual([...(L.hist as ScoreEntry[]), { date: DATE, e: 83.3 }]);
+    expect(u?.record?.sets).toEqual([{ w: 62.5, r: 10, rate: 'hard' }]);
+    expect(u?.record?.hist).toEqual([...(L.hist as ScoreEntry[]), { date: DATE, e: 83.3 }]);
   });
 
   it('updateLift: the same day replaces today’s score; history keeps the last 8; a newer record is left alone', () => {
     const L = lift([...hist(1, 2, 3, 4, 5, 6, 7), { date: DATE, e: 9 }], { date: DATE, n: 3, first: '2026-09-01', prev: null });
     const u = updateLift(L, { sets: [set('10', '0')] }, DATE, 'barbell');
     expect(u?.record).toMatchObject({ n: 3, first: '2026-09-01', prev: null });
-    expect(u?.record.hist).toEqual([...hist(1, 2, 3, 4, 5, 6, 7), { date: DATE, e: 10 }]);
+    expect(u?.record?.hist).toEqual([...hist(1, 2, 3, 4, 5, 6, 7), { date: DATE, e: 10 }]);
     const u2 = updateLift(lift(hist(1, 2, 3, 4, 5, 6, 7, 8), { date: '2026-10-06' }), { sets: [set('10', '0')] }, DATE, 'barbell');
-    expect(u2?.record.hist?.map((x) => x.e)).toEqual([2, 3, 4, 5, 6, 7, 8, 10]);
+    expect(u2?.record?.hist?.map((x) => x.e)).toEqual([2, 3, 4, 5, 6, 7, 8, 10]);
     expect(updateLift(lift([], { date: '2026-10-08' }), { sets: [set('10', '5')] }, DATE, 'barbell')).toBeNull();
   });
 
@@ -177,22 +188,15 @@ describe('personal-best toast once a day (#121)', () => {
   it('carries a null pbToast (contract pb_toast_date) and still toasts', () => {
     const today = lift([...hist(80), { date: DATE, e: 80 }], { date: DATE, pbToast: null });
     expect(updateLift(today, { sets: [set('70', '10')] }, DATE, 'barbell')).toMatchObject({ toast: true, record: { pbToast: DATE } });
-    expect(updateLift(today, { sets: [set('60', '5')] }, DATE, 'barbell')?.record.pbToast).toBeNull();
+    expect(updateLift(today, { sets: [set('60', '5')] }, DATE, 'barbell')?.record?.pbToast).toBeNull();
   });
 });
 
 describe('PINNED QUIRK tests', () => {
-  // Spec question #122 (fix later in prototype and core together).
-  it('PINNED QUIRK: with negative assisted scores the margins flip: an equal session is a best and never stalls', () => {
-    const L = lift(hist(-10), { date: '2026-10-01' });
-    expect(updateLift(L, { sets: [set('30', '10')] }, DATE, 'assisted')?.toast).toBe(true); // −10 > −10 × 1.005
-    expect(stalled('A', { A: lift(hist(-10, -10, -10, -10)) })).toBe(false); // −10 ≤ −10.1 is false
-  });
-
   // Spec question #123 (kept).
   it('PINNED QUIRK: when every earlier score is 0, no improvement counts as a best', () => {
     const L = lift(hist(0), { date: '2026-10-01' });
-    expect(updateLift(L, { sets: [set('0', '10')] }, '2026-10-02', 'machine')?.record.hist?.at(-1)?.e).toBe(0);
+    expect(updateLift(L, { sets: [set('0', '10')] }, '2026-10-02', 'machine')?.record?.hist?.at(-1)?.e).toBe(0);
     expect(updateLift(L, { sets: [set('100', '10')] }, DATE, 'machine')?.toast).toBe(false);
   });
 
@@ -207,16 +211,50 @@ describe('PINNED QUIRK tests', () => {
     expect(updateLift(L, { sets: [set('0', '10'), set('0', '10'), set('0', '10'), set('0', '3')] }, DATE, 'bodyweight')?.toast).toBe(true);
   });
 
-  // Spec question #122 (fix later in prototype and core together).
-  it('PINNED QUIRK: unticking every set today leaves today’s record and score in place', () => {
-    const today = updateLift(lift(hist(80)), { sets: [set('70', '10')] }, DATE, 'barbell')?.record;
-    expect(updateLift(today, { sets: [set('70', '10', false)] }, DATE, 'barbell')).toBeNull();
+});
+
+describe('assisted scores and unticking (#122)', () => {
+  it('assisted scores rise with less assistance: a repeat is not a best, and a flat run stalls', () => {
+    const L = lift(hist(500), { date: '2026-10-01' });
+    expect(updateLift(L, { sets: [set('30', '10')] }, DATE, 'assisted', 80)).toMatchObject({ toast: false, record: { hist: [...hist(500), { date: DATE, e: 500 }] } });
+    expect(updateLift(L, { sets: [set('25', '10')] }, DATE, 'assisted', 80)?.toast).toBe(true); // 550
+    const flat = updateLift(lift(hist(500, 500, 500), { date: '2026-10-01' }), { sets: [set('30', '10')] }, DATE, 'assisted', 80)?.record as LiftRecord;
+    expect(stalled('A', { A: flat })).toBe(true);
+  });
+
+  it('unticking every set today restores the session before', () => {
+    const before = lift(hist(70, 80), { date: '2026-10-01', n: 4, first: '2026-08-01', form: 'yes', prev: { date: '2026-09-28', sets: [{ w: 55, r: 8 }], prev: { date: '2026-09-20', sets: [] } } });
+    const today = updateLift(before, { sets: [set('70', '10')] }, DATE, 'barbell')?.record as LiftRecord;
+    expect(today).toMatchObject({ date: DATE, n: 5, pbToast: DATE });
+    const back = updateLift(today, { sets: [set('70', '10', false), set('0', '', true)] }, DATE, 'barbell');
+    // The nested prev is one level only, so the session before that is not restored.
+    expect(back).toEqual({ toast: false, record: { date: '2026-10-01', sets: before.sets, form: 'yes', n: 4, first: '2026-08-01', prev: { date: '2026-09-28', sets: [{ w: 55, r: 8 }], form: null }, hist: before.hist, pbToast: DATE } });
+    // Ticking again today does not toast a second time.
+    expect(updateLift(back?.record, { sets: [set('70', '10')] }, DATE, 'barbell')).toMatchObject({ toast: false, record: { pbToast: DATE, n: 5 } });
+  });
+
+  it('unticking the first session ever deletes the record', () => {
+    const today = updateLift(undefined, { sets: [set('70', '10')] }, DATE, 'barbell')?.record;
+    expect(updateLift(today, { sets: [set('70', '10', false)] }, DATE, 'barbell')).toEqual({ record: null, toast: false });
+  });
+
+  it('records saved without n, first, form or hist restore with defaults', () => {
+    const L: LiftRecord = { date: DATE, sets: [{ w: 10, r: 5 }], prev: { date: '2026-10-01', sets: [] } };
+    expect(updateLift(L, { sets: [] }, DATE, 'barbell')).toEqual({ toast: false, record: { date: '2026-10-01', sets: [], form: null, n: 1, first: '2026-10-01', prev: null, hist: [] } });
+  });
+
+  it('nothing to remove: no record, or a record from another day', () => {
+    expect(updateLift(undefined, { sets: [] }, DATE, 'barbell')).toBeNull();
+    expect(updateLift(null, { sets: [] }, DATE, 'barbell')).toBeNull();
+    expect(updateLift(lift(hist(80)), { sets: [set('70', '10', false)] }, DATE, 'barbell')).toBeNull();
   });
 });
 
 describe('stalls and personal bests: differential against the prototype', () => {
   const proto = loadStalls(metaTable(catalog.meta));
   const r = rng(105);
+  const rb = rng(122); // bodyweight (#122) on its own sequence, so the other draws are unchanged
+  const BWS = [undefined, null, 0, 40, 72.5, 80] as const;
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
   const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
   const names = [...Object.keys(catalog.meta), 'Mystery Lift'];
@@ -240,7 +278,9 @@ describe('stalls and personal bests: differential against the prototype', () => 
     for (let k = 0; k < 3000; k++) {
       const sets = Array.from({ length: 1 + Math.floor(r() * 5) }, () => ({ w: pick([0, 2.5, 20, 22.5, 60, 101.25]), r: Math.floor(r() * 25) }));
       const t = pick(types);
+      const bw = BWS[Math.floor(rb() * BWS.length)];
       expect(sessionScore(sets, t)).toBe(proto.sessionScore(sets, t));
+      expect(sessionScore(sets, t, bw)).toBe(proto.sessionScore(sets, t, bw || 0));
     }
   });
 
@@ -318,12 +358,15 @@ describe('stalls and personal bests: differential against the prototype', () => 
     let compared = 0;
     let sameDay = 0;
     let nested = 0;
+    let restored = 0; // #122: unticked today, the session before restored
+    let deleted = 0; // #122: unticked the only session, record deleted
     for (let k = 0; k < 3000; k++) {
       const name = pick(names);
       const ov: ExerciseOverride | undefined = pick([undefined, { type: 'assisted' as const }, { type: 'bodyweight' as const }]);
       const type = exInfo(name, catalog, ov).type;
       let L: LiftRecord | undefined = r() < 0.7 ? { date: pick(dates.slice(0, 5)), sets: [{ w: 50, r: 8 }], hist: randHist(), ...(r() < 0.5 ? { n: 3, first: '2026-08-01' } : {}), ...(r() < 0.4 ? { prev: { date: '2026-08-20', sets: [], ...(r() < 0.5 ? { prev: { date: '2026-08-10', sets: [{ w: 40, r: 6 }] } } : {}) } } : {}) } : undefined;
-      Object.assign(proto.S, { settings: { ex: ov ? { [name]: ov } : {} } });
+      const bw = BWS[Math.floor(rb() * BWS.length)];
+      Object.assign(proto.S, { settings: { ex: ov ? { [name]: ov } : {}, profile: { weight: bw } } });
       let date = pick(dates);
       for (let step = 0; step < 6; step++) {
         if (r() < 0.3) date = pick(dates);
@@ -335,10 +378,12 @@ describe('stalls and personal bests: differential against the prototype', () => 
         proto.updateLift(clone(ex));
         // Same-day repeats after a toast keep pbToast and do not toast again, in both (#121).
         if (L && L.date === date && L.pbToast !== undefined) sameDay++;
-        const u = updateLift(L, ex, date, type);
-        if (u) L = u.record;
+        const u = updateLift(L, ex, date, type, bw);
+        if (u && !u.record) deleted++;
+        else if (u && !u.toast && L && L.date === date && !ex.sets.some((x) => x.done && (num(x.w) || num(x.r)))) restored++;
+        if (u) L = u.record || undefined;
         toasts += u?.toast ? 1 : 0;
-        if (u?.record.prev?.prev) nested++;
+        if (u?.record?.prev?.prev) nested++;
         compared++;
         expect(proto.toasts.length).toBe(u?.toast ? 1 : 0);
         expect(proto.S.lifts[name] as LiftRecord | undefined).toEqual(L ? clone(L) : undefined);
@@ -347,6 +392,8 @@ describe('stalls and personal bests: differential against the prototype', () => 
     expect(compared).toBe(18000);
     expect(sameDay).toBeGreaterThan(100);
     expect(nested).toBeGreaterThan(1000);
+    expect(restored).toBeGreaterThan(100);
+    expect(deleted).toBeGreaterThan(100);
     expect(toasts).toBeGreaterThan(100);
   });
 });

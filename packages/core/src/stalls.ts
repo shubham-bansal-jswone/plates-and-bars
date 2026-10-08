@@ -3,15 +3,19 @@ import { num } from './num';
 import { noLoad, type ExInfo, type ExType, type ExerciseOverride, type LiftRecord, type LiftSet, type ScoreEntry, type SetEntry } from './progression';
 
 /**
- * Session score: total reps for bodyweight and timed exercises; for assisted, the best of
- * `reps × 2 − assistance`; otherwise the best Epley estimate `w × (1 + r/30)`. Empty `sets` gives 0
- * for bodyweight and timed, `-Infinity` otherwise (the prototype never scores an empty session).
+ * Session score: total reps for bodyweight and timed exercises; for assisted, the best effective
+ * load `reps × max(0, bodyweight − assistance)` (#122), or `reps × 2 − assistance` when `bodyweight`
+ * is unknown (absent, null or 0). Callers pass the latest logged weight if any, else contract
+ * `Profile.weight_kg` (as prototype `workoutBurn` does); otherwise the best Epley estimate
+ * `w × (1 + r/30)`. Empty `sets` gives 0 for bodyweight and timed, `-Infinity` otherwise (never
+ * scored: `updateLift` removes today's record instead).
  *
- * Mirrors prototype `sessionScore(sets, type)`.
+ * Mirrors prototype `sessionScore(sets, type, bw)`.
  */
-export function sessionScore(sets: readonly Pick<LiftSet, 'w' | 'r'>[], type: ExType): number {
+export function sessionScore(sets: readonly Pick<LiftSet, 'w' | 'r'>[], type: ExType, bodyweight?: number | null): number {
   if (noLoad(type)) return sets.reduce((n, s) => n + s.r, 0);
-  if (type === 'assisted') return Math.max(...sets.map((s) => s.r * 2 - s.w));
+  const bw = bodyweight || 0;
+  if (type === 'assisted') return Math.max(...sets.map((s) => (bw ? s.r * Math.max(0, bw - s.w) : s.r * 2 - s.w)));
   return Math.max(...sets.map((s) => s.w * (1 + s.r / 30)));
 }
 
@@ -151,42 +155,57 @@ export function checkBest(record: Pick<LiftRecord, 'hist' | 'pbToast'> | undefin
   return (record as LiftRecord).pbToast !== date;
 }
 
-/** Result of `updateLift`: the new record, and whether to show the personal-best toast. */
+/** Result of `updateLift`: the new record (`null`: delete the lift's record), and whether to show the personal-best toast. */
 export interface LiftUpdate {
-  record: LiftRecord;
+  record: LiftRecord | null;
   toast: boolean;
 }
 
 /**
  * Rebuilds an exercise's record from today's ticked sets (a set counts when weight or reps is
- * non-zero) and adds today's score to its history (rounded to 0.1, last 8 kept, today's earlier score
- * replaced). A record from an earlier day becomes `prev`, carrying its own `prev` (one level, without
- * a further `prev`) so the weight guidance can still see two sessions before today (#101). Null when
- * nothing changes: no counted sets, or the record is newer than `date`. A record from the same day
- * keeps its `pbToast`, so the best toast shows at most once a day (#121, contract `pb_toast_date`).
+ * non-zero) and adds today's score (`sessionScore`, with `bodyweight` for assisted machines: the
+ * latest logged weight if any, else contract `Profile.weight_kg`) to its history (rounded to 0.1, last 8 kept, today's earlier score replaced). A record from an earlier day becomes `prev`, carrying its own `prev` (one level, without
+ * a further `prev`) so the weight guidance can still see two sessions before today (#101).
+ *
+ * With no counted sets left and a record from `date` (#122): today's record is removed and the session
+ * before restored from its `prev` (date, sets, form, its own `prev`; `n` one less, at least 1; `first`
+ * and `pbToast` kept; today's score dropped from the history), toast false; with no `prev`, `record`
+ * is `null`: delete the lift's record. Null when nothing changes: no counted sets and no record from
+ * `date`, or the record is newer than `date`. A record from the same day, or one whose `pbToast` is
+ * `date` (restored after unticking), keeps its `pbToast`, so the best toast shows at most once a day
+ * (#121, contract `pb_toast_date`).
  * Then runs `checkBest` against the best score before today; when it toasts, the new record's
  * `pbToast` is `date`.
  *
- * Mirrors prototype `updateLift(ex)` (record, `S.date` and `exInfo(name).type` passed in).
+ * Mirrors prototype `updateLift(ex)` (record, `S.date`, `exInfo(name).type` and the profile's weight
+ * passed in).
  */
 export function updateLift(
-  L: LiftRecord | undefined,
+  L: LiftRecord | null | undefined,
   ex: { sets: readonly SetEntry[]; form?: 'yes' | 'no' | null },
   date: string,
   type: ExType,
+  bodyweight?: number | null,
 ): LiftUpdate | null {
   const sets: LiftSet[] = ex.sets.filter((s) => s.done && (num(s.w) || num(s.r))).map((s) => ({ w: num(s.w), r: num(s.r), rate: s.rate || null }));
-  if (!sets.length) return null;
+  if (!sets.length) {
+    if (!L || L.date !== date) return null;
+    const P = L.prev;
+    if (!P) return { record: null, toast: false };
+    const back: LiftRecord = { date: P.date, sets: P.sets, form: P.form || null, n: Math.max(1, (L.n || 1) - 1), first: L.first || P.date, prev: P.prev || null, hist: (L.hist || []).filter((x) => x.date !== date) };
+    if (L.pbToast !== undefined) back.pbToast = L.pbToast;
+    return { record: back, toast: false };
+  }
   const form = ex.form || null;
   let record: LiftRecord;
   if (!L || L.date === date) record = { date, sets, form, n: L ? L.n || 1 : 1, first: L ? L.first || L.date : date, prev: L ? L.prev || null : null };
   else if (L.date < date)
     record = { date, sets, form, n: (L.n || (L.prev ? 2 : 1)) + 1, first: L.first || (L.prev ? L.prev.date : L.date), prev: { date: L.date, sets: L.sets, form: L.form || null, prev: L.prev ? { date: L.prev.date, sets: L.prev.sets, form: L.prev.form || null } : null } };
   else return null;
-  if (L && L.date === date && L.pbToast !== undefined) record.pbToast = L.pbToast; // #121
+  if (L && L.pbToast !== undefined && (L.date === date || L.pbToast === date)) record.pbToast = L.pbToast; // #121, #122
   const hist = (L && L.hist ? L.hist : []).filter((x) => x.date !== date);
   const beforeBest = hist.length ? Math.max(...hist.map((x) => x.e)) : 0;
-  hist.push({ date, e: Math.round(sessionScore(sets, type) * 10) / 10 });
+  hist.push({ date, e: Math.round(sessionScore(sets, type, bodyweight) * 10) / 10 });
   record.hist = hist.slice(-8);
   const toast = checkBest(record, beforeBest, date);
   if (toast) record.pbToast = date;

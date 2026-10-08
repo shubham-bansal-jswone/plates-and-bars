@@ -1327,15 +1327,21 @@ function setTarget(ex, j, sug){
 
 function updateLift(ex){
   const sets = ex.sets.filter(s => s.done && (num(s.w) || num(s.r))).map(s => ({ w:num(s.w), r:num(s.r), rate:s.rate || null }));
-  if(!sets.length) return;
   const L = S.lifts[ex.name], form = ex.form || null;
+  if(!sets.length){ // nothing counted today: remove today's record and go back to the session before
+    if(!L || L.date !== S.date) return;
+    const P = L.prev;
+    if(P) S.lifts[ex.name] = { date:P.date, sets:P.sets, form:P.form || null, n: Math.max(1, (L.n || 1) - 1), first: L.first || P.date, prev: P.prev || null, hist: (L.hist || []).filter(x => x.date !== S.date), ...(L.pbToast !== undefined ? { pbToast:L.pbToast } : {}) };
+    else delete S.lifts[ex.name];
+    saveSoon('lifts', S.lifts); return;
+  }
   if(!L || L.date === S.date) S.lifts[ex.name] = { date:S.date, sets, form, n: L ? (L.n || 1) : 1, first: L ? (L.first || L.date) : S.date, prev: L ? (L.prev || null) : null };
   else if(L.date < S.date) S.lifts[ex.name] = { date:S.date, sets, form, n: (L.n || (L.prev ? 2 : 1)) + 1, first: L.first || (L.prev ? L.prev.date : L.date), prev:{ date:L.date, sets:L.sets, form:L.form || null, prev: L.prev ? { date:L.prev.date, sets:L.prev.sets, form:L.prev.form || null } : null } };
   else return; // editing an older day: keep the newer record
   const R = S.lifts[ex.name], hist = (L && L.hist ? L.hist : []).filter(x => x.date !== S.date);
-  if(L && L.date === S.date && L.pbToast !== undefined) R.pbToast = L.pbToast; // best toast at most once a day
+  if(L && L.pbToast !== undefined && (L.date === S.date || L.pbToast === S.date)) R.pbToast = L.pbToast; // best toast at most once a day
   const beforeBest = hist.length ? Math.max(...hist.map(x => x.e)) : 0;
-  hist.push({ date:S.date, e: Math.round(sessionScore(sets, exInfo(ex.name).type)*10)/10 });
+  hist.push({ date:S.date, e: Math.round(sessionScore(sets, exInfo(ex.name).type, num((S.settings.profile || {}).weight))*10)/10 });
   R.hist = hist.slice(-8);
   checkBest(ex.name, beforeBest);
   saveSoon('lifts', S.lifts);
@@ -1559,9 +1565,9 @@ function missed(date){
 }
 
 /* stalls: best estimated strength per session, kept in lifts[name].hist */
-function sessionScore(sets, type){
+function sessionScore(sets, type, bw){ // bw: profile weight, for assisted machines (0 = unknown)
   if(noLoad(type)) return sets.reduce((n, s) => n + s.r, 0);
-  if(type === 'assisted') return Math.max(...sets.map(s => s.r * 2 - s.w));
+  if(type === 'assisted') return Math.max(...sets.map(s => bw ? s.r * Math.max(0, bw - s.w) : s.r * 2 - s.w));
   return Math.max(...sets.map(s => s.w * (1 + s.r/30)));
 }
 function stalled(name){
@@ -1694,8 +1700,9 @@ function applyMods(sug, ex){
   const top = last.sets.reduce((a, s) => info.type === 'assisted' ? Math.min(a, s.w) : Math.max(a, s.w), last.sets[0].w);
   let w = sug.w, note = '';
   const ret = (S.settings.returning || {})[ex.name];
-  if(ret && ret.until >= S.date){ w = info.type === 'assisted' ? w + snap(w*0.45, info.step || 1) : Math.max(0, snap(top*0.55, info.step || 1)); note = ' Coming back to this exercise: about 55% of your old weight for 2 weeks.'; }
-  else if(ex.bridge){ w = info.type === 'assisted' ? w : Math.max(0, snap(top*0.85, info.step || 1)); note = ' Bridge set: lighter, after your new exercise.'; }
+  const bw = num((S.settings.profile || {}).weight); // assisted: effective load is bodyweight − assistance
+  if(ret && ret.until >= S.date){ w = info.type === 'assisted' ? (bw ? snap(bw - 0.55*(bw - top), info.step || 1) : w + snap(w*0.45, info.step || 1)) : Math.max(0, snap(top*0.55, info.step || 1)); note = ' Coming back to this exercise: about 55% of your old weight for 2 weeks.'; }
+  else if(ex.bridge){ w = info.type === 'assisted' ? top + info.step : Math.max(0, snap(top*0.85, info.step || 1)); note = ' Bridge set: lighter, after your new exercise.'; }
   if((m.light || m.deload || m.reentry) && sug.mode === 'up' && !note){ w = top; note = ' No weight increase today.'; }
   const pct = m.deload ? 0.1 : (m.reentry || 0);
   if(pct){ w = info.type === 'assisted' ? w + Math.max(info.step, snap(w*pct, info.step)) : Math.max(0, snap(w*(1-pct), info.step || 1)); note = m.deload ? ' Recovery week: about 10% lighter.' : ` Easing back in: about ${Math.round(pct*100)}% lighter.`; }
@@ -1880,7 +1887,7 @@ function candidates(name, o = {}){
   const t = TAGS[name]; if(!t) return [];
   const where = o.where || (S.day && S.day.workout.where) || 'gym';
   const allow = where === 'gym' ? null : where === 'dumbbells' ? ['dumbbell','bodyweight'] : ['bodyweight'];
-  const inSession = new Set(o.ignoreSession ? [] : ((S.day && S.day.workout.exercises) || []).map(e => e.name));
+  const inSession = new Set(o.ignoreSession ? (o.taken || []) : ((S.day && S.day.workout.exercises) || []).map(e => e.name));
   const out = [];
   for(const [c, ct] of Object.entries(TAGS)){
     if(c === name || inSession.has(c) || isExcluded(c, o.rules)) continue;
@@ -1903,26 +1910,41 @@ function candidates(name, o = {}){
   return out.sort((a, b) => b.score - a.score).slice(0, o.n || 3);
 }
 
-function resolveName(name, where, depth = 0){
+// a swap target or stored pick where you train: its away version, else itself if the equipment is there, else null (keep the original)
+function homeName(n, where){
+  if(where === 'gym') return n;
+  const a = AWAY[n] ? AWAY[n][where === 'dumbbells' ? 0 : 1] : n, t = TAGS[a];
+  return a && (!t || (where === 'dumbbells' ? ['dumbbell','bodyweight'] : ['bodyweight']).includes(t.eq)) ? a : null;
+}
+const SCOPE_RANK = { exercise:0, family:1, pattern:2, joint:3 }; // most specific rule first
+// taken: names already in the session, left out of the candidates; null: return undefined where a candidate is needed
+function resolveName(name, where, depth = 0, taken){
   const X = ruleState(); if(depth > 3) return name;
-  const rp = X.repl[name];
-  if(rp && rp.to && !isExcluded(rp.to)) return resolveName(rp.to, where, depth + 1);
+  const rp = X.repl[name], to = rp && rp.to ? homeName(rp.to, where) : null;
+  if(to && !isExcluded(to)) return resolveName(to, where, depth + 1, taken);
   if(isExcluded(name)){
-    const r = activeRules().find(x => ruleMatches(x, name)), pick = r && r.to ? r.to[name] : undefined;
+    const rs = activeRules().filter(x => ruleMatches(x, name)), r = rs[0];
+    const pr = rs.sort((a, b) => SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope]).find(x => x.to && x.to[name] !== undefined), pick = pr ? pr.to[name] : undefined;
     if(pick === null) return null;
-    if(pick && !isExcluded(pick)) return pick;
-    const c = candidates(name, { where, joint: r && r.scope === 'joint' ? r.key : null, pain: r && r.reason === 'pain', ignoreSession: true });
+    const p = pick && homeName(pick, where);
+    if(p && !isExcluded(p)) return resolveName(p, where, depth + 1, taken);
+    if(taken === null) return undefined;
+    const c = candidates(name, { where, joint: r && r.scope === 'joint' ? r.key : null, pain: r && r.reason === 'pain', ignoreSession: true, taken });
     return c[0] ? c[0].name : null;
   }
   return name;
 }
-function resolveSession(names, where){
+// lost (optional array): excluded names left out because no replacement outside the session was found
+function resolveSession(names, where, lost){
   const X = ruleState(), out = [], seen = new Set();
-  names.forEach(n => {
-    const r = resolveName(n, where);
+  const bridged = (n, r) => { const rp = X.repl[n]; return rp && rp.bridgeUntil && rp.bridgeUntil >= S.date && r === rp.to && !isExcluded(n); };
+  const first = names.map(n => resolveName(n, where, 0, null)), taken = [];
+  names.forEach((n, i) => { if(first[i]) taken.push(first[i]); if(bridged(n, first[i])) taken.push(n); });
+  names.forEach((n, i) => {
+    let r = first[i];
+    if(r === undefined){ r = resolveName(n, where, 0, taken); if(r) taken.push(r); else if(lost) lost.push(n); }
     if(r && !seen.has(r)){ seen.add(r); out.push({ name:r }); }
-    const rp = X.repl[n];
-    if(rp && rp.bridgeUntil && rp.bridgeUntil >= S.date && r === rp.to && !seen.has(n) && !isExcluded(n)){ seen.add(n); out.push({ name:n, bridge:true }); }
+    if(bridged(n, r) && !seen.has(n)){ seen.add(n); out.push({ name:n, bridge:true }); }
   });
   return out;
 }
@@ -3365,7 +3387,7 @@ function musclesOf(names){
 const mList = set => [...set].map(m => MUSCLE[m]);
 function legendHtml(){ return `<div class="bm-leg"><span><i style="background:var(--fat)"></i>Main focus</span><span><i style="background:var(--carbs)"></i>Also working</span></div>`; }
 function sessionPreviewHtml(t){
-  const all = sessionItems(t, whereNow()), kept = applyFocus(trimSession(all, t), t, whereNow());
+  const lost = [], all = sessionItems(t, whereNow(), lost), kept = applyFocus(trimSession(all, t), t, whereNow());
   const ci = S.day.workout.checkin || {}, short = ci.time && ci.time !== 'usual';
   const items = short ? kept.filter(x => !x.bridge).slice(0, ci.time === '30' ? 3 : 4) : kept, names = items.map(x => x.name);
   const left = all.filter(x => !names.includes(x.name)).map(x => x.name);
@@ -3375,6 +3397,7 @@ function sessionPreviewHtml(t){
     <div class="pv-txt"><p><b>Main focus:</b> ${esc(listJoin(mList(prim)))}</p>${sec.size ? `<p class="hint">Also working: ${esc(listJoin(mList(sec)))}</p>` : ''}
     <ol class="pv-list">${names.map(n => { const tg = TAGS[n]; return `<li><b>${esc(n)}</b>${tg ? `<span class="hint"> ${esc(listJoin(tg.m.map(m => MUSCLE[m])))}</span>` : ''}</li>`; }).join('')}</ol>
     <p class="hint">${names.length} exercises, ${sets} sets each${sets === 2 ? ' for your first 2 weeks' : ''}${names.some(isFocus) ? ', plus 1 on focus muscles' : ''}, sized to your ${p && p.minutes ? p.minutes : 60}-minute sessions.${left.length ? ` ${esc(listJoin(left))} rotate in on other ${esc(t)} days.` : ''}</p>
+    ${lost.map(n => { const tg = TAGS[n]; return `<p class="hint">${esc(n)} is left out with no replacement${tg ? `, so your ${esc(listJoin(tg.m.map(m => MUSCLE[m])))} get fewer sets each week` : ''}.</p>`; }).join('')}
     <div><button class="primary" data-act="tpl" data-t="${esc(t)}">Start ${esc(t)}</button></div></div></div>`;
 }
 function sessionMapHtml(){
@@ -3972,7 +3995,7 @@ function mapForWhere(names, where){
   const k = where === 'dumbbells' ? 0 : 1, seen = new Set();
   return names.map(n => AWAY[n] ? AWAY[n][k] : n).filter(n => n && !seen.has(n) && seen.add(n));
 }
-const sessionItems = (t, where) => resolveSession(mapForWhere(TEMPLATES[t] || [], where), where);
+const sessionItems = (t, where, lost) => resolveSession(mapForWhere(TEMPLATES[t] || [], where), where, lost);
 Object.assign(TAGS, {
   'Incline Push-ups':TG('h-press','pushup','bodyweight',1,'chest','triceps,front-delt','wrist,shoulder'),
   'Archer Push-ups':TG('h-press','pushup','bodyweight',3,'chest','triceps,front-delt','wrist,shoulder'),

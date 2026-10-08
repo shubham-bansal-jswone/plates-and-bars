@@ -16,6 +16,12 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - #121: `updateLift` keeps `pbToast` when the existing record is from the same date, so the personal-best toast shows at most once a day per lift.
 - #129: at 0 training days, setup (`validateStep` step 2) saves `exp` and `minutes` as null and `where` as `gym` when not picked; it still does not ask where you train. A stale "New to lifting" no longer triggers the beginner ramp on hand-picked sessions or changes which focus exercises are picked (`focusPick`).
 
+**2026-10-08 — prototype fixes, batch 2 (spec-change; golden fixtures unchanged).**
+- #103: on assisted machines (effective load = bodyweight − assistance, bodyweight = the profile's weight), `applyMods` gives a bridge exercise one assistance step more than its old top, and a returning exercise 55% of its old effective load: assistance = bodyweight − 0.55 × (bodyweight − old top assistance), snapped to the machine's step. With no profile weight, returning keeps the old rule (suggestion + 45% of it).
+- #109: swap targets and stored replacement picks are mapped for the current `where` (`homeName`): at the gym unchanged; away from it, the away-map version (dumbbells or bodyweight column), else the exercise itself when its equipment is there (untagged exercises pass, as in `mapForWhere`), else none, and then the original stays (a swap is not followed; a pick falls back to the best candidate for `where`). A stored pick is followed through swaps. When several active rules cover an exercise, the pick comes from the most specific rule holding one for it, narrowest scope first: exercise, family, pattern, joint (`SCOPE_RANK`; list order breaks ties). Candidate weighting (joint, pain) still uses the first matching rule. No bridge once the swap target is itself swapped or replaced: unchanged.
+- #110: `resolveSession` first resolves every name that needs no candidate; a candidate for an excluded exercise then leaves out every name already in the session (those names, their bridges, and candidates picked for earlier slots), so the next-best one is used. If none is left the slot stays empty and the session preview says "<name> is left out with no replacement, so your <muscles> get fewer sets each week." A skip the user chose shows no note.
+- #122: assisted session scores are `reps × max(0, bodyweight − assistance)` with the profile's weight (higher is better, never negative); with no profile weight, the old `reps × 2 − assistance`. Old history entries are not rescored. When no counted sets remain today, `updateLift` removes today's record: it restores the session before from `prev` (date, sets, form and its one-level `prev`; `n` one less; `first` and `pbToast` kept; today's score dropped from `hist`), or deletes the record if there was none. A record whose `pbToast` is today keeps it, so re-ticking does not toast twice. When the history already held 8 entries, today's first tick dropped the oldest and unticking does not bring it back (accepted).
+
 These change the scope table in the Development Plan. Treat them as v1 unless marked otherwise.
 
 | Change | Area | Agents affected |
@@ -86,7 +92,7 @@ Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fracti
 
 Session build order (`buildSession`):
 1. Template → home mapping (`AWAY` table) if `where` is not gym (day override beats profile).
-2. Exclusions and swaps resolve each name (`resolveSession`); ladder "bridge" exercises appended with 2 sets for 2 weeks.
+2. Exclusions and swaps resolve each name (`resolveSession`; swap targets and picks mapped for `where`, replacements not already in the session); ladder "bridge" exercises appended with 2 sets for 2 weeks.
 3. Trim to the exercise cap (30 min → 3, 45 → 4, 60 → 5, 75 → 6, 90 → 7). The first 2 lifts always stay; the extras **rotate** by how many times this template was done (`trimSession`).
 4. Focus muscles (`applyFocus`), then the check-in "short session" cut.
 5. Sets: 3 default; 2 for `exp=new` in the first 14 days from profile creation; calf raises at least 4; +1 on focus exercises (max 5). Deload: ~60% of sets. Light day: −1 set.
@@ -106,10 +112,10 @@ Weekly coverage meter: planned (from templates) and done (last 7 days of logged 
 - Double progression (`suggestBase`): top of range on every set with no Hard/Fail → +1 step (assisted: −1 step of assistance). Below range twice running, or a failed set → drop ~7.5% (≥ 1 step). Else same weight, +1 rep target.
 - Holds: first 14 days on an exercise (unless all sets rated Easy); last session's form = "no".
 - Jumps over 10% (5% for age 60+) carry a "go back and add reps" fallback.
-- Modifiers (`applyMods`): returning after an exclusion → 55% of old top for 2 weeks; bridge → 85%; deload −10%; re-entry after a break −15% or −30%.
+- Modifiers (`applyMods`): returning after an exclusion → 55% of old top for 2 weeks; bridge → 85% (assisted: see section 0, #103); deload −10%; re-entry after a break −15% or −30%.
 - In-session: Easy → next set +1 step; Couldn't finish → −10%; ticking an empty set uses the placeholder.
 - Find-your-weight ramp for first-time loaded exercises: Easy → add a step and another ramp set; Just right → working weight; Hard → one step lighter; Fail → previous ramp weight.
-- Stall: best session score (Epley `w·(1+r/30)`; bodyweight = total reps; assisted = `max(r·2 − assist)`) not beating the earlier best by >1% for 3 sessions. 3+ stalled lifts → recovery-week card.
+- Stall: best session score (Epley `w·(1+r/30)`; bodyweight = total reps; assisted = `max(r·max(0, bodyweight − assist))`, or `max(r·2 − assist)` with no profile weight) not beating the earlier best by >1% for 3 sessions. 3+ stalled lifts → recovery-week card.
 - Personal best: new session score > previous best × 1.005 → toast once a day per lift.
 
 ---

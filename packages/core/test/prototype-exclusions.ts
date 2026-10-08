@@ -30,7 +30,7 @@ export interface ProtoCandidate {
 
 export interface ProtoExclusions {
   S: ProtoExclState;
-  resolveSession(names: string[], where: string): { name: string; bridge?: boolean }[];
+  resolveSession(names: string[], where: string, lost?: string[]): { name: string; bridge?: boolean }[];
   resolveName(name: string, where: string): string | null;
   candidates(name: string, o: Record<string, unknown>): ProtoCandidate[];
   isExcluded(name: string, extra?: unknown[]): boolean;
@@ -41,11 +41,12 @@ export interface ProtoExclusions {
 
 /**
  * Runs the prototype's own exclusion and swap functions (`ruleMatches`, `activeRules`, `isExcluded`,
- * `candidates`, `resolveName`, `resolveSession`), sliced out of the HTML, against a fake `S`, with
- * `TAGS` from golden/exercises.json as the prototype holds it (short tag names). Nothing is stubbed.
+ * `candidates`, `homeName`, `resolveName`, `resolveSession`), sliced out of the HTML, against a fake
+ * `S`, with `TAGS` and `AWAY` from golden/exercises.json as the prototype holds them (short tag
+ * names). Nothing is stubbed.
  */
 export function loadExclusions(): ProtoExclusions {
-  const tags = loadGolden<{ tags: Record<string, unknown> }>('exercises').tags;
+  const g = loadGolden<{ tags: Record<string, unknown>; awayMap_dumbbells_bodyweight: Record<string, unknown> }>('exercises');
   const src = prototypeSource();
   const code = [
     'const S = { date:"", settings:{ excl:[], repl:{} }, lifts:{}, day:{ workout:{ exercises:[] } } };',
@@ -57,9 +58,11 @@ export function loadExclusions(): ProtoExclusions {
     sliceLine(src, 'const isExcluded = '),
     sliceLine(src, 'const listJoin = '),
     sliceBlock(src, 'function candidates(name, o = {}){', '}'),
-    sliceBlock(src, 'function resolveName(name, where, depth = 0){', '}'),
-    sliceBlock(src, 'function resolveSession(names, where){', '}'),
+    sliceBlock(src, 'function homeName(n, where){', '}'),
+    sliceLine(src, 'const SCOPE_RANK = '),
+    sliceBlock(src, 'function resolveName(name, where, depth = 0, taken){', '}'),
+    sliceBlock(src, 'function resolveSession(names, where, lost){', '}'),
     'return { S, resolveSession, resolveName, candidates, isExcluded, MUSCLE, JOINT, listJoin };',
   ].join('\n');
-  return new Function('TAGS', code)(tags) as ProtoExclusions;
+  return new Function('TAGS', 'AWAY', code)(g.tags, g.awayMap_dumbbells_bodyweight) as ProtoExclusions;
 }
