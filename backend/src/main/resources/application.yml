@@ -15,6 +15,11 @@ logging:
     org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolver: INFO
     # TRACE here prints exception-handler arguments, including validation exceptions with the rejected value.
     org.springframework.web.method.HandlerMethod: INFO
+    # These print whole request and response bodies (sync records: food, weight, health answers) at DEBUG or TRACE.
+    org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor: INFO
+    org.springframework.web.servlet.mvc.method.annotation.HttpEntityMethodProcessor: INFO
+    # Prints every bound SQL parameter at TRACE, which includes the stored record JSON.
+    org.springframework.jdbc.core.StatementCreatorUtils: INFO
 
 server:
   port: ${PORT:8080}

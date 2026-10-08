@@ -26,7 +26,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ErrorResponse> api(ApiException e) {
-        return respond(e.status(), e.code(), e.getMessage(), null);
+        return respond(e.status(), e.code(), e.getMessage(), e.details());
     }
 
     @ExceptionHandler(RateLimitedException.class)
