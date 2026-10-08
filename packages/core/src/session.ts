@@ -240,7 +240,8 @@ export interface SessionSetsOptions {
   deload?: boolean;
   /**
    * Light session: check-in "light", re-entry of 30%+, lab hold, or `needsClearance`
-   * (prototype `buildSession`'s `light`). Ignored in a deload week.
+   * (prototype `buildSession`'s `light`). Ignored in a deload week. Pass `sessionMods(...).setsLight`,
+   * not `mods.light` (which leaves re-entry out).
    */
   light?: boolean;
 }
