@@ -15,11 +15,18 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | --- | --- | --- | --- |
 | Setup targets | `calcTargets`, `bmrOf`, `ACTIVITY_MULTIPLIER`, `PACE_ADJ`, `TRAIN_NET_MET` | `calcTargets`, `bmrOf`, `ACTIVITY`, `PACE`, `TRAIN_NET_MET` | `targets.json` |
 | Health check | `needsClearance`, `screenFlag` | `needsClearance`, `screenFlag` | none (unit tests) |
-| Helpers | `num` | `num` | none |
+| Plan engine | `planned`, `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `beginnerRamp`, `older`, `TEMPLATES`, `ORDER`, `SPLITS` | same names (`beginnerRamp` is inline in `setsFor`) | `plan.json` |
+| Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
+| Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()` | none |
 
 `calcTargets` returns the same fields as the prototype, unrounded where the prototype leaves them
 unrounded (bmr, movement, training, digestion, tdee, weekly). Display them with `Math.round`, as the
 prototype's `fmt` does. `kcal`, `protein`, `fat` and `carbs` come back already rounded.
+
+The session rules read exercise content (prototype `TAGS`, `CARDS`, `AWAY`) through an
+`ExerciseCatalog` argument instead of copying it: that data belongs to `content/` (spec item 4). Tests
+build the catalogue from `golden/exercises.json`. Exclusions and swaps (`resolveSession`) are not
+ported yet; callers pass already-resolved session items to `trimSession`.
 
 ## Running
 
