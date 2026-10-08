@@ -145,10 +145,18 @@ describe('normaliseSetup', () => {
     expect(p.targets).toEqual({ kcal: t.kcal, protein_g: t.protein, carbs_g: t.carbs, fat_g: t.fat });
     expect(p.screen).toEqual(['no', 'no', 'no', 'no', 'no', 'no']);
   });
-  it('0 days: exp and minutes are null, where defaults to gym', () => {
+  it('0 days: exp and minutes are null, where defaults to gym (#129)', () => {
     const p = normaliseSetup(valid({ days: 0, where: '', exp: 'new', minutes: 45 }), TODAY);
     expect(p).toMatchObject({ days: 0, exp: null, minutes: null, where: 'gym' });
     expect(normaliseSetup(valid({ days: 0, where: 'bodyweight' }), TODAY).where).toBe('bodyweight');
+    // The prototype's step 2 saves the same: a stale "New to lifting" is cleared, where defaults to gym.
+    const proto = loadSetup(TODAY);
+    Object.assign(proto.SU, { step: 2, p: { days: 0, exp: 'new', minutes: 45 } });
+    expect(proto.validateStep()).toBe('');
+    expect(proto.SU.p).toEqual({ days: 0, exp: null, minutes: null, where: 'gym' });
+    Object.assign(proto.SU, { p: { days: 0, where: 'bodyweight' } });
+    expect(proto.validateStep()).toBe('');
+    expect(proto.SU.p).toEqual({ days: 0, exp: null, minutes: null, where: 'bodyweight' });
   });
   it('special is none unless female; pace defaults to moderate', () => {
     expect(normaliseSetup(valid({ special: 'pregnant' }), TODAY).special).toBe('none');
@@ -306,19 +314,18 @@ function randomCase(r: () => number): Case {
   return { protoP, v, unit, answers, previous };
 }
 
-/** The prototype's saved profile in contract names. The three mappings are the documented differences. */
+/** The prototype's saved profile in contract names. `screen` (object → array) is the one documented difference. */
 function protoToContract(pp: ProtoP, settings: Record<string, unknown>): SetupProfile {
-  const training = (pp.days as number) > 0;
   return {
     sex: pp.sex,
     age: pp.age,
     height_cm: pp.height,
     weight_kg: pp.weight,
     activity: pp.activity,
-    where: pp.where || 'gym',
+    where: pp.where,
     days: pp.days,
-    exp: training ? pp.exp : null,
-    minutes: training ? pp.minutes : null,
+    exp: pp.exp,
+    minutes: pp.minutes,
     goal: pp.goal,
     pace: pp.pace,
     special: pp.special,
@@ -334,7 +341,7 @@ describe('differential: port vs prototype over random answer sets', () => {
   const proto = loadSetup(TODAY);
   const r = rng(126);
   const cases = Array.from({ length: N }, () => randomCase(r));
-  const stats = { errors: new Map<string, number>(), applied: 0, zeroDays: 0, zeroDaysStaleExp: 0, whereDefaulted: 0, notes: new Map<string, number>(), paces: new Map<string, number>() };
+  const stats = { errors: new Map<string, number>(), applied: 0, zeroDays: 0, zeroDaysPickedExp: 0, whereDefaulted: 0, notes: new Map<string, number>(), paces: new Map<string, number>() };
   const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
 
   it('validateSetupStep gives the prototype validateStep message for every step', () => {
@@ -372,10 +379,11 @@ describe('differential: port vs prototype over random answer sets', () => {
       stats.applied++;
       if (pp.days === 0) {
         stats.zeroDays++;
-        expect(pp.minutes).toBe(0); // the prototype stores 0; the contract null
-        if (pp.exp) stats.zeroDaysStaleExp++;
+        // #129: the prototype saves exp and minutes as null at 0 days, even after an experience was picked.
+        expect([pp.exp, pp.minutes]).toEqual([null, null]);
+        if (c.answers.exp) stats.zeroDaysPickedExp++;
+        if (!c.answers.where) stats.whereDefaulted++;
       }
-      if (!pp.where) stats.whereDefaulted++;
 
       const s = setupSummary(got);
       const { fmt } = proto;
@@ -397,7 +405,7 @@ describe('differential: port vs prototype over random answer sets', () => {
     // The random answers reach every branch that matters.
     expect(stats.applied).toBeGreaterThan(1000);
     expect(stats.zeroDays).toBeGreaterThan(100);
-    expect(stats.zeroDaysStaleExp).toBeGreaterThan(50);
+    expect(stats.zeroDaysPickedExp).toBeGreaterThan(50);
     expect(stats.whereDefaulted).toBeGreaterThan(10);
     expect([...stats.paces.keys()].sort()).toEqual(['gain', 'loss', 'steady']);
     expect([...stats.notes.keys()].sort()).toEqual(Object.keys(NOTE_MARK).sort());

@@ -160,13 +160,12 @@ export interface LiftUpdate {
 /**
  * Rebuilds an exercise's record from today's ticked sets (a set counts when weight or reps is
  * non-zero) and adds today's score to its history (rounded to 0.1, last 8 kept, today's earlier score
- * replaced). A record from an earlier day becomes `prev`. Null when nothing changes: no counted sets,
- * or the record is newer than `date`. Then runs `checkBest` against the best score before today; when
- * it toasts, the new record's `pbToast` is `date`.
- *
- * Deliberate difference from the prototype (#121): a record from the same day keeps its `pbToast`,
- * so the best toast shows at most once a day (contract `pb_toast_date`). The prototype drops it and
- * toasts again on every later tick; it gets the same fix in a later spec-change PR.
+ * replaced). A record from an earlier day becomes `prev`, carrying its own `prev` (one level, without
+ * a further `prev`) so the weight guidance can still see two sessions before today (#101). Null when
+ * nothing changes: no counted sets, or the record is newer than `date`. A record from the same day
+ * keeps its `pbToast`, so the best toast shows at most once a day (#121, contract `pb_toast_date`).
+ * Then runs `checkBest` against the best score before today; when it toasts, the new record's
+ * `pbToast` is `date`.
  *
  * Mirrors prototype `updateLift(ex)` (record, `S.date` and `exInfo(name).type` passed in).
  */
@@ -182,7 +181,7 @@ export function updateLift(
   let record: LiftRecord;
   if (!L || L.date === date) record = { date, sets, form, n: L ? L.n || 1 : 1, first: L ? L.first || L.date : date, prev: L ? L.prev || null : null };
   else if (L.date < date)
-    record = { date, sets, form, n: (L.n || (L.prev ? 2 : 1)) + 1, first: L.first || (L.prev ? L.prev.date : L.date), prev: { date: L.date, sets: L.sets, form: L.form || null } };
+    record = { date, sets, form, n: (L.n || (L.prev ? 2 : 1)) + 1, first: L.first || (L.prev ? L.prev.date : L.date), prev: { date: L.date, sets: L.sets, form: L.form || null, prev: L.prev ? { date: L.prev.date, sets: L.prev.sets, form: L.prev.form || null } : null } };
   else return null;
   if (L && L.date === date && L.pbToast !== undefined) record.pbToast = L.pbToast; // #121
   const hist = (L && L.hist ? L.hist : []).filter((x) => x.date !== date);

@@ -17,6 +17,7 @@ import {
   snap,
   suggestBase,
   tickFill,
+  updateLift,
   type ExerciseCatalog,
   type ExerciseTag,
   type ExerciseOverride,
@@ -209,13 +210,50 @@ describe('find-your-weight ramp', () => {
   });
 });
 
-describe('PINNED QUIRK tests', () => {
-  // Spec question #102.
-  it('PINNED QUIRK: a comma in a bodyweight +kg field becomes "NaN" in the next set', () => {
-    const info = exInfo('Push-ups', catalog);
-    const t = setTarget([{ w: '2,5', r: '10', done: true }], 1, { mode: 'bw', reps: 11, w: '', text: '', reason: '' }, info);
-    expect(tickFill({ w: '', r: '' }, t, info)).toEqual({ w: 'NaN', r: '10', ok: true });
+describe('bodyweight +kg with a comma decimal (#102)', () => {
+  const info = exInfo('Push-ups', catalog);
+  const bw: Suggestion = { mode: 'bw', reps: 11, w: '', text: '', reason: '' };
+  it('the next set takes the added weight parsed with num, never NaN', () => {
+    const t = setTarget([{ w: '2,5', r: '10', done: true }], 1, bw, info);
+    expect(t).toEqual({ w: 2.5, r: 10 });
+    expect(tickFill({ w: '', r: '' }, t, info)).toEqual({ w: '2.5', r: '10', ok: true });
+    expect(setTarget([{ w: 'abc', r: '10', done: true }], 1, bw, info).w).toBe(0);
   });
+  it('an empty +kg field stays empty (no added weight)', () => {
+    const t = setTarget([{ w: '', r: '10', done: true }], 1, bw, info);
+    expect(t).toEqual({ w: '', r: 10 });
+    expect(tickFill({ w: '', r: '' }, t, info)).toEqual({ w: '', r: '10', ok: true });
+  });
+});
+
+describe('two sessions running counts sessions before today only (#101)', () => {
+  const low = { date: '2026-09-28', sets: [{ w: 60, r: 6 }] };
+  it('the drop advice does not flip to hold once today is ticked', () => {
+    const before = rec([[60, 6]], { prev: low });
+    expect(sug('Hack Squat', before)).toMatchObject({ mode: 'down', w: 55 });
+    // First tick today: the record becomes today's, its prev the last session, carrying that session's prev.
+    const u = updateLift(before, { sets: [{ w: '60', r: '5', done: true }] }, DATE, 'machine');
+    expect(u?.record.prev).toEqual({ date: '2026-10-01', sets: before.sets, form: null, prev: { date: low.date, sets: low.sets, form: null } });
+    expect(sug('Hack Squat', u?.record as LiftRecord)).toMatchObject({ mode: 'down', w: 55 });
+    // Later ticks the same day keep it.
+    const again = updateLift(u?.record, { sets: [{ w: '60', r: '5', done: true }, { w: '55', r: '9', done: true }] }, DATE, 'machine');
+    expect(sug('Hack Squat', again?.record as LiftRecord)).toMatchObject({ mode: 'down', w: 55 });
+    // The next day, today's session is the latest and the nested prev is not carried further.
+    const next = updateLift(again?.record, { sets: [{ w: '55', r: '8', done: true }] }, '2026-10-09', 'machine');
+    expect(next?.record.prev).toEqual({ date: DATE, sets: again?.record.sets, form: null, prev: { date: '2026-10-01', sets: before.sets, form: null } });
+  });
+  it('a record saved before this change (no nested prev) gives hold, as before', () => {
+    expect(sug('Hack Squat', rec([[60, 6]], { date: DATE, prev: { date: '2026-10-01', sets: [{ w: 60, r: 6 }] } }))).toMatchObject({ mode: 'hold' });
+  });
+  it('the session before last must itself be before today', () => {
+    // Viewing an older day: last is the record's prev, and the one before it is older still.
+    const L = rec([[60, 6]], { date: '2026-10-09', prev: { date: '2026-10-01', sets: [{ w: 60, r: 6 }], prev: low } });
+    expect(sug('Hack Squat', L)).toMatchObject({ mode: 'down' });
+    expect(sug('Hack Squat', { ...L, prev: { ...(L.prev as LiftRecord), prev: null } })).toMatchObject({ mode: 'hold' });
+  });
+});
+
+describe('PINNED QUIRK tests', () => {
 
   // Spec question #104.
   it('PINNED QUIRK: returning (55%) and deload (−10%) stack', () => {
@@ -243,14 +281,6 @@ describe('PINNED QUIRK tests', () => {
   it('PINNED QUIRK: bodyweight targets are not raised to the range bottom', () => {
     expect(sug('Push-ups', rec([[0, 3]]))).toMatchObject({ reps: 4, text: '4 reps a set' });
   });
-
-  // Spec question #101.
-  it('PINNED QUIRK: once today is logged, "two sessions running" no longer counts the older session', () => {
-    const prev = { date: '2026-09-28', sets: [{ w: 60, r: 6 }] };
-    expect(sug('Hack Squat', rec([[60, 6]], { prev }))).toMatchObject({ mode: 'down' });
-    // Ticking a set today makes today the record and the last session its prev, which has no prev.
-    expect(sug('Hack Squat', rec([[60, 6]], { date: DATE, prev: { date: '2026-10-01', sets: [{ w: 60, r: 6 }] } }))).toMatchObject({ mode: 'hold' });
-  });
 });
 
 describe('weight guidance: differential against the prototype', () => {
@@ -271,7 +301,7 @@ describe('weight guidance: differential against the prototype', () => {
     const L: LiftRecord = { date: pick(['2026-10-01', DATE]), sets: randSets(), form: pick([undefined, null, 'yes', 'no'] as const) ?? null };
     const first = pick([undefined, '2026-08-01', '2026-09-28', '2026-10-01']);
     if (first) L.first = first;
-    if (r() < 0.6) L.prev = { date: pick(['2026-09-20', '2026-10-01']), sets: randSets() };
+    if (r() < 0.6) L.prev = { date: pick(['2026-09-20', '2026-10-01']), sets: randSets(), ...(r() < 0.5 ? { prev: r() < 0.8 ? { date: '2026-09-10', sets: randSets() } : null } : {}) };
     const ov: ExerciseOverride | undefined = pick([undefined, { lo: 6, hi: 8 }, { step: 1.25 }, { type: 'assisted' as const }, { type: 'bodyweight' as const, step: 0 }]);
     const where: Where = pick(['gym', 'dumbbells', 'bodyweight']);
     const c: ModsContext = {
@@ -289,13 +319,18 @@ describe('weight guidance: differential against the prototype', () => {
   }
 
   it('suggestBase and applyMods match on 6,000 random states', () => {
+    let olderDrop = 0; // #101: "two sessions running" read from the prev's prev
     for (let k = 0; k < 6000; k++) {
       const name = pick(names);
       const c = randState(name);
       const ex = { name, ...(r() < 0.3 ? { bridge: true } : {}) };
-      expect(suggestBase(ex, c)).toEqual(proto.suggestBase(ex));
+      const s = suggestBase(ex, c);
+      expect(s).toEqual(proto.suggestBase(ex));
       expect(applyMods(suggestBase(ex, c), ex, c)).toEqual(proto.suggestFor(ex));
+      const L = c.lifts[name] as LiftRecord;
+      if (L.date >= c.date && L.prev?.prev && s.reason.includes('two sessions running')) olderDrop++;
     }
+    expect(olderDrop).toBeGreaterThan(20);
   });
 
   const entry = (): SetEntry => {

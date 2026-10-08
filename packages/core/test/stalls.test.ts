@@ -165,6 +165,15 @@ describe('personal-best toast once a day (#121)', () => {
     expect(third).toMatchObject({ toast: true, record: { pbToast: '2026-10-08' } });
   });
 
+  it('the prototype toasts once on the same ticks', () => {
+    const proto = loadStalls(metaTable(catalog.meta));
+    Object.assign(proto.S, { date: DATE, lifts: { 'Barbell Bench Press': lift(hist(80), { date: '2026-10-01' }) } });
+    proto.updateLift({ name: 'Barbell Bench Press', sets: [set('70', '10')] });
+    proto.updateLift({ name: 'Barbell Bench Press', sets: [set('70', '10'), set('70', '9')] });
+    expect(proto.toasts).toEqual(['New personal best on Barbell Bench Press']);
+    expect((proto.S.lifts['Barbell Bench Press'] as LiftRecord).pbToast).toBe(DATE);
+  });
+
   it('carries a null pbToast (contract pb_toast_date) and still toasts', () => {
     const today = lift([...hist(80), { date: DATE, e: 80 }], { date: DATE, pbToast: null });
     expect(updateLift(today, { sets: [set('70', '10')] }, DATE, 'barbell')).toMatchObject({ toast: true, record: { pbToast: DATE } });
@@ -306,13 +315,14 @@ describe('stalls and personal bests: differential against the prototype', () => 
 
   it('updateLift (record, history, best toast) matches over 3,000 random sequences of ticks across days', () => {
     let toasts = 0;
-    let strict = 0;
+    let compared = 0;
     let sameDay = 0;
+    let nested = 0;
     for (let k = 0; k < 3000; k++) {
       const name = pick(names);
       const ov: ExerciseOverride | undefined = pick([undefined, { type: 'assisted' as const }, { type: 'bodyweight' as const }]);
       const type = exInfo(name, catalog, ov).type;
-      let L: LiftRecord | undefined = r() < 0.7 ? { date: pick(dates.slice(0, 5)), sets: [{ w: 50, r: 8 }], hist: randHist(), ...(r() < 0.5 ? { n: 3, first: '2026-08-01' } : {}), ...(r() < 0.4 ? { prev: { date: '2026-08-20', sets: [] } } : {}) } : undefined;
+      let L: LiftRecord | undefined = r() < 0.7 ? { date: pick(dates.slice(0, 5)), sets: [{ w: 50, r: 8 }], hist: randHist(), ...(r() < 0.5 ? { n: 3, first: '2026-08-01' } : {}), ...(r() < 0.4 ? { prev: { date: '2026-08-20', sets: [], ...(r() < 0.5 ? { prev: { date: '2026-08-10', sets: [{ w: 40, r: 6 }] } } : {}) } } : {}) } : undefined;
       Object.assign(proto.S, { settings: { ex: ov ? { [name]: ov } : {} } });
       let date = pick(dates);
       for (let step = 0; step < 6; step++) {
@@ -323,30 +333,20 @@ describe('stalls and personal bests: differential against the prototype', () => 
         proto.S.date = date;
         proto.toasts.length = 0;
         proto.updateLift(clone(ex));
-        // #121: on a same-day repeat after a toast, core keeps pbToast and does not toast again; the
-        // prototype drops it (it gets the same fix in a later spec-change PR). Only the toast flag and
-        // pbToast are excluded there; everything else is still compared.
-        const carried = !!L && L.date === date && L.pbToast !== undefined;
-        const before = L;
+        // Same-day repeats after a toast keep pbToast and do not toast again, in both (#121).
+        if (L && L.date === date && L.pbToast !== undefined) sameDay++;
         const u = updateLift(L, ex, date, type);
         if (u) L = u.record;
         toasts += u?.toast ? 1 : 0;
-        const got = proto.S.lifts[name] as LiftRecord | undefined;
-        if (carried && u) {
-          sameDay++;
-          const { pbToast: _p, ...protoRest } = got as LiftRecord;
-          const { pbToast, ...mine } = u.record;
-          expect(protoRest).toEqual(clone(mine));
-          expect(pbToast).toBe(u.toast ? date : (before as LiftRecord).pbToast);
-        } else {
-          strict++;
-          expect(proto.toasts.length).toBe(u?.toast ? 1 : 0);
-          expect(got).toEqual(L ? clone(L) : undefined);
-        }
+        if (u?.record.prev?.prev) nested++;
+        compared++;
+        expect(proto.toasts.length).toBe(u?.toast ? 1 : 0);
+        expect(proto.S.lifts[name] as LiftRecord | undefined).toEqual(L ? clone(L) : undefined);
       }
     }
-    expect(strict).toBeGreaterThan(10000);
+    expect(compared).toBe(18000);
     expect(sameDay).toBeGreaterThan(100);
+    expect(nested).toBeGreaterThan(1000);
     expect(toasts).toBeGreaterThan(100);
   });
 });

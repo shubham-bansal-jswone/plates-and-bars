@@ -1270,7 +1270,7 @@ function lastFor(name){
   if(L.prev && L.prev.date < S.date) return L.prev;
   return null;
 }
-function prevOf(name, last){ const L = S.lifts[name]; if(!L || !last) return null; return last === L ? L.prev : null; }
+function prevOf(name, last){ const L = S.lifts[name]; if(!L || !last) return null; return last === L ? L.prev : last === L.prev ? (L.prev.prev || null) : null; } // sessions before today only, so ticking today does not change the advice
 
 // Session suggestion: double progression with safety rules. Returns {w, reps, mode, text, reason}
 function suggestFor(ex){ return applyMods(suggestBase(ex), ex); }
@@ -1319,7 +1319,7 @@ function setTarget(ex, j, sug){
     if(p.rate === 'fail') return { w: easier(w, info, 0.1), r: Math.max(info.lo, num(p.r)) };
     return { w, r: p.rate === 'hard' ? num(p.r) : (sug.reps || num(p.r)) };
   }
-  if(p && p.done && noLoad(info.type)) return { w: p.w, r: num(p.r) || sug.reps };
+  if(p && p.done && noLoad(info.type)) return { w: p.w === '' ? '' : num(p.w), r: num(p.r) || sug.reps };
   if(ex.found !== undefined && ex.found !== null) return { w: ex.found, r: info.lo };
   if(sug.w !== undefined && sug.w !== '') return { w: sug.w, r: sug.reps };
   return { w:'', r: sug.reps || '' };
@@ -1330,9 +1330,10 @@ function updateLift(ex){
   if(!sets.length) return;
   const L = S.lifts[ex.name], form = ex.form || null;
   if(!L || L.date === S.date) S.lifts[ex.name] = { date:S.date, sets, form, n: L ? (L.n || 1) : 1, first: L ? (L.first || L.date) : S.date, prev: L ? (L.prev || null) : null };
-  else if(L.date < S.date) S.lifts[ex.name] = { date:S.date, sets, form, n: (L.n || (L.prev ? 2 : 1)) + 1, first: L.first || (L.prev ? L.prev.date : L.date), prev:{ date:L.date, sets:L.sets, form:L.form || null } };
+  else if(L.date < S.date) S.lifts[ex.name] = { date:S.date, sets, form, n: (L.n || (L.prev ? 2 : 1)) + 1, first: L.first || (L.prev ? L.prev.date : L.date), prev:{ date:L.date, sets:L.sets, form:L.form || null, prev: L.prev ? { date:L.prev.date, sets:L.prev.sets, form:L.prev.form || null } : null } };
   else return; // editing an older day: keep the newer record
   const R = S.lifts[ex.name], hist = (L && L.hist ? L.hist : []).filter(x => x.date !== S.date);
+  if(L && L.date === S.date && L.pbToast !== undefined) R.pbToast = L.pbToast; // best toast at most once a day
   const beforeBest = hist.length ? Math.max(...hist.map(x => x.e)) : 0;
   hist.push({ date:S.date, e: Math.round(sessionScore(sets, exInfo(ex.name).type)*10)/10 });
   R.hist = hist.slice(-8);
@@ -4290,7 +4291,7 @@ function validateStep(){
     if(p.days > 0 && !p.where) return 'Choose where you train.';
     if(p.days > 0 && !p.exp) return 'Choose your training experience.';
     if(p.days > 0 && !p.minutes) return 'Choose a typical session length.';
-    if(p.days === 0) p.minutes = 0;
+    if(p.days === 0){ p.exp = null; p.minutes = null; if(!p.where) p.where = 'gym'; }
   }
   if(SU.step === 3 && !p.goal) return 'Choose your main goal.';
   if(SU.step === 3 && Object.keys(p.screen || {}).length < SCREEN_Q.length) return 'Answer the health check questions.';
