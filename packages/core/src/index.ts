@@ -112,14 +112,17 @@ export type {
 /**
  * Exclusions and swaps. Exclusions and swaps come in the contract's `Exclusion` and `Swap` shapes
  * (prototype `settings.excl`, `settings.repl`); tags from the catalogue.
- * - `resolveSession` mirrors prototype `resolveSession(names, where)` (state passed in).
- * - `resolveName` mirrors prototype `resolveName(name, where, depth)`.
+ * - `resolveSession` mirrors prototype `resolveSession(names, where)` (state passed in); `resolveSessionWithLost`
+ *   mirrors `resolveSession(names, where, lost)`, returning the slots left empty (#110).
+ * - `resolveName` mirrors prototype `resolveName(name, where, depth, taken)`.
+ * - `homeName` mirrors prototype `homeName(n, where)` (swap targets and stored picks where you train, #109);
+ *   `SCOPE_RANK` mirrors prototype `SCOPE_RANK` (most specific rule's pick, #109).
  * - `candidates` mirrors prototype `candidates(name, o)`; `why` is returned as facts, not text.
  * - `ruleMatches`, `activeRules`, `isExcluded` mirror the prototype functions of the same name.
  * - `replFromSwaps` builds prototype `settings.repl` from contract swaps (for `trimSession`'s `repl`).
  */
-export { resolveSession, resolveName, candidates, ruleMatches, activeRules, isExcluded, replFromSwaps } from './exclusions';
-export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplEntry, CandidateOptions, Candidate, CandidateWhy, ResolveState } from './exclusions';
+export { resolveSession, resolveSessionWithLost, resolveName, homeName, SCOPE_RANK, candidates, ruleMatches, activeRules, isExcluded, replFromSwaps } from './exclusions';
+export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplEntry, CandidateOptions, Candidate, CandidateWhy, ResolveState, ResolvedSession } from './exclusions';
 
 /**
  * Weight guidance. Prototype `EX_META` is the catalogue's `meta` (`ExerciseMeta`: content/exercises.json
@@ -179,7 +182,9 @@ export type {
  * Stalls, the recovery-week card and personal bests. Records are prototype `S.lifts[name]` with
  * `hist` and `pbToast` (contract `LiftStat.history`, `pb_toast_date`).
  * - `sessionScore`, `stalled`, `stalledList`, `inRange`, `checkBest`, `stallCard` mirror the prototype functions of the same name (state passed in).
- * - `updateLift` mirrors prototype `updateLift(ex)`: the new record, its history and whether to toast a personal best.
+ * - `updateLift` mirrors prototype `updateLift(ex)`: the new record, its history and whether to toast a personal best;
+ *   unticking every set today restores the session before, or gives a null record (delete it) (#122).
+ *   `sessionScore` and `updateLift` take the profile's weight for assisted scores (#122).
  * - `recoveryCard` mirrors the "several stalls → recovery week" card in prototype `renderStart()`.
  * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`.
  * - `addDays` mirrors prototype `addDays(s, n)`.

@@ -296,11 +296,20 @@ export interface ModsContext extends ProgressionContext {
   mods?: WorkoutMods | null;
   /** Exercises coming back after an exclusion (prototype `S.settings.returning`). */
   returning?: Readonly<Record<string, { until: string }>>;
+  /**
+   * The profile's weight in kg (prototype `S.settings.profile.weight`; contract `Profile.weight`), for
+   * assisted machines, where the effective load is bodyweight − assistance (#103). Absent, null or 0:
+   * unknown.
+   */
+  bodyweight?: number | null;
 }
 
 /**
  * Adjusts a suggestion for today's modifiers. Returning after an exclusion (until its date): 55% of
- * the old top; bridge exercise: 85%. A light, deload or re-entry day turns an increase into the old
+ * the old top; bridge exercise: 85%. On assisted machines (#103), returning starts at 55% of the old
+ * effective load, assistance `bodyweight − 0.55 × (bodyweight − old top)` snapped to the step (with no
+ * known bodyweight: the suggestion plus 45% of it, as before); a bridge uses one step more assistance
+ * than the old top. A light, deload or re-entry day turns an increase into the old
  * top. Then deload takes 10% off, re-entry its own fraction. Bodyweight, first-time and weightless
  * suggestions pass through.
  *
@@ -318,11 +327,12 @@ export function applyMods(sug: Suggestion, ex: { name: string; bridge?: boolean 
   let w = sug.w;
   let note = '';
   const ret = (c.returning || {})[ex.name];
+  const bw = c.bodyweight || 0;
   if (ret && ret.until >= c.date) {
-    w = info.type === 'assisted' ? w + snap(w * 0.45, info.step || 1) : Math.max(0, snap(top * 0.55, info.step || 1));
+    w = info.type === 'assisted' ? (bw ? snap(bw - 0.55 * (bw - top), info.step || 1) : w + snap(w * 0.45, info.step || 1)) : Math.max(0, snap(top * 0.55, info.step || 1));
     note = ' Coming back to this exercise: about 55% of your old weight for 2 weeks.';
   } else if (ex.bridge) {
-    w = info.type === 'assisted' ? w : Math.max(0, snap(top * 0.85, info.step || 1));
+    w = info.type === 'assisted' ? top + info.step : Math.max(0, snap(top * 0.85, info.step || 1));
     note = ' Bridge set: lighter, after your new exercise.';
   }
   if ((m.light || m.deload || m.reentry) && sug.mode === 'up' && !note) {

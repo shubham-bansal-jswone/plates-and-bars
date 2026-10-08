@@ -1,11 +1,13 @@
 import {
   activeRules,
   candidates,
+  homeName,
   isExcluded,
   mapForWhere,
   replFromSwaps,
   resolveName,
   resolveSession,
+  resolveSessionWithLost,
   ruleMatches,
   TEMPLATES,
   trimSession,
@@ -16,7 +18,7 @@ import {
   type Swap,
   type Where,
 } from '../src/index';
-import { loadGolden } from './helpers';
+import { loadGolden, prototypeSource } from './helpers';
 import { loadExclusions, type ProtoRepl, type ProtoRule } from './prototype-exclusions';
 import { goldenCatalog, rng } from './prototype-plan';
 
@@ -196,8 +198,7 @@ describe('resolveName and resolveSession: rules', () => {
   it('no bridge when the old exercise is excluded or already in the session', () => {
     const s = (more: Partial<ResolveState>) => st({ swaps: [swap('Leg Press', 'Barbell Back Squat', '2026-10-21')], ...more });
     expect(resolveSession(['Leg Press'], 'gym', s({ exclusions: [rule('exercise', 'Leg Press', { to: { 'Leg Press': null } })] }), catalog)).toEqual([{ name: 'Barbell Back Squat' }]);
-    // Hack Squat's stored pick is Leg Press (picks are not followed through swaps), so Leg Press is already in.
-    expect(resolveSession(['Hack Squat', 'Leg Press'], 'gym', s({ exclusions: [rule('exercise', 'Hack Squat', { to: { 'Hack Squat': 'Leg Press' } })] }), catalog)).toEqual([{ name: 'Leg Press' }, { name: 'Barbell Back Squat' }]);
+    expect(resolveSession(['Leg Press', 'Leg Press'], 'gym', s({}), catalog)).toEqual([{ name: 'Barbell Back Squat' }, { name: 'Leg Press', bridge: true }]);
   });
 
   it('a name reaching the swapped exercise through another swap still gets one bridge', () => {
@@ -214,43 +215,108 @@ describe('PINNED QUIRK tests', () => {
     expect(resolveName('A', 'gym', st({ swaps: [swap('A', 'B'), swap('B', 'C'), swap('C', 'A')] }), catalog)).toBe('B');
   });
 
-  // Spec question #110.
-  it('PINNED QUIRK: an exclusion replacement already in the session is dropped, so the session loses a slot', () => {
-    // candidates() ignores the session here (ignoreSession), and resolveSession then drops the repeat.
-    const s = st({ exclusions: [rule('exercise', 'Barbell Bench Press')] });
-    expect(resolveSession(['Archer Push-ups', 'Barbell Bench Press'], 'gym', s, catalog)).toEqual([{ name: 'Archer Push-ups' }]);
-  });
-
   // Safe while the re-check card's due filter exists: #111.
   it('PINNED QUIRK: a timed rule past its `until` still applies until the user answers the re-check', () => {
     const s = st({ exclusions: [rule('exercise', 'Leg Press', { until: '2026-09-01', to: { 'Leg Press': null } })] });
     expect(resolveSession(['Leg Press'], 'gym', s, catalog)).toEqual([]);
   });
 
-  // Spec question #109.
-  it('PINNED QUIRK: swap targets and stored picks ignore where; a gym exercise can land in a home session', () => {
-    expect(resolveSession(['Dumbbell Split Squat'], 'dumbbells', st({ swaps: [swap('Dumbbell Split Squat', 'Hack Squat')] }), catalog)).toEqual([{ name: 'Hack Squat' }]);
-    const s = st({ exclusions: [rule('exercise', 'Goblet Squat', { to: { 'Goblet Squat': 'Leg Press' } })] });
-    expect(resolveSession(mapForWhere(['Hack Squat'], 'dumbbells', catalog), 'dumbbells', s, catalog)).toEqual([{ name: 'Leg Press' }]);
-  });
-
-  // Spec question #109.
-  it('PINNED QUIRK: a stored pick is not followed through swaps', () => {
-    const s = st({ exclusions: [rule('exercise', 'Hack Squat', { to: { 'Hack Squat': 'Leg Press' } })], swaps: [swap('Leg Press', 'Barbell Back Squat')] });
-    expect(resolveName('Hack Squat', 'gym', s, catalog)).toBe('Leg Press');
-    expect(resolveName('Leg Press', 'gym', s, catalog)).toBe('Barbell Back Squat');
-  });
-
-  // Spec question #109.
-  it('PINNED QUIRK: only the first matching rule’s pick is used', () => {
-    const s = st({ exclusions: [rule('joint', 'knee'), rule('exercise', 'Leg Press', { to: { 'Leg Press': null } })] });
-    expect(resolveName('Leg Press', 'gym', s, catalog)).not.toBeNull();
-  });
-
-  // Spec question #109.
+  // Spec question #109, decided: keep.
   it('PINNED QUIRK: no bridge once the swap target is itself swapped or replaced', () => {
     const s = st({ swaps: [swap('Leg Press', 'Hack Squat', '2026-10-21'), swap('Hack Squat', 'Barbell Back Squat')] });
     expect(resolveSession(['Leg Press'], 'gym', s, catalog)).toEqual([{ name: 'Barbell Back Squat' }]);
+  });
+});
+
+describe('swaps and stored picks follow where you train (#109)', () => {
+  it('homeName: the away version, else the name when its equipment is there, else null', () => {
+    expect(homeName('Hack Squat', 'gym', catalog)).toBe('Hack Squat');
+    expect(homeName('Hack Squat', 'dumbbells', catalog)).toBe('Goblet Squat');
+    expect(homeName('Hack Squat', 'bodyweight', catalog)).toBe('Bodyweight Squat');
+    expect(homeName('Push-ups', 'bodyweight', catalog)).toBe('Push-ups');
+    expect(homeName('Barbell Row', 'dumbbells', catalog)).toBeNull(); // barbell, no away version
+    expect(homeName('Lateral Raise', 'bodyweight', catalog)).toBeNull(); // away map: none at bodyweight
+    expect(homeName('Sled Push', 'bodyweight', catalog)).toBe('Sled Push'); // untagged: passed through, as mapForWhere does
+  });
+
+  it('a swap target is mapped for where; with no version there the original stays', () => {
+    const at = (from: string, to: string, where: Where) => resolveSession([from], where, st({ swaps: [swap(from, to)] }), catalog);
+    expect(at('Dumbbell Split Squat', 'Hack Squat', 'dumbbells')).toEqual([{ name: 'Goblet Squat' }]);
+    expect(at('Split Squat', 'Hack Squat', 'bodyweight')).toEqual([{ name: 'Bodyweight Squat' }]);
+    expect(at('One-Arm Dumbbell Row', 'Barbell Row', 'dumbbells')).toEqual([{ name: 'One-Arm Dumbbell Row' }]);
+    expect(at('One-Arm Dumbbell Row', 'Barbell Row', 'gym')).toEqual([{ name: 'Barbell Row' }]);
+    expect(at('Push-ups', 'Lateral Raise', 'bodyweight')).toEqual([{ name: 'Push-ups' }]);
+  });
+
+  it('a mapped swap target that is excluded keeps the original', () => {
+    const s = st({ swaps: [swap('Dumbbell Split Squat', 'Hack Squat')], exclusions: [rule('exercise', 'Goblet Squat')] });
+    expect(resolveName('Dumbbell Split Squat', 'dumbbells', s, catalog)).toBe('Dumbbell Split Squat');
+  });
+
+  it('a stored pick is mapped for where; with no version there the best candidate for where is used', () => {
+    const s = st({ exclusions: [rule('exercise', 'Goblet Squat', { to: { 'Goblet Squat': 'Leg Press' } })] });
+    expect(resolveSession(mapForWhere(['Hack Squat'], 'dumbbells', catalog), 'dumbbells', s, catalog)).toEqual([{ name: 'Dumbbell Split Squat' }]);
+    expect(resolveName('Goblet Squat', 'gym', s, catalog)).toBe('Leg Press');
+    const row = st({ exclusions: [rule('exercise', 'One-Arm Dumbbell Row', { to: { 'One-Arm Dumbbell Row': 'Barbell Row' } })] });
+    expect(resolveName('One-Arm Dumbbell Row', 'dumbbells', row, catalog)).toBe(candidates('One-Arm Dumbbell Row', { where: 'dumbbells' }, row.exclusions, {}, catalog)[0]?.name);
+  });
+
+  it('a stored pick is followed through swaps', () => {
+    const s = st({ exclusions: [rule('exercise', 'Hack Squat', { to: { 'Hack Squat': 'Leg Press' } })], swaps: [swap('Leg Press', 'Barbell Back Squat')] });
+    expect(resolveName('Hack Squat', 'gym', s, catalog)).toBe('Barbell Back Squat');
+    expect(resolveName('Leg Press', 'gym', s, catalog)).toBe('Barbell Back Squat');
+  });
+
+  it('the most specific matching rule holding a pick decides it: exercise, family, pattern, then joint', () => {
+    const lp = (...ex: Exclusion[]) => resolveName('Leg Press', 'gym', st({ exclusions: ex }), catalog);
+    const skip = rule('exercise', 'Leg Press', { to: { 'Leg Press': null } });
+    const knee = rule('joint', 'knee', { to: { 'Leg Press': 'Hip Thrust' } });
+    expect(lp(knee, skip)).toBeNull();
+    expect(lp(skip, knee)).toBeNull();
+    const fam = rule('family', 'squat', { to: { 'Leg Press': 'Glute Bridge' } });
+    expect(lp(knee, fam)).toBe('Glute Bridge');
+    expect(lp(rule('pattern', 'squat', { to: { 'Leg Press': 'Hip Thrust' } }), fam)).toBe('Glute Bridge');
+    // A more specific rule with no pick for this exercise leaves the broader rule's pick in force.
+    expect(lp(rule('exercise', 'Leg Press'), knee)).toBe('Hip Thrust');
+  });
+});
+
+describe('a replacement already in the session (#110)', () => {
+  it('takes the next-best candidate not in the session, wherever that exercise sits', () => {
+    const s = st({ exclusions: [rule('exercise', 'Barbell Bench Press')] });
+    expect(resolveSession(['Archer Push-ups', 'Barbell Bench Press'], 'gym', s, catalog)).toEqual([{ name: 'Archer Push-ups' }, { name: 'Dumbbell Bench Press' }]);
+    expect(resolveSession(['Barbell Bench Press', 'Archer Push-ups'], 'gym', s, catalog)).toEqual([{ name: 'Dumbbell Bench Press' }, { name: 'Archer Push-ups' }]);
+    expect(resolveName('Barbell Bench Press', 'gym', s, catalog)).toBe('Archer Push-ups');
+    expect(resolveName('Barbell Bench Press', 'gym', s, catalog, ['Archer Push-ups'])).toBe('Dumbbell Bench Press');
+  });
+
+  it('two excluded exercises do not take the same replacement', () => {
+    const s = st({ exclusions: [rule('exercise', 'Barbell Bench Press'), rule('exercise', 'Archer Push-ups')] });
+    const want = candidates('Barbell Bench Press', { where: 'gym' }, s.exclusions, {}, catalog)[0]?.name as string;
+    const second = candidates('Machine Chest Press', { where: 'gym', inSession: [want] }, s.exclusions, {}, catalog)[0]?.name;
+    expect(resolveSessionWithLost(['Barbell Bench Press', 'Machine Chest Press'], 'gym', { ...s, exclusions: [...s.exclusions, rule('exercise', 'Machine Chest Press')] }, catalog).items).toEqual([{ name: want }, { name: second }]);
+  });
+
+  it('a bridge counts as in the session', () => {
+    const s = st({ swaps: [swap('Archer Push-ups', 'Push-ups', '2026-10-21')], exclusions: [rule('exercise', 'Barbell Bench Press')] });
+    expect(resolveSession(['Archer Push-ups', 'Barbell Bench Press'], 'gym', s, catalog)).toEqual([{ name: 'Push-ups' }, { name: 'Archer Push-ups', bridge: true }, { name: 'Dumbbell Bench Press' }]);
+  });
+
+  it('with none left the slot stays empty and is reported as lost (the "fewer sets" note)', () => {
+    const s = st({ exclusions: [rule('joint', 'shoulder', { reason: 'pain' })] });
+    expect(resolveSessionWithLost(['Dumbbell Floor Press', 'Barbell Bench Press'], 'gym', s, catalog)).toEqual({ items: [{ name: 'Dumbbell Floor Press' }], lost: ['Barbell Bench Press'] });
+    expect(resolveSessionWithLost(['Sled Push'], 'gym', st({ exclusions: [rule('exercise', 'Sled Push')] }), catalog)).toEqual({ items: [], lost: ['Sled Push'] });
+    // A skip the user chose is not lost.
+    expect(resolveSessionWithLost(['Leg Press'], 'gym', st({ exclusions: [rule('exercise', 'Leg Press', { to: { 'Leg Press': null } })] }), catalog)).toEqual({ items: [], lost: [] });
+  });
+
+  it('the prototype reports the same lost slot and shows the note in the session preview', () => {
+    setProto(st({ exclusions: [rule('joint', 'shoulder', { reason: 'pain' })] }));
+    const lost: string[] = [];
+    expect(proto.resolveSession(['Dumbbell Floor Press', 'Barbell Bench Press'], 'gym', lost)).toEqual([{ name: 'Dumbbell Floor Press' }]);
+    expect(lost).toEqual(['Barbell Bench Press']);
+    expect(prototypeSource()).toContain('is left out with no replacement');
+    expect(prototypeSource()).toContain('get fewer sets each week');
   });
 });
 
@@ -294,17 +360,31 @@ describe('differential: the prototype’s own functions', () => {
     const r = rng(64);
     let bridges = 0;
     let dropped = 0;
+    let lostSlots = 0;
+    let nextBest = 0; // #110: an excluded name's best replacement is also another slot's exercise
+    let mapped = 0; // #109: a swap target or pick changed by where
     for (let i = 0; i < 5000; i++) {
       const { s, names: ns, where } = randomState(r);
       setProto(s);
-      const want = proto.resolveSession(ns, where);
+      const lost: string[] = [];
+      const want = proto.resolveSession(ns, where, lost);
+      const got = resolveSessionWithLost(ns, where, s, catalog);
+      expect(got).toEqual({ items: want, lost });
       expect(resolveSession(ns, where, s, catalog)).toEqual(want);
       bridges += want.filter((x) => x.bridge).length;
       dropped += want.length < new Set(ns).size ? 1 : 0;
+      lostSlots += lost.length;
+      const alone = ns.map((n) => resolveName(n, where, s, catalog)); // each name with the session ignored
+      nextBest += alone.some((a, k) => a && isExcluded(ns[k] as string, s.exclusions, tags) && alone.some((b, j) => b === a && ns[j] !== ns[k])) ? 1 : 0;
+      const targets = [...s.swaps.map((w) => w.to), ...s.exclusions.flatMap((e) => Object.values(e.to))];
+      mapped += where !== 'gym' && targets.some((t) => t && homeName(t, where, catalog) !== t) ? 1 : 0;
     }
     // The grid reaches the interesting branches.
     expect(bridges).toBeGreaterThan(100);
     expect(dropped).toBeGreaterThan(100);
+    expect(lostSlots).toBeGreaterThan(50);
+    expect(nextBest).toBeGreaterThan(20);
+    expect(mapped).toBeGreaterThan(500);
   });
 
   it('resolveSession matches the prototype on every template, home mapping included', () => {
@@ -314,7 +394,9 @@ describe('differential: the prototype’s own functions', () => {
       for (const t of Object.keys(TEMPLATES)) {
         const ns = mapForWhere(TEMPLATES[t] as string[], where, catalog);
         setProto(s);
-        expect(resolveSession(ns, where, s, catalog)).toEqual(proto.resolveSession(ns, where));
+        const lost: string[] = [];
+        const want = proto.resolveSession(ns, where, lost);
+        expect(resolveSessionWithLost(ns, where, s, catalog)).toEqual({ items: want, lost });
       }
     }
   });

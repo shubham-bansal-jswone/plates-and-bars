@@ -2,9 +2,9 @@ import { prototypeSource, sliceBlock, sliceLine } from './helpers';
 import type { MetaTable } from './prototype-plan';
 
 export interface ProtoStalls {
-  S: { date: string; lifts: Record<string, unknown>; settings: { adj?: unknown; ex?: unknown }; where: string };
+  S: { date: string; lifts: Record<string, unknown>; settings: { adj?: unknown; ex?: unknown; profile?: { weight?: number | null } }; where: string };
   toasts: string[];
-  sessionScore(sets: unknown, type: string): number;
+  sessionScore(sets: unknown, type: string, bw?: number): number;
   stalled(name: string): boolean;
   stalledList(): string[];
   updateLift(ex: unknown): void;
@@ -49,7 +49,7 @@ export function loadStalls(meta: MetaTable): ProtoStalls {
     sliceLine(src, 'const mondayOf = '),
     sliceLine(src, 'const daysBetween = '),
     sliceLine(src, 'const inRange = '),
-    sliceBlock(src, 'function sessionScore(sets, type){', '}'),
+    sliceBlock(src, 'function sessionScore(sets, type, bw){', '}'),
     sliceBlock(src, 'function stalled(name){', '}'),
     sliceLine(src, 'const stalledList = '),
     sliceBlock(src, 'function adjButtons(', '}'),
