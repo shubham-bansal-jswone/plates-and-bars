@@ -118,6 +118,30 @@ test('fruit and veg servings match PRODUCE in the prototype', () => {
   assert.equal(byName.Paneer.fruit_veg_servings, 0);
 });
 
+test('search and grams equal the prototype: foodMatch rows and unitGrams for every row', () => {
+  const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
+  const aliasSrc = /const ALIAS = \{.*?\};/s.exec(html)[0];
+  const matchSrc = /const foodMatch = .*?;\n/.exec(html)[0];
+  const gramsSrc = /const unitGrams = .*?;\n/.exec(html)[0];
+  const proto = new Function(`${aliasSrc}\n${matchSrc}\n${gramsSrc}\nreturn { foodMatch, unitGrams };`)();
+  const protoRows = (q) => out.foods.filter((f) => proto.foodMatch([f.name], q)).map((f) => f.name);
+  const contentRows = (q) => out.foods
+    .filter((f) => f.name.toLowerCase().includes(q) || f.aliases.some((a) => a.includes(q))).map((f) => f.name);
+  const phrases = ['fox nut', 'lotus seed', 'phool makhana', 'cottage cheese', 'protein shake', 'flattened rice',
+    'chana masala', 'bhuna chana', 'fruit chaat', 'desi ghee', 'sprouted moong', 'anda safedi'];
+  const words = new Set(phrases);
+  for (const f of out.foods) {
+    f.name.toLowerCase().split(/[^a-z]+/).filter(Boolean).forEach((w) => words.add(w));
+    f.aliases.flatMap((a) => a.split(' ')).forEach((w) => words.add(w));
+  }
+  assert.ok(words.size > 100);
+  for (const q of words) {
+    assert.ok(protoRows(q).length > 0, `prototype finds "${q}"`);
+    assert.deepEqual(contentRows(q), protoRows(q), `rows for "${q}"`);
+  }
+  for (const f of out.foods) assert.equal(f.serving.grams ?? 0, proto.unitGrams([f.name, f.serving.label]), f.name);
+});
+
 test('a golden food with no source assignment fails the import', () => {
   const bad = structuredClone(golden);
   bad.foods.push({ name: 'Mystery', unit: '1 g', kcal: 1, protein: 0, carbs: 0, fat: 0 });

@@ -51,7 +51,7 @@ test('grams: label weight must match, and a weightless label must have null gram
   assert.ok(withFood((f) => { f.serving.grams = null; }, dal).some((e) => e.includes('is in grams but serving.grams')));
   const milk = load().foods.findIndex((f) => f.name === 'Toned milk');
   assert.ok(withFood((f) => { f.serving.grams = 250; }, milk).some((e) => e.includes('has no weight in grams')));
-  assert.ok(withFood((f) => { f.serving.grams = 0; }, paneer()).some((e) => e.includes('serving.grams')));
+  assert.ok(withFood((f) => { f.serving.grams = 0; }, paneer()).some((e) => e.includes('must be a number > 0 or null')));
 });
 
 test('each remaining field check fails on a bad value', () => {
