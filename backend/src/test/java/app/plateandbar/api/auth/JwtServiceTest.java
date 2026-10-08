@@ -30,6 +30,16 @@ class JwtServiceTest {
     }
 
     @Test
+    void accessTokenExpiryIsWholeSecondsAndEqualsJwtExp() {
+        MutableClock c = new MutableClock(Instant.parse("2026-10-08T06:30:00.789Z"));
+        JwtService svc = new JwtService(new AuthProperties(KEY, List.of()), c);
+        JwtService.AccessToken t = svc.issue("user-1");
+        assertThat(t.expiresAt()).isEqualTo(Instant.parse("2026-10-08T06:45:00Z"));
+        String payload = new String(java.util.Base64.getUrlDecoder().decode(t.value().split("\\.")[1]));
+        assertThat(payload).contains("\"exp\":" + t.expiresAt().getEpochSecond());
+    }
+
+    @Test
     void tokenSignedWithAnotherKeyIsUnauthorized() {
         JwtService other = new JwtService(new AuthProperties("another-signing-key-0123456789-abcdefghijk", List.of()), clock);
         String forged = other.issue("user-1").value();

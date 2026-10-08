@@ -8,6 +8,7 @@ import app.plateandbar.api.support.MutableClock;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.read.ListAppender;
 import java.time.Duration;
 import java.time.Instant;
@@ -495,7 +496,7 @@ class AuthFlowIT {
             if ("Test worker".equals(event.getThreadName())) {
                 continue;
             }
-            String text = event.getFormattedMessage() + " " + event.getThrowableProxy();
+            String text = event.getFormattedMessage() + " " + ThrowableProxyUtil.asString(event.getThrowableProxy());
             for (String secret : secrets) {
                 assertThat(text).as("log line must not contain a secret").doesNotContain(secret);
             }

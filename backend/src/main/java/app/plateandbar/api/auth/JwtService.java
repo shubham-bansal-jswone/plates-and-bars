@@ -47,7 +47,7 @@ public class JwtService {
     }
 
     public AccessToken issue(String userId) {
-        Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         Instant exp = now.plus(ACCESS_TTL);
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)

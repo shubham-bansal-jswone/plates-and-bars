@@ -1,6 +1,9 @@
 package app.plateandbar.api.auth;
 
 import app.plateandbar.api.common.ApiException;
+import com.nimbusds.jose.jwk.source.JWKSetParseException;
+import com.nimbusds.jose.jwk.source.JWKSetRetrievalException;
+import com.nimbusds.jose.jwk.source.JWKSetUnavailableException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -10,7 +13,10 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
@@ -21,6 +27,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 public class GoogleIdTokenVerifier {
 
     public record GoogleIdentity(String subject, String email) {}
+
+    private static final Logger log = LoggerFactory.getLogger(GoogleIdTokenVerifier.class);
 
     private final JwtDecoder decoder;
 
@@ -43,14 +51,35 @@ public class GoogleIdTokenVerifier {
         this.decoder = decoder;
     }
 
+    private static boolean keySourceOutage(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof JWKSetRetrievalException
+                    || t instanceof JWKSetUnavailableException
+                    || t instanceof JWKSetParseException) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
+    }
+
     public GoogleIdentity verify(String idToken) {
         Jwt jwt;
         try {
             jwt = decoder.decode(idToken);
         } catch (BadJwtException e) {
             throw ApiException.unauthorized();
+        } catch (JwtException e) {
+            if (keySourceOutage(e)) {
+                // Google's key endpoint unreachable or unparseable: a server fault, answered 500 internal.
+                throw e;
+            }
+            // Includes the JWKS refetch rate limit hit by an unknown key id: the token is simply not valid.
+            log.warn("Google ID token refused: key not available ({})", e.getClass().getSimpleName());
+            throw ApiException.unauthorized();
         }
-        // Any other JwtException (for example Google's key endpoint unreachable) is a server fault: 500.
         Object verified = jwt.getClaim("email_verified");
         boolean emailVerified = Boolean.TRUE.equals(verified) || "true".equals(verified);
         String email = jwt.getClaimAsString("email");

@@ -28,13 +28,18 @@ public class AuthConfig {
             org.slf4j.LoggerFactory.getLogger(AuthConfig.class)
                     .warn("GOOGLE_CLIENT_IDS is empty: every Google sign-in will be refused");
         }
-        // Bounded timeouts, cached keys, a minimum gap between refetches, RS256 only.
+        return create(GOOGLE_JWKS_URI, 30_000, props.googleClientIds(), clock);
+    }
+
+    /** Bounded timeouts, cached keys, a minimum gap between refetches, RS256 only. */
+    static GoogleIdTokenVerifier create(
+            String jwksUri, long refetchGapMillis, java.util.List<String> clientIds, java.time.Clock clock) {
         DefaultResourceRetriever retriever = new DefaultResourceRetriever(2000, 2000, 51_200);
         JWKSource<SecurityContext> source;
         try {
-            source = JWKSourceBuilder.create(new URL(GOOGLE_JWKS_URI), retriever)
+            source = JWKSourceBuilder.create(new URL(jwksUri), retriever)
                     .cache(TimeUnit.HOURS.toMillis(1), TimeUnit.SECONDS.toMillis(15))
-                    .rateLimited(TimeUnit.SECONDS.toMillis(30))
+                    .rateLimited(refetchGapMillis)
                     .retrying(true)
                     .build();
         } catch (MalformedURLException e) {
@@ -42,7 +47,6 @@ public class AuthConfig {
         }
         DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
         processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, source));
-        NimbusJwtDecoder decoder = new NimbusJwtDecoder(processor);
-        return new GoogleIdTokenVerifier(decoder, props.googleClientIds(), clock);
+        return new GoogleIdTokenVerifier(new NimbusJwtDecoder(processor), clientIds, clock);
     }
 }
