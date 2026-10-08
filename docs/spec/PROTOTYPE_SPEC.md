@@ -48,6 +48,14 @@ These change the scope table in the Development Plan. Treat them as v1 unless ma
 - Protein: 2.0 g/kg (lose, recomp) else 1.8 g/kg, on a reference weight at BMI 27 when BMI > 30; rounded to 5.
 - Fat: max(25% of kcal, 0.6 g/kg). Carbs: the rest.
 
+**Fixture rounding (`targets.json`).** `calcTargets` returns energy values unrounded; the fixture stores them rounded as the screen shows them. Ports compare after applying the same rounding:
+- `tdee`, `bmr`, `movement`, `training`, `digestion`: whole kcal, `Math.round` (the prototype's `fmt`).
+- `kcal`: rounded to 10 by `calcTargets` itself; `protein` to 5; `carbs`, `fat`, `refWeight`: whole numbers as returned.
+- `weeklyKg`: 2 decimals, `Math.round(x * 100) / 100` (`toFixed(2)` gives the same values for every current case).
+- Negative zero is written as `0` (JSON has no `-0`); compare with `Object.is` only after normalising.
+
+Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fractional numbers; `foods.json`, `formulas.json` and `progression.json` hold values with at most one decimal, stored as the prototype holds them (no extra rounding known). Until the fixture generator is in the repo (#74), these notes are inferred from the data.
+
 **Health check:** any "yes" or pregnancy → `needsClearance` until the user taps "My doctor has cleared me": sessions are light (one fewer set, no weight increases) and a card explains why.
 
 ---
