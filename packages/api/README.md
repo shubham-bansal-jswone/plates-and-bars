@@ -36,4 +36,5 @@ const { data, error } = await api.GET("/foods", { params: { query: { q: "dahi" }
 - Contract changes land in their own PR, containing only `packages/api/` (and ADRs when relevant), reviewed before any implementation that depends on them.
 - Prefer additive changes: new endpoints, new optional fields, new enum values the app can ignore.
 - Any breaking change (removing or renaming a field or endpoint, tightening validation, changing a type or meaning) must say **BREAKING** in the PR title and bump the major part of `info.version` (or the minor part while it is `0.x`).
+- Exception: tightening validation on a field no shipped client writes yet is a patch bump, not BREAKING, and the PR body must say so and why no client is affected.
 - Only spec what the current milestone needs.
