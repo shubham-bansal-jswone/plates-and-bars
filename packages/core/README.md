@@ -18,7 +18,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Plan engine | `planned`, `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `beginnerRamp`, `older`, `TEMPLATES`, `ORDER`, `SPLITS` | same names (`beginnerRamp` is inline in `setsFor`) | `plan.json` |
 | Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
 | Exclusions and swaps | `resolveSession`, `resolveName`, `candidates`, `ruleMatches`, `activeRules`, `isExcluded`, `replFromSwaps` | same names; `replFromSwaps` builds `settings.repl` from contract swaps | `exercises.json` (catalogue only; differential tests) |
-| Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction` | `progression.json` |
+| Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `metaFor`, `applyCustomTags`, `customExerciseMeta`, `overridesFromSettings`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction`; `metaFor` is the `['other',8,12]` fallback in `exInfo`, `customExerciseMeta` the meta step of `applyCustomTags`; `overridesFromSettings` renames contract `exercise_overrides` to `settings.ex` | `progression.json` |
 | Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction` | none (differential tests) |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
 
@@ -36,12 +36,18 @@ catalogue from `golden/exercises.json`, renaming the prototype's short tag names
 contract's `Exclusion` and `Swap` shapes (records with `deleted_at` set are ignored; `until` is not read,
 as in the prototype) and returns the items `trimSession` expects; pass `replFromSwaps(swaps)` as
 `trimSession`'s `repl`. `candidates` returns the facts behind the prototype's `why` text, not the text. Merge custom-exercise
-tags into `catalog.tags` first, as prototype `applyCustomTags` does. `candidates` leaves out only the
+tags (contract `Settings.custom_tags`) into the catalogue first with `applyCustomTags`, as the prototype does. `candidates` leaves out only the
 names passed in `inSession` (the prototype leaves out today's workout by default).
 
-The weight guidance reads prototype `EX_META` (`name → [type, lo, hi]`) through a `meta` argument.
-content/exercises.json does not carry it yet, so tests pass golden/progression.json's `exerciseMeta`,
-and a test checks it equals the prototype's `EX_META`.
+The weight guidance reads prototype `EX_META` from the catalogue's `meta` (content/exercises.json
+`meta`: `name → { type, rep_low, rep_high }`, the prototype's `[type, lo, hi]`), passed as
+`ProgressionContext.catalog` or to `exInfo`. Names the catalogue lacks get other, 8–12 (`metaFor`).
+`applyCustomTags(catalog, settings.custom_tags)` adds custom exercises: their tags, and meta from their
+equipment with 8–12 reps, never replacing meta a name already has. The user's per-exercise settings
+are read in the prototype's shape (`type`, `lo`, `hi`, `step`); build them from contract
+`Settings.exercise_overrides` with `overridesFromSettings`. Tests use content/exercises.json; a test
+checks its `meta` equals golden/progression.json's `exerciseMeta`, and another that the fixture equals
+the prototype's `EX_META`.
 
 Stalls and personal bests read each lift's `hist` (scores rounded to 0.1, last 8) and `pbToast`
 (contract `LiftStat.history` with `score`, and `pb_toast_date`). `updateLift` writes both, as the

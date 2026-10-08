@@ -86,19 +86,45 @@ export { resolveSession, resolveName, candidates, ruleMatches, activeRules, isEx
 export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplEntry, CandidateOptions, Candidate, CandidateWhy, ResolveState } from './exclusions';
 
 /**
- * Weight guidance. `ExerciseMetaTable` is prototype `EX_META` (`name → [type, lo, hi]`), passed in.
+ * Weight guidance. Prototype `EX_META` is the catalogue's `meta` (`ExerciseMeta`: content/exercises.json
+ * `meta`, `name → { type, rep_low, rep_high }`), read through `ProgressionContext.catalog`.
  * - `suggestBase` mirrors prototype `suggestBase(ex)`; `applyMods` mirrors `applyMods(sug, ex)` (state passed in).
  *   Prototype `suggestFor(ex)` is `applyMods(suggestBase(ex, c), ex, c)`.
- * - `exInfo`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord` mirror the prototype functions of the same name.
+ * - `exInfo` mirrors prototype `exInfo(name)`; `metaFor` mirrors its `EX_META[name] || ['other',8,12]` step.
+ * - `applyCustomTags` mirrors prototype `applyCustomTags()` (custom tags merged, meta added when missing);
+ *   `customExerciseMeta` mirrors its type-from-equipment, 8–12 step.
+ * - `overridesFromSettings` turns contract `Settings.exercise_overrides` into prototype `S.settings.ex` (what `exInfo` reads).
+ * - `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord` mirror the prototype functions of the same name.
  * - `DEFAULT_STEP` mirrors prototype `DEFAULT_STEP`.
  * - `setTarget` mirrors prototype `setTarget(ex, j, sug)` (in-session rating adjustments).
  * - `tickFill`, `rampRate`, `rampTickFill` mirror the `tick`, ramp `rate`/`rerate` and `ramp-tick` steps of prototype `workoutAction`.
  */
-export { suggestBase, applyMods, exInfo, lastFor, snap, harder, easier, kgLabel, noLoad, repWord, DEFAULT_STEP, setTarget, tickFill, rampRate, rampTickFill } from './progression';
+export {
+  suggestBase,
+  applyMods,
+  exInfo,
+  metaFor,
+  customExerciseMeta,
+  applyCustomTags,
+  overridesFromSettings,
+  lastFor,
+  snap,
+  harder,
+  easier,
+  kgLabel,
+  noLoad,
+  repWord,
+  DEFAULT_STEP,
+  setTarget,
+  tickFill,
+  rampRate,
+  rampTickFill,
+} from './progression';
 export type {
   ExType,
-  ExerciseMetaTable,
+  ExerciseMeta,
   ExerciseOverride,
+  SettingsExerciseOverride,
   ExInfo,
   Rate,
   LiftSet,
