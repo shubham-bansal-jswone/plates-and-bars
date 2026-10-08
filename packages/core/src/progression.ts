@@ -54,6 +54,16 @@ export interface LiftRecord extends LiftSession {
   /** First date on this exercise; older records may lack it. */
   first?: string;
   prev?: LiftSession | null;
+  /** Last 8 session scores, `e` rounded to 0.1 (prototype `hist`; written by `updateLift`). */
+  hist?: readonly ScoreEntry[];
+  /** Day the personal-best toast was last shown (prototype `pbToast`; contract `pb_toast_date`). */
+  pbToast?: string;
+}
+
+/** One session's score in a lift's history (prototype `hist[i]`; contract `history[i]` with `score`). */
+export interface ScoreEntry {
+  date: string;
+  e: number;
 }
 
 /** Everything the weight guidance reads from state. */
