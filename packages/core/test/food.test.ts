@@ -11,6 +11,9 @@ import {
   FRUIT_VEG_TARGET,
   kcalTarget,
   DEFAULT_KCAL_TARGET,
+  planFlex,
+  undoFlex,
+  FLEX_FLOOR_DEFAULT,
   stepServings,
   SERVINGS_MIN,
   SERVINGS_MAX,
@@ -24,6 +27,7 @@ import {
   calcTargets,
   toTargetsProfile,
   type KcalTargetProfile,
+  type FlexEntry,
   type UserFoodFields,
   type FoodFacts,
   type FoodLogFacts,
@@ -379,9 +383,9 @@ function randomProfile(r: () => number): KcalTargetProfile {
 describe('kcalTarget', () => {
   const p: KcalTargetProfile = { sex: 'male', age: 30, height_cm: 175, weight_kg: 80, activity: 'sitting', days: 3, minutes: 60, goal: 'lose', pace: 'moderate', special: 'none', targets: { kcal: 2000 } };
   const flex = [
-    { date: '2026-10-08', kcal_delta: 500 },
-    { date: '2026-10-09', kcal_delta: -167 },
-    { date: '2026-10-09', kcal_delta: -100 },
+    { id: 'a', date: '2026-10-08', kcal_delta: 500 },
+    { id: 'a', date: '2026-10-09', kcal_delta: -167 },
+    { id: 'b', date: '2026-10-09', kcal_delta: -100 },
   ];
   it('the saved target plus that day’s flex entries', () => {
     expect(kcalTarget('2026-10-08', { flex }, p)).toBe(2500);
@@ -402,16 +406,134 @@ describe('kcalTarget', () => {
     const dates = ['2026-10-07', '2026-10-08', '2026-10-09'];
     for (let i = 0; i < RUNS; i++) {
       const prof = r() < 0.15 ? null : randomProfile(r);
-      const fl = Array.from({ length: Math.floor(r() * 5) }, () => ({ date: pickOf(r, dates), kcal_delta: pickOf(r, [300, 500, 800, -100, -167, -250]) }));
+      const fl = Array.from({ length: Math.floor(r() * 5) }, () => ({ id: 'x', date: pickOf(r, dates), kcal_delta: pickOf(r, [300, 500, 800, -100, -167, -250]) }));
       const hold = pickOf(r, [true, false, undefined]);
       const date = pickOf(r, dates);
       const settings = {
         kcal: prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET,
         profile: prof && { ...toTargetsProfile(prof) },
-        flex: fl.map((x) => ({ id: 'x', date: x.date, d: x.kcal_delta })),
+        flex: fl.map((x) => ({ id: x.id, date: x.date, d: x.kcal_delta })),
         labHold: hold === undefined ? undefined : { on: hold },
       };
       expect(kcalTarget(date, { flex: fl, labHold: hold }, prof)).toBe(proto.realKcalTarget(date, settings));
+    }
+  });
+});
+
+describe('planFlex and undoFlex', () => {
+  // No golden cases exist for planFlex (spec-question #167); numbers below are worked by hand and the
+  // differential test runs the prototype's own planFlex and case 'flex-undo'.
+  const base: KcalTargetProfile = { sex: 'female', age: 30, height_cm: 165, weight_kg: 70, activity: 'sitting', days: 3, minutes: 60, goal: 'lose', pace: 'moderate', special: 'none', targets: { kcal: 1800 } };
+  const male: KcalTargetProfile = { ...base, sex: 'male' };
+  const at = { date: '2026-10-08', today: '2026-10-08', id: 'p1', flex: null };
+  const cuts = (f: FlexEntry[]) => f.filter((x) => x.kcal_delta < 0).map((x) => [x.date, x.kcal_delta]);
+
+  it('no profile: +500 today, 170 off each of the next 3 days, one id on every entry', () => {
+    const out = planFlex({ ...at, extra: 500 }, null);
+    expect(out).toEqual({
+      spread: 3,
+      per: 170,
+      flex: [
+        { id: 'p1', date: '2026-10-08', kcal_delta: 500 },
+        { id: 'p1', date: '2026-10-09', kcal_delta: -170 },
+        { id: 'p1', date: '2026-10-10', kcal_delta: -170 },
+        { id: 'p1', date: '2026-10-11', kcal_delta: -170 },
+      ],
+    });
+    expect(FLEX_FLOOR_DEFAULT).toBe(1200);
+    expect(kcalTarget('2026-10-08', { flex: out.flex }, null)).toBe(DEFAULT_KCAL_TARGET + 500);
+    expect(kcalTarget('2026-10-09', { flex: out.flex }, null)).toBe(DEFAULT_KCAL_TARGET - 170);
+  });
+
+  it('spreads over more days while the cut would go below the floor', () => {
+    // female floor 1200: 1500 - 300/3 = 1400 ok; 1500 - 800/3 = 1233 ok; 1300 - 800/3 < 1200, /4 = 1100, /5 = 1140, /6 = 1166.7: stops at 6
+    expect(planFlex({ ...at, extra: 300 }, { ...base, targets: { kcal: 1500 } })).toMatchObject({ spread: 3, per: 100 });
+    expect(planFlex({ ...at, extra: 800 }, { ...base, targets: { kcal: 1500 } })).toMatchObject({ spread: 3, per: 270 });
+    // male floor 1500: 1800 - 800/3 = 1533 ok; 1700: /3 1433, /4 1500 ok -> 4 days of 200
+    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1800 } })).toMatchObject({ spread: 3, per: 270 });
+    expect(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1700 } })).toMatchObject({ spread: 4, per: 200 });
+    expect(cuts(planFlex({ ...at, extra: 800 }, { ...male, targets: { kcal: 1700 } }).flex)).toEqual([
+      ['2026-10-09', -200],
+      ['2026-10-10', -200],
+      ['2026-10-11', -200],
+      ['2026-10-12', -200],
+    ]);
+  });
+
+  it('PINNED QUIRK (#167): at 6 days the cut still goes below the floor', () => {
+    const out = planFlex({ ...at, extra: 800 }, { ...base, targets: { kcal: 1300 } });
+    expect(out).toMatchObject({ spread: 6, per: 130 });
+    expect(kcalTarget('2026-10-09', { flex: out.flex }, { ...base, targets: { kcal: 1300 } })).toBe(1170); // under 1200
+  });
+
+  it('PINNED QUIRK (#167): rounding the cut up can put a day under the floor; cuts need not total the extra', () => {
+    // 1367 - 500/3 = 1200.3 passes, but the cut rounds to 170: 1197
+    const out = planFlex({ ...at, extra: 500 }, { ...base, targets: { kcal: 1367 } });
+    expect(out).toMatchObject({ spread: 3, per: 170 });
+    expect(1367 - out.per).toBe(1197);
+    // 800 over 3 days: 270 each, 810 in all
+    expect(planFlex({ ...at, extra: 800 }, null).flex.reduce((a, x) => a + x.kcal_delta, 0)).toBe(-10);
+  });
+
+  it('PINNED QUIRK (#167): existing flex entries on the cut days are not looked at', () => {
+    const prof = { ...base, targets: { kcal: 1500 } };
+    const first = planFlex({ ...at, extra: 800 }, prof);
+    const second = planFlex({ ...at, id: 'p2', extra: 800, flex: first.flex }, prof);
+    expect(second.spread).toBe(3);
+    expect(kcalTarget('2026-10-09', { flex: second.flex }, prof)).toBe(960);
+  });
+
+  it('drops entries dated before today - 7, keeps later ones, crosses month ends, leaves the input alone', () => {
+    const old: FlexEntry[] = [
+      { id: 'o', date: '2026-09-30', kcal_delta: 300 },
+      { id: 'k', date: '2026-10-01', kcal_delta: -100 },
+      { id: 'f', date: '2026-11-02', kcal_delta: -100 },
+    ];
+    const keep = JSON.stringify(old);
+    const out = planFlex({ extra: 300, date: '2026-10-30', today: '2026-10-08', id: 'p1', flex: old }, null);
+    expect(out.flex.map((x) => [x.id, x.date])).toEqual([
+      ['k', '2026-10-01'],
+      ['f', '2026-11-02'],
+      ['p1', '2026-10-30'],
+      ['p1', '2026-10-31'],
+      ['p1', '2026-11-01'],
+      ['p1', '2026-11-02'],
+    ]);
+    expect(JSON.stringify(old)).toBe(keep);
+    expect(planFlex({ ...at, extra: 300, flex: undefined }, null).flex).toHaveLength(4);
+  });
+
+  it('undoFlex removes every entry of the plan and nothing else', () => {
+    const a = planFlex({ ...at, extra: 500 }, null).flex;
+    const b = planFlex({ ...at, id: 'p2', date: '2026-10-09', extra: 300, flex: a }, null).flex;
+    expect(undoFlex(b, 'p1')).toEqual(b.filter((x) => x.id === 'p2'));
+    expect(undoFlex(b, 'p2')).toEqual(a);
+    expect(undoFlex(b, 'none')).toEqual(b);
+    expect(undoFlex(null, 'p1')).toEqual([]);
+    expect(undoFlex(undefined, 'p1')).toEqual([]);
+  });
+
+  it(`matches prototype planFlex and case 'flex-undo' over ${RUNS} random plans`, () => {
+    const r = rng(2923);
+    const days = ['2026-09-28', '2026-09-30', '2026-10-01', '2026-10-05', '2026-10-08', '2026-10-12', '2026-10-31', '2026-12-30', '2027-01-02'];
+    const ids = ['a', 'b', 'c'];
+    for (let i = 0; i < RUNS; i++) {
+      const prof = r() < 0.15 ? null : randomProfile(r);
+      const flex: FlexEntry[] = Array.from({ length: Math.floor(r() * 6) }, () => ({ id: pickOf(r, ids), date: pickOf(r, days), kcal_delta: pickOf(r, [300, 500, 800, -100, -170, -270]) }));
+      const extra = r() < 0.7 ? pickOf(r, [300, 500, 800]) : Math.round(r() * 3000);
+      const date = pickOf(r, days);
+      const today = pickOf(r, days);
+      const settings = {
+        kcal: prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET,
+        profile: prof && { ...toTargetsProfile(prof) },
+        flex: r() < 0.1 ? undefined : flex.map((x) => ({ id: x.id, date: x.date, d: x.kcal_delta })),
+      };
+      const got = planFlex({ extra, date, today, id: 'new', flex: settings.flex === undefined ? undefined : flex }, prof);
+      const want = proto.planFlex(extra, settings, date, today, 'new');
+      expect(got.flex).toEqual(want.flex.map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d })));
+      expect(`Today +${extra} kcal; the next ${got.spread} days ${got.per} lower`).toBe(want.toast);
+      const undo = pickOf(r, [...ids, 'new']);
+      expect(undoFlex(got.flex, undo)).toEqual(proto.flexUndo(want.flex, undo).map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d })));
     }
   });
 });

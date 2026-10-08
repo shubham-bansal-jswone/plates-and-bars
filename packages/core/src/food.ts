@@ -1,3 +1,4 @@
+import { addDays } from './dates';
 import { num } from './num';
 import { toTargetsProfile, type SetupProfile } from './setup';
 import { calcTargets } from './targets';
@@ -200,8 +201,10 @@ export function dayComplete(day: CompleteFlag | null | undefined, logs: readonly
 /** Prototype `DEFAULT_SETTINGS.kcal`: the calorie target before setup (no profile). */
 export const DEFAULT_KCAL_TARGET = 1900;
 
-/** One calorie move between days (contract `Settings.flex` item; prototype `{ date, d }`). */
+/** One calorie move between days (contract `Settings.flex` item; prototype `{ id, date, d }`). */
 export interface FlexEntry {
+  /** The flex plan's id (a UUIDv4); every entry of one plan shares it (contract 0.1.3). */
+  id: string;
   date: string;
   kcal_delta: number;
 }
@@ -231,6 +234,69 @@ export function kcalTarget(date: string, settings: KcalTargetSettings, profile: 
   const kcal = profile ? profile.targets.kcal : DEFAULT_KCAL_TARGET;
   if (settings.labHold && profile) return Math.max(kcal, Math.round(calcTargets(toTargetsProfile(profile)).tdee / 10) * 10);
   return kcal + (settings.flex ?? []).filter((x) => x.date === date).reduce((a, x) => a + x.kcal_delta, 0);
+}
+
+/** Calorie target floor without a profile (prototype `planFlex`'s `1200`). */
+export const FLEX_FLOOR_DEFAULT = 1200;
+
+/** What `planFlex` needs. */
+export interface PlanFlexInput {
+  /** Extra kcal for `date` (the chips offer 300, 500 and 800). */
+  extra: number;
+  /** The day that gets the extra (prototype `S.date`); the cut starts the day after. */
+  date: string;
+  /** Today (prototype `TODAY()`): entries dated before `today` - 7 are dropped. */
+  today: string;
+  /** Id for the new plan, made by the caller (a UUIDv4; prototype `newId()`). */
+  id: string;
+  /** Contract `Settings.flex`. */
+  flex: readonly FlexEntry[] | null | undefined;
+}
+
+/** `planFlex`'s answer: the new `Settings.flex`, plus the numbers for the toast. */
+export interface PlanFlexResult {
+  flex: FlexEntry[];
+  /** Number of following days that take the cut (3 to 6). */
+  spread: number;
+  /** The cut on each of those days, to the nearest 10 kcal. */
+  per: number;
+}
+
+/**
+ * Plans a bigger day: `extra` kcal on `date`, taken back over the next `spread` days. `spread` starts at
+ * 3 and grows (up to 6) while the saved target minus the unrounded `extra / spread` is below the floor
+ * (`calcTargets` floor with a profile, else 1200). Each cut is `extra / spread` to the nearest 10. Entries
+ * dated before `today` - 7 are dropped first. All new entries carry `id`.
+ *
+ * Faithful quirks (pinned in tests, #167): at 6 days the cut can still go below the floor; rounding the cut up
+ * can put a day up to 5 kcal under it; the cuts can total a little more or less than `extra`; other flex
+ * entries and the lab hold are not looked at.
+ *
+ * Mirrors prototype `planFlex(extra)` (state and id passed in; the toast is
+ * `Today +${extra} kcal; the next ${spread} days ${per} lower`).
+ */
+export function planFlex(input: PlanFlexInput, profile: KcalTargetProfile | null | undefined): PlanFlexResult {
+  const { extra, date, today, id } = input;
+  const kcal = profile ? profile.targets.kcal : DEFAULT_KCAL_TARGET;
+  const floor = profile ? calcTargets(toTargetsProfile(profile)).floor : FLEX_FLOOR_DEFAULT;
+  let spread = 3;
+  while (spread < 6 && kcal - extra / spread < floor) spread++;
+  const per = Math.round(extra / spread / 10) * 10;
+  const cutoff = addDays(today, -7);
+  const flex = (input.flex ?? []).filter((x) => x.date >= cutoff);
+  flex.push({ id, date, kcal_delta: extra });
+  for (let i = 1; i <= spread; i++) flex.push({ id, date: addDays(date, i), kcal_delta: -per });
+  return { flex, spread, per };
+}
+
+/**
+ * Removes every entry of the flex plan `id` (the extra day and all its cuts).
+ *
+ * Mirrors prototype `case 'flex-undo'` (the id is the first of the day's entries, `f[0].id` in
+ * `flexNoteHtml()`).
+ */
+export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string): FlexEntry[] {
+  return (flex ?? []).filter((x) => x.id !== id);
 }
 
 /** Servings stepper limits and step (prototype `case 'serv'`: 0.5 to 10, ± 0.5; starts at 1). */
