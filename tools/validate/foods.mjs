@@ -2,7 +2,7 @@
 // Checks the Food schema in packages/api/openapi.yaml, macro sanity, source/licence and duplicates.
 
 // Keep in sync with FoodSource.code in packages/api/openapi.yaml.
-export const SOURCE_CODES = ['usda_fdc', 'fssai', 'own_recipe', 'kitchen_test', 'label_typical'];
+export const SOURCE_CODES = ['usda_fdc', 'fssai', 'own_recipe', 'own_estimate', 'kitchen_test', 'label_typical'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FOOD_KEYS = ['id', 'name', 'name_hi', 'aliases', 'serving', 'per_serving', 'fruit_veg_servings', 'source', 'updated_at'];
 const NUTRIENTS = ['kcal', 'protein_g', 'carbs_g', 'fibre_g', 'added_sugar_g', 'fat_g'];

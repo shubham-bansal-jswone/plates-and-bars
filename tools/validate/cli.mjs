@@ -25,7 +25,7 @@ console.log(`exercises ok: ${Object.keys(content.tags).length} exercises, ` +
 const foods = JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8'));
 const problems = [
   ...validateFoods(foods),
-  ...scanContent(`${repo}/content`).map((h) => `IFCT/INDB (ADR 002 forbids it): ${h}`),
+  ...scanContent(`${repo}/content`).map((h) => `IFCT/INDB (ADR 005 forbids it): ${h}`),
 ];
 if (problems.length) {
   console.error(problems.join('\n'));

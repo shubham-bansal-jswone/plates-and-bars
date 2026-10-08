@@ -8,7 +8,7 @@ const dir = resolve(process.argv[2] ?? `${repo}/content`);
 const hits = scanContent(dir);
 if (hits.length) {
   console.error(hits.join('\n'));
-  console.error(`IFCT/INDB found in ${dir} (ADR 002 forbids it): ${hits.length} hit(s)`);
+  console.error(`IFCT/INDB found in ${dir} (ADR 005 forbids it): ${hits.length} hit(s)`);
   process.exit(1);
 }
 console.log(`no IFCT/INDB under ${dir}`);

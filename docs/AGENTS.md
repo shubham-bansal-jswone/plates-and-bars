@@ -34,7 +34,7 @@ Rules for every agent working on Plate & Bar. Read this, the issue, the contract
 - The prototype in `docs/prototype/plate-and-bar.html` defines how the app behaves. Read the relevant part of it before writing code; function names are listed in `docs/spec/PROTOTYPE_SPEC.md`.
 - Port logic into `packages/core`; don't redesign it. If something looks wrong, open an issue labelled `spec-question` instead of "fixing" it silently.
 - Every ported rule needs a test that loads the matching file in `docs/spec/golden/` and reproduces it exactly (numbers rounded the same way).
-- Food data: only USDA, FSSAI-derived values, typical label values for packaged foods, our own recipes and kitchen tests (ADR 002). Never add IFCT or INDB data.
+- Food data: only USDA, FSSAI-derived values, typical label values for packaged foods, our own recipes, kitchen tests and own estimates (ADR 005). Never add IFCT or INDB data.
 - Carbs everywhere are total carbohydrate including fibre.
 
 ## When the prototype changes

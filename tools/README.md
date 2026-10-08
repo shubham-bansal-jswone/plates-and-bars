@@ -36,7 +36,7 @@ should offer at least one "felt it in the wrong place" fix.
 `source` is the contract `FoodSource` object, so its `reference` is the source id (null until a USDA FDC id is recorded).
 
 - `source`: packaged whey, Greek yogurt and makhana are `label_typical`; paneer, curd and toned milk are `fssai`
-  (prototype note); single plain foods are `usda_fdc` and composed dishes are `own_recipe` (ADR 002). Chicken breast, cooked (raw value / cooking yield) and buttermilk (80 g curd) are `own_recipe`.
+  (prototype note); single plain foods are `usda_fdc` and composed dishes are `own_recipe` (ADR 005). Chicken breast, cooked (raw value / cooking yield) and buttermilk (80 g curd) are `own_recipe`.
 - `HELD_BACK` in `foods-import/import.mjs` lists golden foods whose source the repo does not state; they are left out
   of `content/foods.json` rather than guessed. A golden food that is in neither `SOURCE_OF` nor `HELD_BACK` fails the import.
 - `serving.grams` is the first "<n> g" in the serving label, as the prototype's `unitGrams` reads it, so `1 medium (30 g atta)`
@@ -54,6 +54,6 @@ should offer at least one "felt it in the wrong place" fix.
 Dishes are Food rows plus `cuisine` (and `alcohol: true` on the four alcoholic drinks).
 
 - `npm run import:eatout` regenerates it from `docs/prototype/plate-and-bar.html`; a test fails if the file drifts from the prototype.
-- `source` is `own_recipe` with a name saying these are our own estimates for a typical restaurant portion (the prototype calls them "rough restaurant estimates"; they are not weighed). No contract code says "estimate".
+- `source` is `own_estimate` (ADR 005): our own rough estimates for a typical restaurant portion (the prototype calls them "rough restaurant estimates"; they are not weighed).
 - Validation (`npm run validate:foods`, `validateEatOut`) applies the same Food checks, with names and ids unique across the file. Rows flagged `alcohol` skip the upper kcal bound (alcohol is about 7 kcal/g and is not in the macros) but kcal may not be below what the macros give.
 - Beer, whisky/rum/vodka and wine are still held back from `foods.json` (see `HELD_BACK`); only their eat-out rows are in content.

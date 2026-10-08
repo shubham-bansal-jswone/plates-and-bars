@@ -36,7 +36,7 @@ test('alcoholic drinks are flagged and only they', () => {
 
 test('every dish has a permitted source and licence', () => {
   for (const d of load().cuisines.flatMap((c) => c.dishes)) {
-    assert.equal(d.source.code, 'own_recipe');
+    assert.equal(d.source.code, 'own_estimate');
     assert.ok(d.source.licence);
   }
 });
