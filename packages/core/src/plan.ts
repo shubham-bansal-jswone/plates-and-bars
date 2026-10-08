@@ -12,7 +12,8 @@ export interface PlanProfile {
   days?: number | null;
   /** Session length in minutes. Absent, `null` or 0 counts as 60. */
   minutes?: number | null;
-  exp?: Experience;
+  /** `null` at 0 days (contract `Profile.exp`); reads as not new. */
+  exp?: Experience | null;
   /** Profile creation date, `YYYY-MM-DD`; starts the beginner 2-set fortnight. */
   created?: string | null;
   age?: number;

@@ -81,6 +81,9 @@ export const PACE_ADJ: Readonly<Record<Pace, number>> = {
 /** Mirrors prototype `TRAIN_NET_MET`: ~5 METs lifting incl. rest, minus resting 1 MET. */
 export const TRAIN_NET_MET = 4;
 
+/** Mirrors the 750 in prototype `calcTargets`: the largest daily deficit, kcal. */
+export const DEFICIT_CAP_KCAL = 750;
+
 /**
  * Mifflin-St Jeor resting energy, kcal/day.
  *
@@ -117,8 +120,8 @@ export function calcTargets(p: TargetsProfile): TargetsResult {
   let kcal = tdee * (1 + adj);
   let capped = false;
   let floored = false;
-  if (adj < 0 && tdee - kcal > 750) {
-    kcal = tdee - 750;
+  if (adj < 0 && tdee - kcal > DEFICIT_CAP_KCAL) {
+    kcal = tdee - DEFICIT_CAP_KCAL;
     capped = true;
   }
   const floor = p.sex === 'male' ? 1500 : 1200;
