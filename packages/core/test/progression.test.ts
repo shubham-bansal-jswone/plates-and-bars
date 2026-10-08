@@ -233,14 +233,14 @@ describe('two sessions running counts sessions before today only (#101)', () => 
     expect(sug('Hack Squat', before)).toMatchObject({ mode: 'down', w: 55 });
     // First tick today: the record becomes today's, its prev the last session, carrying that session's prev.
     const u = updateLift(before, { sets: [{ w: '60', r: '5', done: true }] }, DATE, 'machine');
-    expect(u?.record.prev).toEqual({ date: '2026-10-01', sets: before.sets, form: null, prev: { date: low.date, sets: low.sets, form: null } });
+    expect(u?.record?.prev).toEqual({ date: '2026-10-01', sets: before.sets, form: null, prev: { date: low.date, sets: low.sets, form: null } });
     expect(sug('Hack Squat', u?.record as LiftRecord)).toMatchObject({ mode: 'down', w: 55 });
     // Later ticks the same day keep it.
     const again = updateLift(u?.record, { sets: [{ w: '60', r: '5', done: true }, { w: '55', r: '9', done: true }] }, DATE, 'machine');
     expect(sug('Hack Squat', again?.record as LiftRecord)).toMatchObject({ mode: 'down', w: 55 });
     // The next day, today's session is the latest and the nested prev is not carried further.
     const next = updateLift(again?.record, { sets: [{ w: '55', r: '8', done: true }] }, '2026-10-09', 'machine');
-    expect(next?.record.prev).toEqual({ date: DATE, sets: again?.record.sets, form: null, prev: { date: '2026-10-01', sets: before.sets, form: null } });
+    expect(next?.record?.prev).toEqual({ date: DATE, sets: again?.record?.sets, form: null, prev: { date: '2026-10-01', sets: before.sets, form: null } });
   });
   it('a record saved before this change (no nested prev) gives hold, as before', () => {
     expect(sug('Hack Squat', rec([[60, 6]], { date: DATE, prev: { date: '2026-10-01', sets: [{ w: 60, r: 6 }] } }))).toMatchObject({ mode: 'hold' });
@@ -253,22 +253,40 @@ describe('two sessions running counts sessions before today only (#101)', () => 
   });
 });
 
+describe('assisted machines: bridge and return (#103)', () => {
+  const last = rec([[30, 10], [30, 10]]);
+  const c = ctx('Assisted Pull-up', last, { bodyweight: 80 });
+  const s = suggestBase({ name: 'Assisted Pull-up' }, c); // up: 25 kg assist
+
+  it('a bridge uses one step more assistance than the old top', () => {
+    expect(s).toMatchObject({ mode: 'up', w: 25 });
+    expect(applyMods(s, { name: 'Assisted Pull-up', bridge: true }, c)).toMatchObject({ w: 35, mode: 'hold', text: '35 kg assist × 6–10 reps' });
+    expect(applyMods(s, { name: 'Assisted Pull-up', bridge: true }, { ...c, overrides: { 'Assisted Pull-up': { step: 2.5 } } }).w).toBe(32.5);
+  });
+
+  it('returning starts at 55% of the old effective load: bodyweight − 0.55 × (bodyweight − old top), snapped', () => {
+    const ret = { ...c, returning: { 'Assisted Pull-up': { until: DATE } } };
+    // 80 − 0.55 × 50 = 52.5 → 55 (5 kg steps); effective load 25 kg, about 55% of 50.
+    expect(applyMods(s, { name: 'Assisted Pull-up' }, ret)).toMatchObject({ w: 55, mode: 'hold' });
+    expect(applyMods(s, { name: 'Assisted Pull-up' }, { ...ret, bodyweight: 70 }).w).toBe(50); // 70 − 0.55 × 40 = 48 → 50
+    // No known bodyweight: the suggestion plus 45% of it, as before.
+    expect(applyMods(s, { name: 'Assisted Pull-up' }, { ...ret, bodyweight: null }).w).toBe(35);
+    const { bodyweight: _, ...noWeight } = ret;
+    expect(applyMods(s, { name: 'Assisted Pull-up' }, noWeight).w).toBe(35);
+  });
+
+  it('a recovery week still adds its 10% on top', () => {
+    const ret = { ...c, returning: { 'Assisted Pull-up': { until: DATE } }, mods: { deload: true } };
+    expect(applyMods(s, { name: 'Assisted Pull-up' }, ret).w).toBe(60); // 55 + max(5, snap(5.5, 5))
+  });
+});
+
 describe('PINNED QUIRK tests', () => {
 
   // Spec question #104.
   it('PINNED QUIRK: returning (55%) and deload (−10%) stack', () => {
     const c = ctx('Hack Squat', rec([[100, 10]]), { returning: { 'Hack Squat': { until: DATE } }, mods: { deload: true } });
     expect(applyMods(suggestBase({ name: 'Hack Squat' }, c), { name: 'Hack Squat' }, c).w).toBe(50);
-  });
-
-  // Spec question #103.
-  it('PINNED QUIRK: an assisted bridge keeps the same assistance; an assisted return adds 45% of the suggestion, not of the old top', () => {
-    const last = rec([[30, 10], [30, 10]]);
-    const c = ctx('Assisted Pull-up', last);
-    const s = suggestBase({ name: 'Assisted Pull-up' }, c); // up: 25 kg assist
-    expect(applyMods(s, { name: 'Assisted Pull-up', bridge: true }, c)).toMatchObject({ w: 25, mode: 'hold' });
-    const ret = ctx('Assisted Pull-up', last, { returning: { 'Assisted Pull-up': { until: DATE } } });
-    expect(applyMods(s, { name: 'Assisted Pull-up' }, ret).w).toBe(35); // 25 + snap(11.25, 5)
   });
 
   // Spec question #104.
@@ -286,6 +304,8 @@ describe('PINNED QUIRK tests', () => {
 describe('weight guidance: differential against the prototype', () => {
   const proto = loadProgression(metaTable(catalog.meta));
   const r = rng(2020);
+  const rb = rng(103); // bodyweight (#103) on its own sequence, so the other draws are unchanged
+  const BWS = [undefined, null, 0, 45, 72.5, 80, 110] as const;
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
   const names = [...Object.keys(catalog.meta), 'Mystery Lift'];
   const rates = [undefined, null, 'easy', 'right', 'hard', 'fail'] as const;
@@ -304,6 +324,7 @@ describe('weight guidance: differential against the prototype', () => {
     if (r() < 0.6) L.prev = { date: pick(['2026-09-20', '2026-10-01']), sets: randSets(), ...(r() < 0.5 ? { prev: r() < 0.8 ? { date: '2026-09-10', sets: randSets() } : null } : {}) };
     const ov: ExerciseOverride | undefined = pick([undefined, { lo: 6, hi: 8 }, { step: 1.25 }, { type: 'assisted' as const }, { type: 'bodyweight' as const, step: 0 }]);
     const where: Where = pick(['gym', 'dumbbells', 'bodyweight']);
+    const bw = BWS[Math.floor(rb() * BWS.length)];
     const c: ModsContext = {
       date,
       lifts: { [name]: L },
@@ -311,15 +332,17 @@ describe('weight guidance: differential against the prototype', () => {
       overrides: ov ? { [name]: ov } : {},
       where,
       profile: { age: pick([30, 65]) },
+      ...(bw !== undefined ? { bodyweight: bw } : {}),
       mods: { light: r() < 0.3, deload: r() < 0.3, reentry: pick([0, 0.15, 0.3]) },
       returning: r() < 0.3 ? { [name]: { until: pick(['2026-10-06', '2026-10-20']) } } : {},
     };
-    Object.assign(proto.S, { date, lifts: clone(c.lifts), settings: { ex: clone(c.overrides), returning: clone(c.returning), profile: c.profile }, where, day: { workout: { exercises: [], mods: c.mods } } });
+    Object.assign(proto.S, { date, lifts: clone(c.lifts), settings: { ex: clone(c.overrides), returning: clone(c.returning), profile: { ...c.profile, weight: c.bodyweight } }, where, day: { workout: { exercises: [], mods: c.mods } } });
     return c;
   }
 
   it('suggestBase and applyMods match on 6,000 random states', () => {
     let olderDrop = 0; // #101: "two sessions running" read from the prev's prev
+    let assisted = 0; // #103: an assisted bridge or return with a known bodyweight
     for (let k = 0; k < 6000; k++) {
       const name = pick(names);
       const c = randState(name);
@@ -329,8 +352,11 @@ describe('weight guidance: differential against the prototype', () => {
       expect(applyMods(suggestBase(ex, c), ex, c)).toEqual(proto.suggestFor(ex));
       const L = c.lifts[name] as LiftRecord;
       if (L.date >= c.date && L.prev?.prev && s.reason.includes('two sessions running')) olderDrop++;
+      const m = applyMods(s, ex, c);
+      if (c.bodyweight && exInfo(name, catalog, c.overrides?.[name], c.where).type === 'assisted' && /Bridge set|Coming back/.test(m.reason)) assisted++;
     }
     expect(olderDrop).toBeGreaterThan(20);
+    expect(assisted).toBeGreaterThan(30);
   });
 
   const entry = (): SetEntry => {
