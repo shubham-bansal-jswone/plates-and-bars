@@ -24,3 +24,6 @@ Values are unchanged. Tag keys are mapped separately (`TAG_KEYS` in `exercises-i
 
 The validator requires the five fields the prototype reads without a guard (`f s c m w`), type-checks the
 optional ones, and rejects any other card key.
+
+`misplaced_feel` must be non-empty. That is a content rule rather than a rendering requirement: every card
+should offer at least one "felt it in the wrong place" fix.

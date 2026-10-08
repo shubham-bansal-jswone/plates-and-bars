@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expandCard, expandTags, importExercises, serialize } from '../exercises-import/import.mjs';
+import { CARD_KEYS, expandCard, expandTags, importExercises, serialize } from '../exercises-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const golden = JSON.parse(readFileSync(`${repo}/docs/spec/golden/exercises.json`, 'utf8'));
@@ -59,12 +59,12 @@ test('expandCard rejects missing required and unknown fields', () => {
   assert.throws(() => expandCard({ f: 'x', s: [], c: [], m: [], w: [], z: 1 }), /unknown/);
 });
 
-test('every golden card expands with the same values under long names', () => {
+test('every golden card expands to long names and reverses to the golden card exactly', () => {
   const out = importExercises(golden);
   assert.deepEqual(Object.keys(out.cards), Object.keys(golden.cards));
-  const g = golden.cards['Barbell Bench Press'];
-  const c = out.cards['Barbell Bench Press'];
-  assert.equal(c.where_to_feel, g.f);
-  assert.deepEqual(c.misplaced_feel, g.w);
-  assert.equal(c.breathing, g.b);
+  const back = Object.fromEntries(Object.entries(CARD_KEYS).map(([short, long]) => [long, short]));
+  for (const [name, card] of Object.entries(out.cards)) {
+    const reversed = Object.fromEntries(Object.entries(card).map(([k, v]) => [back[k], v]));
+    assert.deepEqual(reversed, golden.cards[name], name);
+  }
 });

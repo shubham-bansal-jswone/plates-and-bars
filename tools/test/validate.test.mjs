@@ -79,3 +79,11 @@ test('broken library reference fails', () => {
   assert.ok(errors.includes('Nonexistent Press: no tags (used in library "Chest")'));
   assert.ok(errors.includes('Nonexistent Press: no card (used in library "Chest")'));
 });
+
+test('non-string entries in setup, key_cues and common_mistakes fail', () => {
+  for (const f of ['setup', 'key_cues', 'common_mistakes']) {
+    const content = read(`${repo}/content/exercises.json`);
+    content.cards['Push-ups'][f].push(false);
+    assert.ok(validateExercises(content, {}).includes(`Push-ups: card "${f}" entries must be strings`), f);
+  }
+});
