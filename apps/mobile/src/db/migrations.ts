@@ -48,6 +48,23 @@ export const MIGRATIONS: readonly string[] = [
      key TEXT PRIMARY KEY NOT NULL,
      data TEXT NOT NULL
    );`,
+  // v5: food records. food_logs (contract FoodLog) and user_foods (contract UserFood) are JSON documents keyed by their
+  // random id; food_logs carry their day for the per-day load. day_notes (contract DayNote) is a natural-key table, key = date.
+  // Deleted logs stay as tombstones (deleted_at in the document) so sync can push the delete.
+  `CREATE TABLE IF NOT EXISTS food_logs (
+     key TEXT PRIMARY KEY NOT NULL,
+     log_date TEXT NOT NULL,
+     data TEXT NOT NULL
+   );
+   CREATE INDEX IF NOT EXISTS food_logs_by_date ON food_logs (log_date);
+   CREATE TABLE IF NOT EXISTS day_notes (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );
+   CREATE TABLE IF NOT EXISTS user_foods (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );`,
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {

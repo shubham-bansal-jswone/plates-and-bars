@@ -121,6 +121,25 @@ try {
   const [kg, reps] = await Promise.all([`${exName} set 1 kg`, `${exName} set 1 reps`].map((l) => page.$eval(sel(l), (e) => e.value)));
   if (kg !== '40' || reps !== '9') throw new Error(`ticked set came back as ${kg} x ${reps}`);
   console.log('after reload: the ticked set persisted (40 kg x 9, done) and the session is still open');
+  // Food: log a roti under breakfast and tick "logged everything", reload, check both came back from SQLite.
+  await click('Food');
+  await click('+ Add to breakfast');
+  await (await page.waitForSelector('[aria-label^="Add Roti / chapati"]', { timeout: 20000 })).evaluate((e) => e.click());
+  await page.waitForSelector(sel('Done'), { timeout: 20000 });
+  await click('Done');
+  await page.waitForSelector(sel('102 of 1,990 kcal eaten'), { timeout: 20000 });
+  await click('I’ve logged everything I ate today');
+  await page.waitForSelector(`${sel('I’ve logged everything I ate today')}[aria-checked="true"]`, { timeout: 20000 });
+  console.log('food: logged Roti / chapati (102 kcal) and ticked "logged everything"');
+  await new Promise((r) => setTimeout(r, 3000));
+  await page.reload({ waitUntil: 'load' });
+  const food = await page.waitForSelector(sel('102 of 1,990 kcal eaten'), { timeout: 8000 }).catch(() => null);
+  if (!food) {
+    await click('Food');
+    await page.waitForSelector(sel('102 of 1,990 kcal eaten'), { timeout: 20000 });
+  }
+  await page.waitForSelector(`${sel('I’ve logged everything I ate today')}[aria-checked="true"]`, { timeout: 20000 });
+  console.log('after reload: the food log and the "logged everything" tick persisted');
   ok = true;
 } catch (e) {
   console.error('FAILED:', e.message);
