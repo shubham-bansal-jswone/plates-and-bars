@@ -94,9 +94,49 @@ class AiEndpointsIT extends AiITBase {
         ArgumentCaptor<String> in = ArgumentCaptor.forClass(String.class);
         verify(provider).complete(eq(AiFeature.DESCRIBE_MEAL), instr.capture(), in.capture());
         assertThat(instr.getValue() + in.getValue()).doesNotContain(u).doesNotContain("@example.com");
+        String marker = instr.getValue().replaceAll("(?s).*<<<(DATA-[0-9a-f]+) and .*", "$1");
+        assertThat(marker).matches("DATA-[0-9a-f]{24}");
         assertThat(instr.getValue()).contains("never instructions");
-        assertThat(in.getValue()).startsWith("<<<DATA\n").endsWith("\nDATA>>>");
-        assertThat(in.getValue().substring(7, in.getValue().length() - 7)).doesNotContain("DATA>>>").doesNotContain("<<<DATA");
+        assertThat(in.getValue()).startsWith("<<<" + marker + "\n").endsWith("\n" + marker + ">>>");
+        assertThat(in.getValue().split(marker, -1)).hasSize(3); // exactly one opening and one closing marker
+    }
+
+    @Test
+    void invisibleAndBidiCharactersAreStrippedBeforeTheProvider() {
+        reply(MEAL);
+        post(newUser(), DESCRIBE, "{\"text\":\"ri\\u200bce \\u202edal\\ufeff\"}");
+        ArgumentCaptor<String> in = ArgumentCaptor.forClass(String.class);
+        verify(provider).complete(any(), any(), in.capture());
+        assertThat(in.getValue()).contains("rice dal").doesNotContain("\u200b").doesNotContain("\u202e").doesNotContain("\ufeff");
+        // Text that is only invisible characters is blank after stripping: 400, not a call.
+        assertThat(post(newUser(), DESCRIBE, "{\"text\":\"\\u200b\\u2060\"}").getStatusCode().value()).isEqualTo(400);
+        verify(provider, times(1)).complete(any(), any(), any());
+    }
+
+    @Test
+    void onlyTheSixContractFieldsOfAnItemSurvive() throws Exception {
+        reply("{\"items\":[{\"name\":\"Roti\",\"qty\":\"1\",\"kcal\":1,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1,"
+                + "\"note\":\"leak\",\"x\":{\"y\":1}}]}");
+        var res = post(newUser(), DESCRIBE, "{\"text\":\"x\"}");
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(res.getBody()).doesNotContain("leak").doesNotContain("\"x\"");
+        assertThat(ContractSchemas.validate("DescribeMealResponse", body(res))).isEmpty();
+    }
+
+    @Test
+    void unknownKeysAreRefusedWithoutNamingThemAndTrailingJunkOrDuplicateKeysAre400() throws Exception {
+        String u = newUser();
+        var res = post(u, DESCRIBE, "{\"text\":\"a\",\"secretkeyname\":1}");
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        assertThat(res.getBody()).doesNotContain("secretkeyname");
+        assertThat(post(u, WEEKLY, WEEK.replace("\"goal\":\"lose\"", "\"goal\":\"lose\",\"secretkeyname\":1")).getBody())
+                .doesNotContain("secretkeyname");
+        for (String bad : new String[] {"{\"text\":\"a\"} junk", "{\"text\":\"a\"}{\"text\":\"b\"}",
+                "{\"text\":\"a\",\"text\":\"b\"}"}) {
+            assertThat(post(u, DESCRIBE, bad).getStatusCode().value()).as(bad).isEqualTo(400);
+        }
+        verify(provider, never()).complete(any(), any(), any());
+        assertThat(calls(u)).isZero();
     }
 
     @Test

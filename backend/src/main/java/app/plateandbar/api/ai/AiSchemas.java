@@ -55,7 +55,9 @@ class AiSchemas {
             for (String part : m.getInstanceLocation().toString().split("/")) {
                 append(path, part);
             }
-            append(path, m.getProperty());
+            if (!"additionalProperties".equals(m.getType())) {
+                append(path, m.getProperty()); // for additionalProperties it is the submitted key: never echo it
+            }
             out.add(new ErrorResponse.Detail(path.toString(), m.getType()));
         }
         return List.copyOf(out);

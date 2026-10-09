@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 class AiReplies {
 
     private static final List<String> NUMBERS = List.of("kcal", "protein_g", "carbs_g", "fat_g");
+    private static final List<String> ITEM_FIELDS = List.of("name", "qty", "kcal", "protein_g", "carbs_g", "fat_g");
     private static final List<Double> MAX = List.of(5000d, 1000d, 1000d, 1000d);
 
     private final ObjectMapper json;
@@ -40,7 +41,11 @@ class AiReplies {
                 return Optional.empty();
             }
             if (numbersInRange(item)) {
-                kept.add(item);
+                ObjectNode clean = json.createObjectNode(); // only the contract's six fields
+                for (String f : ITEM_FIELDS) {
+                    clean.set(f, item.get(f));
+                }
+                kept.add(clean);
             }
         }
         ObjectNode out = json.createObjectNode();

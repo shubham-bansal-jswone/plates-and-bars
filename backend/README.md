@@ -76,15 +76,19 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - Limits: `app.rate-limit.ai-per-user` (5 per minute, the three POSTs) and `ai-per-ip` (60 per minute, all four).
   - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`. Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
-    (400, details name the field and keyword, never the value), quota reserve (429 `quota_exceeded`), provider.
+    (400, details name the field and keyword, never the value or a submitted key; trailing JSON and duplicate keys are 400), quota reserve (429 `quota_exceeded`), provider.
     The unit is released and the answer is 503 `unavailable` when the provider throws or its reply fails the check.
+  - While `StubAiProvider` is the active provider (`AiProvider.isStub()`), every feature is off whatever the flags say:
+    `/ai/status` reports false and the endpoints answer 503 `feature_disabled`, so canned text never reaches users.
+    A real provider bean replaces the stub and turns that off.
   - Provider: `AiProvider` is the one seam; `StubAiProvider` (canned replies, no network, no key, no SDK) is the only
     implementation until one is chosen (#200). A real one must use the cheapest suitable (small text) model, set
     timeouts, read its key from the environment only, and send only the prompt strings (`AiPrompts`): user text sits
-    between `<<<DATA` and `DATA>>>` with any such sequence inside it broken up, and the instructions say it is data.
+    between `<<<` and `>>>` markers carrying a random per-request token (so no text can close them), after Unicode
+    format, bidi, zero-width and control characters are stripped, and the instructions say it is data.
   - Replies (`AiReplies`) are parsed as data and validated against `DescribeMealResponse`, `AskWhyResponse` and
     `WeeklySummaryResponse` from the contract itself. Describe a meal drops items with non-finite or out-of-range
-    numbers; Ask why nulls an unknown `card_id` and refuses `{` or `}` in the answer; Weekly summary sends any exercise
+    numbers and keeps only the six contract fields of an item; Ask why nulls an unknown `card_id` and refuses `{` or `}` in the answer; Weekly summary sends any exercise
     that is not a catalogue id as `custom exercise`.
   - Content: Gradle copies `content/cards.json` and `content/exercises.json` into the jar under `/content`
     (`processResources`; the Dockerfile copies them too, and the build fails if they are missing). Ask why sends every

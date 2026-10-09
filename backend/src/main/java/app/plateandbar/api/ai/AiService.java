@@ -52,7 +52,10 @@ public class AiService {
 
     public ObjectNode describeMeal(String userId, JsonNode body) {
         return run(userId, AiFeature.DESCRIBE_MEAL, body, "DescribeMealRequest", req -> {
-            String text = req.path("text").asText().trim();
+            String text = AiPrompts.sanitize(req.path("text").asText()).trim();
+            if (text.isEmpty()) {
+                throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("text", "pattern")));
+            }
             return new Call(AiPrompts.describeMeal(text), json.createObjectNode().put("text", text), replies::describeMeal);
         });
     }
@@ -63,7 +66,10 @@ public class AiService {
             if (!content.hasCard(cardId)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("card_id", "unknown")));
             }
-            String question = req.path("question").asText().trim();
+            String question = AiPrompts.sanitize(req.path("question").asText()).trim();
+            if (question.isEmpty()) {
+                throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("question", "pattern")));
+            }
             return new Call(AiPrompts.askWhy(content.cards(), cardId, question),
                     json.createObjectNode().put("card_id", cardId).put("question", question), replies::askWhy);
         });

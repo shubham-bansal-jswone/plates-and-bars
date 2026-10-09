@@ -11,5 +11,10 @@ public interface AiProvider {
     /** The model's raw reply text plus the tokens it cost, for the monthly budget. */
     record Completion(String text, int inputTokens, int outputTokens) {}
 
+    /** True for a provider that returns canned replies: while it is the active one, every feature is off. */
+    default boolean isStub() {
+        return false;
+    }
+
     Completion complete(AiFeature feature, String instructions, String input);
 }

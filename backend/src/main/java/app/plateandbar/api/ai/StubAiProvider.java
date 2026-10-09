@@ -6,6 +6,12 @@ import org.springframework.stereotype.Component;
 @Component
 class StubAiProvider implements AiProvider {
 
+    /** Canned text must never reach users, so every feature stays off (status and endpoints) while this is active. */
+    @Override
+    public boolean isStub() {
+        return true;
+    }
+
     @Override
     public Completion complete(AiFeature feature, String instructions, String input) {
         String text =

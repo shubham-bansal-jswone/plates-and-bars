@@ -40,7 +40,9 @@ public class AiController {
     AiController(AiQuotaService quotas, AiService ai, ObjectMapper json, RateLimiter limiter, ClientIpResolver ips,
             RateLimitProperties limits) {
         this.ai = ai;
-        this.json = json;
+        this.json = json.copy()
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
         this.quotas = quotas;
         this.limiter = limiter;
         this.ips = ips;

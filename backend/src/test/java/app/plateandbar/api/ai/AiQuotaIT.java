@@ -44,6 +44,7 @@ import org.testcontainers.containers.MySQLContainer;
 @Import(AiITBase.Config.class)
 class AiQuotaIT extends AiITBase {
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean AiProvider provider; // not the stub: the stub keeps everything off
     @Autowired AiQuotaService quotas;
 
     @BeforeEach

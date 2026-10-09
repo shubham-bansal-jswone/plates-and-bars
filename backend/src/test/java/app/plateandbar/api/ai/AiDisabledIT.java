@@ -1,7 +1,6 @@
 package app.plateandbar.api.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,7 +29,7 @@ class AiDisabledIT extends AiITBase {
                 .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false")
                 .contains("\"remaining\":10");
         assertThat(calls(u)).isZero();
-        verifyNoInteractions(provider);
+        org.mockito.Mockito.verify(provider, org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test

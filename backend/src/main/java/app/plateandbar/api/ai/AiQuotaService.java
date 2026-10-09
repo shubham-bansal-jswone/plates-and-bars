@@ -22,8 +22,10 @@ public class AiQuotaService {
     private final AiUsageRepository usage;
     private final AiProperties props;
     private final Clock clock;
+    private final AiProvider provider;
 
-    AiQuotaService(AiUsageRepository usage, AiProperties props, Clock clock) {
+    AiQuotaService(AiUsageRepository usage, AiProperties props, Clock clock, AiProvider provider) {
+        this.provider = provider;
         this.usage = usage;
         this.props = props;
         this.clock = clock;
@@ -53,7 +55,7 @@ public class AiQuotaService {
      * the cap is reached can overshoot it slightly. The month is the UTC month, whatever the clock's zone.
      */
     private boolean budgetLeft() {
-        if (props.getMonthlyBudgetTokens() <= 0) {
+        if (provider.isStub() || props.getMonthlyBudgetTokens() <= 0) {
             return false;
         }
         LocalDate month = LocalDate.now(clock.withZone(ZoneOffset.UTC)).withDayOfMonth(1);
