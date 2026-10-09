@@ -92,4 +92,13 @@ Signing is optional. `infra/scripts/android-signing.sh` patches the generated `a
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key password |
 
-Without them the build still passes and the artefacts are debug-signed: installable for testing, rejected by Google Play. The script fails loudly if the Expo template changes and the patch no longer applies. Generate the keystore with `keytool -genkeypair -v -storetype PKCS12 -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000` and keep it, with its passwords, somewhere safe outside the repo; losing the upload key is recoverable with Play support, but only if Play App Signing is on.
+Without them the build still passes and the artefacts are debug-signed: installable for testing, rejected by Google Play. If only some of the four are set, the build fails with an error rather than silently debug-signing. The script is idempotent and fails loudly if the Expo template changes and the patch no longer applies.
+
+How the secrets are protected:
+
+- Create a GitHub environment named `android-release` (Settings > Environments) and store the four secrets as environment secrets there, not repository secrets. Restrict its deployment branches and tags to `v*` tags (and `main` if you want manual builds) and optionally add yourself as a required reviewer.
+- Tag and manual runs use that environment. `pull_request` runs use no environment and the workflow passes them empty secrets, so PR builds are always debug-signed even if the workflow is edited in a branch (a branch cannot reach environment secrets outside its allowed refs).
+- Secrets are exposed only to the decode, signing and Gradle steps, never to `npm ci` or `expo prebuild`. The decoded keystore is written with mode 600 and deleted in a final `if: always()` step.
+- Gradle caching uses the MIT `basic` provider of `gradle/actions/setup-gradle`, like `ci.yml`.
+
+Generate the keystore with `keytool -genkeypair -v -storetype PKCS12 -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000` and keep it, with its passwords, somewhere safe outside the repo; losing the upload key is recoverable with Play support, but only if Play App Signing is on.

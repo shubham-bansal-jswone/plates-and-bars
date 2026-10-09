@@ -5,15 +5,29 @@
 # debug-signs the release build (installable, not uploadable to Play).
 #
 # Usage: android-signing.sh <path to android/app/build.gradle>
-# Env (all four required to sign): ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD,
+# Env (all four required to sign; none set means debug-signed; some set is an error): ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD,
 # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 set -euo pipefail
 
 gradle_file="${1:?usage: android-signing.sh <android/app/build.gradle>}"
 
-if [ -z "${ANDROID_KEYSTORE_FILE:-}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ] \
-  || [ -z "${ANDROID_KEY_ALIAS:-}" ] || [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+set_count=0
+for v in ANDROID_KEYSTORE_FILE ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+  [ -n "${!v:-}" ] && set_count=$((set_count + 1))
+done
+
+if [ "$set_count" -eq 0 ]; then
   echo "No keystore configured: release build will be debug-signed."
+  exit 0
+fi
+if [ "$set_count" -ne 4 ]; then
+  echo "::error::Only $set_count of 4 signing inputs are set (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). Set all four or none."
+  exit 1
+fi
+
+# Idempotent: already patched
+if grep -q 'signingConfigs\.release' "$gradle_file"; then
+  echo "Release signing already configured in $gradle_file."
   exit 0
 fi
 
@@ -29,7 +43,8 @@ awk '
     print "        }"
     sc = 1; next
   }
-  /^        release \{/ && sc && !rel { rel = 1 }
+  /^    buildTypes \{/ { bt = 1 }
+  bt && /^        release \{/ { rel = 1 }
   rel && !done && /signingConfig signingConfigs\.debug/ {
     sub(/signingConfigs\.debug/, "signingConfigs.release"); done = 1
   }
