@@ -111,8 +111,8 @@ export interface ProtoPlan {
 
 export interface ProtoMealPlan {
   GROC: Record<string, [string, number, string][]>;
-  /** `buildPlan()` with `S.date` and the settings targets and diet. */
-  buildPlan(date: string, settings: { kcal: number; protein: number; fat: number; diet?: string }): ProtoPlan;
+  /** `buildPlan()` with `S.date` and the settings targets, diet and profile (its age is read by `older`). */
+  buildPlan(date: string, settings: { kcal: number; protein: number; fat: number; diet?: string; profile?: { age: number } | null }): ProtoPlan;
   /** `case 'mp-swap'` on day `i`'s meal; returns the plan after. */
   swap(plan: ProtoPlan, i: number, meal: string): ProtoPlan;
   /** `grocerySheet()` on `plan`: the sheet's rows (item and amount, as shown) and the copy text. */

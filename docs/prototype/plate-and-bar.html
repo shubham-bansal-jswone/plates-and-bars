@@ -2984,7 +2984,7 @@ const GROC = {
 function buildPlan(){
   const g = S.settings, tgt = { kcal:g.kcal, p:g.protein, f:g.fat }, opts = {};
   ['Breakfast','Lunch','Snacks','Dinner'].forEach(m => {
-    const info = { meal:m, kcal:tgt.kcal*MEAL_W[m], p:tgt.p*PROT_W[m], f:tgt.f*MEAL_W[m] };
+    const info = { meal:m, kcal:tgt.kcal*MEAL_W[m], p:Math.max(older() && m !== 'Snacks' && tgt.p >= 25 ? 25 : 0, tgt.p*PROT_W[m]), f:tgt.f*MEAL_W[m] };
     opts[m] = combos(info).slice(0, 4).map(c => c.items.map(([f, q]) => [f[0], q]));
   });
   const days = Array.from({ length:7 }, (_, i) => { const d = {}; Object.keys(opts).forEach(m => d[m] = { k: i % Math.min(3, opts[m].length || 1) }); return d; });
@@ -3010,11 +3010,12 @@ function grocerySheet(){
   P.days.forEach((d, i) => Object.keys(d).forEach(m => planItems(P, i, m).forEach(([n, q]) => (GROC[n] || []).forEach(([item, amt, unit]) => {
     const per = n === 'Egg white' ? amt*q : amt*q; const k = item + '|' + unit; tot[k] = (tot[k] || 0) + per; }))));
   const fmtAmt = (v, u) => u === 'g' ? (v >= 1000 ? `${r1(v/1000)} kg` : `${Math.round(v/10)*10} g`) : u === 'ml' ? (v >= 1000 ? `${r1(v/1000)} L` : `${Math.round(v/10)*10} ml`) : `${Math.ceil(v)} ${u}`;
-  const rows = Object.entries(tot).sort((a, b) => a[0] < b[0] ? -1 : 1).map(([k, v]) => { const [item, u] = k.split('|'); return `<li><label class="inline"><input type="checkbox" style="width:20px;height:20px"> ${esc(item)}</label><b>${fmtAmt(v, u)}</b></li>`; }).join('');
+  const sorted = Object.entries(tot).sort((a, b) => a[0] < b[0] ? -1 : 1);
+  const rows = sorted.map(([k, v]) => { const [item, u] = k.split('|'); return `<li><label class="inline"><input type="checkbox" style="width:20px;height:20px"> ${esc(item)}</label><b>${fmtAmt(v, u)}</b></li>`; }).join('');
   openSheet(`<div class="sheet-h"><h2>Grocery list for the week</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
     <ul class="myfoods groc">${rows}</ul><p class="hint">Approximate raw amounts for the whole week. Add spices, oil and staples you already keep at home.</p>
     <div class="row"><button class="ghost sm" data-act="mp-open">Back to the plan</button><button class="ghost sm" data-act="mp-copy">Copy as text</button></div>`);
-  S.ui.grocText = Object.entries(tot).map(([k, v]) => { const [item, u] = k.split('|'); return `${item}: ${fmtAmt(v, u)}`; }).join('\n');
+  S.ui.grocText = sorted.map(([k, v]) => { const [item, u] = k.split('|'); return `${item}: ${fmtAmt(v, u)}`; }).join('\n');
 }
 function planForMeal(meal){
   const P = S.settings.mealPlan; if(!P) return null;

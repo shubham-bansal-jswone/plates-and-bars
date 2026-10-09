@@ -37,6 +37,10 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - #209: the Targets screen's "Recalculate" note (`setupSummaryHtml`) compares the gap between the latest weigh-in and the setup weight rounded to 0.1 kg, as the note shows it: `Math.round(|latest − setup| × 10) / 10 >= 2`. A 2.0 kg gap such as 64.1 vs 62.1 kg (1.999999999999993 in floating point) now offers Recalculate; 81.95 vs 80 counts (shown as 2 kg) and 81.94 does not.
 - #215: in the weekly check-in (`renderCheckin`), the planned count is this week's plan length, else the profile's plan length (`planList()`: the profile's training days, 6 with no profile, 0 at 0 days), not a fixed 6. A 3-day user who trains 3 times sees "3 / 3" and no shorter-week card. The "A shorter week might fit better" card, which offers a 4-day plan next week, needs a planned count above 4 (so a user on 4 days or fewer, including 0, never gets it), and is blocked only by a week plan for this week or a later one (`weekPlan.start >= mondayOf(S.date)`); a past week plan, which is never deleted, no longer blocks it for good.
 
+**2026-10-09 — prototype fix, batch 8 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
+- #239: the weekly meal plan (`buildPlan`) applies the 60+ rule as the next-meal ideas (`nextMealInfo`) do. At age 60 and over, breakfast, lunch and dinner aim for `max(25, protein × PROT_W[meal])` g protein when the day's protein target is 25 g or more; snacks keep their share. A 65-year-old on 80 g now gets plan ideas aimed at 25 g for each main meal, where the shares are 20, 24 and 24 g.
+- #240: "Copy as text" on the grocery list (`grocerySheet`, `S.ui.grocText`) lists the items in the same sorted order as the list on screen, not in the order they first appear in the plan.
+
 These change the scope table in the Development Plan. Treat them as v1 unless marked otherwise.
 
 | Change | Area | Agents affected |
