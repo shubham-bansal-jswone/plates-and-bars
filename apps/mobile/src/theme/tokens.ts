@@ -18,6 +18,8 @@ export interface Palette {
   disabled: string;
   line: string;
   track: string;
+  /** Secondary button border: decorative, the label identifies the control. */
+  ghostBorder: string;
   /** Input and control borders (3:1). */
   outline: string;
   brand: string;
@@ -55,6 +57,7 @@ export const light: Palette = {
   disabled: '#CCCCCC',
   line: '#E6E8EC',
   track: '#E6E8EC',
+  ghostBorder: '#CCCCCC',
   outline: '#8B8F9B',
   brand: '#2457E6',
   brandPressed: '#1D48C2',
@@ -86,6 +89,7 @@ export const dark: Palette = {
   disabled: '#5C5C5C',
   line: '#2A2B2D',
   track: '#2A2B2D',
+  ghostBorder: '#2A2B2D',
   outline: '#63656A',
   brand: '#2457E6',
   brandPressed: '#1D48C2',

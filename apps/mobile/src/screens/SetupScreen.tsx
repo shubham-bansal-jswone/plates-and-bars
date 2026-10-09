@@ -34,7 +34,6 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
         <Switch
           accessibilityLabel={CONSENT.checkbox}
           value={ok}
-         
           onValueChange={(v) => {
             setOk(v);
             setErr('');

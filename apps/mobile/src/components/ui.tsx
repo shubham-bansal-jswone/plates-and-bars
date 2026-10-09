@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type SwitchProps, type TextInputProps, type ViewProps } from 'react-native';
-import { useColorScheme } from 'react-native';
 import { pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Input } from './Input';
@@ -65,10 +64,9 @@ export function Button({
   expanded?: boolean;
 }) {
   const c = useTheme();
-  const scheme = useColorScheme();
   const palette = {
     primary: { bg: c.brand, pressed: c.brandPressed, fg: c.onBrand, border: c.brand },
-    ghost: { bg: 'transparent', pressed: c.surfaceSoft, fg: c.ink, border: scheme === 'dark' ? c.line : c.disabled },
+    ghost: { bg: 'transparent', pressed: c.surfaceSoft, fg: c.ink, border: c.ghostBorder },
     link: { bg: 'transparent', pressed: 'transparent', fg: c.link, border: 'transparent' },
   }[kind];
   return (

@@ -62,7 +62,6 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
                 accessibilityLabel="Start a rest timer after each set"
                 value={!settings.rest_off}
                 onValueChange={(on) => setRestOff(!on)}
-               
               />
               {/* The text toggles the switch too, as the prototype's label does; the switch carries the spoken name. */}
               <Pressable accessibilityElementsHidden importantForAccessibility="no" onPress={() => setRestOff(!settings.rest_off)} style={{ flex: 1 }}>
