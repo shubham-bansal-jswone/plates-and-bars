@@ -53,6 +53,8 @@ export interface SyncDeps {
 // Pulled records go in this order so a workout is stored before its sets.
 const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings'];
 const MAX_ROUNDS = 40;
+/** Rounds per run that may be spent setting refused records aside without counting against MAX_ROUNDS (each costs one request). */
+const MAX_ASIDE_ROUNDS = 40;
 const DEFAULT_RETRY_SEC = 60;
 
 type Guard = (db: StoreDb) => Promise<void>;
@@ -207,6 +209,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let pulled = 0;
   let skipped = 0;
   let quarantined = 0;
+  let asideRounds = 0;
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const entries = await pendingChanges(d.db, 500);
@@ -227,14 +230,17 @@ async function run(d: SyncDeps): Promise<SyncResult> {
       if (!out.ok) {
         // A 400 names the records at fault (`changes.<table>[<i>]...`): set those aside and send the rest again.
         let aside = 0;
+        const seen = new Set<number>(); // several fields can name one record: it is set aside once
         for (const f of out.fields ?? []) {
           const m = /^changes\.([a-z_]+)\[(\d+)\]/.exec(f);
           const bad = m ? order[m[1] as string]?.[Number(m[2])] : undefined;
-          if (bad && (await quarantine(d.db, bad, f, guard))) aside++;
+          if (!bad || seen.has(bad.seq)) continue;
+          seen.add(bad.seq);
+          if (await quarantine(d.db, bad, f, guard)) aside++;
         }
         if (aside > 0) {
           quarantined += aside;
-          round--; // setting records aside is progress, not a round of syncing
+          if (asideRounds++ < MAX_ASIDE_ROUNDS) round--; // setting records aside is progress, not a round of syncing (bounded)
           continue;
         }
         return { ...out.result, conflicts, pulled, skipped, ...(quarantined ? { quarantined } : {}) };

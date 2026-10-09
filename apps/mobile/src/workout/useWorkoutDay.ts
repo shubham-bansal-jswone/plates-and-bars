@@ -52,7 +52,7 @@ interface Options {
   exclusions: readonly Exclusion[];
   swaps: readonly Swap[];
   /** Stores a rule made by the "can't do" sheet, returning the saved record. */
-  saveRule: (rule: CantRule) => Exclusion;
+  saveRule: (rule: CantRule) => Exclusion | null;
   /** Changed rep ranges and exercises coming back (settings). */
   tune: Tuning;
   /** Changes when sync stored pulled records: the day is read again (after queued local writes). */
@@ -92,8 +92,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   useEffect(() => {
     let live = true;
     (async () => {
-      // A session being built is a local edit in flight: the read waits for it, so it cannot be replaced by the stored (empty) day.
-      const read = await freshRead({ queue, writes }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, () => !building.current);
+      const read = await freshRead({ queue, writes }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live);
       if (!read || !live) return;
       const [workout, sets, lifts, sessions] = read;
       commit({
@@ -393,7 +392,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     const where = ref.current.workout?.where ?? profile?.where ?? 'gym';
     const rule = cantRule(draft, choice, date);
     const today = draft.dur === 'today';
-    const rules: Exclusion[] = today ? [...exclusions] : [...exclusions, saveRule(rule)];
+    const saved = today ? null : saveRule(rule);
+    if (!today && !saved) return; // the rules could not be read: nothing is changed (the store said why)
+    const rules: Exclusion[] = saved ? [...exclusions, saved] : [...exclusions];
     const d = clone(ref.current);
     // Sets of the old exercise to tombstone (`rows` index into the copy taken before the change), and exercises to write.
     const gone: { ex: ExState; rows: ['work' | 'ramp', number][] }[] = [];
