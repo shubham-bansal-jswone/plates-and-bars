@@ -64,6 +64,8 @@ describe('replaceAt', () => {
     expect(got.exercises[1]).toBe(session[1]);
     expect(got.exercises[2]).toEqual(ex('Seated Leg Curl'));
     expect(got.removed.map((s) => s.id)).toEqual(['b0', 'b2']);
+    expect(got.changed).toEqual([{ ...sets[2], set_index: 0 }, { ...sets[4], set_index: 1 }]);
+    expect(got.changed.every((s) => got.sets.includes(s))).toBe(true);
     expect(got.sets).toEqual([
       sets[0],
       { ...sets[2], set_index: 0 },
@@ -78,10 +80,13 @@ describe('replaceAt', () => {
   });
 
   it('keeps a ticked set that needs no renumbering as the same object', () => {
-    const got = replaceAt([ex('A')], [set('x0', 'A', 'work', 0, true), set('x1', 'A', 'work', 1, false)], 0, null, noLifts);
+    const input = [set('x0', 'A', 'work', 0, true), set('x1', 'A', 'work', 1, false)];
+    const got = replaceAt([ex('A')], input, 0, null, noLifts);
     expect(got.exercises.map((e) => e.name)).toEqual(['A']);
-    expect(got.sets.map((s) => (s as TestSet).id)).toEqual(['x0']);
+    expect(got.sets).toHaveLength(1);
+    expect(got.sets[0]).toBe(input[0]);
     expect(got.removed.map((s) => s.id)).toEqual(['x1']);
+    expect(got.changed).toEqual([]);
   });
 
   it('with no ticked work set, the pick takes the place and every set of the exercise goes', () => {
@@ -96,6 +101,7 @@ describe('replaceAt', () => {
     const got = replaceAt(session, sets, 2, null, noLifts);
     expect(got.exercises.map((e) => e.name)).toEqual(['Leg Press', 'Leg Curl']);
     expect(got.removed.map((s) => s.id)).toEqual(['c0']);
+    expect(got.changed).toEqual([]);
     expect(got.sets).toHaveLength(sets.length - 1);
   });
 
@@ -122,7 +128,7 @@ describe('replaceAt', () => {
 
   it('returns the workout unchanged for an index past the end', () => {
     const got = replaceAt(session, sets, 9, 'X', noLifts);
-    expect(got).toEqual({ exercises: session, sets, removed: [] });
+    expect(got).toEqual({ exercises: session, sets, changed: [], removed: [] });
   });
 });
 
@@ -135,7 +141,7 @@ describe('cantSession', () => {
     const exerciseOnly: CantDraft = { name: 'Leg Press', reason: 'dislike', dur: 'perm' };
     expect(cantSession(w, s, 1, exerciseOnly, 'Hack Squat', 'gym', [], noLifts, catalog).exercises.map((e) => e.name)).toEqual(['Bench Press', 'Hack Squat']);
     const moved = cantSession(w, s, 0, exerciseOnly, 'Hack Squat', 'gym', [], noLifts, catalog);
-    expect(moved).toEqual({ exercises: w, sets: s, removed: [] });
+    expect(moved).toEqual({ exercises: w, sets: s, changed: [], removed: [] });
     expect(cantSession(w, s, null, exerciseOnly, 'Hack Squat', 'gym', [], noLifts, catalog).exercises).toEqual(w);
   });
 
@@ -158,6 +164,7 @@ describe('cantSession', () => {
     const REASONS: ExclusionReason[] = ['pain', 'equip', 'dislike', 'form'];
     const WHERES: Where[] = ['gym', 'dumbbells', 'bodyweight'];
     let kept = 0;
+    let changedSeen = 0;
     let wider = 0;
     for (let k = 0; k < 3000; k++) {
       const where = pick(WHERES);
@@ -176,7 +183,14 @@ describe('cantSession', () => {
       const opts: [ExclusionScope, string][] = [['exercise', name], ['family', t.family], ['pattern', t.pattern], ...t.joints.map((j) => ['joint', j] as [ExclusionScope, string])];
       const [scope, key] = dur === 'today' ? (['exercise', name] as const) : r() < 0.1 ? (['', ''] as const) : pick(opts);
       const reason = pick(REASONS);
-      const existing: Exclusion[] = r() < 0.5 ? [] : [{ id: 'r0', scope: pick(SCOPES.slice(0, 1)), key: pick(NAMES), reason: null, to: {}, done: false, until: null }];
+      // saved rules of every scope, some answered (done), so wider existing rules meet the new one
+      const existing: Exclusion[] = Array.from({ length: Math.floor(r() * 3) }, (_, n) => {
+        const on = pick(NAMES);
+        const ot = tags[on as keyof typeof tags] as ExerciseTag;
+        const sc = pick(SCOPES);
+        const ky = sc === 'exercise' ? on : sc === 'family' ? ot.family : sc === 'pattern' ? ot.pattern : pick(ot.joints.length ? ot.joints : ['knee']);
+        return { id: `r${n}`, scope: sc, key: ky, reason: pick([null, ...REASONS]), to: {}, done: r() < 0.2, until: null };
+      });
       const lifts: Record<string, LiftRecord> = Object.fromEntries(
         NAMES.filter(() => r() < 0.1).map((n) => {
           const sessionOf = (date: string) => ({ date, sets: Array.from({ length: 1 + Math.floor(r() * 6) }, () => ({ w: 10, r: 8 })) });
@@ -208,10 +222,17 @@ describe('cantSession', () => {
       expect(mine.sort((a, b) => key2(a).localeCompare(key2(b)))).toEqual(protoSets.sort((a, b) => key2(a).localeCompare(key2(b))));
       const ids = new Set(protoSets.map((s) => s.id));
       expect(got.removed.map((s) => s.id).sort()).toEqual(sets.filter((s) => !ids.has(s.id)).map((s) => s.id).sort());
+      // changed: exactly the kept input sets whose fields differ from the input
+      const byId = new Map(sets.map((s) => [s.id, s]));
+      const differs = got.sets.filter((s): s is TestSet => 'id' in s && byId.get(s.id) !== s);
+      expect(got.changed).toEqual(differs);
+      for (const s of got.changed) expect(s).not.toEqual(byId.get(s.id));
+      changedSeen += got.changed.length;
       if (i !== null && got.exercises.some((e) => e.name === name) && choice) kept++;
       if (got.removed.some((s) => s.exercise !== name)) wider++;
     }
     expect(kept).toBeGreaterThan(100);
     expect(wider).toBeGreaterThan(300);
+    expect(changedSeen).toBeGreaterThan(100);
   });
 });

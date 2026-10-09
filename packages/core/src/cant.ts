@@ -42,10 +42,17 @@ export interface CantResult<E extends CantExercise, S extends CantSet> {
   /** The workout's exercises, in order (contract `Workout.exercises`). */
   exercises: (E | CantExercise)[];
   /**
-   * Every set of the workout: kept sets (a kept work set may have a new `set_index`; it is a copy
-   * then), in the input order, followed by the new blank sets (`NewCantSet`, no id yet).
+   * Every set of the workout: kept sets in the input order (unchanged ones are the input objects;
+   * changed ones are the copies listed in `changed`), followed by the new blank sets (`NewCantSet`:
+   * give them an id, `workout_id` and sync fields).
    */
   sets: (S | NewCantSet)[];
+  /**
+   * Kept input sets whose fields changed (a ticked work set renumbered), as their new copies, which
+   * keep the input's id: stamp `updated_at` and store them. Exercise entries never change fields; the
+   * workout record itself changes whenever `exercises` differs from the input.
+   */
+  changed: S[];
   /** Input sets taken out of the workout: store them as tombstones. */
   removed: S[];
 }
@@ -86,7 +93,7 @@ function newExercise(name: string, c: CantLifts): { ex: CantExercise; sets: NewC
  */
 export function replaceAt<E extends CantExercise, S extends CantSet>(exercises: readonly E[], sets: readonly S[], idx: number, pick: string | null, c: CantLifts): CantResult<E, S> {
   const ex = exercises[idx];
-  if (!ex) return { exercises: [...exercises], sets: [...sets], removed: [] };
+  if (!ex) return { exercises: [...exercises], sets: [...sets], changed: [], removed: [] };
   const mine = (s: S): boolean => live(s) && s.exercise === ex.name;
   const work = sets.filter((s) => mine(s) && s.kind === 'work').sort((a, b) => a.set_index - b.set_index);
   const done = work.filter((s) => s.done);
@@ -96,17 +103,23 @@ export function replaceAt<E extends CantExercise, S extends CantSet>(exercises: 
     if (nx) out.splice(idx + 1, 0, nx.ex);
     const index = new Map(done.map((s, i) => [s, i]));
     const kept: S[] = [];
+    const changed: S[] = [];
     const removed: S[] = [];
     for (const s of sets) {
       if (!mine(s) || s.kind !== 'work') kept.push(s);
-      else if (s.done) kept.push(s.set_index === index.get(s) ? s : { ...s, set_index: index.get(s) as number });
-      else removed.push(s);
+      else if (!s.done) removed.push(s);
+      else if (s.set_index === index.get(s)) kept.push(s);
+      else {
+        const copy = { ...s, set_index: index.get(s) as number };
+        kept.push(copy);
+        changed.push(copy);
+      }
     }
-    return { exercises: out, sets: [...kept, ...(nx ? nx.sets : [])], removed };
+    return { exercises: out, sets: [...kept, ...(nx ? nx.sets : [])], changed, removed };
   }
   if (nx) out.splice(idx, 1, nx.ex);
   else out.splice(idx, 1);
-  return { exercises: out, sets: [...sets.filter((s) => !mine(s)), ...(nx ? nx.sets : [])], removed: sets.filter(mine) };
+  return { exercises: out, sets: [...sets.filter((s) => !mine(s)), ...(nx ? nx.sets : [])], changed: [], removed: sets.filter(mine) };
 }
 
 /**
@@ -131,11 +144,19 @@ export function cantSession<E extends CantExercise, S extends CantSet>(
 ): CantResult<E, S> {
   const rule: CantRule = cantRule(draft, choice, c.date);
   const today = draft.dur === 'today';
-  let w: CantResult<E, S> = { exercises: [...exercises], sets: [...sets], removed: [] };
+  const inputs = new Set<unknown>(sets);
+  let w: CantResult<E, S> = { exercises: [...exercises], sets: [...sets], changed: [], removed: [] };
   const step = (idx: number, pick: string | null): void => {
     const next = replaceAt<E | CantExercise, S | NewCantSet>(w.exercises, w.sets, idx, pick, c);
-    const inputs = new Set<unknown>(sets);
-    w = { exercises: next.exercises, sets: next.sets, removed: [...w.removed, ...(next.removed.filter((s) => inputs.has(s)) as S[])] };
+    // Only input sets are stored records. A renumbered set is never touched again (its exercise has a ticked
+    // set, which the wider-rule loop skips) and new blank sets are never renumbered (not ticked).
+    const left = new Set<unknown>(next.sets);
+    w = {
+      exercises: next.exercises,
+      sets: next.sets,
+      changed: [...w.changed.filter((s) => left.has(s)), ...(next.changed as S[])],
+      removed: [...w.removed, ...(next.removed.filter((s) => inputs.has(s)) as S[])],
+    };
   };
   if (i !== null && w.exercises[i] && (w.exercises[i] as CantExercise).name === draft.name) step(i, choice);
   if (!today) {

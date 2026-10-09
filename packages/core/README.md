@@ -87,8 +87,8 @@ about, and `recheckBack`, `recheckLater` and `recheckKeep` return the answered r
 again", the `Settings.returning` entries to add). The "can't do" sheet saves `cantRule(...)` (add an
 `id`; for a saved rule, also tombstone any swap from that exercise). `cantSession` then gives today's
 workout (contract `Workout.exercises` and `WorkoutSet`s): the tapped exercise through `replaceAt`, then
-the `widerRuleReplacements`. Store its `sets` (new blank sets have no `id` yet; a kept set may have a new
-`set_index`) and tombstone its `removed` sets.
+the `widerRuleReplacements`. Give its new blank sets (`NewCantSet`) an `id` and store them, stamp and
+store its `changed` sets (renumbered, same `id`), and tombstone its `removed` sets.
 
 The food rules take foods in content/foods.json's `Food` shape and logs in the contract's `FoodLog`
 shape (logs with `deleted_at` set are left out). Fibre, added sugar and fruit and veg are looked up by
