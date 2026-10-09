@@ -1,27 +1,52 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { activeRules } from '@plate-and-bar/core';
+import { activeRules, cantRule, plannedCoverage, type CantDraft, type LiftRecord, type WeekPlan } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Hint, Label } from '../components/ui';
+import { Button, ErrorText, Hint, Label } from '../components/ui';
 import type { ExclusionRecord } from '../db/rules';
-import type { WorkoutDb } from '../db/workouts';
+import { loadLifts, type WorkoutDb } from '../db/workouts';
 import { shortDate } from '../format';
+import type { Profile } from '../setup/types';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useTheme } from '../theme/useTheme';
+import { catalog } from '../workout/catalog';
+import { CantSheet } from '../workout/CantSheet';
 import { ruleText } from '../workout/rulesCopy';
+import { AvoidPicker } from './AvoidPicker';
 import { useRules } from '../workout/useRules';
 
-/** Exercises avoided and swapped (prototype `rulesSectionHtml`): each can be removed, which stores a tombstone. */
-export function RulesSection({ db, today, now, notify }: { db: WorkoutDb; today: string; now: () => Date; notify: (msg: string) => void }) {
+/**
+ * Exercises avoided and swapped (prototype `rulesSectionHtml`): each can be removed, which stores a tombstone, and
+ * "Add an exercise to avoid" (prototype `rule-add`) picks one from the library and asks the can't-do questions.
+ */
+export function RulesSection({ db, today, now, notify, profile, weekPlan }: { db: WorkoutDb; today: string; now: () => Date; notify: (msg: string) => void; profile: Profile; weekPlan?: WeekPlan }) {
   const c = useTheme();
   // Tab screens stay mounted, so the rules are read again each time the tab is shown.
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
   const dataVersion = useDataVersion();
-  const { rules, removeRule, removeSwap } = useRules({ db, now, notify, reloadKey: shown + dataVersion });
+  const { rules, addRule, removeRule, removeSwap } = useRules({ db, now, notify, reloadKey: shown + dataVersion });
+  const [picking, setPicking] = useState(false);
+  const [cant, setCant] = useState<string | null>(null);
+  const [lifts, setLifts] = useState<Record<string, LiftRecord>>({});
+  // The lifts only feed the replacement suggestions and the "skip it" line, so they are read when the picker opens.
+  useEffect(() => {
+    if (!picking) return;
+    let live = true;
+    loadLifts(db).then((l) => live && setLifts(l), () => {});
+    return () => {
+      live = false;
+    };
+  }, [db, picking]);
   const active = activeRules(rules.exclusions) as ExclusionRecord[];
-  if (!active.length && !rules.swaps.length) return null;
+  const canAdd = rules.ready && !rules.loadFailed;
+  const planned = () => plannedCoverage({ date: today, profile, weekPlan, exclusions: rules.exclusions, swaps: rules.swaps, lifts }, catalog);
+  const save = (draft: CantDraft, choice: string | null) => {
+    addRule(cantRule(draft, choice, today));
+    setCant(null);
+    notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
+  };
   return (
     <View style={styles.gap}>
       <Label>Exercises and plan</Label>
@@ -58,6 +83,27 @@ export function RulesSection({ db, today, now, notify }: { db: WorkoutDb; today:
           />
         </View>
       ))}
+      {rules.loadFailed ? <ErrorText>Couldn’t read your saved exercise rules, so new ones can’t be added. Restart the app to try again.</ErrorText> : null}
+      {canAdd ? <Button label="Add an exercise to avoid" kind="ghost" onPress={() => setPicking(true)} /> : null}
+      <AvoidPicker
+        visible={picking && !cant}
+        onPick={(n) => setCant(n)}
+        onClose={() => setPicking(false)}
+      />
+      <CantSheet
+        name={cant}
+        noToday
+        where={profile.where}
+        inSession={[]}
+        exclusions={rules.exclusions}
+        lifts={lifts}
+        setsFor={(m) => planned()[m] ?? 0}
+        onPick={(draft, choice) => {
+          setPicking(false);
+          save(draft, choice);
+        }}
+        onClose={() => setCant(null)}
+      />
     </View>
   );
 }

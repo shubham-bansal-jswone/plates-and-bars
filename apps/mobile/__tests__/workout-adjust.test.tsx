@@ -258,6 +258,9 @@ describe('Targets: avoided and swapped exercises', () => {
     await waitFor(() => expect(screen.queryByText('Pec Deck Fly (pain), permanent')).toBeNull());
     expect(stored<ExclusionRecord>(db, 'exclusions:r1').deleted_at).toMatch(/^2026-|^20\d\d-/);
     expect(stored<{ deleted_at: string }>(db, 'swaps:Machine Shoulder Press').deleted_at).toBeTruthy();
-    expect(screen.queryByText('Exercises and plan')).toBeNull();
+    // The section stays (it holds "Add an exercise to avoid", as in the prototype), but the removed rules and swaps are gone.
+    expect(screen.queryByText('Avoiding')).toBeNull();
+    expect(screen.queryByText('Swapped')).toBeNull();
+    expect(screen.getByLabelText('Add an exercise to avoid')).toBeTruthy();
   });
 });

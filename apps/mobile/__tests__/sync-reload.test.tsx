@@ -1,5 +1,6 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
+import type { Profile } from '../src/setup/types';
 import { RulesSection } from '../src/targets/RulesSection';
 import { saveLog } from '../src/db/food';
 import { saveWeight } from '../src/db/progress';
@@ -135,7 +136,7 @@ describe('screens are wired to the sync dataVersion', () => {
     const db = await openDb();
     const at = (dataVersion: number) => (
       <SyncContext.Provider value={{ dataVersion } as SyncState}>
-        <RulesSection db={db} today={DATE} now={NOW} notify={notify} />
+        <RulesSection db={db} today={DATE} now={NOW} notify={notify} profile={{ where: 'gym' } as Profile} />
       </SyncContext.Provider>
     );
     const view = await render(at(0));
