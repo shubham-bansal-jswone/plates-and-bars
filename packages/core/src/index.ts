@@ -125,6 +125,25 @@ export { resolveSession, resolveSessionWithLost, resolveName, homeName, SCOPE_RA
 export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplEntry, CandidateOptions, Candidate, CandidateWhy, ResolveState, ResolvedSession } from './exclusions';
 
 /**
+ * Re-check cards and the "can't do" sheet (#111).
+ * - `recheckDue` mirrors the filter in prototype `recheckCards()`: timed rules whose `until` has come, still applying until answered.
+ * - `recheckBack`, `recheckLater`, `recheckKeep` mirror the `rule-back`, `rule-later` and `rule-keep` steps of prototype `exAction`.
+ * - `cantRule` mirrors the rule built in prototype `applyCant(choice)`; `widerRuleReplacements` mirrors its "caught by a wider rule" loop.
+ */
+export { recheckDue, recheckBack, recheckLater, recheckKeep, cantRule, widerRuleReplacements } from './exclusions';
+export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement } from './exclusions';
+
+/**
+ * Ladders (#111). Prototype `LADDERS` is content/exercises.json `ladders`, passed in `LadderCatalog`.
+ * - `ladderOf`, `nextStep`, `prevStep`, `sidewaysOf`, `estimateFor` mirror the prototype functions of the same name (state passed in).
+ * - `ladderCard` mirrors prototype `ladderCard(ex)`, returning facts, not HTML.
+ * - `ESTIMATE_PAIRS` mirrors prototype `PAIR`.
+ * - `ladderSwap` mirrors the `ladder-up`, `ladder-down` and `swap-side` steps of prototype `exAction`; `ladderStayUntil` its `ladder-stay` step.
+ */
+export { ladderOf, nextStep, prevStep, sidewaysOf, estimateFor, ladderCard, ladderSwap, ladderStayUntil, ESTIMATE_PAIRS } from './ladders';
+export type { Ladder, Ladders, LadderPosition, LadderCatalog, LadderState, LadderCard, Estimate } from './ladders';
+
+/**
  * Weight guidance. Prototype `EX_META` is the catalogue's `meta` (`ExerciseMeta`: content/exercises.json
  * `meta`, `name → { type, rep_low, rep_high }`), read through `ProgressionContext.catalog`.
  * - `suggestBase` mirrors prototype `suggestBase(ex)`; `applyMods` mirrors `applyMods(sug, ex)` (state passed in).
@@ -186,10 +205,11 @@ export type {
  *   unticking every set today restores the session before, or gives a null record (delete it) (#122).
  *   `sessionScore` and `updateLift` take the profile's weight for assisted scores (#122).
  * - `recoveryCard` mirrors the "several stalls → recovery week" card in prototype `renderStart()`.
- * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`.
+ * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`;
+ *   `stallRangeOverride` is `stallRange` in contract `Settings.exercise_overrides` shape (#128).
  * - `addDays` mirrors prototype `addDays(s, n)`.
  */
-export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, checkBest, updateLift } from './stalls';
+export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
 export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './stalls';
 export { addDays } from './dates';
 
