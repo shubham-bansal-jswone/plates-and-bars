@@ -11,6 +11,7 @@ import type { Profile } from '../setup/types';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from '../workout/catalog';
+import { applyCantToStoredDay } from '../workout/cantApply';
 import { CantSheet } from '../workout/CantSheet';
 import { ruleText } from '../workout/rulesCopy';
 import { AvoidPicker } from './AvoidPicker';
@@ -43,8 +44,12 @@ export function RulesSection({ db, today, now, notify, profile, weekPlan }: { db
   const canAdd = rules.ready && !rules.loadFailed;
   const planned = () => plannedCoverage({ date: today, profile, weekPlan, exclusions: rules.exclusions, swaps: rules.swaps, lifts }, catalog);
   const save = (draft: CantDraft, choice: string | null) => {
-    addRule(cantRule(draft, choice, today));
+    const before = rules.exclusions;
     setCant(null);
+    // The rules could not be read: nothing is saved or changed (the store said why).
+    if (!addRule(cantRule(draft, choice, today))) return;
+    // A wider rule also applies to today's session if it is already built, as the prototype does.
+    void applyCantToStoredDay({ db, date: today, now, draft, choice, exclusions: before, fallbackWhere: profile.where, onError: () => notify('Couldn’t update today’s workout. Try again.') });
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
   return (
