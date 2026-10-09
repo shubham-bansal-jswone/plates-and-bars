@@ -5,7 +5,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { Button, Card, Choice, Hint, Note, Press } from '../components/ui';
 import { fmt } from '../format';
-import { catalogFoods, type CatalogFood } from '../food/catalog';
+import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import type { FoodLog } from '../food/types';
 import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -65,7 +65,7 @@ export function IdeasCard(p: Props) {
   let all: MealIdea<CatalogFood>[] = [];
   if (open && fits && meal !== undefined && kcal !== undefined && protein !== undefined) {
     const target = { meal, kcal, protein_g: protein, fat_g: fat };
-    all = fasting ? combosFast(target, { foods: catalogFoods }) : combos(target, { foods: catalogFoods, planning: mealPlanning, diet });
+    all = fasting ? combosFast(target, { foods: getFoodCatalog() }) : combos(target, { foods: getFoodCatalog(), planning: mealPlanning, diet });
   }
   if (!info || !meal) return null;
   const pg = ideasPage(all, page, info);

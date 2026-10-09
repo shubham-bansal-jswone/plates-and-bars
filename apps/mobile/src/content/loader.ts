@@ -14,6 +14,10 @@ export function beatsBundled(name: string, copy: BundleMeta): boolean {
 }
 
 const active = new Map<string, unknown>();
+let generation = 0;
+
+/** Changes each time `loadContent` runs; readers key their memo on it. */
+export const contentGeneration = (): number => generation;
 
 /**
  * App start: keeps each stored server copy that beats this build's bundled copy and discards the rest (so an app
@@ -36,6 +40,8 @@ export async function loadContent(db: ContentDb): Promise<void> {
     }
   } catch {
     // store unavailable: bundled copies
+  } finally {
+    generation++; // after the awaited load, so nothing cached while it ran outlives it
   }
 }
 
