@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { candidates, type CantDraft, type CantDuration, type Exclusion, type ExclusionReason, type LiftRecord, type Where } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Choice, Hint, Note } from '../components/ui';
+import { Button, Choice, Group, Hint, Note } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
 import { MUSCLE, listJoin } from './copy';
@@ -40,6 +40,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
   const [dur, setDur] = useState<CantDuration>('perm');
   const [scope, setScope] = useState<{ scope: CantDraft['scope']; key: string }>({ scope: 'exercise', key: name });
 
+  // TODO(#281): the default scope and the scope list move to core (next to cantRule).
   // Pain defaults to the first joint it loads, form to the whole family, anything else to just this exercise.
   const defaultScope = (r: ExclusionReason) =>
     setScope(t && r === 'pain' && t.joints[0] ? { scope: 'joint', key: t.joints[0] } : t && r === 'form' ? { scope: 'family', key: t.family } : { scope: 'exercise', key: name });
@@ -105,9 +106,11 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
           {step === 'scope' ? (
             <>
               <Hint>What should be left out?</Hint>
+              <Group label="What should be left out">
               {scopes.map(([sc, key, label, sub]) => (
                 <Choice key={`${sc}:${key}`} label={label} sub={sub} selected={scope.scope === sc && scope.key === key} onPress={() => setScope({ scope: sc, key })} />
               ))}
+              </Group>
               <Button label="Continue" onPress={() => setStep('pick')} />
             </>
           ) : null}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CantRule } from '@plate-and-bar/core';
 import { newId } from '../db/records';
-import { deleteExclusion, deleteSwap, loadExclusions, loadSwaps, saveExclusion, saveSwap, type ExclusionRecord, type SwapRecord } from '../db/rules';
+import { deleteExclusion, deleteSwap, loadExclusions, loadSwaps, saveExclusion, saveSwap, storedVersion, type ExclusionRecord, type SwapRecord } from '../db/rules';
 import type { WorkoutDb } from '../db/workouts';
 import { stamp } from './model';
 
@@ -61,7 +61,7 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
       // The contract id of a swap is derived from the user at push time (sync/records.ts), so it is empty here.
       const rec: SwapRecord = { id: old?.id ?? '', version: old?.version ?? 0, updated_at: stamp(now()), deleted_at: null, ...s };
       commit({ ...ref.current, swaps: [...ref.current.swaps.filter((x) => x.from !== s.from), rec] });
-      write(() => saveSwap(db, rec));
+      write(async () => saveSwap(db, { ...rec, version: (await storedVersion(db, 'swaps', rec.from)) ?? rec.version }));
     },
     [commit, db, now, write],
   );
@@ -72,7 +72,7 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
       const old = ref.current.swaps.find((x) => x.from === from);
       if (!old) return;
       commit({ ...ref.current, swaps: ref.current.swaps.filter((x) => x !== old) });
-      write(() => deleteSwap(db, old, stamp(now())));
+      write(async () => deleteSwap(db, { ...old, version: (await storedVersion(db, 'swaps', old.from)) ?? old.version }, stamp(now())));
     },
     [commit, db, now, write],
   );
@@ -83,7 +83,7 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
       const rec: ExclusionRecord = { id: newId(), version: 0, updated_at: stamp(now()), deleted_at: null, ...r };
       removeSwap(r.name);
       commit({ ...ref.current, exclusions: [...ref.current.exclusions, rec] });
-      write(() => saveExclusion(db, rec));
+      write(async () => saveExclusion(db, { ...rec, version: (await storedVersion(db, 'exclusions', rec.id)) ?? rec.version }));
       return rec;
     },
     [commit, db, now, removeSwap, write],
@@ -94,7 +94,7 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
     (r: ExclusionRecord) => {
       const rec = { ...r, updated_at: stamp(now()) };
       commit({ ...ref.current, exclusions: ref.current.exclusions.map((x) => (x.id === r.id ? rec : x)) });
-      write(() => saveExclusion(db, rec));
+      write(async () => saveExclusion(db, { ...rec, version: (await storedVersion(db, 'exclusions', rec.id)) ?? rec.version }));
     },
     [commit, db, now, write],
   );
@@ -104,7 +104,7 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
       const old = ref.current.exclusions.find((x) => x.id === id);
       if (!old) return;
       commit({ ...ref.current, exclusions: ref.current.exclusions.filter((x) => x !== old) });
-      write(() => deleteExclusion(db, old, stamp(now())));
+      write(async () => deleteExclusion(db, { ...old, version: (await storedVersion(db, 'exclusions', old.id)) ?? old.version }, stamp(now())));
     },
     [commit, db, now, write],
   );

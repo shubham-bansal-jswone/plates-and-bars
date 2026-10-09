@@ -21,15 +21,12 @@ describe('reasonText (content/labels.json and the prototype’s candidates() tex
   });
 });
 
-describe('rule labels (typed from the prototype’s FAMILY and PATTERN; they are not in content/labels.json yet)', () => {
-  // The prototype has no FAMILY label for 'balance' (its sheet would print "All undefined"); the app falls back to the key.
+describe('rule labels (content/labels.json)', () => {
   it('has a label for every family and pattern the catalogue uses', () => {
-    const tags = Object.values(catalog.tags);
-    for (const t of tags) {
-      if (t.family !== 'balance') expect(FAMILY[t.family]).toBeTruthy();
+    for (const t of Object.values(catalog.tags)) {
+      expect(FAMILY[t.family]).toBeTruthy();
       expect(PATTERN[t.pattern]).toBeTruthy();
     }
-    expect(FAMILY.bench).toBe('bench press variations');
-    expect(PATTERN['hip-ext']).toBe('hip thrusts and bridges');
+    expect(FAMILY.balance).toBe('balance variations');
   });
 });

@@ -1,5 +1,6 @@
 // Validates a content/foods.json object. Returns a list of error strings.
 // Checks the Food schema in packages/api/openapi.yaml, macro sanity, source/licence and duplicates.
+import { servingGrams } from '../foods-import/import.mjs';
 
 // Keep in sync with FoodSource.code in packages/api/openapi.yaml.
 export const SOURCE_CODES = ['usda_fdc', 'fssai', 'own_recipe', 'own_estimate', 'kitchen_test', 'label_typical'];
@@ -33,9 +34,9 @@ function checkFood(f, errors, opts = {}) {
   if (!nonEmpty(s.label)) err('serving.label must be a non-empty string');
   if (!('grams' in s) || (s.grams !== null && !(typeof s.grams === 'number' && s.grams > 0))) err('serving.grams must be a number > 0 or null');
   // Grams logging (prototype `unitGrams`): the first "<n> g" in the label is the serving's grams.
-  const plain = /(\d+)\s*g\b/.exec(s.label ?? '');
-  if (plain && s.grams !== Number(plain[1])) err(`serving label "${s.label}" is in grams but serving.grams is ${s.grams}`);
-  if (!plain && s.grams !== null && s.grams !== undefined) err(`serving.grams is ${s.grams} but label "${s.label}" has no weight in grams`);
+  const labelGrams = servingGrams(s.label ?? '');
+  if (labelGrams !== null && s.grams !== labelGrams) err(`serving label "${s.label}" is in grams but serving.grams is ${s.grams}`);
+  if (labelGrams === null && s.grams !== null && s.grams !== undefined) err(`serving.grams is ${s.grams} but label "${s.label}" has no weight in grams`);
 
   const n = f.per_serving ?? {};
   for (const k of NUTRIENTS) {

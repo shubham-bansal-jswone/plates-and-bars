@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
+import { useRules } from '../src/workout/useRules';
 import { loadExclusions, saveExclusion, saveSwap, deleteExclusion, deleteSwap, type ExclusionRecord } from '../src/db/rules';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { Workout, WorkoutSet } from '../src/workout/types';
@@ -63,6 +64,40 @@ describe('exercise rules in the session', () => {
     });
     expect(await screen.findByLabelText('Exercise 3: Pec Deck Fly')).toBeTruthy();
     expect(screen.getByLabelText('Exercise 4: Cable Lateral Raise')).toBeTruthy();
+  });
+});
+
+describe('stored swaps in the session', () => {
+  const swap = (bridge_until: string | null) => ({ id: '', version: 0, updated_at: 'x', deleted_at: null, from: 'Pec Deck Fly', to: 'Cable Crossover', since: '2026-10-01', bridge_until });
+  it('a swap replaces the exercise', async () => {
+    await setup((db) => saveSwap(db, swap(null)));
+    expect(await screen.findByLabelText('Exercise 3: Cable Crossover')).toBeTruthy();
+    expect(screen.queryByLabelText(/Exercise \d: Pec Deck Fly/)).toBeNull();
+  });
+  it('a running bridge keeps the old exercise after the new one', async () => {
+    await setup((db) => saveSwap(db, swap('2026-10-20')));
+    expect(await screen.findByLabelText('Exercise 3: Cable Crossover')).toBeTruthy();
+    expect(screen.getByLabelText('Exercise 4: Pec Deck Fly')).toBeTruthy();
+  });
+  it('a bridge that ended is gone', async () => {
+    await setup((db) => saveSwap(db, swap('2026-10-07')));
+    await screen.findByLabelText('Exercise 3: Cable Crossover');
+    expect(screen.queryByLabelText(/Exercise \d: Pec Deck Fly/)).toBeNull();
+  });
+});
+
+describe('re-swap after Undo', () => {
+  it('carries on from the stored tombstone’s version', async () => {
+    const db = memoryDb();
+    const notify = jest.fn();
+    const { result } = await renderHook(() => useRules({ db, now: THURSDAY, notify }));
+    await waitFor(() => expect(result.current.rules.ready).toBe(true));
+    const to = { from: 'A', to: 'B', since: DATE, bridge_until: null };
+    // The server already holds the undone swap at version 3 (a pull stored the tombstone).
+    db.rows.set('swaps:A', JSON.stringify({ ...to, id: 'x', version: 3, updated_at: 'y', deleted_at: '2026-10-07T00:00:00Z' }));
+    await act(async () => result.current.putSwap(to));
+    await waitFor(() => expect(stored<{ version: number; deleted_at: string | null }>(db, 'swaps:A')).toMatchObject({ version: 3, deleted_at: null }));
+    expect(stored<{ id: string }>(db, 'swaps:A').id).toBe('x'.length ? stored<{ id: string }>(db, 'swaps:A').id : '');
   });
 });
 
