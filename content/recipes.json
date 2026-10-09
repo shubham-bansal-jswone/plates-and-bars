@@ -1,0 +1,726 @@
+{
+  "schema_version": 1,
+  "source": "docs/prototype/plate-and-bar.html (LIBRARY, PRESETS)",
+  "katori_g": 150,
+  "library": [
+    {
+      "id": "0e472f53-e7f6-5478-a48a-e38d0d3f071b",
+      "name": "Soya chunk pulao",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Soya chunks",
+          "amount": 60,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Rice (raw)",
+          "amount": 120,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Green peas",
+          "amount": 60,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 10,
+          "unit": "g"
+        }
+      ],
+      "katoris": 4,
+      "time_min": 30,
+      "cost": "Low",
+      "tags": "High-protein vegetarian",
+      "steps": [
+        "Soak soya chunks in hot water for 10 min, squeeze dry.",
+        "Rinse rice and soak for 15 min.",
+        "Heat oil, add whole spices and onion, cook for 5 min until golden.",
+        "Add soya, peas and spices, cook for 2 min.",
+        "Add rice and 2 cups water, cover and cook for 12 min on low.",
+        "Rest covered for 5 min, then fluff."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "978e9562-13af-5d01-b595-85012963e8bd",
+      "name": "Moong dal chilla",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Moong dal (dry)",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 40,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Capsicum",
+          "amount": 40,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 8,
+          "unit": "g"
+        }
+      ],
+      "katoris": 3,
+      "time_min": 25,
+      "cost": "Low",
+      "tags": "High-protein breakfast",
+      "steps": [
+        "Soak moong dal for 2 hours (or overnight).",
+        "Grind with ginger, chilli and a little water to a smooth batter.",
+        "Stir in chopped onion and capsicum.",
+        "Spread a ladle on a hot greased tawa, cook for 2 min per side."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "69326e1b-0eb1-5b7c-88df-fe0f6b7b8d0c",
+      "name": "Paneer bhurji (high protein)",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Paneer",
+          "amount": 200,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Capsicum",
+          "amount": 40,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 8,
+          "unit": "g"
+        }
+      ],
+      "katoris": 2,
+      "time_min": 15,
+      "cost": "Medium",
+      "tags": "High-protein vegetarian",
+      "steps": [
+        "Heat oil, cook onion for 3 min.",
+        "Add tomato, capsicum and spices, cook for 4 min.",
+        "Crumble in paneer, mix and cook for 2 min.",
+        "Finish with coriander."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "29d65a17-c61f-527c-8c8b-bec841405547",
+      "name": "Chicken tikka (pan or air fryer)",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Chicken breast (raw)",
+          "amount": 400,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Curd",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 5,
+          "unit": "g"
+        }
+      ],
+      "katoris": 3,
+      "time_min": 35,
+      "cost": "Medium",
+      "tags": "High-protein",
+      "steps": [
+        "Mix curd, ginger-garlic paste, lemon and tikka spices.",
+        "Coat chicken pieces and marinate for 20 min (or overnight in the fridge).",
+        "Cook in a hot pan or air fryer at 200°C for 12 min, turning once.",
+        "Rest for 2 min before serving."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "50dcce51-3a4c-5ef8-81fe-16434962b901",
+      "name": "Greek yogurt overnight oats",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Oats",
+          "amount": 50,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Greek yogurt",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Milk (toned)",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Whey protein",
+          "amount": 15,
+          "unit": "g"
+        }
+      ],
+      "katoris": 1.5,
+      "time_min": 5,
+      "cost": "Medium",
+      "tags": "Quick breakfast",
+      "steps": [
+        "Mix oats, yogurt, milk and whey in a jar.",
+        "Add fruit or a little honey if you like.",
+        "Refrigerate overnight; eat cold."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "eb4adb64-4e49-5370-be1b-67eddbc7abbd",
+      "name": "Sprouts chaat",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Moong (whole, dry)",
+          "amount": 60,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 30,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 40,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Cucumber",
+          "amount": 50,
+          "unit": "g"
+        }
+      ],
+      "katoris": 1.5,
+      "time_min": 10,
+      "cost": "Low",
+      "tags": "Snack or office lunch side",
+      "steps": [
+        "Sprout moong over 1–2 days, or buy ready sprouts.",
+        "Steam sprouts for 5 min.",
+        "Toss with chopped vegetables, lemon, chaat masala and coriander."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "fd1459bb-84ad-5bf7-9732-c1e36f74cf2e",
+      "name": "Egg bhurji",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Egg",
+          "amount": 200,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 50,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 50,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 5,
+          "unit": "g"
+        }
+      ],
+      "katoris": 1.5,
+      "time_min": 12,
+      "cost": "Low",
+      "tags": "High-protein",
+      "steps": [
+        "Heat oil, cook onion for 3 min.",
+        "Add tomato and spices, cook for 2 min.",
+        "Add beaten eggs and scramble on low heat for 3 min."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "ce5ec880-929f-5792-aff5-6745e6ce30b4",
+      "name": "Sabudana khichdi (fasting)",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Sabudana",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Peanuts",
+          "amount": 30,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Potato",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Ghee",
+          "amount": 10,
+          "unit": "g"
+        }
+      ],
+      "katoris": 3,
+      "time_min": 20,
+      "cost": "Low",
+      "tags": "Fasting day",
+      "steps": [
+        "Soak sabudana for 4–6 hours; drain well.",
+        "Roast peanuts and crush coarsely.",
+        "Heat ghee, add cumin, green chilli and cubed boiled potato, cook for 2 min.",
+        "Add sabudana, peanuts and rock salt; cook stirring for 5 min until translucent."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "447026cc-d091-56be-bef1-72fbaefd4164",
+      "name": "Makhana chaat (fasting)",
+      "kind": "library",
+      "ingredients": [
+        {
+          "ingredient": "Makhana",
+          "amount": 40,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Curd",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Cucumber",
+          "amount": 50,
+          "unit": "g"
+        }
+      ],
+      "katoris": 1.5,
+      "time_min": 10,
+      "cost": "Medium",
+      "tags": "Fasting snack",
+      "steps": [
+        "Dry roast makhana for 5 min until crisp.",
+        "Mix with curd, cucumber, rock salt and roasted cumin."
+      ],
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    }
+  ],
+  "presets": [
+    {
+      "id": "87e7ed79-b0dd-56de-994d-5294687166fa",
+      "name": "Dal",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Toor dal (dry)",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 60,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Ghee",
+          "amount": 15,
+          "unit": "g"
+        }
+      ],
+      "katoris": 5,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "086e6ce1-776b-5532-ae6c-f756c01364bb",
+      "name": "Rajma",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Rajma (dry)",
+          "amount": 200,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 20,
+          "unit": "g"
+        }
+      ],
+      "katoris": 6,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "8fa60e34-fa2e-59d4-8187-97104515883d",
+      "name": "Chole",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Kabuli chana (dry)",
+          "amount": 200,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 20,
+          "unit": "g"
+        }
+      ],
+      "katoris": 6,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "279d10e0-7bb9-539a-bdf0-99886c0f136d",
+      "name": "Mixed veg sabzi",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Mixed vegetables",
+          "amount": 500,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 20,
+          "unit": "g"
+        }
+      ],
+      "katoris": 4,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "4b212d11-8177-5cd6-856f-7bce0e3c0a31",
+      "name": "Aloo gobi",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Potato",
+          "amount": 250,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Cauliflower",
+          "amount": 300,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 60,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 25,
+          "unit": "g"
+        }
+      ],
+      "katoris": 4,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "4f0db9a9-e52a-5169-98c0-8450ec6a2b20",
+      "name": "Palak paneer",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Spinach",
+          "amount": 400,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Paneer",
+          "amount": 200,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 60,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 15,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Fresh cream",
+          "amount": 20,
+          "unit": "g"
+        }
+      ],
+      "katoris": 4,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "4e5bcb59-8487-555d-b6be-9ac4d5b91a30",
+      "name": "Chicken curry",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Chicken curry cut (raw)",
+          "amount": 500,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Onion",
+          "amount": 200,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Tomato",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Curd",
+          "amount": 50,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Oil",
+          "amount": 30,
+          "unit": "g"
+        }
+      ],
+      "katoris": 5,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "c4ea0414-620c-5b2f-8a91-d7ccab641b6f",
+      "name": "Khichdi",
+      "kind": "preset",
+      "ingredients": [
+        {
+          "ingredient": "Rice (raw)",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Moong dal (dry)",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "ingredient": "Ghee",
+          "amount": 10,
+          "unit": "g"
+        }
+      ],
+      "katoris": 5,
+      "source": {
+        "code": "own_recipe",
+        "name": "Plate & Bar home recipes (calculated by weight from USDA and FSSAI-derived ingredient values)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    }
+  ]
+}
