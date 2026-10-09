@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../db/settings';
 import type { StoreDb } from '../db/records';
-import type { FlexEntry } from '@plate-and-bar/core';
+import type { FlexEntry, MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 
 interface SettingsState {
@@ -18,6 +18,10 @@ interface SettingsState {
   setFlex(flex: readonly FlexEntry[]): void;
   /** Sets the meal-idea diet filter. */
   setDiet(diet: Settings['diet']): void;
+  /** Saves the weekly meal plan. */
+  setMealPlan(plan: MealPlan): void;
+  /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
+  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): void;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -59,9 +63,9 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings>) => {
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)) => {
       if (blocked.current) return;
-      const next = { ...ref.current, ...patch, updated_at: stamp(new Date()) };
+      const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
       ref.current = next;
       setState(next);
       queue.current = queue.current
@@ -78,7 +82,9 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
 
   const setDiet = useCallback((diet: Settings['diet']) => change({ diet }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet]);
+  const setMealPlan = useCallback((meal_plan: MealPlan) => change({ meal_plan }), [change]);
+
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, update: change }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, change]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
