@@ -193,3 +193,32 @@ describe('pulled records reach the stores', () => {
     expect(tokens.current?.access).toBe('access-verified');
   });
 });
+
+describe('refused records in the provider', () => {
+  it('counts the record the server refused, keeps the rest syncing, and retry or discard changes the count', async () => {
+    const { db, server, tokens, api } = await setup();
+    server.accessValid = 'access-1';
+    server.rejectIf = (table, r) => (table === 'weights' && (r.weight_kg as number) <= 0 ? 'weight_kg' : null);
+    await saveWeightDoc(db, w('2026-10-07', 80));
+    await saveWeightDoc(db, w('2026-10-08', -1));
+    let latest!: ReturnType<typeof useSync>;
+    const Grab = ({ onSync }: { onSync: (s: ReturnType<typeof useSync>) => void }) => {
+      onSync(useSync());
+      return null;
+    };
+    await render(
+      <SyncProvider db={db} tokens={tokens} api={api}>
+        <Grab onSync={(s) => (latest = s)} />
+      </SyncProvider>,
+    );
+    await waitFor(() => expect(latest.signedIn).toBe(true));
+    await waitFor(() => expect(latest.quarantined).toBe(1));
+    expect(latest.last?.status).toBe('ok');
+    expect(latest.pending).toBe(1);
+    await act(async () => latest.retryQuarantined());
+    await waitFor(() => expect(latest.quarantined).toBe(1)); // refused again
+    await act(async () => latest.discardQuarantined());
+    expect(latest.quarantined).toBe(0);
+    expect(latest.pending).toBe(0);
+  });
+});

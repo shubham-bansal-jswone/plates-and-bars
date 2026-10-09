@@ -3,6 +3,7 @@ import { addDays, measurementRow, num, scaleJump, sleepEntry, weightEntry, type 
 import { loadMeasurements, loadWeights, saveMeasurement, saveWeight } from '../db/progress';
 import { loadDayNote, patchDayNote } from '../db/food';
 import type { WorkoutDb } from '../db/workouts';
+import { freshRead } from '../state/freshRead';
 import type { DayNote } from '../food/types';
 import { localDate } from '../setup/logic';
 import { MEASURE_NONE, SLEEP_BAD, STEPS_BAD, WEIGHT_BAD } from './copy';
@@ -15,6 +16,8 @@ interface Options {
   now: () => Date;
   /** Short message for the toast. */
   notify: (msg: string) => void;
+  /** Changes when sync stored pulled records: the data is read again (after queued local writes). */
+  reloadKey?: number;
 }
 
 const blankNote = (date: string): DayNote => ({ id: null, version: 0, deleted_at: null, updated_at: '', date, complete: null, steps: null, sleep: null, fast: false });
@@ -25,7 +28,7 @@ const blankTape = (date: string): Measurement => ({ id: null, version: 0, update
  * Body data for the day: weigh-ins, tape measurements and the day note's steps and sleep, read from SQLite. Every save
  * shows at once and its write goes through one FIFO queue (nothing waits on the network). Deletes are tombstones.
  */
-export function useProgress({ db, now, notify }: Options) {
+export function useProgress({ db, now, notify, reloadKey = 0 }: Options) {
   const date = localDate(now());
   const [ready, setReady] = useState(false);
   const [weights, setWeights] = useState<Weight[]>([]);
@@ -38,30 +41,32 @@ export function useProgress({ db, now, notify }: Options) {
   const tapesRef = useRef(tapes);
   const notesRef = useRef(notes);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const writes = useRef(0);
 
   useEffect(() => {
     let live = true;
     (async () => {
       const days = Array.from({ length: 8 }, (_, i) => addDays(date, i - 7));
-      const [w, m, n] = await Promise.all([loadWeights(db), loadMeasurements(db), Promise.all(days.map((d) => loadDayNote(db, d)))]);
-      if (!live) return;
-      weightsRef.current = w;
-      tapesRef.current = m;
-      notesRef.current = n.filter((x): x is DayNote => x !== null);
-      setWeights(w);
-      setTapes(m);
-      setNotes(notesRef.current);
-      setReady(true);
+      await freshRead({ queue, writes }, () => Promise.all([loadWeights(db), loadMeasurements(db), Promise.all(days.map((d) => loadDayNote(db, d)))]), () => live, ([w, m, n]) => {
+        weightsRef.current = w;
+        tapesRef.current = m;
+        notesRef.current = n.filter((x): x is DayNote => x !== null);
+        setWeights(w);
+        setTapes(m);
+        setNotes(notesRef.current);
+        setReady(true);
+      });
     })().catch(() => {
       if (live) notify('Couldn’t read your saved progress.');
     });
     return () => {
       live = false;
     };
-  }, [db, date, notify]);
+  }, [db, date, notify, reloadKey]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
+      writes.current++;
       queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
     },
     [notify],

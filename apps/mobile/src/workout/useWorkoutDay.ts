@@ -23,6 +23,7 @@ import {
 } from '@plate-and-bar/core';
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
+import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
 import { guidance, progressionContext, type Tuning } from './guidance';
@@ -51,9 +52,11 @@ interface Options {
   exclusions: readonly Exclusion[];
   swaps: readonly Swap[];
   /** Stores a rule made by the "can't do" sheet, returning the saved record. */
-  saveRule: (rule: CantRule) => Exclusion;
+  saveRule: (rule: CantRule) => Exclusion | null;
   /** Changed rep ranges and exercises coming back (settings). */
   tune: Tuning;
+  /** Changes when sync stored pulled records: the day is read again (after queued local writes). */
+  reloadKey?: number;
 }
 
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
@@ -62,7 +65,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule, tune }: Options) {
+export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
   const date = localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
   const ref = useRef(day);
@@ -71,29 +74,13 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     setDay(d);
   }, []);
 
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      const [workout, sets, lifts, sessions] = await Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]);
-      if (!live) return;
-      commit({
-        ready: true,
-        workout,
-        exs: workout ? exercisesFrom(workout, sets) : [],
-        lifts,
-        sessions,
-      });
-    })().catch(() => notify('Couldn’t read your saved workout.'));
-    return () => {
-      live = false;
-    };
-  }, [db, date, commit, notify]);
-
   // Every save goes through one FIFO queue, so they finish in the order the user acted, and each save reads
   // the latest state from the ref when it runs (not the snapshot from when it was queued).
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const writes = useRef(0);
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
+      writes.current++;
       queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
       return queue.current;
     },
@@ -101,6 +88,26 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   );
   /** Start and second session build from stored history; a second tap while one runs is ignored. */
   const building = useRef(false);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      // The result is applied inside freshRead, in the same step as its counter check: a session being built
+      // (start, addSecond) resumes from an await and must not land between the check and the commit.
+      await freshRead({ queue, writes }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([workout, sets, lifts, sessions]) =>
+        commit({
+          ready: true,
+          workout,
+          exs: workout ? exercisesFrom(workout, sets) : [],
+          lifts,
+          sessions,
+        }),
+      );
+    })().catch(() => notify('Couldn’t read your saved workout.'));
+    return () => {
+      live = false;
+    };
+  }, [db, date, commit, notify, reloadKey]);
 
   const writeWorkout = async () => {
     const d = ref.current;
@@ -386,7 +393,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     const where = ref.current.workout?.where ?? profile?.where ?? 'gym';
     const rule = cantRule(draft, choice, date);
     const today = draft.dur === 'today';
-    const rules: Exclusion[] = today ? [...exclusions] : [...exclusions, saveRule(rule)];
+    const saved = today ? null : saveRule(rule);
+    if (!today && !saved) return; // the rules could not be read: nothing is changed (the store said why)
+    const rules: Exclusion[] = saved ? [...exclusions, saved] : [...exclusions];
     const d = clone(ref.current);
     // Sets of the old exercise to tombstone (`rows` index into the copy taken before the change), and exercises to write.
     const gone: { ex: ExState; rows: ['work' | 'ramp', number][] }[] = [];
