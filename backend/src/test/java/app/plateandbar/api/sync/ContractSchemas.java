@@ -15,7 +15,7 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /** Validates JSON against the named schemas of the real contract, {@code packages/api/openapi.yaml}. */
-final class ContractSchemas {
+public final class ContractSchemas {
     static final Path CONTRACT = Path.of("..", "packages", "api", "openapi.yaml");
 
     private static final JsonNode COMPONENTS;
@@ -35,7 +35,7 @@ final class ContractSchemas {
     }
 
     /** Validation problems for {@code value} against {@code components.schemas.<name>}; empty when it conforms. */
-    static Set<ValidationMessage> validate(String name, JsonNode value) {
+    public static Set<ValidationMessage> validate(String name, JsonNode value) {
         ObjectNode wrapper = new ObjectMapper().createObjectNode();
         wrapper.put("$schema", "https://json-schema.org/draft/2020-12/schema");
         wrapper.put("$ref", "#/components/schemas/" + name);
