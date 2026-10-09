@@ -1,0 +1,47 @@
+{
+  "cards": {
+    "sha256": "a2ccbf40d3e72ac60aaf08167ebea7df4f62bc88069a0fac778c14a4b872a337",
+    "schema_version": 1,
+    "updated_at": "2026-10-09T08:54:10Z"
+  },
+  "eatout": {
+    "sha256": "fa58949914c566c688c4e559db95be4466997fd81318cbaf20a9ececc2ac8855",
+    "schema_version": 1,
+    "updated_at": "2026-10-08T17:24:21Z"
+  },
+  "exercises": {
+    "sha256": "266b72969634c59a493b27f56f67af9f33972031e2201a9e2db05535c5905934",
+    "schema_version": 1,
+    "updated_at": "2026-10-08T14:57:42Z"
+  },
+  "foods": {
+    "sha256": "f5f8e78fc2503b188d7f85747b30eee016cfc03b00a560c32fa5c95b6cbb7459",
+    "schema_version": 1,
+    "updated_at": "2026-10-08T10:49:05Z"
+  },
+  "labels": {
+    "sha256": "1a99999d971fb741839a805e6924951546be5c71a376b33be08243c3cab3ea40",
+    "schema_version": 1,
+    "updated_at": "2026-10-09T10:45:53Z"
+  },
+  "meal-planning": {
+    "sha256": "9a1473f0092857cf82b4339be8ecda1c357cfacdc573dbe980b7fffefe42e010",
+    "schema_version": 1,
+    "updated_at": "2026-10-09T09:32:27Z"
+  },
+  "measures": {
+    "sha256": "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b",
+    "schema_version": 1,
+    "updated_at": "2026-10-09T08:54:10Z"
+  },
+  "raw-ingredients": {
+    "sha256": "60039e5f5359547926588fc8d931676c062eb8057834c779958ee5e96b85bd8c",
+    "schema_version": 1,
+    "updated_at": "2026-10-09T08:43:51Z"
+  },
+  "recipes": {
+    "sha256": "83b8677f8b90ee1a1fa2774d721cb3d0a8268e14f165b0c64bc7233fafc82bf4",
+    "schema_version": 1,
+    "updated_at": "2026-10-09T08:43:51Z"
+  }
+}

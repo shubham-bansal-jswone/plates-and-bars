@@ -5,6 +5,8 @@ import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DB_NAME, MIGRATIONS, migrate } from '../src/db/migrations';
 import { lockedDb } from '../src/db/lockedDb';
+import { loadContent } from '../src/content/loader';
+import { ContentRefresher } from '../src/content/ContentRefresher';
 import { Gate } from '../src/state/Gate';
 import { FontsProvider } from '../src/theme/fonts';
 import { syncDb } from '../src/sync/db';
@@ -17,6 +19,7 @@ async function initDb(db: SQLiteDatabase): Promise<void> {
   if (version > MIGRATIONS.length) {
     console.warn(`Local database schema v${version} is newer than this app (v${MIGRATIONS.length}).`);
   }
+  await loadContent(db); // never throws; the bundled copies stay in use on any failure
 }
 
 function Providers() {
@@ -27,6 +30,7 @@ function Providers() {
   return (
     <SyncProvider db={sdb}>
       <Stores db={db}>
+        <ContentRefresher />
         <StatusBar style="auto" />
         <Stack screenOptions={{ headerShown: false }} />
         <Gate />
