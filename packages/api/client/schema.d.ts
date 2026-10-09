@@ -243,10 +243,10 @@ export interface paths {
          *     to the contract later is added to the export in the same contract change.
          *
          *     **Not included**, because they are credentials or operational data rather than the
-         *     user's data: access and refresh tokens, emailed one-time codes, rate-limit counters
-         *     and server logs (which never hold food, weight, health answers or tokens). Progress
-         *     photos and other device-only data never reach the server, so the app exports them
-         *     on the device.
+         *     user's data: access and refresh tokens, emailed one-time codes, rate-limit counters,
+         *     AI quota counters (`ai_usage`, see the `ai` tag) and server logs (which never hold
+         *     food, weight, health answers or tokens). Progress photos and other device-only data
+         *     never reach the server, so the app exports them on the device.
          *
          *     **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
          *     `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
@@ -285,10 +285,10 @@ export interface paths {
          *
          *     **What is deleted, and when.** Before the server answers 204, in one transaction:
          *     every row of every synced table (tombstones included), the conflict log, the
-         *     per-user sync bookkeeping, the account (`User`), its sign-in identities (Google and
-         *     email), every refresh token and session, and, for the account's email address,
-         *     any pending one-time codes and the wrong-code records kept for rate limiting
-         *     (`email_verify_failures`). When the 204 arrives the data is gone from the live
+         *     per-user sync bookkeeping, the AI quota counters (`ai_usage`), the account (`User`),
+         *     its sign-in identities (Google and email), every refresh token and session, and,
+         *     for the account's email address, any pending one-time codes and the wrong-code
+         *     records kept for rate limiting (`email_verify_failures`). When the 204 arrives the data is gone from the live
          *     database. Copies in the encrypted nightly backups are not edited; they disappear
          *     when those backups expire, at most 30 days later (backup retention, #36). Server logs
          *     hold no user data to delete. If anything fails, the transaction rolls back, the
@@ -333,6 +333,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/describe-meal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate a meal's macros from a plain-text description
+         * @description Estimates each item of a meal the user describes in words ("2 rotis, a katori of
+         *     dal, some bhindi"), assuming typical home-cooked portions eaten in India when no
+         *     amount is given. Mirrors the prototype's `estimate()`. Each item's numbers are for
+         *     the whole quantity eaten; carbohydrate is total carbohydrate including fibre.
+         *
+         *     `items` is empty when the model could not identify any food; the app then shows the
+         *     prototype's message ("Couldn't read that meal. Try listing items with amounts.").
+         *     The app shows the items for the user to confirm before logging (suggest and
+         *     confirm); nothing is logged by this call.
+         *
+         *     Non-AI fallback: the food list and Custom entry. See the `ai` tag for quota,
+         *     kill-switch, rate-limit and no-logging rules.
+         */
+        post: operations["describeMeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/ask-why": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a follow-up question about a knowledge card
+         * @description Answers a follow-up question the user asks while reading a knowledge card. Mirrors
+         *     the prototype's `askWhy()`.
+         *
+         *     **Grounding.** The answer is grounded only on the cards in `content/cards.json`
+         *     (the version the server deploys). The server sends the model every card's title,
+         *     summary, body, evidence level and source, says which card the user was reading,
+         *     and instructs it to use nothing else: if the cards do not answer the question it
+         *     says the app's cards don't cover it yet and suggests a coach, dietitian or doctor
+         *     as appropriate; it never invents studies or numbers and gives no medical advice.
+         *     Answers are 2 to 4 plain sentences.
+         *
+         *     Card bodies are sent as generic text: personal placeholders such as `{kcal}` or
+         *     `{tdee}` are not filled in, and the server reads none of the user's synced data
+         *     for this call. (The prototype filled them with the user's numbers; the server
+         *     version deliberately sends no personal numbers.)
+         *
+         *     `card_id` in the response is the card the answer is based on (usually the one
+         *     being read, possibly another card), or null when the cards don't cover the
+         *     question. The server checks it against `content/cards.json` before answering.
+         *     A request `card_id` not in `content/cards.json` is 400 `invalid_request` with
+         *     `details[].field` = `card_id`.
+         *
+         *     Non-AI fallback: the card itself. See the `ai` tag for quota, kill-switch,
+         *     rate-limit and no-logging rules.
+         */
+        post: operations["askWhy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/weekly-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write the weekly check-in in plain words
+         * @description Turns the weekly check-in's numbers into three short sentences: what went well,
+         *     the main gap, and one specific thing to focus on next week. Mirrors the
+         *     prototype's `summariseWeek()`, which sends `S.ciData`; the model is told to use
+         *     only these numbers and invent none.
+         *
+         *     The request is only the numeric facts below plus lift names and the goal; no food
+         *     names, notes or other health free text are sent, and unknown fields are rejected
+         *     with 400. The app builds it from `weeklyCheckin()` in `packages/core` (see
+         *     `WeeklySummaryRequest` for the field mapping).
+         *
+         *     Non-AI fallback: the check-in itself, which shows the same numbers. See the `ai`
+         *     tag for quota, kill-switch, rate-limit and no-logging rules.
+         */
+        post: operations["weeklySummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -343,10 +448,13 @@ export interface components {
              * @description Stable machine-readable code. `token_expired`: refresh the access token and
              *     retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
              *     or expired. `not_found`: reserved for later milestones; no M0 operation
-             *     returns it.
+             *     returns it. `quota_exceeded` (429): the daily AI quota is used up until
+             *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
+             *     the server; use the non-AI fallback. Clients treat an unknown code like
+             *     `internal`.
              * @enum {string}
              */
-            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable";
+            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled";
             /** @description Plain-language message safe to show the user. Never contains health data. */
             message: string;
             /** @description Per-field problems, for `invalid_request`. */
@@ -355,6 +463,8 @@ export interface components {
                 field: string;
                 issue: string;
             }[];
+            /** @description The daily AI quota, present only with `quota_exceeded`. */
+            quota?: components["schemas"]["AiQuota"];
         };
         /**
          * Format: date
@@ -651,6 +761,105 @@ export interface components {
              *     (for the client, the version it sent). Pick its schema by `table`.
              */
             record: components["schemas"]["SyncRecord"];
+        };
+        /** @description The user's shared daily AI quota after this call (see the `ai` tag). */
+        AiQuota: {
+            /** @description Calls allowed per UTC day across all AI endpoints (default 10). */
+            limit: number;
+            /** @description Calls left today. */
+            remaining: number;
+            /** @description Next 00:00:00Z, when `remaining` goes back to `limit`. */
+            resets_at: components["schemas"]["Timestamp"];
+        };
+        DescribeMealRequest: {
+            /**
+             * @description What the user ate, in their own words, with rough amounts if known. Must contain
+             *     a non-space character. Prototype: the Describe it textarea.
+             */
+            text: string;
+        };
+        DescribeMealResponse: {
+            /** @description One entry per food identified, in the order described; empty when none. */
+            items: components["schemas"]["MealEstimateItem"][];
+            quota: components["schemas"]["AiQuota"];
+        };
+        /** @description One estimated item. Prototype: `FS.est[]` (`protein`, `carbs`, `fat`). */
+        MealEstimateItem: {
+            name: string;
+            /** @description The quantity estimated, in words (for example "2 medium"); may be empty. */
+            qty: string;
+            kcal: number;
+            protein_g: number;
+            /** @description Total carbohydrate including fibre. */
+            carbs_g: number;
+            fat_g: number;
+        };
+        AskWhyRequest: {
+            /**
+             * @description Id of the card the user is reading, from `content/cards.json` (for example
+             *     `protein`, `scale`). Prototype: `WHY.id`.
+             */
+            card_id: string;
+            /** @description The follow-up question. Must contain a non-space character. Prototype: `#askQ`. */
+            question: string;
+        };
+        AskWhyResponse: {
+            /** @description Two to four plain sentences, grounded only on the cards. */
+            answer: string;
+            /** @description The card the answer is based on, or null when the cards don't cover the question. */
+            card_id: string | null;
+            quota: components["schemas"]["AiQuota"];
+        };
+        /**
+         * @description The weekly check-in's facts. Prototype: `S.ciData` from `renderCheckin()`. In the
+         *     app, build it from `weeklyCheckin()` in `packages/core` (`WeeklyCheckin`) and the
+         *     settings targets; each field names its source.
+         */
+        WeeklySummaryRequest: {
+            /** @description Days trained this week. Prototype and core: `sessions`. */
+            sessions: number;
+            /** @description Sessions planned this week. Prototype and core: `plannedN`. */
+            planned_sessions: number;
+            /** @description Days with food logged, of 7. Prototype and core: `logged`. */
+            logged_days: number;
+            /** @description Average kcal over days with food logged (0 with none). Prototype and core: `avgK`. */
+            avg_kcal: number;
+            /** @description Average protein over days with food logged (0 with none). Prototype and core: `avgP`. */
+            avg_protein_g: number;
+            /** @description Days at 90% of the protein target or more. Prototype and core: `pDays`. */
+            protein_days: number;
+            /** @description This week's average weight, null if unknown. Prototype and core: `w1`. */
+            weight_avg_kg: number | null;
+            /** @description Last week's average weight, null if unknown. Prototype and core: `w0`. */
+            prev_weight_avg_kg: number | null;
+            /** @description Lifts that beat their previous best this week, best first. Prototype and core: `improved` (`n`, `pct`). */
+            improved: {
+                /** @description Exercise name. */
+                name: string;
+                /** @description Gain over the previous best, in percent. */
+                pct: number;
+            }[];
+            /** @description Stalled lifts (exercise names). Prototype and core: `stalled`. */
+            stalled: string[];
+            /**
+             * @description Daily calorie burn from real data, null when there is not enough data.
+             *     Prototype: `burn` (`ab.ready ? ab.burn : null`); core: `burn.ready ? burn.burn : null`.
+             */
+            burn_kcal: number | null;
+            /** @description Daily calorie target. Prototype: `target` (`S.settings.kcal`). */
+            target_kcal: number;
+            /** @description Daily protein target. Prototype: `ptarget` (`S.settings.protein`). */
+            target_protein_g: number;
+            /**
+             * @description The profile's goal, null with no profile. Prototype: `goal`.
+             * @enum {string|null}
+             */
+            goal: "lose" | "recomp" | "maintain" | "gain" | null;
+        };
+        WeeklySummaryResponse: {
+            /** @description Three plain sentences; no headings, lists or emojis. */
+            text: string;
+            quota: components["schemas"]["AiQuota"];
         };
         /**
          * @description Setup answers and targets. One per user; id = UUIDv5(`profiles:me`).
@@ -1161,10 +1370,41 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description Too many AI requests. `rate_limited`: the per-minute limit; retry after
+         *     `Retry-After`. `quota_exceeded`: the daily quota is used up; `quota.resets_at` says
+         *     when it resets and `Retry-After` is the seconds until then.
+         */
+        AiLimited: {
+            headers: {
+                /** @description Seconds to wait before retrying. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /**
+         * @description `feature_disabled`: the feature is switched off on the server (kill switch, budget
+         *     cap, or not yet launched); show the non-AI fallback. `unavailable`: the AI provider
+         *     failed or timed out; nothing was counted, and the user may try again.
+         */
+        AiUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: never;
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Always `no-store`. */
+        NoStore: "no-store";
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -1416,6 +1656,96 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
+        };
+    };
+    describeMeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DescribeMealRequest"];
+            };
+        };
+        responses: {
+            /** @description Estimated items and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DescribeMealResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    askWhy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskWhyRequest"];
+            };
+        };
+        responses: {
+            /** @description The answer and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskWhyResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    weeklySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeeklySummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description The summary and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklySummaryResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
         };
     };
 }

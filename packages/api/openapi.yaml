@@ -1,15 +1,15 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.5
+  version: 0.1.6
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
     food maths) runs on the phone in `packages/core`.
 
-    Scope: auth, sync, food search, health and account rights (`GET /me/export`,
-    `DELETE /me`). Content bundles and AI calls (`/content/*`, `/ai/*`) are added in later
-    milestones as additive changes.
+    Scope: auth, sync, food search, health, account rights (`GET /me/export`,
+    `DELETE /me`) and the v1 AI calls (`/ai/*`). Content bundles (`/content/*`) are added
+    in a later milestone as an additive change.
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
@@ -41,6 +41,60 @@ tags:
     description: Account rights for the signed-in user (export and deletion).
   - name: system
     description: Health and status.
+  - name: ai
+    description: |
+      v1 AI calls: Describe a meal, Ask why, Weekly summary. Text only; no images in v1.
+      Every AI call goes through the backend, which holds the provider key; the app never
+      calls a model directly. Each feature has a non-AI fallback, so the app works fully
+      with AI off. Signed-in users only (sign-in is optional, so signed-out users get the
+      fallbacks).
+
+      **Order of checks.** Access token (401), per-user and per-IP rate limit (429
+      `rate_limited`), feature switch (503 `feature_disabled`), request validation (400),
+      daily quota (429 `quota_exceeded`), then the provider call. A request rejected at
+      any of these steps does not count against the quota.
+
+      **Daily quota (`ai_usage`).** Each user has one daily allowance shared by all three
+      endpoints, by default 10 text calls a day. The limit is server configuration, so the
+      app reads `quota.limit` and never hard-codes 10. The day is the UTC calendar day:
+      the count resets at 00:00:00Z (05:30 in India), which `quota.resets_at` gives. A call
+      counts when it returns 200; the server reserves the unit before calling the provider
+      and releases it if the provider fails, so concurrent calls cannot overrun the limit
+      and failed calls cost the user nothing. A cached answer to an identical request
+      still counts. Every 200 carries the quota after the call. When nothing is left the
+      server answers 429 `quota_exceeded` with `quota` (remaining 0) and `Retry-After` (the
+      seconds until `resets_at`); the app shows the fallback and does not retry before
+      then.
+
+      `ai_usage` holds only the user id, UTC day, feature, call count and token counts for
+      cost tracking; never the text sent or received. It is a quota counter, so it is not
+      part of `GET /me/export` (like rate-limit counters), and `DELETE /me` deletes it with
+      the account.
+
+      **Rate limit.** On top of the daily quota, at most 5 AI requests per user per minute
+      across the three endpoints, plus the per-IP limit every endpoint has. Beyond that,
+      429 `rate_limited` with `Retry-After` (prototype message: "Too many requests right
+      now. Wait a minute and try again.").
+
+      **Kill switch.** One server flag per feature (`describe_meal`, `ask_why`,
+      `weekly_summary`) turns it off instantly, without a deploy; requests already with the
+      provider finish. While a feature is off its endpoint answers 503 `feature_disabled`
+      and nothing counts against the quota. Reaching the monthly AI budget cap turns every
+      AI feature off the same way until the cap is raised or the month ends. All flags
+      default to off until a provider and budget are chosen (#200, decision 7). The app
+      treats `feature_disabled` as "not available now": it shows the non-AI fallback,
+      hides the AI entry point for the rest of the session and tries again on a later app
+      start. A provider failure or timeout is 503 `unavailable` instead: a one-off, so the
+      app shows "Couldn't get an answer, try again" and the fallback.
+
+      **No logging.** Request and response bodies of `/ai/*` (meal text, questions,
+      answers, check-in numbers, lift names) are never logged, written to the database or
+      sent to error reporting. The identical-request cache, if used, is in memory only,
+      keyed by a hash of the request, and expires within 24 hours. Server logs for these
+      calls hold only the user id, feature, time, status and duration. The provider
+      receives only the request content and the instructions, never the user id, email or
+      any other account data, and is configured not to retain or train on it where the
+      provider offers that.
 
 paths:
   /auth/google:
@@ -541,10 +595,10 @@ paths:
         to the contract later is added to the export in the same contract change.
 
         **Not included**, because they are credentials or operational data rather than the
-        user's data: access and refresh tokens, emailed one-time codes, rate-limit counters
-        and server logs (which never hold food, weight, health answers or tokens). Progress
-        photos and other device-only data never reach the server, so the app exports them
-        on the device.
+        user's data: access and refresh tokens, emailed one-time codes, rate-limit counters,
+        AI quota counters (`ai_usage`, see the `ai` tag) and server logs (which never hold
+        food, weight, health answers or tokens). Progress photos and other device-only data
+        never reach the server, so the app exports them on the device.
 
         **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
         `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
@@ -690,10 +744,10 @@ paths:
 
         **What is deleted, and when.** Before the server answers 204, in one transaction:
         every row of every synced table (tombstones included), the conflict log, the
-        per-user sync bookkeeping, the account (`User`), its sign-in identities (Google and
-        email), every refresh token and session, and, for the account's email address,
-        any pending one-time codes and the wrong-code records kept for rate limiting
-        (`email_verify_failures`). When the 204 arrives the data is gone from the live
+        per-user sync bookkeeping, the AI quota counters (`ai_usage`), the account (`User`),
+        its sign-in identities (Google and email), every refresh token and session, and,
+        for the account's email address, any pending one-time codes and the wrong-code
+        records kept for rate limiting (`email_verify_failures`). When the 204 arrives the data is gone from the live
         database. Copies in the encrypted nightly backups are not edited; they disappear
         when those backups expire, at most 30 days later (backup retention, #36). Server logs
         hold no user data to delete. If anything fails, the transaction rolls back, the
@@ -741,8 +795,238 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
 
-  # Later milestones (additive): /content/manifest, /content/{bundle}, /ai/describe-meal,
-  # /ai/ask-why, /ai/weekly-summary.
+  /ai/describe-meal:
+    post:
+      tags: [ai]
+      operationId: describeMeal
+      summary: Estimate a meal's macros from a plain-text description
+      description: |
+        Estimates each item of a meal the user describes in words ("2 rotis, a katori of
+        dal, some bhindi"), assuming typical home-cooked portions eaten in India when no
+        amount is given. Mirrors the prototype's `estimate()`. Each item's numbers are for
+        the whole quantity eaten; carbohydrate is total carbohydrate including fibre.
+
+        `items` is empty when the model could not identify any food; the app then shows the
+        prototype's message ("Couldn't read that meal. Try listing items with amounts.").
+        The app shows the items for the user to confirm before logging (suggest and
+        confirm); nothing is logged by this call.
+
+        Non-AI fallback: the food list and Custom entry. See the `ai` tag for quota,
+        kill-switch, rate-limit and no-logging rules.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DescribeMealRequest'
+            examples:
+              default:
+                value:
+                  text: 2 rotis and a katori of dal
+      responses:
+        '200':
+          description: Estimated items and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DescribeMealResponse'
+              examples:
+                default:
+                  value:
+                    items:
+                      - name: Roti
+                        qty: 2 medium
+                        kcal: 240
+                        protein_g: 7
+                        carbs_g: 46
+                        fat_g: 3
+                      - name: Dal
+                        qty: 1 katori (150 g)
+                        kcal: 165
+                        protein_g: 9
+                        carbs_g: 24
+                        fat_g: 4
+                    quota:
+                      limit: 10
+                      remaining: 7
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/ask-why:
+    post:
+      tags: [ai]
+      operationId: askWhy
+      summary: Ask a follow-up question about a knowledge card
+      description: |
+        Answers a follow-up question the user asks while reading a knowledge card. Mirrors
+        the prototype's `askWhy()`.
+
+        **Grounding.** The answer is grounded only on the cards in `content/cards.json`
+        (the version the server deploys). The server sends the model every card's title,
+        summary, body, evidence level and source, says which card the user was reading,
+        and instructs it to use nothing else: if the cards do not answer the question it
+        says the app's cards don't cover it yet and suggests a coach, dietitian or doctor
+        as appropriate; it never invents studies or numbers and gives no medical advice.
+        Answers are 2 to 4 plain sentences.
+
+        Card bodies are sent as generic text: personal placeholders such as `{kcal}` or
+        `{tdee}` are not filled in, and the server reads none of the user's synced data
+        for this call. (The prototype filled them with the user's numbers; the server
+        version deliberately sends no personal numbers.)
+
+        `card_id` in the response is the card the answer is based on (usually the one
+        being read, possibly another card), or null when the cards don't cover the
+        question. The server checks it against `content/cards.json` before answering.
+        A request `card_id` not in `content/cards.json` is 400 `invalid_request` with
+        `details[].field` = `card_id`.
+
+        Non-AI fallback: the card itself. See the `ai` tag for quota, kill-switch,
+        rate-limit and no-logging rules.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskWhyRequest'
+            examples:
+              default:
+                value:
+                  card_id: protein
+                  question: Is 150 g of protein too much for me?
+      responses:
+        '200':
+          description: The answer and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AskWhyResponse'
+              examples:
+                covered:
+                  value:
+                    answer: >-
+                      For most people training hard, around 1.6 g of protein per kg of
+                      bodyweight is where muscle-building benefits level off, and some
+                      benefit up to about 2.2 g per kg. Whether 150 g is a lot depends on
+                      your weight; the app adds a margin because needs rise in a calorie
+                      deficit. This comes from the card "Why so much protein?".
+                    card_id: protein
+                    quota:
+                      limit: 10
+                      remaining: 6
+                      resets_at: '2026-10-10T00:00:00Z'
+                not_covered:
+                  value:
+                    answer: >-
+                      The app's cards don't cover protein and kidney disease yet. Please ask
+                      your doctor before changing how much protein you eat.
+                    card_id: null
+                    quota:
+                      limit: 10
+                      remaining: 5
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/weekly-summary:
+    post:
+      tags: [ai]
+      operationId: weeklySummary
+      summary: Write the weekly check-in in plain words
+      description: |
+        Turns the weekly check-in's numbers into three short sentences: what went well,
+        the main gap, and one specific thing to focus on next week. Mirrors the
+        prototype's `summariseWeek()`, which sends `S.ciData`; the model is told to use
+        only these numbers and invent none.
+
+        The request is only the numeric facts below plus lift names and the goal; no food
+        names, notes or other health free text are sent, and unknown fields are rejected
+        with 400. The app builds it from `weeklyCheckin()` in `packages/core` (see
+        `WeeklySummaryRequest` for the field mapping).
+
+        Non-AI fallback: the check-in itself, which shows the same numbers. See the `ai`
+        tag for quota, kill-switch, rate-limit and no-logging rules.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeeklySummaryRequest'
+            examples:
+              default:
+                value:
+                  sessions: 4
+                  planned_sessions: 6
+                  logged_days: 6
+                  avg_kcal: 1912.5
+                  avg_protein_g: 118.3
+                  protein_days: 3
+                  weight_avg_kg: 78.4
+                  prev_weight_avg_kg: 78.9
+                  improved:
+                    - name: Goblet squat
+                      pct: 6
+                  stalled: [Lat pulldown]
+                  burn_kcal: 2450
+                  target_kcal: 1950
+                  target_protein_g: 140
+                  goal: lose
+      responses:
+        '200':
+          description: The summary and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySummaryResponse'
+              examples:
+                default:
+                  value:
+                    text: >-
+                      You trained 4 times and logged food on 6 days, and your weekly average
+                      weight dropped 0.5 kg, with a 6% gain on the goblet squat. Protein was
+                      the gap: you averaged 118 g against 140 g and hit it on 3 days. Next
+                      week, aim to reach 140 g on at least 5 days by adding a protein snack.
+                    quota:
+                      limit: 10
+                      remaining: 4
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  # Later milestone (additive): /content/manifest, /content/{bundle}.
 
 components:
   securitySchemes:
@@ -751,6 +1035,13 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Short-lived JWT access token from an `/auth/*` endpoint.
+
+  headers:
+    NoStore:
+      description: Always `no-store`.
+      schema:
+        type: string
+        const: no-store
 
   responses:
     TokenPair:
@@ -829,6 +1120,52 @@ components:
               value:
                 code: internal
                 message: Something went wrong on our side.
+    AiLimited:
+      description: |
+        Too many AI requests. `rate_limited`: the per-minute limit; retry after
+        `Retry-After`. `quota_exceeded`: the daily quota is used up; `quota.resets_at` says
+        when it resets and `Retry-After` is the seconds until then.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            quota_exceeded:
+              value:
+                code: quota_exceeded
+                message: You've used today's AI requests. You can still add it yourself.
+                quota:
+                  limit: 10
+                  remaining: 0
+                  resets_at: '2026-10-10T00:00:00Z'
+            rate_limited:
+              value:
+                code: rate_limited
+                message: Too many requests right now. Wait a minute and try again.
+    AiUnavailable:
+      description: |
+        `feature_disabled`: the feature is switched off on the server (kill switch, budget
+        cap, or not yet launched); show the non-AI fallback. `unavailable`: the AI provider
+        failed or timed out; nothing was counted, and the user may try again.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            feature_disabled:
+              value:
+                code: feature_disabled
+                message: This feature isn't available right now. You can enter it yourself instead.
+            unavailable:
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
 
   schemas:
     # ---------- shared ----------
@@ -848,11 +1185,16 @@ components:
             - rate_limited
             - internal
             - unavailable
+            - quota_exceeded
+            - feature_disabled
           description: |
             Stable machine-readable code. `token_expired`: refresh the access token and
             retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
             or expired. `not_found`: reserved for later milestones; no M0 operation
-            returns it.
+            returns it. `quota_exceeded` (429): the daily AI quota is used up until
+            `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
+            the server; use the non-AI fallback. Clients treat an unknown code like
+            `internal`.
         message:
           type: string
           description: Plain-language message safe to show the user. Never contains health data.
@@ -868,6 +1210,9 @@ components:
                 description: JSON path of the offending field.
               issue:
                 type: string
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+          description: The daily AI quota, present only with `quota_exceeded`.
 
     LocalDate:
       type: string
@@ -1426,6 +1771,224 @@ components:
           description: |
             The losing copy as it was pushed or stored; its `version` is the losing copy's
             (for the client, the version it sent). Pick its schema by `table`.
+
+    # ---------- ai ----------
+    AiQuota:
+      type: object
+      description: The user's shared daily AI quota after this call (see the `ai` tag).
+      required: [limit, remaining, resets_at]
+      properties:
+        limit:
+          type: integer
+          minimum: 0
+          description: Calls allowed per UTC day across all AI endpoints (default 10).
+        remaining:
+          type: integer
+          minimum: 0
+          description: Calls left today.
+        resets_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: Next 00:00:00Z, when `remaining` goes back to `limit`.
+
+    DescribeMealRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: |
+            What the user ate, in their own words, with rough amounts if known. Must contain
+            a non-space character. Prototype: the Describe it textarea.
+
+    DescribeMealResponse:
+      type: object
+      required: [items, quota]
+      properties:
+        items:
+          type: array
+          maxItems: 30
+          description: One entry per food identified, in the order described; empty when none.
+          items:
+            $ref: '#/components/schemas/MealEstimateItem'
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    MealEstimateItem:
+      type: object
+      description: 'One estimated item. Prototype: `FS.est[]` (`protein`, `carbs`, `fat`).'
+      required: [name, qty, kcal, protein_g, carbs_g, fat_g]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        qty:
+          type: string
+          maxLength: 100
+          description: The quantity estimated, in words (for example "2 medium"); may be empty.
+        kcal:
+          type: number
+          minimum: 0
+        protein_g:
+          type: number
+          minimum: 0
+        carbs_g:
+          type: number
+          minimum: 0
+          description: Total carbohydrate including fibre.
+        fat_g:
+          type: number
+          minimum: 0
+
+    AskWhyRequest:
+      type: object
+      additionalProperties: false
+      required: [card_id, question]
+      properties:
+        card_id:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          maxLength: 40
+          description: |
+            Id of the card the user is reading, from `content/cards.json` (for example
+            `protein`, `scale`). Prototype: `WHY.id`.
+        question:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 'The follow-up question. Must contain a non-space character. Prototype: `#askQ`.'
+
+    AskWhyResponse:
+      type: object
+      required: [answer, card_id, quota]
+      properties:
+        answer:
+          type: string
+          minLength: 1
+          description: Two to four plain sentences, grounded only on the cards.
+        card_id:
+          type: [string, 'null']
+          description: The card the answer is based on, or null when the cards don't cover the question.
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    WeeklySummaryRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        The weekly check-in's facts. Prototype: `S.ciData` from `renderCheckin()`. In the
+        app, build it from `weeklyCheckin()` in `packages/core` (`WeeklyCheckin`) and the
+        settings targets; each field names its source.
+      required:
+        - sessions
+        - planned_sessions
+        - logged_days
+        - avg_kcal
+        - avg_protein_g
+        - protein_days
+        - weight_avg_kg
+        - prev_weight_avg_kg
+        - improved
+        - stalled
+        - burn_kcal
+        - target_kcal
+        - target_protein_g
+        - goal
+      properties:
+        sessions:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: 'Days trained this week. Prototype and core: `sessions`.'
+        planned_sessions:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: 'Sessions planned this week. Prototype and core: `plannedN`.'
+        logged_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: 'Days with food logged, of 7. Prototype and core: `logged`.'
+        avg_kcal:
+          type: number
+          minimum: 0
+          description: 'Average kcal over days with food logged (0 with none). Prototype and core: `avgK`.'
+        avg_protein_g:
+          type: number
+          minimum: 0
+          description: 'Average protein over days with food logged (0 with none). Prototype and core: `avgP`.'
+        protein_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: 'Days at 90% of the protein target or more. Prototype and core: `pDays`.'
+        weight_avg_kg:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          description: "This week's average weight, null if unknown. Prototype and core: `w1`."
+        prev_weight_avg_kg:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          description: "Last week's average weight, null if unknown. Prototype and core: `w0`."
+        improved:
+          type: array
+          maxItems: 3
+          description: 'Lifts that beat their previous best this week, best first. Prototype and core: `improved` (`n`, `pct`).'
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, pct]
+            properties:
+              name:
+                type: string
+                minLength: 1
+                maxLength: 80
+                description: Exercise name.
+              pct:
+                type: integer
+                minimum: 1
+                description: Gain over the previous best, in percent.
+        stalled:
+          type: array
+          maxItems: 3
+          description: 'Stalled lifts (exercise names). Prototype and core: `stalled`.'
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+        burn_kcal:
+          type: [integer, 'null']
+          minimum: 0
+          description: |
+            Daily calorie burn from real data, null when there is not enough data.
+            Prototype: `burn` (`ab.ready ? ab.burn : null`); core: `burn.ready ? burn.burn : null`.
+        target_kcal:
+          type: integer
+          minimum: 0
+          description: 'Daily calorie target. Prototype: `target` (`S.settings.kcal`).'
+        target_protein_g:
+          type: integer
+          minimum: 0
+          description: 'Daily protein target. Prototype: `ptarget` (`S.settings.protein`).'
+        goal:
+          type: [string, 'null']
+          enum: [lose, recomp, maintain, gain, null]
+          description: "The profile's goal, null with no profile. Prototype: `goal`."
+
+    WeeklySummaryResponse:
+      type: object
+      required: [text, quota]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          description: Three plain sentences; no headings, lists or emojis.
+        quota:
+          $ref: '#/components/schemas/AiQuota'
 
     # ---------- sync tables ----------
     Profile:
