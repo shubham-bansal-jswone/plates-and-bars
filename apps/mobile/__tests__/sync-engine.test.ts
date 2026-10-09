@@ -159,4 +159,17 @@ describe('sync engine', () => {
     await syncOnce(deps);
     expect(server.pushed().find((p) => p.id === 's2')).toMatchObject({ workout_id: wid });
   });
+
+  it('stores pulled timestamps in the app format (milliseconds), at any depth, and leaves calendar days alone', async () => {
+    const { db, server, deps } = await setup();
+    server.put('food_logs', { id: 'f9', version: 1, updated_at: '2026-10-09T05:00:00Z', deleted_at: '2026-10-09T05:00:01Z', date: '2026-10-09', meal: 'Lunch', name: 'Dal', qty: 1, kcal: 200, protein_g: 10, carbs_g: 20, fat_g: 5, food_id: null });
+    server.put('workout_sets', { id: 's9', version: 1, updated_at: '2026-10-09T05:00:00.5Z', deleted_at: null, workout_id: 'unknown', exercise: 'Squat', kind: 'work', set_index: 0, weight_kg: 50, reps: 5, done: true, rate: null, t: '2026-10-09T04:59:00Z' });
+    await syncOnce(deps);
+    const log = JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM food_logs WHERE key = 'f9'"))!.data) as Record<string, unknown>;
+    expect(log).toMatchObject({ updated_at: '2026-10-09T05:00:00.000Z', deleted_at: '2026-10-09T05:00:01.000Z', date: '2026-10-09' });
+    const set = JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM workout_sets WHERE key = 's9'"))!.data) as Record<string, unknown>;
+    expect(set).toMatchObject({ updated_at: '2026-10-09T05:00:00.500Z', t: '2026-10-09T04:59:00.000Z' });
+    // a local edit at .500 in the same second now orders after the pulled 00.000 copy
+    expect('2026-10-09T05:00:00.500Z' > (log.updated_at as string)).toBe(true);
+  });
 });

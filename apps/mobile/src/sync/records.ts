@@ -44,7 +44,8 @@ export async function buildRecord(db: WorkoutDb, userId: string, e: Entry): Prom
 }
 
 /** Writes a contract record into its local table (no outbox handling; callers run it in `applyPulled` or similar). `setDate` is the workout date for a workout set. */
-export async function storeRecord(db: StoreDb, tbl: SyncTableName, rec: Doc, setDate: string | null): Promise<void> {
+export async function storeRecord(db: StoreDb, tbl: SyncTableName, serverRec: Doc, setDate: string | null): Promise<void> {
+  const rec = normalizeTimestamps(serverRec) as Doc;
   const local = SYNC_TABLES[tbl];
   const key = localKey(tbl, rec);
   if (tbl === 'lift_stats') {
@@ -92,7 +93,7 @@ export async function patchMeta(db: StoreDb, tbl: SyncTableName, key: string, me
   if (tbl === 'lift_stats') return setLiftVersion(db, key, meta.version);
   const row = await db.getFirstAsync<{ data: string }>(`SELECT data FROM ${SYNC_TABLES[tbl]} WHERE key = ?`, key);
   if (!row) return;
-  const doc = { ...(JSON.parse(row.data) as Doc), version: meta.version, ...(meta.updated_at ? { updated_at: meta.updated_at } : {}) };
+  const doc = { ...(JSON.parse(row.data) as Doc), version: meta.version, ...(meta.updated_at ? { updated_at: normalizeTimestamps(meta.updated_at) as string } : {}) };
   await db.runAsync(`UPDATE ${SYNC_TABLES[tbl]} SET data = ? WHERE key = ?`, JSON.stringify(doc), key);
 }
 
@@ -109,11 +110,25 @@ export async function resolveOrphanSets(db: WorkoutDb & { withExclusiveTransacti
   }
 }
 
+const TIMESTAMP = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
+
+/**
+ * Rewrites every date-time string (any depth) in the app's format, `toISOString()` with milliseconds. The server writes
+ * ISO_INSTANT, which drops ".000", and string comparison of the two formats misorders records within one second.
+ * Calendar days (`YYYY-MM-DD`) are left alone.
+ */
+export function normalizeTimestamps(v: unknown): unknown {
+  if (typeof v === 'string') return TIMESTAMP.test(v) ? new Date(v).toISOString() : v;
+  if (Array.isArray(v)) return v.map(normalizeTimestamps);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, normalizeTimestamps(x)]));
+  return v;
+}
+
 const canon = (v: unknown): string =>
   Array.isArray(v) ? `[${v.map(canon).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon((v as Doc)[k])}`).join(',')}}` : JSON.stringify(v) ?? 'null';
 
 /** True when two records are equal apart from `version` and `updated_at` (the idempotent-retry check of POST /sync). */
 export const sameContent = (a: Doc, b: Doc): boolean => {
   const strip = (d: Doc) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== 'version' && k !== 'updated_at'));
-  return canon(strip(a)) === canon(strip(b));
+  return canon(normalizeTimestamps(strip(a))) === canon(normalizeTimestamps(strip(b)));
 };
