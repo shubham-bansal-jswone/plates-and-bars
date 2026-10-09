@@ -238,7 +238,8 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  *   `DEFAULT_KCAL_TARGET` mirrors `DEFAULT_SETTINGS.kcal`.
  * - `planFlex` mirrors prototype `planFlex(extra)` (state and plan id passed in; never below the floor, #167);
  *   `FLEX_FLOOR_DEFAULT` its 1200; `flexToast` its toast.
- * - `undoFlex` mirrors prototype `case 'flex-undo'`.
+ * - `undoFlex` mirrors prototype `undoFlex(id)` (`case 'flex-undo'`; trims cuts so no day is below the floor, #176);
+ *   `flexPlanFor` mirrors prototype `flexPlanFor(date)`, the plan the note shows and Undo removes (#178).
  * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
  * - `customFood` mirrors prototype `case 'addcustom'`, plus `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
@@ -252,6 +253,7 @@ export {
   planFlex,
   flexToast,
   undoFlex,
+  flexPlanFor,
   FLEX_FLOOR_DEFAULT,
   stepServings,
   SERVINGS_MIN,
@@ -264,7 +266,7 @@ export {
   FOOD_NAME_MAX,
   userFoodFacts,
 } from './food';
-export type { FlexEntry, PlanFlexInput, PlanFlexResult, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
+export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
 
 /**
  * Macro targets before setup (no profile), for the Food tab's ring and legend.

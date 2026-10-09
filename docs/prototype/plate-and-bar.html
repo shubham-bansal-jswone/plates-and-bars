@@ -2935,10 +2935,17 @@ function planFlex(extra){
   saveSoon('settings', S.settings);
   toast(`Today +${extra} kcal${per > 0 ? `; the next ${spread} days ${even ? '' : 'up to '}${per} lower` : ''}${left ? `; ${left} kcal could not be spread without going below your minimum` : ''}`);
 }
+function flexPlanFor(date){ const p = (S.settings.flex || []).filter(x => x.date === date && x.d > 0); return p.length ? p[p.length - 1] : null; }
+function undoFlex(id){
+  const floor = S.settings.profile ? calcTargets(S.settings.profile).floor : 1200, c10 = x => Math.ceil(x/10)*10, all = S.settings.flex || [], trim = {};
+  S.settings.flex = all.filter(x => x.id !== id);
+  all.filter(x => x.id === id).forEach(({ date:d }) => { const flexed = S.settings.kcal + S.settings.flex.filter(x => x.date === d).reduce((a, x) => a + x.d, 0); trim[d] = Math.max(0, c10(floor - Math.min(kcalTarget(d), flexed))); });
+  S.settings.flex = S.settings.flex.reduceRight((out, x) => { const t = x.d < 0 ? Math.min(trim[x.date] || 0, -x.d) : 0; if(t) trim[x.date] -= t; if(!t || t < -x.d) out.unshift(t ? { ...x, d:x.d + t } : x); return out; }, []);
+}
 function flexNoteHtml(){
   const f = (S.settings.flex || []).filter(x => x.date === S.date); if(!f.length) return '';
-  const d = f.reduce((a, x) => a + x.d, 0);
-  return `<p class="note">${d > 0 ? `Today’s target includes +${d} kcal for a bigger meal, balanced over the next few days.` : `Today’s target is ${-d} kcal lower to balance an earlier bigger day.`} <button class="linkbtn inl" data-act="flex-undo" data-v="${f[0].id}">Undo</button></p>`;
+  const p = flexPlanFor(S.date), d = f.reduce((a, x) => a + x.d, 0);
+  return `<p class="note">${p ? `Today’s target includes +${p.d} kcal for a bigger meal, balanced over the next few days. <button class="linkbtn inl" data-act="flex-undo" data-v="${p.id}">Undo</button>` : `Today’s target is ${-d} kcal lower to balance an earlier bigger day.`}</p>`;
 }
 
 /* ---------- eating out ---------- */
@@ -3106,7 +3113,7 @@ function food3Action(a, b){
     case 'g-fast': S.day.fast = !S.day.fast; S.ui.gpage = 0; saveDay(); renderFood(); return;
     case 'flex': planFlex(+b.dataset.v); S.ui.flexOpen = false; renderFood(); return;
     case 'flex-open': S.ui.flexOpen = !S.ui.flexOpen; renderFood(); return;
-    case 'flex-undo': S.settings.flex = (S.settings.flex || []).filter(x => x.id !== b.dataset.v); saveSoon('settings', S.settings); renderFood(); return;
+    case 'flex-undo': undoFlex(b.dataset.v); saveSoon('settings', S.settings); renderFood(); return;
     case 'eo-c': FS.cuisine = b.dataset.v; renderFoodSheet(); return;
     case 'eo-add': { const d = EATOUT[FS.cuisine || 'North Indian'].dishes[+b.dataset.v]; addMeal({ name:d[0], qty:1, kcal:d[1], p:d[2], c:d[3], f:d[4] }); toast(`Added ${d[0]}`); render(); return; }
     case 'mp-open': planSheet(); return;
