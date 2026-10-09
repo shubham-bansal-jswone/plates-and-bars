@@ -20,6 +20,7 @@ export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<s
         for (const s of sets.values()) if (s.kind === 'work' && s.done === 1 && s.deleted === 0) n.set(s.date, (n.get(s.date) ?? 0) + 1);
         return [...n].map(([workout_date, c]) => ({ workout_date, n: c })) as T[];
       }
+      if (sql.includes('FROM water_logs WHERE log_date')) return [...rows].filter(([k, d]) => k.startsWith('water_logs:') && (JSON.parse(d) as { date: string }).date === p[0]).map(([, data]) => ({ data })) as T[];
       if (sql.includes('FROM food_logs WHERE log_date')) return [...rows].filter(([k, d]) => k.startsWith('food_logs:') && (JSON.parse(d) as { date: string }).date === p[0]).map(([, data]) => ({ data })) as T[];
       const table = /FROM (\w+)/.exec(sql)![1];
       return [...rows].filter(([k]) => k.startsWith(`${table}:`)).map(([k, data]) => ({ key: k.slice(table!.length + 1), data })) as T[];
@@ -44,7 +45,7 @@ export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<s
         sets.set(String(p[0]), { date: String(p[1]), kind: String(p[2]), done: Number(p[3]), deleted: Number(p[4]), data: String(p[5]) });
         return;
       }
-      rows.set(`${table}:${p[0]}`, String(p[table === 'food_logs' ? 2 : 1]));
+      rows.set(`${table}:${p[0]}`, String(p[table === 'food_logs' || table === 'water_logs' ? 2 : 1]));
     },
   };
   return db;

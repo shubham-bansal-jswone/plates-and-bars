@@ -1,6 +1,6 @@
 // Serves dist/ with the cross-origin isolation headers, completes setup in headless Chrome, reloads,
 // (with the network off for the setup itself) and checks the stored profile survives (the app opens straight to Targets).
-// Then starts today's workout, ticks a set, reloads and checks the ticked set came back from SQLite; logs food and a +300 flex the same way. Run `npx expo export --platform web` first.
+// Then starts today's workout, ticks a set, reloads and checks the ticked set came back from SQLite; logs food, a +300 flex and a glass of water the same way. Run `npx expo export --platform web` first.
 // Needs a local Chrome/Chromium (set CHROME_PATH if not found).
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -189,6 +189,20 @@ try {
     await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 20000 });
   }
   console.log('after reload: today\u2019s target still includes the +300 flex (2,290 kcal)');
+  // Water: add a glass, reload, the glass is still counted.
+  const waterBefore = await opfsStamp(page);
+  await page.waitForSelector(sel('Add a glass, 250 millilitres'), { timeout: 20000 });
+  await click('Add a glass, 250 millilitres');
+  await page.waitForSelector('[aria-label^="0.3 of about "]', { timeout: 20000 });
+  console.log('water: added a glass (0.3 L)');
+  await savedSince(page, waterBefore);
+  await page.reload({ waitUntil: 'load' });
+  const waterBack = await page.waitForSelector('[aria-label^="0.3 of about "]', { timeout: 8000 }).catch(() => null);
+  if (!waterBack) {
+    await click('Food');
+    await page.waitForSelector('[aria-label^="0.3 of about "]', { timeout: 20000 });
+  }
+  console.log('after reload: the glass of water is still counted (0.3 L)');
   ok = true;
 } catch (e) {
   console.error('FAILED:', e.message);
