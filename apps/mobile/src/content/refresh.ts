@@ -27,17 +27,22 @@ export interface RefreshDeps {
   timeoutMs?: number;
 }
 
-const timeoutSignal = (ms: number): AbortSignal => {
-  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+/** Runs `f` with a signal that aborts after `ms`; a fallback timer (runtimes without AbortSignal.timeout) is cleared when `f` ends. */
+async function timed<T>(ms: number, f: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (typeof AbortSignal.timeout === 'function') return f(AbortSignal.timeout(ms));
   const c = new AbortController();
-  setTimeout(() => c.abort(), ms);
-  return c.signal;
-};
+  const t = setTimeout(() => c.abort(), ms);
+  try {
+    return await f(c.signal);
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 /** Reads a body of at most `limit` bytes; null when it is longer (the read stops there). Streams where the platform can, else reads whole after the length checks. */
 async function readLimited(data: ReadableStream<Uint8Array> | null | undefined, response: Response, limit: number): Promise<Uint8Array | null> {
-  const declared = Number(response.headers.get('Content-Length'));
-  if (declared > limit) return null;
+  // With a Content-Encoding the length is of the compressed body and may differ from size_bytes: only the body checks decide.
+  if (!response.headers.get('Content-Encoding') && Number(response.headers.get('Content-Length')) > limit) return null;
   if (!data || typeof data.getReader !== 'function') {
     const all = new Uint8Array(await response.arrayBuffer());
     return all.byteLength > limit ? null : all;
@@ -64,9 +69,11 @@ async function readLimited(data: ReadableStream<Uint8Array> | null | undefined, 
 /** Downloads one bundle and returns it only if its size and SHA-256 match the manifest entry, it is UTF-8 and parses with that schema_version. */
 async function fetchOne(d: RefreshDeps, e: Entry): Promise<StoredBundle | null> {
   if (e.size_bytes > MAX_BUNDLE_BYTES) return null;
-  const { data, response } = await d.api.GET('/content/{bundle}', { params: { path: { bundle: e.name } }, parseAs: 'stream', signal: timeoutSignal(d.timeoutMs ?? REQUEST_TIMEOUT_MS) });
-  if (!response.ok) return null;
-  const bytes = await readLimited(data as ReadableStream<Uint8Array> | null, response, e.size_bytes);
+  // the timeout covers the body read too
+  const bytes = await timed(d.timeoutMs ?? REQUEST_TIMEOUT_MS, async (signal) => {
+    const { data, response } = await d.api.GET('/content/{bundle}', { params: { path: { bundle: e.name } }, parseAs: 'stream', signal });
+    return response.ok ? readLimited(data as ReadableStream<Uint8Array> | null, response, e.size_bytes) : null;
+  });
   if (!bytes || bytes.byteLength !== e.size_bytes) return null;
   if ((await (d.sha256 ?? sha256Hex)(bytes)) !== e.sha256) return null;
   try {
@@ -96,10 +103,9 @@ export function refreshContent(d: RefreshDeps): Promise<number> {
 async function pass(d: RefreshDeps): Promise<number> {
   try {
     const known = await getManifestEtag(d.db);
-    const { data, response } = await d.api.GET('/content/manifest', {
-      headers: known ? { 'If-None-Match': `"${known}"` } : {},
-      signal: timeoutSignal(d.timeoutMs ?? REQUEST_TIMEOUT_MS),
-    });
+    const { data, response } = await timed(d.timeoutMs ?? REQUEST_TIMEOUT_MS, (signal) =>
+      d.api.GET('/content/manifest', { headers: known ? { 'If-None-Match': `"${known}"` } : {}, signal }),
+    );
     if (response.status === 304 || !data) return 0;
     const held = new Map((await loadStored(d.db)).map((b) => [b.name, b]));
     const fetched: StoredBundle[] = [];

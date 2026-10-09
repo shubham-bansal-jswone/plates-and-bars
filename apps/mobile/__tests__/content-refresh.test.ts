@@ -36,7 +36,7 @@ const body = (extra = 'x') => JSON.stringify({ schema_version: bundledSchema, no
 
 interface Served { entry: Record<string, unknown>; bytes?: ArrayBuffer; status?: number }
 /** A fake generated client: records every call (path and headers) and serves the given manifest and bundles. */
-function fakeApi(served: Served[], opts: { manifestEtag?: string; offline?: boolean; manifestStatus?: number; hang?: boolean; stream?: boolean; contentLength?: number } = {}) {
+function fakeApi(served: Served[], opts: { manifestEtag?: string; offline?: boolean; manifestStatus?: number; hang?: boolean; hangBundle?: boolean; contentEncoding?: string; onCancel?: () => void; stream?: boolean; contentLength?: number } = {}) {
   const calls: { path: string; headers?: Record<string, string>; signal?: AbortSignal }[] = [];
   const api = {
     GET: async (path: string, o: { params?: { path: { bundle: string } }; headers?: Record<string, string>; signal?: AbortSignal }) => {
@@ -50,7 +50,14 @@ function fakeApi(served: Served[], opts: { manifestEtag?: string; offline?: bool
       }
       const s = served.find((x) => x.entry.name === o.params!.path.bundle);
       if (!s || !s.bytes) return { response: new Response('{}', { status: 404 }) };
+      if (opts.hangBundle) return new Promise((_r, rej) => o.signal?.addEventListener('abort', () => rej(new Error('aborted'))));
       const headers = new Headers(opts.contentLength === undefined ? {} : { 'Content-Length': String(opts.contentLength) });
+      if (opts.contentEncoding) headers.set('Content-Encoding', opts.contentEncoding);
+      if (opts.onCancel) {
+        // two chunks, the first already past the manifest size: the reader must cancel the stream instead of draining it
+        const stream = new ReadableStream<Uint8Array>({ start: (c) => { c.enqueue(new Uint8Array(500)); c.enqueue(new Uint8Array(500)); }, cancel: opts.onCancel });
+        return { data: stream, response: new Response(null, { status: 200, headers }) };
+      }
       const response = new Response(s.bytes, { status: s.status ?? 200, headers });
       // data is the body stream where the platform has one (the client's parseAs 'stream'), else null and the body is read whole
       return { data: opts.stream ? response.body : null, response };
@@ -224,6 +231,31 @@ describe('content refresh', () => {
     expect(await refreshContent({ db, api: over.api })).toBe(0);
     expect(await loadStored(db)).toEqual([]);
     expect(await refreshContent({ db, ...fakeApi([{ entry: entryFor(t), bytes: enc(t) }], { stream: true, manifestEtag: '"m2"' }) })).toBe(1);
+  });
+
+  it('cancels the stream as soon as the body passes the manifest size', async () => {
+    const db = await openDb();
+    const t = body('a');
+    const onCancel = jest.fn();
+    expect(await refreshContent({ db, ...fakeApi([{ entry: entryFor(t), bytes: enc(t) }], { onCancel }) })).toBe(0);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('times out a bundle request that hangs', async () => {
+    const db = await openDb();
+    const t = body('a');
+    const hung = fakeApi([{ entry: entryFor(t), bytes: enc(t) }], { hangBundle: true });
+    expect(await refreshContent({ db, api: hung.api, timeoutMs: 30 })).toBe(0);
+    const bundleCall = hung.calls.find((c) => c.path !== '/content/manifest');
+    expect(bundleCall?.signal?.aborted).toBe(true);
+    expect(await getManifestEtag(db)).toBeNull();
+  });
+
+  it('does not reject on Content-Length when the body is compressed (the length is of the encoded body)', async () => {
+    const db = await openDb();
+    const t = body('enc');
+    const { api } = fakeApi([{ entry: entryFor(t), bytes: enc(t) }], { contentLength: MAX_BUNDLE_BYTES * 2, contentEncoding: 'gzip' });
+    expect(await refreshContent({ db, api })).toBe(1);
   });
 
   it('gives every request an abort signal and gives up on a request that hangs', async () => {
