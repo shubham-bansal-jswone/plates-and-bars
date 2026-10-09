@@ -58,7 +58,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const rulesApi = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const { rules, addRule } = rulesApi;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
-  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: dataVersion });
+  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   const [cantName, setCantName] = useState<{ i: number; name: string } | null>(null);
 

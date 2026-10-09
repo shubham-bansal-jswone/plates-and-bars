@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   cantRule,
-  lastFor,
-  widerRuleReplacements,
   noLoad,
   rampRate,
   rampTickFill,
@@ -27,8 +25,9 @@ import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
 import { guidance, progressionContext, type Tuning } from './guidance';
-import { catalog } from './catalog';
-import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState } from './model';
+import { cantChange, persistCant } from './cantApply';
+import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
+import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState, type Row } from './model';
 import type { Workout } from './types';
 
 export interface Day {
@@ -74,18 +73,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     setDay(d);
   }, []);
 
-  // Every save goes through one FIFO queue, so they finish in the order the user acted, and each save reads
-  // the latest state from the ref when it runs (not the snapshot from when it was queued).
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const writes = useRef(0);
-  const enqueue = useCallback(
-    (write: () => Promise<void>) => {
-      writes.current++;
-      queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
-      return queue.current;
-    },
-    [notify],
-  );
+  // Every save goes through one FIFO queue (shared with the avoid picker on Targets), so they finish in the order the
+  // user acted, and each save reads the latest state from the ref when it runs (not the snapshot from when it was queued).
+  const enqueue = useCallback((write: () => Promise<void>) => enqueueDay(write, () => notify('Couldn’t save that. Try again.')), [notify]);
   /** Start and second session build from stored history; a second tap while one runs is ignored. */
   const building = useRef(false);
 
@@ -94,7 +84,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     (async () => {
       // The result is applied inside freshRead, in the same step as its counter check: a session being built
       // (start, addSecond) resumes from an await and must not land between the check and the commit.
-      await freshRead({ queue, writes }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([workout, sets, lifts, sessions]) =>
+      await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([workout, sets, lifts, sessions]) =>
         commit({
           ready: true,
           workout,
@@ -386,50 +376,37 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
 
   /**
    * The "can't do" sheet's pick. A timed or permanent answer saves a rule (`today` does not, it only steers
-   * today's session); the tapped exercise is replaced, and so is anything else today a wider rule covers.
+   * today's session); core's `cantSession` replaces the tapped exercise, and anything else today a wider rule covers.
    * An exercise with ticked sets keeps them and the replacement follows it, as in the prototype.
    */
   const cant = (i: number | null, draft: CantDraft, choice: string | null) => {
-    const where = ref.current.workout?.where ?? profile?.where ?? 'gym';
     const rule = cantRule(draft, choice, date);
     const today = draft.dur === 'today';
     const saved = today ? null : saveRule(rule);
     if (!today && !saved) return; // the rules could not be read: nothing is changed (the store said why)
-    const rules: Exclusion[] = saved ? [...exclusions, saved] : [...exclusions];
     const d = clone(ref.current);
-    // Sets of the old exercise to tombstone (`rows` index into the copy taken before the change), and exercises to write.
-    const gone: { ex: ExState; rows: ['work' | 'ramp', number][] }[] = [];
-    const touched = new Set<string>();
-    // TODO(#265, #269): core's cantSession/replaceAt replace this local copy (a replacement keeps the part of the exercise it replaces, #267).
-    const replaceAt = (k: number, pick: string | null) => {
-      const ex = d.exs[k] as ExState;
-      const keep = ex.sets.some((s) => s.done);
-      const rows: ['work' | 'ramp', number][] = ex.sets.flatMap((s, j) => (s.done ? [] : [['work', j] as ['work', number]]));
-      if (!keep) ex.ramp.forEach((_, j) => rows.push(['ramp', j]));
-      gone.push({ ex: structuredClone(ex), rows });
-      const n = Math.max(3, lastFor(pick ?? '', d.lifts, date)?.sets.length ?? 0);
-      const fresh: ExState[] = pick ? [{ name: pick, part: ex.part, bridge: false, form: null, found: null, skipRamp: false, sets: Array.from({ length: n }, blankRow), ramp: [] }] : [];
-      if (pick) touched.add(pick);
-      if (keep) {
-        ex.sets = ex.sets.filter((s) => s.done);
-        touched.add(ex.name);
-        d.exs.splice(k + 1, 0, ...fresh);
-      } else d.exs.splice(k, 1, ...fresh);
-    };
-    if (i !== null && d.exs[i]?.name === draft.name) replaceAt(i, choice);
-    if (!today && rule.scope !== 'exercise')
-      for (const r of widerRuleReplacements(d.exs, rule, choice, where, rules, d.lifts, catalog)) replaceAt(r.index, r.to);
-    commit(d);
-    notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
-    void enqueue(async () => {
+    const w = d.workout;
+    if (w) {
       const at = stamp(now());
-      for (const g of gone) for (const [kind, j] of g.rows) await saveSet(db, date, { ...setRecord(g.ex, kind, j, now()), deleted_at: at });
-      await writeWorkout();
-      for (let k = 0; k < ref.current.exs.length; k++) {
-        const ex = ref.current.exs[k] as ExState;
-        if (touched.has(ex.name)) await writeSets(k, 'work', Array.from(ex.sets.keys()));
-      }
-    });
+      const rows = new Map<string, Row>();
+      const records = d.exs.flatMap((e) => {
+        for (const r of [...e.sets, ...e.ramp]) rows.set(r.id, r);
+        return [...e.sets.keys()].map((j) => setRecord(e, 'work', j, now())).concat([...e.ramp.keys()].map((j) => setRecord(e, 'ramp', j, now())));
+      });
+      const ch = cantChange({ ...w, exercises: d.exs.map(exerciseRecord) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
+      d.exs = ch.exercises.map((x) => {
+        const pick = (kind: 'work' | 'ramp'): Row[] =>
+          ch.sets
+            .filter((s) => s.exercise === x.name && s.kind === kind)
+            .sort((a, b) => a.set_index - b.set_index)
+            .map((s) => rows.get(s.id) ?? { id: s.id, version: s.version, w: '', r: '', done: false, rate: null, t: null });
+        return { name: x.name, part: x.part, bridge: x.bridge, form: x.form, found: x.found_kg, skipRamp: x.skip_ramp, sets: pick('work'), ramp: pick('ramp') };
+      });
+      d.workout = { ...w, exercises: ch.exercises };
+      commit(d);
+      void enqueue(() => persistCant(db, date, w, ch, at));
+    }
+    notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
   return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, start, addSecond };
