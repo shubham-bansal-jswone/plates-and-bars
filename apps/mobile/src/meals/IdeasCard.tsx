@@ -42,6 +42,7 @@ export function IdeasCard(p: Props) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [flexOpen, setFlexOpen] = useState(false);
+  const [plateOpen, setPlateOpen] = useState(false);
   const info = nextMealInfo({
     date: p.today,
     today: p.today,
@@ -116,11 +117,14 @@ export function IdeasCard(p: Props) {
               <Hint>{FLEX_HINT}</Hint>
             </>
           ) : null}
-          <View accessible accessibilityLabel="The thali plate guide" style={styles.plate}>
-            <Text style={{ color: c.ink, fontWeight: '600' }}>The thali plate guide</Text>
-            {PLATE_GUIDE.map(([b, t]) => <Text key={b + t} style={{ color: c.ink }}><Text style={styles.b}>{b} </Text>{t}</Text>)}
-            <Hint>{PLATE_HINT}</Hint>
-          </View>
+          <Button label="The thali plate guide" kind="link" expanded={plateOpen} onPress={() => setPlateOpen(!plateOpen)} />
+          {plateOpen ? (
+            <View style={styles.plate}>
+              {/* TODO(#252): draw the plate (half protein, a quarter fat, a quarter carbs as in the prototype) once react-native-svg is on main. */}
+              {PLATE_GUIDE.map(([b, t]) => <Text key={b + t} style={{ color: c.ink }}><Text style={styles.b}>{b} </Text>{t}</Text>)}
+              <Hint>{PLATE_HINT}</Hint>
+            </View>
+          ) : null}
         </View>
       ) : null}
     </Card>
