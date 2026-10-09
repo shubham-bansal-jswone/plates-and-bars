@@ -177,7 +177,8 @@ jobs:
       # Open-source Chromium (BSD-3-Clause) via @puppeteer/browsers (Apache-2.0), not proprietary Google Chrome
       - name: Install Chromium
         run: |
-          out="$(npx --yes @puppeteer/browsers@3.2.4 install chromium@latest --path "$RUNNER_TEMP/browsers")"
+          # lockfile-pinned @puppeteer/browsers from apps/site (npm ci already ran); no network fetch of the tool
+          out="$(npx --no-install @puppeteer/browsers install chromium@latest --path "$RUNNER_TEMP/browsers")"
           echo "$out"
           echo "CHROME_PATH=${out##* }" >> "$GITHUB_ENV"
       - name: Chromium is available

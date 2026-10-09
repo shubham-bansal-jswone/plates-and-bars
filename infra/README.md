@@ -63,7 +63,9 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 
 Do not require `lane-check (warns only)`; it only annotates. Skipped jobs (folder absent or untouched) count as passing, so requiring all of the above is safe now. Note that `dependency-review` only runs on PRs, so it will not report on pushes to `main`; that is fine for PR-based protection.
 
-The `site` job installs open-source Chromium (BSD-3-Clause) with `@puppeteer/browsers` 3.2.4 (Apache-2.0, pinned exact) and sets `CHROME_PATH` to it; it does not use Google Chrome (proprietary, Google ToS). Licences checked 2026-10-09 (npm registry metadata for `@puppeteer/browsers`).
+The `site` job installs open-source Chromium (BSD-3-Clause) with `@puppeteer/browsers` (Apache-2.0, version pinned by `apps/site/package-lock.json`, run via `npx --no-install`) and sets `CHROME_PATH` to it; it does not use Google Chrome (proprietary, Google ToS). Licences checked 2026-10-09 (npm registry metadata for `@puppeteer/browsers`).
+
+`chromium@latest` floats on purpose: puppeteer-core's `PUPPETEER_REVISIONS` lists only Chrome, Chrome Headless Shell and Firefox, not a Chromium build ID, so there is nothing to pin to. The a11y step also runs `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` so the Chromium sandbox stays on (no `--no-sandbox`). If a runner image drops or renames that sysctl, a red `site` job is the intended signal; fix it rather than disabling the sandbox.
 
 Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions/*` majors (ignored, so a human re-checks the licence). gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
 
