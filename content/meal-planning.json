@@ -1,0 +1,440 @@
+{
+  "schema_version": 1,
+  "source": "docs/prototype/plate-and-bar.html (GROC, MEAL_W, PROT_W, MAXQ, MINQ)",
+  "updated_at": "2026-10-09T00:00:00Z",
+  "needs_dietitian_review": true,
+  "meal_weights": {
+    "Breakfast": 0.25,
+    "Lunch": 0.35,
+    "Snacks": 0.1,
+    "Dinner": 0.3
+  },
+  "protein_weights": {
+    "Breakfast": 0.25,
+    "Lunch": 0.3,
+    "Snacks": 0.15,
+    "Dinner": 0.3
+  },
+  "max_portions": {
+    "Paneer": 1.5,
+    "Paneer bhurji": 1.5,
+    "Chicken breast, cooked": 2,
+    "Chicken curry": 2,
+    "Soya chunks, dry": 1,
+    "Dal": 2,
+    "Rajma / chole": 2,
+    "Egg, whole": 3,
+    "Egg white": 4,
+    "Toned milk": 1.5,
+    "Greek yogurt, plain": 2,
+    "Whey protein": 1.5
+  },
+  "min_portions": {
+    "Soya chunks, dry": 0.5,
+    "Whey protein": 0.5,
+    "Egg, whole": 2,
+    "Egg white": 2
+  },
+  "grocery": [
+    {
+      "food": "Roti / chapati",
+      "items": [
+        {
+          "item": "Atta",
+          "amount": 30,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Rice, cooked",
+      "items": [
+        {
+          "item": "Rice",
+          "amount": 50,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Dal",
+      "items": [
+        {
+          "item": "Toor dal",
+          "amount": 35,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Rajma / chole",
+      "items": [
+        {
+          "item": "Rajma or chole (dry)",
+          "amount": 40,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Mixed veg sabzi",
+      "items": [
+        {
+          "item": "Mixed vegetables",
+          "amount": 150,
+          "unit": "g"
+        },
+        {
+          "item": "Oil",
+          "amount": 7,
+          "unit": "ml"
+        }
+      ]
+    },
+    {
+      "food": "Paneer",
+      "items": [
+        {
+          "item": "Paneer",
+          "amount": 100,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Paneer bhurji",
+      "items": [
+        {
+          "item": "Paneer",
+          "amount": 100,
+          "unit": "g"
+        },
+        {
+          "item": "Onion and tomato",
+          "amount": 60,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Chicken breast, cooked",
+      "items": [
+        {
+          "item": "Chicken breast",
+          "amount": 130,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Chicken curry",
+      "items": [
+        {
+          "item": "Chicken",
+          "amount": 120,
+          "unit": "g"
+        },
+        {
+          "item": "Onion and tomato",
+          "amount": 80,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Egg, whole",
+      "items": [
+        {
+          "item": "Eggs",
+          "amount": 1,
+          "unit": "pcs"
+        }
+      ]
+    },
+    {
+      "food": "Egg white",
+      "items": [
+        {
+          "item": "Eggs",
+          "amount": 1,
+          "unit": "pcs"
+        }
+      ]
+    },
+    {
+      "food": "Curd / dahi",
+      "items": [
+        {
+          "item": "Curd",
+          "amount": 100,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Greek yogurt, plain",
+      "items": [
+        {
+          "item": "Greek yogurt",
+          "amount": 100,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Toned milk",
+      "items": [
+        {
+          "item": "Milk",
+          "amount": 250,
+          "unit": "ml"
+        }
+      ]
+    },
+    {
+      "food": "Whey protein",
+      "items": [
+        {
+          "item": "Whey protein",
+          "amount": 1,
+          "unit": "scoops"
+        }
+      ]
+    },
+    {
+      "food": "Soya chunks, dry",
+      "items": [
+        {
+          "item": "Soya chunks",
+          "amount": 50,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Oats, dry",
+      "items": [
+        {
+          "item": "Oats",
+          "amount": 40,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Poha",
+      "items": [
+        {
+          "item": "Poha",
+          "amount": 60,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Upma",
+      "items": [
+        {
+          "item": "Rava (sooji)",
+          "amount": 50,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Idli",
+      "items": [
+        {
+          "item": "Idli batter",
+          "amount": 60,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Dosa, plain",
+      "items": [
+        {
+          "item": "Dosa batter",
+          "amount": 80,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Sambar",
+      "items": [
+        {
+          "item": "Toor dal",
+          "amount": 15,
+          "unit": "g"
+        },
+        {
+          "item": "Mixed vegetables",
+          "amount": 60,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Aloo paratha",
+      "items": [
+        {
+          "item": "Atta",
+          "amount": 50,
+          "unit": "g"
+        },
+        {
+          "item": "Potato",
+          "amount": 70,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Brown bread",
+      "items": [
+        {
+          "item": "Brown bread",
+          "amount": 1,
+          "unit": "slices"
+        }
+      ]
+    },
+    {
+      "food": "Peanut butter",
+      "items": [
+        {
+          "item": "Peanut butter",
+          "amount": 16,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Banana",
+      "items": [
+        {
+          "item": "Bananas",
+          "amount": 1,
+          "unit": "pcs"
+        }
+      ]
+    },
+    {
+      "food": "Apple",
+      "items": [
+        {
+          "item": "Apples",
+          "amount": 1,
+          "unit": "pcs"
+        }
+      ]
+    },
+    {
+      "food": "Almonds",
+      "items": [
+        {
+          "item": "Almonds",
+          "amount": 12,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Roasted chana",
+      "items": [
+        {
+          "item": "Roasted chana",
+          "amount": 30,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Sprouts salad",
+      "items": [
+        {
+          "item": "Moong for sprouting",
+          "amount": 40,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Sabudana khichdi",
+      "items": [
+        {
+          "item": "Sabudana",
+          "amount": 80,
+          "unit": "g"
+        },
+        {
+          "item": "Peanuts",
+          "amount": 15,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Makhana, roasted",
+      "items": [
+        {
+          "item": "Makhana",
+          "amount": 30,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Kuttu atta roti",
+      "items": [
+        {
+          "item": "Kuttu atta",
+          "amount": 35,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Sweet potato, boiled",
+      "items": [
+        {
+          "item": "Sweet potato",
+          "amount": 150,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Peanuts, roasted",
+      "items": [
+        {
+          "item": "Peanuts",
+          "amount": 30,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Buttermilk (chaas)",
+      "items": [
+        {
+          "item": "Curd",
+          "amount": 80,
+          "unit": "g"
+        }
+      ]
+    },
+    {
+      "food": "Fruit bowl",
+      "items": [
+        {
+          "item": "Mixed fruit",
+          "amount": 200,
+          "unit": "g"
+        }
+      ]
+    }
+  ]
+}
