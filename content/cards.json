@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "origin": "docs/prototype/plate-and-bar.html (KB, LEARN)",
+  "split_names": {
+    "2": "two full-body sessions",
+    "3": "three full-body sessions",
+    "4": "an upper/lower split",
+    "5": "a push/pull/legs plus upper/lower hybrid",
+    "6": "push/pull/legs twice"
+  },
+  "cards": [
+    {
+      "id": "targets",
+      "title": "Why these calorie and macro targets?",
+      "summary": "A moderate deficit loses fat while keeping enough energy to train and build muscle.",
+      "body": "Your target is {kcal} kcal. A deficit of roughly 15–20% loses about 0.5–1% of bodyweight a week, a pace that protects muscle better than crash dieting. Protein is set high ({protein_g} g) because it protects muscle in a deficit; fat stays at least about 25% of calories for hormones; carbs fill the rest and fuel training. Formulas can be off by about 10% for individuals, which is why the weekly check-in later corrects the burn from your real weight trend.",
+      "evidence": "Moderate",
+      "source": "Mifflin et al., 1990 (calorie formula); Frankenfield et al., 2005 (formula accuracy review)",
+      "learn_order": null,
+      "placeholders": [
+        "kcal",
+        "protein_g"
+      ],
+      "review_status": "draft"
+    },
+    {
+      "id": "protein",
+      "title": "Why so much protein?",
+      "summary": "Protein is what lets you keep and build muscle while losing fat.",
+      "body": "A large meta-analysis found muscle-building benefits from protein level off at around 1.6 g per kg of bodyweight a day, with some people benefiting up to about 2.2 g. Your target of {protein_g} g adds a margin because protein needs rise during a calorie deficit, and protein keeps you fuller than the same calories from carbs or fat. Spreading it across 3–4 meals is a sensible habit, but the daily total matters most.",
+      "evidence": "Strong",
+      "source": "Morton et al., 2018, British Journal of Sports Medicine (meta-analysis)",
+      "learn_order": 3,
+      "placeholders": [
+        "protein_g"
+      ],
+      "review_status": "draft"
+    },
+    {
+      "id": "progression",
+      "title": "How the suggested weight is chosen",
+      "summary": "Add reps first, then weight: the simplest reliable way to keep getting stronger.",
+      "body": "This is called double progression. Each exercise has a rep range, like 8–12. You stay at a weight until you can do the top of the range on every set with good form, then add the smallest step your equipment allows and start again near the bottom of the range. Muscles grow when they’re asked to do a little more over time (progressive overload). Steady small increases beat big jumps that break your form, which is why jumps over about 10% come with a fallback.",
+      "evidence": "Moderate",
+      "source": "General resistance-training principle; ACSM position stand on progression models, 2009",
+      "learn_order": null,
+      "review_status": "draft"
+    },
+    {
+      "id": "rir",
+      "title": "Why rate how each set felt?",
+      "summary": "Stopping with 1–3 reps left builds muscle about as well as going to failure, with less fatigue.",
+      "body": "“Just right” means you could have done about 2–3 more reps. Research suggests sets taken close to failure, but not always all the way, build muscle about as well while being easier to recover from. Your ratings tell the app whether the weight is right: “Easy” means it can go up, “Couldn’t finish” means it should come down a little. Beginners tend to underestimate how many reps they have left, so the ratings become more accurate with practice.",
+      "evidence": "Moderate",
+      "source": "Zourdos et al., 2016 (reps-in-reserve scale)",
+      "learn_order": 2,
+      "review_status": "draft"
+    },
+    {
+      "id": "ramp",
+      "title": "Why ramp up to find your weight?",
+      "summary": "Guessing a starting weight is how beginners get hurt or waste weeks lifting too light.",
+      "body": "Ramping starts light to rehearse the movement, then adds a step at a time until the target reps feel hard but doable. It doubles as a warm-up and as technique practice. Strength numbers vary hugely between people and between machines in different gyms, so a few minutes of ramping beats any formula for a first session.",
+      "evidence": "Moderate",
+      "source": "Common coaching practice; no single study",
+      "learn_order": 1,
+      "review_status": "draft"
+    },
+    {
+      "id": "overload",
+      "title": "Progressive overload",
+      "summary": "Doing a little more over time is the main driver of results.",
+      "body": "Your body adapts only to the work it’s asked to do. If you lift the same weight for the same reps forever, progress stops. Adding reps, weight or sets over weeks keeps the signal going. Training with lighter weights for more reps or heavier weights for fewer reps both build muscle when sets are taken close to failure, so the rep range matters less than steadily doing more.",
+      "evidence": "Strong",
+      "source": "Schoenfeld et al., 2017, Journal of Strength and Conditioning Research (low vs high load)",
+      "learn_order": 5,
+      "review_status": "draft"
+    },
+    {
+      "id": "volume",
+      "title": "How many sets per muscle?",
+      "summary": "Around 10 or more hard sets a week per muscle works well for most people.",
+      "body": "Studies comparing different numbers of weekly sets found more sets generally produce more muscle growth, up to a point, with around 10+ hard sets per muscle per week being a good target. Beginners grow on less, which is why plans start with a 2-week ramp. The coverage meter on the Targets tab shows your plan’s weekly sets per muscle.",
+      "evidence": "Moderate",
+      "source": "Schoenfeld, Ogborn & Krieger, 2017, Journal of Sports Sciences (dose-response meta-analysis)",
+      "learn_order": 8,
+      "review_status": "draft"
+    },
+    {
+      "id": "deload",
+      "title": "Why a recovery week?",
+      "summary": "Fatigue can hide fitness. A lighter week lets it show again.",
+      "body": "When several lifts stall at once, accumulated fatigue is a common cause. A week with fewer sets and slightly lighter weights reduces that fatigue while keeping the skill and the habit. Coaches widely use these “deloads”, but research on exactly when and how is still limited, which is why the app suggests one only when the signs point to it.",
+      "evidence": "Emerging",
+      "source": "Bell et al., 2023 (expert consensus on deloading)",
+      "learn_order": 9,
+      "review_status": "draft"
+    },
+    {
+      "id": "stall",
+      "title": "Why change the rep range after a stall?",
+      "summary": "A new rep range is a fresh stimulus without changing the exercise.",
+      "body": "Muscles grow across a wide range of reps when sets are hard enough. Moving from 8–12 to 6–8, or the other way, lets you progress again by a different route. Stalls during a calorie deficit are also normal; sleep and protein are worth checking first.",
+      "evidence": "Moderate",
+      "source": "Schoenfeld et al., 2017 (load and hypertrophy)",
+      "learn_order": null,
+      "review_status": "draft"
+    },
+    {
+      "id": "ladder",
+      "title": "Why move up the ladder?",
+      "summary": "Harder variations let you keep progressing once a simpler one stops challenging you.",
+      "body": "Machines and dumbbells are easier to learn and safer to bail out of, so they’re a good start. Once you’ve mastered one with solid form, a variation that demands more balance or lets you load more keeps progress going. The 2-week bridge keeps the old exercise in lightly so you don’t lose what you built. Staying on a step is always fine if it’s still working for you.",
+      "evidence": "Moderate",
+      "source": "Common coaching practice",
+      "learn_order": null,
+      "review_status": "draft"
+    },
+    {
+      "id": "scale",
+      "title": "Why did the scale jump?",
+      "summary": "Overnight jumps are water, not fat.",
+      "body": "Gaining 1 kg of fat takes eating roughly 7,700 kcal more than you burn, which is very hard to do in a day. Overnight jumps usually come from water: a salty or carb-heavy meal (each gram of stored carbohydrate holds about 3 g of water), hard training, poor sleep, or for women, the menstrual cycle. That’s why the app uses weekly averages, not single weigh-ins.",
+      "evidence": "Moderate",
+      "source": "Physiology textbooks; Hall, 2008 (energy content of weight change)",
+      "learn_order": 4,
+      "review_status": "draft"
+    },
+    {
+      "id": "spot",
+      "title": "Can I burn belly fat with ab exercises?",
+      "summary": "No. Fat comes off the whole body, in an order set mostly by genetics.",
+      "body": "A study that had people do abdominal exercises for 6 weeks found no extra loss of belly fat compared with people who didn’t. Fat loss comes from a calorie deficit; where it leaves first isn’t something you can choose. Ab training still strengthens your core, and belly fat does come down with overall fat loss. That’s why your plan relies on a deficit plus full-body training, and why your waist measurement is worth tracking.",
+      "evidence": "Strong",
+      "source": "Vispute et al., 2011, Journal of Strength and Conditioning Research",
+      "learn_order": 6,
+      "review_status": "draft"
+    },
+    {
+      "id": "sleep",
+      "title": "Why a lighter session after poor sleep?",
+      "summary": "Short sleep hurts training quality and makes a diet cost more muscle.",
+      "body": "In one controlled study, people dieting on 5.5 hours of sleep lost noticeably more muscle and less fat than when they slept 8.5 hours on the same diet. A single bad night mainly reduces strength and focus, so keeping the session but dropping a set and holding the weights is a good trade. A few nights in a row matter more than one.",
+      "evidence": "Moderate",
+      "source": "Nedeltcheva et al., 2010, Annals of Internal Medicine",
+      "learn_order": 7,
+      "review_status": "draft"
+    },
+    {
+      "id": "soreness",
+      "title": "Is soreness a sign of a good workout?",
+      "summary": "No. Soreness mostly means the work was new, not that it was effective.",
+      "body": "Muscle soreness is highest after new exercises or a long break, and fades as you adapt, even while you keep growing. Chasing soreness leads to too much fatigue. Better signs of progress: more reps or weight over weeks, and your measurements.",
+      "evidence": "Moderate",
+      "source": "Schoenfeld & Contreras, 2013, Strength and Conditioning Journal",
+      "learn_order": 10,
+      "review_status": "draft"
+    },
+    {
+      "id": "formfirst",
+      "title": "Why form comes before weight",
+      "summary": "Good form keeps the work on the right muscles and keeps you training without injuries.",
+      "body": "In the first weeks, much of your strength gain comes from your nervous system learning the movement, not from new muscle. That’s the best time to groove good technique with manageable weights. The app holds weight increases for the first 2 weeks on an exercise and when you report your form slipping, so the habit sticks.",
+      "evidence": "Moderate",
+      "source": "General motor-learning and strength research",
+      "learn_order": 0,
+      "review_status": "draft"
+    },
+    {
+      "id": "bulky",
+      "title": "Will lifting make women bulky?",
+      "summary": "No. Building noticeable muscle takes years of deliberate effort for anyone.",
+      "body": "Women gain muscle at a similar relative rate to men when training, but from a smaller starting point and with lower testosterone, so absolute size gains are smaller. What most people see is a firmer, more defined shape, especially alongside fat loss. Strength training also supports bone density.",
+      "evidence": "Moderate",
+      "source": "Roberts et al., 2020, Journal of Strength and Conditioning Research (sex differences review)",
+      "learn_order": null,
+      "audience": "female",
+      "review_status": "draft"
+    },
+    {
+      "id": "adaptive",
+      "title": "How your real burn is calculated",
+      "summary": "Your food log plus your weight trend reveal your actual burn.",
+      "body": "If you eat an average of 2,000 kcal a day and your weight trend drops 0.5 kg a week, you’re burning about 2,000 + (0.5 × 7,700 ÷ 7) ≈ 2,550 kcal a day. The 7,700 kcal per kg figure is an approximation, and logging is never perfect, so the estimate is smoothed week to week and only suggests a change when the difference is 100+ kcal.",
+      "evidence": "Moderate",
+      "source": "Hall, 2008 (energy density of weight change)",
+      "learn_order": null,
+      "review_status": "draft"
+    },
+    {
+      "id": "split",
+      "title": "How your sessions are built",
+      "summary": "Your split follows your available days; big lifts come first and every muscle gets roughly even weekly work.",
+      "body": "You train {days} days a week, so your plan uses {split_name}, which trains each muscle about twice a week; that works at least as well as once. Sessions are trimmed to fit your time, keeping the big compound lifts first while you’re fresh and smaller exercises after. One exercise does each job, so you won’t see two curl variations back to back. Across the week the plan aims for roughly 10 hard sets per muscle.",
+      "evidence": "Moderate",
+      "source": "Schoenfeld, Ogborn & Krieger, 2016 and 2017 (training frequency and volume meta-analyses)",
+      "learn_order": null,
+      "placeholders": [
+        "days",
+        "split_name"
+      ],
+      "review_status": "draft"
+    },
+    {
+      "id": "workoutburn",
+      "title": "How workout calories are estimated",
+      "summary": "Lifting burns less than most people think, and trackers usually overestimate.",
+      "body": "The app times your session from your first to your last ticked set and uses a standard value for weight training of about 5 METs including rest between sets (1 MET is roughly what you burn sitting still). An hour of lifting at 80 kg works out to around 350–400 kcal in total, of which roughly 300 is extra over resting. Studies of fitness trackers have found calorie estimates often off by 20% or more, so treat any workout number as rough. Your calorie target already counts your usual training, which is why the app doesn’t add workout calories back to your food budget.",
+      "evidence": "Moderate",
+      "source": "Ainsworth et al., Compendium of Physical Activities (MET values)",
+      "learn_order": null,
+      "review_status": "draft"
+    },
+    {
+      "id": "creatine",
+      "title": "Is creatine worth taking?",
+      "summary": "It’s the best-researched supplement for strength and muscle.",
+      "body": "Creatine monohydrate, typically 3–5 g a day, helps you do slightly more work in each session, which adds up over months. It’s cheap and well studied in healthy adults. It can slightly raise creatinine on blood tests, so tell your doctor if you take it. If you have kidney problems, ask your doctor first. Protein powder is optional; it’s just convenient food.",
+      "evidence": "Strong",
+      "source": "Kreider et al., 2017, International Society of Sports Nutrition position stand",
+      "learn_order": 11,
+      "review_status": "draft"
+    }
+  ]
+}
