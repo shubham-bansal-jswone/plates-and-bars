@@ -194,6 +194,17 @@ export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './
 export { addDays } from './dates';
 
 /**
+ * Lift records on the wire (#135): core's record (prototype `S.lifts[name]`) and the contract's `LiftStat`.
+ * The prototype has no counterpart (it kept records in `localStorage`); the fallbacks for older records are its rules.
+ * - `recordToLiftStat` renames to contract fields, fills required fields (null where unknown, `sessions` = prototype
+ *   `updateLift`'s `n || (prev ? 2 : 1)`, `first` = `first || prev.date || date`) and keeps nested `prev` one level deep.
+ * - `liftStatToRecord` is its inverse.
+ * - `liftStatTombstone` is the schema-valid tombstone for a deleted record (`updateLift` gave `record: null`).
+ */
+export { recordToLiftStat, liftStatToRecord, liftStatTombstone } from './liftStat';
+export type { LiftStatSet, LiftStatSession, LiftStatPrev, LiftStatBody, LiftStatTombstone } from './liftStat';
+
+/**
  * Workout screen: rest timer, warm-up line, next template and the check-in.
  * - `restFor`, `restLabel` mirror the prototype functions of the same name (`TAGS` passed in);
  *   `REST_COMPOUND_SEC`, `REST_OTHER_SEC` are its 150 and 75 seconds.
