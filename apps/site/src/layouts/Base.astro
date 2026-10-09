@@ -1,11 +1,17 @@
 ---
+import "@fontsource/roboto/latin-300.css";
+import "@fontsource/roboto/latin-400.css";
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-500.css";
+import "@fontsource/inter/latin-700.css";
 import "../styles/global.css";
 
 interface Props {
   title: string;
   description: string;
+  landing?: boolean;
 }
-const { title, description } = Astro.props;
+const { title, description, landing = false } = Astro.props;
 ---
 
 <!doctype html>
@@ -18,9 +24,9 @@ const { title, description } = Astro.props;
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
   </head>
-  <body>
+  <body class={landing ? "landing" : undefined}>
     <a class="skip" href="#main">Skip to content</a>
-    <header>
+    <header class="site-header">
       <div class="wrap">
         <a class="mark" href="/">Plate <span>&amp;</span> Bar</a>
         <nav aria-label="Primary">
@@ -31,7 +37,7 @@ const { title, description } = Astro.props;
         </nav>
       </div>
     </header>
-    <main id="main" class="wrap">
+    <main id="main">
       <slot />
     </main>
     <footer>
