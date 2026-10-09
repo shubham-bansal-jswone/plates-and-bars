@@ -89,7 +89,7 @@ describe('Food screen', () => {
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: true });
     });
 
-    it('PINNED QUIRK (#178): with two plans on today, Undo removes the earlier plan, not the newest', async () => {
+    it('with two plans on today, the note shows the newest plan’s extra and Undo removes only that plan', async () => {
       const db = await setup();
       await plan('+300 kcal today');
       const first = (await waitFor(async () => {
@@ -99,13 +99,46 @@ describe('Food screen', () => {
       }))[0]!.id;
       await plan('+500 kcal today');
       await waitFor(async () => expect((await flexOf(db)).length).toBeGreaterThan(4));
+      expect(screen.getByText(/includes \+500 kcal for a bigger meal/)).toBeTruthy();
       await fireEvent.press(screen.getByLabelText('Undo bigger day'));
       await waitFor(async () => {
         const left = await flexOf(db);
-        expect(left.length).toBeGreaterThan(0);
-        expect(left.some((x) => x.id === first)).toBe(false);
+        expect(left.length).toBe(4);
+        expect(left.every((x) => x.id === first)).toBe(true);
       });
-      expect(screen.getByLabelText('0 of 2,490 kcal eaten')).toBeTruthy();
+      expect(screen.getByLabelText('0 of 2,290 kcal eaten')).toBeTruthy();
+      expect(screen.getByText(/includes \+300 kcal for a bigger meal/)).toBeTruthy();
+    });
+
+    it('hides Undo on a day that only has cuts', async () => {
+      const db = memoryDb();
+      await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: [{ id: 'old', date: DATE, kcal_delta: -200 }] });
+      await setup({ db });
+      expect(screen.getByText(/200 kcal lower/)).toBeTruthy();
+      expect(screen.queryByLabelText('Undo bigger day')).toBeNull();
+    });
+
+    it('Undo trims the cuts left on a day so it stays at the minimum (floor-aware)', async () => {
+      const db = memoryDb();
+      // Base target 1,990, floor 1,500. Today has a -1000 cut (p0) and a +500 plan (p1); removing p1 alone would
+      // leave 990, so undoFlex trims the cut by 510 and the day lands exactly on the floor.
+      await saveSettings(db, {
+        ...defaultSettings('2026-10-08T00:00:00Z'),
+        flex: [{ id: 'p0', date: DATE, kcal_delta: -1000 }, { id: 'p1', date: DATE, kcal_delta: 500 }],
+      });
+      await setup({ db });
+      await fireEvent.press(screen.getByLabelText('Undo bigger day'));
+      const left = await waitFor(async () => {
+        const f = await flexOf(db);
+        expect(f.some((x) => x.id === 'p1')).toBe(false);
+        return f;
+      });
+      const net = left.reduce((a, x) => a + x.kcal_delta, 0);
+      expect(net).toBeGreaterThan(-1000);
+      const target = Number(screen.getByLabelText(/kcal eaten$/).props.accessibilityLabel.match(/of ([\d,]+) kcal/)[1].replace(',', ''));
+      expect(target).toBe(1990 + net);
+      expect(left).toEqual([{ id: 'p0', date: DATE, kcal_delta: -490 }]);
+      expect(target).toBe(1500);
     });
 
     it('says what could not be spread when the next days have no room', async () => {

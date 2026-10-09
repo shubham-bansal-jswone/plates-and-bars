@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
+import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
 import { newId } from '../db/records';
@@ -51,6 +51,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const complete = f.note?.complete === true;
   const todaysFlex = settings.flex.filter((x) => x.date === f.date);
   const flexDelta = todaysFlex.reduce((a, x) => a + x.kcal_delta, 0);
+  const todaysPlan = flexPlanFor(settings.flex, f.date);
   const blocked = (): boolean => {
     if (loadFailed) notify('Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.');
     return loadFailed;
@@ -63,7 +64,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     notify(flexToast(extra, r));
   };
   const undo = (id: string) => {
-    if (!blocked()) setFlex(undoFlex(settings.flex, id));
+    // TODO(#159 follow-up): labHold is off until the lab hold is stored (no separate issue exists yet).
+    if (!blocked()) setFlex(undoFlex(settings.flex, id, { profile }));
   };
 
   return (
@@ -92,9 +94,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         )}
         {todaysFlex.length ? (
           <View style={styles.gap}>
-            <Note>{flexDelta > 0 ? `Today’s target includes +${flexDelta} kcal for a bigger meal, balanced over the next few days.` : `Today’s target is ${-flexDelta} kcal lower to balance an earlier bigger day.`}</Note>
-            {/* TODO(#178): this undoes the first of today's plans, not the newest; fix with the spec change in the prototype and core. */}
-            <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysFlex[0]!.id)} />
+            <Note>{todaysPlan ? `Today’s target includes +${todaysPlan.kcal_delta} kcal for a bigger meal, balanced over the next few days.` : `Today’s target is ${-flexDelta} kcal lower to balance an earlier bigger day.`}</Note>
+            {todaysPlan ? <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysPlan.id)} /> : null}
           </View>
         ) : null}
         <View style={styles.gap}>
