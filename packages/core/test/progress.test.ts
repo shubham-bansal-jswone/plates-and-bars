@@ -354,6 +354,18 @@ describe('weeklyAvg and rapidLoss', () => {
     expect(rapidLoss(one, DATE, 2)).toMatchObject({ twoWeeks: false, stalls: 2 });
     expect(rapidLoss([], DATE, 5)).toBeNull();
   });
+  it('the second week is measured against 1% of the week before it (w2), not of last week (w0)', () => {
+    // w2 − w0 = 0.995: under 1% of w2 (1.0) but over 1% of w0 (0.99005), so only a w0 threshold would call it fast.
+    const ws = daily([...Array(7).fill(97), ...Array(7).fill(99.005), ...Array(7).fill(100)]);
+    expect(weeklyAvg(ws, addDays(DATE, -7))).toBe(99.005);
+    expect(rapidLoss(ws, DATE, 0)).toBeNull();
+    expect(rapidLoss(ws, DATE, 2)).toMatchObject({ twoWeeks: false, stalls: 2 });
+    setWeights(ws);
+    proto.S.lifts = {};
+    proto.S.settings.adj = {};
+    proto.setToday(DATE);
+    expect(proto.calorieCard()).toBe('');
+  });
   it('addKcal keeps calories at 1,200 or more and carbs at 0 or more', () => {
     expect(addKcal({ kcal: 1900, carbs: 190 }, RAPID_LOSS_KCAL)).toEqual({ kcal: 2050, carbs: 228 });
     expect(addKcal({ kcal: 1250, carbs: 10 }, -150)).toEqual({ kcal: 1200, carbs: 0 });
