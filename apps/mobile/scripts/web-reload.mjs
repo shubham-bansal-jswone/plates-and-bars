@@ -189,6 +189,21 @@ try {
     await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 20000 });
   }
   console.log('after reload: today\u2019s target still includes the +300 flex (2,290 kcal)');
+  // Progress: log a weight, reload, it is still there.
+  await click('Progress');
+  await type('Weight in kg', '81.6');
+  const wBefore = await opfsStamp(page);
+  await click('Save weight');
+  await page.waitForSelector(sel('Latest weigh-in 81.6 kg'), { timeout: 20000 });
+  console.log('progress: logged a 81.6 kg weigh-in');
+  await savedSince(page, wBefore);
+  await page.reload({ waitUntil: 'load' });
+  const weighed = await page.waitForSelector(sel('Latest weigh-in 81.6 kg'), { timeout: 8000 }).catch(() => null);
+  if (!weighed) {
+    await click('Progress');
+    await page.waitForSelector(sel('Latest weigh-in 81.6 kg'), { timeout: 20000 });
+  }
+  console.log('after reload: the 81.6 kg weigh-in persisted');
   ok = true;
 } catch (e) {
   console.error('FAILED:', e.message);
