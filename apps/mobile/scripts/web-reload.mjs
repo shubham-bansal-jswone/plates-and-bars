@@ -190,15 +190,15 @@ try {
   }
   console.log('after reload: today\u2019s target still includes the +300 flex (2,290 kcal)');
   // Water: add a glass, reload, the glass is still counted.
-  const wBefore = await opfsStamp(page);
+  const waterBefore = await opfsStamp(page);
   await page.waitForSelector(sel('Add a glass, 250 millilitres'), { timeout: 20000 });
   await click('Add a glass, 250 millilitres');
   await page.waitForSelector('[aria-label^="0.3 of about "]', { timeout: 20000 });
   console.log('water: added a glass (0.3 L)');
-  await savedSince(page, wBefore);
+  await savedSince(page, waterBefore);
   await page.reload({ waitUntil: 'load' });
-  const watered = await page.waitForSelector('[aria-label^="0.3 of about "]', { timeout: 8000 }).catch(() => null);
-  if (!watered) {
+  const waterBack = await page.waitForSelector('[aria-label^="0.3 of about "]', { timeout: 8000 }).catch(() => null);
+  if (!waterBack) {
     await click('Food');
     await page.waitForSelector('[aria-label^="0.3 of about "]', { timeout: 20000 });
   }

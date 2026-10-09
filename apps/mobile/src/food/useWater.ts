@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { planned, waterTarget } from '@plate-and-bar/core';
 import { newId } from '../db/records';
 import { loadSessionLog, loadSets, type WorkoutDb } from '../db/workouts';
@@ -6,7 +7,8 @@ import type { Profile } from '../setup/types';
 import type { WaterLog } from './water';
 import { loadWaterLogs, loadWeighIns, saveWaterLog } from './waterDb';
 
-const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+// Keeps the milliseconds: `updated_at` is what orders the day's drinks, so two taps in one second stay in order.
+const stamp = (d: Date): string => d.toISOString();
 
 interface Options {
   db: WorkoutDb;
@@ -26,13 +28,31 @@ export function useWater({ db, date, now, profile, notify }: Options) {
   const logsRef = useRef(logs);
   const queue = useRef<Promise<void>>(Promise.resolve());
 
+  // Tab screens stay mounted, so the target is read again each time the tab is shown (a set ticked or a weigh-in
+  // added elsewhere changes it), as in src/targets/sections.tsx.
+  const [shown, setShown] = useState(0);
+  useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
+
   useEffect(() => {
     let live = true;
     (async () => {
-      const [l, weighIns, sets, sessions] = await Promise.all([loadWaterLogs(db, date), loadWeighIns(db), loadSets(db, date), loadSessionLog(db)]);
+      const l = await loadWaterLogs(db, date);
       if (!live) return;
       logsRef.current = l;
       setLogs(l);
+    })().catch(() => {
+      if (live) notify('Couldn’t read your saved water.');
+    });
+    return () => {
+      live = false;
+    };
+  }, [db, date, notify]);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const [weighIns, sets, sessions] = await Promise.all([loadWeighIns(db), loadSets(db, date), loadSessionLog(db)]);
+      if (!live) return;
       setTarget(
         waterTarget({
           date,
@@ -48,7 +68,7 @@ export function useWater({ db, date, now, profile, notify }: Options) {
     return () => {
       live = false;
     };
-  }, [db, date, profile, notify]);
+  }, [db, date, profile, notify, shown]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
@@ -69,11 +89,12 @@ export function useWater({ db, date, now, profile, notify }: Options) {
   );
 
   const undo = useCallback(() => {
-    const last = logsRef.current[logsRef.current.length - 1];
+    // The newest drink by its own timestamp, not by row or array position, so a sync rewrite cannot change which is undone.
+    const last = logsRef.current.reduce<WaterLog | null>((a, l) => (!a || l.updated_at >= a.updated_at ? l : a), null);
     if (!last) return;
     const t = stamp(now());
     const tomb = { ...last, deleted_at: t, updated_at: t };
-    logsRef.current = logsRef.current.slice(0, -1);
+    logsRef.current = logsRef.current.filter((l) => l.id !== last.id);
     setLogs(logsRef.current);
     enqueue(() => saveWaterLog(db, tomb));
   }, [db, now, enqueue]);

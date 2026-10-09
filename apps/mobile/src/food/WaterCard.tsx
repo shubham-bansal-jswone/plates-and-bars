@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { older } from '@plate-and-bar/core';
+import { older, WATER_ML_PER_KG, WATER_TRAINING_ML } from '@plate-and-bar/core';
 import { Button, Hint, Press } from '../components/ui';
 import { Text } from '../components/Text';
 import type { Profile } from '../setup/types';
@@ -36,13 +36,14 @@ export function WaterCard({ ml, count, target, sizes, profile, onAdd, onUndo }: 
           </Press>
         ) : null}
       </View>
+      {/* Decided on #229: the bar stays `brand` past 100%. Drinking more than the target is not a warning (the prototype keeps one colour), unlike the `caution` colour macro bars use. */}
       <View accessible accessibilityRole="progressbar" accessibilityLabel={`${Math.round(pct)}% of today’s water`} style={[styles.track, { backgroundColor: c.track }]}>
         <View style={{ height: 8, borderRadius: radius.full, backgroundColor: c.brand, width: `${Math.min(100, pct)}%` }} />
       </View>
       <Button label="Hydration tips" kind="link" expanded={tips} onPress={() => setTips(!tips)} />
       {tips ? (
         <View style={styles.gap}>
-          <Hint>{`Your target is a rough guide: about 33 ml per kg of bodyweight${target.trained ? ', plus 600 ml because it’s a training day' : ''}. Food covers some of your needs too.`}</Hint>
+          <Hint>{`Your target is a rough guide: about ${WATER_ML_PER_KG} ml per kg of bodyweight${target.trained ? `, plus ${WATER_TRAINING_ML} ml because it’s a training day` : ''}. Food covers some of your needs too.`}</Hint>
           <Hint>{`Chai, coffee, milk, buttermilk and nimbu pani all count.${older(profile) ? ' After 60, thirst signals get weaker, so drink regularly through the day rather than waiting to feel thirsty.' : ''}`}</Hint>
           <Hint>Easy check: pale yellow urine is fine; dark yellow means drink more. Thirst is a useful signal too.</Hint>
           <Hint>Workouts: sip during sessions. For sessions over 60–90 minutes, or in heat, an ORS or electrolyte drink helps.</Hint>

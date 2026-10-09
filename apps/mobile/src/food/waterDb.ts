@@ -3,10 +3,13 @@ import type { StoreDb } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import type { WaterLog } from './water';
 
-/** The day's drinks in the order they were logged, tombstones left out. */
+/** The day's drinks oldest first by `updated_at` (ties keep stored order), tombstones left out. */
 export async function loadWaterLogs(db: WorkoutDb, date: string): Promise<WaterLog[]> {
-  const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM water_logs WHERE log_date = ? ORDER BY rowid', date);
-  return rows.map((r) => JSON.parse(r.data) as WaterLog).filter((l) => !l.deleted_at);
+  const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM water_logs WHERE log_date = ?', date);
+  return rows
+    .map((r) => JSON.parse(r.data) as WaterLog)
+    .filter((l) => !l.deleted_at)
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
 }
 
 /** Writes a drink; an undo is the same row with `deleted_at` set (never a DELETE, so sync sees it). */
