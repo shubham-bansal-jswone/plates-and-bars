@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { latestWeight, navyBodyFat, stepsTarget, type MeasureKey } from '@plate-and-bar/core';
+import { round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
-import { fmt } from '../format';
-import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, MEASURES, WEIGHT_HINT } from '../progress/copy';
+import { fmt, shortDate } from '../format';
+import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, MEASURES, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
+import { TrendChart } from '../progress/TrendChart';
 import { useProgress } from '../progress/useProgress';
 import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
@@ -19,7 +20,7 @@ interface Props {
 }
 
 const RECENT_WEIGH_INS = 7;
-const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
+const r1 = (n: number): string => round1(n).toString();
 
 /** Progress tab, body data: weight entry, tape measurements with the navy body-fat estimate, and steps and sleep. */
 export function ProgressScreen({ db, now = () => new Date() }: Props) {
@@ -62,6 +63,8 @@ function WeightSection({ p }: { p: Progress }) {
   const [text, setText] = useState(mine ? r1(mine.weight_kg) : '');
   const latest = latestWeight(p.weights, p.date);
   const recent = p.weights.filter((w) => !w.deleted_at && w.date <= p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_WEIGH_INS);
+  const series = weightSeries(p.weights, p.date);
+  const change = trendChange(series);
   return (
     <View style={styles.section}>
       <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Body weight</Text>
@@ -70,6 +73,14 @@ function WeightSection({ p }: { p: Progress }) {
         <Button label="Save weight" onPress={() => p.saveWeightText(text)} />
       </View>
       {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${r1(latest)} kg`}>{`Latest: ${r1(latest)} kg`}</Text> : <Hint>Log a few weigh-ins to see them here.</Hint>}
+      {series.length >= 2 ? (
+        <>
+          <TrendChart points={series} box={WEIGHT_CHART_BOX} label={`Weight from ${series[0]?.v} to ${series[series.length - 1]?.v} kg`} />
+          {change ? <Hint>{`${change.down ? 'Down' : 'Up'} ${change.amount} kg since ${shortDate(change.since)}.`}</Hint> : null}
+        </>
+      ) : (
+        <Hint>{TREND_NONE}</Hint>
+      )}
       {recent.map((w) => (
         <Card key={w.date} style={styles.row} accessible accessibilityLabel={`${w.date}, ${r1(w.weight_kg)} kg`}>
           <Text style={{ color: c.muted }}>{w.date}</Text>
@@ -77,6 +88,13 @@ function WeightSection({ p }: { p: Progress }) {
         </Card>
       ))}
       <Hint>{WEIGHT_HINT}</Hint>
+      {p.scaleJump ? (
+        <Card accessibilityRole="alert">
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{SCALE_JUMP_TITLE(round1(p.scaleJump.kg))}</Text>
+          <Hint>{SCALE_JUMP_BODY}</Hint>
+          <Button label="Got it" onPress={p.dismissJump} />
+        </Card>
+      ) : null}
     </View>
   );
 }
@@ -91,6 +109,8 @@ function MeasureSection({ p }: { p: Progress }) {
   const shown = MEASURES.filter((m) => m.show === 'always' || hasRule(m) || (m.show.or_entered_that_day && !!mine?.[m.key]));
   const female = MEASURES.some(hasRule);
   const bf = navyBodyFat(profile, p.tapes, p.date);
+  const waist = waistSeries(p.tapes, p.date);
+  const waistChange = trendChange(waist);
   return (
     <View style={styles.section}>
       <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Measurements</Text>
@@ -101,6 +121,13 @@ function MeasureSection({ p }: { p: Progress }) {
         </View>
       ))}
       <Button label="Save for today" onPress={() => p.saveTape(text)} />
+      {waist.length >= 2 ? (
+        <>
+          <Text accessibilityRole="header" style={[typeScale.label, { color: c.ink }]}>Waist</Text>
+          <TrendChart points={waist} box={WAIST_CHART_BOX} label={`Waist from ${waist[0]?.v} to ${waist[waist.length - 1]?.v} cm`} />
+          {waistChange ? <Hint>{`Waist ${waistChange.down ? 'down' : 'up'} ${waistChange.amount} cm since ${shortDate(waistChange.since)}.`}</Hint> : null}
+        </>
+      ) : null}
       {bf !== null ? (
         <>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{`Estimated body fat: about ${fmt(bf)}%`}</Text>
