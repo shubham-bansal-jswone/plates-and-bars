@@ -65,7 +65,7 @@ Everything is derived from the prototype by running its own code with stub state
 
 - `cards.json`: `learn_order` is the card's index in the prototype's `LEARN` list (null if absent). `bulky` has `audience: "female"` and `learn_insert_at` (the index the prototype splices it into the list for female profiles).
 - Body syntax for the three cards built from the user's numbers (`targets`, `protein`, `split`). `placeholders` lists `{name}` values and `sections` lists the optional inline sections. The app fills values from `packages/core`; the cards carry no numbers.
-  - `{name}` is replaced by a value (`{kcal}`, `{protein_g}`, `{tdee}`, `{bmr}`, `{movement}`, `{training}`, `{digestion}`, `{weight}`, `{protein_floor}` = round(weight x 1.6), `{minutes}`, `{days}`, `{split_name}`).
+  - `{name}` is replaced by a value (`{kcal}`, `{protein_g}`, `{tdee}`, `{bmr}`, `{movement}`, `{training}`, `{digestion}`, `{weight}`, `{protein_floor}`, supplied by `packages/core` in the app, not computed from 1.6 here, `{minutes}`, `{days}`, `{split_name}`).
   - `{?sec}text{/sec}` is shown only when the section applies; `{?sec}yes{:}no{/sec}` shows `no` otherwise. Sections do not nest.
   - Sections: `tdee` (profile present), `weight` (a weight is known), `minutes` (profile has session minutes), `new_lifter` (profile experience is new).
   - `split_names` (top level, keys "2" to "6") maps training days to `{split_name}`.

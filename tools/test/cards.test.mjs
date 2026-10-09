@@ -106,6 +106,17 @@ test('bad evidence, duplicate id or title, and placeholder mismatches fail', () 
   for (const frag of ['is not one of', 'duplicate id', 'duplicate title', 'not listed in placeholders', 'is not closed', 'not listed in sections']) assert.ok(e.some((m) => m.includes(frag)), frag);
 });
 
+test('{:} outside a section, or twice in one section, fails', () => {
+  const c = load('cards.json');
+  const split = c.cards.find((x) => x.id === 'split');
+  split.body = split.body.replace('{?minutes}', '{:}{?minutes}');
+  assert.ok(validateCards(c).some((e) => e.includes('{:} outside a section')));
+  const d = load('cards.json');
+  const s2 = d.cards.find((x) => x.id === 'split');
+  s2.body = s2.body.replace('your time{/minutes}', 'your time{:}more{/minutes}');
+  assert.ok(validateCards(d).some((e) => e.includes('more than one {:}')));
+});
+
 test('labels match the prototype and reproduce its replacement text', () => {
   const l = load('labels.json');
   assert.equal(Object.keys(l.muscles).length, 15);

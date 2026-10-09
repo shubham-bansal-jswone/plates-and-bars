@@ -9,9 +9,19 @@ function bodyErrors(c, at) {
   const secs = c.sections ?? [];
   let body = String(c.body ?? '');
   const opened = [];
-  for (const m of body.matchAll(/\{(\?|\/)([a-z_]+)\}/g)) {
-    if (m[1] === '?') {
+  let elses = 0;
+  for (const m of body.matchAll(/\{(\?|\/)([a-z_]+)\}|\{:\}/g)) {
+    if (m[0] === '{:}') {
+      if (!opened.length) errors.push(`${at}: {:} outside a section`);
+      else if (++elses > 1) errors.push(`${at}: more than one {:} in section ${opened[0]}`);
+    } else if (m[1] === '?') {
       if (opened.length) errors.push(`${at}: section ${m[2]} is nested inside ${opened[0]}`);
+      opened.push(m[2]);
+      elses = 0;
+      if (!secs.includes(m[2])) errors.push(`${at}: section ${m[2]} not listed in sections`);
+    } else if (opened.pop() !== m[2]) errors.push(`${at}: section ${m[2]} closed without a matching open`);
+  }
+  if (opened.length) errors.push(`${at}: section ${m[2]} is nested inside ${opened[0]}`);
       opened.push(m[2]);
       if (!secs.includes(m[2])) errors.push(`${at}: section ${m[2]} not listed in sections`);
     } else if (opened.pop() !== m[2]) errors.push(`${at}: section ${m[2]} closed without a matching open`);
