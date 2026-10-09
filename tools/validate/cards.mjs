@@ -21,7 +21,6 @@ function bodyErrors(c, at) {
       if (!secs.includes(m[2])) errors.push(`${at}: section ${m[2]} not listed in sections`);
     } else if (opened.pop() !== m[2]) errors.push(`${at}: section ${m[2]} closed without a matching open`);
   }
-  }
   if (opened.length) errors.push(`${at}: section ${opened[0]} is not closed`);
   for (const s of secs) if (!body.includes(`{?${s}}`)) errors.push(`${at}: section ${s} is not used in body`);
   body = body.replace(/\{[?/]([a-z_]+)\}|\{:\}/g, '');
