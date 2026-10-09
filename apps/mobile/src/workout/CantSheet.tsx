@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
-import { candidates, type CantDraft, type CantDuration, type Exclusion, type ExclusionReason, type LiftRecord, type Where } from '@plate-and-bar/core';
+import { candidates, cantAfterDuration, cantDefaultScope, cantScopeOptions, type CantDraft, type CantDuration, type Exclusion, type ExclusionReason, type LiftRecord, type Where } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Choice, Group, Hint, Note } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
@@ -42,17 +42,15 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
   const [dur, setDur] = useState<CantDuration>('perm');
   const [scope, setScope] = useState<{ scope: CantDraft['scope']; key: string }>({ scope: 'exercise', key: name });
 
-  // TODO(#281): the default scope and the scope list move to core (next to cantRule).
-  // Pain defaults to the first joint it loads, form to the whole family, anything else to just this exercise.
-  const defaultScope = (r: ExclusionReason) =>
-    setScope(t && r === 'pain' && t.joints[0] ? { scope: 'joint', key: t.joints[0] } : t && r === 'form' ? { scope: 'family', key: t.family } : { scope: 'exercise', key: name });
   const draft: CantDraft = { name, reason, dur, scope: scope.scope, key: scope.key };
 
-  const famCount = t ? Object.values(catalog.tags).filter((x) => x.family === t.family).length : 0;
-  const scopes: [NonNullable<CantDraft['scope']>, string, string, string][] = [['exercise', name, `Just ${name}`, 'Similar exercises stay in your plan.']];
-  if (t && famCount > 1) scopes.push(['family', t.family, `All ${FAMILY[t.family] ?? t.family}`, `${famCount} exercises`]);
-  if (t) scopes.push(['pattern', t.pattern, `All ${PATTERN[t.pattern] ?? t.pattern}`, 'The whole movement type']);
-  if (t) for (const j of t.joints) scopes.push(['joint', j, `Anything that loads the ${jointLabel(j)}`, 'Safest choice for pain']);
+  // The scope step's options come from core (the family option carries how many exercises share it); only the words are here.
+  const scopes = cantScopeOptions(name, catalog.tags).map((o): [NonNullable<CantDraft['scope']>, string, string, string] => {
+    if (o.scope === 'family') return [o.scope, o.key, `All ${FAMILY[o.key] ?? o.key}`, `${o.count} exercises`];
+    if (o.scope === 'pattern') return [o.scope, o.key, `All ${PATTERN[o.key] ?? o.key}`, 'The whole movement type'];
+    if (o.scope === 'joint') return [o.scope, o.key, `Anything that loads the ${jointLabel(o.key)}`, 'Safest choice for pain'];
+    return [o.scope, o.key, `Just ${name}`, 'Similar exercises stay in your plan.'];
+  });
 
   const cands = useMemo(
     () =>
@@ -80,7 +78,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
                   selected={false} action
                   onPress={() => {
                     setReason(k);
-                    defaultScope(k);
+                    setScope(cantDefaultScope(name, k, catalog.tags));
                     setStep('long');
                   }}
                 />
@@ -97,8 +95,9 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
                   selected={false} action
                   onPress={() => {
                     setDur(k as CantDuration);
-                    if (k === 'today') setScope({ scope: 'exercise', key: name });
-                    setStep(k === 'today' || !t ? 'pick' : 'scope');
+                    const next = cantAfterDuration(name, k as CantDuration, catalog.tags);
+                    if (next.scope) setScope(next.scope);
+                    setStep(next.asksScope ? 'scope' : 'pick');
                   }}
                 />
               ))}
