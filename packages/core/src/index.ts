@@ -129,10 +129,10 @@ export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplE
  * - `recheckDue` mirrors the filter in prototype `recheckCards()`: timed rules whose `until` has come, still applying until answered.
  * - `recheckBack`, `recheckLater`, `recheckKeep` mirror the `rule-back`, `rule-later` and `rule-keep` steps of prototype `exAction`.
  * - `cantRule` mirrors the rule built in prototype `applyCant(choice)`; `widerRuleReplacements` mirrors its "caught by a wider rule" loop.
- * - `cantDefaultScope` mirrors prototype `defaultScope()`; `cantScopeOptions` mirrors the scope step's `opts` in prototype `renderCant()`.
+ * - `cantDefaultScope` mirrors prototype `defaultScope()`; `cantScopeOptions` mirrors the scope step's `opts` in prototype `renderCant()`; `cantAfterDuration` mirrors the `dur` branch of the `cx` action in prototype `exAction`.
  */
-export { recheckDue, recheckBack, recheckLater, recheckKeep, cantRule, cantDefaultScope, cantScopeOptions, widerRuleReplacements } from './exclusions';
-export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement, CantScope, CantScopeOption } from './exclusions';
+export { recheckDue, recheckBack, recheckLater, recheckKeep, cantRule, cantDefaultScope, cantScopeOptions, cantAfterDuration, widerRuleReplacements } from './exclusions';
+export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement, CantScope, CantScopeOption, CantAfterDuration } from './exclusions';
 
 /**
  * The "can't do" answer applied to today's workout (#265), over contract `Workout.exercises` and `WorkoutSet`s.

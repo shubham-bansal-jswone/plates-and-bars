@@ -445,6 +445,28 @@ export function cantDefaultScope(name: string, reason: ExclusionReason | null, t
   return { scope: 'exercise', key: name };
 }
 
+/** What the "can't do" sheet does after the duration answer. */
+export interface CantAfterDuration {
+  /** True: show the scope step next. False: go straight to the pick step. */
+  asksScope: boolean;
+  /** The scope to switch to (`today`: just the exercise), or null to keep the current one. */
+  scope: CantScope | null;
+}
+
+/**
+ * The "can't do" sheet after the duration answer `dur`: a `today` answer or an untagged exercise skips
+ * the scope step; a `today` answer also sets the scope back to just the exercise (any other answer
+ * keeps the scope chosen so far, which for an untagged exercise is already the exercise).
+ *
+ * Mirrors the `dur` branch of the `cx` action in prototype `exAction`.
+ */
+export function cantAfterDuration(name: string, dur: CantDuration, tags: ExerciseCatalog['tags']): CantAfterDuration {
+  return {
+    asksScope: !(dur === 'today' || !tags[name]),
+    scope: dur === 'today' ? { scope: 'exercise', key: name } : null,
+  };
+}
+
 /** One option on the "can't do" sheet's scope step. */
 export interface CantScopeOption extends CantScope {
   /** For the family option: how many exercises in the whole catalog share the family (the option's "N exercises" line). Null otherwise. */

@@ -1,4 +1,4 @@
-import { cantDefaultScope, cantScopeOptions, type ExclusionReason, type ExerciseTag } from '../src/index';
+import { cantAfterDuration, cantDefaultScope, cantScopeOptions, type CantDuration, type ExclusionReason, type ExerciseTag } from '../src/index';
 import { loadGolden, prototypeSource, sliceBlock, sliceLine } from './helpers';
 
 // No golden cases exist for the "can't do" sheet's scope step; both rules are checked against the
@@ -18,6 +18,8 @@ interface ProtoTag {
 interface ProtoCx {
   name: string;
   reason: string;
+  dur: string;
+  step: string;
   scope: string;
   key: string;
 }
@@ -37,6 +39,7 @@ function lineIn(block: string, start: string): string {
 const proto = (() => {
   const src = prototypeSource();
   const render = sliceBlock(src, 'function renderCant(){', '}');
+  const action = sliceBlock(src, 'function exAction(a, b){', '}');
   const code = [
     sliceLine(src, 'const CX = '),
     sliceBlock(src, 'function defaultScope(){', '}'),
@@ -49,13 +52,18 @@ const proto = (() => {
     lineIn(render, 'if(t) t.j.forEach('),
     '  return opts;',
     '}',
-    'return { CX, defaultScope, scopeOpts };',
+    'function durStep(k, v){',
+    "  if(k === 'reason'){}",
+    lineIn(action, "else if(k === 'dur'){"),
+    '}',
+    'return { CX, defaultScope, scopeOpts, durStep };',
   ].join('\n');
   const labels = { FAMILY: new Proxy({}, { get: (_, k) => `F:${String(k)}` }), PATTERN: new Proxy({}, { get: (_, k) => `P:${String(k)}` }), JOINT: new Proxy({}, { get: (_, k) => `J:${String(k)}` }) };
   return new Function('TAGS', 'FAMILY', 'PATTERN', 'JOINT', code)(g.tags, labels.FAMILY, labels.PATTERN, labels.JOINT) as {
     CX: ProtoCx;
     defaultScope(): void;
     scopeOpts(): [string, string, string, string][];
+    durStep(k: string, v: string): void;
   };
 })();
 
@@ -119,5 +127,28 @@ describe('cantScopeOptions', () => {
       { scope: 'pattern', key: 'calf', count: null },
     ]);
     expect(cantScopeOptions('My Custom Lift', tags)).toEqual([{ scope: 'exercise', key: 'My Custom Lift', count: null }]);
+  });
+});
+
+describe('cantAfterDuration', () => {
+  const DURS: CantDuration[] = ['today', '2w', '4w', 'perm'];
+
+  it('matches the dur branch of prototype exAction for every exercise and duration', () => {
+    for (const name of NAMES) {
+      for (const dur of DURS) {
+        Object.assign(proto.CX, { name, reason: 'pain', dur: '', step: 'long', scope: 'family', key: 'sentinel' });
+        proto.durStep('dur', dur);
+        const got = cantAfterDuration(name, dur, tags);
+        expect(got.asksScope).toBe(proto.CX.step === 'scope');
+        expect(proto.CX.step).toBe(got.asksScope ? 'scope' : 'pick');
+        expect(got.scope ?? { scope: 'family', key: 'sentinel' }).toEqual({ scope: proto.CX.scope, key: proto.CX.key });
+      }
+    }
+  });
+
+  it('today skips the scope step and resets the scope to the exercise; untagged skips it and keeps the scope', () => {
+    expect(cantAfterDuration('Barbell Bench Press', 'today', tags)).toEqual({ asksScope: false, scope: { scope: 'exercise', key: 'Barbell Bench Press' } });
+    expect(cantAfterDuration('Barbell Bench Press', '2w', tags)).toEqual({ asksScope: true, scope: null });
+    expect(cantAfterDuration('My Custom Lift', 'perm', tags)).toEqual({ asksScope: false, scope: null });
   });
 });
