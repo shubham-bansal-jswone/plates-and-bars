@@ -4,6 +4,7 @@ import { deleteEverything, exportFromServer, wipePending } from '../src/account/
 import { SYNC_TABLES } from '../src/db/outbox';
 import { makeApi } from '../src/sync/auth';
 import { refreshSession } from '../src/sync/engine';
+import { acceptTokenPair, wipeLocalStore } from '../src/sync/guard';
 import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from '../src/sync/store';
 import { fakeServer, memoryTokens, openDb } from './sync-helpers';
 
@@ -206,7 +207,7 @@ describe('delete everything (#27)', () => {
     await seedAll(db);
     await db.runAsync("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-10', ?)", JSON.stringify({ ...meta, id: null, date: '2026-10-10', weight_kg: 81 })); // queued
     const calls: string[] = [];
-    const handler = { current: noContent as (req: Request) => Response };
+    const handler = { current: noContent as (req: Request) => Response | Promise<Response> };
     const inner = server.fetch;
     net.fetch = async (input: Request) => {
       const path = new URL(input.url).pathname.replace('/api/v1', '');
@@ -215,6 +216,7 @@ describe('delete everything (#27)', () => {
     };
     return { db, server, tokens, api: makeApi(BASE, tokens), calls, handler };
   }
+  const getKvRow = (db: Db) => db.getFirstAsync('SELECT key FROM settings WHERE key = ?', KEY_SERVER_DELETED);
   const count = async (db: Db) => (await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM weights'))?.n;
   const outbox = async (db: Db) => (await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox'))?.n;
 
@@ -301,13 +303,13 @@ describe('delete everything (#27)', () => {
     expect(await count(db)).toBe(0);
   });
 
-  it('a different user signing in just before the wipe: nothing of theirs is deleted', async () => {
+  it('a different user signing in after the 204 and before the marker: nothing of theirs is deleted', async () => {
     const { db, tokens, api } = await signedIn();
     db.beforeTxn = async () => {
       db.beforeTxn = undefined;
       await setKv(db, KEY_USER, OTHER);
     };
-    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'owner_changed' });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'owner_changed', server: true });
     expect(await count(db)).toBe(2);
     expect(await getUserId(db)).toBe(OTHER);
   });
@@ -331,6 +333,85 @@ describe('delete everything (#27)', () => {
     await setKv(db, KEY_SERVER_DELETED, OTHER);
     expect(await wipePending(db)).toBe(false);
     expect(await db.getFirstAsync('SELECT key FROM settings WHERE key = ?', KEY_SERVER_DELETED)).toBeNull();
+  });
+
+  it('ordering: the marker is stored before the tokens are cleared, and nothing clears tokens after the wipe', async () => {
+    const { db, api, tokens } = await signedIn();
+    const events: string[] = [];
+    const real = tokens.clear;
+    tokens.clear = async () => {
+      const marker = await db.getFirstAsync('SELECT key FROM settings WHERE key = ?', KEY_SERVER_DELETED);
+      const stillThere = (await getUserId(db)) !== null;
+      events.push(`clear(marker=${marker !== null},storeIntact=${stillThere})`);
+      await real();
+    };
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(events).toEqual(['clear(marker=true,storeIntact=true)']);
+  });
+
+  it('the account is deleted but another user took the store before the marker: result says so (server true), nothing of theirs is touched', async () => {
+    const { db, tokens, api, handler } = await signedIn();
+    handler.current = async () => {
+      // B signs in during the DELETE (what the account lock normally prevents): rebind and store their tokens.
+      await setKv(db, KEY_USER, OTHER);
+      tokens.current = { access: 'access-B', refresh: 'refresh-B' };
+      return noContent();
+    };
+    const res = await deleteEverything({ db, api, tokens });
+    expect(res).toEqual({ kind: 'owner_changed', server: true });
+    expect(tokens.current).toEqual({ access: 'access-B', refresh: 'refresh-B' });
+    expect(await getUserId(db)).toBe(OTHER);
+    expect(await count(db)).toBe(2);
+    expect(await db.getFirstAsync('SELECT key FROM settings WHERE key = ?', KEY_SERVER_DELETED)).toBeNull();
+  });
+
+  it('tokens that are not the pair the DELETE used are not cleared', async () => {
+    const { db, tokens, api, handler } = await signedIn();
+    handler.current = () => {
+      tokens.current = { access: 'someone-else', refresh: 'x' };
+      return noContent();
+    };
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(tokens.current).toEqual({ access: 'someone-else', refresh: 'x' });
+  });
+
+  it('the retry and the launch path (marker already stored) clear the deleted user\'s tokens too', async () => {
+    const { db, api } = await signedIn();
+    await setKv(db, KEY_SERVER_DELETED, USER);
+    const mine = memoryTokens({ access: 'a', refresh: 'r' });
+    expect(await deleteEverything({ db, api, tokens: mine })).toEqual({ kind: 'deleted', server: true });
+    expect(mine.current).toBeNull();
+  });
+
+  it('a forced wipe removes the pending marker; a plain one does not', async () => {
+    const { db } = await signedIn();
+    await setKv(db, KEY_SERVER_DELETED, USER);
+    await db.runAsync('DELETE FROM sync_outbox');
+    expect(await wipeLocalStore(db)).toBe(0);
+    expect(await getKvRow(db)).not.toBeNull();
+    await wipeLocalStore(db, { force: true });
+    expect(await getKvRow(db)).toBeNull();
+  });
+
+  it('the account lock: B signing in while DELETE /me is held waits for it, then binds and keeps their tokens', async () => {
+    const { db, tokens, api, handler } = await signedIn();
+    const slow = gate();
+    handler.current = () => noContent();
+    const inner = net.fetch;
+    net.fetch = async (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? (await slow.p, inner(r)) : inner(r));
+    const del = deleteEverything({ db, api, tokens });
+    await new Promise((r) => setTimeout(r, 10));
+    const pair = { access_token: 'access-B', refresh_token: 'refresh-B', user: { id: OTHER, email: null, created_at: '2026-10-01T00:00:00Z' } };
+    let accepted = false;
+    const signIn = acceptTokenPair(db, tokens, pair).then((o) => ((accepted = true), o));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(accepted).toBe(false); // waits for the delete
+    expect(await getUserId(db)).toBe(USER);
+    slow.release();
+    expect(await del).toEqual({ kind: 'deleted', server: true });
+    expect(await signIn).toEqual({ kind: 'signed_in', wiped: false });
+    expect(await getUserId(db)).toBe(OTHER);
+    expect(tokens.current).toEqual({ access: 'access-B', refresh: 'refresh-B' });
   });
 
   it('never signed in: wipes the local store only and makes no request', async () => {

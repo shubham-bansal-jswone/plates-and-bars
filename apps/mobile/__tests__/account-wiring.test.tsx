@@ -119,4 +119,35 @@ describe('SyncProvider account wiring (#27)', () => {
     expect(server.calls).toHaveLength(0);
     expect(now().wipePending).toBe(false);
   });
+
+  it('a delete whose device wipe fails sets wipePending (the account is already gone)', async () => {
+    const { db, tokens } = await mount({ bound: true, tokens: true });
+    await waitFor(() => expect(now().signedIn).toBe(true));
+    fetchImpl = async () => new Response(null, { status: 204 });
+    await db.execAsync('ALTER TABLE food_logs RENAME TO food_logs_x');
+    await act(async () => {
+      expect((await now().deleteEverything()).kind).toBe('local_failed');
+    });
+    expect(now().wipePending).toBe(true);
+    expect(now().signedIn).toBe(false);
+    expect(tokens.current).toBeNull();
+  });
+
+  it('on launch with a pending wipe that fails again, wipePending stays set so the screen can offer finishing', async () => {
+    const db = await openDb();
+    await db.execAsync('ALTER TABLE food_logs RENAME TO food_logs_x');
+    await setKv(db, KEY_USER, USER);
+    await setKv(db, KEY_SERVER_DELETED, USER);
+    const tokens = memoryTokens();
+    fetchImpl = async () => new Response(null, { status: 204 });
+    (globalThis as { fetch: unknown }).fetch = (r: Request) => fetchImpl(r);
+    const api = createClient(API, async () => null);
+    await render(
+      <SyncProvider db={db} tokens={tokens} api={api}>
+        <Probe />
+      </SyncProvider>,
+    );
+    await waitFor(() => expect(now().wipePending).toBe(true));
+    expect(await getUserId(db)).toBe(USER);
+  });
 });

@@ -15,7 +15,7 @@ const saved = (name: string, r: SaveResult) => (r === 'saved' ? t.exportSaved(na
 const serverMessage = (r: Exclude<ServerExportResult, { kind: 'ok' }>): string =>
   r.kind === 'offline' ? t.serverOffline : r.kind === 'rate_limited' ? t.serverRate(r.retryAfterSec) : r.kind === 'unavailable' ? t.serverUnavailable : t.serverSession;
 const deleteMessage = (r: Exclude<DeleteResult, { kind: 'deleted' }>): string =>
-  r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'needs_sign_in' ? t.needsSignIn : r.kind === 'local_failed' ? t.localFailed : r.kind === 'owner_changed' ? t.ownerChanged : t.unavailable;
+  r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'needs_sign_in' ? t.needsSignIn : r.kind === 'local_failed' ? t.localFailed : r.kind === 'owner_changed' ? (r.server ? t.ownerChangedAfterDelete : t.ownerChanged) : t.unavailable;
 
 /** Export and delete everything (#27; prototype `exportData`, `deleteEverything`). Export works offline from this device. */
 export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?: () => Date }) {

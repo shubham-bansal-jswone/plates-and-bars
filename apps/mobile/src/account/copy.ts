@@ -40,6 +40,7 @@ export const DATA_COPY = {
   rate: (sec: number) => `Too many tries, so nothing was deleted. Try again in about ${Math.ceil(sec / 60)} min.`,
   unconfirmed: 'We could not confirm the deletion, and nothing on this device was deleted. Sign in again, then try deleting again.',
   needsSignIn: 'This device is linked to an account. Sign in to delete it, or delete only this device.',
-  ownerChanged: 'Another account was signed in on this device meanwhile, so nothing on this device was deleted. Try again.',
+  ownerChanged: 'Another account was signed in on this device meanwhile, so nothing on this device was deleted.',
+  ownerChangedAfterDelete: 'Your account was deleted. This device was not cleared, because another account signed in on it meanwhile.',
   localFailed: 'Your account is deleted, but this device could not clear its data. Tap delete again to finish.',
 };

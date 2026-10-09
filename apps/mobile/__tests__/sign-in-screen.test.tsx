@@ -44,6 +44,15 @@ describe('badge', () => {
   });
 });
 
+describe('badge during a pending device wipe', () => {
+  it('does not offer sign-in once the account is deleted', async () => {
+    await render(withSync({ linked: true, wipePending: true }, <SyncBadge />));
+    expect(screen.queryByText('Sign in to sync')).toBeNull();
+    await render(withSync({}, <SyncBadge />));
+    expect(screen.getByText('Sign in to sync')).toBeTruthy();
+  });
+});
+
 describe('sign-in screen', () => {
   it('signs in with an emailed code', async () => {
     const verifyCode = jest.fn(async () => ({ kind: 'signed_in' as const, wiped: false }));

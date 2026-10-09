@@ -108,8 +108,8 @@ async function refresh(d: SyncDeps, guard: Guard): Promise<boolean> {
 export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
 
 /**
- * The engine's token refresh for callers outside a sync run (export, delete). The caller must hold sync paused. It also
- * guards the store owner: pausing does not stop a sign-in as another user (that pauses too), so if the owner changed
+ * The engine's token refresh for callers outside a sync run (export, delete). The caller must hold the account lock (`withSyncPaused`), which also pauses sync. It also
+ * guards the store owner as defence in depth behind that lock: if the owner changed
  * while the request was in flight the answer is dropped and no tokens are saved or cleared: 'ended'. Otherwise 'ended'
  * means the session is over and the tokens are cleared; transient failures keep the tokens.
  */

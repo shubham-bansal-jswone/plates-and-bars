@@ -118,6 +118,16 @@ describe('data screen (#27)', () => {
   });
 });
 
+describe('owner changed', () => {
+  it('after the account was deleted it says the device was not cleared, with no "try again"', async () => {
+    await show({ signedIn: true, deleteEverything: async () => ({ kind: 'owner_changed', server: true }) });
+    await fireEvent.press(screen.getByLabelText('Delete everything'));
+    await fireEvent.press(screen.getByLabelText('Yes, delete everything'));
+    expect(await screen.findByText(/Your account was deleted. This device was not cleared/)).toBeTruthy();
+    expect(screen.queryByText(/Try again/)).toBeNull();
+  });
+});
+
 describe('deletion notice', () => {
   const at = (lastDeletion: SyncState['lastDeletion'], clearLastDeletion = jest.fn()) => (
     <SyncContext.Provider value={{ ...base, lastDeletion, clearLastDeletion }}>
