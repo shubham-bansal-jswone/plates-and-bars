@@ -6,11 +6,13 @@ import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET } from
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { cuisines } from '../src/food/catalog';
+import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
 
 const mockFocus = { n: 0 };
+const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  useRouter: () => ({ replace: jest.fn(), push: mockPush }),
   // Runs the callback when the screen mounts and each time `mockFocus.n` changes on a re-render (the tab being shown again).
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [mockFocus.n]),
 }));
@@ -391,5 +393,84 @@ describe('Food screen', () => {
     expect(await screen.findByText('Added Roti / chapati')).toBeTruthy();
     await fireEvent.press(screen.getByText('Done'));
     expect(await screen.findByText('Couldn’t save that. Try again.')).toBeTruthy();
+  });
+
+  describe('recipes', () => {
+    afterEach(() => void (mockFocus.n = 0));
+
+    it('opens the Recipes screen', async () => {
+      await setup();
+      await fireEvent.press(screen.getByLabelText('Recipes for dinner: build a recipe, the library and cooking mode'));
+      expect(mockPush).toHaveBeenCalledWith({ pathname: '/recipes', params: { meal: 'Dinner' } });
+    });
+
+    it('reads the day again when the tab is shown after a recipe was logged', async () => {
+      const db = await setup();
+      expect(screen.queryByText('Dal (home-style)')).toBeNull();
+      const log = { id: 'l1', version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, date: DATE, meal: 'Lunch', name: 'Dal (home-style)', qty: 1, kcal: 200, protein_g: 10, carbs_g: 30, fat_g: 5, food_id: null };
+      db.rows.set('food_logs:l1', JSON.stringify(log));
+      mockFocus.n++;
+      await screen.rerender(withProfile(db, <FoodScreen db={db} now={NOW} />));
+      expect(await screen.findByText('Dal (home-style)')).toBeTruthy();
+    });
+  });
+
+  describe('re-reading when shown', () => {
+    afterEach(() => void (mockFocus.n = 0));
+    const refocus = async (db: Db) => {
+      mockFocus.n++;
+      await screen.rerender(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    };
+    const log = (id: string, name: string) => ({ id, version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, date: DATE, meal: 'Lunch', name, qty: 1, kcal: 200, protein_g: 10, carbs_g: 30, fat_g: 5, food_id: null });
+
+    it('waits for writes registered by other screens before reading', async () => {
+      const db = await setup();
+      let release!: () => void;
+      trackWrite(new Promise<void>((r) => (release = r)).then(() => void db.rows.set('food_logs:l9', JSON.stringify(log('l9', 'Late dal')))));
+      await refocus(db);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(screen.queryByText('Late dal')).toBeNull();
+      release();
+      expect(await screen.findByText('Late dal')).toBeTruthy();
+    });
+
+    it('keeps a food just added when the tab is shown while its write is still queued', async () => {
+      const db = await setup();
+      db.lag = () => 60;
+      await open();
+      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByText('Done'));
+      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      await refocus(db);
+      await new Promise((r) => setTimeout(r, 200));
+      // Without waiting for the queue, the read would not have seen the row and would replace the day with an empty one.
+      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      expect(docs(db, 'food_logs')).toHaveLength(1);
+    });
+
+    it('drops an older read when the user wrote while it ran', async () => {
+      const db = await setup();
+      const real = db.getAllAsync.bind(db);
+      let slow = true;
+      db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+        const out = await real(sql, ...p);
+        if (slow && sql.includes('FROM food_logs')) await new Promise((r) => setTimeout(r, 80));
+        return out;
+      }) as typeof db.getAllAsync;
+      await refocus(db);
+      await open();
+      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByText('Done'));
+      slow = false;
+      await new Promise((r) => setTimeout(r, 300));
+      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+    });
+
+    it('says so, instead of loading forever, when the day cannot be read', async () => {
+      const db = memoryDb();
+      db.getAllAsync = () => Promise.reject(new Error('disk'));
+      await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+      expect(await screen.findByText(/Couldn’t read your saved food\. Restart/)).toBeTruthy();
+    });
   });
 });

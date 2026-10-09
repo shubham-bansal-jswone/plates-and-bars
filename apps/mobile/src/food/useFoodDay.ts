@@ -1,5 +1,7 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
+import { pendingWrites } from '../db/pendingWrites';
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
@@ -43,12 +45,36 @@ export function useFoodDay({ db, now, notify }: Options) {
   const logsRef = useRef(logs);
   const noteRef = useRef(note);
   const mineRef = useRef(mine);
+  const [failed, setFailed] = useState(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  /** Counts this screen's writes, so a read that overlapped one is redone. */
+  const writes = useRef(0);
+
+  // The tab stays mounted under the Recipes screen, which saves foods and logs, so everything is read again when it is shown
+  // (not on the first show: the mount already reads).
+  const [shown, setShown] = useState(0);
+  const first = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (first.current) first.current = false;
+      else setShown((n) => n + 1);
+    }, []),
+  );
 
   useEffect(() => {
     let live = true;
     (async () => {
-      const [l, n, m] = await Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]);
+      // Read once the writes made here and by the Recipes and Kitchen test screens have landed, and again if this screen
+      // wrote while the read was running: an older read must not replace what the user just did.
+      let seen: number;
+      let read: [FoodLog[], DayNote | null, UserFood[]];
+      do {
+        await pendingWrites();
+        await queue.current;
+        seen = writes.current;
+        read = await Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]);
+      } while (live && seen !== writes.current);
+      const [l, n, m] = read;
       if (!live) return;
       logsRef.current = l;
       noteRef.current = n;
@@ -58,15 +84,18 @@ export function useFoodDay({ db, now, notify }: Options) {
       setMine(m);
       setReady(true);
     })().catch(() => {
-      if (live) notify('Couldn’t read your saved food.');
+      if (!live) return;
+      setFailed(true);
+      notify('Couldn’t read your saved food.');
     });
     return () => {
       live = false;
     };
-  }, [db, date, notify]);
+  }, [db, date, notify, shown]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
+      writes.current++;
       queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
     },
     [notify],
@@ -147,5 +176,5 @@ export function useFoodDay({ db, now, notify }: Options) {
     [db, now, enqueue],
   );
 
-  return { date, ready, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
+  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
 }

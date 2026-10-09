@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, planForMeal, showAddedSugar, undoFlex, type FoodFacts, type PlanItem } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, H1, Hint, Note, Page, Press } from '../components/ui';
+import { Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
@@ -47,6 +47,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const f = useFoodDay({ db, now, notify });
   const water = useWater({ db, date: f.date, now, profile, notify });
 
+  if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;
 
   // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
@@ -139,7 +140,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         />
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
           <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -168,7 +169,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   );
 }
 
-function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAdd }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; onRemove: (id: string) => void; onAdd: () => void }) {
+function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAdd, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; onRemove: (id: string) => void; onAdd: () => void; onRecipes: () => void }) {
   const c = useTheme();
   const kcal = logTotals(items, facts).kcal;
   return (
@@ -194,6 +195,7 @@ function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAd
         </View>
       ) : null}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
+      <Button label="Recipes" a11yLabel={`Recipes for ${meal.toLowerCase()}: build a recipe, the library and cooking mode`} onPress={onRecipes} kind="link" />
     </View>
   );
 }
