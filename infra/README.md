@@ -86,8 +86,12 @@ The plan named Cloudflare Pages; that needs a vendor account and terms, so the w
 | Value | What happens | You provide |
 | --- | --- | --- |
 | `github-pages` | `npm ci`, `check`, `build`, then `actions/deploy-pages` | Settings > Pages > Source: GitHub Actions; a custom domain (the site is built for the domain root, so the default `user.github.io/repo/` path would break asset links) |
-| `caddy` | Build, then `rsync --delete` of `dist/` to the VM over SSH; Caddy serves it (`infra/caddy/Caddyfile.site`) | variables `SITE_SSH_HOST`, `SITE_SSH_USER`, `SITE_WEB_ROOT`; secrets `SITE_SSH_KEY` (private key of a deploy-only user), `SITE_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); a GitHub environment named `site` |
+| `caddy` | Build, then `rsync --delete` of `dist/` to the VM over SSH; Caddy serves it (`infra/caddy/Caddyfile.site`) | variables `SITE_SSH_HOST`, `SITE_SSH_USER`, `SITE_WEB_ROOT`; secrets `SITE_SSH_KEY` (private key of a deploy-only user), `SITE_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); a GitHub environment named `site`, with deployment branches restricted to `main` (Settings > Environments > site) |
 
-Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The Caddyfile has not been run through `caddy validate` yet (no Docker daemon was available when written); validate it on first use.
+Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The workflow's `validate Caddyfile` job runs `caddy validate` with the official Apache-2.0 `caddy:2` image on every PR touching `infra/caddy/`. The Caddyfile sets long-lived immutable caching for `/_astro/*`, `no-cache` for everything else, and security headers.
+
+Safety rails: deploys run only from `main`, even when started manually; the `caddy` job refuses to run `rsync --delete` unless `SITE_SSH_HOST`, `SITE_SSH_USER` and `SITE_WEB_ROOT` are set and `SITE_WEB_ROOT` is an absolute path at least two levels deep (for example `/srv/site`; never `/`). Use a dedicated deploy user that can write only that directory.
+
+Open-source note: GitHub Pages is a GitHub service, already used for this repository; if you want it recorded as an exception, say so, otherwise choose `caddy`.
 
 To turn it off again, delete the variable.

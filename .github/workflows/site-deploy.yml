@@ -6,12 +6,18 @@ name: Site deploy
 #   github-pages  deploy with GitHub Pages (needs Settings > Pages > Source: GitHub Actions
 #                 and a custom domain, because the site is built for the domain root)
 #   caddy         rsync dist/ over SSH to a VM served by Caddy (see infra/caddy/Caddyfile.site)
-# Unset or any other value: every job is skipped. See infra/README.md.
+# Unset or any other value: every deploy job is skipped. Deploys only run from
+# main, even for manual runs. The `caddyfile` job validates infra/caddy on PRs.
+# See infra/README.md.
 on:
   push:
     branches: [main]
     paths:
       - 'apps/site/**'
+      - '.github/workflows/site-deploy.yml'
+  pull_request:
+    paths:
+      - 'infra/caddy/**'
       - '.github/workflows/site-deploy.yml'
   workflow_dispatch:
 
@@ -23,10 +29,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  caddyfile:
+    name: validate Caddyfile
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # Official Caddy image (Apache-2.0)
+      - run: docker run --rm -v "$PWD/infra/caddy:/c:ro" caddy:2 caddy validate --config /c/Caddyfile.site --adapter caddyfile
+
   build:
     name: build site
-    if: vars.SITE_DEPLOY_TARGET == 'github-pages' || vars.SITE_DEPLOY_TARGET == 'caddy'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (vars.SITE_DEPLOY_TARGET == 'github-pages' || vars.SITE_DEPLOY_TARGET == 'caddy')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/site
@@ -50,12 +67,14 @@ jobs:
           name: site-dist
           path: apps/site/dist
           if-no-files-found: error
+          retention-days: 1
 
   deploy-pages:
     name: deploy (GitHub Pages)
     needs: build
     if: vars.SITE_DEPLOY_TARGET == 'github-pages'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       pages: write
       id-token: write
@@ -71,6 +90,7 @@ jobs:
     needs: build
     if: vars.SITE_DEPLOY_TARGET == 'caddy'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: site
     env:
       # Secrets: SITE_SSH_KEY (private key), SITE_SSH_KNOWN_HOSTS (output of ssh-keyscan -t ed25519 host)
@@ -94,5 +114,14 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
       - name: Sync
         run: |
+          : "${SSH_HOST:?SITE_SSH_HOST is not set}" "${SSH_USER:?SITE_SSH_USER is not set}" "${WEB_ROOT:?SITE_WEB_ROOT is not set}"
+          # rsync --delete: refuse anything but an absolute path at least two levels deep (never / or /home)
+          case "$WEB_ROOT" in
+            *..*|*[[:space:]]*) echo "::error::SITE_WEB_ROOT must not contain '..' or spaces"; exit 1 ;;
+          esac
+          if ! printf '%s' "$WEB_ROOT" | grep -Eq '^/[^/]+/[^/]+'; then
+            echo "::error::SITE_WEB_ROOT must be an absolute path at least two levels deep, for example /srv/site"
+            exit 1
+          fi
           rsync -az --delete -e "ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes" \
             dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"
