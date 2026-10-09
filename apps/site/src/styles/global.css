@@ -1,4 +1,4 @@
-/* Theme tokens: issue #179. Light on :root, dark via prefers-color-scheme. */
+/* Theme tokens: docs/design/DESIGN.md. Light on :root, dark via prefers-color-scheme. */
 :root{
   --brand:#2457E6;--brand-pressed:#1D48C2;--brand-active:#16389A;--on-brand:#FFFFFF;
   --link:#1D48C2;--link-on-black:#8AB0FF;
@@ -37,7 +37,7 @@ h3{font-size:22px;line-height:1.25}
 p,ul{margin:0 0 16px}
 .skip{position:absolute;left:-999px;top:0;background:var(--brand);color:var(--on-brand);padding:12px 16px;z-index:10;border-radius:var(--r-full)}
 .skip:focus{left:8px;top:8px}
-.wrap{max-width:72rem;margin:0 auto;padding:0 var(--gutter)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 var(--gutter)}
 
 /* Header */
 .site-header{background:var(--canvas);border-bottom:1px solid var(--line)}
@@ -94,7 +94,7 @@ nav a:hover{color:var(--ink);text-decoration:underline}
 /* Footer */
 footer{background:var(--black);color:var(--muted-dark);border-top:1px solid var(--line-dark);font-size:14px;line-height:1.5;padding:32px 0}
 footer nav ul{margin-bottom:16px;padding:0;gap:0 8px}
-footer nav a{color:var(--body-dark);font-size:14px;font-weight:400;padding:0 8px 0 0;text-decoration:underline}
-footer nav a:hover{color:var(--white)}
+footer nav a{color:var(--body-dark);font-size:16px;font-weight:400;padding:0 8px 0 0;text-decoration:none}
+footer nav a:hover,footer nav a:focus-visible{color:var(--white);text-decoration:underline}
 footer p{margin:0}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}

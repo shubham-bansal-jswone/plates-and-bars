@@ -2,7 +2,7 @@
 
 Astro static site (TypeScript strict) for Cloudflare Pages. Pages: landing, `/privacy` and `/terms` (both drafts pending lawyer review under India's DPDP Act 2023). The account deletion and attributions pages come later.
 
-Fonts: Roboto 300 (display) and Inter 400/500/700 (body), self-hosted through `@fontsource/roboto` and `@fontsource/inter` (both SIL OFL 1.1 per their package metadata), latin subset, `font-display: swap`, system font stack as fallback; no external requests. Theme: tokens in `src/styles/global.css` follow issue #179 (light on `:root`, dark via `prefers-color-scheme`).
+Fonts: Roboto 300 (display) and Inter 400/500/700 (body), self-hosted through `@fontsource/roboto` and `@fontsource/inter` (both SIL OFL 1.1 per their package metadata), latin subset, `font-display: swap`, system font stack as fallback; no external requests. Theme: tokens in `src/styles/global.css` follow `docs/design/DESIGN.md` (light on `:root`, dark via `prefers-color-scheme`).
 
 ## Commands (run in `apps/site`)
 
