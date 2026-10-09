@@ -32,9 +32,13 @@ export interface OutboxEntry {
   queued_at: string;
 }
 
-/** Changed records, oldest edit first, at most `limit` (the contract allows 500 per request). */
+/** Changed records not set aside, oldest edit first, at most `limit` (the contract allows 500 per request). */
 export async function pendingChanges(db: WorkoutDb, limit = 500): Promise<OutboxEntry[]> {
-  return db.getAllAsync<OutboxEntry>('SELECT seq, tbl, key, queued_at FROM sync_outbox ORDER BY seq LIMIT ?', limit);
+  // Entries the server refused and the engine set aside (see sync/quarantine.ts) are not sent again until retried or edited.
+  return db.getAllAsync<OutboxEntry>(
+    "SELECT o.seq, o.tbl, o.key, o.queued_at FROM sync_outbox o WHERE NOT EXISTS (SELECT 1 FROM settings s WHERE s.key = 'sync.quarantine.' || o.seq || '.' || o.tbl || '.' || o.key) ORDER BY o.seq LIMIT ?",
+    limit,
+  );
 }
 
 /** How many local changes are not pushed yet (what #31 shows before sign-out). */

@@ -3,6 +3,7 @@ import { applyPulled, clearPushed, inTransaction, pendingChanges, type OutboxEnt
 import type { WorkoutDb } from '../db/workouts';
 import type { StoreDb } from '../db/records';
 import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
+import { quarantine } from './quarantine';
 import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
@@ -37,6 +38,8 @@ export interface SyncResult {
   pulled?: number;
   /** Pulled records skipped because a field was invalid. */
   skipped?: number;
+  /** Records the server refused (400) this run and that were set aside so the rest could sync. */
+  quarantined?: number;
   /** For `error`: the exception's class name only. */
   errorName?: string;
 }
@@ -50,14 +53,20 @@ export interface SyncDeps {
 // Pulled records go in this order so a workout is stored before its sets.
 const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings'];
 const MAX_ROUNDS = 40;
+/** Rounds per run that may be spent setting refused records aside without counting against MAX_ROUNDS (each costs one request). */
+const MAX_ASIDE_ROUNDS = 40;
 const DEFAULT_RETRY_SEC = 60;
 
 type Guard = (db: StoreDb) => Promise<void>;
-type Failure = { ok: false; result: SyncResult };
+type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[] };
 type Outcome<T> = { ok: true; data: T } | Failure;
 const fail = (status: SyncStatus, retryAfterSec?: number): Failure => ({ ok: false, result: { status, conflicts: 0, ...(retryAfterSec ? { retryAfterSec } : {}) } });
 
-function failFrom(res: Response): Failure {
+function failFrom(res: Response, error?: { code?: string; details?: { field?: unknown }[] }): Failure {
+  if (res.status === 400 && error?.code === 'invalid_request' && Array.isArray(error.details)) {
+    const fields = error.details.flatMap((d) => (typeof d?.field === 'string' ? [d.field] : []));
+    return { ...fail('rejected'), fields };
+  }
   if (res.status === 429) return fail('rate_limited', Math.max(1, Number(res.headers.get('Retry-After')) || DEFAULT_RETRY_SEC));
   return res.status >= 500 ? fail('unavailable') : fail('rejected');
 }
@@ -78,10 +87,10 @@ async function net<T>(call: () => Promise<T>): Promise<T> {
 /** POSTs /sync; on 401 refreshes the tokens once and retries. Tokens are never logged. */
 async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard): Promise<Outcome<Schemas['SyncResponse']>> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const { data, response } = await net(() => d.api.POST('/sync', { body }));
+    const { data, error, response } = await net(() => d.api.POST('/sync', { body }));
     if (data) return { ok: true, data };
     if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
-    if (response.status !== 401) return failFrom(response);
+    if (response.status !== 401) return failFrom(response, error as Parameters<typeof failFrom>[1]);
     if (attempt === 1 || !(await refresh(d, guard))) return fail('signed_out');
   }
   return fail('signed_out');
@@ -199,11 +208,14 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let conflicts = 0;
   let pulled = 0;
   let skipped = 0;
+  let quarantined = 0;
+  let asideRounds = 0;
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const entries = await pendingChanges(d.db, 500);
       const sent = new Map<string, { entry: OutboxEntry; record: Doc }>();
       const changes: Record<string, Doc[]> = {};
+      const order: Record<string, OutboxEntry[]> = {}; // the entry behind changes[tbl][i], to find what a 400 names
       for (const e of entries) {
         const record = await buildRecord(d.db, userId, e);
         if (!record) {
@@ -212,9 +224,27 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         }
         sent.set(`${e.tbl}:${record.id as string}`, { entry: e, record });
         (changes[e.tbl] ??= []).push(record);
+        (order[e.tbl] ??= []).push(e);
       }
       const out = await post(d, { cursor: await getCursor(d.db), changes: changes as Schemas['SyncChanges'] }, guard);
-      if (!out.ok) return { ...out.result, conflicts, pulled, skipped };
+      if (!out.ok) {
+        // A 400 names the records at fault (`changes.<table>[<i>]...`): set those aside and send the rest again.
+        let aside = 0;
+        const seen = new Set<number>(); // several fields can name one record: it is set aside once
+        for (const f of out.fields ?? []) {
+          const m = /^changes\.([a-z_]+)\[(\d+)\]/.exec(f);
+          const bad = m ? order[m[1] as string]?.[Number(m[2])] : undefined;
+          if (!bad || seen.has(bad.seq)) continue;
+          seen.add(bad.seq);
+          if (await quarantine(d.db, bad, f, guard)) aside++;
+        }
+        if (aside > 0) {
+          quarantined += aside;
+          if (asideRounds++ < MAX_ASIDE_ROUNDS) round--; // setting records aside is progress, not a round of syncing (bounded)
+          continue;
+        }
+        return { ...out.result, conflicts, pulled, skipped, ...(quarantined ? { quarantined } : {}) };
+      }
       const res = out.data;
       for (const a of res.applied) {
         const s = sent.get(`${a.table}:${a.id}`);
@@ -258,7 +288,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
     // Anything else is a bug or a local failure, not the network: report it as an error state (class name only).
     return { status: 'error', conflicts, pulled, skipped, errorName: e instanceof Error ? e.constructor.name : 'Unknown' };
   }
-  return { status: 'ok', conflicts, pulled, skipped };
+  return { status: 'ok', conflicts, pulled, skipped, ...(quarantined ? { quarantined } : {}) };
 }
 
 async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, guard: Guard): Promise<{ stored: number; skipped: number }> {

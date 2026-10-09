@@ -13,7 +13,9 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 
 const base: SyncState = {
   configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0,
-  dataVersion: 0, holdSchedule: () => undefined,
+  dataVersion: 0, quarantined: 0, holdSchedule: () => undefined,
+  retryQuarantined: async () => undefined,
+  discardQuarantined: async () => undefined,
   syncNow: async () => null,
   startSignIn: async () => ({ ok: true, resendAfterSec: 60 }),
   verifyCode: async () => ({ kind: 'signed_in', wiped: false }),
@@ -41,6 +43,47 @@ describe('badge', () => {
     expect(screen.getByLabelText('Not synced. 3 changes on this device are not synced yet. Opens account')).toBeTruthy();
     await render(withSync({ configured: false }, <SyncBadge />));
     expect(screen.queryByText('Sign in to sync')).toBeNull();
+  });
+});
+
+describe('refused records', () => {
+  it('shows how many were set aside and offers retry and discard', async () => {
+    const retryQuarantined = jest.fn(async () => undefined);
+    const discardQuarantined = jest.fn(async () => undefined);
+    await render(withSync({ signedIn: true, pending: 2, quarantined: 2, retryQuarantined, discardQuarantined }, <SignInScreen />));
+    expect(screen.getByText(/The server refused 2 records/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Try the refused records again'));
+    await waitFor(() => expect(retryQuarantined).toHaveBeenCalled());
+    // Stopping asks first, and says what it means; nothing is dropped until the user confirms.
+    await fireEvent.press(screen.getByLabelText('Stop sending the refused records'));
+    expect(screen.getByText(/never be backed up.*Signing out or deleting your data will remove them/)).toBeTruthy();
+    expect(discardQuarantined).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByLabelText('Keep them for now'));
+    expect(discardQuarantined).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByLabelText('Stop sending the refused records'));
+    await fireEvent.press(screen.getByLabelText('Stop sending them'));
+    await waitFor(() => expect(discardQuarantined).toHaveBeenCalled());
+  });
+
+  it('says so when retry or discard fails', async () => {
+    await render(withSync({ signedIn: true, pending: 1, quarantined: 1, retryQuarantined: async () => Promise.reject(new Error('x')), discardQuarantined: async () => Promise.reject(new Error('x')) }, <SignInScreen />));
+    await fireEvent.press(screen.getByLabelText('Try the refused records again'));
+    expect(await screen.findByText(/could not try them again/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Stop sending the refused records'));
+    await fireEvent.press(screen.getByLabelText('Stop sending them'));
+    expect(await screen.findByText(/could not stop sending them/)).toBeTruthy();
+  });
+
+  it('sign-out blocked by refused records says so instead of "try again when online"', async () => {
+    await render(withSync({ signedIn: true, pending: 1, quarantined: 1, signOut: async () => 1 }, <SignInScreen />));
+    await fireEvent.press(screen.getByLabelText('Sync now, then sign out'));
+    expect(await screen.findByText(/refused by the server, and trying again will not help/)).toBeTruthy();
+    expect(screen.queryByText(/Try again when you are online/)).toBeNull();
+  });
+
+  it('shows nothing about refused records when there are none', async () => {
+    await render(withSync({ signedIn: true, pending: 0 }, <SignInScreen />));
+    expect(screen.queryByText(/refused/)).toBeNull();
   });
 });
 

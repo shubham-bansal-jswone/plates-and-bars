@@ -7,6 +7,7 @@ import { Button, Hint, Label } from '../components/ui';
 import type { ExclusionRecord } from '../db/rules';
 import type { WorkoutDb } from '../db/workouts';
 import { shortDate } from '../format';
+import { useDataVersion } from '../sync/useDataVersion';
 import { useTheme } from '../theme/useTheme';
 import { ruleText } from '../workout/rulesCopy';
 import { useRules } from '../workout/useRules';
@@ -17,7 +18,8 @@ export function RulesSection({ db, today, now, notify }: { db: WorkoutDb; today:
   // Tab screens stay mounted, so the rules are read again each time the tab is shown.
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
-  const { rules, removeRule, removeSwap } = useRules({ db, now, notify, reloadKey: shown });
+  const dataVersion = useDataVersion();
+  const { rules, removeRule, removeSwap } = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const active = activeRules(rules.exclusions) as ExclusionRecord[];
   if (!active.length && !rules.swaps.length) return null;
   return (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
+import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { Button, ErrorText, Field, Hint, H1, Label, Page, Press } from '../components/ui';
 import { fmt } from '../format';
@@ -43,7 +44,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
-  const store = useRecipes({ db, now, notify });
+  const store = useRecipes({ db, now, notify, reloadKey: useDataVersion() });
   const [d, setD] = useState<Draft>(() => blankDraft(meal));
   const leaving = useRef(false);
   const [cooking, setCooking] = useState(false);

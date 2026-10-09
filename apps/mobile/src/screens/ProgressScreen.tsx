@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -35,7 +36,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const p = useProgress({ db, now, notify });
+  const p = useProgress({ db, now, notify, reloadKey: useDataVersion() });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify });
 
   const ready = status === 'ready' && p.ready;

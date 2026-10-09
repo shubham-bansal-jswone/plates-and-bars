@@ -7,6 +7,7 @@ import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import type { FoodLog, Meal, UserFood } from '../food/types';
 import { localDate } from '../setup/logic';
+import { freshRead } from '../state/freshRead';
 import { LOAD_FAILED, SAVE_FAILED } from './copy';
 import type { Recipe } from './types';
 
@@ -32,20 +33,20 @@ export interface RecipeSave {
  * My foods are shared with the Food screen, so they are read again inside the queue and merged with core's
  * `saveBuiltFood` at write time; foods pushed out of the 80 or renamed away are tombstoned, never deleted.
  */
-export function useRecipes({ db, now, notify }: { db: WorkoutDb; now: () => Date; notify: (msg: string) => void }) {
+export function useRecipes({ db, now, notify, reloadKey = 0 }: { db: WorkoutDb; now: () => Date; notify: (msg: string) => void; /** Changes when sync stored pulled records: recipes are read again (after queued local saves). */ reloadKey?: number }) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const writes = useRef(0);
 
   useEffect(() => {
     let live = true;
-    loadRecipes(db).then(
-      (r) => {
-        if (!live) return;
-        setRecipes(r);
-        setReady(true);
-      },
+    freshRead({ queue, writes }, () => loadRecipes(db), () => live, (r) => {
+      setRecipes(r);
+      setReady(true);
+    }).then(
+      () => undefined,
       () => {
         if (!live) return;
         setFailed(true);
@@ -55,11 +56,12 @@ export function useRecipes({ db, now, notify }: { db: WorkoutDb; now: () => Date
     return () => {
       live = false;
     };
-  }, [db, notify]);
+  }, [db, notify, reloadKey]);
 
   const save = useCallback(
     (s: RecipeSave) => {
       const t = stamp(now());
+      writes.current++;
       queue.current = queue.current
         .then(async () => {
           const { result: r, editing } = s;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
+import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
 import { fmt } from '../format';
@@ -52,10 +53,12 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   // Tab screens stay mounted; rules removed on the Targets tab show here when this tab is shown again.
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
-  const rulesApi = useRules({ db, now, notify, reloadKey: shown });
+  // Pulled records (sync) also make the rules and the day read again, without a remount.
+  const dataVersion = useDataVersion();
+  const rulesApi = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const { rules, addRule } = rulesApi;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
-  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune });
+  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: dataVersion });
   const { day } = w;
   const [cantName, setCantName] = useState<{ i: number; name: string } | null>(null);
 

@@ -6,6 +6,7 @@ import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
 import { syncOnce, type SyncDb, type SyncResult } from './engine';
 import { discardAll, signOut as guardedSignOut } from './guard';
+import { discardQuarantined, quarantineCount, retryQuarantined } from './quarantine';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
 
@@ -26,6 +27,8 @@ export interface SyncState {
   clearLastDeletion(): void;
   /** Unsynced local changes (0 when everything is pushed). */
   pending: number;
+  /** Of `pending`, the records the server refused (400): set aside so the rest keeps syncing; retry or discard them. */
+  quarantined: number;
   syncing: boolean;
   /** Last run's outcome; null before the first run. */
   last: SyncResult | null;
@@ -33,6 +36,10 @@ export interface SyncState {
   epoch: number;
   /** Bumps after a sync stored pulled records; stores reload from SQLite when it changes (no remount). */
   dataVersion: number;
+  /** Sends the set-aside records again with the next run (and runs it). */
+  retryQuarantined(): Promise<void>;
+  /** Stops sending the set-aside records; they stay on this device. */
+  discardQuarantined(): Promise<void>;
   /** True while a confirm dialog is open: the 30 s tick skips its run. */
   holdSchedule(hold: boolean): void;
   syncNow(): Promise<SyncResult | null>;
@@ -68,6 +75,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const [wipePending, setWipePending] = useState(false);
   const [lastDeletion, setLastDeletion] = useState<{ server: boolean } | null>(null);
   const [pending, setPending] = useState(0);
+  const [quarantined, setQuarantined] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -95,7 +103,10 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     },
     [db, tokens],
   );
-  const refreshPending = useCallback(async () => setPending(await pendingCount(db)), [db]);
+  const refreshPending = useCallback(async () => {
+    setPending(await pendingCount(db));
+    setQuarantined(await quarantineCount(db));
+  }, [db]);
 
   const runSync = useCallback(async (force: boolean): Promise<SyncResult | null> => {
     if (!api || (!signedIn && !force)) return null;
@@ -171,11 +182,22 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       lastDeletion,
       clearLastDeletion,
       pending,
+      quarantined,
       syncing,
       last,
       epoch,
       dataVersion,
       holdSchedule: (hold) => void (held.current = hold),
+      retryQuarantined: async () => {
+        await retryQuarantined(db);
+        holdUntil.current = 0;
+        await runSync(false);
+        await refreshPending();
+      },
+      discardQuarantined: async () => {
+        await discardQuarantined(db);
+        await refreshPending();
+      },
       syncNow,
       startSignIn: async (email) => (api ? startEmailSignIn(api, email) : { ok: false, reason: 'unavailable' }),
       verifyCode: async (email, code) => {
@@ -214,7 +236,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       exportFromServer: () => exportFromServer(db, api, tokens),
       deleteEverything: async (opts) => afterDelete(await deleteEverything({ db, api, tokens }, opts)),
     }),
-    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
+    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }
