@@ -62,7 +62,11 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - `GET /ai/status`: which features are on and the user's daily quota (`no-store`; only the per-IP limit applies).
   - Every feature is off by default. A feature is on only while its flag is set (`AI_DESCRIBE_MEAL_ENABLED`,
     `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
-    by the tokens recorded in `ai_usage` for the UTC month (0, the default, keeps everything off). A switched-off
+    by the tokens recorded in `ai_usage` for the UTC month (0, the default, keeps everything off). The budget is a soft
+    cap: it is read before each call, so calls already with the provider when it is reached can overshoot slightly.
+    The flags and the budget are environment variables read at start: flipping one means restarting the container
+    with the new value (no rebuild or redeploy of the image); requests already with the provider finish first only
+    if the restart is graceful. A switched-off
     endpoint answers 503 `feature_disabled` and counts nothing.
   - Daily quota: `AI_DAILY_LIMIT` (default 10) per user per UTC day, shared by the three endpoints. `AiQuotaService`
     reserves a unit inside a transaction that locks the user's `users` row (so concurrent calls cannot overrun) and

@@ -41,8 +41,9 @@ public class AiController {
     @GetMapping(path = "/status", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<StatusResponse> status(Authentication auth, HttpServletRequest request) {
         limiter.consume("ai-ip", ips.resolve(request), limits.getAiPerIp());
+        var on = quotas.features();
         Features f = new Features(
-                quotas.isOn(AiFeature.DESCRIBE_MEAL), quotas.isOn(AiFeature.ASK_WHY), quotas.isOn(AiFeature.WEEKLY_SUMMARY));
+                on.get(AiFeature.DESCRIBE_MEAL), on.get(AiFeature.ASK_WHY), on.get(AiFeature.WEEKLY_SUMMARY));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(new StatusResponse(f, quotas.quota(auth.getName())));
