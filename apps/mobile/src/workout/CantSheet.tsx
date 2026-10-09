@@ -22,6 +22,8 @@ interface Props {
   /** The pick: an exercise name, or null for "skip it". */
   onPick: (draft: CantDraft, choice: string | null) => void;
   onClose: () => void;
+  /** No session is being changed (the avoid picker on Targets), so "Just today" is not offered. */
+  noToday?: boolean;
 }
 
 type Step = 'why' | 'long' | 'scope' | 'pick';
@@ -32,7 +34,7 @@ export function CantSheet(p: Props) {
   return <Sheet key={p.name} {...p} name={p.name} />;
 }
 
-function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onClose }: Props & { name: string }) {
+function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onClose, noToday }: Props & { name: string }) {
   const c = useTheme();
   const t = catalog.tags[name];
   const [step, setStep] = useState<Step>('why');
@@ -88,7 +90,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
           {step === 'long' ? (
             <>
               <Hint>For how long?</Hint>
-              {DURATIONS.map(([k, l]) => (
+              {DURATIONS.filter(([k]) => !(noToday && k === 'today')).map(([k, l]) => (
                 <Choice
                   key={k}
                   label={l}
