@@ -2072,11 +2072,14 @@ function ladderCard(ex){
   return `<div class="adj"><b>Ready to try ${esc(up)}?</b><p>You’ve reached the top of the rep range with solid form, and you’ve done ${esc(ex.name)} for ${L.n} sessions <span class="ev">Rule of thumb</span>. For the first 2 weeks, ${esc(up)} goes first and a lighter ${esc(ex.name)} follows. ${whyLink('ladder')}</p>
     ${adjButtons('ladder', [['ladder-up', 'Try it next session', true, up], ['adj-no', 'Not yet'], ['ladder-stay', 'Stay on this step']], ` data-key="${esc(key)}" data-name="${esc(ex.name)}"`)}</div>`;
 }
+// only exercises the equipment where you train can do (as candidates), so the swap changes the session
 function sidewaysOf(name){
+  const where = whereNow(), allow = where === 'gym' ? null : where === 'dumbbells' ? ['dumbbell','bodyweight'] : ['bodyweight'];
+  const fits = n => !isExcluded(n) && (!allow || (!!TAGS[n] && allow.includes(TAGS[n].eq)));
   const l = ladderOf(name);
-  if(l){ const mate = l.steps[l.i].find(n => n !== name && !isExcluded(n)); if(mate) return mate; }
+  if(l){ const mate = l.steps[l.i].find(n => n !== name && fits(n)); if(mate) return mate; }
   const t = TAGS[name]; if(!t) return null;
-  const alt = Object.entries(TAGS).find(([n, x]) => n !== name && x.f === t.f && x.d === t.d && !isExcluded(n));
+  const alt = Object.entries(TAGS).find(([n, x]) => n !== name && x.f === t.f && x.d === t.d && fits(n));
   return alt ? alt[0] : null;
 }
 function recheckCards(){

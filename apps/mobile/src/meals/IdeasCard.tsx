@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { combos, combosFast, ideasPage, IDEAS_KCAL_LEFT_MIN, nextMealInfo, type MealDiet, type MealIdea, type NextMeal } from '@plate-and-bar/core';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { Button, Card, Choice, Hint, Note, Press } from '../components/ui';
 import { fmt } from '../format';
@@ -31,6 +32,8 @@ interface Props {
   onAdd: (meal: NextMeal['meal'], items: { food: CatalogFood; qty: number }[]) => void;
   /** Plans a bigger day: the extra kcal for today. */
   onFlex: (extra: number) => void;
+  /** Opens the weekly meal plan. */
+  onPlanWeek: () => void;
 }
 
 /** "What should I eat next?": the next meal's targets, three ideas at a time, the bigger-day chips and the plate guide. Nothing here is computed in the app: core's `nextMealInfo`, `combos`, `combosFast` and `ideasPage` decide. */
@@ -105,6 +108,7 @@ export function IdeasCard(p: Props) {
               {pg.pages > 1 ? <Button label={`More ideas (${pg.page + 1} of ${pg.pages})`} kind="ghost" onPress={() => setPage(pg.page + 1)} /> : null}
             </>
           )}
+          <Button label="Plan my week" kind="ghost" onPress={p.onPlanWeek} />
           <Button label="Plan a bigger day" kind="ghost" expanded={flexOpen} onPress={() => setFlexOpen(!flexOpen)} />
           {flexOpen ? (
             <>
@@ -117,7 +121,12 @@ export function IdeasCard(p: Props) {
           <Button label="The thali plate guide" kind="link" expanded={plateOpen} onPress={() => setPlateOpen(!plateOpen)} />
           {plateOpen ? (
             <View style={styles.plate}>
-              {/* TODO(#252): draw the plate (half protein, a quarter fat, a quarter carbs as in the prototype) once react-native-svg is on main. */}
+              <Svg width={120} height={120} viewBox="0 0 120 120" aria-hidden testID="plate-svg">
+                <Circle cx={60} cy={60} r={56} fill={c.track} />
+                <Path d="M60 60 L60 4 A56 56 0 0 0 60 116 Z" fill={c.protein} opacity={0.85} />
+                <Path d="M60 60 L60 4 A56 56 0 0 1 116 60 Z" fill={c.fat} opacity={0.85} />
+                <Path d="M60 60 L116 60 A56 56 0 0 1 60 116 Z" fill={c.carbs} opacity={0.85} />
+              </Svg>
               {PLATE_GUIDE.map(([b, t]) => <Text key={b + t} style={{ color: c.ink }}><Text style={styles.b}>{b} </Text>{t}</Text>)}
               <Hint>{PLATE_HINT}</Hint>
             </View>
