@@ -1,5 +1,6 @@
 package app.plateandbar.api.common;
 
+import app.plateandbar.api.ai.QuotaExceededException;
 import app.plateandbar.api.ratelimit.RateLimitedException;
 import java.util.List;
 import org.slf4j.Logger;
@@ -35,6 +36,14 @@ public class ApiExceptionHandler {
                 .header("Retry-After", Long.toString(e.retryAfterSeconds()))
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .body(ErrorResponse.of(e.code(), e.getMessage()));
+    }
+
+    @ExceptionHandler(QuotaExceededException.class)
+    ResponseEntity<ErrorResponse> quotaExceeded(QuotaExceededException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", Long.toString(e.retryAfterSeconds()))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(new ErrorResponse(e.code(), e.getMessage(), null, e.quota()));
     }
 
     @ExceptionHandler(ServiceUnavailableException.class)

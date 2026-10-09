@@ -86,6 +86,10 @@ public class RateLimitProperties {
     private Limit exportPerUser = new Limit(5, Duration.ofHours(1));
     /** GET /me/export, per client IP. */
     private Limit exportPerIp = new Limit(20, Duration.ofHours(1));
+    /** The three POST /ai/* endpoints, per user id (on top of the per-user cap every endpoint has). */
+    private Limit aiPerUser = new Limit(5, Duration.ofMinutes(1));
+    /** Every /ai/* endpoint, per client IP. */
+    private Limit aiPerIp = new Limit(60, Duration.ofMinutes(1));
     /** Codes issued per email address. */
     private Caps emailStartPerAddress =
             new Caps(new Limit(5, Duration.ofHours(1)), new Limit(10, Duration.ofDays(1)));
@@ -165,6 +169,22 @@ public class RateLimitProperties {
 
     public void setExportPerIp(Limit v) {
         this.exportPerIp = v;
+    }
+
+    public Limit getAiPerUser() {
+        return aiPerUser;
+    }
+
+    public void setAiPerUser(Limit v) {
+        this.aiPerUser = v;
+    }
+
+    public Limit getAiPerIp() {
+        return aiPerIp;
+    }
+
+    public void setAiPerIp(Limit v) {
+        this.aiPerIp = v;
     }
 
     public Caps getEmailStartPerAddress() {

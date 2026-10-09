@@ -59,6 +59,8 @@ class AccountRightsIT extends SyncITBase {
         jdbc.update(
                 "INSERT INTO email_sign_in_codes (email, code_hash, expires_at, created_at) VALUES (?, ?, ?, ?)",
                 email, "0".repeat(64), java.time.LocalDateTime.of(2027, 1, 1, 0, 0), java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+        jdbc.update("INSERT INTO ai_usage (user_id, day, feature, calls, input_tokens, output_tokens)"
+                + " VALUES (?, '2026-10-08', 'ask_why', 2, 100, 50)", user);
         jdbc.update("INSERT INTO email_verify_failures (email, failed_at) VALUES (?, ?)", email,
                 java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
         return pushed;
