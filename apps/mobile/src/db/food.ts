@@ -27,7 +27,7 @@ const blankNote = (date: string): DayNote => ({ id: null, version: 0, deleted_at
  * saving different fields of the same day (Food's "logged everything", Progress's steps and sleep) never overwrite each other.
  * Call it from inside the write queue.
  */
-export async function patchDayNote(db: StoreDb, date: string, patch: Partial<Pick<DayNote, 'complete' | 'steps' | 'sleep' | 'fast'>>, updatedAt: string): Promise<void> {
+export async function patchDayNote(db: StoreDb, date: string, patch: Partial<Pick<DayNote, 'complete' | 'steps' | 'steps_source' | 'sleep' | 'fast'>>, updatedAt: string): Promise<void> {
   const cur = (await loadDayNote(db, date)) ?? blankNote(date);
   await saveDayNote(db, { ...cur, ...patch, deleted_at: null, updated_at: updatedAt });
 }

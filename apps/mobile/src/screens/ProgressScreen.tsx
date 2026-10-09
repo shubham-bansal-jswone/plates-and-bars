@@ -155,6 +155,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
       <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Text>
       <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={steps} onChangeText={setSteps} />
       <Hint>{`steps today, target about ${fmt(stepsTarget(p.notes, p.date))}`}</Hint>
+      {p.today?.steps != null && <Hint>{`Source: ${p.today.steps_source === 'device' ? 'phone step sensor' : 'entered by you'}`}</Hint>}
       <Field label="Hours slept last night" inputMode="decimal" placeholder="Hours" value={sleep} onChangeText={setSleep} />
       <Hint>hours slept last night (aim for 7–9)</Hint>
       <Button label="Save steps and sleep" onPress={() => p.saveStepsSleep(steps, sleep)} />
