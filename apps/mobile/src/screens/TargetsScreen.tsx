@@ -71,6 +71,8 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         ) : null}
         <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
         <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
+        <Button label="Exercise library" kind="ghost" onPress={() => router.push('/library' as never)} />
+        <Button label="About and sources" kind="ghost" onPress={() => router.push('/about' as never)} />
         {ready ? (
           <>
             <RulesSection db={db} today={localDate(now())} now={now} notify={notify} profile={profile} weekPlan={settings.adjustments.weekPlan as WeekPlan | undefined} />
