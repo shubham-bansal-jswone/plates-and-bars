@@ -16,7 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Request-level limits, run after {@code JwtAuthFilter}. Public /auth endpoints are limited per client IP
+ * Request-level limits, run after {@code JwtAuthFilter}. Public /auth and /content endpoints (which ignore any bearer token) are limited per client IP
  * (one shared bucket, plus a stricter one for email start and verify). Authenticated requests are limited per
  * user id. Anything else without a valid token (it will get 401) falls back to the per-IP bucket, and so does
  * a request whose token {@code JwtAuthFilter} rejected (it calls {@link #limitByIp}). /health has its own generous
@@ -27,6 +27,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
     private static final String AUTH_PREFIX = "/api/v1/auth/";
+    private static final String CONTENT_PREFIX = "/api/v1/content/";
     private static final String HEALTH = "/api/v1/health";
 
     private final RateLimiter limiter;
@@ -48,7 +49,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         try {
             String path = request.getRequestURI();
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (!path.startsWith(AUTH_PREFIX) && !path.equals(HEALTH) && auth != null && auth.isAuthenticated()
+            if (!path.startsWith(AUTH_PREFIX) && !path.startsWith(CONTENT_PREFIX) && !path.equals(HEALTH) && auth != null && auth.isAuthenticated()
                     && !(auth instanceof AnonymousAuthenticationToken)) {
                 scope = "user";
                 try {

@@ -14,6 +14,7 @@ import { RulesSection } from '../targets/RulesSection';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
+import { AiSection } from '../ai/AiSection';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
@@ -71,6 +72,8 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         ) : null}
         <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
         <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
+        <Button label="Exercise library" kind="ghost" onPress={() => router.push('/library' as never)} />
+        <Button label="About and sources" kind="ghost" onPress={() => router.push('/about' as never)} />
         {ready ? (
           <>
             <RulesSection db={db} today={localDate(now())} now={now} notify={notify} profile={profile} weekPlan={settings.adjustments.weekPlan as WeekPlan | undefined} />
@@ -78,6 +81,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           </>
         ) : null}
+        <AiSection />
         {ready ? (
           <View style={{ gap: 8, marginTop: 16 }}>
             <Label>Workout</Label>

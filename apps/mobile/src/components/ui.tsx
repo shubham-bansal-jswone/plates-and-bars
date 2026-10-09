@@ -91,6 +91,7 @@ export function Button({
   kind = 'primary',
   a11yLabel,
   expanded,
+  busy,
   surface,
 }: {
   label: string;
@@ -100,6 +101,8 @@ export function Button({
   a11yLabel?: string;
   /** For a button that shows or hides something: announces open or closed. */
   expanded?: boolean;
+  /** A request is running: announces busy. */
+  busy?: boolean;
   /** Surface the button sits on, when not the plain page: picks the focus ring colour. */
   surface?: RingSurface;
 }) {
@@ -114,7 +117,7 @@ export function Button({
       surface={surface}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel ?? label}
-      accessibilityState={expanded === undefined ? undefined : { expanded }}
+      accessibilityState={expanded === undefined && !busy ? undefined : { expanded, busy }}
       onPress={onPress}
       style={({ pressed }) => [
         kind === 'link' ? styles.link : styles.btn,

@@ -21,7 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Validates the bearer access JWT on every request except /health and /auth/*. A bad token is
+ * Validates the bearer access JWT on every request except /health, /auth/* and /content/*, which ignore Authorization entirely. A bad token is
  * answered here with 401 {@code token_expired} or {@code unauthorized}; a missing token falls
  * through to the security entry point (401 {@code unauthorized}). A valid token whose user no longer exists is
  * 401 {@code unauthorized} too, except for DELETE /me. The principal is the user id.
@@ -51,7 +51,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.equals("/api/v1/health") || path.startsWith("/api/v1/auth/");
+        return path.equals("/api/v1/health") || path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/content/");
     }
 
     private static final class UserLookupFailedException extends RuntimeException {

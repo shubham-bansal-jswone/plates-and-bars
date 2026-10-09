@@ -174,6 +174,13 @@ export async function pauseSync(): Promise<void> {
   pauses++;
   await running?.catch(() => undefined);
 }
+/**
+ * Resolves when no sync run is in flight, without pausing anything. A caller that is about to take the account lock for
+ * a token refresh waits here first, so a run's own refresh finishes and saves its rotated pair before the pause (#287).
+ */
+export async function syncIdle(): Promise<void> {
+  await running?.catch(() => undefined);
+}
 export function resumeSync(): void {
   pauses = Math.max(0, pauses - 1);
 }

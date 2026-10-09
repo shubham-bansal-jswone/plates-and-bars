@@ -1,15 +1,14 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.7
+  version: 0.1.8
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
     food maths) runs on the phone in `packages/core`.
 
-    Scope: auth, sync, food search, health, account rights (`GET /me/export`,
-    `DELETE /me`) and the v1 AI calls (`/ai/*`). Content bundles (`/content/*`) are added
-    in a later milestone as an additive change.
+    Scope: auth, sync, food search, content bundles (`/content/*`), health, account
+    rights (`GET /me/export`, `DELETE /me`) and the v1 AI calls (`/ai/*`).
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
@@ -41,6 +40,51 @@ tags:
     description: Account rights for the signed-in user (export and deletion).
   - name: system
     description: Health and status.
+  - name: content
+    description: |
+      Versioned content bundles (`content/*.json`: exercises, cards, recipes, foods and
+      the rest), so a content fix reaches installed apps without an app release. Public
+      (no sign-in), cacheable, and limited only by the per-IP rate limit every endpoint has.
+
+      **Source.** The server serves every `content/<name>.json` from its deployed build,
+      byte for byte, as bundle `<name>`; there is no allow-list, because every file is
+      already shipped inside the app. It is the same content the AI calls use (see the
+      `ai` tag).
+
+      **Identity.** `sha256` is the lowercase hex SHA-256 of the bundle's exact bytes (the
+      uncompressed body of `GET /content/{bundle}`); it is the bundle's version. The
+      `ETag` of `GET /content/{bundle}` is that hash in double quotes (strong). Bytes are
+      hashed as served: no re-serialising, whitespace or key-order normalising.
+      `test-vectors/content-hash.json` has shared vectors. `schema_version` is the bundle's
+      own top-level `schema_version`: it changes only when the bundle's shape changes.
+
+      **`updated_at` derivation.** For each bundle it is the committer date of
+      `git log -1 --format=%cI -- content/<name>.json` on a full-history checkout of
+      `main`, converted to UTC. Shallow clones give the wrong value, so they are not
+      allowed. The backend receives it as a build argument, and the app build computes it
+      the same way for its bundled copies. A build that cannot compute it, or that gets
+      no value for a bundle, fails. It never falls back to the build time or any other
+      default.
+
+      **App use.** The app ships its own copy of every bundle and works fully offline and
+      signed out with it. It refreshes on launch, and then at most once a day while it
+      stays open:
+      - It reads the manifest. It fetches a bundle only when the app knows the bundle,
+        supports its `schema_version`, the `sha256` differs from the copy it holds and
+        the `updated_at` is later.
+      - It checks the fetched body's SHA-256 and size against the manifest and validates
+        it, then swaps it in in one step. On any mismatch or failure it keeps the copy it
+        has and tries again at the next refresh.
+      - It ignores bundle names it does not know.
+
+      **App upgrade.** On launch the app compares each stored server copy with the
+      bundled copy of the running build. It keeps the stored copy only if that copy's
+      `updated_at` is later and the build supports its `schema_version`. Otherwise it
+      discards the stored copy and uses the bundled one.
+
+      **Rollback.** Because the app never takes an earlier `updated_at`, rolling back the
+      server image never rolls content back on devices. To roll content back, commit a
+      new revert to `main`, which gets a later `updated_at`.
   - name: ai
     description: |
       v1 AI calls: Describe a meal, Ask why, Weekly summary, and `GET /ai/status` for
@@ -1098,7 +1142,171 @@ paths:
         '503':
           $ref: '#/components/responses/AiUnavailable'
 
-  # Later milestone (additive): /content/manifest, /content/{bundle}.
+  /content/manifest:
+    get:
+      tags: [content]
+      operationId: getContentManifest
+      summary: List the content bundles the server serves, with their hashes
+      security: []
+      description: |
+        One entry per bundle, sorted by `name`. The app compares each entry with the copy
+        it holds (see the `content` tag) and fetches only bundles that changed.
+
+        **Caching.** `Cache-Control: public, max-age=300`: this is a hint to caches, so a
+        cached manifest is at most five minutes stale. When the app checks is set by the
+        refresh rule in the `content` tag. The `ETag` is the quoted lowercase hex SHA-256
+        of the uncompressed response body. A request whose `If-None-Match` matches it gets
+        304 with no body. An over-long or unparseable `If-None-Match` is ignored, giving 200
+        with the body; it is never rejected. The server may compress the body under the
+        same rules as `GET /content/{bundle}`.
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: The manifest.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ContentETag'
+            Cache-Control:
+              description: Always `public, max-age=300`.
+              schema:
+                type: string
+                const: public, max-age=300
+            Vary:
+              $ref: '#/components/headers/VaryAcceptEncoding'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentManifest'
+              examples:
+                default:
+                  value:
+                    bundles:
+                      - name: cards
+                        schema_version: 1
+                        sha256: a2ccbf40d3e72ac60aaf08167ebea7df4f62bc88069a0fac778c14a4b872a337
+                        size_bytes: 16095
+                        updated_at: '2026-10-09T08:54:10Z'
+                      - name: exercises
+                        schema_version: 1
+                        sha256: 266b72969634c59a493b27f56f67af9f33972031e2201a9e2db05535c5905934
+                        size_bytes: 87778
+                        updated_at: '2026-10-08T14:57:42Z'
+                      - name: foods
+                        schema_version: 1
+                        sha256: f5f8e78fc2503b188d7f85747b30eee016cfc03b00a560c32fa5c95b6cbb7459
+                        size_bytes: 29139
+                        updated_at: '2026-10-08T10:49:05Z'
+                      - name: measures
+                        schema_version: 1
+                        sha256: 0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b
+                        size_bytes: 699
+                        updated_at: '2026-10-09T08:54:10Z'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /content/{bundle}:
+    get:
+      tags: [content]
+      operationId: getContentBundle
+      summary: Download one content bundle
+      security: []
+      description: |
+        The exact bytes of `content/<bundle>.json` in the server's deployed build, as
+        `application/json; charset=utf-8`. The body's SHA-256 and length equal the
+        manifest entry's `sha256` and `size_bytes`.
+
+        **Compression.** The server may compress the body when the request allows it
+        (`Accept-Encoding`). It then must send `Vary: Accept-Encoding`. The hash and size
+        are always of the uncompressed body. Proxies that compress may weaken the tag to
+        `W/"<sha256>"`, so clients must accept a `W/` prefix on a received `ETag`. The real
+        integrity check is the app comparing the body's SHA-256 with the manifest, not the
+        `ETag`.
+
+        **Caching.** `Cache-Control: public, no-cache`: caches may store the bundle but
+        revalidate it every time, so a cached copy never lags the manifest. The `ETag` is
+        the manifest's `sha256` in double quotes; a request whose `If-None-Match` matches
+        it gets 304 with no body. An over-long or unparseable `If-None-Match` is ignored
+        (200 with the body).
+
+        A well-formed name that is not in the manifest is 404 `not_found`.
+      parameters:
+        - name: bundle
+          in: path
+          required: true
+          description: Bundle name, the manifest entry's `name`.
+          schema:
+            $ref: '#/components/schemas/ContentBundleName'
+          example: measures
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: The bundle, byte for byte.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ContentETag'
+            Cache-Control:
+              description: Always `public, no-cache`.
+              schema:
+                type: string
+                const: public, no-cache
+            Vary:
+              $ref: '#/components/headers/VaryAcceptEncoding'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentBundle'
+              examples:
+                default:
+                  summary: content/measures.json (ETag "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b")
+                  value:
+                    schema_version: 1
+                    origin: docs/prototype/plate-and-bar.html (MEASURES, measuresHtml)
+                    unit: cm
+                    measures:
+                      - key: waist
+                        label: Waist (at navel)
+                        show: always
+                      - key: neck
+                        label: Neck
+                        show: always
+                      - key: chest
+                        label: Chest
+                        show: always
+                      - key: arm
+                        label: Upper arm
+                        show: always
+                      - key: thigh
+                        label: Thigh
+                        show: always
+                      - key: hips
+                        label: Hips
+                        show:
+                          sex: female
+                          or_entered_that_day: true
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          description: No bundle with this name.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: not_found
+                    message: No content bundle with this name.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
 
 components:
   securitySchemes:
@@ -1108,14 +1316,57 @@ components:
       bearerFormat: JWT
       description: Short-lived JWT access token from an `/auth/*` endpoint.
 
+  parameters:
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: |
+        An `ETag` from an earlier response. When it matches the current one, the server
+        answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
+        comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
+        `*` are accepted. A value longer than 1024 characters, or one that cannot be
+        parsed, is ignored: the server answers as if the header were absent, never 400.
+      schema:
+        type: string
+      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+
   headers:
     NoStore:
       description: Always `no-store`.
       schema:
         type: string
         const: no-store
+    ContentETag:
+      description: |
+        Entity tag: the lowercase hex SHA-256 of the uncompressed body in double quotes.
+        The server sends it strong. A compressing proxy may weaken it to `W/"<sha256>"`, so
+        clients accept either form. The app checks integrity against the body's SHA-256,
+        not the `ETag`.
+      schema:
+        type: string
+        pattern: '^(W/)?"[0-9a-f]{64}"$'
+      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+    VaryAcceptEncoding:
+      description: Includes `Accept-Encoding`. Required whenever the server may compress the body.
+      schema:
+        type: string
+      example: Accept-Encoding
 
   responses:
+    NotModified:
+      description: |
+        Not modified: `If-None-Match` matched the current `ETag`. No body; keep the cached
+        copy.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ContentETag'
+        Cache-Control:
+          description: The same value the 200 response would carry.
+          schema:
+            type: string
+        Vary:
+          $ref: '#/components/headers/VaryAcceptEncoding'
     TokenPair:
       description: Signed in; a new token pair.
       content:
@@ -1262,8 +1513,8 @@ components:
           description: |
             Stable machine-readable code. `token_expired`: refresh the access token and
             retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
-            or expired. `not_found`: reserved for later milestones; no M0 operation
-            returns it. `quota_exceeded` (429): the daily AI quota is used up until
+            or expired. `not_found` (404): the named resource does not exist; today only
+            `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
             `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
             the server; use the non-AI fallback. Clients treat an unknown code like
             `internal`.
@@ -1407,6 +1658,71 @@ components:
         version:
           type: string
           description: Deployed API build version.
+
+    # ---------- content ----------
+    ContentBundleName:
+      type: string
+      pattern: '^[a-z][a-z0-9-]{0,63}$'
+      description: |
+        A bundle name: the file name of `content/<name>.json` without `.json`, such as
+        `exercises`, `cards`, `recipes`, `foods` or `meal-planning`. New bundles may appear;
+        the app ignores names it does not know.
+      examples: [measures]
+
+    ContentManifest:
+      type: object
+      required: [bundles]
+      properties:
+        bundles:
+          type: array
+          description: Every bundle the server serves, sorted by `name`, each name once.
+          items:
+            $ref: '#/components/schemas/ContentBundleInfo'
+
+    ContentBundleInfo:
+      type: object
+      required: [name, schema_version, sha256, size_bytes, updated_at]
+      properties:
+        name:
+          $ref: '#/components/schemas/ContentBundleName'
+        schema_version:
+          type: integer
+          minimum: 1
+          description: |
+            The bundle's top-level `schema_version`. It changes only when the bundle's shape
+            changes. The app applies a bundle only when it supports this version.
+        sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: |
+            Lowercase hex SHA-256 of the bundle's exact bytes. This is the bundle's version
+            and its `ETag` (in double quotes).
+        size_bytes:
+          type: integer
+          minimum: 1
+          description: Length of the uncompressed bundle body in bytes.
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: |
+            When the bundle's content last changed. It is the committer date from
+            `git log -1 --format=%cI -- content/<name>.json` on a full-history checkout of
+            `main`, in UTC. The backend gets it as a build argument. A build without it
+            fails, and there is no fallback to build time. See "`updated_at` derivation"
+            in the `content` tag. An app build and a server deploy of the same content
+            agree on it, and it changes only when `sha256` changes.
+
+    ContentBundle:
+      type: object
+      required: [schema_version]
+      additionalProperties: true
+      description: |
+        A content bundle, exactly as `content/<name>.json` holds it. The shape of each
+        bundle is owned by `content/` and checked by the validators in `tools/`, not by this
+        contract; every bundle has a top-level `schema_version`.
+      properties:
+        schema_version:
+          type: integer
+          minimum: 1
 
     # ---------- foods ----------
     FoodPage:
