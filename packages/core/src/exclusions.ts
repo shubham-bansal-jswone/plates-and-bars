@@ -1,3 +1,4 @@
+import { addDays } from './dates';
 import type { Where } from './plan';
 import type { ExerciseCatalog, SessionItem } from './session';
 
@@ -343,4 +344,122 @@ export function resolveSessionWithLost(names: readonly string[], where: Where, s
  */
 export function resolveSession(names: readonly string[], where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>): SessionItem[] {
   return resolveSessionWithLost(names, where, state, catalog).items;
+}
+
+/**
+ * Timed rules due for the "Ready to try it again?" card: active rules (see `activeRules`) whose `until`
+ * is on or before `date`. A due rule keeps applying until the user answers the card with
+ * `recheckBack`, `recheckLater` or `recheckKeep`.
+ *
+ * Mirrors the filter in prototype `recheckCards()`.
+ */
+export function recheckDue(exclusions: readonly Exclusion[], date: string): Exclusion[] {
+  return activeRules(exclusions).filter((r) => !!r.until && r.until <= date);
+}
+
+/** The result of "Try it again": the rule marked done, and the `Settings.returning` entries to add. */
+export interface RecheckBack<R extends Exclusion> {
+  rule: R;
+  /** Each exercise with lift history the rule covers → its light period's last day (`date` + 13). */
+  returning: Record<string, { until: string }>;
+}
+
+/**
+ * "Try it again" on a re-check card: the rule is done, and every exercise with lift history it covers
+ * starts at about 55% for 2 weeks (contract `Settings.returning[name].until` = `date` + 13). `liftNames`
+ * are the names in prototype `S.lifts`.
+ *
+ * Mirrors the `rule-back` step of prototype `exAction`.
+ */
+export function recheckBack<R extends Exclusion>(rule: R, liftNames: readonly string[], tags: ExerciseCatalog['tags'], date: string): RecheckBack<R> {
+  const returning: Record<string, { until: string }> = {};
+  for (const n of liftNames) if (ruleMatches(rule, n, tags)) returning[n] = { until: addDays(date, 13) };
+  return { rule: { ...rule, done: true }, returning };
+}
+
+/** "2 more weeks": the rule with `until` = `date` + 14. Mirrors the `rule-later` step of prototype `exAction`. */
+export function recheckLater<R extends Exclusion>(rule: R, date: string): R {
+  return { ...rule, until: addDays(date, 14) };
+}
+
+/** "Keep it out": the rule made permanent (`until` null). Mirrors the `rule-keep` step of prototype `exAction`. */
+export function recheckKeep<R extends Exclusion>(rule: R): R {
+  return { ...rule, until: null };
+}
+
+/** How long a "can't do" answer lasts (prototype `CX.dur`). */
+export type CantDuration = 'today' | '2w' | '4w' | 'perm';
+
+/** The "can't do" sheet's answers (prototype `CX`): scope and key default to the exercise itself. */
+export interface CantDraft {
+  name: string;
+  reason: ExclusionReason | null;
+  dur: CantDuration;
+  scope?: ExclusionScope | null;
+  key?: string | null;
+}
+
+/** A rule made by the "can't do" sheet, in contract `Exclusion` fields (the caller adds `id`). */
+export type CantRule = Pick<Exclusion, 'name' | 'scope' | 'key' | 'reason' | 'created' | 'until' | 'to' | 'done'> & { name: string; created: string; until: string | null };
+
+/**
+ * The rule a "can't do" pick makes: scope and key from the draft (default: just this exercise), timed
+ * rules checked again after 14 (`2w`) or 28 (`4w`) days, permanent otherwise, with `choice` stored as
+ * the exercise's pick (`null`: skipped). For `today` the rule is not saved: it only steers today's
+ * replacement (pass it as a draft rule to `candidates`). Otherwise save it and remove any swap from
+ * `name` (the prototype deletes `settings.repl[name]`).
+ *
+ * Mirrors the rule built in prototype `applyCant(choice)`.
+ */
+export function cantRule(d: CantDraft, choice: string | null, date: string): CantRule {
+  return {
+    name: d.name,
+    scope: d.scope || 'exercise',
+    key: d.key || d.name,
+    reason: d.reason,
+    created: date,
+    until: d.dur === '2w' ? addDays(date, 14) : d.dur === '4w' ? addDays(date, 28) : null,
+    to: { [d.name]: choice || null },
+    done: false,
+  };
+}
+
+/** One replacement in today's session: the exercise at `index` becomes `to`, or is removed when `to` is null. */
+export interface CantReplacement {
+  index: number;
+  to: string | null;
+}
+
+/**
+ * Other exercises in today's session caught by a newly saved wider rule (family, pattern or joint
+ * scope): each one with no ticked set, not `choice`, and covered by `rule` is replaced by its best
+ * candidate (weighed by the rule's joint and pain, leaving out the session as it stands) or removed.
+ * `exercises` is today's session after the tapped exercise was replaced; `exclusions` must include
+ * `rule`. Returned from the last exercise to the first: apply them in that order (each index is valid
+ * then). Empty for an `exercise` rule; do not call it for a `today` answer, which the prototype skips.
+ *
+ * Mirrors the "caught by a wider rule" loop of prototype `applyCant(choice)` (`where` is today's).
+ */
+export function widerRuleReplacements(
+  exercises: readonly { name: string; sets: readonly { done?: boolean }[] }[],
+  rule: RuleMatch & { reason?: ExclusionReason | null },
+  choice: string | null,
+  where: Where,
+  exclusions: readonly Exclusion[],
+  lifts: Readonly<Record<string, unknown>>,
+  catalog: Pick<ExerciseCatalog, 'tags'>,
+): CantReplacement[] {
+  if (rule.scope === 'exercise') return [];
+  const names = exercises.map((e) => e.name);
+  const out: CantReplacement[] = [];
+  for (let k = exercises.length - 1; k >= 0; k--) {
+    const ex = exercises[k] as (typeof exercises)[number];
+    if (ex.name === choice || ex.sets.some((s) => s.done) || !ruleMatches(rule, ex.name, catalog.tags)) continue;
+    const c = candidates(ex.name, { where, joint: rule.scope === 'joint' ? rule.key : null, pain: rule.reason === 'pain', inSession: names }, exclusions, lifts, catalog);
+    const to = c[0] ? c[0].name : null;
+    if (to) names[k] = to;
+    else names.splice(k, 1);
+    out.push({ index: k, to });
+  }
+  return out;
 }
