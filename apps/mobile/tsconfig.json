@@ -3,7 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "types": ["jest"],
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "paths": { "openapi-fetch": ["./node_modules/openapi-fetch"] }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
   "exclude": ["node_modules"]
