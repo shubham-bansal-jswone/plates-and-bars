@@ -1,10 +1,9 @@
-import type { LiftRecord } from '@plate-and-bar/core';
+import { liftStatToRecord, liftStatTombstone, recordToLiftStat, type LiftRecord } from '@plate-and-bar/core';
 import type { Schemas } from '@plate-and-bar/api';
 import { SYNC_TABLES, clearPushed, inTransaction, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { NATURAL_KEY_TABLES, naturalId } from './ids';
-import { liftStatToRecord, recordToLiftStat } from './liftMap';
 import { getLiftVersion, setLiftVersion } from './store';
 
 export type Doc = Record<string, unknown>;
@@ -29,9 +28,7 @@ export async function buildRecord(db: WorkoutDb, userId: string, e: Entry): Prom
   if (e.tbl === 'lift_stats') {
     const meta = { id: await naturalId(userId, 'lift_stats', e.key), version: await getLiftVersion(db, e.key), updated_at: e.queued_at };
     if (typeof doc.deleted_at === 'string') {
-      // A tombstone still has to satisfy the LiftStat schema.
-      const day = doc.deleted_at.slice(0, 10);
-      return { ...meta, deleted_at: doc.deleted_at, exercise: e.key, date: day, sets: [], form: null, sessions: 1, first: day, prev: null, history: [], pb_toast_date: null };
+      return { ...meta, ...liftStatTombstone(e.key, doc.deleted_at) };
     }
     return { ...meta, deleted_at: null, ...recordToLiftStat(e.key, doc as unknown as LiftRecord) };
   }
