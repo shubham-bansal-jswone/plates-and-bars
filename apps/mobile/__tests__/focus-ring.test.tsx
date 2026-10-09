@@ -69,6 +69,8 @@ describe('focus ring', () => {
     await render(<Switch accessibilityLabel="Rest timer" value onValueChange={() => {}} />);
     const sw = screen.getByLabelText('Rest timer');
     expect(ring(sw.parent as never)).toBeNull();
+    // The switch's own handler drives the ring on its wrapper.
+    expect(screen.getByLabelText('Rest timer').props.onFocus).toEqual(expect.any(Function));
     await fireEvent(sw, 'focus', { target: 1 });
     expect(ring(screen.getByLabelText('Rest timer').parent as never)).toMatchObject({ width: 2, color: light.focus });
   });

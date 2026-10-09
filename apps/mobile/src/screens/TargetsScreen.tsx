@@ -64,7 +64,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
                 onValueChange={(on) => setRestOff(!on)}
               />
               {/* The text toggles the switch too, as the prototype's label does; the switch carries the spoken name. */}
-              <Press accessibilityElementsHidden importantForAccessibility="no" onPress={() => setRestOff(!settings.rest_off)} style={{ flex: 1 }}>
+              <Press focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setRestOff(!settings.rest_off)} style={{ flex: 1 }}>
                 <Text style={{ color: c.ink, fontSize: 16 }}>Start a rest timer after each set</Text>
               </Press>
             </View>

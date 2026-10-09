@@ -183,13 +183,34 @@ export function Card({ style, ...rest }: ViewProps) {
 // react-native-web colours the on-state thumb with `activeThumbColor`; react-native's types do not list it.
 const webThumb = (activeThumbColor: string): object => ({ activeThumbColor });
 
+// The switch itself reports focus (react-native-web passes these to the native input); the ring is drawn on the wrapper.
+const focusHandlers = (f: ReturnType<typeof useFocusRing>, props: object): object => {
+  const p = props as { onFocus?: (e: { target: unknown }) => void; onBlur?: () => void };
+  return {
+    onFocus: (e: { target: unknown }) => {
+      f.onFocus(e);
+      p.onFocus?.(e);
+    },
+    onBlur: () => {
+      f.onBlur();
+      p.onBlur?.();
+    },
+  };
+};
+
 /** Switch with the off-state track kept visible (#153) and a white thumb on web too. */
 export function Switch(props: SwitchProps) {
   const c = useTheme();
   const f = useFocusRing();
   return (
-    <View onFocus={f.onFocus} onBlur={f.onBlur} style={[styles.switchRing, f.ring]}>
-      <RNSwitch trackColor={{ true: c.brand, false: c.muted }} thumbColor={c.onBrand} {...webThumb(c.onBrand)} {...props} />
+    <View style={[styles.switchRing, f.ring]}>
+      <RNSwitch
+        trackColor={{ true: c.brand, false: c.muted }}
+        thumbColor={c.onBrand}
+        {...webThumb(c.onBrand)}
+        {...props}
+        {...focusHandlers(f, props)}
+      />
     </View>
   );
 }
