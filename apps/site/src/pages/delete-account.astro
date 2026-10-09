@@ -1,0 +1,29 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Delete your account (draft) - Plate & Bar" description="How to delete your Plate & Bar account and data. Draft, pending lawyer review.">
+  <div class="doc"><div class="prose">
+  <h1>Delete your account</h1>
+  <div class="draft" role="note" aria-label="Draft notice">
+    <p><strong>DRAFT. Pending lawyer review under India's Digital Personal Data Protection Act, 2023.</strong></p>
+    <p>This is a placeholder and is not legally reviewed. It must not be relied on until this notice is removed.</p>
+  </div>
+
+  <h2>How to request deletion</h2>
+  <p>Plate &amp; Bar is still in development, and the app and server do not yet have a delete-account feature. For now, you can ask us to delete your account and the data stored on our server by email.</p>
+  <ol>
+    <li>Email <strong>privacy@&lt;domain TBD&gt;</strong> from the address you signed up with, with the subject "Delete my account".</li>
+    <li>We will confirm your request and then delete your account.</li>
+  </ol>
+  <!-- TODO: replace the placeholder address once a domain and mailbox are decided. -->
+  <!-- TODO: when the backend DELETE /me endpoint and the in-app "delete everything" action (issue #27) ship, describe them here and keep the email route as a fallback. -->
+
+  <h2>What gets deleted</h2>
+  <p>Your account details, setup and health-check answers, body measurements, and the meal and workout information synced to our server.</p>
+  <p>Progress photos, cycle data and lab results are never sent to our server. They stay on your phone, so they are removed by deleting them in the app or uninstalling it.</p>
+
+  <h2>When</h2>
+  <p>Deletion timing, any data we must keep by law, and backup retention will be stated here after legal review.</p>
+  </div></div>
+</Base>
