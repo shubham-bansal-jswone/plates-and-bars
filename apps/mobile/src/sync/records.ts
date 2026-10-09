@@ -1,6 +1,6 @@
 import type { LiftRecord } from '@plate-and-bar/core';
 import type { Schemas } from '@plate-and-bar/api';
-import { SYNC_TABLES, type OutboxEntry, type SyncTableName } from '../db/outbox';
+import { SYNC_TABLES, clearPushed, inTransaction, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { NATURAL_KEY_TABLES, naturalId } from './ids';
@@ -27,7 +27,7 @@ export async function buildRecord(db: WorkoutDb, userId: string, e: Entry): Prom
   if (!row) return null;
   const doc = JSON.parse(row.data) as Doc;
   if (e.tbl === 'lift_stats') {
-    const meta = { id: naturalId(userId, 'lift_stats', e.key), version: await getLiftVersion(db, e.key), updated_at: e.queued_at };
+    const meta = { id: await naturalId(userId, 'lift_stats', e.key), version: await getLiftVersion(db, e.key), updated_at: e.queued_at };
     if (typeof doc.deleted_at === 'string') {
       // A tombstone still has to satisfy the LiftStat schema.
       const day = doc.deleted_at.slice(0, 10);
@@ -35,10 +35,10 @@ export async function buildRecord(db: WorkoutDb, userId: string, e: Entry): Prom
     }
     return { ...meta, deleted_at: null, ...recordToLiftStat(e.key, doc as unknown as LiftRecord) };
   }
-  if (NATURAL_KEY_TABLES.has(e.tbl)) doc.id = naturalId(userId, e.tbl, e.key);
+  if (NATURAL_KEY_TABLES.has(e.tbl)) doc.id = await naturalId(userId, e.tbl, e.key);
   if (e.tbl === 'workout_sets') {
     const w = await db.getFirstAsync<{ workout_date: string }>('SELECT workout_date FROM workout_sets WHERE key = ?', e.key);
-    if (w?.workout_date) doc.workout_id = naturalId(userId, 'workouts', w.workout_date);
+    if (w?.workout_date) doc.workout_id = await naturalId(userId, 'workouts', w.workout_date);
   }
   return doc;
 }
@@ -83,7 +83,7 @@ export async function setWorkoutDate(db: WorkoutDb, ctx: PullCtx, rec: Doc): Pro
 async function workoutDates(db: WorkoutDb, ctx: PullCtx): Promise<Map<string, string>> {
   if (!ctx.dates) {
     const rows = await db.getAllAsync<{ key: string }>('SELECT key FROM workouts');
-    ctx.dates = new Map(rows.map((r) => [naturalId(ctx.userId, 'workouts', r.key), r.key]));
+    ctx.dates = new Map(await Promise.all(rows.map(async (r): Promise<[string, string]> => [await naturalId(ctx.userId, 'workouts', r.key), r.key])));
   }
   return ctx.dates;
 }
@@ -93,34 +93,46 @@ export async function patchMeta(db: StoreDb, tbl: SyncTableName, key: string, me
   if (tbl === 'lift_stats') return setLiftVersion(db, key, meta.version);
   const row = await db.getFirstAsync<{ data: string }>(`SELECT data FROM ${SYNC_TABLES[tbl]} WHERE key = ?`, key);
   if (!row) return;
-  const doc = { ...(JSON.parse(row.data) as Doc), version: meta.version, ...(meta.updated_at ? { updated_at: normalizeTimestamps(meta.updated_at) as string } : {}) };
+  const doc = { ...(JSON.parse(row.data) as Doc), version: meta.version, ...(meta.updated_at ? { updated_at: normalizeTimestamps(meta.updated_at, 'updated_at') as string } : {}) };
   await db.runAsync(`UPDATE ${SYNC_TABLES[tbl]} SET data = ? WHERE key = ?`, JSON.stringify(doc), key);
 }
 
 /** Fixes `workout_date` of sets pulled before their workout (run after a pull; unqueued like any pulled write). */
-export async function resolveOrphanSets(db: WorkoutDb & { withExclusiveTransactionAsync(t: (x: StoreDb) => Promise<void>): Promise<void> }, ctx: PullCtx): Promise<void> {
+export async function resolveOrphanSets(db: WorkoutDb & PullDb, ctx: PullCtx): Promise<void> {
   const orphans = await db.getAllAsync<{ key: string; data: string }>("SELECT key, data FROM workout_sets WHERE workout_date = ''");
   for (const o of orphans) {
     const date = (await workoutDates(db, ctx)).get((JSON.parse(o.data) as { workout_id: string }).workout_id);
     if (!date) continue;
-    await db.withExclusiveTransactionAsync(async (txn) => {
+    await inTransaction(db, async (txn) => {
+      const queued = async () => (await txn.getFirstAsync<{ seq: number }>("SELECT seq FROM sync_outbox WHERE tbl = 'workout_sets' AND key = ?", o.key))?.seq ?? null;
+      const before = await queued();
       await txn.runAsync('UPDATE workout_sets SET workout_date = ? WHERE key = ?', date, o.key);
-      await txn.runAsync("DELETE FROM sync_outbox WHERE tbl = 'workout_sets' AND key = ?", o.key);
+      // Clear only the entry this update made; a queued edit that was already there keeps its place.
+      const after = await queued();
+      if (before === null && after !== null) await clearPushed(txn, { tbl: 'workout_sets', key: o.key, seq: after });
     });
   }
 }
 
 const TIMESTAMP = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
+/** The record fields the contract types as `Timestamp` (date-time with `Z`). Other strings are user content and stay as sent. */
+const TIMESTAMP_FIELDS: ReadonlySet<string> = new Set(['updated_at', 'deleted_at', 'given_at', 'logged_at', 't']);
+
+/** A pulled record that cannot be stored (a timestamp field that is not a valid date). It is skipped, not retried. */
+export class InvalidRecord extends Error {}
 
 /**
- * Rewrites every date-time string (any depth) in the app's format, `toISOString()` with milliseconds. The server writes
- * ISO_INSTANT, which drops ".000", and string comparison of the two formats misorders records within one second.
- * Calendar days (`YYYY-MM-DD`) are left alone.
+ * Rewrites the contract's Timestamp fields (any depth) in the app's format, `toISOString()` with milliseconds. The server
+ * writes ISO_INSTANT, which drops ".000", and string comparison of the two formats misorders records within one second.
+ * A Timestamp field that is not a valid date throws `InvalidRecord`.
  */
-export function normalizeTimestamps(v: unknown): unknown {
-  if (typeof v === 'string') return TIMESTAMP.test(v) ? new Date(v).toISOString() : v;
-  if (Array.isArray(v)) return v.map(normalizeTimestamps);
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, normalizeTimestamps(x)]));
+export function normalizeTimestamps(v: unknown, key?: string): unknown {
+  if (typeof v === 'string' && key && TIMESTAMP_FIELDS.has(key)) {
+    if (!TIMESTAMP.test(v) || Number.isNaN(Date.parse(v))) throw new InvalidRecord('timestamp');
+    return new Date(v).toISOString();
+  }
+  if (Array.isArray(v)) return v.map((x) => normalizeTimestamps(x));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, normalizeTimestamps(x, k)]));
   return v;
 }
 

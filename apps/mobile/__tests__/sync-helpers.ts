@@ -12,14 +12,17 @@ interface Raw {
 const { DatabaseSync } = require('node:sqlite') as { DatabaseSync: new (path: string) => Raw };
 
 /** A real SQLite (node:sqlite) behind the app's db interfaces, so the outbox triggers run for real. */
-export async function openDb(): Promise<SyncDb & MigrationDb & StoreDb> {
+export async function openDb(): Promise<SyncDb & MigrationDb & StoreDb & { beforeTxn?: () => Promise<void> }> {
   const raw = new DatabaseSync(':memory:');
   const db = {
+    beforeTxn: undefined as undefined | (() => Promise<void>),
     execAsync: async (sql: string) => void raw.exec(sql),
     getFirstAsync: async <T,>(sql: string, ...p: (string | number)[]) => (raw.prepare(sql).get(...p) as T | undefined) ?? null,
     getAllAsync: async <T,>(sql: string, ...p: (string | number)[]) => raw.prepare(sql).all(...p) as T[],
     runAsync: async (sql: string, ...p: (string | number)[]) => raw.prepare(sql).run(...p),
     withExclusiveTransactionAsync: async (task: (t: StoreDb) => Promise<void>) => {
+      // Hook to run a UI write exactly between a caller's decision and the transaction (these transactions do not isolate).
+      await db.beforeTxn?.();
       raw.exec('BEGIN');
       try {
         await task(db);
