@@ -330,7 +330,7 @@ describe('Progress trends and scale-jump note', () => {
     expect(screen.getByText('Waist up 0.5 cm since 1 Oct.')).toBeTruthy();
   });
 
-  it('shows the scale-jump note on a rise of 0.8 kg, keeps it after a later non-jump save, and dismisses it', async () => {
+  it('shows the scale-jump note on a big rise, keeps it after a later non-jump save, and dismisses it', async () => {
     const db = memoryDb();
     await saveWeight(db, weigh('2026-10-07', 80));
     await setup({ db });
@@ -342,6 +342,15 @@ describe('Progress trends and scale-jump note', () => {
     expect(screen.getByText('The scale went up 1 kg')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Got it'));
     expect(screen.queryByText('The scale went up 1 kg')).toBeNull();
+  });
+
+  it('judges the jump on the saved, rounded kg (#246): 80.86 saves as 80.9, 0.8 above 80.1', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-07', 80.1));
+    await setup({ db });
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '80.86');
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    expect(await screen.findByText('The scale went up 0.8 kg')).toBeTruthy();
   });
 
   it('shows no note for a rise under 0.8 kg or an invalid save', async () => {
