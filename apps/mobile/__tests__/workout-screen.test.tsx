@@ -1,3 +1,4 @@
+import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -11,7 +12,7 @@ import type { LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 // Thursday 2026-10-08: the 6-day plan gives Push B (Barbell Bench Press, Machine Shoulder Press, Pec Deck Fly,
@@ -182,6 +183,9 @@ describe('Workout tab: logging sets', () => {
     expect(l.hist?.at(-1)).toEqual({ date: DATE, e: 75 });
 
     expect(screen.getByText('Rest 2:30')).toBeTruthy();
+    // The panel sits in an opaque dock, so the "How to do" link under it cannot show through the gap.
+    const dock = screen.getByLabelText('Rest timer').parent;
+    expect(StyleSheet.flatten(dock?.props.style)).toMatchObject({ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: expect.any(String) });
     expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
     expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true);
     expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();

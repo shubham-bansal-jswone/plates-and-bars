@@ -14,6 +14,7 @@ import {
   planFlex,
   flexToast,
   undoFlex,
+  flexPlanFor,
   FLEX_FLOOR_DEFAULT,
   stepServings,
   SERVINGS_MIN,
@@ -37,7 +38,9 @@ import {
   type GramsFood,
   type SearchableFood,
 } from '../src/index';
-import { loadGolden } from './helpers';
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { loadGolden, prototypeSource, REPO_ROOT } from './helpers';
 import { loadFood, type ProtoMeal, type ProtoMyFood } from './prototype-food';
 import { rng } from './prototype-plan';
 
@@ -222,6 +225,39 @@ describe('unitGrams and quantityFromGrams', () => {
     expect(unitGrams('1 glass (250 ml)')).toBe(0);
     expect(unitGrams('30 gm')).toBe(0);
     expect(unitGrams('1.5 g scoop')).toBe(5); // PINNED QUIRK (#151): decimals lose their whole part
+  });
+  it('#213: reads en-IN and en-US digit grouping, as kitchen-test labels use it (fmt)', () => {
+    expect(unitGrams('1 plate (1,250 g)')).toBe(1250);
+    expect(unitGrams('1,00,000 g')).toBe(100000);
+    expect(unitGrams('12,34,567g')).toBe(1234567);
+    expect(unitGrams('1 pot (10,000 g)')).toBe(10000);
+    expect(unitGrams('1,234,567 g')).toBe(1234567);
+    // Not grouping (a decimal comma, a short group, a leading 0, a run of 4 digits): read as before.
+    expect(unitGrams('1,5 g')).toBe(5);
+    expect(unitGrams('1,25 g')).toBe(25);
+    expect(unitGrams('0,500 g')).toBe(500);
+    expect(unitGrams('1234,567 g')).toBe(567);
+    expect(unitGrams('2 x 1,250 ml')).toBe(0);
+    for (const l of ['1 plate (1,250 g)', '1,00,000 g', '1,234,567 g', '1,5 g', '0,500 g', '1234,567 g', '1.5 g scoop']) {
+      expect([l, unitGrams(l)]).toEqual([l, proto.unitGrams(['', l])]);
+    }
+  });
+  it('#213 review: no regex lookbehind in core or the prototype (a SyntaxError on Safari before 16.4)', () => {
+    const dir = resolve(REPO_ROOT, 'packages/core/src');
+    const sources = readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => [f, readFileSync(resolve(dir, f), 'utf8')] as const);
+    expect(sources.length).toBeGreaterThan(10);
+    for (const [name, text] of [...sources, ['plate-and-bar.html', prototypeSource()] as const]) {
+      expect([name, text.includes('(?<')]).toEqual([name, false]);
+    }
+  });
+  it('#213: grams logging for a kitchen-test food of 1,250 g matches the prototype', () => {
+    const my: ProtoMyFood = { name: 'Biryani (weighed)', unit: '1 plate (1,250 g)', kcal: 900, p: 20, c: 120, f: 30 };
+    proto.S.settings.myFoods = [my];
+    const f = userFoodFacts({ name: my.name, unit: my.unit, kcal: 900, protein_g: 20, carbs_g: 120, fat_g: 30, fibre_g: null, added_sugar_g: 0, fruit_veg_servings: null });
+    expect(f.serving.grams).toBe(1250);
+    expect(quantityFromGrams(f, 625)).toEqual({ kind: 'grams', qty: 0.5 });
+    expect(proto.pick(my.name, '625', 1)).toEqual({ qty: 0.5 });
+    proto.S.settings.myFoods = [];
   });
   it('grams over the serving weight, to 0.1; the bracketed weight is the dry weight (#97)', () => {
     expect(quantityFromGrams(byName('Rice, cooked'), 75)).toEqual({ kind: 'grams', qty: 1.5 });
@@ -431,19 +467,16 @@ describe('planFlex and undoFlex', () => {
   const holdMan: KcalTargetProfile = { sex: 'male', age: 30, height_cm: 175, weight_kg: 80, activity: 'sitting', days: 3, minutes: 60, goal: 'lose', pace: 'moderate', special: 'none', targets: { kcal: 2000 } };
   const at = { date: '2026-10-08', today: '2026-10-08', id: 'p1', flex: null };
   const cuts = (f: FlexEntry[]) => f.filter((x) => x.kcal_delta < 0).map((x) => [x.date, x.kcal_delta]);
-  const protoRun = (input: PlanFlexInput, prof: KcalTargetProfile | null) =>
-    proto.planFlex(
-      input.extra,
-      {
-        kcal: prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET,
-        profile: prof && { ...toTargetsProfile(prof) },
-        flex: input.flex ? input.flex.map((x) => ({ id: x.id, date: x.date, d: x.kcal_delta })) : input.flex === null ? null : undefined,
-        labHold: input.labHold === undefined ? undefined : { on: input.labHold },
-      },
-      input.date,
-      input.today,
-      input.id,
-    );
+  /** The prototype's `S.settings` for `flex`, the profile and the lab hold. */
+  const protoSettings = (flex: readonly FlexEntry[] | null | undefined, prof: KcalTargetProfile | null, labHold: boolean | undefined) => ({
+    kcal: prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET,
+    profile: prof && { ...toTargetsProfile(prof) },
+    flex: flex ? flex.map((x) => ({ id: x.id, date: x.date, d: x.kcal_delta })) : flex === null ? null : undefined,
+    labHold: labHold === undefined ? undefined : { on: labHold },
+  });
+  const fromProto = (f: { id: string; date: string; d: number }[]): FlexEntry[] => f.map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d }));
+  const protoRun = (input: PlanFlexInput, prof: KcalTargetProfile | null) => proto.planFlex(input.extra, protoSettings(input.flex, prof, input.labHold), input.date, input.today, input.id);
+  const protoUndo = (flex: readonly FlexEntry[] | null | undefined, id: string, prof: KcalTargetProfile | null, labHold?: boolean) => fromProto(proto.flexUndo(protoSettings(flex, prof, labHold), id));
 
   interface FlexCase {
     name: string;
@@ -631,11 +664,13 @@ describe('planFlex and undoFlex', () => {
   it('undoFlex removes every entry of the plan and nothing else', () => {
     const a = planFlex({ ...at, extra: 500 }, null).flex;
     const b = planFlex({ ...at, id: 'p2', date: '2026-10-09', extra: 300, flex: a }, null).flex;
-    expect(undoFlex(b, 'p1')).toEqual(b.filter((x) => x.id === 'p2'));
-    expect(undoFlex(b, 'p2')).toEqual(a);
-    expect(undoFlex(b, 'none')).toEqual(b);
-    expect(undoFlex(null, 'p1')).toEqual([]);
-    expect(undoFlex(undefined, 'p1')).toEqual([]);
+    const undo = (f: FlexEntry[] | null | undefined, id: string) => undoFlex(f, id, { profile: null });
+    expect(undo(b, 'p1')).toEqual(b.filter((x) => x.id === 'p2'));
+    expect(undo(b, 'p2')).toEqual(a);
+    expect(undo(b, 'none')).toEqual(b);
+    expect(undo(null, 'p1')).toEqual([]);
+    expect(undo(undefined, 'p1')).toEqual([]);
+    expect(undoFlex(b, 'p2', { profile: null })).toEqual(protoUndo(b, 'p2', null));
   });
 
   it(`matches prototype planFlex and case 'flex-undo' over ${RUNS} random plans; no new cut takes a day below the floor`, () => {
@@ -658,7 +693,7 @@ describe('planFlex and undoFlex', () => {
       expect(got.flex).toEqual(want.flex.map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d })));
       expect(flexToast(extra, got)).toBe(want.toast);
       const undo = pickOf(r, [...ids, 'new']);
-      expect(undoFlex(got.flex, undo)).toEqual(proto.flexUndo(want.flex, undo).map((x) => ({ id: x.id, date: x.date, kcal_delta: x.d })));
+      expect(undoFlex(got.flex, undo, { profile: prof, labHold })).toEqual(protoUndo(got.flex, undo, prof, labHold));
       const floor = prof ? calcTargets(toTargetsProfile(prof)).floor : FLEX_FLOOR_DEFAULT;
       const mine = got.flex.filter((x) => x.id === 'new' && x.kcal_delta < 0);
       for (const x of mine) {
@@ -673,6 +708,198 @@ describe('planFlex and undoFlex', () => {
     expect(leftovers).toBeGreaterThan(50);
     expect(uneven).toBeGreaterThan(50);
     expect(holds).toBeGreaterThan(50);
+  });
+
+  describe('the plan Undo removes (#178) and the trim after an undo (#176)', () => {
+    const e = (id: string, date: string, kcal_delta: number): FlexEntry => ({ id, date, kcal_delta });
+    const note = (flex: readonly FlexEntry[], date: string) => proto.flexNote(protoSettings(flex, null, undefined), date);
+
+    it('Undo on a day targets the most recent plan whose extra is on that day; the note shows that extra', () => {
+      // plan A: +500 on the 7th, 160 off the 8th to the 10th; then plan B: +300 on the 8th
+      const a = planFlex({ ...at, date: '2026-10-07', id: 'A', extra: 500 }, null).flex;
+      const b = planFlex({ ...at, id: 'B', extra: 300, flex: a }, null).flex;
+      expect(b.filter((x) => x.date === '2026-10-08')).toEqual([e('A', '2026-10-08', -160), e('B', '2026-10-08', 300)]);
+      const plan = flexPlanFor(b, '2026-10-08');
+      expect(plan).toEqual(e('B', '2026-10-08', 300)); // was A (the day's first entry), shown as +140 (the net)
+      expect(undoFlex(b, (plan as FlexEntry).id, { profile: null })).toEqual(a);
+      const n = note(b, '2026-10-08');
+      expect(n.plan).toEqual({ id: 'B', date: '2026-10-08', d: 300 });
+      expect(n.html).toBe('<p class="note">Today’s target includes +300 kcal for a bigger meal, balanced over the next few days. <button class="linkbtn inl" data-act="flex-undo" data-v="B">Undo</button></p>');
+      // two extras on one day: the later one
+      expect(flexPlanFor([e('A', '2026-10-08', 500), e('B', '2026-10-08', 300)], '2026-10-08')).toEqual(e('B', '2026-10-08', 300));
+    });
+
+    it('a day with only cuts has no Undo; the note shows the net cut', () => {
+      const a = planFlex({ ...at, id: 'A', extra: 500 }, null).flex;
+      expect(flexPlanFor(a, '2026-10-09')).toBeNull();
+      expect(note(a, '2026-10-09').html).toBe('<p class="note">Today’s target is 160 kcal lower to balance an earlier bigger day.</p>');
+      expect(note(a, '2026-10-20').html).toBe('');
+      expect(flexPlanFor(a, '2026-10-20')).toBeNull();
+      expect(flexPlanFor(null, '2026-10-08')).toBeNull();
+      expect(flexPlanFor(undefined, '2026-10-08')).toBeNull();
+      // a zero entry is not an extra
+      expect(flexPlanFor([e('Z', '2026-10-08', 0)], '2026-10-08')).toBeNull();
+    });
+
+    interface UndoCase {
+      name: string;
+      profile: KcalTargetProfile | null;
+      labHold?: boolean;
+      flex: FlexEntry[];
+      undo: string;
+      want: FlexEntry[];
+      /** The undone plan's extra day afterwards (lab hold off). */
+      day8: number;
+    }
+    const female = (kcal: number): KcalTargetProfile => ({ ...base, targets: { kcal } });
+    // B (+300 on the 7th) cut 300 off the 8th, which A's +800 had raised (target 1300, floor 1200)
+    const ab = (kcal: number) => [
+      ...planFlex({ ...at, id: 'A', extra: 800 }, female(kcal)).flex,
+      ...planFlex({ ...at, id: 'B', date: '2026-10-07', extra: 300, flex: planFlex({ ...at, id: 'A', extra: 800 }, female(kcal)).flex }, female(kcal)).flex.filter((x) => x.id === 'B'),
+    ];
+    const undoCases: UndoCase[] = [
+      {
+        // the #176 case: the 8th would be 1300 - 300 = 1000; 200 of B's cut is trimmed, so it is 1200
+        name: 'target 1300: undoing A trims B’s cut on A’s day to the floor',
+        profile: female(1300),
+        flex: ab(1300),
+        undo: 'A',
+        want: [e('B', '2026-10-07', 300), e('B', '2026-10-08', -100)],
+        day8: 1200,
+      },
+      {
+        // 1305 - 300 = 1005 is 195 short, rounded up to 200: the cut stays a multiple of 10 and the day is 1205
+        name: 'target 1305: the shortfall is rounded up to 10',
+        profile: female(1305),
+        flex: ab(1305),
+        undo: 'A',
+        want: [e('B', '2026-10-07', 300), e('B', '2026-10-08', -100)],
+        day8: 1205,
+      },
+      {
+        // 1300 - 100 - 300 = 900, 300 short: the newest cut (B) goes first and is removed; C keeps its cut
+        name: 'the most recent cut is trimmed first; a cut trimmed to 0 is removed',
+        profile: female(1300),
+        flex: [e('C', '2026-10-05', 100), e('C', '2026-10-08', -100), e('A', '2026-10-08', 800), e('B', '2026-10-07', 300), e('B', '2026-10-08', -300), e('Z', '2026-10-08', 0)],
+        undo: 'A',
+        want: [e('C', '2026-10-05', 100), e('C', '2026-10-08', -100), e('B', '2026-10-07', 300), e('Z', '2026-10-08', 0)],
+        day8: 1200,
+      },
+      {
+        // 1250 - 100 - 300 = 850, 350 short: B's 300 and 50 of C's 100
+        name: 'the trim moves on to older cuts when the newest is not enough',
+        profile: female(1250),
+        flex: [e('C', '2026-10-05', 100), e('C', '2026-10-08', -100), e('A', '2026-10-08', 800), e('B', '2026-10-07', 300), e('B', '2026-10-08', -300)],
+        undo: 'A',
+        want: [e('C', '2026-10-05', 100), e('C', '2026-10-08', -50), e('B', '2026-10-07', 300)],
+        day8: 1200,
+      },
+      {
+        // the hold puts the 8th at 2390 (maintenance), but the cut is checked against the 2000 - 700 = 1300 it returns to
+        name: 'lab hold: the trim uses the target the day returns to when the hold ends',
+        profile: holdMan,
+        labHold: true,
+        flex: [e('A', '2026-10-08', 800), e('B', '2026-10-07', 700), e('B', '2026-10-08', -700)],
+        undo: 'A',
+        want: [e('B', '2026-10-07', 700), e('B', '2026-10-08', -500)],
+        day8: 1500,
+      },
+      {
+        // male floor 1500 is above the 1400 target: every cut on the day goes, and the day stays at 1400
+        name: 'a saved target below the floor: all the day’s cuts go',
+        profile: { ...male, targets: { kcal: 1400 } },
+        flex: [e('A', '2026-10-08', 500), e('B', '2026-10-07', 100), e('B', '2026-10-08', -100), e('X', '2026-10-09', -100)],
+        undo: 'A',
+        want: [e('B', '2026-10-07', 100), e('X', '2026-10-09', -100)],
+        day8: 1400,
+      },
+      {
+        // undoing a plan whose days stay above the floor trims nothing; undoing a cut-only plan only raises days
+        name: 'nothing to trim: other plans are kept as they are',
+        profile: female(1300),
+        flex: ab(1300),
+        undo: 'B',
+        want: ab(1300).filter((x) => x.id === 'A'),
+        day8: 2100,
+      },
+    ];
+
+    it.each(undoCases)('hand-worked undo: $name', (c) => {
+      const keep = JSON.stringify(c.flex);
+      const got = undoFlex(c.flex, c.undo, { profile: c.profile, labHold: c.labHold });
+      expect(got).toEqual(c.want);
+      expect(JSON.stringify(c.flex)).toBe(keep);
+      expect(protoUndo(c.flex, c.undo, c.profile, c.labHold)).toEqual(c.want);
+      expect(kcalTarget('2026-10-08', { flex: got }, c.profile)).toBe(c.day8);
+    });
+
+    it(`matches prototype flexPlanFor and flexNoteHtml over ${RUNS} random days`, () => {
+      const r = rng(2924);
+      const days = ['2026-10-07', '2026-10-08', '2026-10-09'];
+      let picked = 0;
+      for (let i = 0; i < RUNS; i++) {
+        const flex = Array.from({ length: Math.floor(r() * 6) }, () => e(pickOf(r, ['a', 'b', 'c']), pickOf(r, days), pickOf(r, [300, 500, 800, -100, -170, -270])));
+        const date = pickOf(r, days);
+        const got = flexPlanFor(flex, date);
+        const want = note(flex, date);
+        expect(got).toEqual(want.plan && fromProto([want.plan])[0]);
+        if (got) {
+          picked++;
+          expect(want.html).toContain(`includes +${got.kcal_delta} kcal`);
+          expect(want.html).toContain(`data-v="${got.id}"`);
+        } else expect(want.html).not.toContain('Undo');
+      }
+      expect(picked).toBeGreaterThan(RUNS / 3);
+    });
+
+    it(`after ${RUNS / 10} random sequences of plans and undos no day with a cut is below the floor, matching the prototype`, () => {
+      const r = rng(2925);
+      const days = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-12', '2026-10-20'];
+      let trims = 0;
+      let undos = 0;
+      let belowCleared = 0;
+      for (let i = 0; i < RUNS / 10; i++) {
+        const rand = r() < 0.15 ? null : randomProfile(r);
+        // one in five profiles sits up to 300 below the floor, two in five up to 400 above it (where trims happen)
+        const near = r();
+        const randFloor = rand ? calcTargets(toTargetsProfile(rand)).floor : 0;
+        const prof = rand && near < 0.6 ? { ...rand, targets: { kcal: near < 0.2 ? randFloor - 10 - Math.round(r() * 290) : randFloor + Math.round(r() * 400) } } : rand;
+        const floor = prof ? calcTargets(toTargetsProfile(prof)).floor : FLEX_FLOOR_DEFAULT;
+        let flex: FlexEntry[] = [];
+        for (let step = 0; step < 12; step++) {
+          const labHold = pickOf(r, [true, false, undefined]);
+          if (flex.length && r() < 0.4) {
+            const plan = r() < 0.5 ? flexPlanFor(flex, pickOf(r, days)) : pickOf(r, flex);
+            if (!plan) continue;
+            const next = undoFlex(flex, plan.id, { profile: prof, labHold });
+            expect(next).toEqual(protoUndo(flex, plan.id, prof, labHold));
+            // some cut changed: the result differs from removing the plan's entries alone
+            if (JSON.stringify(next) !== JSON.stringify(flex.filter((x) => x.id !== plan.id))) trims++;
+            // a day of the undone plan whose target without cuts is below the floor keeps no cut
+            for (const d of new Set(flex.filter((x) => x.id === plan.id).map((x) => x.date))) {
+              const uncut = (prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET) + next.filter((x) => x.date === d && x.kcal_delta > 0).reduce((a, x) => a + x.kcal_delta, 0);
+              if (uncut < floor && flex.some((x) => x.date === d && x.id !== plan.id && x.kcal_delta < 0)) {
+                belowCleared++;
+                expect(next.filter((x) => x.date === d && x.kcal_delta < 0)).toEqual([]);
+              }
+            }
+            undos++;
+            flex = next;
+          } else {
+            const input: PlanFlexInput = { extra: pickOf(r, [300, 500, 800]), date: pickOf(r, days), today: pickOf(r, days), id: `p${step}`, flex, labHold };
+            const got = planFlex(input, prof);
+            expect(got.flex).toEqual(fromProto(protoRun(input, prof).flex));
+            flex = got.flex;
+          }
+          for (const d of new Set(flex.filter((x) => x.kcal_delta < 0).map((x) => x.date))) {
+            expect(kcalTarget(d, { flex }, prof)).toBeGreaterThanOrEqual(floor);
+          }
+        }
+      }
+      expect(undos).toBeGreaterThan(500);
+      expect(trims).toBeGreaterThan(50);
+      expect(belowCleared).toBeGreaterThan(20);
+    });
   });
 });
 

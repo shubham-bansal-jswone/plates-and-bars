@@ -220,6 +220,256 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download everything the server stores about the signed-in user
+         * @description Returns, in one JSON document, every record the server holds for the user: the
+         *     account (`user`), every row of every synced table (`profiles` and `settings`
+         *     included) and the server's conflict log. The response is built when requested,
+         *     so it reflects the server state at `exported_at`; changes still queued on a device
+         *     are not in it until they sync.
+         *
+         *     **Coverage.** `tables` has one array for every `SyncTable` value, always present
+         *     (empty when the user has no rows). Records use exactly the `/sync` record schemas,
+         *     with their stored `version`, `updated_at` and `deleted_at`. Soft-deleted records
+         *     (tombstones) the server still stores are included with `deleted_at` set, so the
+         *     export shows everything stored, not only what the app displays. A sync table added
+         *     to the contract later is added to the export in the same contract change.
+         *
+         *     **Not included**, because they are credentials or operational data rather than the
+         *     user's data: access and refresh tokens, emailed one-time codes, rate-limit counters,
+         *     AI quota counters (`ai_usage`, see the `ai` tag) and server logs (which never hold
+         *     food, weight, health answers or tokens). Progress photos and other device-only data
+         *     never reach the server, so the app exports them on the device.
+         *
+         *     **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
+         *     `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
+         *     The server may compress the body when the request allows it (`Accept-Encoding`).
+         *
+         *     **Rate limit.** At most 5 exports per user per hour, on top of the per-IP limit
+         *     every endpoint has; beyond that, 429 `rate_limited` with `Retry-After`.
+         *
+         *     **Security.** The user id comes only from the access token; there is no way to ask
+         *     for another user's export. The backend logs only that an export happened (user id,
+         *     time, size), never its content.
+         */
+        get: operations["exportMyData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete the signed-in user's account and all server-side data
+         * @description Permanently deletes the account and everything the server stores for it. There is
+         *     no undo and no grace period. The app asks the user to confirm before calling this.
+         *
+         *     **What is deleted, and when.** Before the server answers 204, in one transaction:
+         *     every row of every synced table (tombstones included), the conflict log, the
+         *     per-user sync bookkeeping, the AI quota counters (`ai_usage`), the account (`User`),
+         *     its sign-in identities (Google and email), every refresh token and session, and,
+         *     for the account's email address, any pending one-time codes and the wrong-code
+         *     records kept for rate limiting (`email_verify_failures`). When the 204 arrives the data is gone from the live
+         *     database. Copies in the encrypted nightly backups are not edited; they disappear
+         *     when those backups expire, at most 30 days later (backup retention, #36). Server logs
+         *     hold no user data to delete. If anything fails, the transaction rolls back, the
+         *     server answers 500 and nothing is deleted; the app retries.
+         *
+         *     **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
+         *     `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
+         *     15 minutes but are refused by every endpoint with 401 `unauthorized`, except
+         *     this one (see Idempotency). Other signed-in devices therefore get 401 on their
+         *     next request and must sign in again; no request made with a pre-deletion token
+         *     can write data. The server cannot erase data stored on other devices; the app
+         *     deletes the local store on the device that made the request.
+         *
+         *     **Idempotency.** Deleting an account that is already deleted succeeds: a repeat
+         *     call with an access token that is still within its lifetime (valid signature,
+         *     not expired) whose user no longer exists answers 204 again. A device that lost
+         *     the first response can therefore retry. If the access token has expired by then,
+         *     the retry gets 401 `token_expired` and the app refreshes as usual. If the refresh
+         *     succeeds, the first call never took effect and the app retries with the new token.
+         *     If the refresh fails with 401, that does not prove the deletion: the session may
+         *     have ended for another reason (expiry, or refresh-token reuse revoking it). The
+         *     app must not tell the user the account is deleted on that alone; it says the
+         *     deletion could not be confirmed and asks the user to sign in. If that sign-in
+         *     returns `new_user: false`, the account still exists and the app offers deletion
+         *     again. If it returns `new_user: true`, the old account is gone (and the new,
+         *     empty one is the user's to keep or delete).
+         *
+         *     **Signing in again** with the same Google account or email address afterwards
+         *     creates a new, empty account with a new user id (`new_user: true`). Nothing from
+         *     the deleted account comes back.
+         *
+         *     **Rate limit.** The per-user and per-IP limits every endpoint has apply. A 429
+         *     means nothing was deleted.
+         *
+         *     **Security.** The user id comes only from the access token; a user can delete only
+         *     their own account. The backend logs that a deletion happened (user id and time)
+         *     and nothing else.
+         */
+        delete: operations["deleteMyAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which AI features are on, and the user's quota
+         * @description Tells the app which AI features are switched on (see Kill switch in the `ai` tag)
+         *     and the user's daily quota, so it shows only the AI entry points that work. The
+         *     app reads it on start and when it returns to the foreground. Does not count
+         *     against the quota and is not part of the 5-per-minute AI limit; only the per-IP
+         *     limit applies. A feature can still be switched off after this read, so
+         *     `feature_disabled` stays the fallback.
+         */
+        get: operations["getAiStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/describe-meal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate a meal's macros from a plain-text description
+         * @description Estimates each item of a meal the user describes in words ("2 rotis, a katori of
+         *     dal, some bhindi"), assuming typical home-cooked portions eaten in India when no
+         *     amount is given. Mirrors the prototype's `estimate()`. Each item's numbers are for
+         *     the whole quantity eaten; carbohydrate is total carbohydrate including fibre.
+         *
+         *     `items` is empty when the model could not identify any food; the app then shows the
+         *     prototype's message ("Couldn't read that meal. Try listing items with amounts.").
+         *     The app shows the items for the user to confirm before logging (suggest and
+         *     confirm); nothing is logged by this call.
+         *
+         *     Non-AI fallback: the food list and Custom entry. See the `ai` tag for quota,
+         *     kill-switch, rate-limit and no-logging rules.
+         */
+        post: operations["describeMeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/ask-why": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a follow-up question about a knowledge card
+         * @description Answers a follow-up question the user asks while reading a knowledge card. Mirrors
+         *     the prototype's `askWhy()`.
+         *
+         *     **Grounding.** The answer is grounded only on the cards in `content/cards.json`
+         *     (the version the server deploys). The server sends the model every card's title,
+         *     summary, body, evidence level and source, says which card the user was reading,
+         *     and instructs it to use nothing else: if the cards do not answer the question it
+         *     says the app's cards don't cover it yet and suggests a coach, dietitian or doctor
+         *     as appropriate; it never invents studies or numbers and gives no medical advice.
+         *     Answers are 2 to 4 plain sentences.
+         *
+         *     Card bodies are sent as generic text, and the server reads none of the user's
+         *     synced data for this call. (The prototype filled the cards with the user's numbers;
+         *     the server deliberately sends none.) Placeholders are rendered so the model never
+         *     sees or echoes them: a conditional block `{?x}…{/x}` is dropped, or replaced by its
+         *     else branch when it has one (`{?x}…{:}else{/x}` becomes `else`), and each bare
+         *     `{x}` becomes a neutral phrase such as "your target" or "your weight".
+         *
+         *     `card_id` in the response is the card the answer is based on (usually the one
+         *     being read, possibly another card), or null when the cards don't cover the
+         *     question. The server checks it against `content/cards.json` before answering.
+         *     A request `card_id` not in `content/cards.json` is 400 `invalid_request` with
+         *     `details[].field` = `card_id`.
+         *
+         *     Non-AI fallback: the card itself. See the `ai` tag for quota, kill-switch,
+         *     rate-limit and no-logging rules.
+         */
+        post: operations["askWhy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/weekly-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write the weekly check-in in plain words
+         * @description Turns the weekly check-in's numbers into three short sentences: what went well,
+         *     the main gap, and one specific thing to focus on next week. Mirrors the
+         *     prototype's `summariseWeek()`, which sends `S.ciData`; the model is told to use
+         *     only these numbers and invent none.
+         *
+         *     The request is numeric facts only, plus the goal and catalogue exercise ids for the
+         *     improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+         *     identified by their `content/exercises.json` id, and every custom exercise is sent
+         *     as the fixed label `custom exercise`, never by its user-typed name. The server
+         *     sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
+         *     are rejected with 400. The app builds the request from `weeklyCheckin()` in
+         *     `packages/core` (see `WeeklySummaryRequest` for the field mapping); core returns
+         *     lift names as stored, so the app maps custom names to `custom exercise` before
+         *     sending.
+         *
+         *     Non-AI fallback: the check-in itself, which shows the same numbers. See the `ai`
+         *     tag for quota, kill-switch, rate-limit and no-logging rules.
+         */
+        post: operations["weeklySummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -230,10 +480,13 @@ export interface components {
              * @description Stable machine-readable code. `token_expired`: refresh the access token and
              *     retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
              *     or expired. `not_found`: reserved for later milestones; no M0 operation
-             *     returns it.
+             *     returns it. `quota_exceeded` (429): the daily AI quota is used up until
+             *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
+             *     the server; use the non-AI fallback. Clients treat an unknown code like
+             *     `internal`.
              * @enum {string}
              */
-            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable";
+            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled";
             /** @description Plain-language message safe to show the user. Never contains health data. */
             message: string;
             /** @description Per-field problems, for `invalid_request`. */
@@ -242,6 +495,8 @@ export interface components {
                 field: string;
                 issue: string;
             }[];
+            /** @description The daily AI quota, present only with `quota_exceeded`. */
+            quota?: components["schemas"]["AiQuota"];
         };
         /**
          * Format: date
@@ -475,6 +730,190 @@ export interface components {
             /** @description Set when deleted (tombstone); null otherwise. */
             deleted_at: components["schemas"]["Timestamp"] | null;
         };
+        /** @description Everything the server stores for one user (`GET /me/export`). */
+        MeExport: {
+            /**
+             * @description Version of this export layout. Adding a table or a field keeps it at 1; it
+             *     changes only if existing content moves or changes meaning.
+             * @constant
+             */
+            format_version: 1;
+            /** @description When the server built the export. */
+            exported_at: components["schemas"]["Timestamp"];
+            user: components["schemas"]["User"];
+            tables: components["schemas"]["ExportTables"];
+            /**
+             * @description Losing copies the server kept when resolving `/sync` conflicts (see
+             *     `SyncConflict.resolution`), oldest first. Empty when there were none.
+             */
+            conflict_log: components["schemas"]["ConflictLogEntry"][];
+        };
+        /**
+         * @description Every synced table (one key per `SyncTable` value) with all of the user's stored
+         *     rows, tombstones included. Same record schemas as `SyncChanges`, but every table
+         *     is present, as an empty array when the user has no rows.
+         */
+        ExportTables: {
+            profiles: components["schemas"]["Profile"][];
+            consents: components["schemas"]["Consent"][];
+            food_logs: components["schemas"]["FoodLog"][];
+            water_logs: components["schemas"]["WaterLog"][];
+            day_notes: components["schemas"]["DayNote"][];
+            workouts: components["schemas"]["Workout"][];
+            workout_sets: components["schemas"]["WorkoutSet"][];
+            lift_stats: components["schemas"]["LiftStat"][];
+            weights: components["schemas"]["Weight"][];
+            measurements: components["schemas"]["Measurement"][];
+            user_foods: components["schemas"]["UserFood"][];
+            recipes: components["schemas"]["Recipe"][];
+            kitchen_tests: components["schemas"]["KitchenTest"][];
+            exclusions: components["schemas"]["Exclusion"][];
+            swaps: components["schemas"]["Swap"][];
+            settings: components["schemas"]["Settings"][];
+        };
+        ConflictLogEntry: {
+            table: components["schemas"]["SyncTable"];
+            /**
+             * Format: uuid
+             * @description Id of the record the losing copy belongs to.
+             */
+            id: string;
+            /**
+             * @description Which side's copy lost: `client` when the conflict resolved `server_won`,
+             *     `server` when it resolved `client_won`.
+             * @enum {string}
+             */
+            loser: "client" | "server";
+            /** @description The record's version stored after resolution (`SyncConflict.server_version`). */
+            winner_version: number;
+            /** @description When the server resolved the conflict. */
+            logged_at: components["schemas"]["Timestamp"];
+            /**
+             * @description The losing copy as it was pushed or stored; its `version` is the losing copy's
+             *     (for the client, the version it sent). Pick its schema by `table`.
+             */
+            record: components["schemas"]["SyncRecord"];
+        };
+        /** @description The user's shared daily AI quota after this call (see the `ai` tag). */
+        AiQuota: {
+            /** @description Calls allowed per UTC day across all AI endpoints (default 10). */
+            limit: number;
+            /** @description Calls left today. */
+            remaining: number;
+            /** @description Next 00:00:00Z, when `remaining` goes back to `limit`. */
+            resets_at: components["schemas"]["Timestamp"];
+        };
+        AiStatus: {
+            /** @description True when the feature is switched on. Unknown keys are ignored by the app. */
+            features: {
+                describe_meal: boolean;
+                ask_why: boolean;
+                weekly_summary: boolean;
+            };
+            quota: components["schemas"]["AiQuota"];
+        };
+        DescribeMealRequest: {
+            /**
+             * @description What the user ate, in their own words, with rough amounts if known. Must contain
+             *     a non-space character. Prototype: the Describe it textarea.
+             */
+            text: string;
+        };
+        DescribeMealResponse: {
+            /** @description One entry per food identified, in the order described; empty when none. */
+            items: components["schemas"]["MealEstimateItem"][];
+            quota: components["schemas"]["AiQuota"];
+        };
+        /** @description One estimated item. Prototype: `FS.est[]` (`protein`, `carbs`, `fat`). */
+        MealEstimateItem: {
+            name: string;
+            /** @description The quantity estimated, in words (for example "2 medium"); may be empty. */
+            qty: string;
+            kcal: number;
+            protein_g: number;
+            /** @description Total carbohydrate including fibre. */
+            carbs_g: number;
+            fat_g: number;
+        };
+        AskWhyRequest: {
+            /**
+             * @description Id of the card the user is reading, from `content/cards.json` (for example
+             *     `protein`, `scale`). Prototype: `WHY.id`.
+             */
+            card_id: string;
+            /** @description The follow-up question. Must contain a non-space character. Prototype: `#askQ`. */
+            question: string;
+        };
+        AskWhyResponse: {
+            /** @description Two to four plain sentences, grounded only on the cards; never contains `{` or `}`. */
+            answer: string;
+            /** @description The card the answer is based on, or null when the cards don't cover the question. */
+            card_id: string | null;
+            quota: components["schemas"]["AiQuota"];
+        };
+        /**
+         * @description The weekly check-in's facts. Prototype: `S.ciData` from `renderCheckin()`. In the
+         *     app, build it from `weeklyCheckin()` in `packages/core` (`WeeklyCheckin`) and the
+         *     settings targets; each field names its source.
+         */
+        WeeklySummaryRequest: {
+            /** @description Days trained this week. Prototype and core: `sessions`. */
+            sessions: number;
+            /** @description Sessions planned this week. Prototype and core: `plannedN`. */
+            planned_sessions: number;
+            /** @description Days with food logged, of 7. Prototype and core: `logged`. */
+            logged_days: number;
+            /** @description Average kcal over days with food logged (0 with none). Prototype and core: `avgK`. */
+            avg_kcal: number;
+            /** @description Average protein over days with food logged (0 with none). Prototype and core: `avgP`. */
+            avg_protein_g: number;
+            /** @description Days at 90% of the protein target or more. Prototype and core: `pDays`. */
+            protein_days: number;
+            /** @description This week's average weight, null if unknown. Prototype and core: `w1`. */
+            weight_avg_kg: number | null;
+            /** @description Last week's average weight, null if unknown. Prototype and core: `w0`. */
+            prev_weight_avg_kg: number | null;
+            /**
+             * @description Lifts that beat their previous best this week, best first. Prototype and core:
+             *     `improved` (`n`, `pct`); core's exercise name `n` becomes `exercise` after the
+             *     app swaps custom exercise names for `custom exercise`.
+             */
+            improved: {
+                exercise: components["schemas"]["SummaryExercise"];
+                /** @description Gain over the previous best, in percent. */
+                pct: number;
+            }[];
+            /** @description Stalled lifts. Prototype and core: `stalled`. */
+            stalled: components["schemas"]["SummaryExercise"][];
+            /**
+             * @description Daily calorie burn from real data, null when there is not enough data.
+             *     Prototype: `burn` (`ab.ready ? ab.burn : null`); core: `burn.ready ? burn.burn : null`.
+             */
+            burn_kcal: number | null;
+            /** @description Daily calorie target. Prototype: `target` (`S.settings.kcal`). */
+            target_kcal: number;
+            /** @description Daily protein target. Prototype: `ptarget` (`S.settings.protein`). */
+            target_protein_g: number;
+            /**
+             * @description The profile's goal, null with no profile. Prototype: `goal`.
+             * @enum {string|null}
+             */
+            goal: "lose" | "recomp" | "maintain" | "gain" | null;
+        };
+        /**
+         * @description A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
+         *     `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
+         *     app never sends a custom exercise's user-typed name; the server sends any value
+         *     that is not a catalogue id to the provider as `custom exercise`.
+         * @example Goblet Squat
+         * @example custom exercise
+         */
+        SummaryExercise: string;
+        WeeklySummaryResponse: {
+            /** @description Three plain sentences; no headings, lists or emojis. */
+            text: string;
+            quota: components["schemas"]["AiQuota"];
+        };
         /**
          * @description Setup answers and targets. One per user; id = UUIDv5(`profiles:me`).
          *     Prototype: `settings.profile` plus target fields in `settings`.
@@ -574,6 +1013,13 @@ export interface components {
             /** @description "I've logged everything" tick; null when never set. */
             complete: boolean | null;
             steps: number | null;
+            /**
+             * @description Where `steps` came from: typed in (`manual`) or read from the phone's step
+             *     sensor (`device`). Null when `steps` is null. Optional: records written
+             *     before 0.1.7 omit it, and an absent value with a non-null `steps` means `manual`.
+             * @enum {string|null}
+             */
+            steps_source?: "manual" | "device" | null;
             /** @description Hours slept. */
             sleep: number | null;
             /** @description Fasting day (switches meal ideas to the fasting pool). */
@@ -603,7 +1049,16 @@ export interface components {
             where: "gym" | "dumbbells" | "bodyweight" | null;
             /** @description Prototype: `cardio`. */
             cardio_min: number | null;
-            /** @description Session modifiers (light, short, deload, re-entry). Shape owned by packages/core; stored as-is. */
+            /**
+             * @description Session modifiers. Shape owned by packages/core (`SessionMods`); stored as-is.
+             *     The keys core writes:
+             *     - `light` (boolean): no weight increases and one fewer set (check-in "light", lab hold or needs clearance).
+             *     - `short` (boolean): short session, main exercises only.
+             *     - `where` (`gym`, `dumbbells` or `bodyweight`): where the session happens.
+             *     - `deload` (boolean): recovery week in range.
+             *     - `reentry` (number): re-entry fraction (0.15 or 0.3) when a re-entry period is in range, else 0.
+             *     Readers treat a missing key as false (or 0 for `reentry`) and keep unknown keys.
+             */
             mods: {
                 [key: string]: unknown;
             };
@@ -843,11 +1298,29 @@ export interface components {
         ExerciseTags: {
             pattern: string;
             family: string;
-            equipment: string;
+            /**
+             * @description The prototype's custom-exercise equipment values, plus `other`. Core maps
+             *     anything but barbell, dumbbell, machine, cable and bodyweight to type `other`.
+             * @enum {string}
+             */
+            equipment: "barbell" | "dumbbell" | "machine" | "cable" | "bodyweight" | "other";
             difficulty: number;
             primary: components["schemas"]["Muscle"][];
             secondary: components["schemas"]["Muscle"][];
             joints: string[];
+        };
+        Reminder: {
+            /** @enum {string} */
+            kind: "workout" | "weigh_in" | "water" | "log_food";
+            /**
+             * @description Local wall-clock time on the phone, 24-hour `HH:MM`.
+             * @example 07:30
+             */
+            time: string;
+            /** @description ISO weekdays the reminder fires on, 1 = Monday to 7 = Sunday. */
+            days: number[];
+            /** @description Whether the reminder is scheduled. */
+            on: boolean;
         };
         /** @enum {string} */
         Muscle: "chest" | "front-delt" | "side-delt" | "rear-delt" | "triceps" | "lats" | "upper-back" | "biceps" | "forearms" | "quads" | "hams" | "glutes" | "calves" | "abs" | "lower-back";
@@ -879,7 +1352,11 @@ export interface components {
             /** @description Per-exercise type, step and rep range, keyed by exercise name. Prototype: `ex`. */
             exercise_overrides: {
                 [key: string]: {
-                    type: string;
+                    /**
+                     * @description Exercise type; the keys of core's `DEFAULT_STEP` and content's `defaultStep`.
+                     * @enum {string}
+                     */
+                    type: "barbell" | "dumbbell" | "machine" | "cable" | "assisted" | "bodyweight" | "other" | "time";
                     step_kg: number;
                     rep_low: number;
                     rep_high: number;
@@ -934,6 +1411,12 @@ export interface components {
             prep: {
                 [key: string]: unknown;
             }[];
+            /**
+             * @description Local reminders, scheduled on the phone (no push service). All default off.
+             *     The web app does not show or fire them but keeps the list as synced. Optional:
+             *     records written before 0.1.7 omit it, and absent means no reminders.
+             */
+            reminders?: components["schemas"]["Reminder"][];
         };
     };
     responses: {
@@ -984,10 +1467,41 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description Too many AI requests. `rate_limited`: the per-minute limit; retry after
+         *     `Retry-After`. `quota_exceeded`: the daily quota is used up; `quota.resets_at` says
+         *     when it resets and `Retry-After` is the seconds until then.
+         */
+        AiLimited: {
+            headers: {
+                /** @description Seconds to wait before retrying. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /**
+         * @description `feature_disabled`: the feature is switched off on the server (kill switch, budget
+         *     cap, or not yet launched); show the non-AI fallback. `unavailable`: the AI provider
+         *     failed or timed out; nothing was counted, and the user may try again.
+         */
+        AiUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: never;
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Always `no-store`. */
+        NoStore: "no-store";
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -1191,6 +1705,168 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    exportMyData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user's data. */
+            200: {
+                headers: {
+                    /** @description `attachment; filename="plate-and-bar-export-<YYYY-MM-DD>.json"` */
+                    "Content-Disposition"?: string;
+                    /** @description Always `no-store`. */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeExport"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+        };
+    };
+    deleteMyAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account and all its server-side data are deleted (or were already). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+        };
+    };
+    getAiStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feature switches and quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+        };
+    };
+    describeMeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DescribeMealRequest"];
+            };
+        };
+        responses: {
+            /** @description Estimated items and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DescribeMealResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    askWhy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskWhyRequest"];
+            };
+        };
+        responses: {
+            /** @description The answer and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskWhyResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    weeklySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeeklySummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description The summary and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklySummaryResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
         };
     };
 }

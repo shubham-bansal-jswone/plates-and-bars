@@ -9,7 +9,9 @@ const coreRoot = path.resolve(__dirname, '../../packages/core');
 // content/ is imported as JSON (exercise tags, cards, meta); it also lies outside the project root.
 const contentRoot = path.resolve(__dirname, '../../content');
 
-config.watchFolders = [...(config.watchFolders ?? []), coreRoot, contentRoot];
+const apiRoot = path.resolve(__dirname, '../../packages/api');
+
+config.watchFolders = [...(config.watchFolders ?? []), coreRoot, contentRoot, apiRoot];
 // Resolve dependencies of linked packages/core from this app's node_modules only.
 config.resolver.nodeModulesPaths = [path.resolve(__dirname, 'node_modules')];
 // expo-sqlite's web build imports a .wasm file.

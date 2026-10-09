@@ -19,11 +19,19 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Plan engine | `planned`, `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `beginnerRamp`, `older`, `TEMPLATES`, `ORDER`, `SPLITS` | same names (`beginnerRamp` is inline in `setsFor`) | `plan.json` |
 | Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
 | Exclusions and swaps | `resolveSession`, `resolveName`, `candidates`, `ruleMatches`, `activeRules`, `isExcluded`, `replFromSwaps` | same names; `replFromSwaps` builds `settings.repl` from contract swaps | `exercises.json` (catalogue only; differential tests) |
+| Re-check cards and "can't do" (#111, #265) | `recheckDue`, `recheckBack`, `recheckLater`, `recheckKeep`, `cantRule`, `widerRuleReplacements`, `replaceAt`, `cantSession` | the filter in `recheckCards`; the `rule-back`, `rule-later`, `rule-keep` steps of `exAction`; the rule, the `replaceAt` step and the "caught by a wider rule" loop of `applyCant` | none (differential tests) |
+| Ladders (#111) | `ladderOf`, `nextStep`, `prevStep`, `sidewaysOf`, `estimateFor`, `ladderCard`, `ladderSwap`, `ladderStayUntil`, `ESTIMATE_PAIRS` | same names; `ladderSwap` and `ladderStayUntil` are the `ladder-up`, `ladder-down`, `swap-side` and `ladder-stay` steps of `exAction`; `ESTIMATE_PAIRS` is `PAIR` | `exercises.json` (`ladders`; differential tests) |
 | Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `metaFor`, `applyCustomTags`, `customExerciseMeta`, `overridesFromSettings`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction`; `metaFor` is the `['other',8,12]` fallback in `exInfo`, `customExerciseMeta` the meta step of `applyCustomTags`; `overridesFromSettings` renames contract `exercise_overrides` to `settings.ex` | `progression.json` |
-| Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction` | none (differential tests) |
-| Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET`, `kcalTarget`, `DEFAULT_KCAL_TARGET`, `planFlex`, `undoFlex`, `FLEX_FLOOR_DEFAULT`, `flexToast`, `stepServings`, `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP`, `highProtein`, `customFood`, `saveMyFood`, `MY_FOODS_MAX`, `FOOD_NAME_MAX`, `userFoodFacts` | `foodListHtml` query, `foodMatch` and badge, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete`, `kcalTarget`, `planFlex` (its 1200 and its toast), `case 'flex-undo'`, `case 'serv'`, `case 'addcustom'`, `allFoods` | `foods.json` (plus differential tests) |
+| Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `stallRangeOverride`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction`; `stallRangeOverride` is `stallRange` in contract `exercise_overrides` shape (#128) | none (differential tests) |
+| Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET`, `kcalTarget`, `DEFAULT_KCAL_TARGET`, `planFlex`, `undoFlex`, `flexPlanFor`, `FLEX_FLOOR_DEFAULT`, `flexToast`, `stepServings`, `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP`, `highProtein`, `customFood`, `saveMyFood`, `MY_FOODS_MAX`, `FOOD_NAME_MAX`, `userFoodFacts` | `foodListHtml` query, `foodMatch` and badge, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete`, `kcalTarget`, `planFlex` (its 1200 and its toast), `undoFlex` (`case 'flex-undo'`), `flexPlanFor` (`flexNoteHtml`), `case 'serv'`, `case 'addcustom'`, `allFoods` | `foods.json` (plus differential tests) |
+| Recipes and kitchen tests | `recipeTotals`, `presetIngredients`, `stepRecipeLog`, `recipeFood`, `kitchenTest`, `kitchenTestFood`, `saveBuiltFood`, `ingredientGrams`, `UNIT_GRAMS`, `OIL_LEVEL`, `RECIPE_VEG_INGREDIENTS`, `FRUIT_VEG_SERVING_G`, `SUGAR_INGREDIENT`, `BUILT_FOODS_MAX`, `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` | `rbTotals`, `rbFromPreset` rows, `case 'rb-log'`, `case 'rb-save'`, `ktCalc`, `ktSave(true)`, `UNIT_G`, `OIL_LEVEL` (`RAW`, `RAW_FIB`, `FATTY`, `KATORI_G`, `PRESETS` read from content) | `foods.json` (`raw100g`, `rawFibre100g`), content/raw-ingredients.json and recipes.json checked against them (plus differential tests) |
 | Default macro targets | `DEFAULT_PROTEIN_TARGET`, `DEFAULT_CARBS_TARGET`, `DEFAULT_FAT_TARGET` | `DEFAULT_SETTINGS.protein`, `.carbs`, `.fat` | none (differential test) |
 | Coverage and focus picker | `plannedCoverage`, `coverageTemplates`, `doneCoverage`, `coverageRows`, `weeklyCoverage`, `focusPicker`, `toggleFocus`, `COVER_SHOW`, `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` | `weeklyCoverage`, `actualCoverage`, `coverageHtml`/`fillActualCoverage` rows, `focusHtml`, `focusAction`, `COVER_SHOW` | none (differential tests) |
+| Progress: body and day targets | `latestWeight`, `measureAt`, `navyBodyFat`, `waterTarget`, `workoutBurn`, `stepsTarget`, `weightDrift`, `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`, `WATER_TRAINING_ML`, `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX`, `WEIGHT_DRIFT_KG` | `latestWeight`, `measureAt`, `navyBF`, `waterTarget`, `workoutBurn`, `stepsTarget`, the `drift` check in `setupSummaryHtml` (#161) | `formulas.json` (plus differential tests) |
+| Progress: real burn, check-in, habits | `weeklyAvg`, `rapidLoss`, `addKcal`, `weightSlope`, `adaptiveBurn`, `nextAdaptive`, `targetFromBurn`, `weeklyCheckin`, `habits`, `KCAL_PER_KG`, `RAPID_LOSS_KCAL`, `CHECKIN_KCAL_STEP`, `CARDIO_WEEK_MIN` | `weeklyAvg`, `calorieCard`, `adjAction` `adj-kcal`, `weightSlope`, `adaptiveBurn`, the `settings.adaptive` update and facts of `renderCheckin`, `targetFromBurn`, `consistencyHtml` | none (differential tests) |
+| Progress: weight and waist trend, entry limits (#233) | `weightSeries`, `waistSeries`, `trendChange`, `chartLayout`, `scaleJump`, `weightEntry`, `measurementRow`, `sleepEntry`, `round1`, `WEIGHT_CHART_POINTS`, `WAIST_CHART_POINTS`, `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX`, `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS`, `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`, `TAPE_MAX_CM`, `SLEEP_MAX_H` | `weightChart`, `waistPts` and `change` in `measuresHtml`, `lineChart`, `case 'saveW'` (value, `S.ui.scaleJump`), `scaleJumpHtml`, `saveMeasures`, `r1`; `sleepEntry` and the limits follow the contract (`Weight`, `TapeCm`, `DayNote.sleep`), `weightEntry` rejects values that round to 20.0 or 400.0, and `sleepEntry` rejects text that is not a number (#247) | none (differential tests) |
+| Meal ideas | `nextMealInfo`, `mealByTime`, `combos`, `combosFast`, `round05`, `ideasPage`, `OLDER_MEAL_PROTEIN_G`, `IDEAS_PER_PAGE`, `IDEAS_KCAL_LEFT_MIN`, `MEAL_ORDER` | same names (`mealByTime` takes the hour); `ideasPage` is the paging and protein note of `guidanceHtml`; `MEAL_ORDER` is `MEALS` | none (differential tests) |
+| Meal plan and grocery list | `buildPlan`, `planItems`, `swapPlanMeal`, `planIsCurrent`, `planForMeal`, `planDayTotals`, `groceryList`, `groceryAmount`, `PLAN_DAYS`, `PLAN_OPTIONS`, `PLAN_ROTATION` | `buildPlan`, `planItems`, `case 'mp-swap'`, the saved-plan check and day line of `planSheet`, `planForMeal`, `grocerySheet` and its `fmtAmt` | none (differential tests) |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
 
 `calcTargets` returns the same fields as the prototype, unrounded where the prototype leaves them
@@ -64,7 +72,25 @@ Stalls and personal bests read each lift's `hist` (scores rounded to 0.1, last 8
 (contract `LiftStat.history` with `score`, and `pb_toast_date`). `updateLift` writes both, as the
 prototype does after every tick, rating or form change, except that a same-day record keeps its
 `pbToast` so the best toast shows at most once a day (#121; the prototype follows in a spec-change PR). Cards come back as facts (key, names, rep
-range), not HTML; the stall card's "Or switch to …" button (`sidewaysOf`) waits for the ladder port.
+range), not HTML. Save "Switch to lo–hi" with `stallRangeOverride`, which returns the contract
+`Settings.exercise_overrides[name]` entry (#128). The stall card's "Or switch to …" button shows when
+`sidewaysOf` returns a name; pass where the user trains today (the day's override, else the
+profile's), so it only offers an exercise the equipment there can do (#262). After a
+settings sync, call `applyCustomTags` again so re-tagged custom exercises update mid-session.
+
+Ladders read prototype `LADDERS` from content/exercises.json `ladders`, passed in a `LadderCatalog`
+(`tags` and `ladders`). `ladderCard` returns facts (`up` or `down`, the target, the dismissal key), not
+HTML; save its buttons with `ladderSwap` (contract `Swap` fields; a step up keeps the old exercise as a
+bridge for 14 days) and `ladderStayUntil` (contract `Settings.ladder_stay`). Timed exclusions keep
+applying after `until` until the user answers the re-check card: `recheckDue` lists the rules to ask
+about, and `recheckBack`, `recheckLater` and `recheckKeep` return the answered rule (and, for "Try it
+again", the `Settings.returning` entries to add). The "can't do" sheet saves `cantRule(...)` (add an
+`id`; for a saved rule, also tombstone any swap from that exercise). `cantSession` then gives today's
+workout (contract `Workout.exercises` and `WorkoutSet`s): the tapped exercise through `replaceAt`, then
+the `widerRuleReplacements`. Give its new blank sets (`NewCantSet`) an `id` and store them, stamp and
+store its `changed` sets (renumbered, same `id`), and tombstone its `removed` sets. The sheet's pick list
+(`candidates`) and `cantSession` take where the user trains today: the day's override, else the
+profile's (#272). A pick stays in the replaced exercise's part (first or second session, #267).
 
 The food rules take foods in content/foods.json's `Food` shape and logs in the contract's `FoodLog`
 shape (logs with `deleted_at` set are left out). Fibre, added sugar and fruit and veg are looked up by
@@ -81,6 +107,41 @@ saves keep the prototype's 80. Turn a contract `UserFood` into the food-maths in
 prototype takes the first user food with its name and then checks its fibre; the two differ only when
 two user foods share a name, which the prototype's save prevents but the contract does not (#151,
 revisit with `food_id` lookups).
+
+The recipe and kitchen-test rules read their data from content, passed in as is: raw ingredients
+(prototype `RAW`, `RAW_FIB` and `FATTY`) as content/raw-ingredients.json `ingredients` (`name`, `fatty`,
+`per_100g`), the katori size (prototype `KATORI_G`) as content/recipes.json `katori_g`, and presets
+(`PRESETS`) as content/recipes.json `presets[].ingredients`. Content owns those values; core keeps no copy.
+Ingredients are looked up by their own name only (`constructor` and the like are unknown ingredients).
+Ingredients come in the contract's `Ingredient` shape, recipes and kitchen tests in `Recipe` and
+`KitchenTest` fields; amounts and weights are read with `num`, as the prototype reads its text boxes.
+`recipeFood` and `kitchenTestFood` return contract `UserFood` fields (origin `recipe` or `kitchen_test`)
+and, like `customFood` (#150), `name-too-long` for a trimmed name over 200 characters and `invalid` for an
+ingredient amount, pot, cooked or serving weight below 0, where the prototype saves. An empty pot weighed
+as 0 g counts (a tared scale, #214); a blank empty pot does not. Tests
+check content against golden `raw100g` and `rawFibre100g` and the prototype's `FATTY`, `KATORI_G` and
+`PRESETS`, then run the port on content against the prototype.
+
+The meal-idea rules read their data from content, passed in as is: meal and protein weights, portion
+caps and minimums (prototype `MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`) as content/meal-planning.json, and foods
+as content/foods.json `foods`, in that order (it breaks ties between equal scores, as `FOODS` order does).
+Food roles (prototype `ROLE`) are content/meal-planning.json `roles` (`{ food, role, diet }`, #230); a test
+checks them against the prototype's table, fasting-day rows included, in order. The combo shapes (sides with a main,
+breakfast extras, the fasting-day pools) are the prototype's inline lists and stay in core. A food the
+combos need but `foods` lacks is skipped, where the prototype throws. Ideas return the food objects passed
+in, with unrounded totals; show them with `Math.round`, as the prototype does.
+
+The weekly plan is contract `Settings.meal_plan` in the prototype's `mealPlan` shape (`start`, `opts` per
+meal, `days[i][meal].k`). The grocery map (prototype `GROC`) is content/meal-planning.json `grocery`, passed in.
+`groceryList` returns the sheet's rows sorted by item and the "Copy as text" lines in first-seen order, as
+the prototype does (#240). `buildPlan` applies no 60+ protein floor, also as the prototype does (#239).
+`planDayTotals` finds foods by name ignoring case: pass the user's foods first, then the shared ones.
+
+## Browser support
+
+Core runs in the web bundle too, and a regex the browser cannot parse stops the whole bundle loading. Do
+not use regex lookbehind (`(?<=`, `(?<!`) or other regex features that Safari/iOS before 16.4 lacks; Babel
+cannot transpile them. A test in `test/food.test.ts` fails if `src/` or the prototype contains `(?<` (#213).
 
 ## Running
 

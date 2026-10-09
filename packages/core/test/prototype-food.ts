@@ -39,6 +39,8 @@ export interface ProtoFood {
   FIB: Record<string, [number, number]>;
   PRODUCE: Record<string, number>;
   ALIAS: Record<string, string>;
+  /** The prototype's `unitGrams(f)` (reads `f[1]`, the serving label). */
+  unitGrams(f: [string, string]): number;
   /** `foodListHtml()`'s query and filter over `allFoods()`, returning the matching names. */
   search(q: string): string[];
   /** `case 'pick'`'s grams steps for food `name` with grams input `g` and servings `serv`. */
@@ -54,8 +56,10 @@ export interface ProtoFood {
   realKcalTarget(date: string, settings: Record<string, unknown>): number;
   /** The prototype's own `planFlex(extra)` against `settings`, with `S.date`, `TODAY()` and `newId()` set; returns the new flex and the toast. */
   planFlex(extra: number, settings: Record<string, unknown>, date: string, today: string, id: string): { flex: ProtoFlex[]; toast: string };
-  /** `case 'flex-undo'` on `flex` with button value `v`. */
-  flexUndo(flex: ProtoFlex[], v: string): ProtoFlex[];
+  /** `case 'flex-undo'` (prototype `undoFlex`) with button value `v` against `settings`; returns the new flex. */
+  flexUndo(settings: Record<string, unknown>, v: string): ProtoFlex[];
+  /** The prototype's own `flexPlanFor(date)` and `flexNoteHtml()` (with `S.date` = `date`) against `settings`. */
+  flexNote(settings: Record<string, unknown>, date: string): { plan: ProtoFlex | null; html: string };
   /** `case 'serv'` from servings `serv` with button step `d`. */
   serv(serv: number, d: string): number;
   /** The "high protein" badge check of `foodListHtml()` on a food row. */
@@ -151,9 +155,16 @@ export function loadFood(): ProtoFood {
     sliceLine(src, 'function kcalTarget(date){'),
     sliceBlock(src, 'function planFlex(extra){', '}'),
     '  try { planFlex(extra); return { flex:S.settings.flex, toast:TOAST }; } finally { S.settings = keepS; S.date = keepD; } }',
-    'function flexUndo(flex, v){ const S = { settings:{ flex } }, b = { dataset:{ v } }, saveSoon = () => {}, renderFood = () => {}; switch("flex-undo"){',
+    'const flexRun = (() => {',
+    sliceLine(src, 'function kcalTarget(date){'),
+    sliceLine(src, 'function flexPlanFor(date){'),
+    sliceBlock(src, 'function undoFlex(id){', '}'),
+    sliceBlock(src, 'function flexNoteHtml(){', '}'),
+    '  const flexUndo = (settings, v) => { const keep = S.settings, b = { dataset:{ v } }, saveSoon = () => {}, renderFood = () => {}; S.settings = settings; try { switch("flex-undo"){',
     replaceOnce(undoLine, 'renderFood(); return;', 'return S.settings.flex;'),
-    '  } }',
+    '  } } finally { S.settings = keep; } };',
+    '  const flexNote = (settings, date) => { const keepS = S.settings, keepD = S.date; S.settings = settings; S.date = date; try { return { plan:flexPlanFor(date), html:flexNoteHtml() }; } finally { S.settings = keepS; S.date = keepD; } };',
+    '  return { flexUndo, flexNote }; })();',
     'function serv(s0, d){ const FS = { serv:s0 }; const $ = () => ({}); const b = { dataset:{ d } };',
     '  ' + servLine.replace("case 'serv': ", '').replace(/ \$\('#servV'\)\.textContent = r1\(FS\.serv\); break;$/, ''),
     '  return FS.serv; }',
@@ -165,7 +176,7 @@ export function loadFood(): ProtoFood {
     addCustom,
     '  })();',
     '  const out = { toast:TOAST, meal:MEAL, myFoods:S.settings.myFoods }; S.settings.myFoods = keep; return out; }',
-    'return { S, FOODS, FIB, PRODUCE, ALIAS, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, planFlex: planFlexRun, flexUndo, serv, highProtein, addCustom };',
+    'return { S, FOODS, FIB, PRODUCE, ALIAS, unitGrams, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, planFlex: planFlexRun, flexUndo: flexRun.flexUndo, flexNote: flexRun.flexNote, serv, highProtein, addCustom };',
   ].join('\n');
   return new Function(code)() as ProtoFood;
 }

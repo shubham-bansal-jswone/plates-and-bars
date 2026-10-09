@@ -1,17 +1,15 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.4
+  version: 0.1.7
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
     food maths) runs on the phone in `packages/core`.
 
-    M0 scope: auth, sync, food search and health. Content bundles, AI calls and account
-    rights (`/content/*`, `/ai/*`, `GET /me/export`, `DELETE /me`) are added in later
-    milestones as additive changes. In particular, the third criterion of spec item 10
-    ("Sync model additions") in `docs/spec/ISSUES.md`, `DELETE /me` and `GET /me/export`,
-    is deferred to a later contract PR; the backend should not expect it from this contract.
+    Scope: auth, sync, food search, health, account rights (`GET /me/export`,
+    `DELETE /me`) and the v1 AI calls (`/ai/*`). Content bundles (`/content/*`) are added
+    in a later milestone as an additive change.
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
@@ -39,8 +37,84 @@ tags:
     description: Offline-first sync of user-owned records.
   - name: foods
     description: Shared food database search.
+  - name: account
+    description: Account rights for the signed-in user (export and deletion).
   - name: system
     description: Health and status.
+  - name: ai
+    description: |
+      v1 AI calls: Describe a meal, Ask why, Weekly summary, and `GET /ai/status` for
+      which of them are on. Text only; no images in v1.
+      Every AI call goes through the backend, which holds the provider key; the app never
+      calls a model directly. Each feature has a non-AI fallback, so the app works fully
+      with AI off. Signed-in users only (sign-in is optional, so signed-out users get the
+      fallbacks).
+
+      **Content.** The backend bundles `content/exercises.json` and `content/cards.json`
+      at build time: the exercise catalogue that `SummaryExercise` ids are checked against,
+      and the cards Ask why is grounded on. Both are the versions in the deployed build.
+
+      **Order of checks.** Access token (401), per-user and per-IP rate limit (429
+      `rate_limited`), feature switch (503 `feature_disabled`), request validation (400),
+      daily quota (429 `quota_exceeded`), then the provider call. A request rejected at
+      any of these steps does not count against the quota.
+
+      **Daily quota (`ai_usage`).** Each user has one daily allowance shared by all three
+      endpoints, by default 10 text calls a day. The limit is server configuration, so the
+      app reads `quota.limit` and never hard-codes 10. The day is the UTC calendar day:
+      the count resets at 00:00:00Z (05:30 in India), which `quota.resets_at` gives. A call
+      counts when it returns 200; the server reserves the unit before calling the provider
+      and releases it if the provider fails, so concurrent calls cannot overrun the limit
+      and failed calls cost the user nothing. A cached answer to an identical request
+      still counts. Every 200 carries the quota after the call. When nothing is left the
+      server answers 429 `quota_exceeded` with `quota` (remaining 0) and `Retry-After` (the
+      seconds until `resets_at`); the app shows the fallback and does not retry before
+      then.
+
+      `ai_usage` holds only the user id, UTC day, feature, call count and token counts for
+      cost tracking; never the text sent or received. It is a quota counter, so it is not
+      part of `GET /me/export` (like rate-limit counters), and `DELETE /me` deletes it with
+      the account.
+
+      **Rate limit.** On top of the daily quota, at most 5 AI requests per user per minute
+      across the three POST endpoints, plus the per-IP limit every endpoint has. Requests
+      rejected for validation (400) or quota (429 `quota_exceeded`) still count toward the
+      5 per minute. Beyond that, 429 `rate_limited` with `Retry-After` (prototype message:
+      "Too many requests right now. Wait a minute and try again."). `GET /ai/status` is
+      not part of this limit, only the per-IP one.
+
+      **Kill switch.** One server flag per feature (`describe_meal`, `ask_why`,
+      `weekly_summary`) turns it off instantly, without a deploy; requests already with the
+      provider finish. While a feature is off its endpoint answers 503 `feature_disabled`
+      and nothing counts against the quota. Reaching the monthly AI budget cap turns every
+      AI feature off the same way until the cap is raised or the month ends. All flags
+      default to off until a provider and budget are chosen (#200, decision 7). The app
+      reads `GET /ai/status` and shows only the AI entry points that are on.
+      `feature_disabled` stays as the fallback for a switch flipped after that read: the
+      app shows the non-AI fallback and refreshes the status. A provider failure or
+      timeout is 503 `unavailable` instead: a one-off, so the app shows "Couldn't get an
+      answer, try again" and the fallback.
+
+      **Prompt injection and output checks.** User text (`text`, `question`) goes into the
+      prompt as delimited data, never as instructions, and the instructions tell the model
+      to treat it only as data. The model's reply is parsed as data and checked against the
+      response schema (types, `maxLength`, `maximum`) before it is returned; nothing in it
+      is executed or followed. Describe a meal drops items whose numbers are not finite or
+      are out of range. Ask why turns a reply `card_id` that is not in
+      `content/cards.json` into null, and rejects an `answer` containing `{` or `}`. A
+      reply that cannot be parsed or fails these checks is 503 `unavailable`, and the
+      reserved quota unit is released.
+
+      **No logging.** Request and response bodies of `/ai/*` (meal text, questions,
+      answers, check-in numbers, exercise ids) are never logged, written to the database or
+      sent to error reporting, and 400 `details[].issue` never echoes a submitted value.
+      The identical-request cache, if used, is per user (never shared across users), in
+      memory only, keyed by the user id and a hash of the request, and expires within 24
+      hours. Server logs for these calls hold only the user id, feature, time, status and
+      duration. The provider
+      receives only the request content and the instructions, never the user id, email or
+      any other account data, and is configured not to retain or train on it where the
+      provider offers that.
 
 paths:
   /auth/google:
@@ -521,8 +595,510 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimited'
 
-  # Later milestones (additive): /content/manifest, /content/{bundle}, /ai/describe-meal,
-  # /ai/ask-why, /ai/weekly-summary, GET /me/export, DELETE /me.
+  /me/export:
+    get:
+      tags: [account]
+      operationId: exportMyData
+      summary: Download everything the server stores about the signed-in user
+      description: |
+        Returns, in one JSON document, every record the server holds for the user: the
+        account (`user`), every row of every synced table (`profiles` and `settings`
+        included) and the server's conflict log. The response is built when requested,
+        so it reflects the server state at `exported_at`; changes still queued on a device
+        are not in it until they sync.
+
+        **Coverage.** `tables` has one array for every `SyncTable` value, always present
+        (empty when the user has no rows). Records use exactly the `/sync` record schemas,
+        with their stored `version`, `updated_at` and `deleted_at`. Soft-deleted records
+        (tombstones) the server still stores are included with `deleted_at` set, so the
+        export shows everything stored, not only what the app displays. A sync table added
+        to the contract later is added to the export in the same contract change.
+
+        **Not included**, because they are credentials or operational data rather than the
+        user's data: access and refresh tokens, emailed one-time codes, rate-limit counters,
+        AI quota counters (`ai_usage`, see the `ai` tag) and server logs (which never hold
+        food, weight, health answers or tokens). Progress photos and other device-only data
+        never reach the server, so the app exports them on the device.
+
+        **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
+        `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
+        The server may compress the body when the request allows it (`Accept-Encoding`).
+
+        **Rate limit.** At most 5 exports per user per hour, on top of the per-IP limit
+        every endpoint has; beyond that, 429 `rate_limited` with `Retry-After`.
+
+        **Security.** The user id comes only from the access token; there is no way to ask
+        for another user's export. The backend logs only that an export happened (user id,
+        time, size), never its content.
+      responses:
+        '200':
+          description: The user's data.
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="plate-and-bar-export-<YYYY-MM-DD>.json"`'
+              schema:
+                type: string
+            Cache-Control:
+              description: Always `no-store`.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeExport'
+              examples:
+                default:
+                  summary: A new user one day after setup, with one logged conflict
+                  description: Natural-key ids (`profiles:me`, `settings:me`, `weights:2026-10-08`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
+                  value:
+                    format_version: 1
+                    exported_at: '2026-10-09T08:00:00Z'
+                    user:
+                      id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                      email: asha@example.com
+                      created_at: '2026-10-08T06:30:00Z'
+                    tables:
+                      profiles:
+                        - id: bb9a1205-b5d1-57ac-8f72-619bdb573f77
+                          version: 1
+                          updated_at: '2026-10-08T06:34:00Z'
+                          deleted_at: null
+                          sex: female
+                          age: 29
+                          height_cm: 162
+                          weight_kg: 64
+                          activity: sitting
+                          where: gym
+                          days: 3
+                          exp: new
+                          minutes: 45
+                          goal: recomp
+                          pace: gentle
+                          special: none
+                          screen: ['no', 'no', 'no', 'no', 'no', 'no']
+                          created: '2026-10-08'
+                          cleared: null
+                          targets:
+                            kcal: 1750
+                            protein_g: 115
+                            carbs_g: 190
+                            fat_g: 58
+                      consents:
+                        - id: 5c2e8f1a-9b3d-4e7f-a1c2-3d4e5f6a7b8c
+                          version: 1
+                          updated_at: '2026-10-08T06:31:00Z'
+                          deleted_at: null
+                          kind: data_storage
+                          given_at: '2026-10-08T06:31:00Z'
+                          text_version: '2026-10-07'
+                      food_logs: []
+                      water_logs: []
+                      day_notes: []
+                      workouts: []
+                      workout_sets: []
+                      lift_stats: []
+                      weights:
+                        - id: 640dee2b-d92d-5a00-bd03-568962bf90ea
+                          version: 2
+                          updated_at: '2026-10-08T06:20:00Z'
+                          deleted_at: null
+                          date: '2026-10-08'
+                          weight_kg: 64
+                      measurements: []
+                      user_foods: []
+                      recipes: []
+                      kitchen_tests: []
+                      exclusions: []
+                      swaps: []
+                      settings:
+                        - id: 8e73d325-779b-5a79-845c-b29eb0d86202
+                          version: 1
+                          updated_at: '2026-10-08T06:34:00Z'
+                          deleted_at: null
+                          focus: []
+                          rest_off: false
+                          custom_tags: {}
+                          diet: any
+                          water_sizes:
+                            glass_ml: 250
+                            bottle_ml: 1000
+                          exercise_overrides: {}
+                          flex: []
+                          returning: {}
+                          ladder_stay: {}
+                          checkin_seen: null
+                          adjustments: {}
+                          adaptive: {}
+                          learn: {}
+                          meal_plan: null
+                          prep: []
+                          reminders:
+                            - kind: workout
+                              time: '07:00'
+                              days: [1, 3, 5]
+                              on: false
+                    conflict_log:
+                      - table: weights
+                        id: 640dee2b-d92d-5a00-bd03-568962bf90ea
+                        loser: client
+                        winner_version: 2
+                        logged_at: '2026-10-08T06:25:00Z'
+                        record:
+                          id: 640dee2b-d92d-5a00-bd03-568962bf90ea
+                          version: 1
+                          updated_at: '2026-10-08T06:10:00Z'
+                          deleted_at: null
+                          date: '2026-10-08'
+                          weight_kg: 64.5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /me:
+    delete:
+      tags: [account]
+      operationId: deleteMyAccount
+      summary: Delete the signed-in user's account and all server-side data
+      description: |
+        Permanently deletes the account and everything the server stores for it. There is
+        no undo and no grace period. The app asks the user to confirm before calling this.
+
+        **What is deleted, and when.** Before the server answers 204, in one transaction:
+        every row of every synced table (tombstones included), the conflict log, the
+        per-user sync bookkeeping, the AI quota counters (`ai_usage`), the account (`User`),
+        its sign-in identities (Google and email), every refresh token and session, and,
+        for the account's email address, any pending one-time codes and the wrong-code
+        records kept for rate limiting (`email_verify_failures`). When the 204 arrives the data is gone from the live
+        database. Copies in the encrypted nightly backups are not edited; they disappear
+        when those backups expire, at most 30 days later (backup retention, #36). Server logs
+        hold no user data to delete. If anything fails, the transaction rolls back, the
+        server answers 500 and nothing is deleted; the app retries.
+
+        **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
+        `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
+        15 minutes but are refused by every endpoint with 401 `unauthorized`, except
+        this one (see Idempotency). Other signed-in devices therefore get 401 on their
+        next request and must sign in again; no request made with a pre-deletion token
+        can write data. The server cannot erase data stored on other devices; the app
+        deletes the local store on the device that made the request.
+
+        **Idempotency.** Deleting an account that is already deleted succeeds: a repeat
+        call with an access token that is still within its lifetime (valid signature,
+        not expired) whose user no longer exists answers 204 again. A device that lost
+        the first response can therefore retry. If the access token has expired by then,
+        the retry gets 401 `token_expired` and the app refreshes as usual. If the refresh
+        succeeds, the first call never took effect and the app retries with the new token.
+        If the refresh fails with 401, that does not prove the deletion: the session may
+        have ended for another reason (expiry, or refresh-token reuse revoking it). The
+        app must not tell the user the account is deleted on that alone; it says the
+        deletion could not be confirmed and asks the user to sign in. If that sign-in
+        returns `new_user: false`, the account still exists and the app offers deletion
+        again. If it returns `new_user: true`, the old account is gone (and the new,
+        empty one is the user's to keep or delete).
+
+        **Signing in again** with the same Google account or email address afterwards
+        creates a new, empty account with a new user id (`new_user: true`). Nothing from
+        the deleted account comes back.
+
+        **Rate limit.** The per-user and per-IP limits every endpoint has apply. A 429
+        means nothing was deleted.
+
+        **Security.** The user id comes only from the access token; a user can delete only
+        their own account. The backend logs that a deletion happened (user id and time)
+        and nothing else.
+      responses:
+        '204':
+          description: The account and all its server-side data are deleted (or were already).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /ai/status:
+    get:
+      tags: [ai]
+      operationId: getAiStatus
+      summary: Which AI features are on, and the user's quota
+      description: |
+        Tells the app which AI features are switched on (see Kill switch in the `ai` tag)
+        and the user's daily quota, so it shows only the AI entry points that work. The
+        app reads it on start and when it returns to the foreground. Does not count
+        against the quota and is not part of the 5-per-minute AI limit; only the per-IP
+        limit applies. A feature can still be switched off after this read, so
+        `feature_disabled` stays the fallback.
+      responses:
+        '200':
+          description: Feature switches and quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiStatus'
+              examples:
+                default:
+                  value:
+                    features:
+                      describe_meal: false
+                      ask_why: false
+                      weekly_summary: false
+                    quota:
+                      limit: 10
+                      remaining: 10
+                      resets_at: '2026-10-10T00:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /ai/describe-meal:
+    post:
+      tags: [ai]
+      operationId: describeMeal
+      summary: Estimate a meal's macros from a plain-text description
+      description: |
+        Estimates each item of a meal the user describes in words ("2 rotis, a katori of
+        dal, some bhindi"), assuming typical home-cooked portions eaten in India when no
+        amount is given. Mirrors the prototype's `estimate()`. Each item's numbers are for
+        the whole quantity eaten; carbohydrate is total carbohydrate including fibre.
+
+        `items` is empty when the model could not identify any food; the app then shows the
+        prototype's message ("Couldn't read that meal. Try listing items with amounts.").
+        The app shows the items for the user to confirm before logging (suggest and
+        confirm); nothing is logged by this call.
+
+        Non-AI fallback: the food list and Custom entry. See the `ai` tag for quota,
+        kill-switch, rate-limit and no-logging rules.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DescribeMealRequest'
+            examples:
+              default:
+                value:
+                  text: 2 rotis and a katori of dal
+      responses:
+        '200':
+          description: Estimated items and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DescribeMealResponse'
+              examples:
+                default:
+                  value:
+                    items:
+                      - name: Roti
+                        qty: 2 medium
+                        kcal: 240
+                        protein_g: 7
+                        carbs_g: 46
+                        fat_g: 3
+                      - name: Dal
+                        qty: 1 katori (150 g)
+                        kcal: 165
+                        protein_g: 9
+                        carbs_g: 24
+                        fat_g: 4
+                    quota:
+                      limit: 10
+                      remaining: 7
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/ask-why:
+    post:
+      tags: [ai]
+      operationId: askWhy
+      summary: Ask a follow-up question about a knowledge card
+      description: |
+        Answers a follow-up question the user asks while reading a knowledge card. Mirrors
+        the prototype's `askWhy()`.
+
+        **Grounding.** The answer is grounded only on the cards in `content/cards.json`
+        (the version the server deploys). The server sends the model every card's title,
+        summary, body, evidence level and source, says which card the user was reading,
+        and instructs it to use nothing else: if the cards do not answer the question it
+        says the app's cards don't cover it yet and suggests a coach, dietitian or doctor
+        as appropriate; it never invents studies or numbers and gives no medical advice.
+        Answers are 2 to 4 plain sentences.
+
+        Card bodies are sent as generic text, and the server reads none of the user's
+        synced data for this call. (The prototype filled the cards with the user's numbers;
+        the server deliberately sends none.) Placeholders are rendered so the model never
+        sees or echoes them: a conditional block `{?x}…{/x}` is dropped, or replaced by its
+        else branch when it has one (`{?x}…{:}else{/x}` becomes `else`), and each bare
+        `{x}` becomes a neutral phrase such as "your target" or "your weight".
+
+        `card_id` in the response is the card the answer is based on (usually the one
+        being read, possibly another card), or null when the cards don't cover the
+        question. The server checks it against `content/cards.json` before answering.
+        A request `card_id` not in `content/cards.json` is 400 `invalid_request` with
+        `details[].field` = `card_id`.
+
+        Non-AI fallback: the card itself. See the `ai` tag for quota, kill-switch,
+        rate-limit and no-logging rules.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskWhyRequest'
+            examples:
+              default:
+                value:
+                  card_id: protein
+                  question: Is 150 g of protein too much for me?
+      responses:
+        '200':
+          description: The answer and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AskWhyResponse'
+              examples:
+                covered:
+                  value:
+                    answer: >-
+                      For most people training hard, around 1.6 g of protein per kg of
+                      bodyweight is where muscle-building benefits level off, and some
+                      benefit up to about 2.2 g per kg. Whether 150 g is a lot depends on
+                      your weight; the app adds a margin because needs rise in a calorie
+                      deficit. This comes from the card "Why so much protein?".
+                    card_id: protein
+                    quota:
+                      limit: 10
+                      remaining: 6
+                      resets_at: '2026-10-10T00:00:00Z'
+                not_covered:
+                  value:
+                    answer: >-
+                      The app's cards don't cover protein and kidney disease yet. Please ask
+                      your doctor before changing how much protein you eat.
+                    card_id: null
+                    quota:
+                      limit: 10
+                      remaining: 5
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/weekly-summary:
+    post:
+      tags: [ai]
+      operationId: weeklySummary
+      summary: Write the weekly check-in in plain words
+      description: |
+        Turns the weekly check-in's numbers into three short sentences: what went well,
+        the main gap, and one specific thing to focus on next week. Mirrors the
+        prototype's `summariseWeek()`, which sends `S.ciData`; the model is told to use
+        only these numbers and invent none.
+
+        The request is numeric facts only, plus the goal and catalogue exercise ids for the
+        improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+        identified by their `content/exercises.json` id, and every custom exercise is sent
+        as the fixed label `custom exercise`, never by its user-typed name. The server
+        sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
+        are rejected with 400. The app builds the request from `weeklyCheckin()` in
+        `packages/core` (see `WeeklySummaryRequest` for the field mapping); core returns
+        lift names as stored, so the app maps custom names to `custom exercise` before
+        sending.
+
+        Non-AI fallback: the check-in itself, which shows the same numbers. See the `ai`
+        tag for quota, kill-switch, rate-limit and no-logging rules.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeeklySummaryRequest'
+            examples:
+              default:
+                value:
+                  sessions: 4
+                  planned_sessions: 6
+                  logged_days: 6
+                  avg_kcal: 1912.5
+                  avg_protein_g: 118.3
+                  protein_days: 3
+                  weight_avg_kg: 78.4
+                  prev_weight_avg_kg: 78.9
+                  improved:
+                    - exercise: Goblet Squat
+                      pct: 6
+                  stalled: [Lat Pulldown, custom exercise]
+                  burn_kcal: 2450
+                  target_kcal: 1950
+                  target_protein_g: 140
+                  goal: lose
+      responses:
+        '200':
+          description: The summary and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySummaryResponse'
+              examples:
+                default:
+                  value:
+                    text: >-
+                      You trained 4 times and logged food on 6 days, and your weekly average
+                      weight dropped 0.5 kg, with a 6% gain on the goblet squat. Protein was
+                      the gap: you averaged 118 g against 140 g and hit it on 3 days. Next
+                      week, aim to reach 140 g on at least 5 days by adding a protein snack.
+                    quota:
+                      limit: 10
+                      remaining: 4
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  # Later milestone (additive): /content/manifest, /content/{bundle}.
 
 components:
   securitySchemes:
@@ -531,6 +1107,13 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Short-lived JWT access token from an `/auth/*` endpoint.
+
+  headers:
+    NoStore:
+      description: Always `no-store`.
+      schema:
+        type: string
+        const: no-store
 
   responses:
     TokenPair:
@@ -609,6 +1192,52 @@ components:
               value:
                 code: internal
                 message: Something went wrong on our side.
+    AiLimited:
+      description: |
+        Too many AI requests. `rate_limited`: the per-minute limit; retry after
+        `Retry-After`. `quota_exceeded`: the daily quota is used up; `quota.resets_at` says
+        when it resets and `Retry-After` is the seconds until then.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            quota_exceeded:
+              value:
+                code: quota_exceeded
+                message: You've used today's AI requests. You can still add it yourself.
+                quota:
+                  limit: 10
+                  remaining: 0
+                  resets_at: '2026-10-10T00:00:00Z'
+            rate_limited:
+              value:
+                code: rate_limited
+                message: Too many requests right now. Wait a minute and try again.
+    AiUnavailable:
+      description: |
+        `feature_disabled`: the feature is switched off on the server (kill switch, budget
+        cap, or not yet launched); show the non-AI fallback. `unavailable`: the AI provider
+        failed or timed out; nothing was counted, and the user may try again.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            feature_disabled:
+              value:
+                code: feature_disabled
+                message: This feature isn't available right now. You can enter it yourself instead.
+            unavailable:
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
 
   schemas:
     # ---------- shared ----------
@@ -628,11 +1257,16 @@ components:
             - rate_limited
             - internal
             - unavailable
+            - quota_exceeded
+            - feature_disabled
           description: |
             Stable machine-readable code. `token_expired`: refresh the access token and
             retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
             or expired. `not_found`: reserved for later milestones; no M0 operation
-            returns it.
+            returns it. `quota_exceeded` (429): the daily AI quota is used up until
+            `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
+            the server; use the non-AI fallback. Clients treat an unknown code like
+            `internal`.
         message:
           type: string
           description: Plain-language message safe to show the user. Never contains health data.
@@ -648,6 +1282,9 @@ components:
                 description: JSON path of the offending field.
               issue:
                 type: string
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+          description: The daily AI quota, present only with `quota_exceeded`.
 
     LocalDate:
       type: string
@@ -1093,6 +1730,381 @@ components:
             - type: 'null'
           description: Set when deleted (tombstone); null otherwise.
 
+    # ---------- account ----------
+    MeExport:
+      type: object
+      description: Everything the server stores for one user (`GET /me/export`).
+      required: [format_version, exported_at, user, tables, conflict_log]
+      properties:
+        format_version:
+          type: integer
+          const: 1
+          description: |
+            Version of this export layout. Adding a table or a field keeps it at 1; it
+            changes only if existing content moves or changes meaning.
+        exported_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the server built the export.
+        user:
+          $ref: '#/components/schemas/User'
+        tables:
+          $ref: '#/components/schemas/ExportTables'
+        conflict_log:
+          type: array
+          description: |
+            Losing copies the server kept when resolving `/sync` conflicts (see
+            `SyncConflict.resolution`), oldest first. Empty when there were none.
+          items:
+            $ref: '#/components/schemas/ConflictLogEntry'
+
+    ExportTables:
+      type: object
+      description: |
+        Every synced table (one key per `SyncTable` value) with all of the user's stored
+        rows, tombstones included. Same record schemas as `SyncChanges`, but every table
+        is present, as an empty array when the user has no rows.
+      additionalProperties: false
+      required: [profiles, consents, food_logs, water_logs, day_notes, workouts, workout_sets, lift_stats, weights, measurements, user_foods, recipes, kitchen_tests, exclusions, swaps, settings]
+      properties:
+        profiles:
+          type: array
+          items: { $ref: '#/components/schemas/Profile' }
+        consents:
+          type: array
+          items: { $ref: '#/components/schemas/Consent' }
+        food_logs:
+          type: array
+          items: { $ref: '#/components/schemas/FoodLog' }
+        water_logs:
+          type: array
+          items: { $ref: '#/components/schemas/WaterLog' }
+        day_notes:
+          type: array
+          items: { $ref: '#/components/schemas/DayNote' }
+        workouts:
+          type: array
+          items: { $ref: '#/components/schemas/Workout' }
+        workout_sets:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSet' }
+        lift_stats:
+          type: array
+          items: { $ref: '#/components/schemas/LiftStat' }
+        weights:
+          type: array
+          items: { $ref: '#/components/schemas/Weight' }
+        measurements:
+          type: array
+          items: { $ref: '#/components/schemas/Measurement' }
+        user_foods:
+          type: array
+          items: { $ref: '#/components/schemas/UserFood' }
+        recipes:
+          type: array
+          items: { $ref: '#/components/schemas/Recipe' }
+        kitchen_tests:
+          type: array
+          items: { $ref: '#/components/schemas/KitchenTest' }
+        exclusions:
+          type: array
+          items: { $ref: '#/components/schemas/Exclusion' }
+        swaps:
+          type: array
+          items: { $ref: '#/components/schemas/Swap' }
+        settings:
+          type: array
+          items: { $ref: '#/components/schemas/Settings' }
+
+    ConflictLogEntry:
+      type: object
+      required: [table, id, loser, winner_version, logged_at, record]
+      properties:
+        table:
+          $ref: '#/components/schemas/SyncTable'
+        id:
+          type: string
+          format: uuid
+          description: Id of the record the losing copy belongs to.
+        loser:
+          type: string
+          enum: [client, server]
+          description: |
+            Which side's copy lost: `client` when the conflict resolved `server_won`,
+            `server` when it resolved `client_won`.
+        winner_version:
+          type: integer
+          minimum: 1
+          description: The record's version stored after resolution (`SyncConflict.server_version`).
+        logged_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the server resolved the conflict.
+        record:
+          $ref: '#/components/schemas/SyncRecord'
+          description: |
+            The losing copy as it was pushed or stored; its `version` is the losing copy's
+            (for the client, the version it sent). Pick its schema by `table`.
+
+    # ---------- ai ----------
+    AiQuota:
+      type: object
+      description: The user's shared daily AI quota after this call (see the `ai` tag).
+      required: [limit, remaining, resets_at]
+      properties:
+        limit:
+          type: integer
+          minimum: 0
+          description: Calls allowed per UTC day across all AI endpoints (default 10).
+        remaining:
+          type: integer
+          minimum: 0
+          description: Calls left today.
+        resets_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: Next 00:00:00Z, when `remaining` goes back to `limit`.
+
+    AiStatus:
+      type: object
+      required: [features, quota]
+      properties:
+        features:
+          type: object
+          description: True when the feature is switched on. Unknown keys are ignored by the app.
+          required: [describe_meal, ask_why, weekly_summary]
+          properties:
+            describe_meal:
+              type: boolean
+            ask_why:
+              type: boolean
+            weekly_summary:
+              type: boolean
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    DescribeMealRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          pattern: '\S'
+          description: |
+            What the user ate, in their own words, with rough amounts if known. Must contain
+            a non-space character. Prototype: the Describe it textarea.
+
+    DescribeMealResponse:
+      type: object
+      required: [items, quota]
+      properties:
+        items:
+          type: array
+          maxItems: 30
+          description: One entry per food identified, in the order described; empty when none.
+          items:
+            $ref: '#/components/schemas/MealEstimateItem'
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    MealEstimateItem:
+      type: object
+      description: 'One estimated item. Prototype: `FS.est[]` (`protein`, `carbs`, `fat`).'
+      required: [name, qty, kcal, protein_g, carbs_g, fat_g]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        qty:
+          type: string
+          maxLength: 50
+          description: The quantity estimated, in words (for example "2 medium"); may be empty.
+        kcal:
+          type: number
+          minimum: 0
+          maximum: 5000
+        protein_g:
+          type: number
+          minimum: 0
+          maximum: 1000
+        carbs_g:
+          type: number
+          minimum: 0
+          maximum: 1000
+          description: Total carbohydrate including fibre.
+        fat_g:
+          type: number
+          minimum: 0
+          maximum: 1000
+
+    AskWhyRequest:
+      type: object
+      additionalProperties: false
+      required: [card_id, question]
+      properties:
+        card_id:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          maxLength: 40
+          description: |
+            Id of the card the user is reading, from `content/cards.json` (for example
+            `protein`, `scale`). Prototype: `WHY.id`.
+        question:
+          type: string
+          minLength: 1
+          maxLength: 300
+          pattern: '\S'
+          description: 'The follow-up question. Must contain a non-space character. Prototype: `#askQ`.'
+
+    AskWhyResponse:
+      type: object
+      required: [answer, card_id, quota]
+      properties:
+        answer:
+          type: string
+          minLength: 1
+          maxLength: 1200
+          description: Two to four plain sentences, grounded only on the cards; never contains `{` or `}`.
+        card_id:
+          type: [string, 'null']
+          description: The card the answer is based on, or null when the cards don't cover the question.
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    WeeklySummaryRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        The weekly check-in's facts. Prototype: `S.ciData` from `renderCheckin()`. In the
+        app, build it from `weeklyCheckin()` in `packages/core` (`WeeklyCheckin`) and the
+        settings targets; each field names its source.
+      required:
+        - sessions
+        - planned_sessions
+        - logged_days
+        - avg_kcal
+        - avg_protein_g
+        - protein_days
+        - weight_avg_kg
+        - prev_weight_avg_kg
+        - improved
+        - stalled
+        - burn_kcal
+        - target_kcal
+        - target_protein_g
+        - goal
+      properties:
+        sessions:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: 'Days trained this week. Prototype and core: `sessions`.'
+        planned_sessions:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: 'Sessions planned this week. Prototype and core: `plannedN`.'
+        logged_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: 'Days with food logged, of 7. Prototype and core: `logged`.'
+        avg_kcal:
+          type: number
+          minimum: 0
+          maximum: 20000
+          description: 'Average kcal over days with food logged (0 with none). Prototype and core: `avgK`.'
+        avg_protein_g:
+          type: number
+          minimum: 0
+          maximum: 1000
+          description: 'Average protein over days with food logged (0 with none). Prototype and core: `avgP`.'
+        protein_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: 'Days at 90% of the protein target or more. Prototype and core: `pDays`.'
+        weight_avg_kg:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          maximum: 400
+          description: "This week's average weight, null if unknown. Prototype and core: `w1`."
+        prev_weight_avg_kg:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          maximum: 400
+          description: "Last week's average weight, null if unknown. Prototype and core: `w0`."
+        improved:
+          type: array
+          maxItems: 3
+          description: |
+            Lifts that beat their previous best this week, best first. Prototype and core:
+            `improved` (`n`, `pct`); core's exercise name `n` becomes `exercise` after the
+            app swaps custom exercise names for `custom exercise`.
+          items:
+            type: object
+            additionalProperties: false
+            required: [exercise, pct]
+            properties:
+              exercise:
+                $ref: '#/components/schemas/SummaryExercise'
+              pct:
+                type: integer
+                minimum: 1
+                maximum: 1000
+                description: Gain over the previous best, in percent.
+        stalled:
+          type: array
+          maxItems: 3
+          description: 'Stalled lifts. Prototype and core: `stalled`.'
+          items:
+            $ref: '#/components/schemas/SummaryExercise'
+        burn_kcal:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 20000
+          description: |
+            Daily calorie burn from real data, null when there is not enough data.
+            Prototype: `burn` (`ab.ready ? ab.burn : null`); core: `burn.ready ? burn.burn : null`.
+        target_kcal:
+          type: integer
+          minimum: 0
+          maximum: 20000
+          description: 'Daily calorie target. Prototype: `target` (`S.settings.kcal`).'
+        target_protein_g:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          description: 'Daily protein target. Prototype: `ptarget` (`S.settings.protein`).'
+        goal:
+          type: [string, 'null']
+          enum: [lose, recomp, maintain, gain, null]
+          description: "The profile's goal, null with no profile. Prototype: `goal`."
+
+    SummaryExercise:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: |
+        A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
+        `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
+        app never sends a custom exercise's user-typed name; the server sends any value
+        that is not a catalogue id to the provider as `custom exercise`.
+      examples: [Goblet Squat, custom exercise]
+
+    WeeklySummaryResponse:
+      type: object
+      required: [text, quota]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1200
+          description: Three plain sentences; no headings, lists or emojis.
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
     # ---------- sync tables ----------
     Profile:
       description: |
@@ -1272,6 +2284,13 @@ components:
             steps:
               type: [integer, 'null']
               minimum: 0
+            steps_source:
+              type: [string, 'null']
+              enum: [manual, device, null]
+              description: |
+                Where `steps` came from: typed in (`manual`) or read from the phone's step
+                sensor (`device`). Null when `steps` is null. Optional: records written
+                before 0.1.7 omit it, and an absent value with a non-null `steps` means `manual`.
             sleep:
               type: [number, 'null']
               minimum: 0
@@ -1315,7 +2334,15 @@ components:
               description: 'Prototype: `cardio`.'
             mods:
               type: object
-              description: Session modifiers (light, short, deload, re-entry). Shape owned by packages/core; stored as-is.
+              description: |
+                Session modifiers. Shape owned by packages/core (`SessionMods`); stored as-is.
+                The keys core writes:
+                - `light` (boolean): no weight increases and one fewer set (check-in "light", lab hold or needs clearance).
+                - `short` (boolean): short session, main exercises only.
+                - `where` (`gym`, `dumbbells` or `bodyweight`): where the session happens.
+                - `deload` (boolean): recovery week in range.
+                - `reentry` (number): re-entry fraction (0.15 or 0.3) when a re-entry period is in range, else 0.
+                Readers treat a missing key as false (or 0 for `reentry`) and keep unknown keys.
               additionalProperties: true
             exercises:
               type: array
@@ -1726,6 +2753,10 @@ components:
           type: string
         equipment:
           type: string
+          enum: [barbell, dumbbell, machine, cable, bodyweight, other]
+          description: |
+            The prototype's custom-exercise equipment values, plus `other`. Core maps
+            anything but barbell, dumbbell, machine, cable and bodyweight to type `other`.
         difficulty:
           type: integer
           minimum: 1
@@ -1740,6 +2771,32 @@ components:
           type: array
           items:
             type: string
+
+    Reminder:
+      type: object
+      required: [kind, time, days, on]
+      properties:
+        kind:
+          type: string
+          enum: [workout, weigh_in, water, log_food]
+        time:
+          type: string
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+          description: Local wall-clock time on the phone, 24-hour `HH:MM`.
+          examples: ['07:30']
+        days:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          description: ISO weekdays the reminder fires on, 1 = Monday to 7 = Sunday.
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+        on:
+          type: boolean
+          description: Whether the reminder is scheduled.
 
     Muscle:
       type: string
@@ -1792,6 +2849,8 @@ components:
                 properties:
                   type:
                     type: string
+                    enum: [barbell, dumbbell, machine, cable, assisted, bodyweight, other, time]
+                    description: Exercise type; the keys of core's `DEFAULT_STEP` and content's `defaultStep`.
                   step_kg:
                     type: number
                     minimum: 0
@@ -1864,3 +2923,12 @@ components:
               items:
                 type: object
                 additionalProperties: true
+            reminders:
+              type: array
+              maxItems: 20
+              description: |
+                Local reminders, scheduled on the phone (no push service). All default off.
+                The web app does not show or fire them but keeps the list as synced. Optional:
+                records written before 0.1.7 omit it, and absent means no reminders.
+              items:
+                $ref: '#/components/schemas/Reminder'

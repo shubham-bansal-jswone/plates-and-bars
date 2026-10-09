@@ -1,5 +1,7 @@
 package app.plateandbar.api.auth;
 
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,6 +24,12 @@ class JwtAuthFilterTest {
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
     @MockitoBean JdbcTemplate jdbc;
+    @MockitoBean UserExistenceCheck users;
+
+    @org.junit.jupiter.api.BeforeEach
+    void usersExist() {
+        when(users.exists(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+    }
 
     @Test
     void validAccessTokenPassesAuthentication() throws Exception {
@@ -29,6 +37,45 @@ class JwtAuthFilterTest {
         // No controller exists for this path; reaching 404 (not 401) proves the filter accepted the token.
         mvc.perform(get("/api/v1/sync/pull").header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void validTokenOfADeletedUserIsUnauthorizedEverywhereExceptDeleteMe() throws Exception {
+        String id = "11111111-1111-1111-1111-111111111111";
+        when(users.exists(id)).thenReturn(false);
+        String token = jwt.issue(id).value();
+        mvc.perform(get("/api/v1/sync/pull").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
+        mvc.perform(get("/api/v1/me/export").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+        // DELETE /me is exempt (no controller in this slice: 404, not 401, shows the filter let it through).
+        mvc.perform(delete("/api/v1/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+        // Only that exact method and path: another method on /me is still refused.
+        mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + token)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void databaseFailureDuringTheUserLookupIs503UnavailableNever401() throws Exception {
+        String id = "11111111-1111-1111-1111-111111111111";
+        when(users.exists(id)).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("down"));
+        String token = jwt.issue(id).value();
+        for (var req : new org.springframework.test.web.servlet.RequestBuilder[] {
+            get("/api/v1/sync/pull").header("Authorization", "Bearer " + token),
+            delete("/api/v1/me").header("Authorization", "Bearer " + token)
+        }) {
+            // DELETE /me skips the lookup, so it reaches routing (404 here); everything else is 503.
+            var result = mvc.perform(req).andReturn().getResponse();
+            if (result.getStatus() != 404) {
+                org.assertj.core.api.Assertions.assertThat(result.getStatus()).isEqualTo(503);
+                org.assertj.core.api.Assertions.assertThat(result.getContentAsString())
+                        .contains("\"code\":\"unavailable\"")
+                        .doesNotContain(id);
+            }
+        }
+        mvc.perform(get("/api/v1/sync/pull").header("Authorization", "Bearer " + token))
+                .andExpect(status().isServiceUnavailable());
     }
 
     @Test

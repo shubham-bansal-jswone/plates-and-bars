@@ -6,9 +6,16 @@ import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET } from
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { cuisines } from '../src/food/catalog';
+import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }) }));
+const mockFocus = { n: 0 };
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ replace: jest.fn(), push: mockPush }),
+  // Runs the callback when the screen mounts and each time `mockFocus.n` changes on a re-render (the tab being shown again).
+  useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [mockFocus.n]),
+}));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
@@ -54,6 +61,7 @@ describe('Food screen', () => {
   describe('flex chips', () => {
     const flexOf = async (db: Db) => (await loadSettings(db))?.flex ?? [];
     const plan = async (label: string) => {
+      if (!screen.queryByLabelText('Plan a bigger day')) await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       await fireEvent.press(screen.getByLabelText(label));
     };
@@ -84,12 +92,13 @@ describe('Food screen', () => {
 
     it('announces whether the chips are open', async () => {
       await setup();
+      await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: false });
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: true });
     });
 
-    it('PINNED QUIRK (#178): with two plans on today, Undo removes the earlier plan, not the newest', async () => {
+    it('with two plans on today, the note shows the newest plan’s extra and Undo removes only that plan', async () => {
       const db = await setup();
       await plan('+300 kcal today');
       const first = (await waitFor(async () => {
@@ -99,13 +108,42 @@ describe('Food screen', () => {
       }))[0]!.id;
       await plan('+500 kcal today');
       await waitFor(async () => expect((await flexOf(db)).length).toBeGreaterThan(4));
+      expect(screen.getByText(/includes \+500 kcal for a bigger meal/)).toBeTruthy();
       await fireEvent.press(screen.getByLabelText('Undo bigger day'));
       await waitFor(async () => {
         const left = await flexOf(db);
-        expect(left.length).toBeGreaterThan(0);
-        expect(left.some((x) => x.id === first)).toBe(false);
+        expect(left.length).toBe(4);
+        expect(left.every((x) => x.id === first)).toBe(true);
       });
-      expect(screen.getByLabelText('0 of 2,490 kcal eaten')).toBeTruthy();
+      expect(screen.getByLabelText('0 of 2,290 kcal eaten')).toBeTruthy();
+      expect(screen.getByText(/includes \+300 kcal for a bigger meal/)).toBeTruthy();
+    });
+
+    it('hides Undo on a day that only has cuts', async () => {
+      const db = memoryDb();
+      await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: [{ id: 'old', date: DATE, kcal_delta: -200 }] });
+      await setup({ db });
+      expect(screen.getByText(/200 kcal lower/)).toBeTruthy();
+      expect(screen.queryByLabelText('Undo bigger day')).toBeNull();
+    });
+
+    it('Undo trims the cuts left on a day so it stays at the minimum (floor-aware)', async () => {
+      const db = memoryDb();
+      // Base target 1,990, floor 1,500. Today has a -1000 cut (p0) and a +500 plan (p1); removing p1 alone would
+      // leave 990, so undoFlex trims the cut by 510 and the day lands exactly on the floor.
+      await saveSettings(db, {
+        ...defaultSettings('2026-10-08T00:00:00Z'),
+        flex: [{ id: 'p0', date: DATE, kcal_delta: -1000 }, { id: 'p1', date: DATE, kcal_delta: 500 }],
+      });
+      await setup({ db });
+      await fireEvent.press(screen.getByLabelText('Undo bigger day'));
+      const left = await waitFor(async () => {
+        const f = await flexOf(db);
+        expect(f.some((x) => x.id === 'p1')).toBe(false);
+        return f;
+      });
+      expect(left).toEqual([{ id: 'p0', date: DATE, kcal_delta: -490 }]);
+      expect(screen.getByLabelText('0 of 1,500 kcal eaten')).toBeTruthy();
     });
 
     it('says what could not be spread when the next days have no room', async () => {
@@ -130,6 +168,96 @@ describe('Food screen', () => {
       expect(screen.getByLabelText('0 of 1,990 kcal eaten')).toBeTruthy();
       await act(async () => {});
       expect(docs(db, 'user_settings')).toHaveLength(0);
+    });
+  });
+
+  describe('ideas card', () => {
+    const openCard = async () => fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+
+    it('is closed at first and shows the next meal’s share, three ideas and the diet it filters by', async () => {
+      await setup();
+      expect(screen.queryByText(/fits breakfast/)).toBeNull();
+      await openCard();
+      expect(screen.getByText(/fits breakfast, based on what’s left today. Showing all foods./)).toBeTruthy();
+      expect(screen.getAllByLabelText(/^Add .* to breakfast$/)).toHaveLength(3);
+    });
+
+    it('Add logs every item of the idea under the meal and moves on', async () => {
+      const db = await setup();
+      await openCard();
+      await fireEvent.press(screen.getAllByLabelText(/^Add .* to breakfast$/)[0]!);
+      expect(await screen.findByText('Added to breakfast')).toBeTruthy();
+      await waitFor(() => expect(docs(db, 'food_logs').length).toBeGreaterThan(1));
+      expect(docs(db, 'food_logs').every((l) => l.meal === 'Breakfast' && l.deleted_at === null)).toBe(true);
+      expect(screen.getByLabelText('What should I eat next? Lunch ideas')).toBeTruthy();
+    });
+
+    it('the diet chips filter the ideas and are saved to settings', async () => {
+      const db = await setup();
+      await openCard();
+      await fireEvent.press(screen.getByLabelText('Vegetarian'));
+      expect(screen.getByText(/Showing vegetarian foods./)).toBeTruthy();
+      expect(screen.getByText('Vegetarian ideas')).toBeTruthy();
+      expect(screen.queryByLabelText(/^Add .*(Chicken|Egg).* to breakfast$/)).toBeNull();
+      await waitFor(async () => expect((await loadSettings(db))?.diet).toBe('veg'));
+    });
+
+    it('Fasting day switches to the fasting pool and is saved on the day note, keeping steps, sleep and the logged-everything tick', async () => {
+      const db = memoryDb();
+      db.rows.set(`day_notes:${DATE}`, JSON.stringify({ id: null, version: 3, updated_at: '2026-10-08T01:00:00Z', deleted_at: null, date: DATE, complete: true, steps: 7000, sleep: 7.5, fast: false }));
+      await setup({ db });
+      await openCard();
+      await fireEvent.press(screen.getByLabelText('Fasting day'));
+      expect(screen.getByLabelText('Fasting day').props.accessibilityState).toMatchObject({ checked: true });
+      expect(screen.getAllByLabelText(/^Add .*(Kuttu|Sabudana|Sweet potato).* to breakfast$/).length).toBeGreaterThan(0);
+      await waitFor(() => expect(docs(db, 'day_notes')[0]).toMatchObject({ date: DATE, fast: true, complete: true, steps: 7000, sleep: 7.5 }));
+    });
+
+    it('refuses a diet change when the saved settings could not be read, and writes nothing', async () => {
+      const db = memoryDb();
+      const read = db.getFirstAsync.bind(db);
+      db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+        if (sql.includes('user_settings')) throw new Error('corrupt');
+        return read(sql, ...p);
+      }) as typeof db.getFirstAsync;
+      await setup({ db });
+      await openCard();
+      await fireEvent.press(screen.getByLabelText('Vegetarian'));
+      expect(await screen.findByText(/Couldn’t read your saved settings/)).toBeTruthy();
+      expect(screen.queryByText('Vegetarian ideas')).toBeNull();
+      await act(async () => {});
+      expect(docs(db, 'user_settings')).toHaveLength(0);
+    });
+
+    it('The thali plate guide starts collapsed', async () => {
+      await setup();
+      await openCard();
+      expect(screen.queryByText(/^No counting needed/)).toBeNull();
+      await fireEvent.press(screen.getByLabelText('The thali plate guide'));
+      expect(screen.getByText(/^No counting needed/)).toBeTruthy();
+      // The drawing adds nothing to the text, so it is hidden from screen readers (web and native).
+      expect(screen.getByTestId('plate-svg', { includeHiddenElements: true }).props['aria-hidden']).toBe(true);
+    });
+
+    it('More ideas pages through the rest', async () => {
+      await setup();
+      await openCard();
+      const first = screen.getAllByLabelText(/^Add .* to breakfast$/)[0]!.props.accessibilityLabel;
+      await fireEvent.press(screen.getByLabelText(/^More ideas \(1 of \d+\)$/));
+      expect(screen.getAllByLabelText(/^Add .* to breakfast$/)[0]!.props.accessibilityLabel).not.toBe(first);
+    });
+
+    it('says the calories are reached instead of ideas', async () => {
+      const db = memoryDb();
+      await saveProfile(db, profile());
+      const nowDay = '2026-10-08T00:00:00Z';
+      for (const [i, kcal] of [1000, 1000].entries()) {
+        db.rows.set(`food_logs:l${i}`, JSON.stringify({ id: `l${i}`, version: 0, updated_at: nowDay, deleted_at: null, date: DATE, meal: 'Breakfast', name: 'X', qty: 1, kcal, protein_g: 10, carbs_g: 0, fat_g: 0, food_id: null }));
+      }
+      await setup({ db });
+      await fireEvent.press(screen.getByLabelText('What should I eat next? Lunch ideas'));
+      expect(screen.getByText(/You’ve reached today’s calories/)).toBeTruthy();
+      expect(screen.queryByLabelText('Fasting day')).toBeNull();
     });
   });
 
@@ -265,5 +393,84 @@ describe('Food screen', () => {
     expect(await screen.findByText('Added Roti / chapati')).toBeTruthy();
     await fireEvent.press(screen.getByText('Done'));
     expect(await screen.findByText('Couldn’t save that. Try again.')).toBeTruthy();
+  });
+
+  describe('recipes', () => {
+    afterEach(() => void (mockFocus.n = 0));
+
+    it('opens the Recipes screen', async () => {
+      await setup();
+      await fireEvent.press(screen.getByLabelText('Recipes for dinner: build a recipe, the library and cooking mode'));
+      expect(mockPush).toHaveBeenCalledWith({ pathname: '/recipes', params: { meal: 'Dinner' } });
+    });
+
+    it('reads the day again when the tab is shown after a recipe was logged', async () => {
+      const db = await setup();
+      expect(screen.queryByText('Dal (home-style)')).toBeNull();
+      const log = { id: 'l1', version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, date: DATE, meal: 'Lunch', name: 'Dal (home-style)', qty: 1, kcal: 200, protein_g: 10, carbs_g: 30, fat_g: 5, food_id: null };
+      db.rows.set('food_logs:l1', JSON.stringify(log));
+      mockFocus.n++;
+      await screen.rerender(withProfile(db, <FoodScreen db={db} now={NOW} />));
+      expect(await screen.findByText('Dal (home-style)')).toBeTruthy();
+    });
+  });
+
+  describe('re-reading when shown', () => {
+    afterEach(() => void (mockFocus.n = 0));
+    const refocus = async (db: Db) => {
+      mockFocus.n++;
+      await screen.rerender(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    };
+    const log = (id: string, name: string) => ({ id, version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, date: DATE, meal: 'Lunch', name, qty: 1, kcal: 200, protein_g: 10, carbs_g: 30, fat_g: 5, food_id: null });
+
+    it('waits for writes registered by other screens before reading', async () => {
+      const db = await setup();
+      let release!: () => void;
+      trackWrite(new Promise<void>((r) => (release = r)).then(() => void db.rows.set('food_logs:l9', JSON.stringify(log('l9', 'Late dal')))));
+      await refocus(db);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(screen.queryByText('Late dal')).toBeNull();
+      release();
+      expect(await screen.findByText('Late dal')).toBeTruthy();
+    });
+
+    it('keeps a food just added when the tab is shown while its write is still queued', async () => {
+      const db = await setup();
+      db.lag = () => 60;
+      await open();
+      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByText('Done'));
+      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      await refocus(db);
+      await new Promise((r) => setTimeout(r, 200));
+      // Without waiting for the queue, the read would not have seen the row and would replace the day with an empty one.
+      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      expect(docs(db, 'food_logs')).toHaveLength(1);
+    });
+
+    it('drops an older read when the user wrote while it ran', async () => {
+      const db = await setup();
+      const real = db.getAllAsync.bind(db);
+      let slow = true;
+      db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+        const out = await real(sql, ...p);
+        if (slow && sql.includes('FROM food_logs')) await new Promise((r) => setTimeout(r, 80));
+        return out;
+      }) as typeof db.getAllAsync;
+      await refocus(db);
+      await open();
+      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByText('Done'));
+      slow = false;
+      await new Promise((r) => setTimeout(r, 300));
+      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+    });
+
+    it('says so, instead of loading forever, when the day cannot be read', async () => {
+      const db = memoryDb();
+      db.getAllAsync = () => Promise.reject(new Error('disk'));
+      await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+      expect(await screen.findByText(/Couldn’t read your saved food\. Restart/)).toBeTruthy();
+    });
   });
 });

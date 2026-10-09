@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../db/settings';
 import type { StoreDb } from '../db/records';
-import type { FlexEntry } from '@plate-and-bar/core';
+import type { FlexEntry, MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 
 interface SettingsState {
@@ -16,6 +16,12 @@ interface SettingsState {
   setRestOff(off: boolean): void;
   /** Replaces the flex entries (the Food tab plans them with core's `planFlex`/`undoFlex`). */
   setFlex(flex: readonly FlexEntry[]): void;
+  /** Sets the meal-idea diet filter. */
+  setDiet(diet: Settings['diet']): void;
+  /** Saves the weekly meal plan. */
+  setMealPlan(plan: MealPlan): void;
+  /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
+  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -25,7 +31,7 @@ const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
  * Holds the local Settings record. A change shows at once and its write is queued (FIFO, each write reads
  * the latest state when it runs), so nothing waits on the network or on an earlier write.
  */
-export function SettingsProvider({ db, children }: { db: StoreDb; children: ReactNode }) {
+export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb; /** Changes when records were pulled from the server: the settings are read again (after pending local writes). */ reloadKey?: number; children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -37,6 +43,7 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
   useEffect(() => {
     let live = true;
     (async () => {
+      await queue.current; // local edits still being written land first, so a reload never reads around them
       const s = await loadSettings(db);
       if (!live) return;
       if (s) {
@@ -53,18 +60,19 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
     return () => {
       live = false;
     };
-  }, [db]);
+  }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings>) => {
-      if (blocked.current) return;
-      const next = { ...ref.current, ...patch, updated_at: stamp(new Date()) };
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean => {
+      if (blocked.current) return false;
+      const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
       ref.current = next;
       setState(next);
       queue.current = queue.current
         .then(() => saveSettings(db, ref.current))
         .then(() => setSaveFailed(false))
         .catch(() => setSaveFailed(true));
+      return true;
     },
     [db],
   );
@@ -73,7 +81,11 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
 
   const setFlex = useCallback((flex: readonly FlexEntry[]) => change({ flex: [...flex] }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex]);
+  const setDiet = useCallback((diet: Settings['diet']) => change({ diet }), [change]);
+
+  const setMealPlan = useCallback((meal_plan: MealPlan) => change({ meal_plan }), [change]);
+
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, update: change }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, change]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

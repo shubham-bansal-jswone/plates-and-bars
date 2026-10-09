@@ -73,3 +73,9 @@ test('schema: unknown and missing fields, bad id', () => {
 test('own_estimate is an accepted source code', () => {
   assert.ok(!withFood((f) => { f.source.code = 'own_estimate'; }).some((e) => e.includes('is not one of')));
 });
+
+test('grams: a grouped-digit label ("1,250 g") reads as 1250, not 250', () => {
+  const set = (grams) => withFood((f) => { f.serving.label = '1 plate (1,250 g)'; f.serving.grams = grams; f.per_serving = { ...f.per_serving, protein_g: 0, carbs_g: 0, fat_g: 0, fibre_g: 0, added_sugar_g: 0, kcal: 0 }; }, paneer());
+  assert.deepEqual(set(1250), []);
+  assert.ok(set(250).some((e) => e.includes('is in grams but serving.grams is 250')));
+});

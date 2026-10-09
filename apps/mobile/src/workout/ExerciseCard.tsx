@@ -1,9 +1,10 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import type { ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
 import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { Button, Card, Hint } from '../components/ui';
+import { Button, Card, Hint, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
 import { MUSCLE, RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin } from './copy';
@@ -23,6 +24,8 @@ export interface Actions {
   rampTick(j: number): void;
   rampRate(j: number, v: Rate | null): void;
   howTo(): void;
+  /** Open the "Can't do" sheet for this exercise. */
+  cant(): void;
 }
 
 interface Props {
@@ -33,6 +36,8 @@ interface Props {
   /** Core's warm-up sets for this exercise, or null when no warm-up line shows. */
   warm: [WarmupSet, WarmupSet] | null;
   act: Actions;
+  /** Stall and ladder cards, shown under the warm-up line. */
+  cards?: ReactNode;
 }
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
@@ -59,7 +64,7 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
       <Text style={{ color: c.muted, width: 28, fontWeight: '700' }}>{n}</Text>
       <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" value={row.w} placeholder={ph.w} onChangeText={(v) => onEdit('w', v)} style={styles.input} />
       <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" value={row.r} placeholder={ph.r} onChangeText={(v) => onEdit('r', v)} style={styles.input} />
-      <Pressable
+      <Press
         accessibilityRole="checkbox"
         accessibilityLabel={`Mark ${label} done`}
         accessibilityState={{ checked: row.done }}
@@ -68,13 +73,13 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
         style={[styles.tick, { borderColor: c.brand, backgroundColor: row.done ? c.brand : c.surface }]}
       >
         <Text style={{ color: row.done ? c.onBrand : c.link, fontWeight: '700', fontSize: 18 }}>✓</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 }
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) {
   const c = useTheme();
   const nl = noLoad(info.type);
   const rw = repWord(info.type);
@@ -110,6 +115,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
       ) : null}
       <View style={styles.wrap}>
         <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
+        <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
       </View>
 
       {showRamp ? (
@@ -155,6 +161,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
           <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
         </Text>
       ) : null}
+      {cards}
 
       <View style={{ gap: 6 }}>
         {ex.sets.map((s, j) => {

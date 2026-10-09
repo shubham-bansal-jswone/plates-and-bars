@@ -18,9 +18,15 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - Access token: HS256 JWT, 15 minutes, `sub` is the user id.
 - Every other route under `/api/v1` requires `Authorization: Bearer <access token>`; `JwtAuthFilter` answers 401
   `token_expired` or `unauthorized` in the contract's `Error` shape. The principal is the user id string.
-- Mail goes through the `MailSender` interface. `LoggingMailSender` (local and staging) logs only that a code was
-  issued, never the code or the address. A real provider is a later issue.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`).
+- Mail goes through the `MailSender` interface. Outside the dev profile `SmtpMailSender` delivers the code over SMTP
+  (staging runs this too, with real SMTP settings; only local development uses the dev profile; settings from the environment only; the app refuses to start without `SMTP_HOST` and `SMTP_FROM`). With
+  `SPRING_PROFILES_ACTIVE=dev`, `LoggingMailSender` is used instead and logs only that a code was issued, never the
+  code or the address. Neither sender logs the code or address; a failed send is logged by exception class only.
+- SMTP supports STARTTLS on submission ports such as 587. Implicit TLS (port 465) is out of scope for now.
+- CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
+  `Authorization`, `Content-Type` and `Accept` request headers, `Retry-After` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
+  Empty means every cross-origin call is refused.
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`.
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
@@ -38,7 +44,63 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     (`app.rate-limit.address-max-tracked-keys`) so an IP-keyed flood cannot evict them. Within a cache, eviction under
     pressure can forgive an evicted key; the email guessing cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
 - Sync (#28, ADR 001): `POST /api/v1/sync`, the whole offline-first round trip in one transaction. See "Sync" below.
-- Not yet: `GET /me/export`, `DELETE /me`, foods, content and the AI proxy.
+- Account rights (#192), package `account`:
+  - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
+    the 16 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
+    One read-only transaction. `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
+    Limited to 5 per hour per user and 20 per hour per IP (`app.rate-limit.export-per-user`, `export-per-ip`);
+    429 `rate_limited` with `Retry-After`. Credentials (tokens, codes) are not included. Not compressed by the app.
+  - `DELETE /me`: one transaction removes the user's email-keyed rows (`email_sign_in_codes`, `email_verify_failures`
+    for the account's addresses) and the `users` row; every user-owned table cascades from it (`ON DELETE CASCADE`),
+    so a table added later with that foreign key is covered. 204, and 204 again on a repeat. Logs user id and time only.
+  - `JwtAuthFilter` does an uncached primary-key lookup on `users` for every authenticated request, so an access
+    token issued before the deletion gets 401 `unauthorized` everywhere except `DELETE /me`. Ids are never reused,
+    so no denylist is needed. Cost: one indexed query per request. A database error in that lookup is 503
+    `unavailable`, never 401. The sync transaction starts with `SELECT ... FROM users ... FOR SHARE`, so a
+    concurrent `DELETE /me` waits for it, and a sync after the delete is 401 (never a foreign-key 500).
+- AI (#232, contract 0.1.6), package `ai`:
+  - `GET /ai/status`: which features are on and the user's daily quota (`no-store`; only the per-IP limit applies).
+  - Every feature is off by default. A feature is on only while its flag is set (`AI_DESCRIBE_MEAL_ENABLED`,
+    `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
+    by the tokens recorded in `ai_usage` for the UTC month (0, the default, keeps everything off). The budget is a soft
+    cap: it is read before each call, so calls already with the provider when it is reached can overshoot slightly.
+    The flags and the budget are environment variables read at start: flipping one means restarting the container
+    with the new value (no rebuild or redeploy of the image); requests already with the provider finish first only
+    if the restart is graceful. A switched-off
+    endpoint answers 503 `feature_disabled` and counts nothing.
+  - Daily quota: `AI_DAILY_LIMIT` (default 10) per user per UTC day, shared by the three endpoints. `AiQuotaService`
+    reserves a unit inside a transaction that locks the user's `users` row (so concurrent calls cannot overrun) and
+    releases it if the call fails. At the limit: 429 `quota_exceeded` with `quota` and `Retry-After` until 00:00Z.
+  - `ai_usage` (V5): user id, UTC day, feature, call count, token counts. No text, ever. Cascades on user delete;
+    not part of the export.
+  - Limits: `app.rate-limit.ai-per-user` (5 per minute, the three POSTs) and `ai-per-ip` (60 per minute, all four).
+  - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`. Order: token (401), per-IP then per-user limit (429
+    `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
+    (400, details name the field and keyword, never the value or a submitted key; trailing JSON and duplicate keys are 400), quota reserve (429 `quota_exceeded`), provider.
+    The unit is released and the answer is 503 `unavailable` when the provider throws or its reply fails the check.
+  - While `StubAiProvider` is the active provider (`AiProvider.isStub()`), every feature is off whatever the flags say:
+    `/ai/status` reports false and the endpoints answer 503 `feature_disabled`, so canned text never reaches users.
+    A real provider bean replaces the stub and turns that off.
+    `AiProviderConfig` is an auto-configuration (listed in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`)
+    so its `@ConditionalOnMissingBean(AiProvider.class)` is evaluated after every other bean is known.
+  - Provider: `AiProvider` is the one seam; `StubAiProvider` (canned replies, no network, no key, no SDK) is the only
+    implementation until one is chosen (#200). To add a real one, write a class implementing `AiProvider` (leave
+    `isStub()` false) and make it a bean (`@Component` or a `@Bean` method); the stub then backs off and the three
+    flags decide per feature. Do not also keep the stub as a second bean. No SDK or key is in the repo. A real one must use the cheapest suitable (small text) model, set
+    timeouts, read its key from the environment only, and send only the prompt strings (`AiPrompts`): user text sits
+    between `<<<` and `>>>` markers carrying a random per-request token (so no text can close them), after Unicode
+    format, bidi, zero-width and control characters are stripped, and the instructions say it is data.
+  - Replies (`AiReplies`) are parsed as data and validated against `DescribeMealResponse`, `AskWhyResponse` and
+    `WeeklySummaryResponse` from the contract itself. Describe a meal drops items with non-finite or out-of-range
+    numbers and keeps only the six contract fields of an item; Ask why nulls an unknown `card_id` and refuses `{` or `}` in the answer; Weekly summary sends any exercise
+    that is not a catalogue id as `custom exercise`.
+  - Content: Gradle copies `content/cards.json` and `content/exercises.json` into the jar under `/content`
+    (`processResources`; the Dockerfile copies them too, and the build fails if they are missing). Ask why sends every
+    card with conditional blocks `{?x}..{/x}` dropped (else branch kept) and bare `{x}` replaced by a neutral phrase.
+  - Cache: per user, in memory, Caffeine, 12 hours, keyed by user id and a hash of the normalised request. A cached
+    answer still counts against the quota; failures are never cached.
+  - Logs: one line per call with user id, feature, status and duration. Bodies, prompts and replies are never logged.
+- Not yet: foods and content endpoints.
 
 ## Sync
 
@@ -108,9 +170,10 @@ cd backend
 ```
 
 `HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`) use Testcontainers to start MySQL 8, so Docker must be running.
+`SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
 `UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
-`JWT_SIGNING_KEY` and `GOOGLE_CLIENT_IDS` for tests; run tests from an IDE with the same variables.
+`JWT_SIGNING_KEY`, `GOOGLE_CLIENT_IDS`, `SMTP_HOST` and `SMTP_FROM` for tests; run tests from an IDE with the same variables.
 
 ## Environment variables
 
@@ -123,6 +186,13 @@ cd backend
 | `APP_VERSION` | `0.1.0` | Value returned as `version` by `/health` |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
 | `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted `POST /sync` body |
+| `SMTP_HOST` | none, required outside the dev profile | SMTP server host |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_USER`, `SMTP_PASSWORD` | empty | SMTP credentials; leave `SMTP_USER` empty for no authentication |
+| `SMTP_FROM` | none, required outside the dev profile | Sender address of sign-in mails |
+| `SMTP_STARTTLS` | `true` | Require STARTTLS; set `false` only for a local test server. The app refuses to start if `SMTP_USER` or `SMTP_PASSWORD` is set while this is `false` |
+| `CORS_ALLOWED_ORIGINS` | empty | Comma-separated web app origins, e.g. `https://app.example.com` |
+| `SPRING_PROFILES_ACTIVE` | empty | `dev` swaps SMTP for the logging mail sender |
 | `GOOGLE_CLIENT_IDS` | empty | Comma-separated OAuth client ids accepted as the Google ID token audience; empty refuses every Google sign-in |
 
 Rate limits are `app.rate-limit.<name>.capacity` and `.window` (a duration such as `60s`), for

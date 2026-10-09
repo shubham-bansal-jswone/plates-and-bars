@@ -1,8 +1,10 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
-import { loadDayNote, loadLogs, loadUserFoods, saveDayNote, saveLog, saveUserFood } from '../db/food';
+import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
+import { freshRead } from '../state/freshRead';
 import { localDate } from '../setup/logic';
 import type { CatalogFood } from './catalog';
 import type { DayNote, FoodLog, Meal, UserFood } from './types';
@@ -14,6 +16,8 @@ interface Options {
   now: () => Date;
   /** Short message for the toast. */
   notify: (msg: string) => void;
+  /** Changes when sync stored pulled records: the day is read again (after queued local writes). */
+  reloadKey?: number;
 }
 
 /** What gets logged: per-serving values and `qty` servings; `foodId` is the shared or user food it came from. */
@@ -34,7 +38,7 @@ export const logOf = (f: CatalogFood, qty: number): NewLog => ({
  * Today's food: loads logs, the day note and my foods from SQLite. Every action shows at once and its write
  * goes through one FIFO queue (nothing waits on the network, and writes finish in the order the user acted).
  */
-export function useFoodDay({ db, now, notify }: Options) {
+export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
   const date = localDate(now());
   const [ready, setReady] = useState(false);
   const [logs, setLogs] = useState<FoodLog[]>([]);
@@ -43,30 +47,47 @@ export function useFoodDay({ db, now, notify }: Options) {
   const logsRef = useRef(logs);
   const noteRef = useRef(note);
   const mineRef = useRef(mine);
+  const [failed, setFailed] = useState(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  /** Counts this screen's writes, so a read that overlapped one is redone. */
+  const writes = useRef(0);
+
+  // The tab stays mounted under the Recipes screen, which saves foods and logs, so everything is read again when it is shown
+  // (not on the first show: the mount already reads).
+  const [shown, setShown] = useState(0);
+  const first = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (first.current) first.current = false;
+      else setShown((n) => n + 1);
+    }, []),
+  );
 
   useEffect(() => {
     let live = true;
     (async () => {
-      const [l, n, m] = await Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]);
-      if (!live) return;
-      logsRef.current = l;
-      noteRef.current = n;
-      mineRef.current = m;
-      setLogs(l);
-      setNote(n);
-      setMine(m);
-      setReady(true);
+      await freshRead({ queue, writes }, () => Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]), () => live, ([l, n, m]) => {
+        logsRef.current = l;
+        noteRef.current = n;
+        mineRef.current = m;
+        setLogs(l);
+        setNote(n);
+        setMine(m);
+        setReady(true);
+      });
     })().catch(() => {
-      if (live) notify('Couldn’t read your saved food.');
+      if (!live) return;
+      setFailed(true);
+      notify('Couldn’t read your saved food.');
     });
     return () => {
       live = false;
     };
-  }, [db, date, notify]);
+  }, [db, date, notify, shown, reloadKey]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
+      writes.current++;
       queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
     },
     [notify],
@@ -113,7 +134,17 @@ export function useFoodDay({ db, now, notify }: Options) {
       const n: DayNote = { ...(noteRef.current ?? { id: null, version: 0, deleted_at: null, date, steps: null, sleep: null, fast: false }), complete, updated_at: stamp(now()) };
       noteRef.current = n;
       setNote(n);
-      enqueue(() => saveDayNote(db, n));
+      enqueue(() => patchDayNote(db, date, { complete }, n.updated_at));
+    },
+    [db, date, now, enqueue],
+  );
+
+  const setFast = useCallback(
+    (fast: boolean) => {
+      const n: DayNote = { ...(noteRef.current ?? { id: null, version: 0, deleted_at: null, date, complete: null, steps: null, sleep: null, fast: false }), fast, updated_at: stamp(now()) };
+      noteRef.current = n;
+      setNote(n);
+      enqueue(() => patchDayNote(db, date, { fast }, n.updated_at));
     },
     [db, date, now, enqueue],
   );
@@ -137,5 +168,5 @@ export function useFoodDay({ db, now, notify }: Options) {
     [db, now, enqueue],
   );
 
-  return { date, ready, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, saveMine };
+  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
 }

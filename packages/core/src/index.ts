@@ -125,6 +125,34 @@ export { resolveSession, resolveSessionWithLost, resolveName, homeName, SCOPE_RA
 export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplEntry, CandidateOptions, Candidate, CandidateWhy, ResolveState, ResolvedSession } from './exclusions';
 
 /**
+ * Re-check cards and the "can't do" sheet (#111).
+ * - `recheckDue` mirrors the filter in prototype `recheckCards()`: timed rules whose `until` has come, still applying until answered.
+ * - `recheckBack`, `recheckLater`, `recheckKeep` mirror the `rule-back`, `rule-later` and `rule-keep` steps of prototype `exAction`.
+ * - `cantRule` mirrors the rule built in prototype `applyCant(choice)`; `widerRuleReplacements` mirrors its "caught by a wider rule" loop.
+ * - `cantDefaultScope` mirrors prototype `defaultScope()`; `cantScopeOptions` mirrors the scope step's `opts` in prototype `renderCant()`; `cantAfterDuration` mirrors the `dur` branch of the `cx` action in prototype `exAction`.
+ */
+export { recheckDue, recheckBack, recheckLater, recheckKeep, cantRule, cantDefaultScope, cantScopeOptions, cantAfterDuration, widerRuleReplacements } from './exclusions';
+export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement, CantScope, CantScopeOption, CantAfterDuration } from './exclusions';
+
+/**
+ * The "can't do" answer applied to today's workout (#265), over contract `Workout.exercises` and `WorkoutSet`s.
+ * - `replaceAt` mirrors the `replaceAt(idx, pick)` step of prototype `applyCant(choice)` (the pick's sets as prototype `newExercise(name)`).
+ * - `cantSession` mirrors the workout steps of prototype `applyCant(choice)`: the tapped exercise, then `widerRuleReplacements`.
+ */
+export { replaceAt, cantSession } from './cant';
+export type { CantExercise, CantSet, NewCantSet, CantResult, CantLifts } from './cant';
+
+/**
+ * Ladders (#111). Prototype `LADDERS` is content/exercises.json `ladders`, passed in `LadderCatalog`.
+ * - `ladderOf`, `nextStep`, `prevStep`, `sidewaysOf`, `estimateFor` mirror the prototype functions of the same name (state passed in).
+ * - `ladderCard` mirrors prototype `ladderCard(ex)`, returning facts, not HTML.
+ * - `ESTIMATE_PAIRS` mirrors prototype `PAIR`.
+ * - `ladderSwap` mirrors the `ladder-up`, `ladder-down` and `swap-side` steps of prototype `exAction`; `ladderStayUntil` its `ladder-stay` step.
+ */
+export { ladderOf, nextStep, prevStep, sidewaysOf, estimateFor, ladderCard, ladderSwap, ladderStayUntil, ESTIMATE_PAIRS } from './ladders';
+export type { Ladder, Ladders, LadderPosition, LadderCatalog, LadderState, LadderCard, Estimate } from './ladders';
+
+/**
  * Weight guidance. Prototype `EX_META` is the catalogue's `meta` (`ExerciseMeta`: content/exercises.json
  * `meta`, `name → { type, rep_low, rep_high }`), read through `ProgressionContext.catalog`.
  * - `suggestBase` mirrors prototype `suggestBase(ex)`; `applyMods` mirrors `applyMods(sug, ex)` (state passed in).
@@ -186,12 +214,24 @@ export type {
  *   unticking every set today restores the session before, or gives a null record (delete it) (#122).
  *   `sessionScore` and `updateLift` take the profile's weight for assisted scores (#122).
  * - `recoveryCard` mirrors the "several stalls → recovery week" card in prototype `renderStart()`.
- * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`.
+ * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`;
+ *   `stallRangeOverride` is `stallRange` in contract `Settings.exercise_overrides` shape (#128).
  * - `addDays` mirrors prototype `addDays(s, n)`.
  */
-export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, checkBest, updateLift } from './stalls';
+export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
 export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './stalls';
 export { addDays } from './dates';
+
+/**
+ * Lift records on the wire (#135): core's record (prototype `S.lifts[name]`) and the contract's `LiftStat`.
+ * The prototype has no counterpart (it kept records in `localStorage`); the fallbacks for older records are its rules.
+ * - `recordToLiftStat` renames to contract fields, fills required fields (null where unknown, `sessions` = prototype
+ *   `updateLift`'s `n || (prev ? 2 : 1)`, `first` = `first || prev.date || date`) and keeps nested `prev` one level deep.
+ * - `liftStatToRecord` is its inverse.
+ * - `liftStatTombstone` is the schema-valid tombstone for a deleted record (`updateLift` gave `record: null`).
+ */
+export { recordToLiftStat, liftStatToRecord, liftStatTombstone } from './liftStat';
+export type { LiftStatSet, LiftStatSession, LiftStatPrev, LiftStatBody, LiftStatTombstone } from './liftStat';
 
 /**
  * Workout screen: rest timer, warm-up line, next template and the check-in.
@@ -221,7 +261,7 @@ export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInpu
  * Food screen maths. Foods in content/foods.json's `Food` shape (user foods as `FoodFacts`), logs in the
  * contract's `FoodLog` shape; logs with `deleted_at` set are left out.
  * - `searchFoods` mirrors the query and `foodMatch(f, q)` filter of prototype `foodListHtml()` (list order kept).
- * - `unitGrams` mirrors prototype `unitGrams(f)` (label passed in; content carries it as `serving.grams`).
+ * - `unitGrams` mirrors prototype `unitGrams(f)` (label passed in; content carries it as `serving.grams`; reads "1,250 g", #213).
  * - `quantityFromGrams` mirrors the grams steps of prototype `case 'pick'` (`serving.grams`, #97), plus `too-small` (#150).
  * - `logTotals` mirrors prototype `totals(meals)` plus the fibre, added sugar and unknown parts of `fibreTotals(meals)`.
  * - `fibreTarget` mirrors prototype `fibreTarget()` (today's calorie target passed in).
@@ -238,7 +278,8 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  *   `DEFAULT_KCAL_TARGET` mirrors `DEFAULT_SETTINGS.kcal`.
  * - `planFlex` mirrors prototype `planFlex(extra)` (state and plan id passed in; never below the floor, #167);
  *   `FLEX_FLOOR_DEFAULT` its 1200; `flexToast` its toast.
- * - `undoFlex` mirrors prototype `case 'flex-undo'`.
+ * - `undoFlex` mirrors prototype `undoFlex(id)` (`case 'flex-undo'`; trims cuts so no day is below the floor, #176);
+ *   `flexPlanFor` mirrors prototype `flexPlanFor(date)`, the plan the note shows and Undo removes (#178).
  * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
  * - `customFood` mirrors prototype `case 'addcustom'`, plus `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
@@ -252,6 +293,7 @@ export {
   planFlex,
   flexToast,
   undoFlex,
+  flexPlanFor,
   FLEX_FLOOR_DEFAULT,
   stepServings,
   SERVINGS_MIN,
@@ -264,7 +306,7 @@ export {
   FOOD_NAME_MAX,
   userFoodFacts,
 } from './food';
-export type { FlexEntry, PlanFlexInput, PlanFlexResult, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
+export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
 
 /**
  * Macro targets before setup (no profile), for the Food tab's ring and legend.
@@ -286,3 +328,187 @@ export { DEFAULT_PROTEIN_TARGET, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET } from
  */
 export { plannedCoverage, coverageTemplates, doneCoverage, coverageRows, weeklyCoverage, focusPicker, toggleFocus, COVER_SHOW, COVER_LOW, COVER_FULL, FOCUS_MAX } from './coverage';
 export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, CoverageDay, CoverageRow, WeeklyCoverageInput, FocusPicker, FocusToggleResult } from './coverage';
+
+/**
+ * Progress: body measures and day targets. Weigh-ins, measurements, day notes and sets come in
+ * contract shapes (`Weight`, `Measurement`, `DayNote`, `WorkoutSet`).
+ * - `latestWeight` mirrors prototype `latestWeight(upTo)`; `measureAt` mirrors `measureAt(key, upTo)`.
+ * - `navyBodyFat` mirrors prototype `navyBF(upTo)`.
+ * - `waterTarget` mirrors prototype `waterTarget()` (state passed in); `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`,
+ *   `WATER_TRAINING_ML` are its 2500, 33 and 600.
+ * - `workoutBurn` mirrors prototype `workoutBurn(w, kg)`.
+ * - `stepsTarget` mirrors prototype `stepsTarget()` (days passed in); `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX` are its 7000, 5000 and 12000.
+ * - `weightDrift` mirrors the `drift` check in prototype `setupSummaryHtml()` (#161); `WEIGHT_DRIFT_KG` is its 2.
+ */
+export {
+  latestWeight,
+  measureAt,
+  navyBodyFat,
+  waterTarget,
+  workoutBurn,
+  stepsTarget,
+  weightDrift,
+  WATER_DEFAULT_ML,
+  WATER_ML_PER_KG,
+  WATER_TRAINING_ML,
+  STEPS_DEFAULT,
+  STEPS_MIN,
+  STEPS_MAX,
+  WEIGHT_DRIFT_KG,
+} from './progress';
+export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WorkoutBurn, WeightDrift } from './progress';
+
+/**
+ * Recipe builder and kitchen tests. The data is passed in: raw ingredients (prototype `RAW`, `RAW_FIB`, `FATTY`)
+ * as content/raw-ingredients.json `ingredients`, the katori size (prototype `KATORI_G`) as content/recipes.json
+ * `katori_g`. Ingredients, recipes and kitchen tests come in contract `Ingredient`, `Recipe` and `KitchenTest`
+ * fields; saved foods are contract `UserFood` fields.
+ * - `recipeTotals` mirrors prototype `rbTotals()` (whole pot, katoris made, per katori; grams mode is cooked g ÷ `katori_g`).
+ * - `presetIngredients` mirrors the rows step of prototype `rbFromPreset(k)` (oil level applied to `fatty` ingredients).
+ * - `stepRecipeLog` mirrors prototype `case 'rb-log'`; `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` its limits.
+ * - `recipeFood` mirrors prototype `case 'rb-save'` (checks, kept rows, saved food), plus `name-too-long` and `invalid` (contract limits, as #150).
+ * - `kitchenTest` mirrors prototype `ktCalc(d)` (cooked weight from pot weights, per 100 g, per serving; a 0 g empty pot counts, #214).
+ * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), plus `name-too-long` and `invalid`.
+ * - `saveBuiltFood` mirrors the `myFoods` step of `case 'rb-save'` and `ktSave`; `BUILT_FOODS_MAX` its 80.
+ * - `ingredientGrams` mirrors the grams step of `rbTotals` and `ktCalc`; `UNIT_GRAMS` mirrors `UNIT_G`.
+ * - `OIL_LEVEL` mirrors `OIL_LEVEL`; `RECIPE_VEG_INGREDIENTS`,
+ *   `FRUIT_VEG_SERVING_G`, `SUGAR_INGREDIENT` mirror the vegetable list, `/80` and `'Sugar'` in `case 'rb-save'`.
+ */
+export {
+  recipeTotals,
+  presetIngredients,
+  stepRecipeLog,
+  recipeFood,
+  kitchenTest,
+  kitchenTestFood,
+  saveBuiltFood,
+  ingredientGrams,
+  UNIT_GRAMS,
+  OIL_LEVEL,
+  RECIPE_VEG_INGREDIENTS,
+  FRUIT_VEG_SERVING_G,
+  SUGAR_INGREDIENT,
+  BUILT_FOODS_MAX,
+  RECIPE_LOG_MIN,
+  RECIPE_LOG_MAX,
+  RECIPE_LOG_STEP,
+} from './recipes';
+export type {
+  RawIngredient,
+  Per100g,
+  IngredientRow,
+  OilLevel,
+  RecipeYield,
+  RecipeTotals,
+  PerKatori,
+  RecipeTotalsResult,
+  RecipeInput,
+  RecipeFoodResult,
+  KitchenTestInput,
+  KitchenTotals,
+  KitchenAmount,
+  KitchenServing,
+  KitchenTestResult,
+  KitchenTestFoodInput,
+  KitchenTestFoodResult,
+} from './recipes';
+
+/**
+ * Progress: real burn, rapid loss, habits and the weekly check-in. Days come as `ProgressDay` facts
+ * (contract `FoodLog`, `DayNote`, `Workout.cardio_min`, any done `WorkoutSet`), one per date.
+ * - `weeklyAvg` mirrors prototype `weeklyAvg(end)`; `rapidLoss` mirrors `calorieCard()`; `RAPID_LOSS_KCAL` is its 150.
+ * - `addKcal` mirrors the `adj-kcal` step of prototype `adjAction`.
+ * - `weightSlope`, `adaptiveBurn`, `targetFromBurn` mirror the prototype functions of the same name (state passed in);
+ *   `KCAL_PER_KG` mirrors prototype `KCAL_PER_KG`; `nextAdaptive` mirrors the `settings.adaptive` update in `renderCheckin()`.
+ * - `weeklyCheckin` mirrors prototype `renderCheckin()` (facts and choice of suggestion, not HTML), including its
+ *   sleep-under-7 h rule, week-on-week weight change and weight trend per week (#264); `CHECKIN_KCAL_STEP`
+ *   and `CARDIO_WEEK_MIN` are its 100 kcal and WHO 150 min.
+ * - `habits` mirrors prototype `consistencyHtml()` (numbers and choice of line, not HTML).
+ */
+export {
+  weeklyAvg,
+  rapidLoss,
+  addKcal,
+  weightSlope,
+  adaptiveBurn,
+  nextAdaptive,
+  targetFromBurn,
+  weeklyCheckin,
+  habits,
+  KCAL_PER_KG,
+  RAPID_LOSS_KCAL,
+  CHECKIN_KCAL_STEP,
+  CARDIO_WEEK_MIN,
+} from './progress';
+export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, CheckinInput, CheckinSuggestion, WeeklyCheckin, Habits } from './progress';
+
+/**
+ * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
+ * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
+ *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
+ * - `trendChange` mirrors `diff` in `weightChart()` ("Down/Up X kg since …", "No change since …") and `change` in `measuresHtml()`.
+ * - `chartLayout` mirrors the geometry of `weightChart()` and `lineChart()`; `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
+ * - `scaleJump` mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'`; `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS` are its 0.8 and 3.
+ * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
+ *   input (0–24 h); `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
+ *   `TAPE_MAX_CM`, `SLEEP_MAX_H` are the contract's `Weight`, `TapeCm` and `DayNote.sleep` bounds.
+ */
+export {
+  round1,
+  weightSeries,
+  waistSeries,
+  trendChange,
+  chartLayout,
+  scaleJump,
+  weightEntry,
+  measurementRow,
+  sleepEntry,
+  WEIGHT_CHART_POINTS,
+  WAIST_CHART_POINTS,
+  WEIGHT_CHART_BOX,
+  WAIST_CHART_BOX,
+  SCALE_JUMP_KG,
+  SCALE_JUMP_DAYS,
+  WEIGHT_ABOVE_KG,
+  WEIGHT_BELOW_KG,
+  TAPE_MIN_CM,
+  TAPE_MAX_CM,
+  SLEEP_MAX_H,
+} from './progress';
+export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry } from './progress';
+
+/**
+ * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
+ * `ROLE` as `roles`) and content/foods.json `foods`.
+ * - `nextMealInfo` mirrors prototype `nextMealInfo()` (date, hour, logs and targets passed in); `mealByTime` mirrors
+ *   `mealByTime()` (hour passed in); `OLDER_MEAL_PROTEIN_G` is its 25 g for 60+ users.
+ * - `combos` mirrors prototype `combos(info)`; `combosFast` mirrors `combosFast(info)`; `round05` mirrors `round05`.
+ * - `ideasPage` mirrors the paging and protein note in `guidanceHtml()`; `IDEAS_PER_PAGE` and
+ *   `IDEAS_KCAL_LEFT_MIN` are its 3 and 120.
+ * - `MEAL_ORDER` mirrors prototype `MEALS`.
+ */
+export {
+  nextMealInfo,
+  mealByTime,
+  combos,
+  combosFast,
+  round05,
+  ideasPage,
+  OLDER_MEAL_PROTEIN_G,
+  IDEAS_PER_PAGE,
+  IDEAS_KCAL_LEFT_MIN,
+  MEAL_ORDER,
+} from './meals';
+export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea, MealIdeaItem, MealTarget, MealIdeasInput, NextMealInput, NextMeal } from './meals';
+
+/**
+ * Weekly meal plan and grocery list. The plan is contract `Settings.meal_plan` in the prototype's
+ * `mealPlan` shape; the grocery map is content/meal-planning.json `grocery` (prototype `GROC`).
+ * - `buildPlan` mirrors prototype `buildPlan()` (targets, profile age, start and diet passed in); `PLAN_DAYS`, `PLAN_OPTIONS`
+ *   and `PLAN_ROTATION` are its 7, 4 and 3.
+ * - `planItems` mirrors `planItems`; `swapPlanMeal` mirrors `case 'mp-swap'`; `planForMeal` mirrors `planForMeal(meal)` (date passed in).
+ * - `planIsCurrent` mirrors the saved-plan check and `planDayTotals` the "About … kcal" line of `planSheet()`.
+ * - `groceryList` mirrors `grocerySheet()` (rows and copy text, not HTML); `groceryAmount` mirrors its `fmtAmt`.
+ */
+export { buildPlan, planItems, swapPlanMeal, planIsCurrent, planForMeal, planDayTotals, groceryList, groceryAmount, PLAN_DAYS, PLAN_OPTIONS, PLAN_ROTATION } from './mealplan';
+export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from './mealplan';
