@@ -41,54 +41,16 @@ import org.testcontainers.containers.MySQLContainer;
             "app.ai.monthly-budget-tokens=1000",
             "app.ai.daily-limit=10"
         })
-@Import(AiQuotaIT.Config.class)
-class AiQuotaIT {
+@Import(AiITBase.Config.class)
+class AiQuotaIT extends AiITBase {
 
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4");
-
-    static {
-        MYSQL.start();
-    }
-
-    @DynamicPropertySource
-    static void db(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", MYSQL::getJdbcUrl);
-        r.add("spring.datasource.username", MYSQL::getUsername);
-        r.add("spring.datasource.password", MYSQL::getPassword);
-    }
-
-    static final Instant START = Instant.parse("2026-10-08T12:00:00Z");
-
-    @TestConfiguration
-    static class Config {
-        @Bean
-        @Primary
-        MutableClock testClock() {
-            return new MutableClock(START);
-        }
-    }
-
+    @org.springframework.test.context.bean.override.mockito.MockitoBean AiProvider provider; // not the stub: the stub keeps everything off
     @Autowired AiQuotaService quotas;
-    @Autowired JdbcTemplate jdbc;
-    @Autowired MutableClock clock;
-    @Autowired TestRestTemplate http;
-    @Autowired JwtService jwt;
 
     @BeforeEach
     void resetClock() {
         clock.advance(Duration.between(clock.instant(), START));
         jdbc.update("DELETE FROM ai_usage");
-    }
-
-    String newUser() {
-        String id = UUID.randomUUID().toString();
-        jdbc.update("INSERT INTO users (id, email) VALUES (?, ?)", id, id + "@example.com");
-        return id;
-    }
-
-    int calls(String user) {
-        Integer n = jdbc.queryForObject("SELECT COALESCE(SUM(calls), 0) FROM ai_usage WHERE user_id = ?", Integer.class, user);
-        return n == null ? 0 : n;
     }
 
     @Test
