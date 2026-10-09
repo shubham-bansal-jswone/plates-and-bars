@@ -233,6 +233,8 @@ describe('Food screen', () => {
       expect(screen.queryByText(/^No counting needed/)).toBeNull();
       await fireEvent.press(screen.getByLabelText('The thali plate guide'));
       expect(screen.getByText(/^No counting needed/)).toBeTruthy();
+      // The drawing adds nothing to the text, so it is hidden from screen readers (web and native).
+      expect(screen.getByTestId('plate-svg', { includeHiddenElements: true }).props['aria-hidden']).toBe(true);
     });
 
     it('More ideas pages through the rest', async () => {
