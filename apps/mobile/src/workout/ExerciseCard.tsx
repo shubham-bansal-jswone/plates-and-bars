@@ -23,6 +23,8 @@ export interface Actions {
   rampTick(j: number): void;
   rampRate(j: number, v: Rate | null): void;
   howTo(): void;
+  /** Open the "Can't do" sheet for this exercise. */
+  cant(): void;
 }
 
 interface Props {
@@ -110,6 +112,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
       ) : null}
       <View style={styles.wrap}>
         <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
+        <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
       </View>
 
       {showRamp ? (
