@@ -400,3 +400,38 @@ export {
   CARDIO_WEEK_MIN,
 } from './progress';
 export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, CheckinInput, CheckinSuggestion, WeeklyCheckin, Habits } from './progress';
+
+/**
+ * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
+ * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
+ *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
+ * - `trendChange` mirrors `diff` in `weightChart()` ("Down/Up X kg since …") and `change` in `measuresHtml()`.
+ * - `chartLayout` mirrors the geometry of `weightChart()` and `lineChart()`; `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
+ * - `scaleJump` mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'`; `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS` are its 0.8 and 3.
+ * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
+ *   input with the contract's 0–24 h; `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
+ *   `TAPE_MAX_CM`, `SLEEP_MAX_H` are the contract's `Weight`, `TapeCm` and `DayNote.sleep` bounds.
+ */
+export {
+  round1,
+  weightSeries,
+  waistSeries,
+  trendChange,
+  chartLayout,
+  scaleJump,
+  weightEntry,
+  measurementRow,
+  sleepEntry,
+  WEIGHT_CHART_POINTS,
+  WAIST_CHART_POINTS,
+  WEIGHT_CHART_BOX,
+  WAIST_CHART_BOX,
+  SCALE_JUMP_KG,
+  SCALE_JUMP_DAYS,
+  WEIGHT_ABOVE_KG,
+  WEIGHT_BELOW_KG,
+  TAPE_MIN_CM,
+  TAPE_MAX_CM,
+  SLEEP_MAX_H,
+} from './progress';
+export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry } from './progress';
