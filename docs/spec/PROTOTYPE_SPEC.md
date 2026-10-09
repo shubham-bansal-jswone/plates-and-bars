@@ -33,6 +33,10 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - #213: `unitGrams` reads a gram weight written with en-US or en-IN digit grouping ("1 plate (1,250 g)" is 1250, "1,00,000 g" is 100000), so a kitchen-test food of 1,000 g or more logs by grams correctly (it read 250). Only real grouping counts: a comma that is not ("1,5 g", "1,25 g", "0,500 g") reads the digits after it, as before, and decimals still lose their whole part ("1.5 g" is 5).
 - #214: `ktCalc` takes cooked weight = pot with food − empty pot when pot with food is non-zero and the empty pot is a number, so an empty pot of 0 g (a tared scale) gives cooked weight = pot with food. A blank or non-numeric empty pot still gives no cooked weight.
 
+**2026-10-09 — prototype fix, batch 6 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
+- #209: the Targets screen's "Recalculate" note (`setupSummaryHtml`) compares the gap between the latest weigh-in and the setup weight rounded to 0.1 kg, as the note shows it: `Math.round(|latest − setup| × 10) / 10 >= 2`. A 2.0 kg gap such as 64.1 vs 62.1 kg (1.999999999999993 in floating point) now offers Recalculate; 81.95 vs 80 counts (shown as 2 kg) and 81.94 does not.
+- #215: in the weekly check-in (`renderCheckin`), the planned count is this week's plan length, else the profile's plan length (`planList()`: the profile's training days, 6 with no profile, 0 at 0 days), not a fixed 6. A 3-day user who trains 3 times sees "3 / 3" and no shorter-week card. The "A shorter week might fit better" card, which offers a 4-day plan next week, needs a planned count above 4 (so a user on 4 days or fewer, including 0, never gets it), and is blocked only by a week plan for this week or a later one (`weekPlan.start >= mondayOf(S.date)`); a past week plan, which is never deleted, no longer blocks it for good.
+
 These change the scope table in the Development Plan. Treat them as v1 unless marked otherwise.
 
 | Change | Area | Agents affected |
