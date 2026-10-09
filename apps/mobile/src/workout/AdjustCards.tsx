@@ -13,7 +13,8 @@ interface Btn {
 }
 
 /** A card with a bold title, a line of text and answer buttons (prototype `.adj`). After 3 declines it offers to stop. */
-function AdjCard({ title, children, buttons, declines = 0, onMute }: { title: string; children: string; buttons: Btn[]; declines?: number; onMute?: () => void }) {
+/** `subject` is the exercise the card is about: buttons repeat per exercise, so each is spoken with it. */
+function AdjCard({ title, subject, children, buttons, declines = 0, onMute }: { title: string; subject: string; children: string; buttons: Btn[]; declines?: number; onMute?: () => void }) {
   const c = useTheme();
   return (
     <Card style={{ backgroundColor: c.tint, gap: 6 }}>
@@ -21,9 +22,9 @@ function AdjCard({ title, children, buttons, declines = 0, onMute }: { title: st
       <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{children}</Text>
       <View style={styles.row}>
         {buttons.map((b) => (
-          <Button key={b.label} label={b.label} kind={b.primary ? 'primary' : 'ghost'} onPress={b.onPress} />
+          <Button key={b.label} label={b.label} a11yLabel={`${b.label}, ${subject}`} kind={b.primary ? 'primary' : 'ghost'} onPress={b.onPress} />
         ))}
-        {declines >= 3 && onMute ? <Button label="Stop suggesting this" kind="link" onPress={onMute} /> : null}
+        {declines >= 3 && onMute ? <Button label="Stop suggesting this" a11yLabel={`Stop suggesting this, ${subject}`} kind="link" onPress={onMute} /> : null}
       </View>
     </Card>
   );
@@ -37,11 +38,12 @@ interface Common {
 }
 
 /** The "No progress in 3 sessions" card (prototype `stallCard`); `side` is `sidewaysOf`'s exercise, if any. */
-export function StallCardView({ card, info, side, onRange, onSide, ...c }: { card: StallCard; info: ExInfo; side: string | null; onRange: () => void; onSide: () => void } & Common) {
+export function StallCardView({ name, card, info, side, onRange, onSide, ...c }: { name: string; card: StallCard; info: ExInfo; side: string | null; onRange: () => void; onSide: () => void } & Common) {
   const [lo, hi] = card.range;
   return (
     <AdjCard
       title="No progress in 3 sessions"
+      subject={name}
       declines={c.declines}
       onMute={c.onMute}
       buttons={[
@@ -61,6 +63,7 @@ export function LadderCardView({ card, name, onSwitch, onStay, ...c }: { card: L
     return (
       <AdjCard
         title={`Step down to ${card.to} for a few weeks?`}
+        subject={name}
         declines={c.declines}
         onMute={c.onMute}
         buttons={[{ label: `Switch to ${card.to}`, primary: true, onPress: onSwitch }, { label: 'Not now', onPress: c.onNo }]}
@@ -71,6 +74,7 @@ export function LadderCardView({ card, name, onSwitch, onStay, ...c }: { card: L
   return (
     <AdjCard
       title={`Ready to try ${card.to}?`}
+      subject={name}
       declines={c.declines}
       onMute={c.onMute}
       buttons={[{ label: 'Try it next session', primary: true, onPress: onSwitch }, { label: 'Not yet', onPress: c.onNo }, { label: 'Stay on this step', onPress: onStay }]}
@@ -86,6 +90,7 @@ export function RecheckCard({ rule, onBack, onLater, onKeep }: { rule: Exclusion
   return (
     <AdjCard
       title={`Ready to try ${what} again?`}
+      subject={what ?? rule.key}
       buttons={[
         { label: 'Try it again', primary: true, onPress: onBack },
         { label: '2 more weeks', onPress: onLater },

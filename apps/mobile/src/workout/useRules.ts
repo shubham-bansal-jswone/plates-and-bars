@@ -5,6 +5,9 @@ import { deleteExclusion, deleteSwap, loadExclusions, loadSwaps, saveExclusion, 
 import type { WorkoutDb } from '../db/workouts';
 import { stamp } from './model';
 
+// One queue for every instance (the Workout and Targets tabs each hold one), so writes from both finish in the order made.
+const queue = { current: Promise.resolve() };
+
 export interface Rules {
   ready: boolean;
   exclusions: ExclusionRecord[];
@@ -26,7 +29,6 @@ interface Options {
 export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
   const [rules, setRules] = useState<Rules>({ ready: false, exclusions: [], swaps: [] });
   const ref = useRef(rules);
-  const queue = useRef<Promise<void>>(Promise.resolve());
   const commit = useCallback((r: Rules) => {
     ref.current = r;
     setRules(r);

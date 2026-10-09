@@ -79,7 +79,7 @@ describe('re-check card for a timed rule that ended', () => {
       await saveExclusion(d, ended());
       seed(d, 'Pec Deck Fly', lift());
     });
-    await press('Try it again');
+    await press('Try it again, Pec Deck Fly');
     await waitFor(() => expect(screen.queryByText('Ready to try Pec Deck Fly again?')).toBeNull());
     expect(stored<ExclusionRecord>(db, 'exclusions:r1')).toMatchObject({ done: true });
     await waitFor(() => expect(settingsOf(db).returning).toEqual({ 'Pec Deck Fly': { until: '2026-10-21' } }));
@@ -89,7 +89,7 @@ describe('re-check card for a timed rule that ended', () => {
 
   it('2 more weeks moves the date; Keep it out makes it permanent', async () => {
     const db = await openSession((d) => saveExclusion(d, ended()));
-    await press('2 more weeks');
+    await press('2 more weeks, Pec Deck Fly');
     await waitFor(() => expect(stored<ExclusionRecord>(db, 'exclusions:r1').until).toBe('2026-10-22'));
     expect(screen.queryByText(/again\?/)).toBeNull();
 
@@ -97,7 +97,7 @@ describe('re-check card for a timed rule that ended', () => {
     await saveProfile(db2, profile());
     await saveExclusion(db2, ended());
     await render(withProfile(db2, <WorkoutScreen db={db2} now={THURSDAY} />));
-    await press('Keep it out');
+    await press('Keep it out, Pec Deck Fly');
     await waitFor(() => expect(stored<ExclusionRecord>(db2, 'exclusions:r1').until).toBeNull());
   });
 });
@@ -107,7 +107,7 @@ describe('ladder cards', () => {
     const db = await started((d) => seed(d, 'Machine Shoulder Press', lift({ sets: [set(15), set(15), set(15)] })));
     expect(await screen.findByText('Ready to try Seated Dumbbell Press?')).toBeTruthy();
     expect(screen.getByText(/done Machine Shoulder Press for 5 sessions/)).toBeTruthy();
-    await press('Try it next session');
+    await press('Try it next session, Machine Shoulder Press');
     await waitFor(() => expect(db.rows.get('swaps:Machine Shoulder Press')).toBeDefined());
     expect(stored(db, 'swaps:Machine Shoulder Press')).toMatchObject({ from: 'Machine Shoulder Press', to: 'Seated Dumbbell Press', since: DATE, bridge_until: '2026-10-21', deleted_at: null });
     expect(screen.queryByText('Ready to try Seated Dumbbell Press?')).toBeNull();
@@ -117,7 +117,7 @@ describe('ladder cards', () => {
 
   it('Stay on this step hides the card for 42 days', async () => {
     const db = await started((d) => seed(d, 'Machine Shoulder Press', lift()));
-    await press('Stay on this step');
+    await press('Stay on this step, Machine Shoulder Press');
     await waitFor(() => expect(settingsOf(db).ladder_stay).toEqual({ 'Machine Shoulder Press': '2026-11-19' }));
     expect(screen.queryByText('Ready to try Seated Dumbbell Press?')).toBeNull();
   });
@@ -127,15 +127,15 @@ describe('ladder cards', () => {
       seed(d, 'Machine Shoulder Press', lift());
       await saveSettings(d, { ...defaultSettings('2026-10-01T00:00:00Z'), adjustments: { declines: { ladder: 2 } } });
     });
-    expect(screen.queryByLabelText('Stop suggesting this')).toBeNull();
-    await press('Not yet');
+    expect(screen.queryByLabelText('Stop suggesting this, Machine Shoulder Press')).toBeNull();
+    await press('Not yet, Machine Shoulder Press');
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ declines: { ladder: 3 }, dismissed: { [`up:Machine Shoulder Press:${LAST}`]: true } }));
 
     const db2 = await started(async (d) => {
       seed(d, 'Machine Shoulder Press', lift());
       await saveSettings(d, { ...defaultSettings('2026-10-01T00:00:00Z'), adjustments: { declines: { ladder: 3 } } });
     });
-    await press('Stop suggesting this');
+    await press('Stop suggesting this, Machine Shoulder Press');
     await waitFor(() => expect(settingsOf(db2).adjustments).toMatchObject({ muted: { ladder: true } }));
     expect(screen.queryByText('Ready to try Seated Dumbbell Press?')).toBeNull();
   });
@@ -144,7 +144,7 @@ describe('ladder cards', () => {
     const db = await started((d) => seed(d, 'Barbell Bench Press', lift({ form: 'no', prev: { date: '2026-09-28', sets: [set(6, 'fail')], form: 'no' } as LiftRecord['prev'] })));
     expect(await screen.findByText('Step down to Dumbbell Bench Press for a few weeks?')).toBeTruthy();
     expect(screen.getByText(/form breaking down/)).toBeTruthy();
-    await press('Switch to Dumbbell Bench Press');
+    await press('Switch to Dumbbell Bench Press, Barbell Bench Press');
     await waitFor(() => expect(db.rows.get('swaps:Barbell Bench Press')).toBeDefined());
     expect(stored(db, 'swaps:Barbell Bench Press')).toMatchObject({ to: 'Dumbbell Bench Press', since: DATE, bridge_until: null });
   });
@@ -157,7 +157,7 @@ describe('stall card', () => {
     const db = await started((d) => seed(d, 'Pec Deck Fly', stalledLift()));
     expect(await screen.findByText('No progress in 3 sessions')).toBeTruthy();
     expect(screen.getByText(/Try a heavier rep range for the next few weeks: 6–8 reps\./)).toBeTruthy();
-    await press('Switch to 6–8');
+    await press('Switch to 6–8, Pec Deck Fly');
     await waitFor(() => expect(settingsOf(db).exercise_overrides['Pec Deck Fly']).toMatchObject({ type: 'machine', rep_low: 6, rep_high: 8 }));
     expect(screen.getByText('Pec Deck Fly: now 6–8 reps')).toBeTruthy();
     expect(screen.queryByText('No progress in 3 sessions')).toBeNull();
@@ -166,10 +166,62 @@ describe('stall card', () => {
 
   it('Or switch to a similar exercise saves a swap with no bridge', async () => {
     const db = await started((d) => seed(d, 'Cable Lateral Raise', stalledLift()));
-    await press('Or switch to Lateral Raise');
+    await press('Or switch to Lateral Raise, Cable Lateral Raise');
     await waitFor(() => expect(db.rows.get('swaps:Cable Lateral Raise')).toBeDefined());
     expect(stored(db, 'swaps:Cable Lateral Raise')).toMatchObject({ to: 'Lateral Raise', since: DATE, bridge_until: null });
     expect(screen.getByText('Switched to Lateral Raise')).toBeTruthy();
+  });
+});
+
+describe('settings that could not be read', () => {
+  // The stored settings fail to load, so settings writes are refused: the cards must say so, not look saved.
+  const broken = (d: Db) => {
+    const get = d.getFirstAsync.bind(d);
+    d.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('user_settings')) throw new Error('unreadable');
+      return get(sql, ...p);
+    }) as Db['getFirstAsync'];
+  };
+  it('Try it again does not mark the rule done and says it did not save', async () => {
+    const db = await openSession(async (d) => {
+      await saveExclusion(d, ended());
+      seed(d, 'Pec Deck Fly', lift());
+      broken(d);
+    });
+    await press('Try it again, Pec Deck Fly');
+    expect(await screen.findByText(/Couldn’t save that: your settings didn’t load/)).toBeTruthy();
+    expect(stored<ExclusionRecord>(db, 'exclusions:r1').done).toBe(false);
+    expect(screen.getByText('Ready to try Pec Deck Fly again?')).toBeTruthy();
+  });
+
+  it('Switch to 6–8 says it did not save, and the card stays', async () => {
+    const db = await started((d) => {
+      seed(d, 'Pec Deck Fly', lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) }));
+      broken(d);
+    });
+    await press('Switch to 6–8, Pec Deck Fly');
+    expect(await screen.findByText(/Couldn’t save that: your settings didn’t load/)).toBeTruthy();
+    expect(db.rows.get('user_settings:me')).toBeUndefined();
+    expect(screen.getByText('No progress in 3 sessions')).toBeTruthy();
+  });
+});
+
+describe('stall card on a non-gym day', () => {
+  it('offers only a similar exercise the day’s equipment allows', async () => {
+    const stalled = lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) });
+    // Gym: Cable Lateral Raise has Lateral Raise as its sideways exercise.
+    await started((d) => seed(d, 'Cable Lateral Raise', stalled));
+    expect(screen.getByLabelText('Or switch to Lateral Raise, Cable Lateral Raise')).toBeTruthy();
+  });
+  it('with dumbbells only, the cable exercise is not offered', async () => {
+    const stalled = lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) });
+    const db = memoryDb();
+    await saveProfile(db, { ...profile(), where: 'dumbbells' });
+    seed(db, 'Lateral Raise', stalled);
+    await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
+    await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+    await screen.findByText('No progress in 3 sessions');
+    expect(screen.queryByLabelText(/^Or switch to /)).toBeNull();
   });
 });
 

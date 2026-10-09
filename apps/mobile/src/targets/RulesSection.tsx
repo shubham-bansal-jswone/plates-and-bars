@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
+import { activeRules } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Hint, Label } from '../components/ui';
+import type { ExclusionRecord } from '../db/rules';
 import type { WorkoutDb } from '../db/workouts';
 import { shortDate } from '../format';
 import { useTheme } from '../theme/useTheme';
@@ -16,7 +18,7 @@ export function RulesSection({ db, today, now, notify }: { db: WorkoutDb; today:
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
   const { rules, removeRule, removeSwap } = useRules({ db, now, notify, reloadKey: shown });
-  const active = rules.exclusions.filter((r) => !r.done);
+  const active = activeRules(rules.exclusions) as ExclusionRecord[];
   if (!active.length && !rules.swaps.length) return null;
   return (
     <View style={styles.gap}>
