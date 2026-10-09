@@ -61,14 +61,25 @@ const manifest = [...spec.matchAll(/- name: ([a-z][a-z0-9-]*)\n\s+schema_version
 const names = manifest.map((m) => m[1]);
 if (names.length === 0) failures.push("openapi.yaml: no content manifest example");
 if (names.join() !== [...names].sort().join()) failures.push("openapi.yaml: content manifest example is not sorted by name");
+if (new Set(names).size !== names.length) failures.push("openapi.yaml: content manifest example repeats a bundle name");
 const measures = manifest.find((m) => m[1] === "measures");
 if (!measures) failures.push("openapi.yaml: content manifest example has no measures entry");
 const etags = [...spec.matchAll(/"([0-9a-f]{64})"/g)].map((m) => m[1]);
 if (etags.length === 0) failures.push("openapi.yaml: no ETag examples");
 for (const e of etags) if (measures && e !== measures[2]) failures.push(`openapi.yaml: ETag example ${e} is not the measures sha256`);
+// Every tag an operation uses is declared once in the top-level `tags` list (Redocly's recommended
+// rules do not check this).
+const tagBlock = spec.match(/^tags:\n([\s\S]*?)^\S/m);
+const declared = tagBlock ? [...tagBlock[1].matchAll(/^  - name: (\S+)$/gm)].map((m) => m[1]) : [];
+if (declared.length === 0) failures.push("openapi.yaml: no top-level tags");
+if (new Set(declared).size !== declared.length) failures.push("openapi.yaml: a top-level tag is declared twice");
+const used = new Set([...spec.matchAll(/^ {6}tags: \[([^\]]*)\]$/gm)].flatMap((m) => m[1].split(",").map((t) => t.trim())));
+if (used.size === 0) failures.push("openapi.yaml: no operation tags found");
+for (const t of used) if (!declared.includes(t)) failures.push(`openapi.yaml: operation tag ${t} is not declared under tags`);
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and openapi.yaml example ids verified`);
 console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);
+console.log(`openapi.yaml: ${used.size} operation tags, all declared`);

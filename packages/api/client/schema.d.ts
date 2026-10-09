@@ -482,9 +482,13 @@ export interface paths {
          * @description One entry per bundle, sorted by `name`. The app compares each entry with the copy
          *     it holds (see the `content` tag) and fetches only bundles that changed.
          *
-         *     **Caching.** `Cache-Control: public, max-age=300`, so a content fix reaches apps
-         *     within five minutes of a deploy. The `ETag` is the quoted lowercase hex SHA-256 of
-         *     this response body; a request whose `If-None-Match` matches it gets 304 with no body.
+         *     **Caching.** `Cache-Control: public, max-age=300`: this is a hint to caches, so a
+         *     cached manifest is at most five minutes stale. When the app checks is set by the
+         *     refresh rule in the `content` tag. The `ETag` is the quoted lowercase hex SHA-256
+         *     of the uncompressed response body. A request whose `If-None-Match` matches it gets
+         *     304 with no body. An over-long or unparseable `If-None-Match` is ignored, giving 200
+         *     with the body; it is never rejected. The server may compress the body under the
+         *     same rules as `GET /content/{bundle}`.
          */
         get: operations["getContentManifest"];
         put?: never;
@@ -506,14 +510,20 @@ export interface paths {
          * Download one content bundle
          * @description The exact bytes of `content/<bundle>.json` in the server's deployed build, as
          *     `application/json; charset=utf-8`. The body's SHA-256 and length equal the
-         *     manifest entry's `sha256` and `size_bytes`. The server may compress the body when
-         *     the request allows it (`Accept-Encoding`); the hash and size are of the
-         *     uncompressed body.
+         *     manifest entry's `sha256` and `size_bytes`.
+         *
+         *     **Compression.** The server may compress the body when the request allows it
+         *     (`Accept-Encoding`). It then must send `Vary: Accept-Encoding`. The hash and size
+         *     are always of the uncompressed body. Proxies that compress may weaken the tag to
+         *     `W/"<sha256>"`, so clients must accept a `W/` prefix on a received `ETag`. The real
+         *     integrity check is the app comparing the body's SHA-256 with the manifest, not the
+         *     `ETag`.
          *
          *     **Caching.** `Cache-Control: public, no-cache`: caches may store the bundle but
          *     revalidate it every time, so a cached copy never lags the manifest. The `ETag` is
          *     the manifest's `sha256` in double quotes; a request whose `If-None-Match` matches
-         *     it gets 304 with no body.
+         *     it gets 304 with no body. An over-long or unparseable `If-None-Match` is ignored
+         *     (200 with the body).
          *
          *     A well-formed name that is not in the manifest is 404 `not_found`.
          */
@@ -649,9 +659,12 @@ export interface components {
             /** @description Length of the uncompressed bundle body in bytes. */
             size_bytes: number;
             /**
-             * @description When the bundle's content last changed: the commit time, in UTC, of the last
-             *     commit that changed `content/<name>.json`. An app build and a server deploy of
-             *     the same content therefore agree on it. It changes only when `sha256` changes.
+             * @description When the bundle's content last changed. It is the committer date from
+             *     `git log -1 --format=%cI -- content/<name>.json` on a full-history checkout of
+             *     `main`, in UTC. The backend gets it as a build argument. A build without it
+             *     fails, and there is no fallback to build time. See "`updated_at` derivation"
+             *     in the `content` tag. An app build and a server deploy of the same content
+             *     agree on it, and it changes only when `sha256` changes.
              */
             updated_at: components["schemas"]["Timestamp"];
         };
@@ -1527,6 +1540,7 @@ export interface components {
                 ETag: components["headers"]["ContentETag"];
                 /** @description The same value the 200 response would carry. */
                 "Cache-Control"?: string;
+                Vary: components["headers"]["VaryAcceptEncoding"];
                 [name: string]: unknown;
             };
             content?: never;
@@ -1612,7 +1626,8 @@ export interface components {
          * @description An `ETag` from an earlier response. When it matches the current one, the server
          *     answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
          *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
-         *     `*` are accepted.
+         *     `*` are accepted. A value longer than 1024 characters, or one that cannot be
+         *     parsed, is ignored: the server answers as if the header were absent, never 400.
          * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
          */
         IfNoneMatch: string;
@@ -1622,10 +1637,18 @@ export interface components {
         /** @description Always `no-store`. */
         NoStore: "no-store";
         /**
-         * @description Strong entity tag, the lowercase hex SHA-256 of the uncompressed body in double quotes.
+         * @description Entity tag: the lowercase hex SHA-256 of the uncompressed body in double quotes.
+         *     The server sends it strong. A compressing proxy may weaken it to `W/"<sha256>"`, so
+         *     clients accept either form. The app checks integrity against the body's SHA-256,
+         *     not the `ETag`.
          * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
          */
         ContentETag: string;
+        /**
+         * @description Includes `Accept-Encoding`. Required whenever the server may compress the body.
+         * @example Accept-Encoding
+         */
+        VaryAcceptEncoding: string;
     };
     pathItems: never;
 }
@@ -2002,7 +2025,8 @@ export interface operations {
                  * @description An `ETag` from an earlier response. When it matches the current one, the server
                  *     answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
                  *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
-                 *     `*` are accepted.
+                 *     `*` are accepted. A value longer than 1024 characters, or one that cannot be
+                 *     parsed, is ignored: the server answers as if the header were absent, never 400.
                  * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
                  */
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
@@ -2018,6 +2042,7 @@ export interface operations {
                     ETag: components["headers"]["ContentETag"];
                     /** @description Always `public, max-age=300`. */
                     "Cache-Control"?: "public, max-age=300";
+                    Vary: components["headers"]["VaryAcceptEncoding"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2037,7 +2062,8 @@ export interface operations {
                  * @description An `ETag` from an earlier response. When it matches the current one, the server
                  *     answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
                  *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
-                 *     `*` are accepted.
+                 *     `*` are accepted. A value longer than 1024 characters, or one that cannot be
+                 *     parsed, is ignored: the server answers as if the header were absent, never 400.
                  * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
                  */
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
@@ -2059,6 +2085,7 @@ export interface operations {
                     ETag: components["headers"]["ContentETag"];
                     /** @description Always `public, no-cache`. */
                     "Cache-Control"?: "public, no-cache";
+                    Vary: components["headers"]["VaryAcceptEncoding"];
                     [name: string]: unknown;
                 };
                 content: {

@@ -38,14 +38,18 @@ tags:
     description: Shared food database search.
   - name: account
     description: Account rights for the signed-in user (export and deletion).
+  - name: system
+    description: Health and status.
   - name: content
     description: |
       Versioned content bundles (`content/*.json`: exercises, cards, recipes, foods and
       the rest), so a content fix reaches installed apps without an app release. Public
       (no sign-in), cacheable, and limited only by the per-IP rate limit every endpoint has.
 
-      **Source.** The server serves `content/<name>.json` from its deployed build, byte for
-      byte, as bundle `<name>`. It is the same content the AI calls use (see the `ai` tag).
+      **Source.** The server serves every `content/<name>.json` from its deployed build,
+      byte for byte, as bundle `<name>`; there is no allow-list, because every file is
+      already shipped inside the app. It is the same content the AI calls use (see the
+      `ai` tag).
 
       **Identity.** `sha256` is the lowercase hex SHA-256 of the bundle's exact bytes (the
       uncompressed body of `GET /content/{bundle}`); it is the bundle's version. The
@@ -54,14 +58,33 @@ tags:
       `test-vectors/content-hash.json` has shared vectors. `schema_version` is the bundle's
       own top-level `schema_version`: it changes only when the bundle's shape changes.
 
+      **`updated_at` derivation.** For each bundle it is the committer date of
+      `git log -1 --format=%cI -- content/<name>.json` on a full-history checkout of
+      `main`, converted to UTC. Shallow clones give the wrong value, so they are not
+      allowed. The backend receives it as a build argument, and the app build computes it
+      the same way for its bundled copies. A build that cannot compute it, or that gets
+      no value for a bundle, fails. It never falls back to the build time or any other
+      default.
+
       **App use.** The app ships its own copy of every bundle and works fully offline and
-      signed out with it; the server copy only ever replaces it. When online (at most once
-      a day, and on launch), the app reads the manifest and, for each bundle it knows
-      whose `schema_version` it supports, fetches the bundle only when `sha256` differs
-      from the copy it holds and `updated_at` is later. It checks the fetched body's
-      SHA-256 and size against the manifest and validates it before swapping it in in one
-      step; on any mismatch or failure it keeps the copy it has and tries again later.
-      The app ignores bundle names it does not know.
+      signed out with it. It refreshes on launch, and then at most once a day while it
+      stays open:
+      - It reads the manifest. It fetches a bundle only when the app knows the bundle,
+        supports its `schema_version`, the `sha256` differs from the copy it holds and
+        the `updated_at` is later.
+      - It checks the fetched body's SHA-256 and size against the manifest and validates
+        it, then swaps it in in one step. On any mismatch or failure it keeps the copy it
+        has and tries again at the next refresh.
+      - It ignores bundle names it does not know.
+
+      **App upgrade.** On launch the app compares each stored server copy with the
+      bundled copy of the running build. It keeps the stored copy only if that copy's
+      `updated_at` is later and the build supports its `schema_version`. Otherwise it
+      discards the stored copy and uses the bundled one.
+
+      **Rollback.** Because the app never takes an earlier `updated_at`, rolling back the
+      server image never rolls content back on devices. To roll content back, commit a
+      new revert to `main`, which gets a later `updated_at`.
   - name: ai
     description: |
       v1 AI calls: Describe a meal, Ask why, Weekly summary, and `GET /ai/status` for
@@ -1129,9 +1152,13 @@ paths:
         One entry per bundle, sorted by `name`. The app compares each entry with the copy
         it holds (see the `content` tag) and fetches only bundles that changed.
 
-        **Caching.** `Cache-Control: public, max-age=300`, so a content fix reaches apps
-        within five minutes of a deploy. The `ETag` is the quoted lowercase hex SHA-256 of
-        this response body; a request whose `If-None-Match` matches it gets 304 with no body.
+        **Caching.** `Cache-Control: public, max-age=300`: this is a hint to caches, so a
+        cached manifest is at most five minutes stale. When the app checks is set by the
+        refresh rule in the `content` tag. The `ETag` is the quoted lowercase hex SHA-256
+        of the uncompressed response body. A request whose `If-None-Match` matches it gets
+        304 with no body. An over-long or unparseable `If-None-Match` is ignored, giving 200
+        with the body; it is never rejected. The server may compress the body under the
+        same rules as `GET /content/{bundle}`.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
@@ -1145,6 +1172,8 @@ paths:
               schema:
                 type: string
                 const: public, max-age=300
+            Vary:
+              $ref: '#/components/headers/VaryAcceptEncoding'
           content:
             application/json:
               schema:
@@ -1189,14 +1218,20 @@ paths:
       description: |
         The exact bytes of `content/<bundle>.json` in the server's deployed build, as
         `application/json; charset=utf-8`. The body's SHA-256 and length equal the
-        manifest entry's `sha256` and `size_bytes`. The server may compress the body when
-        the request allows it (`Accept-Encoding`); the hash and size are of the
-        uncompressed body.
+        manifest entry's `sha256` and `size_bytes`.
+
+        **Compression.** The server may compress the body when the request allows it
+        (`Accept-Encoding`). It then must send `Vary: Accept-Encoding`. The hash and size
+        are always of the uncompressed body. Proxies that compress may weaken the tag to
+        `W/"<sha256>"`, so clients must accept a `W/` prefix on a received `ETag`. The real
+        integrity check is the app comparing the body's SHA-256 with the manifest, not the
+        `ETag`.
 
         **Caching.** `Cache-Control: public, no-cache`: caches may store the bundle but
         revalidate it every time, so a cached copy never lags the manifest. The `ETag` is
         the manifest's `sha256` in double quotes; a request whose `If-None-Match` matches
-        it gets 304 with no body.
+        it gets 304 with no body. An over-long or unparseable `If-None-Match` is ignored
+        (200 with the body).
 
         A well-formed name that is not in the manifest is 404 `not_found`.
       parameters:
@@ -1219,6 +1254,8 @@ paths:
               schema:
                 type: string
                 const: public, no-cache
+            Vary:
+              $ref: '#/components/headers/VaryAcceptEncoding'
           content:
             application/json:
               schema:
@@ -1288,10 +1325,10 @@ components:
         An `ETag` from an earlier response. When it matches the current one, the server
         answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
         comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
-        `*` are accepted.
+        `*` are accepted. A value longer than 1024 characters, or one that cannot be
+        parsed, is ignored: the server answers as if the header were absent, never 400.
       schema:
         type: string
-        maxLength: 1024
       example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
 
   headers:
@@ -1301,11 +1338,20 @@ components:
         type: string
         const: no-store
     ContentETag:
-      description: Strong entity tag, the lowercase hex SHA-256 of the uncompressed body in double quotes.
+      description: |
+        Entity tag: the lowercase hex SHA-256 of the uncompressed body in double quotes.
+        The server sends it strong. A compressing proxy may weaken it to `W/"<sha256>"`, so
+        clients accept either form. The app checks integrity against the body's SHA-256,
+        not the `ETag`.
       schema:
         type: string
-        pattern: '^"[0-9a-f]{64}"$'
+        pattern: '^(W/)?"[0-9a-f]{64}"$'
       example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+    VaryAcceptEncoding:
+      description: Includes `Accept-Encoding`. Required whenever the server may compress the body.
+      schema:
+        type: string
+      example: Accept-Encoding
 
   responses:
     NotModified:
@@ -1319,6 +1365,8 @@ components:
           description: The same value the 200 response would carry.
           schema:
             type: string
+        Vary:
+          $ref: '#/components/headers/VaryAcceptEncoding'
     TokenPair:
       description: Signed in; a new token pair.
       content:
@@ -1656,9 +1704,12 @@ components:
         updated_at:
           $ref: '#/components/schemas/Timestamp'
           description: |
-            When the bundle's content last changed: the commit time, in UTC, of the last
-            commit that changed `content/<name>.json`. An app build and a server deploy of
-            the same content therefore agree on it. It changes only when `sha256` changes.
+            When the bundle's content last changed. It is the committer date from
+            `git log -1 --format=%cI -- content/<name>.json` on a full-history checkout of
+            `main`, in UTC. The backend gets it as a build argument. A build without it
+            fails, and there is no fallback to build time. See "`updated_at` derivation"
+            in the `content` tag. An app build and a server deploy of the same content
+            agree on it, and it changes only when `sha256` changes.
 
     ContentBundle:
       type: object
