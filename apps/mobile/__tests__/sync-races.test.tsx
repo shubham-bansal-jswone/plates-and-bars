@@ -4,7 +4,7 @@ import { Text } from 'react-native';
 import { applyPulled, pendingCount } from '../src/db/outbox';
 import { lockedDb } from '../src/db/lockedDb';
 import { writeLock } from '../src/db/writeLock';
-import { syncOnce } from '../src/sync/engine';
+import { pauseSync, resumeSync, syncOnce } from '../src/sync/engine';
 import { discardAll } from '../src/sync/guard';
 import { naturalId } from '../src/sync/ids';
 import { Stores } from '../src/sync/Stores';
@@ -14,6 +14,7 @@ import { gateRedirect } from '../src/state/gateRedirect';
 import { getCursor, getUserId, KEY_USER, setKv } from '../src/sync/store';
 import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
 import { saveWeightDoc } from './sync-fixtures';
+import { saveWeight } from '../src/db/progress';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -91,6 +92,18 @@ describe('discarding while a sync is running', () => {
   });
 });
 
+describe('pause nesting', () => {
+  it('overlapping pauses nest: sync stays paused until the last one ends', async () => {
+    const { deps } = await setup();
+    await pauseSync();
+    await pauseSync();
+    resumeSync();
+    expect((await syncOnce(deps)).status).toBe('paused');
+    resumeSync();
+    expect((await syncOnce(deps)).status).toBe('ok');
+  });
+});
+
 describe('write lock', () => {
   it('a store write issued during a sync transaction waits for it, so check-write-clear stays atomic', async () => {
     const { db } = await setup();
@@ -112,6 +125,27 @@ describe('write lock', () => {
     // The UI edit came after the sync cleared its own entry, so it is still queued and will be pushed.
     expect(await pendingCount(db)).toBe(1);
     expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM weights WHERE key = '2026-10-08'"))!.data)).toMatchObject({ weight_kg: 81 });
+  });
+
+  it('a Progress save (weigh-in) during a sync transaction waits for it and stays queued', async () => {
+    const { db } = await setup();
+    const ui = lockedDb(db as never) as unknown as typeof db;
+    const hold = gate();
+    let syncDone = false;
+    const sync = applyPulled(db, 'weights', '2026-10-07', async (txn) => {
+      await txn.runAsync("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-07', ?)", JSON.stringify(w('2026-10-07', 80)));
+      await hold.p;
+      syncDone = true;
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    let saved = false;
+    const save = saveWeight(ui, { ...w('2026-10-08', 81), id: null } as never).then(() => (saved = true));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(saved).toBe(false);
+    hold.release();
+    await Promise.all([sync, save]);
+    expect(syncDone).toBe(true);
+    expect(await pendingCount(db)).toBe(1); // the weigh-in is queued; the pulled record is not
   });
 
   it('keeps running later tasks after one throws', async () => {

@@ -125,8 +125,10 @@ export class InvalidRecord extends Error {}
  */
 export function normalizeTimestamps(v: unknown, key?: string): unknown {
   if (typeof v === 'string' && key && TIMESTAMP_FIELDS.has(key)) {
-    if (!TIMESTAMP.test(v) || Number.isNaN(Date.parse(v))) throw new InvalidRecord('timestamp');
-    return new Date(v).toISOString();
+    const iso = TIMESTAMP.test(v) ? new Date(v) : null;
+    // Date rolls 2026-02-30 over to March: the parsed date must read back as the same calendar date and time.
+    if (!iso || Number.isNaN(iso.getTime()) || iso.toISOString().slice(0, 19) !== v.slice(0, 19)) throw new InvalidRecord('timestamp');
+    return iso.toISOString();
   }
   if (Array.isArray(v)) return v.map((x) => normalizeTimestamps(x));
   if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, normalizeTimestamps(x, k)]));

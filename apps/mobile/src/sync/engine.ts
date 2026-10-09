@@ -67,7 +67,9 @@ class NetworkError extends Error {}
 async function net<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
-  } catch {
+  } catch (e) {
+    // A body that is not valid JSON came back from a server that answered: that is a fault, not a lost connection.
+    if (e instanceof SyntaxError) throw e;
     throw new NetworkError('network');
   }
 }
@@ -77,6 +79,7 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard): Pr
   for (let attempt = 0; attempt < 2; attempt++) {
     const { data, response } = await net(() => d.api.POST('/sync', { body }));
     if (data) return { ok: true, data };
+    if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
     if (response.status !== 401) return failFrom(response);
     if (attempt === 1 || !(await refresh(d, guard))) return fail('signed_out');
   }
@@ -93,6 +96,7 @@ async function refresh(d: SyncDeps, guard: Guard): Promise<boolean> {
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
     return true;
   }
+  if (response.ok) throw new Error('empty or malformed 2xx body');
   if (response.status === 401) {
     await guard(d.db);
     await d.tokens.clear();
@@ -123,7 +127,7 @@ async function settle(db: PullDb, e: OutboxEntry, guard: Guard, write: (txn: Wor
 }
 
 let running: Promise<SyncResult> | null = null;
-let paused = false;
+let pauses = 0; // a counter, so overlapping pauses nest: sync resumes only when the last one ends
 
 /** Thrown inside a run when it must stop writing: paused, or the store is bound to a different user now. */
 class Aborted extends Error {}
@@ -133,11 +137,11 @@ class Aborted extends Error {}
  * store or the token storage until `resumeSync()`. Call it before every wipe and before clearing tokens.
  */
 export async function pauseSync(): Promise<void> {
-  paused = true;
+  pauses++;
   await running?.catch(() => undefined);
 }
 export function resumeSync(): void {
-  paused = false;
+  pauses = Math.max(0, pauses - 1);
 }
 
 /** True when a data_storage consent record is stored. */
@@ -151,7 +155,7 @@ async function hasConsent(db: WorkoutDb): Promise<boolean> {
 
 /** One sync run: push everything queued, pull until the server has no more. Serialised: a second call joins the first. */
 export function syncOnce(d: SyncDeps): Promise<SyncResult> {
-  if (paused) return Promise.resolve({ status: 'paused', conflicts: 0 });
+  if (pauses > 0) return Promise.resolve({ status: 'paused', conflicts: 0 });
   running ??= run(d).finally(() => {
     running = null;
   });
@@ -165,7 +169,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   const ctx: PullCtx = { userId, dates: null };
   // Checked inside every write: stop when paused, or when the store belongs to someone else now (a wipe and new sign-in).
   const guard: Guard = async (db) => {
-    if (paused || (await getUserId(db)) !== userId) throw new Aborted();
+    if (pauses > 0 || (await getUserId(db)) !== userId) throw new Aborted();
   };
   let conflicts = 0;
   let pulled = 0;

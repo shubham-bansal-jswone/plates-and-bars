@@ -108,6 +108,26 @@ describe('consent', () => {
 });
 
 describe('sync engine errors and records', () => {
+  it('a 2xx with a malformed or empty body is an error, not offline', async () => {
+    const { db, tokens } = await setup();
+    for (const body of ['<html>not json', null]) {
+      // the client captures fetch when it is created, so build it after swapping fetch
+      (globalThis as { fetch: unknown }).fetch = async () => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+      const api = createClient('http://fake/api/v1', async () => (await tokens.load())?.access ?? null);
+      expect((await syncOnce({ db, api, tokens })).status).toBe('error');
+    }
+  });
+
+  it('rejects an impossible calendar date in a timestamp instead of rolling it over', async () => {
+    const { db, server, deps } = await setup();
+    const log = { version: 1, deleted_at: null, date: '2026-10-09', meal: 'Lunch', name: 'x', qty: 1, kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1, food_id: null };
+    server.put('food_logs', { id: 'feb30', ...log, updated_at: '2026-02-30T10:00:00Z' });
+    server.put('food_logs', { id: 'h24', ...log, updated_at: '2026-10-09T24:00:00Z' });
+    server.put('food_logs', { id: 'ok', ...log, updated_at: '2026-02-28T10:00:00Z' });
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok', pulled: 1, skipped: 2 });
+    expect(await db.getFirstAsync("SELECT key FROM food_logs WHERE key IN ('feb30','h24')")).toBeNull();
+  });
+
   it('a local failure is an error state, not offline, and carries no data', async () => {
     const { db, deps } = await setup();
     await saveWeightDoc(db, weight('2026-10-08', 81));
