@@ -102,7 +102,11 @@ export function RulesSection({ db, today, now, notify, profile, weekPlan }: { db
           setPicking(false);
           save(draft, choice);
         }}
-        onClose={() => setCant(null)}
+        onClose={() => {
+          // As in the prototype, Close shuts the whole flow, not just the second sheet.
+          setCant(null);
+          setPicking(false);
+        }}
       />
     </View>
   );

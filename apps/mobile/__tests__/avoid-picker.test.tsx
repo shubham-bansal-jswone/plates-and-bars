@@ -66,6 +66,16 @@ describe('Add an exercise to avoid (Targets)', () => {
     expect([...db.rows.keys()].some((k) => k.startsWith('exclusions:'))).toBe(false);
   });
 
+  it('closing the can\u2019t-do sheet closes the whole flow and stores nothing', async () => {
+    const db = await open();
+    await fireEvent.press(await screen.findByLabelText('Add an exercise to avoid'));
+    await fireEvent.press(screen.getByLabelText('Barbell Bench Press'));
+    await fireEvent.press(screen.getByLabelText('Close'));
+    expect(screen.queryByText('Can’t do Barbell Bench Press?')).toBeNull();
+    expect(screen.queryByText('Exercise to avoid')).toBeNull();
+    expect([...db.rows.keys()].some((k) => k.startsWith('exclusions:'))).toBe(false);
+  });
+
   it('when the stored rules cannot be read, adding is refused with a message instead of writing', async () => {
     const db = memoryDb();
     const real = db.getAllAsync.bind(db);
