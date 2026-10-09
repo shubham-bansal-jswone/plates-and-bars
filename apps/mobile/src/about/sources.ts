@@ -25,7 +25,6 @@ export const sourceKey = (s: { code: string; name: string }): string => `${s.cod
 /** Food data sources, names and licences exactly as recorded on the content rows (ADR 002 and 005). */
 export const FOOD_SOURCES: readonly SourceInfo[] = [...new Map(fromContent.map((s) => [sourceKey(s), { code: s.code, name: baseName(s.name), licence: s.licence, url: s.url, reference: s.reference }])).values()];
 
-
 /** Fonts bundled with the app (docs/design/DESIGN.md section 4.1). */
 export const FONT_SOURCES: readonly SourceInfo[] = [
   { code: 'inter', name: 'Inter (body and UI text)', licence: 'SIL Open Font License 1.1', url: null },

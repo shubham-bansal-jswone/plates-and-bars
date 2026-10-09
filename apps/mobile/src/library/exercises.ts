@@ -1,3 +1,4 @@
+import type { Schemas } from '@plate-and-bar/api';
 import type { ExType } from '@plate-and-bar/core';
 import labels from '../../../../content/labels.json';
 import { catalog, type ExerciseCard } from '../workout/catalog';
@@ -8,7 +9,7 @@ const L = labels as unknown as { joints: Labels; families: Labels; patterns: Lab
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export type Equipment = string;
-export type Muscle = string;
+export type Muscle = Schemas['Muscle'];
 export type { ExType };
 
 export const equipmentLabel = (e: string): string => cap(e);
@@ -42,8 +43,8 @@ export const LIBRARY: readonly LibraryExercise[] = Object.keys(catalog.tags)
       equipment: t.equipment,
       type: (m?.type as ExType | undefined) ?? 'other',
       difficulty: t.difficulty,
-      primary: t.primary,
-      secondary: t.secondary,
+      primary: t.primary as readonly Muscle[],
+      secondary: t.secondary as readonly Muscle[],
       joints: t.joints,
       movement: L.patterns[t.pattern] ?? t.pattern,
       family: L.families[t.family] ?? t.family,
@@ -56,7 +57,7 @@ export const LIBRARY: readonly LibraryExercise[] = Object.keys(catalog.tags)
 /** Chip lists come from the data, in a fixed display order, so a chip never matches nothing. */
 const used = <T extends string>(order: readonly T[], seen: Set<string>): T[] => order.filter((v) => seen.has(v));
 export const EQUIPMENT: readonly string[] = used(['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'other'], new Set(LIBRARY.map((e) => e.equipment)));
-export const MUSCLES: readonly string[] = used(Object.keys(MUSCLE), new Set(LIBRARY.flatMap((e) => e.primary)));
+export const MUSCLES: readonly Muscle[] = used(Object.keys(MUSCLE) as Muscle[], new Set<string>(LIBRARY.flatMap((e) => e.primary)));
 export const TYPES: readonly ExType[] = used(Object.keys(TYPE_LABEL) as ExType[], new Set(LIBRARY.map((e) => e.type)));
 
 export interface LibraryFilter {
