@@ -150,4 +150,25 @@ describe('SyncProvider account wiring (#27)', () => {
     await waitFor(() => expect(now().wipePending).toBe(true));
     expect(await getUserId(db)).toBe(USER);
   });
+
+  it('on launch the pending wipe is flagged at once, before the wipe finishes (so the screen never offers sign-in meanwhile)', async () => {
+    const db = await openDb();
+    await setKv(db, KEY_USER, USER);
+    await setKv(db, KEY_SERVER_DELETED, USER);
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    db.beforeTxn = () => held; // the wipe's transaction waits
+    const tokens = memoryTokens();
+    (globalThis as { fetch: unknown }).fetch = async () => new Response(null, { status: 204 });
+    const api = createClient(API, async () => null);
+    await render(
+      <SyncProvider db={db} tokens={tokens} api={api}>
+        <Probe />
+      </SyncProvider>,
+    );
+    await waitFor(() => expect(now().wipePending).toBe(true));
+    expect(await getUserId(db)).toBe(USER); // still not wiped
+    await act(async () => release());
+    await waitFor(() => expect(now().wipePending).toBe(false));
+  });
 });

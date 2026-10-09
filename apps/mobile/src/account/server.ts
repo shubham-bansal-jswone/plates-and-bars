@@ -1,6 +1,7 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
 import { inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { withTimeout, REQUEST_TIMEOUT_MS } from '../sync/timeout';
 import { refreshSession } from '../sync/engine';
 import { OwnerChanged, wipeLocalStore, withSyncPaused } from '../sync/guard';
 import { KEY_SERVER_DELETED, getKv, getUserId, setKv } from '../sync/store';
@@ -22,12 +23,14 @@ export type Authed<T> =
  * Callers must hold the account lock (`withSyncPaused`): two refreshes at once would reuse a rotated refresh token and
  * revoke the session, and a sign-in must not change the tokens or the owner under the request.
  */
-export async function authedCall<T>(d: { db: Db; api: ApiClient; tokens: TokenStore }, call: () => Promise<{ data?: T; response: Response }>): Promise<Authed<T>> {
+export async function authedCall<T>(d: { db: Db; api: ApiClient; tokens: TokenStore; timeoutMs?: number }, call: (signal: AbortSignal) => Promise<{ data?: T; response: Response }>): Promise<Authed<T>> {
   for (let attempt = 0; attempt < 2; attempt++) {
     let res: { data?: T; response: Response };
     const used = await d.tokens.load();
     try {
-      res = await call();
+      const t = await withTimeout(d.timeoutMs ?? REQUEST_TIMEOUT_MS, call);
+      if (t.timedOut) return { kind: 'unavailable' };
+      res = t.value;
     } catch (e) {
       return e instanceof SyntaxError ? { kind: 'unavailable' } : { kind: 'offline' };
     }
@@ -45,10 +48,10 @@ export type ServerExportResult =
   | { kind: 'rate_limited'; retryAfterSec: number };
 
 /** `GET /me/export` (limited to 5 an hour). Not stored anywhere by the app; the caller hands the text to the file saver. */
-export async function exportFromServer(db: Db, api: ApiClient | null, tokens: TokenStore): Promise<ServerExportResult> {
+export async function exportFromServer(db: Db, api: ApiClient | null, tokens: TokenStore, timeoutMs?: number): Promise<ServerExportResult> {
   return withSyncPaused(async () => {
     if (!api || !(await tokens.load())) return { kind: 'not_signed_in' };
-    const r = await authedCall<Schemas['MeExport']>({ db, api, tokens }, () => api.GET('/me/export'));
+    const r = await authedCall<Schemas['MeExport']>({ db, api, tokens, timeoutMs }, (signal) => api.GET('/me/export', { signal }));
     if (r.kind === 'response') {
       if (r.data) return { kind: 'ok', json: JSON.stringify(r.data, null, 1), filename: `plate-and-bar-export-${r.data.exported_at.slice(0, 10)}.json` };
       if (r.response.status === 401) return { kind: 'session_ended' };
@@ -67,6 +70,8 @@ export type DeleteResult =
   | { kind: 'rate_limited'; retryAfterSec: number }
   /** The server may or may not have deleted the account: the session ended without a 204. Never reported as deleted. */
   | { kind: 'unconfirmed' }
+  /** This device's store could not be read, so nothing was deleted. */
+  | { kind: 'error' }
   /** The device is linked to an account but has no session: sign in to delete the account, or delete only this device. */
   | { kind: 'needs_sign_in' }
   /** The server deleted the account, but clearing this device failed; run it again (the server is not called again). */
@@ -107,14 +112,20 @@ async function clearDeletedAccountTokens(db: Db, tokens: TokenStore, owner: stri
  * retry clears the same tokens. Without a session on a device linked to an account, nothing is deleted unless
  * `deviceOnly` (the account stays on the server). The outbox is wiped with the store, so nothing is queued or pushed.
  */
-export async function deleteEverything(d: { db: Db; api: ApiClient | null; tokens: TokenStore }, opts: { deviceOnly?: boolean } = {}): Promise<DeleteResult> {
+export async function deleteEverything(d: { db: Db; api: ApiClient | null; tokens: TokenStore; timeoutMs?: number }, opts: { deviceOnly?: boolean } = {}): Promise<DeleteResult> {
   return withSyncPaused(async () => {
     const { api, tokens, db } = d;
-    const userId = await getUserId(db);
-    let server = await wipePending(db);
+    let userId: string | null = null;
+    let server = false;
+    try {
+      userId = await getUserId(db);
+      server = await wipePending(db);
+    } catch {
+      return { kind: 'error' }; // the store could not be read: nothing was done
+    }
     try {
       if (!server && api && (await tokens.load())) {
-        const r = await authedCall<never>({ db, api, tokens }, () => api.DELETE('/me'));
+        const r = await authedCall<never>({ db, api, tokens, timeoutMs: d.timeoutMs }, (signal) => api.DELETE('/me', { signal }));
         if (r.kind === 'session_ended') return { kind: 'unconfirmed' };
         if (r.kind === 'offline' || r.kind === 'unavailable') return { kind: r.kind };
         const s = r.response.status;

@@ -3,7 +3,7 @@ import { buildLocalExport, foodCsv } from '../src/account/exportLocal';
 import { deleteEverything, exportFromServer, wipePending } from '../src/account/server';
 import { SYNC_TABLES } from '../src/db/outbox';
 import { makeApi } from '../src/sync/auth';
-import { refreshSession } from '../src/sync/engine';
+import { refreshSession, syncOnce } from '../src/sync/engine';
 import { acceptTokenPair, wipeLocalStore } from '../src/sync/guard';
 import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from '../src/sync/store';
 import { fakeServer, memoryTokens, openDb } from './sync-helpers';
@@ -412,6 +412,92 @@ describe('delete everything (#27)', () => {
     expect(await signIn).toEqual({ kind: 'signed_in', wiped: false });
     expect(await getUserId(db)).toBe(OTHER);
     expect(tokens.current).toEqual({ access: 'access-B', refresh: 'refresh-B' });
+  });
+
+  it('the owner changing during the token clear: the final wipe checks it, nothing of the new owner is deleted, and it says the account was deleted', async () => {
+    const { db, api, tokens } = await signedIn();
+    const real = tokens.clear;
+    tokens.clear = async () => {
+      await setKv(db, KEY_USER, OTHER);
+      await real();
+    };
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'owner_changed', server: true });
+    expect(await getUserId(db)).toBe(OTHER);
+    expect(await count(db)).toBe(2);
+  });
+
+  it('DELETE /me waits for a sync run\'s token refresh in flight (the pause drains it first)', async () => {
+    const { db, server, tokens, api, calls } = await signedIn();
+    server.accessValid = 'newer'; // the sync's 401 leads to a refresh
+    const slow = gate();
+    server.hold = slow.p;
+    server.holdPath = '/auth/refresh';
+    const run = syncOnce({ db, api, tokens });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls).toContain('POST /auth/refresh');
+    const del = deleteEverything({ db, api, tokens });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(calls).not.toContain('DELETE /me');
+    slow.release();
+    expect(await del).toEqual({ kind: 'deleted', server: true });
+    await run;
+    expect(calls.indexOf('DELETE /me')).toBeGreaterThan(calls.indexOf('POST /auth/refresh'));
+  });
+
+  it('a server export queued behind a delete runs inside the lock: it finds the tokens gone, not a stale session', async () => {
+    const { db, tokens, api, calls } = await signedIn();
+    const slow = gate();
+    const inner = net.fetch;
+    net.fetch = async (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? (await slow.p, inner(r)) : inner(r));
+    const del = deleteEverything({ db, api, tokens });
+    await new Promise((r) => setTimeout(r, 10));
+    const exp = exportFromServer(db, api, tokens);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls).not.toContain('GET /me/export');
+    slow.release();
+    expect(await del).toEqual({ kind: 'deleted', server: true });
+    expect(await exp).toEqual({ kind: 'not_signed_in' });
+    expect(calls).not.toContain('GET /me/export');
+  });
+
+  const stalled = (r: Request) => new Promise<Response>((_, reject) => r.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
+
+  it('a stalled DELETE is given up after the timeout (unavailable, nothing deleted) and releases the account lock', async () => {
+    const { db, tokens, api } = await signedIn();
+    const inner = net.fetch;
+    net.fetch = (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? stalled(r) : inner(r));
+    expect(await deleteEverything({ db, api, tokens, timeoutMs: 40 })).toEqual({ kind: 'unavailable' });
+    expect(await count(db)).toBe(2);
+    expect(tokens.current).not.toBeNull();
+    net.fetch = (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? Promise.resolve(noContent()) : inner(r));
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+  });
+
+  it('a stalled token refresh is also given up: unavailable, tokens kept', async () => {
+    const { db, tokens, api, handler } = await signedIn();
+    handler.current = () => err(401);
+    const inner = net.fetch;
+    net.fetch = (r: Request) => (new URL(r.url).pathname.endsWith('/auth/refresh') ? stalled(r) : inner(r));
+    expect(await deleteEverything({ db, api, tokens, timeoutMs: 40 })).toEqual({ kind: 'unavailable' });
+    expect(tokens.current).not.toBeNull();
+    expect(await refreshSession({ db, api, tokens, timeoutMs: 40 })).toBe('unavailable');
+  });
+
+  it('an exception before the 204 is reported as unavailable (never as a half-finished deletion); an unreadable store as error', async () => {
+    const { db, tokens, api } = await signedIn();
+    const load = tokens.load;
+    tokens.load = async () => {
+      throw new Error('keystore');
+    };
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'unavailable' });
+    tokens.load = load;
+    const getFirst = db.getFirstAsync;
+    db.getFirstAsync = (async () => {
+      throw new Error('disk');
+    }) as typeof db.getFirstAsync;
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'error' });
+    db.getFirstAsync = getFirst;
+    expect(await count(db)).toBe(2);
   });
 
   it('never signed in: wipes the local store only and makes no request', async () => {
