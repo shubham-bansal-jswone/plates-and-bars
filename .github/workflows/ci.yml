@@ -182,4 +182,10 @@ jobs:
           echo "CHROME_PATH=${out##* }" >> "$GITHUB_ENV"
       - name: Chromium is available
         run: '"$CHROME_PATH" --version'
+      # Ubuntu 24.04 runners block unprivileged user namespaces via AppArmor, which Chromium's
+      # sandbox needs. Relax that on this throwaway runner so the sandbox stays enabled
+      # (we do not pass --no-sandbox).
+      - name: Allow Chromium sandbox (unprivileged user namespaces)
+        working-directory: .
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm run a11y
