@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { modsNote, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -12,7 +13,7 @@ import { catalog } from '../workout/catalog';
 import { CHECKIN, MUSCLE, REASON_TEXT, listJoin, modsNoteText } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { guidance, progressionContext } from '../workout/guidance';
-import { Card, Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
+import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 
@@ -115,7 +116,7 @@ function StartView({ w, profile, focus }: { w: W; profile: Prof; focus: readonly
             <Text key={n} accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15 }}>
               {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
               <Text style={{ color: c.muted }}> {listJoin((catalog.tags[n]?.primary ?? []).map((m) => MUSCLE[m] ?? m))}</Text>
-              {isFocus(n, focus, catalog.tags) ? <Text style={{ color: c.brand, fontWeight: '800' }}> Focus</Text> : null}
+              {isFocus(n, focus, catalog.tags) ? <Text style={{ color: c.link, fontWeight: '700' }}> Focus</Text> : null}
             </Text>
           ))}
           <Hint>

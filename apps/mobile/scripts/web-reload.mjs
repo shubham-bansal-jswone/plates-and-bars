@@ -135,12 +135,15 @@ try {
   console.log('after reload: targets screen shows 1,990 kcal without setup (profile read back from SQLite)');
   // Workout: start today's session (the planned one, or the first other template on a rest day), tick a set.
   await click('Workout');
-  const startLabel = await page.waitForSelector('[aria-label^="Start "]', { timeout: 20000 }).then((e) => e.evaluate((x) => x.getAttribute('aria-label')));
+  const startLabel = await page.waitForSelector('[aria-label^="Start "]:not([aria-label^="Start a rest"])', { timeout: 20000 }).then((e) => e.evaluate((x) => x.getAttribute('aria-label')));
   await click(startLabel);
   const markLabel = await page.waitForSelector('[aria-label^="Mark "][aria-label$=" set 1 done"]', { timeout: 20000 }).then((e) => e.evaluate((x) => x.getAttribute('aria-label')));
   const exName = markLabel.slice('Mark '.length, -' set 1 done'.length);
-  await type(`${exName} set 1 kg`, '40');
-  await type(`${exName} set 1 reps`, '9');
+  // Assisted lifts label the weight field differently (e.g. "assist kg"), so take the set's two inputs by position.
+  const setInputs = () => page.$$(`input[aria-label^="${exName} set 1 "]`);
+  const [wIn, rIn] = await setInputs();
+  await wIn.type('40');
+  await rIn.type('9');
   await click(markLabel);
   await page.waitForSelector(`${sel(markLabel)}[aria-checked="true"]`, { timeout: 20000 });
   console.log(`workout: started "${startLabel}", ticked ${exName} set 1 (40 kg x 9)`);
@@ -150,7 +153,7 @@ try {
   const back = await page.waitForSelector(sel(markLabel), { timeout: 8000 }).catch(() => null);
   if (!back) await click('Workout');
   await page.waitForSelector(`${sel(markLabel)}[aria-checked="true"]`, { timeout: 20000 });
-  const [kg, reps] = await Promise.all([`${exName} set 1 kg`, `${exName} set 1 reps`].map((l) => page.$eval(sel(l), (e) => e.value)));
+  const [kg, reps] = await Promise.all((await setInputs()).slice(0, 2).map((e) => e.evaluate((x) => x.value)));
   if (kg !== '40' || reps !== '9') throw new Error(`ticked set came back as ${kg} x ${reps}`);
   console.log('after reload: the ticked set persisted (40 kg x 9, done) and the session is still open');
   // Food: log a roti under breakfast and tick "logged everything", reload, check both came back from SQLite.

@@ -1,9 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { fmt } from '../format';
 import { buildResults, clearanceNote } from '../setup/results';
 import type { Profile } from '../setup/types';
+import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { Button, H1, Hint, Label, Note } from './ui';
+import { Button, Card, H1, Hint, Label, Note } from './ui';
 
 /**
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
@@ -15,7 +17,7 @@ export function ResultsView({ profile, onCleared }: { profile: Profile; onCleare
   const clear = clearanceNote(profile);
   const t = v.r;
   const tiles: [string, string, string][] = [
-    [fmt(t.kcal), 'kcal', c.brand],
+    [fmt(t.kcal), 'kcal', c.ink],
     [String(t.protein), 'g protein', c.protein],
     [String(t.carbs), 'g carbs', c.carbs],
     [String(t.fat), 'g fat', c.fat],
@@ -33,16 +35,17 @@ export function ResultsView({ profile, onCleared }: { profile: Profile; onCleare
       <Label>Your daily targets</Label>
       <View style={styles.grid}>
         {tiles.map(([n, unit, color], i) => (
-          <View
+          <Card
             key={unit}
             testID={`target-${i}`}
             accessible
             accessibilityLabel={`${n} ${unit}`}
-            style={[styles.tile, { backgroundColor: c.surface, borderColor: c.line }]}
+            style={styles.tile}
           >
-            <Text style={[styles.num, { color }]}>{n}</Text>
-            <Text style={{ color: c.muted, fontSize: 13 }}>{unit}</Text>
-          </View>
+            <View style={[styles.dot, { backgroundColor: color }]} />
+            <Text style={[styles.num, { color: c.ink }]}>{n}</Text>
+            <Text style={{ color: c.body, fontSize: 13 }}>{unit}</Text>
+          </Card>
         ))}
       </View>
       <Hint>{v.pace}</Hint>
@@ -66,7 +69,8 @@ const styles = StyleSheet.create({
   wrap: { gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { flexGrow: 1, flexBasis: '45%', borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
-  num: { fontSize: 26, fontWeight: '800' },
-  card: { borderWidth: 2, borderRadius: 12, padding: 12, gap: 6 },
+  tile: { flexGrow: 1, flexBasis: '45%', alignItems: 'center', gap: 2 },
+  dot: { width: 10, height: 10, borderRadius: radius.full },
+  num: { fontSize: 26, fontWeight: '300' },
+  card: { borderWidth: 2, borderRadius: radius.md, padding: 12, gap: 6 },
 });
