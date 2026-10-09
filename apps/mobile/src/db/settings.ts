@@ -1,3 +1,4 @@
+import { validMealPlan } from '../meals/validPlan';
 import type { Settings } from '../settings/types';
 import type { StoreDb } from './records';
 
@@ -8,8 +9,9 @@ export async function loadSettings(db: StoreDb): Promise<Settings | null> {
   const row = await db.getFirstAsync<{ data: string }>('SELECT data FROM user_settings WHERE key = ?', KEY);
   if (!row) return null;
   const s = JSON.parse(row.data) as Settings;
+  // meal_plan has its shape owned by core: a malformed one reads as none.
   // Contract 0.1.3: flex entries carry a plan id. Drop any stored without one rather than crash on it.
-  return { ...s, flex: (s.flex ?? []).filter((f) => typeof f?.id === 'string' && f.id !== '') };
+  return { ...s, flex: (s.flex ?? []).filter((f) => typeof f?.id === 'string' && f.id !== ''), meal_plan: validMealPlan(s.meal_plan) };
 }
 
 export async function saveSettings(db: StoreDb, s: Settings): Promise<void> {

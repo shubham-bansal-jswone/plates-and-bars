@@ -1,9 +1,9 @@
-import type { FlexEntry } from '@plate-and-bar/core';
+import type { FlexEntry, MealPlan } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
 /**
  * Contract `Settings`, snake_case as in packages/api/openapi.yaml. Shapes that the contract leaves to
- * packages/core (`adjustments`, `adaptive`, `learn`, `meal_plan`, `prep`) stay open objects here.
+ * packages/core (`adjustments`, `adaptive`, `learn`, `prep`) stay open objects here.
  */
 export interface Settings extends Omit<SyncMeta, 'id'> {
   /**
@@ -27,7 +27,8 @@ export interface Settings extends Omit<SyncMeta, 'id'> {
   adjustments: Record<string, unknown>;
   adaptive: Record<string, unknown>;
   learn: Record<string, unknown>;
-  meal_plan: Record<string, unknown> | null;
+  /** Core's `MealPlan`: the shape the contract leaves to packages/core. */
+  meal_plan: MealPlan | null;
   prep: Record<string, unknown>[];
 }
 
