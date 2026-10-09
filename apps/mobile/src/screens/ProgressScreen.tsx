@@ -6,6 +6,8 @@ import { Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, MEASURES, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
+import { CheckinCard } from '../progress/CheckinCard';
+import { useCheckin } from '../progress/useCheckin';
 import { TrendChart } from '../progress/TrendChart';
 import { useProgress } from '../progress/useProgress';
 import { useProfile } from '../state/ProfileProvider';
@@ -34,6 +36,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const p = useProgress({ db, now, notify });
+  const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify });
 
   const ready = status === 'ready' && p.ready;
   return (
@@ -42,6 +45,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
         {ready ? (
           <>
             <H1>Progress</H1>
+            <CheckinCard date={p.date} c={ci} />
             <WeightSection p={p} />
             <MeasureSection p={p} />
             <StepsSleepSection p={p} />

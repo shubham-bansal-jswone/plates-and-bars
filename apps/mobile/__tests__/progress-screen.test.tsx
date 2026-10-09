@@ -6,7 +6,9 @@ import { saveLog, saveDayNote } from '../src/db/food';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveConsent, saveProfile } from '../src/db/records';
+import { saveWorkout, saveSet } from '../src/db/workouts';
 import { saveMeasurement, saveWeight } from '../src/db/progress';
+import { addDays } from '@plate-and-bar/core';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
@@ -353,5 +355,65 @@ describe('Progress trends and scale-jump note', () => {
     await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '12');
     await fireEvent.press(screen.getByLabelText('Save weight'));
     expect(screen.queryByText(/The scale went up/)).toBeNull();
+  });
+});
+
+describe('Weekly check-in, burn and habits', () => {
+  const meal = (date: string, n: number, kcal: number) => ({ id: `m-${date}-${n}`, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, meal: 'Lunch' as const, name: 'Dal', qty: 1, kcal, protein_g: 40, carbs_g: 100, fat_g: 20, food_id: null });
+  const day = (offset: number) => addDays(DATE, -offset);
+  const seed = async (db: Db, kcal: number, weights: boolean) => {
+    for (let i = 0; i < 14; i++) {
+      await saveLog(db, meal(day(i), 1, kcal));
+      await saveDayNote(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: day(i), complete: true, steps: 8000, sleep: 6.5, fast: false });
+    }
+    if (weights) for (let i = 0; i < 12; i++) await saveWeight(db, weigh(day(i), Math.round((80 + i * 0.1) * 10) / 10));
+  };
+
+  it('shows the week numbers from core, the burn card waiting for data, and the habits', async () => {
+    const db = memoryDb();
+    await saveLog(db, meal(DATE, 1, 600));
+    await saveDayNote(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: DATE, complete: null, steps: 8000, sleep: 6.5, fast: false });
+    await setup({ db });
+    expect(await screen.findByText('Weekly check-in')).toBeTruthy();
+    expect(screen.getByText('The 7 days up to 8 Oct')).toBeTruthy();
+    expect(screen.getByText(/Steps: about 8,000 a day\. Sleep: 6\.5 hours a night, under the 7–9 hours/)).toBeTruthy();
+    expect(screen.getByText(/Needs 10 more complete days in the last 2 weeks.* and 6 more weigh-ins/)).toBeTruthy();
+    expect(screen.getByLabelText('1/7 days with food logged')).toBeTruthy();
+    expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
+  });
+
+  it('counts a day with a done work set as a session', async () => {
+    const db = memoryDb();
+    await saveWorkout(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: DATE, template: 'Upper A', base: 'Upper A', where: 'gym', cardio_min: 30, mods: {}, exercises: [], ci_choice: null });
+    await saveSet(db, DATE, { id: 's1', version: 0, updated_at: '', deleted_at: null, workout_id: null, exercise: 'Bench', kind: 'work', set_index: 0, weight_kg: 40, reps: 8, done: true, rate: null, t: null });
+    await setup({ db });
+    expect(await screen.findByLabelText(/^1 \/ \d+ sessions$/)).toBeTruthy();
+    expect(screen.getByText(/Cardio: 30 of 150 min/)).toBeTruthy();
+  });
+
+  it('suggests new targets from the real burn and applies them to the profile only, then hides the card', async () => {
+    const db = memoryDb();
+    await seed(db, 1500, true);
+    await setup({ db });
+    const update = await screen.findByLabelText('Update my targets');
+    await fireEvent.press(update);
+    await waitFor(() => expect(JSON.parse(db.rows.get('profiles:me')!).targets.kcal).not.toBe(profile().targets.kcal));
+    await waitFor(() => expect(screen.queryByLabelText('Update my targets')).toBeNull());
+    expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments.dismissed).toEqual({ 'ci:2026-10-05': true });
+  });
+
+  it('offers a 4-day plan next week when sessions fall short, and "Not now" counts a decline', async () => {
+    const db = memoryDb();
+    await setup({ db });
+    await fireEvent.press(await screen.findByLabelText('Use a 4-day plan next week'));
+    await waitFor(() => expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments.weekPlan).toEqual({ start: '2026-10-12', list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'] }));
+  });
+
+  it('"Not now" hides the suggestion for the week and counts a decline', async () => {
+    const db = memoryDb();
+    await setup({ db });
+    await fireEvent.press(await screen.findByLabelText('Not now'));
+    await waitFor(() => expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments).toMatchObject({ declines: { checkin: 1 }, dismissed: { 'ci:2026-10-05': true } }));
+    expect(screen.queryByLabelText('Use a 4-day plan next week')).toBeNull();
   });
 });
