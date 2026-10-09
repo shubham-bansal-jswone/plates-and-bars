@@ -372,11 +372,16 @@ export interface UndoFlexFloor {
  * is removed. Trimmed calories are simply not cut. Other entries are kept as they are, in order, and the
  * input is left alone.
  *
- * Without `floor` nothing is trimmed (the old rule). That call is kept only so the app compiles until it
- * passes its profile (#178 follow-up); new callers pass `floor`.
- *
  * Mirrors prototype `undoFlex(id)` (`case 'flex-undo'`; state passed in). Decided in #176.
  */
+export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string, floor: UndoFlexFloor): FlexEntry[];
+/**
+ * Removes every entry of the flex plan `id` and trims nothing (the rule before #176).
+ *
+ * @deprecated Pass `floor` so no day is left below the minimum (#176). This form is kept only so the app
+ * compiles until it passes its profile (#206, the #178 follow-up); `floor` becomes required then.
+ */
+export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string): FlexEntry[];
 export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string, floor?: UndoFlexFloor): FlexEntry[] {
   const all = flex ?? [];
   const kept = all.filter((x) => x.id !== id);

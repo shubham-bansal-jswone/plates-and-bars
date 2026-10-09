@@ -629,12 +629,13 @@ describe('planFlex and undoFlex', () => {
   it('undoFlex removes every entry of the plan and nothing else', () => {
     const a = planFlex({ ...at, extra: 500 }, null).flex;
     const b = planFlex({ ...at, id: 'p2', date: '2026-10-09', extra: 300, flex: a }, null).flex;
-    for (const floor of [undefined, { profile: null }]) {
-      expect(undoFlex(b, 'p1', floor)).toEqual(b.filter((x) => x.id === 'p2'));
-      expect(undoFlex(b, 'p2', floor)).toEqual(a);
-      expect(undoFlex(b, 'none', floor)).toEqual(b);
-      expect(undoFlex(null, 'p1', floor)).toEqual([]);
-      expect(undoFlex(undefined, 'p1', floor)).toEqual([]);
+    const undos = [(f: FlexEntry[] | null | undefined, id: string) => undoFlex(f, id), (f: FlexEntry[] | null | undefined, id: string) => undoFlex(f, id, { profile: null })];
+    for (const undo of undos) {
+      expect(undo(b, 'p1')).toEqual(b.filter((x) => x.id === 'p2'));
+      expect(undo(b, 'p2')).toEqual(a);
+      expect(undo(b, 'none')).toEqual(b);
+      expect(undo(null, 'p1')).toEqual([]);
+      expect(undo(undefined, 'p1')).toEqual([]);
     }
     expect(undoFlex(b, 'p2', { profile: null })).toEqual(protoUndo(b, 'p2', null));
   });
@@ -827,10 +828,13 @@ describe('planFlex and undoFlex', () => {
       const days = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-12', '2026-10-20'];
       let trims = 0;
       let undos = 0;
+      let belowCleared = 0;
       for (let i = 0; i < RUNS / 10; i++) {
         const rand = r() < 0.15 ? null : randomProfile(r);
-        // half the profiles sit up to 400 above the floor, where trims happen
-        const prof = rand && r() < 0.5 ? { ...rand, targets: { kcal: calcTargets(toTargetsProfile(rand)).floor + Math.round(r() * 400) } } : rand;
+        // one in five profiles sits up to 300 below the floor, two in five up to 400 above it (where trims happen)
+        const near = r();
+        const randFloor = rand ? calcTargets(toTargetsProfile(rand)).floor : 0;
+        const prof = rand && near < 0.6 ? { ...rand, targets: { kcal: near < 0.2 ? randFloor - 10 - Math.round(r() * 290) : randFloor + Math.round(r() * 400) } } : rand;
         const floor = prof ? calcTargets(toTargetsProfile(prof)).floor : FLEX_FLOOR_DEFAULT;
         let flex: FlexEntry[] = [];
         for (let step = 0; step < 12; step++) {
@@ -841,6 +845,14 @@ describe('planFlex and undoFlex', () => {
             const next = undoFlex(flex, plan.id, { profile: prof, labHold });
             expect(next).toEqual(protoUndo(flex, plan.id, prof, labHold));
             if (JSON.stringify(next) !== JSON.stringify(undoFlex(flex, plan.id))) trims++;
+            // a day of the undone plan whose target without cuts is below the floor keeps no cut
+            for (const d of new Set(flex.filter((x) => x.id === plan.id).map((x) => x.date))) {
+              const uncut = (prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET) + next.filter((x) => x.date === d && x.kcal_delta > 0).reduce((a, x) => a + x.kcal_delta, 0);
+              if (uncut < floor && flex.some((x) => x.date === d && x.id !== plan.id && x.kcal_delta < 0)) {
+                belowCleared++;
+                expect(next.filter((x) => x.date === d && x.kcal_delta < 0)).toEqual([]);
+              }
+            }
             undos++;
             flex = next;
           } else {
@@ -856,6 +868,7 @@ describe('planFlex and undoFlex', () => {
       }
       expect(undos).toBeGreaterThan(500);
       expect(trims).toBeGreaterThan(50);
+      expect(belowCleared).toBeGreaterThan(20);
     });
   });
 });
