@@ -61,7 +61,9 @@ class NetworkError extends Error {}
 async function net<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
-  } catch {
+  } catch (e) {
+    // A body that is not valid JSON came back from a server that answered: that is a fault, not a lost connection.
+    if (e instanceof SyntaxError) throw e;
     throw new NetworkError('network');
   }
 }
@@ -71,6 +73,7 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest']): Promise<Outcome<
   for (let attempt = 0; attempt < 2; attempt++) {
     const { data, response } = await net(() => d.api.POST('/sync', { body }));
     if (data) return { ok: true, data };
+    if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
     if (response.status !== 401) return failFrom(response);
     if (attempt === 1 || !(await refresh(d))) return fail('signed_out');
   }
@@ -86,6 +89,7 @@ async function refresh(d: SyncDeps): Promise<boolean> {
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
     return true;
   }
+  if (response.ok) throw new Error('empty or malformed 2xx body');
   if (response.status === 401) await d.tokens.clear();
   else throw new TransientError(failFrom(response));
   return false;
