@@ -474,7 +474,7 @@ export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea,
 /**
  * Weekly meal plan and grocery list. The plan is contract `Settings.meal_plan` in the prototype's
  * `mealPlan` shape; the grocery map is content/meal-planning.json `grocery` (prototype `GROC`).
- * - `buildPlan` mirrors prototype `buildPlan()` (targets, start and diet passed in); `PLAN_DAYS`, `PLAN_OPTIONS`
+ * - `buildPlan` mirrors prototype `buildPlan()` (targets, profile age, start and diet passed in); `PLAN_DAYS`, `PLAN_OPTIONS`
  *   and `PLAN_ROTATION` are its 7, 4 and 3.
  * - `planItems` mirrors `planItems`; `swapPlanMeal` mirrors `case 'mp-swap'`; `planForMeal` mirrors `planForMeal(meal)` (date passed in).
  * - `planIsCurrent` mirrors the saved-plan check and `planDayTotals` the "About … kcal" line of `planSheet()`.
