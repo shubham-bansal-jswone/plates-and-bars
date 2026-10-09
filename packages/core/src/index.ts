@@ -315,3 +315,31 @@ export {
   WEIGHT_DRIFT_KG,
 } from './progress';
 export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WorkoutBurn, WeightDrift } from './progress';
+
+/**
+ * Progress: real burn, rapid loss, habits and the weekly check-in. Days come as `ProgressDay` facts
+ * (contract `FoodLog`, `DayNote`, `Workout.cardio_min`, any done `WorkoutSet`), one per date.
+ * - `weeklyAvg` mirrors prototype `weeklyAvg(end)`; `rapidLoss` mirrors `calorieCard()`; `RAPID_LOSS_KCAL` is its 150.
+ * - `addKcal` mirrors the `adj-kcal` step of prototype `adjAction`.
+ * - `weightSlope`, `adaptiveBurn`, `targetFromBurn` mirror the prototype functions of the same name (state passed in);
+ *   `KCAL_PER_KG` mirrors prototype `KCAL_PER_KG`; `nextAdaptive` mirrors the `settings.adaptive` update in `renderCheckin()`.
+ * - `weeklyCheckin` mirrors prototype `renderCheckin()` (facts and choice of suggestion, not HTML); `CHECKIN_KCAL_STEP`
+ *   and `CARDIO_WEEK_MIN` are its 100 kcal and WHO 150 min.
+ * - `habits` mirrors prototype `consistencyHtml()` (numbers and choice of line, not HTML).
+ */
+export {
+  weeklyAvg,
+  rapidLoss,
+  addKcal,
+  weightSlope,
+  adaptiveBurn,
+  nextAdaptive,
+  targetFromBurn,
+  weeklyCheckin,
+  habits,
+  KCAL_PER_KG,
+  RAPID_LOSS_KCAL,
+  CHECKIN_KCAL_STEP,
+  CARDIO_WEEK_MIN,
+} from './progress';
+export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, CheckinInput, CheckinSuggestion, WeeklyCheckin, Habits } from './progress';
