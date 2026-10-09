@@ -1,3 +1,4 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
@@ -46,8 +47,21 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
   const logsRef = useRef(logs);
   const noteRef = useRef(note);
   const mineRef = useRef(mine);
+  const [failed, setFailed] = useState(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  /** Counts this screen's writes, so a read that overlapped one is redone. */
   const writes = useRef(0);
+
+  // The tab stays mounted under the Recipes screen, which saves foods and logs, so everything is read again when it is shown
+  // (not on the first show: the mount already reads).
+  const [shown, setShown] = useState(0);
+  const first = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (first.current) first.current = false;
+      else setShown((n) => n + 1);
+    }, []),
+  );
 
   useEffect(() => {
     let live = true;
@@ -63,12 +77,14 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
       setMine(m);
       setReady(true);
     })().catch(() => {
-      if (live) notify('Couldn’t read your saved food.');
+      if (!live) return;
+      setFailed(true);
+      notify('Couldn’t read your saved food.');
     });
     return () => {
       live = false;
     };
-  }, [db, date, notify, reloadKey]);
+  }, [db, date, notify, shown, reloadKey]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
@@ -153,5 +169,5 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
     [db, now, enqueue],
   );
 
-  return { date, ready, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
+  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
 }

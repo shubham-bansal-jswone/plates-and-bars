@@ -1,5 +1,6 @@
 import { clearPushed, inTransaction, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import type { WorkoutDb } from '../db/workouts';
 
 // A record the server refuses (400) is set aside, not retried every run, so the rest keeps syncing. It stays in the outbox
 // (still "not synced"); a marker row in the device-local key/value table (`sync.` prefix, so wipes remove it) hides that
@@ -35,13 +36,13 @@ export async function quarantine(db: PullDb, e: OutboxEntry, field: string, guar
 }
 
 /** The records set aside now (a marker whose entry was edited or removed since is ignored). */
-export async function listQuarantined(db: StoreDb): Promise<Quarantined[]> {
+export async function listQuarantined(db: WorkoutDb): Promise<Quarantined[]> {
   return db.getAllAsync<Quarantined>(
     `SELECT o.tbl AS tbl, o.key AS key, o.seq AS seq, s.value AS field FROM sync_outbox o JOIN settings s ON s.key = '${PREFIX}' || o.seq || '.' || o.tbl || '.' || o.key ORDER BY o.seq`,
   );
 }
 
-export async function quarantineCount(db: StoreDb): Promise<number> {
+export async function quarantineCount(db: WorkoutDb): Promise<number> {
   return (await listQuarantined(db)).length;
 }
 
@@ -57,7 +58,7 @@ export async function retryQuarantined(db: PullDb): Promise<void> {
 export async function discardQuarantined(db: PullDb): Promise<number> {
   let n = 0;
   await inTransaction(db, async (txn) => {
-    const rows = await listQuarantined(txn);
+    const rows = await listQuarantined(txn as WorkoutDb);
     for (const r of rows) await clearPushed(txn, r);
     await txn.runAsync(`DELETE FROM settings WHERE key LIKE '${PREFIX}%'`);
     n = rows.length;

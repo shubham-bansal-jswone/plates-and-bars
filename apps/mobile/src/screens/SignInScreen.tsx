@@ -70,6 +70,37 @@ export function SignInScreen() {
             />
           </>
         ) : null}
+        {s.quarantined > 0 ? (
+          <>
+            <Note>{t.quarantined(s.quarantined)}</Note>
+            <Button
+              kind="ghost"
+              label={t.retryQuarantined}
+              onPress={() =>
+                void run(async () => {
+                  try {
+                    await s.retryQuarantined();
+                  } catch {
+                    setError(t.retryFailed);
+                  }
+                })
+              }
+            />
+            <Button
+              kind="ghost"
+              label={t.discardQuarantined}
+              onPress={() =>
+                void run(async () => {
+                  try {
+                    await s.discardQuarantined();
+                  } catch {
+                    setError(t.discardFailed);
+                  }
+                })
+              }
+            />
+          </>
+        ) : null}
         {s.last && s.last.conflicts > 0 ? <Note>{t.conflicts(s.last.conflicts)}</Note> : null}
         {error ? <ErrorText>{error}</ErrorText> : null}
         <View style={{ gap: 12 }}>

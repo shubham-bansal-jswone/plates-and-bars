@@ -7,6 +7,8 @@ import { saveExclusion, loadExclusions } from '../src/db/rules';
 import { saveWorkout } from '../src/db/workouts';
 import { useFoodDay } from '../src/food/useFoodDay';
 import { useProgress } from '../src/progress/useProgress';
+import { saveRecipe } from '../src/db/recipes';
+import { useRecipes } from '../src/recipes/useRecipes';
 import { useRules } from '../src/workout/useRules';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { openDb } from './sync-helpers';
@@ -113,6 +115,18 @@ describe('a pull makes the screens read SQLite again (dataVersion)', () => {
     g.release();
     await waitFor(() => expect(result.current.rules.exclusions.map((r) => r.name).sort()).toEqual(['Barbell Squat', 'Lunge']));
     await waitFor(async () => expect(await loadExclusions(real)).toHaveLength(2));
+  });
+});
+
+describe('recipes', () => {
+  it('show a recipe that arrived from another device', async () => {
+    const db = await openDb();
+    const { result, rerender } = await renderHook(({ k }: { k: number }) => useRecipes({ db, now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.recipes).toHaveLength(0);
+    await saveRecipe(db, { id: 'r1', ...meta, name: 'Dal', ingredients: [{ ingredient: 'Toor dal', amount: 100, unit: 'g' }], yield_mode: 'katori', katoris: 4, cooked_g: null, oil: 'none' });
+    await rerender({ k: 1 });
+    await waitFor(() => expect(result.current.recipes.map((r) => r.name)).toEqual(['Dal']));
   });
 });
 

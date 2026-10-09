@@ -67,6 +67,8 @@ export function fakeServer(userId: string) {
     accessValid: 'access-1',
     refreshes: 0,
     refreshOk: true,
+    /** Answers 400 `invalid_request` naming every pushed record this returns a field for (the request applies nothing). */
+    rejectIf: null as null | ((table: string, rec: Rec) => string | null),
     /** Resolution to apply to every version mismatch. */
     conflictResolution: null as null | 'server_won',
     put(table: string, rec: Rec) {
@@ -98,6 +100,13 @@ export function fakeServer(userId: string) {
       const forced = s.forceStatus.shift();
       if (forced) return json(forced.status, { code: forced.status === 503 ? 'unavailable' : 'rate_limited', message: 'x' }, forced.retryAfter ? { 'Retry-After': forced.retryAfter } : {});
       if (auth !== `Bearer ${s.accessValid}`) return json(401, { code: 'token_expired', message: 'x' });
+      if (s.rejectIf) {
+        const details = Object.entries(body.changes ?? {}).flatMap(([table, recs]) => recs.flatMap((r, i) => {
+          const f = s.rejectIf?.(table, r);
+          return f ? [{ field: `changes.${table}[${i}].${f}`, issue: 'is invalid' }] : [];
+        }));
+        if (details.length) return json(400, { code: 'invalid_request', message: 'Some fields are invalid.', details });
+      }
       const applied: unknown[] = [];
       const conflicts: unknown[] = [];
       for (const [table, recs] of Object.entries(body.changes ?? {})) {
