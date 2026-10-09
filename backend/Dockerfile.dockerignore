@@ -1,8 +1,7 @@
 *
 !backend
 !packages/api/openapi.yaml
-!content/cards.json
-!content/exercises.json
+!content/*.json
 backend/build
 backend/.gradle
 **/.git
