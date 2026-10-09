@@ -15,6 +15,7 @@ import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
+import { SummaryCard } from '../ai/SummaryCard';
 
 interface Props {
   db: WorkoutDb;
@@ -27,7 +28,7 @@ const r1 = (n: number): string => round1(n).toString();
 
 /** Progress tab, body data: weight entry, tape measurements with the navy body-fat estimate, and steps and sleep. */
 export function ProgressScreen({ db, now = () => new Date() }: Props) {
-  const { status } = useProfile();
+  const { status, profile } = useProfile();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = useCallback((msg: string) => {
@@ -47,6 +48,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
           <>
             <H1>Progress</H1>
             <CheckinCard date={p.date} c={ci} />
+            <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} />
             <StepsSleepSection p={p} />

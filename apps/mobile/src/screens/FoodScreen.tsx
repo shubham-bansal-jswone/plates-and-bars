@@ -21,6 +21,9 @@ import { useSettings } from '../state/SettingsProvider';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
+import { useAi } from '../ai/AiProvider';
+import { DescribeSheet } from '../ai/DescribeSheet';
+import { AI_COPY } from '../ai/copy';
 
 interface Props {
   db: WorkoutDb;
@@ -38,6 +41,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const { ready: settingsReady, settings, loadFailed, setFlex, setDiet } = useSettings();
   const [toast, setToast] = useState<string | null>(null);
   const [adding, setAdding] = useState<Meal | null>(null);
+  const [describing, setDescribing] = useState<Meal | null>(null);
+  const ai = useAi();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = useCallback((msg: string) => {
     setToast(msg);
@@ -141,7 +146,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         />
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
           <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -151,6 +156,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         ) : null}
       </Page>
       {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} /> : null}
+      {describing ? <DescribeSheet meal={describing} onAdd={(n) => f.add(describing, n)} onClose={() => setDescribing(null)} /> : null}
       <ToastBar message={toast} />
     </View>
   );
@@ -170,7 +176,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   );
 }
 
-function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAdd, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; onRemove: (id: string) => void; onAdd: () => void; onRecipes: () => void }) {
+function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAdd, onDescribe, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; onRemove: (id: string) => void; onAdd: () => void; onDescribe?: () => void; onRecipes: () => void }) {
   const c = useTheme();
   const kcal = logTotals(items, facts).kcal;
   return (
@@ -196,6 +202,7 @@ function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAd
         </View>
       ) : null}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
+      {onDescribe ? <Button label={AI_COPY.describeButton} a11yLabel={`Describe your ${meal.toLowerCase()} in words, AI estimate`} onPress={onDescribe} kind="ghost" /> : null}
       <Button label="Recipes" a11yLabel={`Recipes for ${meal.toLowerCase()}: build a recipe, the library and cooking mode`} onPress={onRecipes} kind="link" />
     </View>
   );

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, Platform } from 'react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { deleteEverything, exportFromServer, wipePending as readWipePending, type DeleteResult, type ServerExportResult } from '../account/server';
+import { AiProvider } from '../ai/AiProvider';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
 import { syncOnce, type SyncDb, type SyncResult } from './engine';
@@ -56,6 +57,7 @@ export interface SyncState {
 }
 
 export const SyncContext = createContext<SyncState | null>(null);
+
 
 export function useSync(): SyncState {
   const v = useContext(SyncContext);
@@ -238,5 +240,12 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     }),
     [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
-  return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
+  // AI features sit inside the sync provider: they reuse its client and tokens (kept inside) and its signed-in state.
+  return (
+    <SyncContext.Provider value={value}>
+      <AiProvider db={db} api={api} tokens={tokens} signedIn={signedIn} syncStamp={last?.status === 'ok' ? last : null}>
+        {children}
+      </AiProvider>
+    </SyncContext.Provider>
+  );
 }
