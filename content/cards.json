@@ -13,13 +13,21 @@
       "id": "targets",
       "title": "Why these calorie and macro targets?",
       "summary": "A moderate deficit loses fat while keeping enough energy to train and build muscle.",
-      "body": "Your target is {kcal} kcal. A deficit of roughly 15–20% loses about 0.5–1% of bodyweight a week, a pace that protects muscle better than crash dieting. Protein is set high ({protein_g} g) because it protects muscle in a deficit; fat stays at least about 25% of calories for hormones; carbs fill the rest and fuel training. Formulas can be off by about 10% for individuals, which is why the weekly check-in later corrects the burn from your real weight trend.",
+      "body": "{?tdee}Your estimated burn is about {tdee} kcal a day (resting {bmr}, daily movement {movement}, training {training}, digestion {digestion}). {/tdee}Your target is {kcal} kcal. A deficit of roughly 15–20% loses about 0.5–1% of bodyweight a week, a pace that protects muscle better than crash dieting. Protein is set high ({protein_g} g) because it protects muscle in a deficit; fat stays at least about 25% of calories for hormones; carbs fill the rest and fuel training. Formulas can be off by about 10% for individuals, which is why the weekly check-in later corrects the burn from your real weight trend.",
       "evidence": "Moderate",
       "source": "Mifflin et al., 1990 (calorie formula); Frankenfield et al., 2005 (formula accuracy review)",
       "learn_order": null,
       "placeholders": [
         "kcal",
-        "protein_g"
+        "protein_g",
+        "tdee",
+        "bmr",
+        "movement",
+        "training",
+        "digestion"
+      ],
+      "sections": [
+        "tdee"
       ],
       "review_status": "draft"
     },
@@ -27,12 +35,17 @@
       "id": "protein",
       "title": "Why so much protein?",
       "summary": "Protein is what lets you keep and build muscle while losing fat.",
-      "body": "A large meta-analysis found muscle-building benefits from protein level off at around 1.6 g per kg of bodyweight a day, with some people benefiting up to about 2.2 g. Your target of {protein_g} g adds a margin because protein needs rise during a calorie deficit, and protein keeps you fuller than the same calories from carbs or fat. Spreading it across 3–4 meals is a sensible habit, but the daily total matters most.",
+      "body": "A large meta-analysis found muscle-building benefits from protein level off at around 1.6 g per kg of bodyweight a day, with some people benefiting up to about 2.2 g. {?weight}At {weight} kg, 1.6 g/kg is about {protein_floor} g. {/weight}Your target of {protein_g} g adds a margin because protein needs rise during a calorie deficit, and protein keeps you fuller than the same calories from carbs or fat. Spreading it across 3–4 meals is a sensible habit, but the daily total matters most.",
       "evidence": "Strong",
       "source": "Morton et al., 2018, British Journal of Sports Medicine (meta-analysis)",
       "learn_order": 3,
       "placeholders": [
-        "protein_g"
+        "protein_g",
+        "weight",
+        "protein_floor"
+      ],
+      "sections": [
+        "weight"
       ],
       "review_status": "draft"
     },
@@ -175,6 +188,7 @@
       "source": "Roberts et al., 2020, Journal of Strength and Conditioning Research (sex differences review)",
       "learn_order": null,
       "audience": "female",
+      "learn_insert_at": 6,
       "review_status": "draft"
     },
     {
@@ -191,13 +205,18 @@
       "id": "split",
       "title": "How your sessions are built",
       "summary": "Your split follows your available days; big lifts come first and every muscle gets roughly even weekly work.",
-      "body": "You train {days} days a week, so your plan uses {split_name}, which trains each muscle about twice a week; that works at least as well as once. Sessions are trimmed to fit your time, keeping the big compound lifts first while you’re fresh and smaller exercises after. One exercise does each job, so you won’t see two curl variations back to back. Across the week the plan aims for roughly 10 hard sets per muscle.",
+      "body": "You train {days} days a week, so your plan uses {split_name}, which trains each muscle about twice a week; that works at least as well as once. Sessions are trimmed to fit {?minutes}about {minutes} minutes{:}your time{/minutes}, keeping the big compound lifts first while you’re fresh and smaller exercises after. One exercise does each job, so you won’t see two curl variations back to back. Across the week the plan aims for roughly 10 hard sets per muscle{?new_lifter}, starting with 2 sets per exercise for your first 2 weeks while you learn the movements{/new_lifter}.",
       "evidence": "Moderate",
       "source": "Schoenfeld, Ogborn & Krieger, 2016 and 2017 (training frequency and volume meta-analyses)",
       "learn_order": null,
       "placeholders": [
         "days",
-        "split_name"
+        "split_name",
+        "minutes"
+      ],
+      "sections": [
+        "minutes",
+        "new_lifter"
       ],
       "review_status": "draft"
     },

@@ -1,37 +1,40 @@
 {
   "schema_version": 1,
-  "origin": "docs/prototype/plate-and-bar.html (MEASURES)",
+  "origin": "docs/prototype/plate-and-bar.html (MEASURES, measuresHtml)",
   "unit": "cm",
   "measures": [
     {
       "key": "waist",
       "label": "Waist (at navel)",
-      "default_for": "all"
+      "show": "always"
     },
     {
       "key": "neck",
       "label": "Neck",
-      "default_for": "all"
+      "show": "always"
     },
     {
       "key": "chest",
       "label": "Chest",
-      "default_for": "all"
+      "show": "always"
     },
     {
       "key": "arm",
       "label": "Upper arm",
-      "default_for": "all"
+      "show": "always"
     },
     {
       "key": "thigh",
       "label": "Thigh",
-      "default_for": "all"
+      "show": "always"
     },
     {
       "key": "hips",
       "label": "Hips",
-      "default_for": "female"
+      "show": {
+        "sex": "female",
+        "or_entered_that_day": true
+      }
     }
   ]
 }

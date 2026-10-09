@@ -2,6 +2,30 @@
 const EVIDENCE = ['Strong', 'Moderate', 'Emerging'];
 const nonEmpty = (v) => typeof v === 'string' && v.trim() !== '';
 
+// Body syntax: {name} placeholders, {?sec}on{/sec} and {?sec}on{:}off{/sec} sections (not nested).
+function bodyErrors(c, at) {
+  const errors = [];
+  const ph = c.placeholders ?? [];
+  const secs = c.sections ?? [];
+  let body = String(c.body ?? '');
+  const opened = [];
+  for (const m of body.matchAll(/\{(\?|\/)([a-z_]+)\}/g)) {
+    if (m[1] === '?') {
+      if (opened.length) errors.push(`${at}: section ${m[2]} is nested inside ${opened[0]}`);
+      opened.push(m[2]);
+      if (!secs.includes(m[2])) errors.push(`${at}: section ${m[2]} not listed in sections`);
+    } else if (opened.pop() !== m[2]) errors.push(`${at}: section ${m[2]} closed without a matching open`);
+  }
+  if (opened.length) errors.push(`${at}: section ${opened[0]} is not closed`);
+  for (const s of secs) if (!body.includes(`{?${s}}`)) errors.push(`${at}: section ${s} is not used in body`);
+  body = body.replace(/\{[?/]([a-z_]+)\}|\{:\}/g, '');
+  const used = new Set([...body.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]));
+  for (const u of used) if (!ph.includes(u)) errors.push(`${at}: body uses {${u}} not listed in placeholders`);
+  for (const p of ph) if (!used.has(p)) errors.push(`${at}: placeholder ${p} is not used in body`);
+  if (/\{[^}]*\}/.test(body.replace(/\{[a-z_]+\}/g, ''))) errors.push(`${at}: malformed brace in body`);
+  return errors;
+}
+
 export function validateCards(content) {
   const errors = [];
   const ids = new Set();
@@ -26,10 +50,8 @@ export function validateCards(content) {
       if (orders.has(c.learn_order)) errors.push(`${at}: duplicate learn_order ${c.learn_order}`);
       orders.add(c.learn_order);
     }
-    const ph = c.placeholders ?? [];
-    const used = [...String(c.body ?? '').matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]);
-    for (const u of used) if (!ph.includes(u)) errors.push(`${at}: body uses {${u}} not listed in placeholders`);
-    for (const p of ph) if (!used.includes(p)) errors.push(`${at}: placeholder ${p} is not used in body`);
+    if (c.learn_insert_at !== undefined && !Number.isInteger(c.learn_insert_at)) errors.push(`${at}: learn_insert_at must be an integer`);
+    errors.push(...bodyErrors(c, at));
     if (c.review_status !== 'draft' && c.review_status !== 'reviewed') errors.push(`${at}: review_status must be draft or reviewed`);
   }
   return errors;
@@ -43,7 +65,8 @@ export function validateMeasures(content) {
     if (!nonEmpty(m.key) || !nonEmpty(m.label)) errors.push(`measure '${m?.key}': key and label are required`);
     if (keys.has(m.key)) errors.push(`measure '${m.key}': duplicate key`);
     keys.add(m.key);
-    if (!['all', 'female'].includes(m.default_for)) errors.push(`measure '${m.key}': default_for must be all or female`);
+    const okShow = m.show === 'always' || (m.show && m.show.sex === 'female' && m.show.or_entered_that_day === true);
+    if (!okShow) errors.push(`measure '${m.key}': show must be 'always' or { sex: 'female', or_entered_that_day: true }`);
   }
   if (content.unit !== 'cm') errors.push('unit must be cm');
   return errors;
