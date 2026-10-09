@@ -6,7 +6,7 @@ import { MealPlanScreen } from '../src/screens/MealPlanScreen';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
-import { catalogFoods } from '../src/food/catalog';
+import { getFoodCatalog } from '../src/food/catalog';
 import { mealGrocery, mealPlanning } from '../src/meals/content';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -29,7 +29,7 @@ const profile = () =>
 type Db = ReturnType<typeof memoryDb>;
 const expected = (diet: 'any' | 'egg' | 'veg' = 'any'): MealPlan => {
   const t = profile().targets;
-  return buildPlan({ kcal: t.kcal, protein: t.protein_g, fat: t.fat_g, age: 30 }, DATE, { foods: catalogFoods, planning: mealPlanning, diet });
+  return buildPlan({ kcal: t.kcal, protein: t.protein_g, fat: t.fat_g, age: 30 }, DATE, { foods: getFoodCatalog(), planning: mealPlanning, diet });
 };
 async function setup(onBack = jest.fn(), db: Db = memoryDb()) {
   await saveProfile(db, profile());

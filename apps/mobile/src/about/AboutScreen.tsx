@@ -3,7 +3,7 @@ import { Text } from '../components/Text';
 import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { ABOUT_COPY as t, FONT_SOURCES, FOOD_SOURCES, sourceKey, type SourceInfo } from './sources';
+import { ABOUT_COPY as t, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
 
 function Source({ s }: { s: SourceInfo }) {
   const c = useTheme();
@@ -29,7 +29,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
       <Label>{t.food}</Label>
-      <View style={{ gap: 8 }}>{FOOD_SOURCES.map((s) => <Source key={sourceKey(s)} s={s} />)}</View>
+      <View style={{ gap: 8 }}>{getFoodSources().map((s) => <Source key={sourceKey(s)} s={s} />)}</View>
       <Label>{t.exercises}</Label>
       <Hint>{t.exercisesText}</Hint>
       <Label>{t.fonts}</Label>
