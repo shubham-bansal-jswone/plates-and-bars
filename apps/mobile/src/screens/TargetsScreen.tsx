@@ -70,6 +70,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
           </View>
         ) : null}
         <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
+        <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
         {ready ? (
           <>
             <RulesSection db={db} today={localDate(now())} now={now} notify={notify} />

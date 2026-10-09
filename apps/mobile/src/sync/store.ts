@@ -2,6 +2,8 @@ import type { StoreDb } from '../db/records';
 
 // Sync bookkeeping lives in the device-local `settings` key/value table under `sync.` keys, so wiping them is one prefix.
 export const KEY_USER = 'sync.user_id';
+/** Device-only (not `sync.`, so sign-out and sync wipes keep it): the account of this user id was deleted on the server and the device wipe is still to do. Removed by the forced wipe. */
+export const KEY_SERVER_DELETED = 'device.server_deleted';
 export const KEY_CURSOR = 'sync.cursor';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 

@@ -1,8 +1,9 @@
 import type { Schemas } from '@plate-and-bar/api';
 import { SYNC_TABLES, inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_USER, getUserId, setKv } from './store';
+import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
@@ -10,30 +11,45 @@ import type { TokenStore } from './tokens';
 
 type Db = StoreDb & PullDb;
 
-/** Runs `f` with the sync engine stopped and drained, so no run can write into (or bring tokens back after) what `f` changes. */
+/** The one account-operation lock: sign-in, sign-out, discard, account switch, server export and delete everything run one at a time. */
+const accountLock = new WriteLock();
+
+/**
+ * Runs `f` as the only account operation (queued behind any other) with the sync engine stopped and drained, so no sync
+ * run can write into (or bring tokens back after) what `f` changes and no sign-in can interleave with an in-flight
+ * `DELETE /me`, export or refresh. Not reentrant: `f` must not call another function that uses it.
+ */
 export async function withSyncPaused<T>(f: () => Promise<T>): Promise<T> {
-  await pauseSync();
-  try {
-    return await f();
-  } finally {
-    resumeSync();
-  }
+  return accountLock.run(async () => {
+    await pauseSync();
+    try {
+      return await f();
+    } finally {
+      resumeSync();
+    }
+  });
 }
 
 /**
  * Deletes the previous user's local store in one transaction under the write lock: every synced table, the outbox and the
- * sync bookkeeping. Device-only flags in `settings` stay. Unless `force`, it counts the unsynced changes in the same
+ * sync bookkeeping. Other device-only flags in `settings` stay, except that a forced wipe also removes the pending-wipe
+ * marker (`device.server_deleted`), since what it stands for is done. Unless `force`, it counts the unsynced changes in the same
  * transaction and wipes nothing when there are any; the count is returned (0 means wiped).
  * TODO(#251, photo vault): the encrypted progress-photo vault must be wiped here too once it exists (ADR 004).
  */
-export async function wipeLocalStore(db: Db, opts: { force?: boolean } = {}): Promise<number> {
+/** Thrown by `wipeLocalStore` when `expectUser` no longer owns the store: someone else signed in meanwhile, nothing was wiped. */
+export class OwnerChanged extends Error {}
+
+export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser?: string | null } = {}): Promise<number> {
   let pending = 0;
   await inTransaction(db, async (txn) => {
+    if (opts.expectUser !== undefined && (await getUserId(txn)) !== opts.expectUser) throw new OwnerChanged();
     pending = (await txn.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox'))?.n ?? 0;
     if (pending > 0 && !opts.force) return;
     for (const local of Object.values(SYNC_TABLES)) await txn.runAsync(`DELETE FROM ${local}`);
     await txn.runAsync('DELETE FROM sync_outbox');
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
+    if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     pending = 0;
   });
   return pending;

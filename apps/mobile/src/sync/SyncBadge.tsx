@@ -21,7 +21,8 @@ export function SyncBadge() {
   const router = useRouter();
   const path = usePathname();
   const insets = useSafeAreaInsets();
-  if (!s.configured || path === '/sign-in') return null;
+  // While a device wipe is pending the account is already deleted: no "sign in" prompt.
+  if (!s.configured || path === '/sign-in' || s.wipePending) return null;
   const label = badgeLabel(s);
   const warn = s.signedIn && s.pending > 0;
   const hint = s.signedIn ? (s.pending > 0 ? `${changes(s.pending)} on this device ${s.pending === 1 ? 'is' : 'are'} not synced yet` : 'All changes are synced') : 'Signing in is optional';

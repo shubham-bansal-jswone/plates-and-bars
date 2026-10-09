@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-router", "expo-sqlite", "expo-secure-store", "expo-font"],
+    "plugins": ["expo-router", "expo-sqlite", "expo-secure-store", "expo-font", "expo-sharing"],
     "experiments": { "typedRoutes": true },
     "ios": { "supportsTablet": true, "bundleIdentifier": "app.plateandbar.mobile" },
     "android": {
