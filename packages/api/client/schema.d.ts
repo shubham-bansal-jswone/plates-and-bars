@@ -333,6 +333,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which AI features are on, and the user's quota
+         * @description Tells the app which AI features are switched on (see Kill switch in the `ai` tag)
+         *     and the user's daily quota, so it shows only the AI entry points that work. The
+         *     app reads it on start and when it returns to the foreground. Does not count
+         *     against the quota and is not part of the 5-per-minute AI limit; only the per-IP
+         *     limit applies. A feature can still be switched off after this read, so
+         *     `feature_disabled` stays the fallback.
+         */
+        get: operations["getAiStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/describe-meal": {
         parameters: {
             query?: never;
@@ -386,10 +411,12 @@ export interface paths {
          *     as appropriate; it never invents studies or numbers and gives no medical advice.
          *     Answers are 2 to 4 plain sentences.
          *
-         *     Card bodies are sent as generic text: personal placeholders such as `{kcal}` or
-         *     `{tdee}` are not filled in, and the server reads none of the user's synced data
-         *     for this call. (The prototype filled them with the user's numbers; the server
-         *     version deliberately sends no personal numbers.)
+         *     Card bodies are sent as generic text, and the server reads none of the user's
+         *     synced data for this call. (The prototype filled the cards with the user's numbers;
+         *     the server deliberately sends none.) Placeholders are rendered so the model never
+         *     sees or echoes them: a conditional block `{?x}…{/x}` is dropped, or replaced by its
+         *     else branch when it has one (`{?x}…{:}else{/x}` becomes `else`), and each bare
+         *     `{x}` becomes a neutral phrase such as "your target" or "your weight".
          *
          *     `card_id` in the response is the card the answer is based on (usually the one
          *     being read, possibly another card), or null when the cards don't cover the
@@ -423,10 +450,15 @@ export interface paths {
          *     prototype's `summariseWeek()`, which sends `S.ciData`; the model is told to use
          *     only these numbers and invent none.
          *
-         *     The request is only the numeric facts below plus lift names and the goal; no food
-         *     names, notes or other health free text are sent, and unknown fields are rejected
-         *     with 400. The app builds it from `weeklyCheckin()` in `packages/core` (see
-         *     `WeeklySummaryRequest` for the field mapping).
+         *     The request is numeric facts only, plus the goal and catalogue exercise ids for the
+         *     improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+         *     identified by their `content/exercises.json` id, and every custom exercise is sent
+         *     as the fixed label `custom exercise`, never by its user-typed name. The server
+         *     sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
+         *     are rejected with 400. The app builds the request from `weeklyCheckin()` in
+         *     `packages/core` (see `WeeklySummaryRequest` for the field mapping); core returns
+         *     lift names as stored, so the app maps custom names to `custom exercise` before
+         *     sending.
          *
          *     Non-AI fallback: the check-in itself, which shows the same numbers. See the `ai`
          *     tag for quota, kill-switch, rate-limit and no-logging rules.
@@ -771,6 +803,15 @@ export interface components {
             /** @description Next 00:00:00Z, when `remaining` goes back to `limit`. */
             resets_at: components["schemas"]["Timestamp"];
         };
+        AiStatus: {
+            /** @description True when the feature is switched on. Unknown keys are ignored by the app. */
+            features: {
+                describe_meal: boolean;
+                ask_why: boolean;
+                weekly_summary: boolean;
+            };
+            quota: components["schemas"]["AiQuota"];
+        };
         DescribeMealRequest: {
             /**
              * @description What the user ate, in their own words, with rough amounts if known. Must contain
@@ -804,7 +845,7 @@ export interface components {
             question: string;
         };
         AskWhyResponse: {
-            /** @description Two to four plain sentences, grounded only on the cards. */
+            /** @description Two to four plain sentences, grounded only on the cards; never contains `{` or `}`. */
             answer: string;
             /** @description The card the answer is based on, or null when the cards don't cover the question. */
             card_id: string | null;
@@ -834,13 +875,12 @@ export interface components {
             prev_weight_avg_kg: number | null;
             /** @description Lifts that beat their previous best this week, best first. Prototype and core: `improved` (`n`, `pct`). */
             improved: {
-                /** @description Exercise name. */
-                name: string;
+                exercise: components["schemas"]["SummaryExercise"];
                 /** @description Gain over the previous best, in percent. */
                 pct: number;
             }[];
-            /** @description Stalled lifts (exercise names). Prototype and core: `stalled`. */
-            stalled: string[];
+            /** @description Stalled lifts. Prototype and core: `stalled`. */
+            stalled: components["schemas"]["SummaryExercise"][];
             /**
              * @description Daily calorie burn from real data, null when there is not enough data.
              *     Prototype: `burn` (`ab.ready ? ab.burn : null`); core: `burn.ready ? burn.burn : null`.
@@ -856,6 +896,15 @@ export interface components {
              */
             goal: "lose" | "recomp" | "maintain" | "gain" | null;
         };
+        /**
+         * @description A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
+         *     `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
+         *     app never sends a custom exercise's user-typed name; the server sends any value
+         *     that is not a catalogue id to the provider as `custom exercise`.
+         * @example Goblet Squat
+         * @example custom exercise
+         */
+        SummaryExercise: string;
         WeeklySummaryResponse: {
             /** @description Three plain sentences; no headings, lists or emojis. */
             text: string;
@@ -1652,6 +1701,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+        };
+    };
+    getAiStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feature switches and quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatus"];
+                };
             };
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["RateLimited"];

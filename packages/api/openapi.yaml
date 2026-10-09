@@ -43,7 +43,8 @@ tags:
     description: Health and status.
   - name: ai
     description: |
-      v1 AI calls: Describe a meal, Ask why, Weekly summary. Text only; no images in v1.
+      v1 AI calls: Describe a meal, Ask why, Weekly summary, and `GET /ai/status` for
+      which of them are on. Text only; no images in v1.
       Every AI call goes through the backend, which holds the provider key; the app never
       calls a model directly. Each feature has a non-AI fallback, so the app works fully
       with AI off. Signed-in users only (sign-in is optional, so signed-out users get the
@@ -72,9 +73,11 @@ tags:
       the account.
 
       **Rate limit.** On top of the daily quota, at most 5 AI requests per user per minute
-      across the three endpoints, plus the per-IP limit every endpoint has. Beyond that,
-      429 `rate_limited` with `Retry-After` (prototype message: "Too many requests right
-      now. Wait a minute and try again.").
+      across the three POST endpoints, plus the per-IP limit every endpoint has. Requests
+      rejected for validation (400) or quota (429 `quota_exceeded`) still count toward the
+      5 per minute. Beyond that, 429 `rate_limited` with `Retry-After` (prototype message:
+      "Too many requests right now. Wait a minute and try again."). `GET /ai/status` is
+      not part of this limit, only the per-IP one.
 
       **Kill switch.** One server flag per feature (`describe_meal`, `ask_why`,
       `weekly_summary`) turns it off instantly, without a deploy; requests already with the
@@ -82,16 +85,29 @@ tags:
       and nothing counts against the quota. Reaching the monthly AI budget cap turns every
       AI feature off the same way until the cap is raised or the month ends. All flags
       default to off until a provider and budget are chosen (#200, decision 7). The app
-      treats `feature_disabled` as "not available now": it shows the non-AI fallback,
-      hides the AI entry point for the rest of the session and tries again on a later app
-      start. A provider failure or timeout is 503 `unavailable` instead: a one-off, so the
-      app shows "Couldn't get an answer, try again" and the fallback.
+      reads `GET /ai/status` and shows only the AI entry points that are on.
+      `feature_disabled` stays as the fallback for a switch flipped after that read: the
+      app shows the non-AI fallback and refreshes the status. A provider failure or
+      timeout is 503 `unavailable` instead: a one-off, so the app shows "Couldn't get an
+      answer, try again" and the fallback.
+
+      **Prompt injection and output checks.** User text (`text`, `question`) goes into the
+      prompt as delimited data, never as instructions, and the instructions tell the model
+      to treat it only as data. The model's reply is parsed as data and checked against the
+      response schema (types, `maxLength`, `maximum`) before it is returned; nothing in it
+      is executed or followed. Describe a meal drops items whose numbers are not finite or
+      are out of range. Ask why turns a reply `card_id` that is not in
+      `content/cards.json` into null, and rejects an `answer` containing `{` or `}`. A
+      reply that cannot be parsed or fails these checks is 503 `unavailable`, and the
+      reserved quota unit is released.
 
       **No logging.** Request and response bodies of `/ai/*` (meal text, questions,
-      answers, check-in numbers, lift names) are never logged, written to the database or
-      sent to error reporting. The identical-request cache, if used, is in memory only,
-      keyed by a hash of the request, and expires within 24 hours. Server logs for these
-      calls hold only the user id, feature, time, status and duration. The provider
+      answers, check-in numbers, exercise ids) are never logged, written to the database or
+      sent to error reporting, and 400 `details[].issue` never echoes a submitted value.
+      The identical-request cache, if used, is per user (never shared across users), in
+      memory only, keyed by the user id and a hash of the request, and expires within 24
+      hours. Server logs for these calls hold only the user id, feature, time, status and
+      duration. The provider
       receives only the request content and the instructions, never the user id, email or
       any other account data, and is configured not to retain or train on it where the
       provider offers that.
@@ -795,6 +811,46 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
 
+  /ai/status:
+    get:
+      tags: [ai]
+      operationId: getAiStatus
+      summary: Which AI features are on, and the user's quota
+      description: |
+        Tells the app which AI features are switched on (see Kill switch in the `ai` tag)
+        and the user's daily quota, so it shows only the AI entry points that work. The
+        app reads it on start and when it returns to the foreground. Does not count
+        against the quota and is not part of the 5-per-minute AI limit; only the per-IP
+        limit applies. A feature can still be switched off after this read, so
+        `feature_disabled` stays the fallback.
+      responses:
+        '200':
+          description: Feature switches and quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiStatus'
+              examples:
+                default:
+                  value:
+                    features:
+                      describe_meal: false
+                      ask_why: false
+                      weekly_summary: false
+                    quota:
+                      limit: 10
+                      remaining: 10
+                      resets_at: '2026-10-10T00:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
   /ai/describe-meal:
     post:
       tags: [ai]
@@ -881,10 +937,12 @@ paths:
         as appropriate; it never invents studies or numbers and gives no medical advice.
         Answers are 2 to 4 plain sentences.
 
-        Card bodies are sent as generic text: personal placeholders such as `{kcal}` or
-        `{tdee}` are not filled in, and the server reads none of the user's synced data
-        for this call. (The prototype filled them with the user's numbers; the server
-        version deliberately sends no personal numbers.)
+        Card bodies are sent as generic text, and the server reads none of the user's
+        synced data for this call. (The prototype filled the cards with the user's numbers;
+        the server deliberately sends none.) Placeholders are rendered so the model never
+        sees or echoes them: a conditional block `{?x}…{/x}` is dropped, or replaced by its
+        else branch when it has one (`{?x}…{:}else{/x}` becomes `else`), and each bare
+        `{x}` becomes a neutral phrase such as "your target" or "your weight".
 
         `card_id` in the response is the card the answer is based on (usually the one
         being read, possibly another card), or null when the cards don't cover the
@@ -961,10 +1019,15 @@ paths:
         prototype's `summariseWeek()`, which sends `S.ciData`; the model is told to use
         only these numbers and invent none.
 
-        The request is only the numeric facts below plus lift names and the goal; no food
-        names, notes or other health free text are sent, and unknown fields are rejected
-        with 400. The app builds it from `weeklyCheckin()` in `packages/core` (see
-        `WeeklySummaryRequest` for the field mapping).
+        The request is numeric facts only, plus the goal and catalogue exercise ids for the
+        improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+        identified by their `content/exercises.json` id, and every custom exercise is sent
+        as the fixed label `custom exercise`, never by its user-typed name. The server
+        sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
+        are rejected with 400. The app builds the request from `weeklyCheckin()` in
+        `packages/core` (see `WeeklySummaryRequest` for the field mapping); core returns
+        lift names as stored, so the app maps custom names to `custom exercise` before
+        sending.
 
         Non-AI fallback: the check-in itself, which shows the same numbers. See the `ai`
         tag for quota, kill-switch, rate-limit and no-logging rules.
@@ -986,9 +1049,9 @@ paths:
                   weight_avg_kg: 78.4
                   prev_weight_avg_kg: 78.9
                   improved:
-                    - name: Goblet squat
+                    - exercise: Goblet Squat
                       pct: 6
-                  stalled: [Lat pulldown]
+                  stalled: [Lat Pulldown, custom exercise]
                   burn_kcal: 2450
                   target_kcal: 1950
                   target_protein_g: 140
@@ -1790,6 +1853,24 @@ components:
           $ref: '#/components/schemas/Timestamp'
           description: Next 00:00:00Z, when `remaining` goes back to `limit`.
 
+    AiStatus:
+      type: object
+      required: [features, quota]
+      properties:
+        features:
+          type: object
+          description: True when the feature is switched on. Unknown keys are ignored by the app.
+          required: [describe_meal, ask_why, weekly_summary]
+          properties:
+            describe_meal:
+              type: boolean
+            ask_why:
+              type: boolean
+            weekly_summary:
+              type: boolean
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
     DescribeMealRequest:
       type: object
       additionalProperties: false
@@ -1799,6 +1880,7 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+          pattern: '\S'
           description: |
             What the user ate, in their own words, with rough amounts if known. Must contain
             a non-space character. Prototype: the Describe it textarea.
@@ -1827,21 +1909,25 @@ components:
           maxLength: 100
         qty:
           type: string
-          maxLength: 100
+          maxLength: 50
           description: The quantity estimated, in words (for example "2 medium"); may be empty.
         kcal:
           type: number
           minimum: 0
+          maximum: 5000
         protein_g:
           type: number
           minimum: 0
+          maximum: 1000
         carbs_g:
           type: number
           minimum: 0
+          maximum: 1000
           description: Total carbohydrate including fibre.
         fat_g:
           type: number
           minimum: 0
+          maximum: 1000
 
     AskWhyRequest:
       type: object
@@ -1859,6 +1945,7 @@ components:
           type: string
           minLength: 1
           maxLength: 300
+          pattern: '\S'
           description: 'The follow-up question. Must contain a non-space character. Prototype: `#askQ`.'
 
     AskWhyResponse:
@@ -1868,7 +1955,8 @@ components:
         answer:
           type: string
           minLength: 1
-          description: Two to four plain sentences, grounded only on the cards.
+          maxLength: 1200
+          description: Two to four plain sentences, grounded only on the cards; never contains `{` or `}`.
         card_id:
           type: [string, 'null']
           description: The card the answer is based on, or null when the cards don't cover the question.
@@ -1916,10 +2004,12 @@ components:
         avg_kcal:
           type: number
           minimum: 0
+          maximum: 20000
           description: 'Average kcal over days with food logged (0 with none). Prototype and core: `avgK`.'
         avg_protein_g:
           type: number
           minimum: 0
+          maximum: 1000
           description: 'Average protein over days with food logged (0 with none). Prototype and core: `avgP`.'
         protein_days:
           type: integer
@@ -1929,10 +2019,12 @@ components:
         weight_avg_kg:
           type: [number, 'null']
           exclusiveMinimum: 0
+          maximum: 400
           description: "This week's average weight, null if unknown. Prototype and core: `w1`."
         prev_weight_avg_kg:
           type: [number, 'null']
           exclusiveMinimum: 0
+          maximum: 400
           description: "Last week's average weight, null if unknown. Prototype and core: `w0`."
         improved:
           type: array
@@ -1941,43 +2033,53 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [name, pct]
+            required: [exercise, pct]
             properties:
-              name:
-                type: string
-                minLength: 1
-                maxLength: 80
-                description: Exercise name.
+              exercise:
+                $ref: '#/components/schemas/SummaryExercise'
               pct:
                 type: integer
                 minimum: 1
+                maximum: 1000
                 description: Gain over the previous best, in percent.
         stalled:
           type: array
           maxItems: 3
-          description: 'Stalled lifts (exercise names). Prototype and core: `stalled`.'
+          description: 'Stalled lifts. Prototype and core: `stalled`.'
           items:
-            type: string
-            minLength: 1
-            maxLength: 80
+            $ref: '#/components/schemas/SummaryExercise'
         burn_kcal:
           type: [integer, 'null']
           minimum: 0
+          maximum: 20000
           description: |
             Daily calorie burn from real data, null when there is not enough data.
             Prototype: `burn` (`ab.ready ? ab.burn : null`); core: `burn.ready ? burn.burn : null`.
         target_kcal:
           type: integer
           minimum: 0
+          maximum: 20000
           description: 'Daily calorie target. Prototype: `target` (`S.settings.kcal`).'
         target_protein_g:
           type: integer
           minimum: 0
+          maximum: 1000
           description: 'Daily protein target. Prototype: `ptarget` (`S.settings.protein`).'
         goal:
           type: [string, 'null']
           enum: [lose, recomp, maintain, gain, null]
           description: "The profile's goal, null with no profile. Prototype: `goal`."
+
+    SummaryExercise:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: |
+        A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
+        `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
+        app never sends a custom exercise's user-typed name; the server sends any value
+        that is not a catalogue id to the provider as `custom exercise`.
+      examples: [Goblet Squat, custom exercise]
 
     WeeklySummaryResponse:
       type: object
@@ -1986,6 +2088,7 @@ components:
         text:
           type: string
           minLength: 1
+          maxLength: 1200
           description: Three plain sentences; no headings, lists or emojis.
         quota:
           $ref: '#/components/schemas/AiQuota'
