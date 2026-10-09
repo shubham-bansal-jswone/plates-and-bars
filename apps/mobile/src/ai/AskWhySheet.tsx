@@ -23,14 +23,17 @@ export function AskWhySheet({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState<{ text: string; card: string | null } | null>(null);
   const alive = useRef(true);
+  const inFlight = useRef(false);
   useEffect(() => () => void (alive.current = false), []);
 
   const send = async () => {
-    if (busy || !question.trim()) return;
+    if (inFlight.current || ai.quotaUsed() || !question.trim()) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setAnswer(null);
     const r = await ai.askWhy(card, question);
+    inFlight.current = false;
     if (!alive.current) return;
     setBusy(false);
     if (r.kind !== 'ok') return setError(failureMessage(r, AI_COPY.askFallback));
@@ -52,9 +55,9 @@ export function AskWhySheet({ onClose }: { onClose: () => void }) {
           </View>
           <Field label="Your question" placeholder="Is 150 g of protein too much for me?" multiline maxLength={QUESTION_MAX} value={question} onChangeText={setQuestion} />
           {ai.quotaUsed() ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.askFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
-          <Button label={busy ? 'Asking…' : 'Ask'} onPress={() => void send()} />
+          {ai.quotaUsed() ? null : <Button label={busy ? 'Asking…' : 'Ask'} a11yLabel="Ask" busy={busy} onPress={() => void send()} />}
           {answer ? (
-            <View style={styles.body}>
+            <View accessibilityLiveRegion="polite" style={styles.body}>
               <Note>{answer.text}</Note>
               {answer.card ? <Hint>{`Based on the card: ${cardTitle(answer.card)}`}</Hint> : null}
               <Hint>{AI_COPY.aiNote}</Hint>

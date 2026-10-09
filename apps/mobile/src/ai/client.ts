@@ -1,8 +1,10 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
-import { authedCall } from '../account/server';
 import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { refreshSession } from '../sync/engine';
 import { withSyncPaused } from '../sync/guard';
+import { getUserId } from '../sync/store';
+import { REQUEST_TIMEOUT_MS, withTimeout } from '../sync/timeout';
 import type { TokenStore } from '../sync/tokens';
 
 export type AiFeature = 'describe_meal' | 'ask_why' | 'weekly_summary';
@@ -27,36 +29,59 @@ export interface AiDeps {
 
 type Reply<T> = { data?: T; error?: unknown; response: Response };
 
+const sameTokens = (a: { access: string; refresh: string } | null, b: { access: string; refresh: string } | null) => !!a && !!b && a.access === b.access && a.refresh === b.refresh;
+
 /**
- * One AI call through the generated client: the account lock, a timeout, and one token refresh on 401 (`authedCall`).
- * Maps every outcome to a result the screens can word honestly. Request and response bodies are never logged or kept
- * here; the caller shows them and lets go.
+ * One AI call through the generated client, with a timeout. The request itself runs without the account lock, so a slow
+ * answer never holds up sync, sign-in, sign-out or export. Only on a 401 is the lock taken, for the token refresh alone
+ * (skipped when another refresh already changed the stored tokens since this request was sent); the retry is outside
+ * it. The answer is dropped when the signed-in user changed while the request was out. `refresh: false` (the status
+ * read) never takes the lock: a 401 there just means no answer. Bodies are never logged or kept here.
  */
-async function run<T>(d: AiDeps, call: (signal: AbortSignal) => Promise<Reply<T>>): Promise<AiResult<T>> {
-  return withSyncPaused(async () => {
-    if (!(await d.tokens.load())) return { kind: 'signed_out' };
-    let error: unknown;
-    const r = await authedCall<T>(d, async (signal) => {
-      const x = await call(signal);
-      error = x.error;
-      return x;
-    });
-    if (r.kind === 'session_ended') return { kind: 'signed_out' };
-    if (r.kind !== 'response') return { kind: r.kind };
-    if (r.data !== undefined) return { kind: 'ok', data: r.data };
-    const s = r.response.status;
-    const body = (error ?? {}) as Partial<Schemas['Error']>;
-    if (s === 401) return { kind: 'signed_out' };
-    if (s === 400) return { kind: 'invalid' };
-    if (s === 429 && body.code === 'quota_exceeded') return { kind: 'quota', quota: body.quota ?? null };
-    if (s === 429) return { kind: 'rate_limited', retryAfterSec: Number(r.response.headers.get('Retry-After')) || 60 };
-    if (s === 503 && body.code === 'feature_disabled') return { kind: 'disabled' };
-    return { kind: 'unavailable' };
-  });
+async function run<T>(d: AiDeps, call: (signal: AbortSignal) => Promise<Reply<T>>, opts: { refresh?: boolean } = {}): Promise<AiResult<T>> {
+  const owner = await getUserId(d.db);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const used = await d.tokens.load();
+    if (!used) return { kind: 'signed_out' };
+    let reply: Reply<T>;
+    try {
+      const t = await withTimeout(d.timeoutMs ?? REQUEST_TIMEOUT_MS, call);
+      if (t.timedOut) return { kind: 'unavailable' };
+      reply = t.value;
+    } catch (e) {
+      return { kind: e instanceof SyntaxError ? 'unavailable' : 'offline' };
+    }
+    if ((await getUserId(d.db)) !== owner) return { kind: 'signed_out' };
+    if (reply.response.status === 401 && attempt === 0 && opts.refresh !== false) {
+      const out = await withSyncPaused(async () => {
+        const now = await d.tokens.load();
+        if (!now) return 'ended' as const;
+        if (!sameTokens(used, now)) return 'ok' as const;
+        return refreshSession(d);
+      });
+      if (out === 'ended') return { kind: 'signed_out' };
+      if (out !== 'ok') return { kind: out };
+      continue;
+    }
+    return answer(reply);
+  }
+  return { kind: 'unavailable' };
+}
+
+function answer<T>(r: Reply<T>): AiResult<T> {
+  if (r.data !== undefined) return { kind: 'ok', data: r.data };
+  const s = r.response.status;
+  const body = (r.error ?? {}) as Partial<Schemas['Error']>;
+  if (s === 401) return { kind: 'signed_out' };
+  if (s === 400) return { kind: 'invalid' };
+  if (s === 429 && body.code === 'quota_exceeded') return { kind: 'quota', quota: body.quota ?? null };
+  if (s === 429) return { kind: 'rate_limited', retryAfterSec: Number(r.response.headers.get('Retry-After')) || 60 };
+  if (s === 503 && body.code === 'feature_disabled') return { kind: 'disabled' };
+  return { kind: 'unavailable' };
 }
 
 /** `GET /ai/status`: which features are on and the daily quota. Carries no user data. */
-export const getAiStatus = (d: AiDeps) => run<AiStatus>(d, (signal) => d.api.GET('/ai/status', { signal }));
+export const getAiStatus = (d: AiDeps) => run<AiStatus>(d, (signal) => d.api.GET('/ai/status', { signal }), { refresh: false });
 
 /** `POST /ai/describe-meal`: sends only the text the user typed. */
 export const describeMeal = (d: AiDeps, text: string) => run<Schemas['DescribeMealResponse']>(d, (signal) => d.api.POST('/ai/describe-meal', { body: { text }, signal }));

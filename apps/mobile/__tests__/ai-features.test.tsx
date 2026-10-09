@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient } from '@plate-and-bar/api';
-import { AiProvider, KEY_AI_CONSENT } from '../src/ai/AiProvider';
+import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
 import { AiSection } from '../src/ai/AiSection';
 import { SummaryCard } from '../src/ai/SummaryCard';
 import { buildSummaryRequest } from '../src/ai/summaryRequest';
@@ -10,6 +10,8 @@ import { saveProfile } from '../src/db/records';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryTokenStore } from '../src/sync/tokens';
 import { KEY_USER } from '../src/sync/store';
+import { withSyncPaused } from '../src/sync/guard';
+import { Pressable, Text } from 'react-native';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
 
@@ -79,6 +81,8 @@ async function food(kv: ReturnType<typeof kvDb>, api: ApiClient) {
 const logs = (db: ReturnType<typeof memoryDb>) => [...db.rows].filter(([k]) => k.startsWith('food_logs:')).map(([, v]) => JSON.parse(v));
 const ROTI = { name: 'Roti', qty: '2 medium', kcal: 240, protein_g: 7, carbs_g: 46, fat_g: 3 };
 
+const SUMMARY_KEYS = ['avg_kcal', 'avg_protein_g', 'burn_kcal', 'goal', 'improved', 'logged_days', 'planned_sessions', 'prev_weight_avg_kg', 'protein_days', 'sessions', 'stalled', 'target_kcal', 'target_protein_g', 'weight_avg_kg'];
+
 describe('AI is off by default', () => {
   it('without consent sends nothing and shows no entry point, even if the server has everything on', async () => {
     const { api, GET, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ describe_meal: true, ask_why: true, weekly_summary: true }), response: res(200) })) });
@@ -141,8 +145,8 @@ describe('Describe a meal', () => {
     await openSheet();
     await fireEvent.changeText(screen.getByLabelText('Describe your meal'), '2 rotis');
     await fireEvent.press(screen.getByLabelText('Estimate'));
-    const kcal = await screen.findByLabelText('Roti calories (kcal)');
-    expect(POST).toHaveBeenCalledWith('/ai/describe-meal', expect.objectContaining({ body: { text: '2 rotis' } }));
+    const kcal = await screen.findByLabelText('Item 1 Roti calories (kcal)');
+    expect(POST.mock.calls[0]).toEqual(['/ai/describe-meal', { body: { text: '2 rotis' }, signal: expect.anything() }]);
     expect(GET).toHaveBeenCalled();
     expect(logs(db)).toEqual([]);
     await fireEvent.changeText(kcal, '200');
@@ -158,7 +162,7 @@ describe('Describe a meal', () => {
     await openSheet();
     await fireEvent.changeText(screen.getByLabelText('Describe your meal'), 'roti and dal');
     await fireEvent.press(screen.getByLabelText('Estimate'));
-    await fireEvent.press(await screen.findByLabelText('Remove Roti'));
+    await fireEvent.press(await screen.findByLabelText('Remove Item 1 Roti'));
     await fireEvent.press(screen.getByLabelText('Add 1 item to breakfast'));
     await waitFor(() => expect(logs(db)).toHaveLength(1));
     expect(logs(db)[0].name).toBe('Dal (2 medium)');
@@ -171,7 +175,7 @@ describe('Describe a meal', () => {
     await openSheet();
     await fireEvent.changeText(screen.getByLabelText('Describe your meal'), '2 rotis');
     await fireEvent.press(screen.getByLabelText('Estimate'));
-    await fireEvent.changeText(await screen.findByLabelText('Roti calories (kcal)'), '-5');
+    await fireEvent.changeText(await screen.findByLabelText('Item 1 Roti calories (kcal)'), '-5');
     await fireEvent.press(screen.getByLabelText('Add 1 item to breakfast'));
     expect(await screen.findByText(/Roti: Calories, macros and servings can’t be negative/)).toBeTruthy();
     expect(logs(db)).toEqual([]);
@@ -232,7 +236,7 @@ describe('Ask why', () => {
     await fireEvent.changeText(await screen.findByLabelText('Your question'), 'Why so much protein?');
     await fireEvent.press(screen.getByLabelText('Ask'));
     expect(await screen.findByText('Because protein protects muscle.')).toBeTruthy();
-    expect(POST).toHaveBeenCalledWith('/ai/ask-why', expect.objectContaining({ body: { card_id: 'targets', question: 'Why so much protein?' } }));
+    expect(POST.mock.calls[0]).toEqual(['/ai/ask-why', { body: { card_id: 'targets', question: 'Why so much protein?' }, signal: expect.anything() }]);
     expect(screen.getByText('Based on the card: Why so much protein?')).toBeTruthy();
   });
 
@@ -252,7 +256,8 @@ describe('Weekly summary', () => {
     const r = buildSummaryRequest(week(), { kcal: 2000, protein_g: 150 }, 'lose')!;
     expect(r.improved).toEqual([{ exercise: 'Goblet Squat', pct: 5 }, { exercise: 'custom exercise', pct: 3 }]);
     expect(r.stalled).toEqual(['custom exercise']);
-    expect(r).toMatchObject({ planned_sessions: 4, target_kcal: 2000, target_protein_g: 150, goal: 'lose', burn_kcal: null });
+    expect(Object.keys(r).sort()).toEqual(SUMMARY_KEYS);
+    expect(r).toEqual({ sessions: 3, planned_sessions: 4, logged_days: 5, avg_kcal: 2000, avg_protein_g: 120, protein_days: 4, weight_avg_kg: 81.5, prev_weight_avg_kg: 82, improved: [{ exercise: 'Goblet Squat', pct: 5 }, { exercise: 'custom exercise', pct: 3 }], stalled: ['custom exercise'], burn_kcal: null, target_kcal: 2000, target_protein_g: 150, goal: 'lose' });
     expect(JSON.stringify(r)).not.toMatch(/secret|ci:2026/);
     expect(buildSummaryRequest(week({ plannedN: 0 }), { kcal: 1, protein_g: 1 }, null)).toBeNull();
   });
@@ -270,7 +275,9 @@ describe('Weekly summary', () => {
     await ai(optedIn(), api, <SummaryCard checkin={week()} profile={p} />);
     await fireEvent.press(await screen.findByLabelText('Write my week in words'));
     expect(await screen.findByText('A solid week.')).toBeTruthy();
-    expect(POST).toHaveBeenCalledWith('/ai/weekly-summary', expect.objectContaining({ body: expect.objectContaining({ sessions: 3, goal: 'lose' }) }));
+    const sent = POST.mock.calls[0]![1].body as Record<string, unknown>;
+    expect(Object.keys(sent).sort()).toEqual(SUMMARY_KEYS);
+    expect(sent).toEqual(buildSummaryRequest(week(), p.targets, 'lose'));
     POST.mockResolvedValueOnce({ error: { code: 'rate_limited', message: 'x' }, response: res(429, { 'Retry-After': '30' }) });
     await fireEvent.press(screen.getByLabelText('Write it again'));
     expect(await screen.findByText('Too many requests right now. Wait a minute and try again.')).toBeTruthy();
@@ -282,5 +289,127 @@ describe('Weekly summary', () => {
     expect(screen.queryByText('Your week in words')).toBeNull();
     expect(GET).not.toHaveBeenCalled();
     expect(POST).not.toHaveBeenCalled();
+  });
+});
+
+function Probe({ onResult }: { onResult: (r: unknown) => void }) {
+  const a = useAi();
+  return (
+    <Pressable accessibilityLabel="probe" onPress={() => void a.describeMeal('2 rotis').then(onResult)}>
+      <Text>probe</Text>
+    </Pressable>
+  );
+}
+
+describe('guards', () => {
+  it('useAi().describeMeal with consent off sends nothing', async () => {
+    const { api, GET, POST } = fakeApi();
+    const out = jest.fn();
+    await ai(kvDb({ [KEY_USER]: 'u1' }), api, <Probe onResult={out} />);
+    await fireEvent.press(screen.getByLabelText('probe'));
+    await waitFor(() => expect(out).toHaveBeenCalledWith({ kind: 'disabled' }));
+    expect(POST).not.toHaveBeenCalled();
+    expect(GET).not.toHaveBeenCalled();
+  });
+
+  it('with the quota known to be used up, the provider sends nothing', async () => {
+    const used = { limit: 10, remaining: 0, resets_at: '2026-10-09T00:00:00Z' };
+    const { api, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ describe_meal: true }, used), response: res(200) })) });
+    const out = jest.fn();
+    await ai(optedIn(), api, <Probe onResult={out} />);
+    await waitFor(() => expect(api.GET).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    await fireEvent.press(screen.getByLabelText('probe'));
+    await waitFor(() => expect(out).toHaveBeenCalledWith({ kind: 'quota', quota: used }));
+    expect(POST).not.toHaveBeenCalled();
+  });
+});
+
+describe('quota in the sheets', () => {
+  const on = (q = QUOTA) => fakeApi({ get: jest.fn(async () => ({ data: status({ describe_meal: true, ask_why: true }, q), response: res(200) })) });
+
+  it('a second tap after the quota ran out sends nothing', async () => {
+    const { api, POST } = on();
+    const q = { limit: 10, remaining: 0, resets_at: '2026-10-09T00:00:00Z' };
+    POST.mockResolvedValue({ error: { code: 'quota_exceeded', message: 'x', quota: q }, response: res(429) });
+    await food(optedIn(), api);
+    await fireEvent.press(await screen.findByLabelText('Describe your breakfast in words, AI estimate'));
+    await fireEvent.changeText(await screen.findByLabelText('Describe your meal'), '2 rotis');
+    const button = screen.getByLabelText('Estimate');
+    await fireEvent.press(button);
+    await screen.findByText(/You’ve used today’s AI answers/);
+    expect(screen.queryByLabelText('Estimate')).toBeNull();
+    await fireEvent.press(button);
+    expect(POST).toHaveBeenCalledTimes(1);
+  });
+
+  it('already used up: the sheets offer no send button', async () => {
+    const { api, POST } = on({ limit: 10, remaining: 0, resets_at: '2026-10-09T00:00:00Z' });
+    await food(optedIn(), api);
+    await waitFor(() => expect(api.GET).toHaveBeenCalled());
+    await fireEvent.press(await screen.findByLabelText('Describe your breakfast in words, AI estimate'));
+    await screen.findByLabelText('Describe your meal');
+    expect(screen.queryByLabelText('Estimate')).toBeNull();
+    expect(POST).not.toHaveBeenCalled();
+  });
+});
+
+describe('account lock', () => {
+  it('a slow AI call does not hold the account lock', async () => {
+    let release: (v: unknown) => void = () => undefined;
+    const { api, POST } = fakeApi();
+    POST.mockImplementation(() => new Promise((r) => (release = r)));
+    const out = jest.fn();
+    await ai(optedIn(), api, <Probe onResult={out} />);
+    await waitFor(() => expect(api.GET).toHaveBeenCalled());
+    await fireEvent.press(screen.getByLabelText('probe'));
+    await waitFor(() => expect(POST).toHaveBeenCalled());
+    // What sign-in, sign-out, export and sync pausing all wait on:
+    const got = await Promise.race([withSyncPaused(async () => 'free'), new Promise((r) => setTimeout(() => r('held'), 200))]);
+    expect(got).toBe('free');
+    release({ data: { items: [], quota: QUOTA }, response: res(200) });
+    await waitFor(() => expect(out).toHaveBeenCalledWith({ kind: 'ok', data: { items: [], quota: QUOTA } }));
+  });
+
+  it('a 401 with tokens already changed retries once without refreshing', async () => {
+    const { api, POST } = fakeApi();
+    const t = memoryTokenStore();
+    await t.save({ access: 'a', refresh: 'r' });
+    POST.mockImplementationOnce(async () => {
+      await t.save({ access: 'a2', refresh: 'r2' });
+      return { error: { code: 'token_expired', message: 'x' }, response: res(401) };
+    }).mockResolvedValueOnce({ data: { items: [], quota: QUOTA }, response: res(200) });
+    const out = jest.fn();
+    await render(
+      <AiProvider db={optedIn() as never} api={api} tokens={t} signedIn now={NOW}>
+        <Probe onResult={out} />
+      </AiProvider>,
+    );
+    await waitFor(() => expect(api.GET).toHaveBeenCalled());
+    await fireEvent.press(screen.getByLabelText('probe'));
+    await waitFor(() => expect(out).toHaveBeenCalledWith(expect.objectContaining({ kind: 'ok' })));
+    expect(POST.mock.calls.map((c) => c[0])).toEqual(['/ai/describe-meal', '/ai/describe-meal']);
+  });
+
+  it('the status read never refreshes tokens on a 401', async () => {
+    const { api, POST, GET } = fakeApi({ get: jest.fn(async () => ({ error: { code: 'unauthorized', message: 'x' }, response: res(401) })) });
+    await ai(optedIn(), api, <AiSection />);
+    await waitFor(() => expect(GET).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(POST).not.toHaveBeenCalled();
+    expect(GET).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the answer when the signed-in user changed meanwhile', async () => {
+    const kv = optedIn();
+    const { api, POST } = fakeApi();
+    POST.mockImplementation(async () => {
+      kv.kv.set(KEY_USER, 'u2');
+      return { data: { items: [ROTI], quota: QUOTA }, response: res(200) };
+    });
+    const out = jest.fn();
+    await ai(kv, api, <Probe onResult={out} />);
+    await fireEvent.press(screen.getByLabelText('probe'));
+    await waitFor(() => expect(out).toHaveBeenCalledWith({ kind: 'signed_out' }));
   });
 });

@@ -61,13 +61,18 @@ export function AiProvider({ db, api, tokens, signedIn, now = () => new Date(), 
   const [consent, setConsentState] = useState(false);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const consentRef = useRef(false);
+  const statusRef = useRef<AiStatus | null>(null);
+  const keep = useCallback((next: AiStatus | null | ((s: AiStatus | null) => AiStatus | null)) => {
+    statusRef.current = typeof next === 'function' ? next(statusRef.current) : next;
+    setStatus(statusRef.current);
+  }, []);
   const live = api !== null && signedIn;
 
   const apply = useCallback((on: boolean) => {
     consentRef.current = on;
     setConsentState(on);
-    if (!on) setStatus(null);
-  }, []);
+    if (!on) keep(null);
+  }, [keep]);
 
   // Consent counts only for the user who gave it.
   useEffect(() => {
@@ -84,8 +89,8 @@ export function AiProvider({ db, api, tokens, signedIn, now = () => new Date(), 
   const refresh = useCallback(async () => {
     if (!api || !consentRef.current) return;
     const r = await getAiStatus({ db, api, tokens });
-    if (r.kind === 'ok' && consentRef.current) setStatus(r.data);
-  }, [api, db, tokens]);
+    if (r.kind === 'ok' && consentRef.current) keep(r.data);
+  }, [api, db, tokens, keep]);
 
   useEffect(() => {
     if (!consent || !live) return;
@@ -110,19 +115,22 @@ export function AiProvider({ db, api, tokens, signedIn, now = () => new Date(), 
 
   const value = useMemo<AiApi>(() => {
     const available = (f: AiFeature) => live && consent && status?.features[f] === true;
-    const quotaUsed = () => !!status && status.quota.remaining <= 0 && now().getTime() < new Date(status.quota.resets_at).getTime();
+    const usedUp = (s: AiStatus | null) => !!s && s.quota.remaining <= 0 && now().getTime() < new Date(s.quota.resets_at).getTime();
+    const quotaUsed = () => usedUp(statusRef.current);
     const guard = async <T extends { quota: AiQuota }>(f: AiFeature, call: (d: AiDeps) => Promise<AiResult<T>>): Promise<AiResult<T>> => {
       // Consent off, switched off or no server: nothing is sent.
       if (!api || !live || !consentRef.current) return { kind: 'disabled' };
+      // The known quota is used up: no request until it resets.
+      if (usedUp(statusRef.current)) return { kind: 'quota', quota: statusRef.current!.quota };
       const r = await call({ db, api, tokens });
       if (r.kind === 'ok') {
         const q = r.data.quota;
-        setStatus((s) => (s ? { ...s, quota: q } : s));
+        keep((s) => (s ? { ...s, quota: q } : s));
       } else if (r.kind === 'quota' && r.quota) {
         const q = r.quota;
-        setStatus((s) => (s ? { ...s, quota: q } : s));
+        keep((s) => (s ? { ...s, quota: q } : s));
       } else if (r.kind === 'disabled') {
-        setStatus((s) => (s ? { ...s, features: { ...s.features, [f]: false } } : s));
+        keep((s) => (s ? { ...s, features: { ...s.features, [f]: false } } : s));
         void refresh();
       }
       return r;
@@ -138,7 +146,7 @@ export function AiProvider({ db, api, tokens, signedIn, now = () => new Date(), 
       askWhy: (cardId, question) => guard('ask_why', (d) => askWhy(d, cardId, question)),
       weeklySummary: (body) => guard('weekly_summary', (d) => weeklySummary(d, body)),
     };
-  }, [live, consent, status, setConsent, api, db, tokens, refresh, now]);
+  }, [live, consent, status, setConsent, api, db, tokens, refresh, now, keep]);
 
   return <AiContext.Provider value={value}>{children}</AiContext.Provider>;
 }

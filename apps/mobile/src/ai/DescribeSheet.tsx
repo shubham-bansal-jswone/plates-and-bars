@@ -33,14 +33,17 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
+  const inFlight = useRef(false);
   useEffect(() => () => void (alive.current = false), []);
 
   const exhausted = ai.quotaUsed();
   const estimate = async () => {
-    if (busy || !text.trim()) return;
+    if (inFlight.current || ai.quotaUsed() || !text.trim()) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     const r = await ai.describeMeal(text);
+    inFlight.current = false;
     if (!alive.current) return;
     setBusy(false);
     if (r.kind !== 'ok') return setError(failureMessage(r, AI_COPY.describeFallback));
@@ -69,20 +72,23 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
           <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.describeTitle(meal)}</Text>
           {rows ? (
             <>
-              <Hint>{AI_COPY.reviewHint}</Hint>
-              {rows.map((r) => (
+              <View accessibilityLiveRegion="polite"><Hint>{AI_COPY.reviewHint}</Hint></View>
+              {rows.map((r, n) => {
+                const who = `Item ${n + 1} ${r.name || 'unnamed'}`;
+                return (
                 <Card key={r.key} style={styles.gap}>
-                  <Field label={`Item ${r.key + 1} name`} value={r.name} onChangeText={set(r.key, 'name')} />
-                  <Field label={`${r.name || 'Item'} amount`} value={r.qty} onChangeText={set(r.key, 'qty')} />
+                  <Field label={`Item ${n + 1} name`} value={r.name} onChangeText={set(r.key, 'name')} />
+                  <Field label={`${who} amount`} value={r.qty} onChangeText={set(r.key, 'qty')} />
                   <View style={styles.row}>
-                    <Field label={`${r.name || 'Item'} calories (kcal)`} keyboardType="decimal-pad" value={r.kcal} onChangeText={set(r.key, 'kcal')} />
-                    <Field label={`${r.name || 'Item'} protein (g)`} keyboardType="decimal-pad" value={r.protein} onChangeText={set(r.key, 'protein')} />
-                    <Field label={`${r.name || 'Item'} carbs (g)`} keyboardType="decimal-pad" value={r.carbs} onChangeText={set(r.key, 'carbs')} />
-                    <Field label={`${r.name || 'Item'} fat (g)`} keyboardType="decimal-pad" value={r.fat} onChangeText={set(r.key, 'fat')} />
+                    <Field label={`${who} calories (kcal)`} keyboardType="decimal-pad" value={r.kcal} onChangeText={set(r.key, 'kcal')} />
+                    <Field label={`${who} protein (g)`} keyboardType="decimal-pad" value={r.protein} onChangeText={set(r.key, 'protein')} />
+                    <Field label={`${who} carbs (g)`} keyboardType="decimal-pad" value={r.carbs} onChangeText={set(r.key, 'carbs')} />
+                    <Field label={`${who} fat (g)`} keyboardType="decimal-pad" value={r.fat} onChangeText={set(r.key, 'fat')} />
                   </View>
-                  <Button kind="link" label="Remove" a11yLabel={`Remove ${r.name || 'item'}`} onPress={() => setRows((rs) => (rs ? rs.filter((x) => x.key !== r.key) : rs))} />
+                  <Button kind="link" label="Remove" a11yLabel={`Remove ${who}`} onPress={() => setRows((rs) => (rs ? rs.filter((x) => x.key !== r.key) : rs))} />
                 </Card>
-              ))}
+                );
+              })}
               {error ? <ErrorText>{error}</ErrorText> : null}
               {rows.length ? <Button label={`Add ${rows.length} item${rows.length > 1 ? 's' : ''} to ${meal.toLowerCase()}`} onPress={addAll} /> : <Hint>Nothing left to add.</Hint>}
               <Button kind="ghost" label="Describe again" onPress={() => { setRows(null); setError(null); }} />
@@ -94,7 +100,7 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
               <Label>What did you eat?</Label>
               <Field label="Describe your meal" placeholder="2 rotis and a katori of dal" multiline maxLength={TEXT_MAX} value={text} onChangeText={setText} />
               {exhausted ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.describeFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
-              <Button label={busy ? 'Estimating…' : 'Estimate'} onPress={() => void estimate()} />
+              {exhausted ? null : <Button label={busy ? 'Estimating…' : 'Estimate'} a11yLabel="Estimate" busy={busy} onPress={() => void estimate()} />}
             </>
           )}
           <Button kind="ghost" label="Close" onPress={onClose} />
