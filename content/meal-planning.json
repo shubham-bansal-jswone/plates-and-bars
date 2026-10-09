@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source": "docs/prototype/plate-and-bar.html (GROC, MEAL_W, PROT_W, MAXQ, MINQ)",
+  "source": "docs/prototype/plate-and-bar.html (GROC, MEAL_W, PROT_W, MAXQ, MINQ, ROLE)",
   "updated_at": "2026-10-09T00:00:00Z",
   "needs_dietitian_review": true,
   "meal_weights": {
@@ -435,6 +435,193 @@
           "unit": "g"
         }
       ]
+    }
+  ],
+  "roles": [
+    {
+      "food": "Roti / chapati",
+      "role": "c",
+      "diet": "v"
+    },
+    {
+      "food": "Rice, cooked",
+      "role": "c",
+      "diet": "v"
+    },
+    {
+      "food": "Dal",
+      "role": "p",
+      "diet": "v"
+    },
+    {
+      "food": "Rajma / chole",
+      "role": "p",
+      "diet": "v"
+    },
+    {
+      "food": "Mixed veg sabzi",
+      "role": "v",
+      "diet": "v"
+    },
+    {
+      "food": "Paneer",
+      "role": "p",
+      "diet": "v"
+    },
+    {
+      "food": "Paneer bhurji",
+      "role": "p",
+      "diet": "v"
+    },
+    {
+      "food": "Chicken breast, cooked",
+      "role": "p",
+      "diet": "n"
+    },
+    {
+      "food": "Chicken curry",
+      "role": "p",
+      "diet": "n"
+    },
+    {
+      "food": "Egg, whole",
+      "role": "bp",
+      "diet": "e"
+    },
+    {
+      "food": "Egg white",
+      "role": "bp",
+      "diet": "e"
+    },
+    {
+      "food": "Curd / dahi",
+      "role": "side",
+      "diet": "v"
+    },
+    {
+      "food": "Greek yogurt, plain",
+      "role": "bp",
+      "diet": "v"
+    },
+    {
+      "food": "Toned milk",
+      "role": "bp",
+      "diet": "v"
+    },
+    {
+      "food": "Whey protein",
+      "role": "sp",
+      "diet": "v"
+    },
+    {
+      "food": "Soya chunks, dry",
+      "role": "p",
+      "diet": "v"
+    },
+    {
+      "food": "Oats, dry",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Poha",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Upma",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Idli",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Dosa, plain",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Sambar",
+      "role": "side",
+      "diet": "v"
+    },
+    {
+      "food": "Aloo paratha",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Brown bread",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Peanut butter",
+      "role": "s",
+      "diet": "v"
+    },
+    {
+      "food": "Banana",
+      "role": "f",
+      "diet": "v"
+    },
+    {
+      "food": "Apple",
+      "role": "f",
+      "diet": "v"
+    },
+    {
+      "food": "Almonds",
+      "role": "s",
+      "diet": "v"
+    },
+    {
+      "food": "Roasted chana",
+      "role": "sp",
+      "diet": "v"
+    },
+    {
+      "food": "Sprouts salad",
+      "role": "sp",
+      "diet": "v"
+    },
+    {
+      "food": "Sabudana khichdi",
+      "role": "b",
+      "diet": "v"
+    },
+    {
+      "food": "Makhana, roasted",
+      "role": "s",
+      "diet": "v"
+    },
+    {
+      "food": "Kuttu atta roti",
+      "role": "c",
+      "diet": "v"
+    },
+    {
+      "food": "Sweet potato, boiled",
+      "role": "c",
+      "diet": "v"
+    },
+    {
+      "food": "Peanuts, roasted",
+      "role": "s",
+      "diet": "v"
+    },
+    {
+      "food": "Buttermilk (chaas)",
+      "role": "side",
+      "diet": "v"
+    },
+    {
+      "food": "Fruit bowl",
+      "role": "f",
+      "diet": "v"
     }
   ]
 }
