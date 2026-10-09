@@ -291,11 +291,16 @@ describe('sleepEntry (contract DayNote.sleep, 0–24 h)', () => {
     expect(sleepEntry('7.25')).toEqual({ kind: 'save', h: 7.25 });
     expect(sleepEntry('24')).toEqual({ kind: 'save', h: 24 });
     expect(sleepEntry('0')).toEqual({ kind: 'save', h: 0 });
-    expect(sleepEntry('abc')).toEqual({ kind: 'save', h: 0 });
     expect(sleepEntry(' ')).toEqual({ kind: 'clear' });
     expect(sleepEntry('24.1')).toEqual({ kind: 'bad' });
     expect(sleepEntry('-1')).toEqual({ kind: 'bad' });
     expect(SLEEP_MAX_H).toBe(24);
+  });
+  it('DEPARTURE (#247): text that is not a number is bad, where the prototype stores it and later reads 0', () => {
+    expect(sleepEntry('abc')).toEqual({ kind: 'bad' });
+    expect(sleepEntry('h7')).toEqual({ kind: 'bad' });
+    expect(sleepEntry('Infinity')).toEqual({ kind: 'bad' });
+    expect(sleepEntry('7 h')).toEqual({ kind: 'save', h: 7 });
   });
 });
 

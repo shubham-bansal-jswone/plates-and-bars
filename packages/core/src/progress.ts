@@ -735,14 +735,16 @@ export function measurementRow(entered: Readonly<Partial<Record<MeasureKey, stri
 export type SleepEntry = { kind: 'save'; h: number } | { kind: 'clear' } | { kind: 'bad' };
 
 /**
- * Reads the hours-slept box: blank clears; otherwise the parsed hours (not rounded; text that is not a
- * number reads as 0, as prototype `num` later reads it), bad when below 0 or above 24. The 0–24 check
- * is the contract's; the prototype stores any text.
+ * Reads the hours-slept box: blank clears; otherwise the parsed hours (comma decimals accepted, not
+ * rounded), bad when below 0 or above 24, or when the text is not a number. Departures (#247): the
+ * prototype stores any text, and `num` later reads text that is not a number as 0; here "abc" is bad, so a
+ * typo is not saved as a 0-hour night. The 0–24 check is the contract's.
  *
  * Mirrors the `enSleep` step of the prototype's document input listener, with the contract `DayNote.sleep` bounds.
  */
 export function sleepEntry(text: string): SleepEntry {
   if (!text.trim()) return { kind: 'clear' };
+  if (!Number.isFinite(parseFloat(text.replace(',', '.')))) return { kind: 'bad' };
   const h = num(text);
   return h >= 0 && h <= SLEEP_MAX_H ? { kind: 'save', h } : { kind: 'bad' };
 }
