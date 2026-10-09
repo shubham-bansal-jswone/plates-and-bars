@@ -492,9 +492,36 @@ describe('weeklyCheckin', () => {
     // This week's plan: counts 4; 0 + 2 ≤ 4 but the plan blocks the card.
     expect(weeklyCheckin({ ...base, weekPlan: { start: mondayOf(DATE), list } })).toMatchObject({ plannedN: 4, suggestion: null });
   });
+  it('sleep under 7 hours is short; exactly 7 is not (#264)', () => {
+    const slept = (...h: number[]): ProgressDay[] => h.map((v, b) => ({ date: addDays(DATE, -b), logs: [], sleep: v, trained: false }));
+    expect(weeklyCheckin({ ...base, days: slept(7, 7) })).toMatchObject({ sleep: 7, sleepShort: false });
+    expect(weeklyCheckin({ ...base, days: slept(7, 6.8) })).toMatchObject({ sleep: 6.9, sleepShort: true });
+    // 0 hours is "not entered", so no average and nothing short.
+    expect(weeklyCheckin({ ...base, days: slept(0) })).toMatchObject({ sleep: null, sleepShort: false });
+    expect(weeklyCheckin(base)).toMatchObject({ sleep: null, sleepShort: false });
+  });
+  it('week-on-week weight change needs both weekly averages; no change counts as down (#264)', () => {
+    const weighed = (thisWeek: number, lastWeek: number): WeighIn[] => [0, 1, 2].flatMap((b) => [{ date: addDays(DATE, -b), weight_kg: thisWeek }, { date: addDays(DATE, -7 - b), weight_kg: lastWeek }]);
+    expect(weeklyCheckin({ ...base, weighIns: weighed(80, 81) }).weeklyChange).toEqual({ amount: 1, down: true });
+    expect(weeklyCheckin({ ...base, weighIns: weighed(80.5, 80) }).weeklyChange).toEqual({ amount: 0.5, down: false });
+    expect(weeklyCheckin({ ...base, weighIns: weighed(80, 80) }).weeklyChange).toEqual({ amount: 0, down: true });
+    // Only 2 weigh-ins last week: no average, no change.
+    expect(weeklyCheckin({ ...base, weighIns: weighed(80, 81).slice(0, 5) })).toMatchObject({ w0: null, weeklyChange: null });
+  });
+  it('slope per week is the real-burn slope × 7, null until the burn is ready (#264)', () => {
+    expect(weeklyCheckin(base)).toMatchObject({ burn: { ready: false }, slopePerWeek: null });
+    // Ready: 10 complete days with food and 10 daily weigh-ins moving 0.1 kg a day, so 0.7 kg a week.
+    const eaten: ProgressDay[] = Array.from({ length: 10 }, (_, b) => ({ date: addDays(DATE, -b), logs: [{ name: 'dal', qty: 1, kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 }], complete: true, trained: false }));
+    const trend = (perDay: number): WeighIn[] => Array.from({ length: 10 }, (_, b) => ({ date: addDays(DATE, -b), weight_kg: 80 - perDay * b }));
+    const down = weeklyCheckin({ ...base, days: eaten, weighIns: trend(-0.1) }), up = weeklyCheckin({ ...base, days: eaten, weighIns: trend(0.1) });
+    expect(down.burn.ready && up.burn.ready).toBe(true);
+    expect(down.slopePerWeek).toBeCloseTo(-0.7, 10);
+    expect(up.slopePerWeek).toBeCloseTo(0.7, 10);
+    expect(down.slopePerWeek).toBe(down.burn.ready ? down.burn.slope * 7 : NaN);
+  });
   it(`matches prototype renderCheckin over ${RUNS / 3} random weeks`, async () => {
     const r = rng(2026);
-    const reached = { pastPlanCard: 0, futurePlanBlocks: 0, profilePlanned: 0, smallPlanSkips: 0 };
+    const reached = { pastPlanCard: 0, futurePlanBlocks: 0, profilePlanned: 0, smallPlanSkips: 0, sleepShort: 0, sleepOk: 0, weightDown: 0, weightUp: 0, slopeDown: 0, slopeUp: 0 };
     for (let i = 0; i < RUNS / 3; i++) {
       const dense = r() < 0.5, days = randomDays(r, 22, dense), ws = randomWeighIns(r, 24, dense), lifts = randomLifts(r), kcal = 1500 + Math.floor(r() * 130) * 10, protein = 100 + Math.floor(r() * 80);
       const profile = r() < 0.15 ? null : randomProfile(r);
@@ -516,6 +543,15 @@ describe('weeklyCheckin', () => {
       expect(html).toContain(`Cardio: ${Math.round(c.cardioMin).toLocaleString('en-IN')} of ${CARDIO_WEEK_MIN} min this week`);
       expect(html.includes(`Steps: about ${Math.round(c.steps ?? 0).toLocaleString('en-IN')} a day.`)).toBe(c.steps !== null);
       expect(html.includes(`Sleep: ${r1(c.sleep ?? 0)} hours a night`)).toBe(c.sleep !== null);
+      expect(html.includes('under the 7–9 hours that best supports fat loss and recovery')).toBe(c.sleepShort);
+      const L = (n: number): string => r1(n).toLocaleString('en-IN'), ch = c.weeklyChange, sl = c.slopePerWeek;
+      expect(html.includes('Weight: log at least 3 weigh-ins a week')).toBe(ch === null);
+      if (ch) expect(html).toContain(`Weight: weekly average ${L(c.w1 ?? 0)} kg, ${ch.down ? 'down' : 'up'} ${L(ch.amount)} kg from last week.`);
+      expect(sl !== null).toBe(c.burn.ready);
+      if (sl !== null) expect(html).toContain(`your weight trend (${sl <= 0 ? 'down' : 'up'} ${L(Math.abs(sl))} kg a week)`);
+      if (c.sleep !== null) reached[c.sleepShort ? 'sleepShort' : 'sleepOk']++;
+      if (ch) reached[ch.down ? 'weightDown' : 'weightUp']++;
+      if (sl !== null) reached[sl <= 0 ? 'slopeDown' : 'slopeUp']++;
       if (c.burn.ready && c.formula !== null) expect(html).toContain(`compared with ${Math.round(c.formula).toLocaleString('en-IN')} from the setup formula`);
       const kind = html.includes('data-act="ci-apply"') ? 'kcal' : html.includes('data-act="ci-week"') ? 'week' : html.includes('Protein was the gap') ? 'protein' : null;
       expect(c.suggestion?.kind ?? null).toBe(kind);

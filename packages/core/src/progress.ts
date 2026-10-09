@@ -442,6 +442,8 @@ export interface WeeklyCheckin {
   /** This and last week's average weight. */
   w1: number | null;
   w0: number | null;
+  /** Week-on-week change in average weight (`|w1 - w0|`, down when `w1 <= w0`); null unless both weeks have one (#264). */
+  weeklyChange: { amount: number; down: boolean } | null;
   /** Lifts whose best score this week beat earlier ones by more than 1%, best first, top 3. */
   improved: { n: string; pct: number }[];
   /** Stalled lifts, top 3. */
@@ -451,7 +453,11 @@ export interface WeeklyCheckin {
   /** Average steps and sleep over days with a value above 0, or null. */
   steps: number | null;
   sleep: number | null;
+  /** Average sleep under 7 hours a night, below the 7–9 hours the check-in recommends (#264). */
+  sleepShort: boolean;
   burn: AdaptiveBurn;
+  /** The real-burn weight trend in kg a week (`burn.slope × 7`, negative is down), or null until the burn is ready (#264). */
+  slopePerWeek: number | null;
   /** Setup formula burn (`calcTargets` tdee), or null with no profile. */
   formula: number | null;
   suggestion: CheckinSuggestion | null;
@@ -491,6 +497,8 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
     else if (tt.length >= 3 && avgP < i.protein * 0.85) suggestion = { kind: 'protein' };
   }
   const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const w1 = weeklyAvg(i.weighIns, i.date), w0 = weeklyAvg(i.weighIns, addDays(i.date, -7));
+  const sleep = avg(wk.map((d) => num(d.sleep)).filter((x) => x > 0));
   return {
     key,
     sessions,
@@ -499,14 +507,18 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
     avgK,
     avgP,
     pDays: tt.filter((t) => t.protein_g >= i.protein * 0.9).length,
-    w1: weeklyAvg(i.weighIns, i.date),
-    w0: weeklyAvg(i.weighIns, addDays(i.date, -7)),
+    w1,
+    w0,
+    // Prototype `w1 && w0`: truthy, so a 0 average (not reachable through the entry limits) shows no change.
+    weeklyChange: w1 && w0 ? { amount: Math.abs(w1 - w0), down: w1 <= w0 } : null,
     improved: improved.slice(0, 3),
     stalled: st.slice(0, 3),
     cardioMin: wk.reduce((a, d) => a + num(d.cardioMin), 0),
     steps: avg(wk.map((d) => num(d.steps)).filter((x) => x > 0)),
-    sleep: avg(wk.map((d) => num(d.sleep)).filter((x) => x > 0)),
+    sleep,
+    sleepShort: sleep !== null && sleep < 7,
     burn,
+    slopePerWeek: burn.ready ? burn.slope * 7 : null,
     formula: i.profile ? calcTargets(toTargetsProfile(i.profile)).tdee : null,
     suggestion,
   };
