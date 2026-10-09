@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
@@ -216,20 +216,29 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
 
 /** Consent first, then four question steps, then the results; "Use these targets" saves the profile. */
 export function SetupScreen({ recalc = false }: { recalc?: boolean }) {
-  const { status } = useProfile();
-  // Wait for the stored profile, so a redo starts from its answers.
-  return status === 'ready' ? <SetupFlow recalc={recalc} /> : null;
+  const { status, profile, latestWeigh } = useProfile();
+  // `undefined` while reading; null when there is no weigh-in or it could not be read.
+  const [weight, setWeight] = useState<number | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    latestWeigh().then((w) => live && setWeight(w), () => live && setWeight(null));
+    return () => {
+      live = false;
+    };
+  }, [latestWeigh]);
+  // Wait for the stored profile and weigh-ins, so a redo starts from its answers and the latest weight.
+  return status === 'ready' && (weight !== undefined || !profile) ? <SetupFlow recalc={recalc} weight={weight ?? null} /> : null;
 }
 
 /**
  * With a stored profile (redo), the form starts with its answers, and `recalc` opens straight on the results
- * (prototype `su-recalc`, `startSetup(4)`); saving keeps the profile's `created` and `cleared`.
+ * (prototype `su-recalc`, `startSetup(4)`); the latest weigh-in replaces the stored weight, as `startSetup` does; saving keeps the profile's `created` and `cleared`.
  */
-function SetupFlow({ recalc }: { recalc: boolean }) {
+function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null }) {
   const { profile: stored, consent, giveConsent, setProfile, skipSetup } = useProfile();
   const router = useRouter();
   const c = useTheme();
-  const [d, setD] = useState<Draft>(() => (stored ? draftFromProfile(stored) : emptyDraft()));
+  const [d, setD] = useState<Draft>(() => (stored ? { ...draftFromProfile(stored), ...(weight ? { weight: String(weight) } : {}) } : emptyDraft()));
   const [step, setStep] = useState(stored && recalc ? STEPS : 0);
   const [err, setErr] = useState('');
   const set: Pick = (k, v) => {
