@@ -8,6 +8,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
+| `.github/workflows/android-release.yml` | tag `v*`, manual, PR touching the workflow | `expo prebuild` + Gradle `assembleRelease bundleRelease`; uploads APK and AAB as an artifact (see below) |
 | `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
 | `.github/dependabot.yml` | weekly | Updates for GitHub Actions, npm (`packages/api`, `packages/core`, `apps/mobile`, `tools`) and `backend` (gradle) |
 
@@ -82,3 +83,27 @@ shellcheck infra/scripts/*.sh
 infra/scripts/lane-check.sh origin/main
 infra/scripts/detect-changes.sh origin/main
 ```
+
+## Android release build (#304)
+
+`android-release.yml` runs `expo prebuild --platform android` (the `android/` folder is generated in CI and never committed) and then `./gradlew assembleRelease bundleRelease`. It needs no account. Output: artifact `android-release` (APK and AAB, kept 14 days).
+
+Signing is optional. `infra/scripts/android-signing.sh` patches the generated `android/app/build.gradle` only when all four secrets exist:
+
+| Repository secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | upload keystore, base64 on one line (`base64 -w0 upload.jks`; on macOS `base64 -i upload.jks`) |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore password |
+| `ANDROID_KEY_ALIAS` | key alias |
+| `ANDROID_KEY_PASSWORD` | key password |
+
+Without them the build still passes and the artefacts are debug-signed: installable for testing, rejected by Google Play. If only some of the four are set, the build fails with an error rather than silently debug-signing. The script is idempotent and fails loudly if the Expo template changes and the patch no longer applies.
+
+How the secrets are protected:
+
+- Create a GitHub environment named `android-release` (Settings > Environments) and store the four secrets as environment secrets there, not repository secrets. Restrict its deployment branches and tags to `v*` tags (and `main` if you want manual builds) and optionally add yourself as a required reviewer.
+- Tag and manual runs use that environment. `pull_request` runs use no environment and the workflow passes them empty secrets, so PR builds are always debug-signed even if the workflow is edited in a branch (a branch cannot reach environment secrets outside its allowed refs).
+- Secrets are exposed only to the decode, signing and Gradle steps, never to `npm ci` or `expo prebuild`. The decoded keystore is written with mode 600 and deleted in a final `if: always()` step.
+- Gradle caching uses the MIT `basic` provider of `gradle/actions/setup-gradle`, like `ci.yml`.
+
+Generate the keystore with `keytool -genkeypair -v -storetype PKCS12 -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000` and keep it, with its passwords, somewhere safe outside the repo; losing the upload key is recoverable with Play support, but only if Play App Signing is on.
