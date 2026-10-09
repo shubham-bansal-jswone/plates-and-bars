@@ -23,6 +23,7 @@ import {
 } from '@plate-and-bar/core';
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
+import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
 import { guidance, progressionContext, type Tuning } from './guidance';
@@ -54,6 +55,8 @@ interface Options {
   saveRule: (rule: CantRule) => Exclusion;
   /** Changed rep ranges and exercises coming back (settings). */
   tune: Tuning;
+  /** Changes when sync stored pulled records: the day is read again (after queued local writes). */
+  reloadKey?: number;
 }
 
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
@@ -62,7 +65,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule, tune }: Options) {
+export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
   const date = localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
   const ref = useRef(day);
@@ -71,11 +74,28 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     setDay(d);
   }, []);
 
+  // Every save goes through one FIFO queue, so they finish in the order the user acted, and each save reads
+  // the latest state from the ref when it runs (not the snapshot from when it was queued).
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const writes = useRef(0);
+  const enqueue = useCallback(
+    (write: () => Promise<void>) => {
+      writes.current++;
+      queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
+      return queue.current;
+    },
+    [notify],
+  );
+  /** Start and second session build from stored history; a second tap while one runs is ignored. */
+  const building = useRef(false);
+
   useEffect(() => {
     let live = true;
     (async () => {
-      const [workout, sets, lifts, sessions] = await Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]);
-      if (!live) return;
+      // A session being built is a local edit in flight: the read waits for it, so it cannot be replaced by the stored (empty) day.
+      const read = await freshRead({ queue, writes }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, () => !building.current);
+      if (!read || !live) return;
+      const [workout, sets, lifts, sessions] = read;
       commit({
         ready: true,
         workout,
@@ -87,20 +107,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     return () => {
       live = false;
     };
-  }, [db, date, commit, notify]);
-
-  // Every save goes through one FIFO queue, so they finish in the order the user acted, and each save reads
-  // the latest state from the ref when it runs (not the snapshot from when it was queued).
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const enqueue = useCallback(
-    (write: () => Promise<void>) => {
-      queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
-      return queue.current;
-    },
-    [notify],
-  );
-  /** Start and second session build from stored history; a second tap while one runs is ignored. */
-  const building = useRef(false);
+  }, [db, date, commit, notify, reloadKey]);
 
   const writeWorkout = async () => {
     const d = ref.current;

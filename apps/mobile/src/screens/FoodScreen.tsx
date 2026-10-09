@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, planForMeal, showAddedSugar, undoFlex, type FoodFacts, type PlanItem } from '@plate-and-bar/core';
 import { fmt } from '../format';
@@ -44,7 +45,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const f = useFoodDay({ db, now, notify });
+  const f = useFoodDay({ db, now, notify, reloadKey: useDataVersion() });
   const water = useWater({ db, date: f.date, now, profile, notify });
 
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;

@@ -3,6 +3,7 @@ import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
+import { freshRead } from '../state/freshRead';
 import { localDate } from '../setup/logic';
 import type { CatalogFood } from './catalog';
 import type { DayNote, FoodLog, Meal, UserFood } from './types';
@@ -14,6 +15,8 @@ interface Options {
   now: () => Date;
   /** Short message for the toast. */
   notify: (msg: string) => void;
+  /** Changes when sync stored pulled records: the day is read again (after queued local writes). */
+  reloadKey?: number;
 }
 
 /** What gets logged: per-serving values and `qty` servings; `foodId` is the shared or user food it came from. */
@@ -34,7 +37,7 @@ export const logOf = (f: CatalogFood, qty: number): NewLog => ({
  * Today's food: loads logs, the day note and my foods from SQLite. Every action shows at once and its write
  * goes through one FIFO queue (nothing waits on the network, and writes finish in the order the user acted).
  */
-export function useFoodDay({ db, now, notify }: Options) {
+export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
   const date = localDate(now());
   const [ready, setReady] = useState(false);
   const [logs, setLogs] = useState<FoodLog[]>([]);
@@ -44,12 +47,14 @@ export function useFoodDay({ db, now, notify }: Options) {
   const noteRef = useRef(note);
   const mineRef = useRef(mine);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const writes = useRef(0);
 
   useEffect(() => {
     let live = true;
     (async () => {
-      const [l, n, m] = await Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]);
-      if (!live) return;
+      const read = await freshRead({ queue, writes }, () => Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]), () => live);
+      if (!read || !live) return;
+      const [l, n, m] = read;
       logsRef.current = l;
       noteRef.current = n;
       mineRef.current = m;
@@ -63,10 +68,11 @@ export function useFoodDay({ db, now, notify }: Options) {
     return () => {
       live = false;
     };
-  }, [db, date, notify]);
+  }, [db, date, notify, reloadKey]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
+      writes.current++;
       queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
     },
     [notify],

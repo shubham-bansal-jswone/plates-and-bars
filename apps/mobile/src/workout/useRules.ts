@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CantRule } from '@plate-and-bar/core';
 import { newId } from '../db/records';
+import { freshRead } from '../state/freshRead';
 import { deleteExclusion, deleteSwap, loadExclusions, loadSwaps, saveExclusion, saveSwap, storedVersion, type ExclusionRecord, type SwapRecord } from '../db/rules';
 import type { WorkoutDb } from '../db/workouts';
 import { stamp } from './model';
 
 // One queue for every instance (the Workout and Targets tabs each hold one), so writes from both finish in the order made.
-const queue = { current: Promise.resolve() };
+const queue: { current: Promise<unknown> } = { current: Promise.resolve() };
+// Counts local rule edits (all instances), so a reload that straddled one is read again.
+const writes = { current: 0 };
 
 export interface Rules {
   ready: boolean;
   exclusions: ExclusionRecord[];
   swaps: SwapRecord[];
+  /** True when the stored rules could not be read: changes are refused, so an empty list never replaces them. */
+  loadFailed: boolean;
 }
 
 interface Options {
@@ -27,7 +32,7 @@ interface Options {
  * on the network; removing a record writes a tombstone. Rules come from core; this only stores them.
  */
 export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
-  const [rules, setRules] = useState<Rules>({ ready: false, exclusions: [], swaps: [] });
+  const [rules, setRules] = useState<Rules>({ ready: false, exclusions: [], swaps: [], loadFailed: false });
   const ref = useRef(rules);
   const commit = useCallback((r: Rules) => {
     ref.current = r;
@@ -36,13 +41,14 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
 
   useEffect(() => {
     let live = true;
-    // Local edits still being written land first, so a reload never reads around them.
-    queue.current
-      .then(() => Promise.all([loadExclusions(db), loadSwaps(db)]))
-      .then(([exclusions, swaps]) => live && commit({ ready: true, exclusions, swaps }))
+    // Local edits still being written land first, and a read that straddled a new edit is read again.
+    freshRead({ queue, writes }, () => Promise.all([loadExclusions(db), loadSwaps(db)]), () => live)
+      .then((read) => {
+        if (read && live) commit({ ready: true, exclusions: read[0], swaps: read[1], loadFailed: false });
+      })
       .catch(() => {
         notify('Couldn’t read your exercise rules.');
-        if (live) commit({ ...ref.current, ready: true });
+        if (live) commit({ ...ref.current, ready: true, loadFailed: true });
       });
     return () => {
       live = false;
@@ -51,6 +57,7 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
 
   const write = useCallback(
     (task: () => Promise<void>) => {
+      writes.current++;
       queue.current = queue.current.then(task).catch(() => notify('Couldn’t save that. Try again.'));
     },
     [notify],
