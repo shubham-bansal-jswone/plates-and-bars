@@ -41,6 +41,13 @@ const { title, description, landing = false } = Astro.props;
     </main>
     <footer>
       <div class="wrap">
+        <nav aria-label="Footer">
+          <ul>
+            <li><a href="/privacy/">Privacy</a></li>
+            <li><a href="/terms/">Terms</a></li>
+            <!-- Account deletion link: add when that page exists (no website issue filed yet). -->
+          </ul>
+        </nav>
         <p>&copy; Plate &amp; Bar. Early development; details may change.</p>
       </div>
     </footer>
