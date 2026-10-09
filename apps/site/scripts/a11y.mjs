@@ -11,9 +11,9 @@ import puppeteer from "puppeteer-core";
 const require = createRequire(import.meta.url);
 const axeSource = await readFile(require.resolve("axe-core/axe.min.js"), "utf8");
 const root = fileURLToPath(new URL("../dist/", import.meta.url));
-const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".txt": "text/plain" };
+const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".txt": "text/plain" };
 const pages = ["/", "/privacy/", "/terms/"];
-const viewports = [{ width: 1280, height: 800 }, { width: 360, height: 740 }];
+const viewports = [{ width: 1280, height: 800 }, { width: 360, height: 740 }, { width: 320, height: 640 }];
 
 const chrome = [
   process.env.CHROME_PATH,
@@ -51,6 +51,23 @@ for (const scheme of ["light", "dark"]) {
       await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: "load" });
       await page.evaluate(axeSource);
       const result = await page.evaluate(() => globalThis.axe.run());
+      const emptyVars = await page.evaluate(() => {
+        const root = getComputedStyle(document.documentElement);
+        const names = new Set();
+        for (const sheet of document.styleSheets)
+          for (const rule of sheet.cssRules)
+            if (rule.selectorText === ":root") for (const n of rule.style) if (n.startsWith("--")) names.add(n);
+        return [...names].filter((n) => root.getPropertyValue(n).trim() === "");
+      });
+      for (const n of emptyVars) {
+        violations++;
+        console.log(`[${scheme} ${viewport.width}px ${path}] custom property ${n} resolves empty`);
+      }
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      if (overflow) {
+        violations++;
+        console.log(`[${scheme} ${viewport.width}px ${path}] horizontal scroll`);
+      }
       for (const v of result.violations) {
         violations++;
         console.log(`[${scheme} ${viewport.width}px ${path}] ${v.impact} ${v.id}: ${v.help} (${v.nodes.length} nodes)`);
