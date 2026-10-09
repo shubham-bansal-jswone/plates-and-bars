@@ -8,7 +8,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
-| `.github/workflows/site-deploy.yml` | push to `main` touching `apps/site`, manual | Builds `apps/site` and deploys it; every job is skipped until repository variable `SITE_DEPLOY_TARGET` is set (see below) |
+| `.github/workflows/site-deploy.yml` | push to `main` touching `apps/site`, manual (deploys); PR touching `infra/caddy/` (validate only) | Builds `apps/site` and deploys it; every job is skipped until repository variable `SITE_DEPLOY_TARGET` is set (see below) |
 | `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
 | `.github/dependabot.yml` | weekly | Updates for GitHub Actions, npm (`packages/api`, `packages/core`, `apps/mobile`, `tools`) and `backend` (gradle) |
 
@@ -68,7 +68,7 @@ The `site` job installs open-source Chromium (BSD-3-Clause) with `@puppeteer/bro
 
 `chromium@latest` floats on purpose: puppeteer-core's `PUPPETEER_REVISIONS` lists only Chrome, Chrome Headless Shell and Firefox, not a Chromium build ID, so there is nothing to pin to. The a11y step also runs `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` so the Chromium sandbox stays on (no `--no-sandbox`). If a runner image drops or renames that sysctl, a red `site` job is the intended signal; fix it rather than disabling the sandbox.
 
-Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions/*` majors (ignored, so a human re-checks the licence). gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
+Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions/*` majors (ignored, so a human re-checks the licence). Container images are pinned by exact version tag (`caddy:2.11.7` in `site-deploy.yml`); bump it by hand when a new Caddy release is wanted. gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
 
 ### setup-gradle licence decision (checked 2026-10-08)
 
@@ -95,7 +95,7 @@ The plan named Cloudflare Pages; that needs a vendor account and terms, so the w
 
 Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The workflow's `validate Caddyfile` job runs `caddy validate` with the official Apache-2.0 `caddy:2` image on every PR touching `infra/caddy/`. The Caddyfile sets long-lived immutable caching for `/_astro/*`, `no-cache` for everything else, and security headers.
 
-Safety rails: deploys run only from `main`, even when started manually; the `caddy` job refuses to run `rsync --delete` unless `SITE_SSH_HOST`, `SITE_SSH_USER` and `SITE_WEB_ROOT` are set and `SITE_WEB_ROOT` is an absolute path at least two levels deep (for example `/srv/site`; never `/`). Use a dedicated deploy user that can write only that directory.
+Safety rails: deploys run only from `main`, even when started manually; the `caddy` job refuses to run `rsync --delete` unless `SITE_SSH_HOST`, `SITE_SSH_USER` and `SITE_WEB_ROOT` are set and `SITE_WEB_ROOT` is a directory under `/srv`, `/var/www` or `/opt` (for example `/srv/site`; never `/` or a home directory, because `rsync --delete` would remove `~/.ssh/authorized_keys`). Use a dedicated deploy user that can write only that directory.
 
 Open-source note: GitHub Pages is a GitHub service, already used for this repository; if you want it recorded as an exception, say so, otherwise choose `caddy`.
 
