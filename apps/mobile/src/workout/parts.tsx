@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Button, Hint } from '../components/ui';
+import { Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
@@ -11,7 +11,7 @@ import { catalog } from './catalog';
 export function Chip({ label, text, pressed, onPress }: { label: string; text?: string; pressed?: boolean; onPress: () => void }) {
   const c = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={pressed === undefined ? undefined : { selected: pressed }}
@@ -21,7 +21,7 @@ export function Chip({ label, text, pressed, onPress }: { label: string; text?: 
       style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }]}
     >
       <Text style={{ color: pressed ? c.onBrand : c.ink, ...type.buttonSm }}>{text ?? label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
