@@ -50,10 +50,29 @@ export async function clearPushed(db: StoreDb, e: Pick<OutboxEntry, 'tbl' | 'key
   await db.runAsync('DELETE FROM sync_outbox WHERE tbl = ? AND key = ? AND seq = ?', e.tbl, e.key, e.seq);
 }
 
+/** The subset of expo-sqlite's database that runs a block in one exclusive transaction. */
+export interface PullDb {
+  withExclusiveTransactionAsync(task: (txn: StoreDb) => Promise<void>): Promise<void>;
+}
+
+/** True when the record has a local change not pushed yet. */
+export async function isQueued(db: StoreDb, tbl: SyncTableName, key: string): Promise<boolean> {
+  const row = await db.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', tbl, key);
+  return row !== null;
+}
+
 /**
- * Applies a pulled record without queuing it for push: write the row, then call this. Run both in one transaction.
- * Skip it for a record that is still dirty locally; that one is a conflict to resolve, not an echo.
+ * Applies a pulled record without queuing it for push. The triggers queue every write, so this writes the row inside an
+ * exclusive transaction, reads the seq the write produced, and clears it with the seq-guarded `clearPushed`; a local edit
+ * that lands after the write has a newer seq and stays queued.
+ *
+ * Dirtiness must be checked BEFORE calling: for a record that is still queued locally (`isQueued`), do not call this.
+ * That record is a conflict to resolve, and writing it would replace the local edit and drop it from the queue.
  */
-export async function clearAfterPull(db: StoreDb, tbl: SyncTableName, key: string): Promise<void> {
-  await db.runAsync('DELETE FROM sync_outbox WHERE tbl = ? AND key = ?', tbl, key);
+export async function applyPulled(db: PullDb, tbl: SyncTableName, key: string, write: (txn: StoreDb) => Promise<void>): Promise<void> {
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await write(txn);
+    const row = await txn.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', tbl, key);
+    if (row) await clearPushed(txn, { tbl, key, seq: row.seq });
+  });
 }

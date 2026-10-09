@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { MIGRATIONS, migrate, type MigrationDb } from '../src/db/migrations';
-import { SYNC_TABLES, clearAfterPull, clearPushed, pendingChanges, pendingCount } from '../src/db/outbox';
+import { SYNC_TABLES, applyPulled, clearPushed, isQueued, pendingChanges, pendingCount } from '../src/db/outbox';
 import type { WorkoutDb } from '../src/db/workouts';
 
 // node:sqlite ships with Node 22+; no @types/node here, so describe the few methods used.
@@ -31,6 +31,8 @@ async function installAt(db: MigrationDb, n: number) {
     await db.runAsync('INSERT INTO schema_version (version) VALUES (?)', v + 1);
   }
 }
+
+const clearKey = (db: ReturnType<typeof open>, t: keyof typeof SYNC_TABLES, k: string) => void db.raw.prepare('DELETE FROM sync_outbox WHERE tbl = ? AND key = ?').run(t, k);
 
 const tableNames = (db: ReturnType<typeof open>) =>
   (db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((r) => r.name);
@@ -99,13 +101,13 @@ describe('outbox change tracking', () => {
         : "(key, data) VALUES ('k', '{}')";
       db.raw.exec(`INSERT OR REPLACE INTO ${local} ${cols}`);
       expect((await pendingChanges(db)).map(key)).toContain(`${contract}:k`);
-      await clearAfterPull(db, contract as keyof typeof SYNC_TABLES, 'k');
+      await clearKey(db, contract as keyof typeof SYNC_TABLES, 'k');
       db.raw.exec(`INSERT OR REPLACE INTO ${local} ${cols}`);
       expect((await pendingChanges(db)).map(key)).toContain(`${contract}:k`);
-      await clearAfterPull(db, contract as keyof typeof SYNC_TABLES, 'k');
+      await clearKey(db, contract as keyof typeof SYNC_TABLES, 'k');
       db.raw.exec(`UPDATE ${local} SET data = '{"n":1}' WHERE key = 'k'`);
       expect((await pendingChanges(db)).map(key)).toContain(`${contract}:k`);
-      await clearAfterPull(db, contract as keyof typeof SYNC_TABLES, 'k');
+      await clearKey(db, contract as keyof typeof SYNC_TABLES, 'k');
     }
     expect(await pendingCount(db)).toBe(0);
   });
@@ -136,5 +138,46 @@ describe('outbox change tracking', () => {
     await migrate(db);
     for (const k of ['a', 'b', 'c']) db.raw.exec(`INSERT INTO recipes (key, data) VALUES ('${k}', '{}')`);
     expect((await pendingChanges(db, 2)).map((e) => e.key)).toEqual(['a', 'b']);
+  });
+
+  describe('applyPulled', () => {
+    const pullDb = (db: ReturnType<typeof open>, beforeClear?: () => void) => ({
+      withExclusiveTransactionAsync: async (task: (txn: WorkoutDb) => Promise<void>) => {
+        await task({
+          ...db,
+          runAsync: async (sql: string, ...p: (string | number)[]) => {
+            if (sql.startsWith('DELETE FROM sync_outbox')) beforeClear?.();
+            return db.runAsync(sql, ...p);
+          },
+        });
+      },
+    });
+    const write = (db: ReturnType<typeof open>) => async () => void db.raw.exec("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-08', '{\"weight_kg\":70}')");
+
+    it('writes the pulled row without leaving it queued', async () => {
+      const db = open();
+      await migrate(db);
+      await applyPulled(pullDb(db), 'weights', '2026-10-08', write(db));
+      expect(db.raw.prepare('SELECT COUNT(*) AS n FROM weights').get()).toEqual({ n: 1 });
+      expect(await pendingCount(db)).toBe(0);
+    });
+
+    it('keeps a local edit made between the write and the clear queued', async () => {
+      const db = open();
+      await migrate(db);
+      await applyPulled(
+        pullDb(db, () => db.raw.exec(`UPDATE weights SET data = '{"weight_kg":71}' WHERE key = '2026-10-08'`)),
+        'weights',
+        '2026-10-08',
+        write(db),
+      );
+      expect(await isQueued(db, 'weights', '2026-10-08')).toBe(true);
+    });
+
+    it('isQueued is false for an untouched record', async () => {
+      const db = open();
+      await migrate(db);
+      expect(await isQueued(db, 'weights', 'x')).toBe(false);
+    });
   });
 });

@@ -69,7 +69,8 @@ export const MIGRATIONS: readonly string[] = [
   // documents under `key`, natural-key tables keyed by date or source exercise) plus change tracking for all 16 sync
   // tables: sync_outbox holds one row per (contract table name, key) changed since its last push. Triggers on every
   // synced table fill it on any INSERT/UPDATE, so writers (including INSERT OR REPLACE) need no outbox code and later
-  // table-writing PRs do not touch this file. Rows created before sign-in are backfilled into the outbox here.
+  // table-writing PRs do not touch this file. There is no AFTER DELETE trigger, so deletes of synced rows must be
+  // tombstones (deleted_at in the document), never a hard DELETE, or the delete is never queued. Rows created before sign-in are backfilled into the outbox here.
   `CREATE TABLE IF NOT EXISTS water_logs (
      key TEXT PRIMARY KEY NOT NULL,
      log_date TEXT NOT NULL,
