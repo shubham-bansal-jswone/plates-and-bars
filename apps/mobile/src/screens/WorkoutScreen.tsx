@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { modsNote, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -12,7 +13,8 @@ import { buildSession } from '../workout/buildSession';
 import { catalog } from '../workout/catalog';
 import { CHECKIN, MUSCLE, REASON_TEXT, listJoin, modsNoteText } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
-import { guidance, progressionContext } from '../workout/guidance';
+import { guidance, progressionContext, type Tuning } from '../workout/guidance';
+import { ExerciseCards, RecheckCards } from '../workout/ExerciseCards';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -47,8 +49,13 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
     setRest({ id: t, end: t + total * 1000, total, label });
   }, [restOff]);
 
-  const { rules, addRule } = useRules({ db, now, notify });
-  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule });
+  // Tab screens stay mounted; rules removed on the Targets tab show here when this tab is shown again.
+  const [shown, setShown] = useState(0);
+  useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
+  const rulesApi = useRules({ db, now, notify, reloadKey: shown });
+  const { rules, addRule } = rulesApi;
+  const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
+  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune });
   const { day } = w;
   const [cantName, setCantName] = useState<{ i: number; name: string } | null>(null);
 
@@ -63,9 +70,9 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
 
   const body =
     day.exs.length === 0 ? (
-      <StartView w={w} profile={profile} focus={focus} rules={rules} />
+      <StartView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
-      <SessionView w={w} profile={profile} focus={focus} onHowTo={setHowTo} onCant={(i, name) => setCantName({ i, name })} />
+      <SessionView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name) => setCantName({ i, name })} />
     );
   const where = day.workout?.where ?? profile.where;
   const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, catalog);
@@ -95,7 +102,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
 type W = ReturnType<typeof useWorkoutDay>;
 type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 
-function StartView({ w, profile, focus, rules }: { w: W; profile: Prof; focus: readonly string[]; rules: Pick<ReturnType<typeof useRules>['rules'], 'exclusions' | 'swaps'> }) {
+function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
   const c = useTheme();
   const { date, day } = w;
   const [ci, setCi] = useState<Checkin>({});
@@ -110,7 +117,7 @@ function StartView({ w, profile, focus, rules }: { w: W; profile: Prof; focus: r
     if (!checkinFlags(next, nextT).flagged) setChoice(null);
   };
   const built = startT
-    ? buildSession({ template: startT, date, profile, where: profile.where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.exclusions, swaps: rules.swaps })
+    ? buildSession({ template: startT, date, profile, where: profile.where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps })
     : null;
   const names = built ? built.exercises.map((e) => e.name) : [];
   const prim = [...new Set(names.flatMap((n) => catalog.tags[n]?.primary ?? []))];
@@ -119,6 +126,7 @@ function StartView({ w, profile, focus, rules }: { w: W; profile: Prof; focus: r
 
   return (
     <Page>
+      <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan
@@ -191,12 +199,12 @@ function StartView({ w, profile, focus, rules }: { w: W; profile: Prof; focus: r
   );
 }
 
-function SessionView({ w, profile, focus, onHowTo, onCant }: { w: W; profile: Prof; focus: readonly string[]; onHowTo: (n: string) => void; onCant: (i: number, name: string) => void }) {
+function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const [open, setOpen] = useState(false);
   const wk = day.workout as Workout;
-  const ctx = progressionContext(date, day.lifts, profile, wk);
+  const ctx = progressionContext(date, day.lifts, profile, wk, tune);
   let done = 0;
   let all = 0;
   for (const ex of day.exs)
@@ -235,7 +243,7 @@ function SessionView({ w, profile, focus, onHowTo, onCant }: { w: W; profile: Pr
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1>Second session</H1> : null}
-            <ExerciseCard ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, catalog.tags)} act={act} />
+            <ExerciseCard ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, catalog.tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
           </View>
         );
       })}

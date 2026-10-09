@@ -25,7 +25,7 @@ import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift,
 import { localDate } from '../setup/logic';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
-import { guidance, progressionContext } from './guidance';
+import { guidance, progressionContext, type Tuning } from './guidance';
 import { catalog } from './catalog';
 import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState } from './model';
 import type { Workout } from './types';
@@ -52,6 +52,8 @@ interface Options {
   swaps: readonly Swap[];
   /** Stores a rule made by the "can't do" sheet, returning the saved record. */
   saveRule: (rule: CantRule) => Exclusion;
+  /** Changed rep ranges and exercises coming back (settings). */
+  tune: Tuning;
 }
 
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
@@ -60,7 +62,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule }: Options) {
+export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule, tune }: Options) {
   const date = localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
   const ref = useRef(day);
@@ -116,7 +118,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     const d = ref.current;
     const ex = d.exs[i];
     if (!profile || !ex) return;
-    const { info } = guidance(ex, progressionContext(date, d.lifts, profile, d.workout), d.workout);
+    const { info } = guidance(ex, progressionContext(date, d.lifts, profile, d.workout, tune), d.workout);
     // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
     const res = updateLift(d.lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, profile.weight_kg);
     if (!res) return;
@@ -246,7 +248,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !d0.workout || !ex0) return;
-    const ctx = progressionContext(date, d0.lifts, profile, d0.workout);
+    const ctx = progressionContext(date, d0.lifts, profile, d0.workout, tune);
     const { info, sug } = guidance(ex0, ctx, d0.workout);
     change(
       i,
@@ -325,7 +327,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
-    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout), d0.workout);
+    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout, tune), d0.workout);
     change(
       i,
       (ex) => {
@@ -359,7 +361,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
-    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout), d0.workout);
+    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout, tune), d0.workout);
     change(
       i,
       (ex) => {
@@ -389,7 +391,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     // Sets of the old exercise to tombstone (`rows` index into the copy taken before the change), and exercises to write.
     const gone: { ex: ExState; rows: ['work' | 'ramp', number][] }[] = [];
     const touched = new Set<string>();
-    // TODO(#265): core's replaceAt replaces this local copy.
+    // TODO(#265, #269): core's cantSession/replaceAt replace this local copy (a replacement keeps the part of the exercise it replaces, #267).
     const replaceAt = (k: number, pick: string | null) => {
       const ex = d.exs[k] as ExState;
       const keep = ex.sets.some((s) => s.done);
