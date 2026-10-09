@@ -1,16 +1,18 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { DataScreen } from '../src/screens/DataScreen';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
+import { DeletionNotice } from '../src/account/DeletionNotice';
 import { memoryDb } from './helpers';
 
 const mockReplace = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: mockReplace, canGoBack: () => true }) }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: mockPush, replace: mockReplace, canGoBack: () => true }) }));
 const mockSave = jest.fn(async (): Promise<'saved' | 'shared' | 'unavailable'> => 'saved');
-jest.mock('../src/account/saveFile', () => ({ saveTextFile: (...a: unknown[]) => (mockSave as unknown as (...x: unknown[]) => unknown)(...a) }));
+jest.mock('../src/account/saveFile', () => ({ clearOldExports: () => undefined, saveTextFile: (...a: unknown[]) => (mockSave as unknown as (...x: unknown[]) => unknown)(...a) }));
 jest.mock('../src/account/exportLocal', () => ({ buildLocalExport: async () => ({ file: { exported_at: '2026-10-09T08:00:00.000Z' }, csv: 'date' }) }));
 
 const base: SyncState = {
-  configured: true, signedIn: false, pending: 0, syncing: false, last: null, epoch: 0, dataVersion: 0, holdSchedule: () => undefined,
+  configured: true, signedIn: false, linked: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0, dataVersion: 0, holdSchedule: () => undefined,
   syncNow: async () => null,
   startSignIn: async () => ({ ok: true, resendAfterSec: 60 }),
   verifyCode: async () => ({ kind: 'signed_in', wiped: false }),
@@ -76,9 +78,61 @@ describe('data screen (#27)', () => {
     expect(await screen.findByText(/could not confirm the deletion/)).toBeTruthy();
   });
 
-  it('signed out, the confirmation says nothing is on a server', async () => {
+  it('never signed in, the confirmation says it deletes this device only', async () => {
     await show({});
     await fireEvent.press(screen.getByLabelText('Delete everything'));
-    expect(screen.getByText(/not signed in/)).toBeTruthy();
+    expect(screen.getByText(/not linked to an account/)).toBeTruthy();
+    expect(screen.queryByText(/server/)).toBeNull();
+  });
+
+  it('linked but signed out: offers sign-in or device-only, never says nothing is on a server, and deletes nothing on sign-in', async () => {
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: false }));
+    await show({ linked: true, deleteEverything });
+    expect(screen.getByLabelText('Sign in to download from your account')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Delete everything'));
+    expect(screen.getByText(/leaves your account and its server data in place/)).toBeTruthy();
+    expect(screen.queryByLabelText('Yes, delete everything')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Sign in to delete your account'));
+    expect(mockPush).toHaveBeenCalledWith('/sign-in');
+    expect(deleteEverything).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByLabelText('Delete only this device'));
+    expect(screen.getByText(/Your account and its data on our server stay/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Yes, delete everything'));
+    await waitFor(() => expect(deleteEverything).toHaveBeenCalledWith({ deviceOnly: true }));
+    expect(await screen.findByText('The data on this device is deleted.')).toBeTruthy();
+  });
+
+  it('after a failed device clear following a server deletion, only the device half is offered', async () => {
+    const results = [{ kind: 'local_failed' as const }, { kind: 'deleted' as const, server: true }];
+    const deleteEverything = jest.fn(async () => results.shift()!);
+    await show({ signedIn: true, linked: true, deleteEverything });
+    await fireEvent.press(screen.getByLabelText('Delete everything'));
+    await fireEvent.press(screen.getByLabelText('Yes, delete everything'));
+    await fireEvent.press(await screen.findByLabelText('Finish deleting this device'));
+    await waitFor(() => expect(deleteEverything).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('deletion notice', () => {
+  const at = (lastDeletion: SyncState['lastDeletion'], clearLastDeletion = jest.fn()) => (
+    <SyncContext.Provider value={{ ...base, lastDeletion, clearLastDeletion }}>
+      <DeletionNotice />
+    </SyncContext.Provider>
+  );
+  it('says what was deleted once, and clears when the screen goes away', async () => {
+    const clear = jest.fn();
+    const view = await render(at({ server: true }, clear));
+    expect(screen.getByText(/Everything deleted/)).toBeTruthy();
+    expect(clear).not.toHaveBeenCalled();
+    await view.unmount();
+    expect(clear).toHaveBeenCalled();
+    await render(at({ server: false }));
+    expect(screen.getByText('This device was cleared. Your account still exists.')).toBeTruthy();
+  });
+  it('shows nothing without a deletion or without a provider', async () => {
+    await render(at(null));
+    expect(screen.queryByText(/deleted|cleared/)).toBeNull();
+    await render(<DeletionNotice />);
+    expect(screen.queryByText(/deleted|cleared/)).toBeNull();
   });
 });

@@ -1,7 +1,9 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
 import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { refreshSession } from '../sync/engine';
 import { wipeLocalStore, withSyncPaused } from '../sync/guard';
+import { getUserId } from '../sync/store';
 import type { TokenStore } from '../sync/tokens';
 
 type Db = StoreDb & PullDb;
@@ -15,10 +17,10 @@ export type Authed<T> =
   | { kind: 'unavailable' };
 
 /**
- * Runs an authenticated call; on 401 refreshes the tokens once and retries once. Callers must hold the sync engine
- * paused: two refreshes at once would reuse a rotated refresh token and revoke the session. Tokens are never logged.
+ * Runs an authenticated call; on 401 refreshes the tokens once (the sync engine's own refresh) and retries once.
+ * Callers must hold the sync engine paused: two refreshes at once would reuse a rotated refresh token and revoke the session.
  */
-export async function authedCall<T>(api: ApiClient, tokens: TokenStore, call: () => Promise<{ data?: T; response: Response }>): Promise<Authed<T>> {
+export async function authedCall<T>(d: { db: Db; api: ApiClient; tokens: TokenStore }, call: () => Promise<{ data?: T; response: Response }>): Promise<Authed<T>> {
   for (let attempt = 0; attempt < 2; attempt++) {
     let res: { data?: T; response: Response };
     try {
@@ -27,22 +29,9 @@ export async function authedCall<T>(api: ApiClient, tokens: TokenStore, call: ()
       return e instanceof SyntaxError ? { kind: 'unavailable' } : { kind: 'offline' };
     }
     if (res.response.status !== 401 || attempt === 1) return { kind: 'response', response: res.response, data: res.data };
-    const t = await tokens.load();
-    if (!t) return { kind: 'session_ended' };
-    try {
-      const r = await api.POST('/auth/refresh', { body: { refresh_token: t.refresh } });
-      if (r.data) {
-        await tokens.save({ access: r.data.access_token, refresh: r.data.refresh_token });
-        continue;
-      }
-      if (r.response.status === 401) {
-        await tokens.clear();
-        return { kind: 'session_ended' };
-      }
-      return { kind: 'unavailable' };
-    } catch (e) {
-      return e instanceof SyntaxError ? { kind: 'unavailable' } : { kind: 'offline' };
-    }
+    const r = await refreshSession(d);
+    if (r === 'ended') return { kind: 'session_ended' };
+    if (r !== 'ok') return { kind: r };
   }
   return { kind: 'unavailable' };
 }
@@ -53,10 +42,10 @@ export type ServerExportResult =
   | { kind: 'rate_limited'; retryAfterSec: number };
 
 /** `GET /me/export` (limited to 5 an hour). Not stored anywhere by the app; the caller hands the text to the file saver. */
-export async function exportFromServer(api: ApiClient | null, tokens: TokenStore): Promise<ServerExportResult> {
+export async function exportFromServer(db: Db, api: ApiClient | null, tokens: TokenStore): Promise<ServerExportResult> {
   if (!api || !(await tokens.load())) return { kind: 'not_signed_in' };
   return withSyncPaused(async () => {
-    const r = await authedCall<Schemas['MeExport']>(api, tokens, () => api.GET('/me/export'));
+    const r = await authedCall<Schemas['MeExport']>({ db, api, tokens }, () => api.GET('/me/export'));
     if (r.kind === 'response') {
       if (r.data) return { kind: 'ok', json: JSON.stringify(r.data, null, 1), filename: `plate-and-bar-export-${r.data.exported_at.slice(0, 10)}.json` };
       if (r.response.status === 401) return { kind: 'session_ended' };
@@ -68,33 +57,50 @@ export async function exportFromServer(api: ApiClient | null, tokens: TokenStore
 }
 
 export type DeleteResult =
-  /** Everything is gone: the account (`server` true when there was one) and this device's store. */
+  /** Everything is gone: the account (`server` true) and this device's store. `server` false: this device only. */
   | { kind: 'deleted'; server: boolean }
   /** Nothing was deleted: no connection, the server failed (5xx), or it refused. Local data is untouched. */
   | { kind: 'offline' | 'unavailable' }
   | { kind: 'rate_limited'; retryAfterSec: number }
   /** The server may or may not have deleted the account: the session ended without a 204. Never reported as deleted. */
   | { kind: 'unconfirmed' }
-  /** The server deleted the account, but clearing this device failed; run it again (DELETE /me is idempotent). */
+  /** The device is linked to an account but has no session: sign in to delete the account, or delete only this device. */
+  | { kind: 'needs_sign_in' }
+  /** The server deleted the account, but clearing this device failed; run it again (the server is not called again). */
   | { kind: 'local_failed' };
 
+/** User id whose account the server already deleted in this app run; lets a failed local wipe be retried without DELETE /me. */
+let serverDeletedFor: string | null = null;
+
 /**
- * Delete everything (#27). Signed in: `DELETE /me` first and the local store only after its 204, so a failure never
- * leaves the user thinking the server copy is gone. Signed out: the local store only. Sync is paused throughout and the
+ * Delete everything (#27). With a session: `DELETE /me` first and the local store only after its 204, so a failure never
+ * leaves the user thinking the server copy is gone. After the 204 the tokens are cleared before the wipe and the fact is
+ * kept in memory, so a failed wipe is retried without calling the server again. Without a session on a device linked to
+ * an account, nothing is deleted unless `deviceOnly` (the account stays on the server). Sync is paused throughout and the
  * outbox is wiped with the store, so nothing is queued or pushed.
  */
-export async function deleteEverything(d: { db: Db; api: ApiClient | null; tokens: TokenStore }): Promise<DeleteResult> {
+export async function deleteEverything(d: { db: Db; api: ApiClient | null; tokens: TokenStore }, opts: { deviceOnly?: boolean } = {}): Promise<DeleteResult> {
   return withSyncPaused(async () => {
     const { api, tokens, db } = d;
-    const server = !!api && !!(await tokens.load());
-    if (server && api) {
-      const r = await authedCall<never>(api, tokens, () => api.DELETE('/me'));
+    const userId = await getUserId(db);
+    let server = serverDeletedFor !== null && serverDeletedFor === (userId ?? '');
+    if (!server && api && (await tokens.load())) {
+      const r = await authedCall<never>({ db, api, tokens }, () => api.DELETE('/me'));
       if (r.kind === 'session_ended') return { kind: 'unconfirmed' };
       if (r.kind === 'offline' || r.kind === 'unavailable') return { kind: r.kind };
       const s = r.response.status;
       if (s === 401) return { kind: 'unconfirmed' };
       if (s === 429) return { kind: 'rate_limited', retryAfterSec: Number(r.response.headers.get('Retry-After')) || 60 };
       if (s !== 204) return { kind: 'unavailable' };
+      server = true;
+      serverDeletedFor = userId ?? '';
+      try {
+        await tokens.clear();
+      } catch {
+        return { kind: 'local_failed' };
+      }
+    } else if (!server && userId && !opts.deviceOnly) {
+      return { kind: 'needs_sign_in' };
     }
     try {
       // wipeLocalStore covers the synced tables, the outbox and the sync keys (the only device flags there are).
@@ -104,6 +110,7 @@ export async function deleteEverything(d: { db: Db; api: ApiClient | null; token
     } catch {
       return { kind: 'local_failed' };
     }
+    serverDeletedFor = null;
     return { kind: 'deleted', server };
   });
 }

@@ -105,6 +105,21 @@ async function refresh(d: SyncDeps, guard: Guard): Promise<boolean> {
   return false;
 }
 
+export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
+
+/**
+ * The engine's token refresh for callers outside a sync run (export, delete). The caller must hold sync paused, so
+ * the engine's own write guard is not needed (and would refuse, because paused). 'ended' means the session is over and
+ * the tokens are cleared; transient failures keep the tokens.
+ */
+export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb }): Promise<RefreshOutcome> {
+  try {
+    return (await refresh(d as SyncDeps, async () => undefined)) ? 'ok' : 'ended';
+  } catch (e) {
+    return e instanceof NetworkError ? 'offline' : 'unavailable';
+  }
+}
+
 class TransientError extends Error {
   constructor(readonly outcome: Failure) {
     super('transient');

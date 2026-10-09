@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { buildLocalExport } from '../account/exportLocal';
 import { DATA_COPY as t } from '../account/copy';
-import { saveTextFile, type SaveResult } from '../account/saveFile';
+import { clearOldExports, saveTextFile, type SaveResult } from '../account/saveFile';
 import type { DeleteResult, ServerExportResult } from '../account/server';
 import { Button, ErrorText, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -15,7 +15,7 @@ const saved = (name: string, r: SaveResult) => (r === 'saved' ? t.exportSaved(na
 const serverMessage = (r: Exclude<ServerExportResult, { kind: 'ok' }>): string =>
   r.kind === 'offline' ? t.serverOffline : r.kind === 'rate_limited' ? t.serverRate(r.retryAfterSec) : r.kind === 'unavailable' ? t.serverUnavailable : t.serverSession;
 const deleteMessage = (r: Exclude<DeleteResult, { kind: 'deleted' }>): string =>
-  r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'local_failed' ? t.localFailed : t.unavailable;
+  r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'needs_sign_in' ? t.needsSignIn : r.kind === 'local_failed' ? t.localFailed : t.unavailable;
 
 /** Export and delete everything (#27; prototype `exportData`, `deleteEverything`). Export works offline from this device. */
 export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?: () => Date }) {
@@ -26,6 +26,9 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleted, setDeleted] = useState<DeleteResult | null>(null);
+  // The server already deleted the account but this device could not clear: only the local half is left to do.
+  const [serverGone, setServerGone] = useState(false);
+  const [deviceOnly, setDeviceOnly] = useState(false);
 
   const run = async (f: () => Promise<void>) => {
     if (busy) return;
@@ -42,6 +45,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   const exportDevice = () =>
     run(async () => {
       try {
+        clearOldExports();
         const { file, csv } = await buildLocalExport(db, now());
         const day = file.exported_at.slice(0, 10);
         const json = `plate-and-bar-export-${day}.json`;
@@ -56,6 +60,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
 
   const exportServer = () =>
     run(async () => {
+      clearOldExports();
       const r = await s.exportFromServer();
       if (r.kind !== 'ok') return setError(serverMessage(r));
       try {
@@ -65,14 +70,20 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
       }
     });
 
-  const confirmDelete = () =>
+  const confirmDelete = (only = false) =>
     run(async () => {
-      const r = await s.deleteEverything();
+      const r = await s.deleteEverything(only ? { deviceOnly: true } : undefined);
       if (r.kind === 'deleted') {
         setDeleted(r);
         setStep('done');
-      } else setError(deleteMessage(r));
+      } else {
+        if (r.kind === 'local_failed') setServerGone(true);
+        setError(deleteMessage(r));
+      }
     });
+  // Linked to an account without a session: the account can only be deleted after signing in.
+  const linkedOut = s.linked && !s.signedIn && !serverGone;
+  const toSignIn = () => router.push('/sign-in' as never);
 
   if (step === 'done') {
     return (
@@ -88,16 +99,24 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     return (
       <Page>
         <H1>{t.confirmTitle}</H1>
-        <Note>{t.confirmDevice}</Note>
-        <Note>{s.signedIn ? t.confirmAccount : t.confirmDeviceSignedOut}</Note>
+        <Note>{deviceOnly ? t.confirmDeviceOnly : t.confirmDevice}</Note>
+        {deviceOnly ? null : <Note>{s.signedIn ? t.confirmAccount : linkedOut ? t.confirmLinkedSignedOut : serverGone ? t.localFailed : t.confirmNoAccount}</Note>}
         {error ? <ErrorText>{error}</ErrorText> : null}
         <View style={{ gap: 12 }}>
-          <Button label={busy ? t.deleting : t.confirmDelete} onPress={() => void confirmDelete()} />
+          {linkedOut && !deviceOnly ? (
+            <>
+              <Button label={t.signInToDelete} onPress={toSignIn} />
+              <Button kind="ghost" label={t.deleteDeviceOnly} onPress={() => setDeviceOnly(true)} />
+            </>
+          ) : (
+            <Button label={busy ? t.deleting : serverGone ? t.finishDevice : t.confirmDelete} onPress={() => void confirmDelete(deviceOnly)} />
+          )}
           <Button
             kind="ghost"
             label={t.cancel}
             onPress={() => {
               setError(null);
+              setDeviceOnly(false);
               setStep('home');
             }}
           />
@@ -119,6 +138,11 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
           <>
             <Hint>{t.exportServerHint}</Hint>
             <Button kind="ghost" label={t.exportServer} onPress={() => void exportServer()} />
+          </>
+        ) : s.linked ? (
+          <>
+            <Hint>{t.exportLinkedHint}</Hint>
+            <Button kind="ghost" label={t.signInToExport} onPress={toSignIn} />
           </>
         ) : null}
         <Button

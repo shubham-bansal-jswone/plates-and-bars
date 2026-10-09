@@ -17,6 +17,11 @@ export interface SyncState {
   /** False when this build has no server address: the app is local-only and shows no sync UI. */
   configured: boolean;
   signedIn: boolean;
+  /** This device's store belongs to an account (it was signed in before), whether or not a session exists now. */
+  linked: boolean;
+  /** Set by a finished deletion, above the remount it causes, so the next screen can say so once. */
+  lastDeletion: { server: boolean } | null;
+  clearLastDeletion(): void;
   /** Unsynced local changes (0 when everything is pushed). */
   pending: number;
   syncing: boolean;
@@ -38,7 +43,7 @@ export interface SyncState {
   /** `GET /me/export` for the signed-in account (#27). */
   exportFromServer(): Promise<ServerExportResult>;
   /** Delete everything (#27): `DELETE /me` first when signed in, then the local store; never reports deletion without a 204. */
-  deleteEverything(): Promise<DeleteResult>;
+  deleteEverything(opts?: { deviceOnly?: boolean }): Promise<DeleteResult>;
 }
 
 export const SyncContext = createContext<SyncState | null>(null);
@@ -57,6 +62,8 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const api = useMemo(() => apiOverride ?? (API_URL ? makeApi(API_URL, tokens) : null), [apiOverride, tokens]);
   const configured = api !== null;
   const [signedIn, setSignedIn] = useState(false);
+  const [linked, setLinked] = useState(false);
+  const [lastDeletion, setLastDeletion] = useState<{ server: boolean } | null>(null);
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
@@ -66,6 +73,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const holdUntil = useRef(0);
   const backoff = useRef(SYNC_INTERVAL_MS);
 
+  const clearLastDeletion = useCallback(() => setLastDeletion(null), []);
   const refreshPending = useCallback(async () => setPending(await pendingCount(db)), [db]);
 
   const runSync = useCallback(async (force: boolean): Promise<SyncResult | null> => {
@@ -95,7 +103,9 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     (async () => {
       const t = await tokens.load();
       if (!live) return;
-      setSignedIn(!!t && !!(await getUserId(db)));
+      const user = await getUserId(db);
+      setSignedIn(!!t && !!user);
+      setLinked(!!user);
       await refreshPending();
     })().catch(() => undefined);
     return () => {
@@ -130,6 +140,9 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     () => ({
       configured,
       signedIn,
+      linked,
+      lastDeletion,
+      clearLastDeletion,
       pending,
       syncing,
       last,
@@ -145,6 +158,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
           holdUntil.current = 0;
           if (r.wiped) setEpoch((e) => e + 1);
           setSignedIn(true);
+          setLinked(true);
           // Pull right away (the user just asked to sign in): a returning user's records arrive before the screen closes.
           await runSync(true);
           await refreshPending();
@@ -155,7 +169,10 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         const blocked = await guardedSignOut(db, tokens, opts);
         if (blocked === 0) {
           setSignedIn(false);
-          if (opts?.discard) setEpoch((e) => e + 1);
+          if (opts?.discard) {
+            setLinked(false);
+            setEpoch((e) => e + 1);
+          }
           await refreshPending();
         }
         return blocked;
@@ -163,21 +180,24 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       discardAndSignOut: async () => {
         await discardAll(db, tokens);
         setSignedIn(false);
+        setLinked(false);
         setEpoch((e) => e + 1);
         await refreshPending();
       },
-      exportFromServer: () => exportFromServer(api, tokens),
-      deleteEverything: async () => {
-        const r = await deleteEverything({ db, api, tokens });
+      exportFromServer: () => exportFromServer(db, api, tokens),
+      deleteEverything: async (opts) => {
+        const r = await deleteEverything({ db, api, tokens }, opts);
         if (r.kind === 'deleted') {
           setSignedIn(false);
+          setLinked(false);
+          setLastDeletion({ server: r.server });
           setEpoch((e) => e + 1);
           await refreshPending();
-        } else if (r.kind === 'unconfirmed' && !(await tokens.load())) setSignedIn(false);
+        } else if (r.kind === 'local_failed' || (r.kind === 'unconfirmed' && !(await tokens.load()))) setSignedIn(false);
         return r;
       },
     }),
-    [configured, signedIn, pending, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
+    [configured, signedIn, linked, lastDeletion, clearLastDeletion, pending, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

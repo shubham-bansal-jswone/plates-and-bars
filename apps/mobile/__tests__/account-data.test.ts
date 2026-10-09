@@ -59,8 +59,9 @@ describe('export from the local store (#27)', () => {
     expect(Object.keys(file.tables).sort()).toEqual(Object.keys(SYNC_TABLES).sort());
     for (const rows of Object.values(file.tables)) expect(rows.length).toBeGreaterThan(0);
     expect(file.tables.food_logs).toHaveLength(3);
-    expect(file.tables.lift_stats[0]).toMatchObject({ deleted_at: '2026-10-09T02:00:00.000Z' });
+    expect(file.tables.lift_stats[0]).toMatchObject({ deleted_at: '2026-10-09T02:00:00.000Z', updated_at: '2026-10-09T02:00:00.000Z' });
     expect(file.tables.weights[0]?.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(file.note).toMatch(/ids were made on this device/);
     expect(file).toMatchObject({ format_version: 1, source: 'device', user_id: null, exported_at: '2026-10-09T08:00:00.000Z' });
   });
 
@@ -70,6 +71,7 @@ describe('export from the local store (#27)', () => {
     await seedAll(db);
     const { file } = await buildLocalExport(db);
     expect(file.user_id).toBe(USER);
+    expect(file.note).toBeUndefined();
     expect(file.tables.weights[0]?.id).toBe('640dee2b-d92d-5a00-bd03-568962bf90ea');
   });
 
@@ -83,6 +85,18 @@ describe('export from the local store (#27)', () => {
       '2026-10-09,Snacks,"\'=HYPERLINK(""x"")",1,100,1,1,1',
     ]);
     expect(foodCsv([])).toBe('date,meal,food,servings,kcal,protein_g,carbs_g,fat_g');
+  });
+});
+
+describe('food CSV', () => {
+  const row = (name: string, meal = 'Lunch', date = '2026-10-08') => ({ date, meal, name, qty: 1, kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 });
+  it('neutralises every formula starter: = + - @ tab and carriage return', () => {
+    const lines = foodCsv(['=a', '+a', '-a', '@a', '\ta', '\ra', 'ok'].map((n) => row(n))).split('\n');
+    expect(lines.slice(1).map((l) => l.split(',')[2])).toEqual(['"\'=a"', '"\'+a"', '"\'-a"', '"\'@a"', '"\'\ta"', '"\'\ra"', '"ok"']);
+  });
+  it('orders a day breakfast, lunch, snacks, dinner like the prototype, days ascending', () => {
+    const meals = foodCsv([row('d', 'Dinner'), row('s', 'Snacks'), row('n', 'Lunch', '2026-10-07'), row('b', 'Breakfast'), row('l')]).split('\n').slice(1).map((l) => l.split(',').slice(0, 2).join(' '));
+    expect(meals).toEqual(['2026-10-07 Lunch', '2026-10-08 Breakfast', '2026-10-08 Lunch', '2026-10-08 Snacks', '2026-10-08 Dinner']);
   });
 });
 
@@ -105,18 +119,18 @@ describe('export from the server', () => {
   it('downloads, named by the export date', async () => {
     const { server, tokens, api } = setup();
     route(server, () => ok.clone());
-    expect(await exportFromServer(api, tokens)).toMatchObject({ kind: 'ok', filename: 'plate-and-bar-export-2026-10-09.json' });
+    expect(await exportFromServer(await openDb(), api, tokens)).toMatchObject({ kind: 'ok', filename: 'plate-and-bar-export-2026-10-09.json' });
   });
 
   it('says not signed in without tokens, offline when the network is down, and rate limited with the wait', async () => {
     const { server, tokens, api } = setup();
-    expect(await exportFromServer(api, memoryTokens())).toEqual({ kind: 'not_signed_in' });
-    expect(await exportFromServer(null, tokens)).toEqual({ kind: 'not_signed_in' });
+    expect(await exportFromServer(await openDb(), api, memoryTokens())).toEqual({ kind: 'not_signed_in' });
+    expect(await exportFromServer(await openDb(), null, tokens)).toEqual({ kind: 'not_signed_in' });
     server.online = false;
-    expect(await exportFromServer(api, tokens)).toEqual({ kind: 'offline' });
+    expect(await exportFromServer(await openDb(), api, tokens)).toEqual({ kind: 'offline' });
     route(server, () => new Response('{"code":"rate_limited","message":"x"}', { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '1800' } }));
     server.online = true;
-    expect(await exportFromServer(api, tokens)).toEqual({ kind: 'rate_limited', retryAfterSec: 1800 });
+    expect(await exportFromServer(await openDb(), api, tokens)).toEqual({ kind: 'rate_limited', retryAfterSec: 1800 });
   });
 });
 
@@ -204,15 +218,31 @@ describe('delete everything (#27)', () => {
     expect(await count(db)).toBe(2);
   });
 
-  it('a failing wipe after the 204 is reported as such and keeps the tokens so a retry works', async () => {
-    const { db, tokens, api } = await signedIn();
-    await db.execAsync('DROP TABLE food_logs');
+  it('a failing wipe after the 204 clears the tokens, and the retry wipes without calling DELETE /me again', async () => {
+    const { db, tokens, api, calls } = await signedIn();
+    await db.execAsync('ALTER TABLE food_logs RENAME TO food_logs_x');
     expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'local_failed' });
-    expect(tokens.current).not.toBeNull();
+    expect(tokens.current).toBeNull();
+    await db.execAsync('ALTER TABLE food_logs_x RENAME TO food_logs');
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(calls).toEqual(['DELETE /me']);
+    expect(await count(db)).toBe(0);
   });
 
-  it('signed out: wipes the local store only and makes no request', async () => {
+  it('linked to an account but no tokens: nothing is deleted until the user picks to delete only this device', async () => {
+    const { db, api, calls } = await signedIn();
+    const tokens = memoryTokens();
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'needs_sign_in' });
+    expect(await count(db)).toBe(2);
+    expect(await getUserId(db)).toBe(USER);
+    expect(await deleteEverything({ db, api, tokens }, { deviceOnly: true })).toEqual({ kind: 'deleted', server: false });
+    expect(calls).toEqual([]);
+    expect(await count(db)).toBe(0);
+  });
+
+  it('never signed in: wipes the local store only and makes no request', async () => {
     const { db, calls } = await signedIn();
+    await db.runAsync("DELETE FROM settings WHERE key = 'sync.user_id'");
     const tokens = memoryTokens();
     expect(await deleteEverything({ db, api: null, tokens })).toEqual({ kind: 'deleted', server: false });
     expect(calls).toEqual([]);
