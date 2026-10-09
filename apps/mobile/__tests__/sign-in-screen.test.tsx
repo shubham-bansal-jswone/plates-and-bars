@@ -12,7 +12,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: jest
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 const base: SyncState = {
-  configured: true, signedIn: false, pending: 0, syncing: false, last: null, epoch: 0,
+  configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0,
   dataVersion: 0, quarantined: 0, holdSchedule: () => undefined,
   retryQuarantined: async () => undefined,
   discardQuarantined: async () => undefined,
@@ -21,6 +21,8 @@ const base: SyncState = {
   verifyCode: async () => ({ kind: 'signed_in', wiped: false }),
   signOut: async () => 0,
   discardAndSignOut: async () => undefined,
+  exportFromServer: async () => ({ kind: 'not_signed_in' }),
+  deleteEverything: async () => ({ kind: 'deleted', server: false }),
 };
 const pdb = memoryDb();
 const withSync = (s: Partial<SyncState>, ui: React.ReactElement) => (
@@ -67,6 +69,15 @@ describe('refused records', () => {
   it('shows nothing about refused records when there are none', async () => {
     await render(withSync({ signedIn: true, pending: 0 }, <SignInScreen />));
     expect(screen.queryByText(/refused/)).toBeNull();
+  });
+});
+
+describe('badge during a pending device wipe', () => {
+  it('does not offer sign-in once the account is deleted', async () => {
+    await render(withSync({ linked: true, wipePending: true }, <SyncBadge />));
+    expect(screen.queryByText('Sign in to sync')).toBeNull();
+    await render(withSync({}, <SyncBadge />));
+    expect(screen.getByText('Sign in to sync')).toBeTruthy();
   });
 });
 

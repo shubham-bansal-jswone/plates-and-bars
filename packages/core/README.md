@@ -19,7 +19,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Plan engine | `planned`, `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `beginnerRamp`, `older`, `TEMPLATES`, `ORDER`, `SPLITS` | same names (`beginnerRamp` is inline in `setsFor`) | `plan.json` |
 | Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
 | Exclusions and swaps | `resolveSession`, `resolveName`, `candidates`, `ruleMatches`, `activeRules`, `isExcluded`, `replFromSwaps` | same names; `replFromSwaps` builds `settings.repl` from contract swaps | `exercises.json` (catalogue only; differential tests) |
-| Re-check cards and "can't do" (#111) | `recheckDue`, `recheckBack`, `recheckLater`, `recheckKeep`, `cantRule`, `widerRuleReplacements` | the filter in `recheckCards`; the `rule-back`, `rule-later`, `rule-keep` steps of `exAction`; the rule and the "caught by a wider rule" loop of `applyCant` | none (differential tests) |
+| Re-check cards and "can't do" (#111, #265) | `recheckDue`, `recheckBack`, `recheckLater`, `recheckKeep`, `cantRule`, `widerRuleReplacements`, `replaceAt`, `cantSession` | the filter in `recheckCards`; the `rule-back`, `rule-later`, `rule-keep` steps of `exAction`; the rule, the `replaceAt` step and the "caught by a wider rule" loop of `applyCant` | none (differential tests) |
 | Ladders (#111) | `ladderOf`, `nextStep`, `prevStep`, `sidewaysOf`, `estimateFor`, `ladderCard`, `ladderSwap`, `ladderStayUntil`, `ESTIMATE_PAIRS` | same names; `ladderSwap` and `ladderStayUntil` are the `ladder-up`, `ladder-down`, `swap-side` and `ladder-stay` steps of `exAction`; `ESTIMATE_PAIRS` is `PAIR` | `exercises.json` (`ladders`; differential tests) |
 | Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `metaFor`, `applyCustomTags`, `customExerciseMeta`, `overridesFromSettings`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction`; `metaFor` is the `['other',8,12]` fallback in `exInfo`, `customExerciseMeta` the meta step of `applyCustomTags`; `overridesFromSettings` renames contract `exercise_overrides` to `settings.ex` | `progression.json` |
 | Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `stallRangeOverride`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction`; `stallRangeOverride` is `stallRange` in contract `exercise_overrides` shape (#128) | none (differential tests) |
@@ -85,8 +85,12 @@ bridge for 14 days) and `ladderStayUntil` (contract `Settings.ladder_stay`). Tim
 applying after `until` until the user answers the re-check card: `recheckDue` lists the rules to ask
 about, and `recheckBack`, `recheckLater` and `recheckKeep` return the answered rule (and, for "Try it
 again", the `Settings.returning` entries to add). The "can't do" sheet saves `cantRule(...)` (add an
-`id`; for a saved rule, also tombstone any swap from that exercise). It then applies
-`widerRuleReplacements` to today's session, in the order returned.
+`id`; for a saved rule, also tombstone any swap from that exercise). `cantSession` then gives today's
+workout (contract `Workout.exercises` and `WorkoutSet`s): the tapped exercise through `replaceAt`, then
+the `widerRuleReplacements`. Give its new blank sets (`NewCantSet`) an `id` and store them, stamp and
+store its `changed` sets (renumbered, same `id`), and tombstone its `removed` sets. The sheet's pick list
+(`candidates`) and `cantSession` take where the user trains today: the day's override, else the
+profile's (#272). A pick stays in the replaced exercise's part (first or second session, #267).
 
 The food rules take foods in content/foods.json's `Food` shape and logs in the contract's `FoodLog`
 shape (logs with `deleted_at` set are left out). Fibre, added sugar and fruit and veg are looked up by
