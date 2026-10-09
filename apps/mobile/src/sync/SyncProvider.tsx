@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 import type { ApiClient } from '@plate-and-bar/api';
+import { deleteEverything, exportFromServer, type DeleteResult, type ServerExportResult } from '../account/server';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
 import { syncOnce, type SyncDb, type SyncResult } from './engine';
@@ -34,6 +35,10 @@ export interface SyncState {
   signOut(opts?: { discard?: boolean }): Promise<number>;
   /** "Discard and sign out" after a refused account switch: wipes the previous user's store. */
   discardAndSignOut(): Promise<void>;
+  /** `GET /me/export` for the signed-in account (#27). */
+  exportFromServer(): Promise<ServerExportResult>;
+  /** Delete everything (#27): `DELETE /me` first when signed in, then the local store; never reports deletion without a 204. */
+  deleteEverything(): Promise<DeleteResult>;
 }
 
 export const SyncContext = createContext<SyncState | null>(null);
@@ -160,6 +165,16 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         setSignedIn(false);
         setEpoch((e) => e + 1);
         await refreshPending();
+      },
+      exportFromServer: () => exportFromServer(api, tokens),
+      deleteEverything: async () => {
+        const r = await deleteEverything({ db, api, tokens });
+        if (r.kind === 'deleted') {
+          setSignedIn(false);
+          setEpoch((e) => e + 1);
+          await refreshPending();
+        } else if (r.kind === 'unconfirmed' && !(await tokens.load())) setSignedIn(false);
+        return r;
       },
     }),
     [configured, signedIn, pending, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],

@@ -69,6 +69,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
           </View>
         ) : null}
         <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
+        <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
         {ready ? (
           <>
             <FocusSection focus={settings.focus} onChange={setFocus} notify={notify} />
