@@ -9,7 +9,7 @@ export async function loadWaterLogs(db: WorkoutDb, date: string): Promise<WaterL
   return rows
     .map((r) => JSON.parse(r.data) as WaterLog)
     .filter((l) => !l.deleted_at)
-    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+    .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at));
 }
 
 /** Writes a drink; an undo is the same row with `deleted_at` set (never a DELETE, so sync sees it). */

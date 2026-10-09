@@ -107,6 +107,17 @@ describe('Water card', () => {
     expect(waters(db).find((w) => w.id === 'a').deleted_at).toBeNull();
   });
 
+  it('compares timestamps as times: a pulled "…00Z" is older than a local "…00.500Z" in the same second', async () => {
+    const db = memoryDb();
+    const drink = (id: string, ml: number, at: string): WaterLog => ({ id, version: 1, updated_at: at, deleted_at: null, date: '2026-10-08', ml });
+    // As strings "…00.500Z" sorts before "…00Z" ('.' < 'Z'), which would make the pulled drink the newest.
+    for (const l of [drink('local', 1000, '2026-10-08T09:00:00.500Z'), drink('pulled', 250, '2026-10-08T09:00:00Z')]) db.rows.set(`water_logs:${l.id}`, JSON.stringify(l));
+    await setup({ db });
+    await fireEvent.press(screen.getByLabelText('Undo last water'));
+    await waitFor(() => expect(waters(db).find((w) => w.id === 'local').deleted_at).toBeTruthy());
+    expect(waters(db).find((w) => w.id === 'pulled').deleted_at).toBeNull();
+  });
+
   describe('target inputs (a Sunday, no planned session)', () => {
     const refocus = async () => {
       mockFocus.n++;

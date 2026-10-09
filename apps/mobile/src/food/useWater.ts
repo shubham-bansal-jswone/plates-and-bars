@@ -90,7 +90,7 @@ export function useWater({ db, date, now, profile, notify }: Options) {
 
   const undo = useCallback(() => {
     // The newest drink by its own timestamp, not by row or array position, so a sync rewrite cannot change which is undone.
-    const last = logsRef.current.reduce<WaterLog | null>((a, l) => (!a || l.updated_at >= a.updated_at ? l : a), null);
+    const last = logsRef.current.reduce<WaterLog | null>((a, l) => (!a || Date.parse(l.updated_at) >= Date.parse(a.updated_at) ? l : a), null);
     if (!last) return;
     const t = stamp(now());
     const tomb = { ...last, deleted_at: t, updated_at: t };
