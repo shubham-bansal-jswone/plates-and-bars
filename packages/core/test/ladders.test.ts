@@ -73,7 +73,8 @@ function parseCard(html: string): LadderCard | null {
 
 function setProto(more: Partial<typeof proto.S> = {}, settings: Partial<typeof proto.S.settings> = {}): void {
   Object.assign(proto.S, { date: DATE, where: 'gym', lifts: {}, day: { workout: { exercises: [] } }, ...more });
-  proto.S.settings = { excl: [], repl: {}, returning: {}, ladderStay: {}, adj: {}, ex: {}, ...settings };
+  // S.where stands for the profile's where (the prototype's homeWhere)
+  proto.S.settings = { excl: [], repl: {}, returning: {}, ladderStay: {}, adj: {}, ex: {}, profile: { where: proto.S.where }, ...settings };
 }
 
 function randRules(r: () => number, n: number, pick: <T>(xs: readonly T[]) => T): Exclusion[] {

@@ -67,17 +67,18 @@ export interface CantLifts {
 const live = (s: CantSet): boolean => !s.deleted_at;
 
 /**
- * The pick as a new exercise: part 1, no bridge, no form answer, no ramp result, and as many blank
- * work sets as the last session before today had, at least 3 (3 with no history). The prototype's new
- * exercise has no `part`; it reads as part 1, even in place of a part-2 exercise (#267).
+ * The pick as a new exercise in `part` (the replaced exercise's session, first or second; #267): no
+ * bridge, no form answer, no ramp result, and as many blank work sets as the last session before today
+ * had, at least 3 (3 with no history).
  *
- * Mirrors prototype `newExercise(name)` (`lastFor` with `S.lifts` and `S.date` passed in).
+ * Mirrors prototype `newExercise(name)` (`lastFor` with `S.lifts` and `S.date` passed in) and the
+ * `nx.part = ex.part` line of `replaceAt`.
  */
-function newExercise(name: string, c: CantLifts): { ex: CantExercise; sets: NewCantSet[] } {
+function newExercise(name: string, c: CantLifts, part: 1 | 2): { ex: CantExercise; sets: NewCantSet[] } {
   const last = lastFor(name, c.lifts, c.date);
   const n = last ? Math.max(3, last.sets.length) : 3;
   return {
-    ex: { name, part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false },
+    ex: { name, part, bridge: false, form: null, found_kg: null, skip_ramp: false },
     sets: Array.from({ length: n }, (_, i) => ({ exercise: name, kind: 'work', set_index: i, weight_kg: null, reps: null, done: false, rate: null, t: null })),
   };
 }
@@ -86,7 +87,8 @@ function newExercise(name: string, c: CantLifts): { ex: CantExercise; sets: NewC
  * Replaces the exercise at `idx` with `pick` (null: no replacement). When it has ticked work sets, it
  * stays with only those (renumbered from 0 in their order; ramp sets and its other fields kept) and the
  * pick, if any, goes right after it. Otherwise it goes with all its sets (ramp sets too, ticked or not),
- * and the pick, if any, takes its place. Ticked ramp sets alone do not keep an exercise.
+ * and the pick, if any, takes its place. Ticked ramp sets alone do not keep an exercise. The pick is in
+ * the same part (first or second session) as the exercise it replaces (#267).
  *
  * Mirrors the `replaceAt(idx, pick)` step of prototype `applyCant(choice)` (`w.exercises` as contract
  * `Workout.exercises` and `WorkoutSet`s).
@@ -97,7 +99,7 @@ export function replaceAt<E extends CantExercise, S extends CantSet>(exercises: 
   const mine = (s: S): boolean => live(s) && s.exercise === ex.name;
   const work = sets.filter((s) => mine(s) && s.kind === 'work').sort((a, b) => a.set_index - b.set_index);
   const done = work.filter((s) => s.done);
-  const nx = pick ? newExercise(pick, c) : null;
+  const nx = pick ? newExercise(pick, c, ex.part) : null;
   const out: (E | CantExercise)[] = [...exercises];
   if (done.length) {
     if (nx) out.splice(idx + 1, 0, nx.ex);
@@ -128,6 +130,8 @@ export function replaceAt<E extends CantExercise, S extends CantSet>(exercises: 
  * `replaceAt`, only if it is still at `i`. Then, unless the answer is for today only, every other
  * exercise the new rule covers is replaced as `widerRuleReplacements` says (with the rule added to
  * `exclusions`). `exclusions` are the saved rules before this answer; save the rule as `cantRule` says.
+ * `where` is where the user trains today: the day's override, else the profile's (prototype
+ * `whereNow()`, #272). Pass the same to `candidates` for the sheet's pick list.
  *
  * Mirrors the workout steps of prototype `applyCant(choice)`.
  */
