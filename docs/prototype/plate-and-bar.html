@@ -2540,7 +2540,7 @@ function measuresHtml(){
   const waistPts = Object.entries((S.measures || {}).entries || {}).filter(([d, v]) => v.waist && d <= S.date).sort((a, b) => a[0] < b[0] ? -1 : 1).slice(-20).map(([d, v]) => [d, v.waist]);
   const bf = navyBF(S.date);
   let change = '';
-  if(waistPts.length >= 2){ const d = waistPts[waistPts.length-1][1] - waistPts[0][1]; change = `<p class="hint">Waist ${d <= 0 ? 'down' : 'up'} ${r1(Math.abs(d))} cm since ${shortDate(waistPts[0][0])}.</p>`; }
+  if(waistPts.length >= 2){ const d = waistPts[waistPts.length-1][1] - waistPts[0][1], amt = r1(Math.abs(d)); change = `<p class="hint">${amt === 0 ? 'No change in waist' : `Waist ${d < 0 ? 'down' : 'up'} ${amt} cm`} since ${shortDate(waistPts[0][0])}.</p>`; }
   return `<section class="block"><h2>Measurements</h2>
     <div class="grid2">${keys.map(([k, l]) => `<div class="field"><label for="ms_${k}">${l} (cm)</label><input id="ms_${k}" data-ms="${k}" inputmode="decimal" value="${esc(cur[k] || '')}" placeholder="${(measureAt(k, S.date) || {}).v || 'cm'}"></div>`).join('')}</div>
     <div><button class="primary" data-act="ms-save">Save for ${S.date === TODAY() ? 'today' : shortDate(S.date)}</button></div>
@@ -2984,7 +2984,7 @@ const GROC = {
 function buildPlan(){
   const g = S.settings, tgt = { kcal:g.kcal, p:g.protein, f:g.fat }, opts = {};
   ['Breakfast','Lunch','Snacks','Dinner'].forEach(m => {
-    const info = { meal:m, kcal:tgt.kcal*MEAL_W[m], p:tgt.p*PROT_W[m], f:tgt.f*MEAL_W[m] };
+    const info = { meal:m, kcal:tgt.kcal*MEAL_W[m], p:Math.max(older() && m !== 'Snacks' && tgt.p >= 25 ? 25 : 0, tgt.p*PROT_W[m]), f:tgt.f*MEAL_W[m] };
     opts[m] = combos(info).slice(0, 4).map(c => c.items.map(([f, q]) => [f[0], q]));
   });
   const days = Array.from({ length:7 }, (_, i) => { const d = {}; Object.keys(opts).forEach(m => d[m] = { k: i % Math.min(3, opts[m].length || 1) }); return d; });
@@ -3010,11 +3010,12 @@ function grocerySheet(){
   P.days.forEach((d, i) => Object.keys(d).forEach(m => planItems(P, i, m).forEach(([n, q]) => (GROC[n] || []).forEach(([item, amt, unit]) => {
     const per = n === 'Egg white' ? amt*q : amt*q; const k = item + '|' + unit; tot[k] = (tot[k] || 0) + per; }))));
   const fmtAmt = (v, u) => u === 'g' ? (v >= 1000 ? `${r1(v/1000)} kg` : `${Math.round(v/10)*10} g`) : u === 'ml' ? (v >= 1000 ? `${r1(v/1000)} L` : `${Math.round(v/10)*10} ml`) : `${Math.ceil(v)} ${u}`;
-  const rows = Object.entries(tot).sort((a, b) => a[0] < b[0] ? -1 : 1).map(([k, v]) => { const [item, u] = k.split('|'); return `<li><label class="inline"><input type="checkbox" style="width:20px;height:20px"> ${esc(item)}</label><b>${fmtAmt(v, u)}</b></li>`; }).join('');
+  const sorted = Object.entries(tot).sort((a, b) => a[0] < b[0] ? -1 : 1);
+  const rows = sorted.map(([k, v]) => { const [item, u] = k.split('|'); return `<li><label class="inline"><input type="checkbox" style="width:20px;height:20px"> ${esc(item)}</label><b>${fmtAmt(v, u)}</b></li>`; }).join('');
   openSheet(`<div class="sheet-h"><h2>Grocery list for the week</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
     <ul class="myfoods groc">${rows}</ul><p class="hint">Approximate raw amounts for the whole week. Add spices, oil and staples you already keep at home.</p>
     <div class="row"><button class="ghost sm" data-act="mp-open">Back to the plan</button><button class="ghost sm" data-act="mp-copy">Copy as text</button></div>`);
-  S.ui.grocText = Object.entries(tot).map(([k, v]) => { const [item, u] = k.split('|'); return `${item}: ${fmtAmt(v, u)}`; }).join('\n');
+  S.ui.grocText = sorted.map(([k, v]) => { const [item, u] = k.split('|'); return `${item}: ${fmtAmt(v, u)}`; }).join('\n');
 }
 function planForMeal(meal){
   const P = S.settings.mealPlan; if(!P) return null;
@@ -4055,12 +4056,12 @@ function weightChart(){
   if(mx - mn < 1){ mn -= 0.5; mx += 0.5; }
   const X = i => px + i * (W - px - 8) / (e.length - 1), Y = v => py + (mx - v) * (H - py*2) / (mx - mn);
   const pts = e.map((x,i) => `${X(i).toFixed(1)},${Y(x[1]).toFixed(1)}`).join(' ');
-  const diff = vals[vals.length-1] - vals[0];
+  const diff = vals[vals.length-1] - vals[0], amt = r1(Math.abs(diff));
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight from ${vals[0]} to ${vals[vals.length-1]} kg">
     <line class="grid" x1="${px}" x2="${W}" y1="${Y(mx)}" y2="${Y(mx)}"/><line class="grid" x1="${px}" x2="${W}" y1="${Y(mn)}" y2="${Y(mn)}"/>
     <text x="0" y="${Y(mx)+4}">${r1(mx)}</text><text x="0" y="${Y(mn)+4}">${r1(mn)}</text>
     <polyline class="ln" points="${pts}"/>${e.map((x,i) => `<circle class="dot" cx="${X(i).toFixed(1)}" cy="${Y(x[1]).toFixed(1)}" r="3"/>`).join('')}
-  </svg><p class="hint">${diff <= 0 ? 'Down' : 'Up'} ${r1(Math.abs(diff))} kg since ${shortDate(e[0][0])}.</p>`;
+  </svg><p class="hint">${amt === 0 ? 'No change' : `${diff < 0 ? 'Down' : 'Up'} ${amt} kg`} since ${shortDate(e[0][0])}.</p>`;
 }
 async function renderProgress(){
   const wv = S.weights.entries?.[S.date] ?? '';
@@ -4199,7 +4200,7 @@ function energyHtml(){
       <li><i style="background:${SEG.dig}"></i><span>Digestion <small class="hint">~10% of food eaten</small></span><b>${fmt(b.dig)}</b></li>
     </ul>
     <div class="inline"><input id="enSteps" inputmode="numeric" value="${esc(S.day.steps || '')}" placeholder="Steps" aria-label="Steps today"><span class="hint">steps today${S.ui.stepsTgt ? `, target about ${fmt(S.ui.stepsTgt)}` : ''} ${whyLink('activity')}</span></div>
-    <div class="inline"><input id="enSleep" inputmode="decimal" value="${esc(S.day.sleep || '')}" placeholder="Hours" aria-label="Hours slept last night"><span class="hint">hours slept last night (aim for 7–9) ${whyLink('sleep')}</span></div>
+    <div class="inline"><input id="enSleep" inputmode="decimal" value="${esc(S.day.sleep ?? '')}" placeholder="Hours" aria-label="Hours slept last night"><span class="hint">hours slept last night (aim for 7–9) ${whyLink('sleep')}</span></div>
     <p class="hint">Your calorie target already includes your usual training, so there’s no need to eat back workout calories. Workout and step numbers are rough estimates.</p>`;
   }
   return h + '</section>';
@@ -4438,9 +4439,9 @@ document.addEventListener('click', async e => {
     case 'addset': { const ex = w.exercises[i], ls = ex.sets[ex.sets.length-1]; ex.sets.push({ w:ls ? ls.w : '', r:'', done:false }); saveDay(); render(); break; }
     case 'rmset': w.exercises[i].sets.pop(); saveDay(); render(); break;
     case 'saveW': {
-      const v = num($('#wIn').value);
+      const kg = r1(num($('#wIn').value));
       S.weights.entries = S.weights.entries || {};
-      if(v > 20 && v < 400){ const pv = Object.entries(S.weights.entries).filter(([d]) => d < S.date && d >= addDays(S.date, -3)).sort().pop(); if(pv && v - pv[1] >= 0.8) S.ui.scaleJump = { date:S.date, kg: v - pv[1] }; S.weights.entries[S.date] = r1(v); toast('Weight saved'); }
+      if(kg > 20 && kg < 400){ const pv = Object.entries(S.weights.entries).filter(([d]) => d < S.date && d >= addDays(S.date, -3)).sort().pop(), rise = pv ? r1(kg - pv[1]) : 0; if(rise >= 0.8) S.ui.scaleJump = { date:S.date, kg: rise }; S.weights.entries[S.date] = kg; toast('Weight saved'); }
       else if(!$('#wIn').value.trim()){ delete S.weights.entries[S.date]; toast('Weight cleared'); }
       else { toast('Enter your weight in kg, like 81.6'); break; }
       Store.set('weights', S.weights); renderProgress(); break;
@@ -4461,7 +4462,7 @@ document.addEventListener('input', e => {
   if(kitchenInput(t)) return;
   if(t.dataset.wt){ S.settings.water = S.settings.water || { glass:250, bottle:1000 }; const v = Math.round(num(t.value)); if(v >= 50 && v <= 3000){ S.settings.water[t.dataset.wt] = v; saveSoon('settings', S.settings, 700); } return; }
   if(t.id === 'enSteps'){ S.day.steps = t.value.trim(); saveDay(); return; }
-  if(t.id === 'enSleep'){ S.day.sleep = t.value.trim(); saveDay(); return; }
+  if(t.id === 'enSleep'){ const s = t.value.trim(), h = num(s); if(!s) S.day.sleep = ''; else if(isFinite(parseFloat(s.replace(',', '.'))) && h >= 0 && h <= 24) S.day.sleep = h; else return; saveDay(); return; }
   if(t.id === 'fsQ'){ FS.q = t.value; $('#fsList').innerHTML = foodListHtml(); return; }
   if(t.id === 'fsG'){ FS.g = t.value; return; }
   if(t.dataset.f && S.day){ const ex = S.day.workout.exercises[+t.dataset.i]; const s = (t.dataset.ramp ? ex.ramp : ex.sets)[+t.dataset.j]; s[t.dataset.f] = t.value.trim(); saveDay(); return; }

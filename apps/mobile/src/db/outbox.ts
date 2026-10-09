@@ -1,5 +1,6 @@
 import type { WorkoutDb } from './workouts';
 import type { StoreDb } from './records';
+import { writeLock } from './writeLock';
 
 /** The 16 contract sync tables (`SyncTable`) and the local table each one is stored in. */
 export const SYNC_TABLES = {
@@ -55,6 +56,11 @@ export interface PullDb {
   withExclusiveTransactionAsync(task: (txn: StoreDb) => Promise<void>): Promise<void>;
 }
 
+/** Runs `task` in a transaction, one at a time with every other write that takes the app's write lock. */
+export function inTransaction(db: PullDb, task: (txn: StoreDb) => Promise<void>): Promise<void> {
+  return writeLock.run(() => db.withExclusiveTransactionAsync(task));
+}
+
 /** True when the record has a local change not pushed yet. */
 export async function isQueued(db: StoreDb, tbl: SyncTableName, key: string): Promise<boolean> {
   const row = await db.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', tbl, key);
@@ -62,17 +68,21 @@ export async function isQueued(db: StoreDb, tbl: SyncTableName, key: string): Pr
 }
 
 /**
- * Applies a pulled record without queuing it for push. The triggers queue every write, so this writes the row inside an
- * exclusive transaction, reads the seq the write produced, and clears it with the seq-guarded `clearPushed`; a local edit
- * that lands after the write has a newer seq and stays queued.
+ * Applies a pulled record without queuing it. The triggers queue every write, so this writes the row inside one
+ * transaction, reads the seq the write produced, and clears it with the seq-guarded `clearPushed`.
  *
- * Dirtiness must be checked BEFORE calling: for a record that is still queued locally (`isQueued`), do not call this.
- * That record is a conflict to resolve, and writing it would replace the local edit and drop it from the queue.
+ * The queued check happens inside that transaction: a record with an unpushed local edit is a conflict for the next
+ * push to settle, so it is left as it is and this returns false. (Checking before the transaction would let an edit
+ * land in between and be overwritten and un-queued.)
  */
-export async function applyPulled(db: PullDb, tbl: SyncTableName, key: string, write: (txn: StoreDb) => Promise<void>): Promise<void> {
-  await db.withExclusiveTransactionAsync(async (txn) => {
+export async function applyPulled(db: PullDb, tbl: SyncTableName, key: string, write: (txn: StoreDb) => Promise<void>): Promise<boolean> {
+  let applied = false;
+  await inTransaction(db, async (txn) => {
+    if (await isQueued(txn, tbl, key)) return;
     await write(txn);
+    applied = true;
     const row = await txn.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', tbl, key);
     if (row) await clearPushed(txn, { tbl, key, seq: row.seq });
   });
+  return applied;
 }

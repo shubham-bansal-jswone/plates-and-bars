@@ -416,11 +416,11 @@ export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, 
  * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
  * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
  *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
- * - `trendChange` mirrors `diff` in `weightChart()` ("Down/Up X kg since …") and `change` in `measuresHtml()`.
+ * - `trendChange` mirrors `diff` in `weightChart()` ("Down/Up X kg since …", "No change since …") and `change` in `measuresHtml()`.
  * - `chartLayout` mirrors the geometry of `weightChart()` and `lineChart()`; `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
  * - `scaleJump` mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'`; `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS` are its 0.8 and 3.
  * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
- *   input with the contract's 0–24 h; `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
+ *   input (0–24 h); `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
  *   `TAPE_MAX_CM`, `SLEEP_MAX_H` are the contract's `Weight`, `TapeCm` and `DayNote.sleep` bounds.
  */
 export {
@@ -446,3 +446,39 @@ export {
   SLEEP_MAX_H,
 } from './progress';
 export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry } from './progress';
+
+/**
+ * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
+ * `ROLE` as `roles`) and content/foods.json `foods`.
+ * - `nextMealInfo` mirrors prototype `nextMealInfo()` (date, hour, logs and targets passed in); `mealByTime` mirrors
+ *   `mealByTime()` (hour passed in); `OLDER_MEAL_PROTEIN_G` is its 25 g for 60+ users.
+ * - `combos` mirrors prototype `combos(info)`; `combosFast` mirrors `combosFast(info)`; `round05` mirrors `round05`.
+ * - `ideasPage` mirrors the paging and protein note in `guidanceHtml()`; `IDEAS_PER_PAGE` and
+ *   `IDEAS_KCAL_LEFT_MIN` are its 3 and 120.
+ * - `MEAL_ORDER` mirrors prototype `MEALS`.
+ */
+export {
+  nextMealInfo,
+  mealByTime,
+  combos,
+  combosFast,
+  round05,
+  ideasPage,
+  OLDER_MEAL_PROTEIN_G,
+  IDEAS_PER_PAGE,
+  IDEAS_KCAL_LEFT_MIN,
+  MEAL_ORDER,
+} from './meals';
+export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea, MealIdeaItem, MealTarget, MealIdeasInput, NextMealInput, NextMeal } from './meals';
+
+/**
+ * Weekly meal plan and grocery list. The plan is contract `Settings.meal_plan` in the prototype's
+ * `mealPlan` shape; the grocery map is content/meal-planning.json `grocery` (prototype `GROC`).
+ * - `buildPlan` mirrors prototype `buildPlan()` (targets, profile age, start and diet passed in); `PLAN_DAYS`, `PLAN_OPTIONS`
+ *   and `PLAN_ROTATION` are its 7, 4 and 3.
+ * - `planItems` mirrors `planItems`; `swapPlanMeal` mirrors `case 'mp-swap'`; `planForMeal` mirrors `planForMeal(meal)` (date passed in).
+ * - `planIsCurrent` mirrors the saved-plan check and `planDayTotals` the "About … kcal" line of `planSheet()`.
+ * - `groceryList` mirrors `grocerySheet()` (rows and copy text, not HTML); `groceryAmount` mirrors its `fmtAmt`.
+ */
+export { buildPlan, planItems, swapPlanMeal, planIsCurrent, planForMeal, planDayTotals, groceryList, groceryAmount, PLAN_DAYS, PLAN_OPTIONS, PLAN_ROTATION } from './mealplan';
+export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from './mealplan';

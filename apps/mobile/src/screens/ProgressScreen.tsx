@@ -76,7 +76,7 @@ function WeightSection({ p }: { p: Progress }) {
       {series.length >= 2 ? (
         <>
           <TrendChart points={series} box={WEIGHT_CHART_BOX} label={`Weight from ${series[0]?.v} to ${series[series.length - 1]?.v} kg`} />
-          {change ? <Hint>{`${change.down ? 'Down' : 'Up'} ${change.amount} kg since ${shortDate(change.since)}.`}</Hint> : null}
+          {change ? <Hint>{change.direction === 'none' ? `No change since ${shortDate(change.since)}.` : `${change.direction === 'down' ? 'Down' : 'Up'} ${change.amount} kg since ${shortDate(change.since)}.`}</Hint> : null}
         </>
       ) : (
         <Hint>{TREND_NONE}</Hint>
@@ -125,7 +125,7 @@ function MeasureSection({ p }: { p: Progress }) {
         <>
           <Text accessibilityRole="header" style={[typeScale.label, { color: c.ink }]}>Waist</Text>
           <TrendChart points={waist} box={WAIST_CHART_BOX} label={`Waist from ${waist[0]?.v} to ${waist[waist.length - 1]?.v} cm`} />
-          {waistChange ? <Hint>{`Waist ${waistChange.down ? 'down' : 'up'} ${waistChange.amount} cm since ${shortDate(waistChange.since)}.`}</Hint> : null}
+          {waistChange ? <Hint>{waistChange.direction === 'none' ? `No change in waist since ${shortDate(waistChange.since)}.` : `Waist ${waistChange.direction} ${waistChange.amount} cm since ${shortDate(waistChange.since)}.`}</Hint> : null}
         </>
       ) : null}
       {bf !== null ? (

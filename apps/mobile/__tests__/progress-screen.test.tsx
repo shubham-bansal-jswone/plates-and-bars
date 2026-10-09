@@ -330,6 +330,24 @@ describe('Progress trends and scale-jump note', () => {
     expect(screen.getByText('Waist up 0.5 cm since 1 Oct.')).toBeTruthy();
   });
 
+  it('says "No change since" when the weight ended where it started', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-01', 80));
+    await saveWeight(db, weigh('2026-10-05', 81));
+    await saveWeight(db, weigh('2026-10-06', 80.04));
+    await setup({ db });
+    expect(await screen.findByText('No change since 1 Oct.')).toBeTruthy();
+  });
+
+  it('says "No change in waist since" when the waist ended where it started', async () => {
+    const db = memoryDb();
+    const tape = (date: string, waist_cm: number) => ({ id: null, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, waist_cm, neck_cm: null, chest_cm: null, arm_cm: null, thigh_cm: null, hips_cm: null });
+    await saveMeasurement(db, tape('2026-10-01', 90));
+    await saveMeasurement(db, tape('2026-10-06', 90));
+    await setup({ db });
+    expect(await screen.findByText('No change in waist since 1 Oct.')).toBeTruthy();
+  });
+
   it('shows the scale-jump note on a big rise, keeps it after a later non-jump save, and dismisses it', async () => {
     const db = memoryDb();
     await saveWeight(db, weigh('2026-10-07', 80));
