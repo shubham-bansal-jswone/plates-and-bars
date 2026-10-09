@@ -189,4 +189,16 @@ class AiQuotaIT extends AiITBase {
                 .contains("\"describe_meal\":true", "\"ask_why\":true", "\"weekly_summary\":false")
                 .contains("\"limit\":10", "\"remaining\":9", "\"resets_at\":\"2026-10-09T00:00:00Z\"");
     }
+
+    @Test
+    void budgetMonthIsUtcAndStatusReadsItOnce() {
+        String u = newUser();
+        jdbc.update("INSERT INTO ai_usage (user_id, day, feature, calls, input_tokens, output_tokens)"
+                + " VALUES (?, '2026-10-31', 'ask_why', 0, 600, 400)", u);
+        clock.advance(Duration.ofDays(23).plusHours(11)); // 2026-10-31T23:00Z: still October in UTC
+        assertThat(quotas.features().values()).containsOnly(false, false, false).hasSize(3);
+        assertThat(quotas.features().get(AiFeature.ASK_WHY)).isFalse();
+        clock.advance(Duration.ofHours(1)); // November 1 00:00Z
+        assertThat(quotas.features().get(AiFeature.ASK_WHY)).isTrue();
+    }
 }

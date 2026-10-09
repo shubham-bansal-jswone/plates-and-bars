@@ -31,10 +31,32 @@ public class AiQuotaService {
 
     /** True while the flag is set and the monthly budget is set and not used up. */
     public boolean isOn(AiFeature feature) {
-        if (!props.flag(feature) || props.getMonthlyBudgetTokens() <= 0) {
+        return isOn(feature, budgetLeft());
+    }
+
+    /** One budget read for all three features (used by {@code /ai/status}). */
+    public java.util.Map<AiFeature, Boolean> features() {
+        boolean left = budgetLeft();
+        java.util.Map<AiFeature, Boolean> out = new java.util.EnumMap<>(AiFeature.class);
+        for (AiFeature f : AiFeature.values()) {
+            out.put(f, isOn(f, left));
+        }
+        return out;
+    }
+
+    private boolean isOn(AiFeature feature, boolean budgetLeft) {
+        return props.flag(feature) && budgetLeft;
+    }
+
+    /**
+     * A soft cap: the month's recorded tokens are read before each call, so calls already with the provider when
+     * the cap is reached can overshoot it slightly. The month is the UTC month, whatever the clock's zone.
+     */
+    private boolean budgetLeft() {
+        if (props.getMonthlyBudgetTokens() <= 0) {
             return false;
         }
-        LocalDate month = LocalDate.now(clock).withDayOfMonth(1);
+        LocalDate month = LocalDate.now(clock.withZone(ZoneOffset.UTC)).withDayOfMonth(1);
         return usage.tokensBetween(month, month.plusMonths(1)) < props.getMonthlyBudgetTokens();
     }
 

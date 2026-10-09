@@ -41,7 +41,8 @@ class AiControllerTest {
 
     @Test
     void reportsFeaturesAndQuotaInTheContractShape() throws Exception {
-        when(quotas.isOn(AiFeature.ASK_WHY)).thenReturn(true);
+        when(quotas.features()).thenReturn(java.util.Map.of(
+                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, true, AiFeature.WEEKLY_SUMMARY, false));
         when(quotas.quota(USER)).thenReturn(QUOTA);
         callStatus("198.51.100.1")
                 .andExpect(status().isOk())
@@ -62,6 +63,8 @@ class AiControllerTest {
     @Test
     void isLimitedPerIpWith429AndRetryAfter() throws Exception {
         when(quotas.quota(any())).thenReturn(QUOTA);
+        when(quotas.features()).thenReturn(java.util.Map.of(
+                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, false, AiFeature.WEEKLY_SUMMARY, false));
         callStatus("198.51.100.2").andExpect(status().isOk());
         callStatus("198.51.100.2").andExpect(status().isOk());
         callStatus("198.51.100.2")
