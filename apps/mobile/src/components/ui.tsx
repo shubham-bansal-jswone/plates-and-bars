@@ -134,19 +134,22 @@ export function Choice({
   selected,
   onPress,
   chip,
+  action,
 }: {
   label: string;
   sub?: string;
   selected: boolean;
   onPress: () => void;
   chip?: boolean;
+  /** An answer that acts at once (a button), not a choice kept until Continue (a radio). */
+  action?: boolean;
 }) {
   const c = useTheme();
   return (
     <Press
-      accessibilityRole="radio"
+      accessibilityRole={action ? 'button' : 'radio'}
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
-      accessibilityState={{ selected, checked: selected }}
+      accessibilityState={action ? undefined : { selected, checked: selected }}
       onPress={onPress}
       hitSlop={chip ? { top: 6, bottom: 6 } : undefined}
       style={[

@@ -1,4 +1,4 @@
-import type { ExerciseCatalog } from '@plate-and-bar/core';
+import type { ExerciseCatalog, LadderCatalog } from '@plate-and-bar/core';
 import exercises from '../../../../content/exercises.json';
 
 /** One exercise's how-to card (content/exercises.json `cards`, long keys). */
@@ -12,7 +12,7 @@ export interface ExerciseCard {
   harder_version?: string;
 }
 
-export type Catalog = ExerciseCatalog & { cards: Readonly<Record<string, ExerciseCard>> };
+export type Catalog = ExerciseCatalog & Pick<LadderCatalog, 'ladders'> & { cards: Readonly<Record<string, ExerciseCard>> };
 
 /** The exercise content, passed to core as is. */
 export const catalog = exercises as unknown as Catalog;
