@@ -1,6 +1,7 @@
 import { ladderCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, type ExInfo, type LiftRecord, type Where } from '@plate-and-bar/core';
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
+import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { adjOf, answered, muted } from './adjust';
 import { catalog } from './catalog';
 import { LadderCardView, RecheckCard, StallCardView } from './AdjustCards';
@@ -9,7 +10,7 @@ import type { useRules } from './useRules';
 
 type Rules = ReturnType<typeof useRules>;
 
-const NOT_SAVED = 'Couldn’t save that: your settings didn’t load. Restart the app and try again.';
+const NOT_SAVED = SETTINGS_UNREADABLE;
 
 /** The settings writer, refusing (with a message) when the stored settings could not be read, so nothing looks saved that is not. */
 function guarded(write: ReturnType<typeof useSettings>['update'], loadFailed: boolean, notify: (msg: string) => void): (p: Parameters<typeof write>[0]) => boolean {

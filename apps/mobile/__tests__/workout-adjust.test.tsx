@@ -2,6 +2,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import type { LiftRecord } from '@plate-and-bar/core';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
+import { saveSet, saveWorkout } from '../src/db/workouts';
+import { blankRow, setRecord } from '../src/workout/model';
+import type { Workout } from '../src/workout/types';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings, type Settings } from '../src/settings/types';
@@ -189,7 +192,7 @@ describe('settings that could not be read', () => {
       broken(d);
     });
     await press('Try it again, Pec Deck Fly');
-    expect(await screen.findByText(/Couldn’t save that: your settings didn’t load/)).toBeTruthy();
+    expect(await screen.findByText(/Couldn’t read your saved settings, so changes are not saved/)).toBeTruthy();
     expect(stored<ExclusionRecord>(db, 'exclusions:r1').done).toBe(false);
     expect(screen.getByText('Ready to try Pec Deck Fly again?')).toBeTruthy();
   });
@@ -200,7 +203,7 @@ describe('settings that could not be read', () => {
       broken(d);
     });
     await press('Switch to 6–8, Pec Deck Fly');
-    expect(await screen.findByText(/Couldn’t save that: your settings didn’t load/)).toBeTruthy();
+    expect(await screen.findByText(/Couldn’t read your saved settings, so changes are not saved/)).toBeTruthy();
     expect(db.rows.get('user_settings:me')).toBeUndefined();
     expect(screen.getByText('No progress in 3 sessions')).toBeTruthy();
   });
@@ -221,6 +224,22 @@ describe('stall card on a non-gym day', () => {
     await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
     await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
     await screen.findByText('No progress in 3 sessions');
+    expect(screen.queryByLabelText(/^Or switch to /)).toBeNull();
+  });
+});
+
+describe('the day’s where, not the profile’s', () => {
+  it('a gym profile with a dumbbells day offers no cable swap', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile()); // gym
+    const w: Workout = { id: null, version: 0, updated_at: 'x', deleted_at: null, date: DATE, template: 'Push B', base: 'Push B', where: 'dumbbells', cardio_min: null, mods: {}, exercises: [{ name: 'Lateral Raise', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], ci_choice: null };
+    await saveWorkout(db, w);
+    const ex = { name: 'Lateral Raise', part: 1 as const, bridge: false, form: null, found: null, skipRamp: false, sets: [blankRow()], ramp: [] };
+    await saveSet(db, DATE, setRecord(ex, 'work', 0, THURSDAY()));
+    seed(db, 'Lateral Raise', lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) }));
+    await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
+    await screen.findByText('No progress in 3 sessions');
+    // On the profile's gym, Cable Lateral Raise would be offered.
     expect(screen.queryByLabelText(/^Or switch to /)).toBeNull();
   });
 });
