@@ -21,7 +21,8 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Exclusions and swaps | `resolveSession`, `resolveName`, `candidates`, `ruleMatches`, `activeRules`, `isExcluded`, `replFromSwaps` | same names; `replFromSwaps` builds `settings.repl` from contract swaps | `exercises.json` (catalogue only; differential tests) |
 | Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `metaFor`, `applyCustomTags`, `customExerciseMeta`, `overridesFromSettings`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction`; `metaFor` is the `['other',8,12]` fallback in `exInfo`, `customExerciseMeta` the meta step of `applyCustomTags`; `overridesFromSettings` renames contract `exercise_overrides` to `settings.ex` | `progression.json` |
 | Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction` | none (differential tests) |
-| Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET`, `kcalTarget`, `DEFAULT_KCAL_TARGET`, `planFlex`, `undoFlex`, `FLEX_FLOOR_DEFAULT`, `flexToast`, `stepServings`, `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP`, `highProtein`, `customFood`, `saveMyFood`, `MY_FOODS_MAX`, `FOOD_NAME_MAX`, `userFoodFacts` | `foodListHtml` query, `foodMatch` and badge, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete`, `kcalTarget`, `planFlex` (its 1200 and its toast), `case 'flex-undo'`, `case 'serv'`, `case 'addcustom'`, `allFoods` | `foods.json` (plus differential tests) |
+| Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET`, `kcalTarget`, `DEFAULT_KCAL_TARGET`, `planFlex`, `undoFlex`, `flexPlanFor`, `FLEX_FLOOR_DEFAULT`, `flexToast`, `stepServings`, `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP`, `highProtein`, `customFood`, `saveMyFood`, `MY_FOODS_MAX`, `FOOD_NAME_MAX`, `userFoodFacts` | `foodListHtml` query, `foodMatch` and badge, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete`, `kcalTarget`, `planFlex` (its 1200 and its toast), `undoFlex` (`case 'flex-undo'`), `flexPlanFor` (`flexNoteHtml`), `case 'serv'`, `case 'addcustom'`, `allFoods` | `foods.json` (plus differential tests) |
+| Recipes and kitchen tests | `recipeTotals`, `presetIngredients`, `stepRecipeLog`, `recipeFood`, `kitchenTest`, `kitchenTestFood`, `saveBuiltFood`, `ingredientGrams`, `UNIT_GRAMS`, `OIL_LEVEL`, `RECIPE_VEG_INGREDIENTS`, `FRUIT_VEG_SERVING_G`, `SUGAR_INGREDIENT`, `BUILT_FOODS_MAX`, `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` | `rbTotals`, `rbFromPreset` rows, `case 'rb-log'`, `case 'rb-save'`, `ktCalc`, `ktSave(true)`, `UNIT_G`, `OIL_LEVEL` (`RAW`, `RAW_FIB`, `FATTY`, `KATORI_G`, `PRESETS` read from content) | `foods.json` (`raw100g`, `rawFibre100g`), content/raw-ingredients.json and recipes.json checked against them (plus differential tests) |
 | Default macro targets | `DEFAULT_PROTEIN_TARGET`, `DEFAULT_CARBS_TARGET`, `DEFAULT_FAT_TARGET` | `DEFAULT_SETTINGS.protein`, `.carbs`, `.fat` | none (differential test) |
 | Coverage and focus picker | `plannedCoverage`, `coverageTemplates`, `doneCoverage`, `coverageRows`, `weeklyCoverage`, `focusPicker`, `toggleFocus`, `COVER_SHOW`, `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` | `weeklyCoverage`, `actualCoverage`, `coverageHtml`/`fillActualCoverage` rows, `focusHtml`, `focusAction`, `COVER_SHOW` | none (differential tests) |
 | Progress: body and day targets | `latestWeight`, `measureAt`, `navyBodyFat`, `waterTarget`, `workoutBurn`, `stepsTarget`, `weightDrift`, `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`, `WATER_TRAINING_ML`, `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX`, `WEIGHT_DRIFT_KG` | `latestWeight`, `measureAt`, `navyBF`, `waterTarget`, `workoutBurn`, `stepsTarget`, the `drift` check in `setupSummaryHtml` (#161) | `formulas.json` (plus differential tests) |
@@ -82,6 +83,20 @@ saves keep the prototype's 80. Turn a contract `UserFood` into the food-maths in
 prototype takes the first user food with its name and then checks its fibre; the two differ only when
 two user foods share a name, which the prototype's save prevents but the contract does not (#151,
 revisit with `food_id` lookups).
+
+The recipe and kitchen-test rules read their data from content, passed in as is: raw ingredients
+(prototype `RAW`, `RAW_FIB` and `FATTY`) as content/raw-ingredients.json `ingredients` (`name`, `fatty`,
+`per_100g`), the katori size (prototype `KATORI_G`) as content/recipes.json `katori_g`, and presets
+(`PRESETS`) as content/recipes.json `presets[].ingredients`. Content owns those values; core keeps no copy.
+Ingredients are looked up by their own name only (`constructor` and the like are unknown ingredients).
+Ingredients come in the contract's `Ingredient` shape, recipes and kitchen tests in `Recipe` and
+`KitchenTest` fields; amounts and weights are read with `num`, as the prototype reads its text boxes.
+`recipeFood` and `kitchenTestFood` return contract `UserFood` fields (origin `recipe` or `kitchen_test`)
+and, like `customFood` (#150), `name-too-long` for a trimmed name over 200 characters and `invalid` for an
+ingredient amount, pot, cooked or serving weight below 0, where the prototype saves. An empty pot weighed
+as 0 g gives no cooked weight, as in the prototype (#214 decides to accept it, in a spec change). Tests
+check content against golden `raw100g` and `rawFibre100g` and the prototype's `FATTY`, `KATORI_G` and
+`PRESETS`, then run the port on content against the prototype.
 
 ## Running
 

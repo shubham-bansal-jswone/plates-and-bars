@@ -341,13 +341,66 @@ export function flexToast(extra: number, result: Pick<PlanFlexResult, 'spread' |
 }
 
 /**
- * Removes every entry of the flex plan `id` (the extra day and all its cuts).
+ * The flex plan that Undo on `date` removes: the most recent plan whose extra (its positive entry) is on
+ * `date`, as that entry (`kcal_delta` is the plan's extra, shown in the note instead of the day's net sum).
+ * Plans are added at the end of `Settings.flex`, so the most recent is the last such entry. Null when no
+ * plan's extra is on `date` (a day with only cuts has no Undo; its cuts are undone from the extra's day).
  *
- * Mirrors prototype `case 'flex-undo'` (the id is the first of the day's entries, `f[0].id` in
- * `flexNoteHtml()`).
+ * Mirrors prototype `flexPlanFor(date)` (used by `flexNoteHtml()` for the note and the Undo button). Decided in #178.
  */
-export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string): FlexEntry[] {
-  return (flex ?? []).filter((x) => x.id !== id);
+export function flexPlanFor(flex: readonly FlexEntry[] | null | undefined, date: string): FlexEntry | null {
+  const plans = (flex ?? []).filter((x) => x.date === date && x.kcal_delta > 0);
+  return plans[plans.length - 1] ?? null;
+}
+
+/** Rounds up to a multiple of 10 (prototype `c10` in `undoFlex`). */
+const ceil10 = (x: number): number => Math.ceil(x / 10) * 10;
+
+/** What `undoFlex` needs to keep days at or above the floor (#176). */
+export interface UndoFlexFloor {
+  /** As for `planFlex`: sets the floor and the saved target. */
+  profile: KcalTargetProfile | null | undefined;
+  /** Lab hold on (prototype `labHoldOn()`), as for `planFlex`. */
+  labHold?: boolean | undefined;
+}
+
+/**
+ * Removes every entry of the flex plan `id` (the extra day and all its cuts), then trims the cuts left on
+ * each of that plan's days so no day is below the floor (the `planFlex` rule: `calcTargets` floor, or 1200
+ * with no profile; the day's target is the lower of `kcalTarget` with and without the lab hold). On such a
+ * day the shortfall, rounded up to 10, is taken off the cuts, the most recent cut first; a cut trimmed to 0
+ * is removed. Trimmed calories are simply not cut. Other entries are kept as they are, in order, and the
+ * input is left alone.
+ *
+ * Mirrors prototype `undoFlex(id)` (`case 'flex-undo'`; state passed in). Decided in #176.
+ */
+export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string, floor: UndoFlexFloor): FlexEntry[];
+/**
+ * Removes every entry of the flex plan `id` and trims nothing (the rule before #176).
+ *
+ * @deprecated Pass `floor` so no day is left below the minimum (#176). This form is kept only so the app
+ * compiles until it passes its profile (#206, the #178 follow-up); `floor` becomes required then.
+ */
+export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string): FlexEntry[];
+export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string, floor?: UndoFlexFloor): FlexEntry[] {
+  const all = flex ?? [];
+  const kept = all.filter((x) => x.id !== id);
+  if (!floor) return kept;
+  const { profile, labHold } = floor;
+  const min = profile ? calcTargets(toTargetsProfile(profile)).floor : FLEX_FLOOR_DEFAULT;
+  const trim = new Map<string, number>();
+  for (const { date } of all.filter((x) => x.id === id)) {
+    trim.set(date, Math.max(0, ceil10(min - Math.min(kcalTarget(date, { flex: kept, labHold }, profile), kcalTarget(date, { flex: kept }, profile)))));
+  }
+  const out: FlexEntry[] = [];
+  for (let i = kept.length - 1; i >= 0; i--) {
+    const x = kept[i] as FlexEntry;
+    const left = trim.get(x.date) ?? 0;
+    const t = x.kcal_delta < 0 ? Math.min(left, -x.kcal_delta) : 0;
+    if (t) trim.set(x.date, left - t);
+    if (!t || t < -x.kcal_delta) out.unshift(t ? { ...x, kcal_delta: x.kcal_delta + t } : x);
+  }
+  return out;
 }
 
 /** Servings stepper limits and step (prototype `case 'serv'`: 0.5 to 10, ± 0.5; starts at 1). */

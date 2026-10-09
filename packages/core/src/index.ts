@@ -238,7 +238,8 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  *   `DEFAULT_KCAL_TARGET` mirrors `DEFAULT_SETTINGS.kcal`.
  * - `planFlex` mirrors prototype `planFlex(extra)` (state and plan id passed in; never below the floor, #167);
  *   `FLEX_FLOOR_DEFAULT` its 1200; `flexToast` its toast.
- * - `undoFlex` mirrors prototype `case 'flex-undo'`.
+ * - `undoFlex` mirrors prototype `undoFlex(id)` (`case 'flex-undo'`; trims cuts so no day is below the floor, #176);
+ *   `flexPlanFor` mirrors prototype `flexPlanFor(date)`, the plan the note shows and Undo removes (#178).
  * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
  * - `customFood` mirrors prototype `case 'addcustom'`, plus `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
@@ -252,6 +253,7 @@ export {
   planFlex,
   flexToast,
   undoFlex,
+  flexPlanFor,
   FLEX_FLOOR_DEFAULT,
   stepServings,
   SERVINGS_MIN,
@@ -264,7 +266,7 @@ export {
   FOOD_NAME_MAX,
   userFoodFacts,
 } from './food';
-export type { FlexEntry, PlanFlexInput, PlanFlexResult, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
+export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
 
 /**
  * Macro targets before setup (no profile), for the Food tab's ring and legend.
@@ -315,3 +317,58 @@ export {
   WEIGHT_DRIFT_KG,
 } from './progress';
 export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WorkoutBurn, WeightDrift } from './progress';
+
+/**
+ * Recipe builder and kitchen tests. The data is passed in: raw ingredients (prototype `RAW`, `RAW_FIB`, `FATTY`)
+ * as content/raw-ingredients.json `ingredients`, the katori size (prototype `KATORI_G`) as content/recipes.json
+ * `katori_g`. Ingredients, recipes and kitchen tests come in contract `Ingredient`, `Recipe` and `KitchenTest`
+ * fields; saved foods are contract `UserFood` fields.
+ * - `recipeTotals` mirrors prototype `rbTotals()` (whole pot, katoris made, per katori; grams mode is cooked g ÷ `katori_g`).
+ * - `presetIngredients` mirrors the rows step of prototype `rbFromPreset(k)` (oil level applied to `fatty` ingredients).
+ * - `stepRecipeLog` mirrors prototype `case 'rb-log'`; `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` its limits.
+ * - `recipeFood` mirrors prototype `case 'rb-save'` (checks, kept rows, saved food), plus `name-too-long` and `invalid` (contract limits, as #150).
+ * - `kitchenTest` mirrors prototype `ktCalc(d)` (cooked weight from pot weights, per 100 g, per serving; 0 g empty pot pinned, #214).
+ * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), plus `name-too-long` and `invalid`.
+ * - `saveBuiltFood` mirrors the `myFoods` step of `case 'rb-save'` and `ktSave`; `BUILT_FOODS_MAX` its 80.
+ * - `ingredientGrams` mirrors the grams step of `rbTotals` and `ktCalc`; `UNIT_GRAMS` mirrors `UNIT_G`.
+ * - `OIL_LEVEL` mirrors `OIL_LEVEL`; `RECIPE_VEG_INGREDIENTS`,
+ *   `FRUIT_VEG_SERVING_G`, `SUGAR_INGREDIENT` mirror the vegetable list, `/80` and `'Sugar'` in `case 'rb-save'`.
+ */
+export {
+  recipeTotals,
+  presetIngredients,
+  stepRecipeLog,
+  recipeFood,
+  kitchenTest,
+  kitchenTestFood,
+  saveBuiltFood,
+  ingredientGrams,
+  UNIT_GRAMS,
+  OIL_LEVEL,
+  RECIPE_VEG_INGREDIENTS,
+  FRUIT_VEG_SERVING_G,
+  SUGAR_INGREDIENT,
+  BUILT_FOODS_MAX,
+  RECIPE_LOG_MIN,
+  RECIPE_LOG_MAX,
+  RECIPE_LOG_STEP,
+} from './recipes';
+export type {
+  RawIngredient,
+  Per100g,
+  IngredientRow,
+  OilLevel,
+  RecipeYield,
+  RecipeTotals,
+  PerKatori,
+  RecipeTotalsResult,
+  RecipeInput,
+  RecipeFoodResult,
+  KitchenTestInput,
+  KitchenTotals,
+  KitchenAmount,
+  KitchenServing,
+  KitchenTestResult,
+  KitchenTestFoodInput,
+  KitchenTestFoodResult,
+} from './recipes';
