@@ -60,6 +60,10 @@ export function fakeServer(userId: string) {
     online: true,
     /** Next responses to force for /sync: status, optional Retry-After. */
     forceStatus: [] as { status: number; retryAfter?: string }[],
+    /** When set, every request waits for it before the server answers (a slow network). */
+    hold: null as null | Promise<void>,
+    /** Limits `hold` to one path (e.g. '/auth/refresh'). */
+    holdPath: null as null | string,
     accessValid: 'access-1',
     refreshes: 0,
     refreshOk: true,
@@ -80,6 +84,11 @@ export function fakeServer(userId: string) {
       const auth = req.headers.get('Authorization');
       s.calls.push({ path, auth, body });
       const json = (status: number, b: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+      if (s.hold && (!s.holdPath || s.holdPath === path)) await s.hold;
+      if (path === '/auth/email/verify') {
+        s.accessValid = 'access-verified';
+        return json(200, { token_type: 'Bearer', access_token: 'access-verified', access_token_expires_at: '2026-10-09T00:00:00Z', refresh_token: 'refresh-verified', refresh_token_expires_at: '2027-01-01T00:00:00Z', user: { id: userId, email: null, created_at: '2026-10-01T00:00:00Z' }, new_user: false });
+      }
       if (path === '/auth/refresh') {
         if (!s.refreshOk) return json(401, { code: 'unauthorized', message: 'x' });
         s.refreshes++;
@@ -109,4 +118,10 @@ export function fakeServer(userId: string) {
     },
   };
   return s;
+}
+
+/** A stored data_storage consent (sync refuses to run without one), already marked as synced. */
+export async function seedConsent(db: StoreDb): Promise<void> {
+  await db.runAsync("INSERT INTO consents (key, data) VALUES ('c1', ?)", JSON.stringify({ id: 'c1', version: 1, updated_at: '2026-10-01T00:00:00.000Z', deleted_at: null, kind: 'data_storage', given_at: '2026-10-01T00:00:00.000Z', text_version: '1' }));
+  await db.runAsync('DELETE FROM sync_outbox');
 }

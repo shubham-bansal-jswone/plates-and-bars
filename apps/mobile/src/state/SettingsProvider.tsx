@@ -29,7 +29,7 @@ const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
  * Holds the local Settings record. A change shows at once and its write is queued (FIFO, each write reads
  * the latest state when it runs), so nothing waits on the network or on an earlier write.
  */
-export function SettingsProvider({ db, children }: { db: StoreDb; children: ReactNode }) {
+export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb; /** Changes when records were pulled from the server: the settings are read again (after pending local writes). */ reloadKey?: number; children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -41,6 +41,7 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
   useEffect(() => {
     let live = true;
     (async () => {
+      await queue.current; // local edits still being written land first, so a reload never reads around them
       const s = await loadSettings(db);
       if (!live) return;
       if (s) {
@@ -57,7 +58,7 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
     return () => {
       live = false;
     };
-  }, [db]);
+  }, [db, reloadKey]);
 
   const change = useCallback(
     (patch: Partial<Settings>) => {

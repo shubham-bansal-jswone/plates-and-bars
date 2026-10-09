@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, num, type MeasureKey } from '@plate-and-bar/core';
+import { addDays, measurementRow, num, scaleJump, sleepEntry, weightEntry, type MeasureKey, type ScaleJump } from '@plate-and-bar/core';
 import { loadMeasurements, loadWeights, saveMeasurement, saveWeight } from '../db/progress';
 import { loadDayNote, patchDayNote } from '../db/food';
 import type { WorkoutDb } from '../db/workouts';
 import type { DayNote } from '../food/types';
 import { localDate } from '../setup/logic';
-import { MEASURE_NONE, SLEEP_BAD, SLEEP_MAX_H, STEPS_BAD, TAPE_MAX_CM, TAPE_MIN_CM, WEIGHT_ABOVE_KG, WEIGHT_BAD, WEIGHT_BELOW_KG } from './copy';
+import { MEASURE_NONE, SLEEP_BAD, STEPS_BAD, WEIGHT_BAD } from './copy';
 import type { Measurement, Weight } from './types';
 
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
-const tenth = (n: number): number => Math.round(n * 10) / 10;
 
 interface Options {
   db: WorkoutDb;
@@ -33,6 +32,8 @@ export function useProgress({ db, now, notify }: Options) {
   const [tapes, setTapes] = useState<Measurement[]>([]);
   /** Day notes for the 7 days before `date` and `date` itself (what `stepsTarget` reads). */
   const [notes, setNotes] = useState<DayNote[]>([]);
+  /** The scale-jump note; kept until dismissed, shown only while its date is the day shown. */
+  const [jump, setJump] = useState<ScaleJump | null>(null);
   const weightsRef = useRef(weights);
   const tapesRef = useRef(tapes);
   const notesRef = useRef(notes);
@@ -75,16 +76,18 @@ export function useProgress({ db, now, notify }: Options) {
     [db, enqueue],
   );
 
-  /** Saves the day's weigh-in; an empty box clears it (a tombstone). */
+  /** Saves the day's weigh-in; an empty box clears it (a tombstone). A rise of 0.8 kg or more adds the scale-jump note. */
   const saveWeightText = useCallback(
     (text: string) => {
-      const v = num(text);
+      const entry = weightEntry(text);
       const prev = weightsRef.current.find((w) => w.date === date);
       const t = stamp(now());
-      if (v > WEIGHT_ABOVE_KG && v < WEIGHT_BELOW_KG) {
-        putWeight({ id: null, version: prev?.version ?? 0, updated_at: t, deleted_at: null, date, weight_kg: tenth(v) });
+      if (entry.kind === 'save') {
+        const note = scaleJump(weightsRef.current, date, entry.kg);
+        if (note) setJump(note);
+        putWeight({ id: null, version: prev?.version ?? 0, updated_at: t, deleted_at: null, date, weight_kg: entry.kg });
         notify('Weight saved');
-      } else if (!text.trim()) {
+      } else if (entry.kind === 'clear') {
         if (prev && !prev.deleted_at) putWeight({ ...prev, deleted_at: t, updated_at: t });
         notify('Weight cleared');
       } else notify(WEIGHT_BAD);
@@ -95,11 +98,7 @@ export function useProgress({ db, now, notify }: Options) {
   /** Saves the filled boxes into the day's measurements, keeping the ones already stored; out-of-range entries are ignored. */
   const saveTape = useCallback(
     (entered: Partial<Record<MeasureKey, string>>) => {
-      const row: Partial<Record<MeasureKey, number>> = {};
-      for (const [k, text] of Object.entries(entered) as [MeasureKey, string][]) {
-        const v = num(text);
-        if (v >= TAPE_MIN_CM && v <= TAPE_MAX_CM) row[k] = tenth(v);
-      }
+      const row = measurementRow(entered);
       if (!Object.keys(row).length) return notify(MEASURE_NONE);
       // A deleted row's values are gone, but its version carries on (the record is revived, not a new one).
       const prev = tapesRef.current.find((m) => m.date === date);
@@ -117,11 +116,11 @@ export function useProgress({ db, now, notify }: Options) {
   const saveStepsSleep = useCallback(
     (stepsText: string, sleepText: string) => {
       if (stepsText.trim() && !isNumber(stepsText)) return notify(STEPS_BAD);
-      if (sleepText.trim() && !isNumber(sleepText)) return notify(SLEEP_BAD);
       const steps = stepsText.trim() ? Math.round(num(stepsText)) : null;
-      const sleep = sleepText.trim() ? num(sleepText) : null;
+      const slept = sleepEntry(sleepText);
       if (steps !== null && !(steps >= 0)) return notify(STEPS_BAD);
-      if (sleep !== null && !(sleep >= 0 && sleep <= SLEEP_MAX_H)) return notify(SLEEP_BAD);
+      if (slept.kind === 'bad') return notify(SLEEP_BAD);
+      const sleep = slept.kind === 'save' ? slept.h : null;
       const n: DayNote = { ...(notesRef.current.find((x) => x.date === date) ?? blankNote(date)), steps, sleep, updated_at: stamp(now()) };
       notesRef.current = [...notesRef.current.filter((x) => x.date !== date), n];
       setNotes(notesRef.current);
@@ -131,5 +130,7 @@ export function useProgress({ db, now, notify }: Options) {
     [db, date, now, notify, enqueue],
   );
 
-  return { date, ready, weights, tapes, notes, today: notes.find((n) => n.date === date) ?? null, saveWeightText, saveTape, saveStepsSleep };
+  const dismissJump = useCallback(() => setJump(null), []);
+
+  return { date, ready, weights, tapes, notes, today: notes.find((n) => n.date === date) ?? null, scaleJump: jump && jump.date === date ? jump : null, dismissJump, saveWeightText, saveTape, saveStepsSleep };
 }
