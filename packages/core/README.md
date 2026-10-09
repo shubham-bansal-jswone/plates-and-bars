@@ -88,7 +88,9 @@ again", the `Settings.returning` entries to add). The "can't do" sheet saves `ca
 `id`; for a saved rule, also tombstone any swap from that exercise). `cantSession` then gives today's
 workout (contract `Workout.exercises` and `WorkoutSet`s): the tapped exercise through `replaceAt`, then
 the `widerRuleReplacements`. Give its new blank sets (`NewCantSet`) an `id` and store them, stamp and
-store its `changed` sets (renumbered, same `id`), and tombstone its `removed` sets.
+store its `changed` sets (renumbered, same `id`), and tombstone its `removed` sets. The sheet's pick list
+(`candidates`) and `cantSession` take where the user trains today: the day's override, else the
+profile's (#272). A pick stays in the replaced exercise's part (first or second session, #267).
 
 The food rules take foods in content/foods.json's `Food` shape and logs in the contract's `FoodLog`
 shape (logs with `deleted_at` set are left out). Fibre, added sugar and fruit and veg are looked up by
