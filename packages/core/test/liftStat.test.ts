@@ -186,9 +186,10 @@ describe('liftStatToRecord', () => {
     for (const v of variants) {
       expectValid(v);
       const { id, version, updated_at, deleted_at, ...body } = v;
-      expect([id, version, updated_at, deleted_at]).toHaveLength(4);
       const back = recordToLiftStat(v.exercise, liftStatToRecord(clone(v)));
       expect(back).toEqual(body);
+      // with the original sync metadata put back, the mapped body rebuilds the stat it came from
+      expect(toContract(back, { id, version, updated_at, deleted_at })).toEqual(v);
       expectValid(toContract(back, META));
     }
   });
