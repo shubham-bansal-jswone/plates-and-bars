@@ -57,6 +57,28 @@ class JwtAuthFilterTest {
     }
 
     @Test
+    void databaseFailureDuringTheUserLookupIs503UnavailableNever401() throws Exception {
+        String id = "11111111-1111-1111-1111-111111111111";
+        when(users.exists(id)).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("down"));
+        String token = jwt.issue(id).value();
+        for (var req : new org.springframework.test.web.servlet.RequestBuilder[] {
+            get("/api/v1/sync/pull").header("Authorization", "Bearer " + token),
+            delete("/api/v1/me").header("Authorization", "Bearer " + token)
+        }) {
+            // DELETE /me skips the lookup, so it reaches routing (404 here); everything else is 503.
+            var result = mvc.perform(req).andReturn().getResponse();
+            if (result.getStatus() != 404) {
+                org.assertj.core.api.Assertions.assertThat(result.getStatus()).isEqualTo(503);
+                org.assertj.core.api.Assertions.assertThat(result.getContentAsString())
+                        .contains("\"code\":\"unavailable\"")
+                        .doesNotContain(id);
+            }
+        }
+        mvc.perform(get("/api/v1/sync/pull").header("Authorization", "Bearer " + token))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
     void missingTokenIsUnauthorized() throws Exception {
         mvc.perform(get("/api/v1/sync/pull"))
                 .andExpect(status().isUnauthorized())

@@ -58,6 +58,9 @@ public class SyncService {
 
     @Transactional
     public ObjectNode sync(String userId, Parsed req) {
+        if (!repo.lockUser(userId)) {
+            throw ApiException.sessionEnded(); // valid token, but the account no longer exists
+        }
         long before;
         try {
             // Every read below happens after this lock, so each sees whatever the previous sync committed.

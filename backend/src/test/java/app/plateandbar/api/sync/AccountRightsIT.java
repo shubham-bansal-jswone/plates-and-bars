@@ -246,4 +246,32 @@ class AccountRightsIT extends SyncITBase {
         clock.advance(java.time.Duration.ofMinutes(13));
         assertThat(call(HttpMethod.GET, "/api/v1/me/export", jwt.issue(a).value()).getStatusCode().value()).isEqualTo(200);
     }
+
+    @Test
+    void aSyncRacingADeleteIs200OrCleanly401NeverA500AndNeverDeadlocks() throws Exception {
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            for (int round = 0; round < 25; round++) {
+                String a = newUser();
+                String token = jwt.issue(a).value();
+                String body = Req.of(null).add(SyncTable.water_logs, waterLog(id(), 0, MID, null, 250)).build().toString();
+                java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+                var sync = pool.submit(() -> {
+                    go.await();
+                    return post(token, body).status();
+                });
+                var del = pool.submit(() -> {
+                    go.await();
+                    return call(HttpMethod.DELETE, "/api/v1/me", token).getStatusCode().value();
+                });
+                go.countDown();
+                assertThat(del.get(20, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(204);
+                assertThat(sync.get(20, java.util.concurrent.TimeUnit.SECONDS)).isIn(200, 401);
+                assertThat(count("SELECT COUNT(*) FROM water_logs WHERE user_id = ?", a)).isZero();
+                assertThat(count("SELECT COUNT(*) FROM sync_state WHERE user_id = ?", a)).isZero();
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
 }

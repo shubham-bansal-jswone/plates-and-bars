@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(AccountController.class)
 @WebMvcAuthSlice
 @Import(AccountControllerTest.Config.class)
-@TestPropertySource(properties = {"app.rate-limit.export-per-user.capacity=2", "app.rate-limit.export-per-ip.capacity=100"})
+@TestPropertySource(properties = {"app.rate-limit.export-per-user.capacity=2", "app.rate-limit.export-per-ip.capacity=3"})
 class AccountControllerTest {
 
     static final String USER = "11111111-1111-1111-1111-111111111111";
@@ -53,10 +53,35 @@ class AccountControllerTest {
         return "Bearer " + jwt.issue(user).value();
     }
 
+    private org.springframework.test.web.servlet.ResultActions export(String user, String ip) throws Exception {
+        return mvc.perform(get("/api/v1/me/export").header("Authorization", bearer(user)).with(r -> {
+            r.setRemoteAddr(ip);
+            return r;
+        }));
+    }
+
+    private static String uid() {
+        return java.util.UUID.randomUUID().toString(); // buckets live as long as the cached context
+    }
+
+    @Test
+    void anIpRefusalDoesNotSpendTheUsersOwnAllowance() throws Exception {
+        when(service.export(any(), any())).thenReturn(json.createObjectNode());
+        String u1 = uid();
+        String u2 = uid();
+        export(u1, "198.51.100.1").andExpect(status().isOk());
+        export(u1, "198.51.100.1").andExpect(status().isOk());
+        export(u2, "198.51.100.1").andExpect(status().isOk()); // the IP's 3rd
+        export(u2, "198.51.100.1").andExpect(status().isTooManyRequests()); // refused by the IP
+        // u2 used one of its two from here; had the refusal spent one it would be out.
+        export(u2, "198.51.100.2").andExpect(status().isOk());
+        export(u2, "198.51.100.2").andExpect(status().isTooManyRequests()); // now the user cap
+    }
+
     @Test
     void exportSetsHeadersFromTheUtcDateAndUsesTheTokensUser() throws Exception {
         when(service.export(eq(USER), any())).thenReturn(json.createObjectNode().put("format_version", 1));
-        mvc.perform(get("/api/v1/me/export").header("Authorization", bearer(USER)))
+        export(USER, "198.51.100.10")
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(header().string(
@@ -70,15 +95,14 @@ class AccountControllerTest {
         String user = java.util.UUID.randomUUID().toString(); // buckets live as long as the cached context
         when(service.export(any(), any())).thenReturn(json.createObjectNode());
         for (int i = 0; i < 2; i++) {
-            mvc.perform(get("/api/v1/me/export").header("Authorization", bearer(user))).andExpect(status().isOk());
+            export(user, "198.51.100.20").andExpect(status().isOk());
         }
-        mvc.perform(get("/api/v1/me/export").header("Authorization", bearer(user)))
+        export(user, "198.51.100.20")
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"))
                 .andExpect(jsonPath("$.code").value("rate_limited"));
         // Another user is unaffected.
-        mvc.perform(get("/api/v1/me/export").header("Authorization", bearer("22222222-2222-2222-2222-222222222222")))
-                .andExpect(status().isOk());
+        export(uid(), "198.51.100.21").andExpect(status().isOk());
     }
 
     @Test

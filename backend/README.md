@@ -55,7 +55,9 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     so a table added later with that foreign key is covered. 204, and 204 again on a repeat. Logs user id and time only.
   - `JwtAuthFilter` does an uncached primary-key lookup on `users` for every authenticated request, so an access
     token issued before the deletion gets 401 `unauthorized` everywhere except `DELETE /me`. Ids are never reused,
-    so no denylist is needed. Cost: one indexed query per request.
+    so no denylist is needed. Cost: one indexed query per request. A database error in that lookup is 503
+    `unavailable`, never 401. The sync transaction starts with `SELECT ... FROM users ... FOR SHARE`, so a
+    concurrent `DELETE /me` waits for it, and a sync after the delete is 401 (never a foreign-key 500).
 - Not yet: foods, content and the AI proxy.
 
 ## Sync

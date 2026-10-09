@@ -54,8 +54,9 @@ public class AccountController {
     @GetMapping(path = "/export", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<byte[]> export(Authentication auth, HttpServletRequest request) throws Exception {
         String userId = auth.getName();
-        limiter.consume("export-user", userId, limits.getExportPerUser());
+        // IP first: a refusal there must not spend the user's own allowance.
         limiter.consume("export-ip", ips.resolve(request), limits.getExportPerIp());
+        limiter.consume("export-user", userId, limits.getExportPerUser());
         Instant now = clock.instant();
         ObjectNode body = accounts.export(userId, now);
         byte[] bytes = json.writeValueAsBytes(body);

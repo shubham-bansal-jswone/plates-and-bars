@@ -12,7 +12,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -52,6 +54,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         return path.equals("/api/v1/health") || path.startsWith("/api/v1/auth/");
     }
 
+    private static final class UserLookupFailedException extends RuntimeException {
+        UserLookupFailedException(Throwable cause) {
+            super("user lookup failed", cause);
+        }
+    }
+
+    private boolean userExists(String userId) {
+        try {
+            return users.exists(userId);
+        } catch (DataAccessException e) {
+            throw new UserLookupFailedException(e);
+        }
+    }
+
     private static boolean isDeleteAccount(HttpServletRequest request) {
         return "DELETE".equals(request.getMethod()) && request.getRequestURI().equals("/api/v1/me");
     }
@@ -64,11 +80,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 String userId = jwt.verify(header.substring(7).trim());
                 // A token outlives its account by up to 15 minutes; DELETE /me stays open so a repeat is 204.
-                if (!isDeleteAccount(request) && !users.exists(userId)) {
+                if (!isDeleteAccount(request) && !userExists(userId)) {
                     throw ApiException.sessionEnded();
                 }
                 SecurityContextHolder.getContext()
                         .setAuthentication(UsernamePasswordAuthenticationToken.authenticated(userId, null, List.of()));
+            } catch (UserLookupFailedException e) {
+                // The database cannot tell us whether the account exists: say so, never claim 401.
+                SecurityContextHolder.clearContext();
+                response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                mapper.writeValue(
+                        response.getOutputStream(), ErrorResponse.of("unavailable", "Service temporarily unavailable."));
+                return;
             } catch (ApiException e) {
                 SecurityContextHolder.clearContext();
                 try {

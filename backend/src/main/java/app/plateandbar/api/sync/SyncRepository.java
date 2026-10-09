@@ -39,6 +39,14 @@ class SyncRepository {
      * first syncs of one user queue instead of deadlocking on a shared-to-exclusive upgrade. Throws a
      * {@link org.springframework.dao.DataIntegrityViolationException} (foreign key) when the user does not exist.
      */
+    /**
+     * Share-locks the user's row until the transaction ends, so a concurrent DELETE /me waits for this sync
+     * (and a sync that starts after the delete committed finds no row). False when the user is gone.
+     */
+    boolean lockUser(String userId) {
+        return !jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR SHARE", String.class, userId).isEmpty();
+    }
+
     long lockState(String userId) {
         jdbc.update("INSERT INTO sync_state (user_id, seq) VALUES (?, 0) ON DUPLICATE KEY UPDATE seq = seq", userId);
         Long seq = jdbc.queryForObject("SELECT seq FROM sync_state WHERE user_id = ? FOR UPDATE", Long.class, userId);
