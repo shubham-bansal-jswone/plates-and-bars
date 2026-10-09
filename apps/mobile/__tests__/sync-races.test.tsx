@@ -20,6 +20,7 @@ jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 jest.mock('expo-sqlite', () => ({ useSQLiteContext: () => null }));
 
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+const OTHER_USER = ['0c9d8e7f', '6a5b', '4c3d', '8e2f', '1a0b9c8d7e6f'].join('-');
 const API = 'http://fake/api/v1';
 const w = (date: string, kg: number) => ({ id: null, version: 0, updated_at: '2026-10-09T06:00:00.000Z', deleted_at: null, date, weight_kg: kg });
 const gate = () => {
@@ -83,7 +84,7 @@ describe('discarding while a sync is running', () => {
     server.hold = slow.p;
     const run = syncOnce(deps);
     await new Promise((r) => setTimeout(r, 10));
-    await setKv(db, KEY_USER, '0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f'); // someone else owns the store now
+    await setKv(db, KEY_USER, OTHER_USER); // someone else owns the store now
     slow.release();
     expect((await run).status).toBe('paused');
     expect(await db.getFirstAsync('SELECT key FROM weights')).toBeNull();
