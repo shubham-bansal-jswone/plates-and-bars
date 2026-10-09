@@ -90,7 +90,7 @@ export function AiProvider({ db, api, tokens, signedIn, syncStamp, now = () => n
 
   const refresh = useCallback(async () => {
     if (!api || !consentRef.current) return;
-    const r = await getAiStatus({ db, api, tokens });
+    const r = await getAiStatus({ db, api, tokens }, statusRef.current === null);
     if (r.kind === 'ok' && consentRef.current) keep(r.data);
   }, [api, db, tokens, keep]);
 

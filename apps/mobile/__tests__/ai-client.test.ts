@@ -1,5 +1,5 @@
 import { createClient } from '@plate-and-bar/api';
-import { describeMeal } from '../src/ai/client';
+import { describeMeal, getAiStatus } from '../src/ai/client';
 import { syncOnce } from '../src/sync/engine';
 import { withSyncPaused } from '../src/sync/guard';
 import { KEY_USER, setKv } from '../src/sync/store';
@@ -18,11 +18,11 @@ async function setup() {
   const ai = { calls: 0, hold: null as null | Promise<void> };
   (globalThis as { fetch: unknown }).fetch = async (input: Request) => {
     const path = new URL(input.url).pathname.replace('/api/v1', '');
-    if (path !== '/ai/describe-meal') return server.fetch(input);
+    if (path !== '/ai/describe-meal' && path !== '/ai/status') return server.fetch(input);
     ai.calls++;
     if (ai.hold) await ai.hold;
     const ok = input.headers.get('Authorization') === `Bearer ${server.accessValid}`;
-    return new Response(JSON.stringify(ok ? { items: [], quota: QUOTA } : { code: 'token_expired', message: 'x' }), { status: ok ? 200 : 401, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(ok ? (path === '/ai/status' ? { features: { describe_meal: true, ask_why: false, weekly_summary: false }, quota: QUOTA } : { items: [], quota: QUOTA }) : { code: 'token_expired', message: 'x' }), { status: ok ? 200 : 401, headers: { 'Content-Type': 'application/json' } });
   };
   await setKv(db, KEY_USER, USER);
   await seedConsent(db);
@@ -93,5 +93,15 @@ describe('AI call and token refresh', () => {
     await tokens.clear(); // plain sign-out
     slow.release();
     expect(await call).toEqual({ kind: 'signed_out' });
+  });
+
+  it('a status read refreshes only when asked to, and a later foreground read never does', async () => {
+    const { server, tokens, deps } = await setup();
+    server.accessValid = 'newer';
+    expect((await getAiStatus(deps)).kind).toBe('signed_out'); // default: no refresh, no lock
+    expect(server.refreshes).toBe(0);
+    expect(tokens.current).toEqual({ access: 'access-1', refresh: 'refresh-1' });
+    expect((await getAiStatus(deps, true)).kind).toBe('ok'); // first read: refreshes once, then succeeds
+    expect(server.refreshes).toBe(1);
   });
 });

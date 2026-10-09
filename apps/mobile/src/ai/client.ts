@@ -55,7 +55,9 @@ async function run<T>(d: AiDeps, call: (signal: AbortSignal) => Promise<Reply<T>
     if ((await getUserId(d.db)) !== owner || !(await d.tokens.load())) return { kind: 'signed_out' };
     if (reply.response.status === 401 && attempt === 0 && opts.refresh !== false) {
       // A sync run that got the same 401 refreshes on its own: let it finish and save its rotated pair first (#287), then
-      // the check below sees the changed tokens and this call just retries.
+      // the check below sees the changed tokens and this call just retries. What prevents the clash is the ordering: the
+      // lock is requested right after syncIdle() resolves, with no other await in between, so a new run cannot slip in and
+      // start its own refresh. The token-pair compare below only catches a refresh that finished earlier.
       await syncIdle();
       const out = await withSyncPaused(async () => {
         const now = await d.tokens.load();
@@ -84,8 +86,11 @@ function answer<T>(r: Reply<T>): AiResult<T> {
   return { kind: 'unavailable' };
 }
 
-/** `GET /ai/status`: which features are on and the daily quota. Carries no user data. */
-export const getAiStatus = (d: AiDeps) => run<AiStatus>(d, (signal) => d.api.GET('/ai/status', { signal }), { refresh: false });
+/**
+ * `GET /ai/status`: which features are on and the daily quota. Carries no user data. A 401 refreshes the tokens only when
+ * `refresh` is true (the first read, while the status is still unknown); the later foreground reads never take the lock.
+ */
+export const getAiStatus = (d: AiDeps, refresh = false) => run<AiStatus>(d, (signal) => d.api.GET('/ai/status', { signal }), { refresh });
 
 /** `POST /ai/describe-meal`: sends only the text the user typed. */
 export const describeMeal = (d: AiDeps, text: string) => run<Schemas['DescribeMealResponse']>(d, (signal) => d.api.POST('/ai/describe-meal', { body: { text }, signal }));

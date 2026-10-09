@@ -391,15 +391,6 @@ describe('account lock', () => {
     expect(POST.mock.calls.map((c) => c[0])).toEqual(['/ai/describe-meal', '/ai/describe-meal']);
   });
 
-  it('the status read never refreshes tokens on a 401', async () => {
-    const { api, POST, GET } = fakeApi({ get: jest.fn(async () => ({ error: { code: 'unauthorized', message: 'x' }, response: res(401) })) });
-    await ai(optedIn(), api, <AiSection />);
-    await waitFor(() => expect(GET).toHaveBeenCalledTimes(1));
-    await new Promise((r) => setTimeout(r, 20));
-    expect(POST).not.toHaveBeenCalled();
-    expect(GET).toHaveBeenCalledTimes(1);
-  });
-
   it('drops the answer when the signed-in user changed meanwhile', async () => {
     const kv = optedIn();
     const { api, POST } = fakeApi();
@@ -415,6 +406,23 @@ describe('account lock', () => {
 });
 
 describe('cold start with an expired token', () => {
+  it('the first status read refreshes the tokens once, so the feature appears even when sync never runs (no sync consent)', async () => {
+    const GET = jest
+      .fn()
+      .mockResolvedValueOnce({ error: { code: 'token_expired', message: 'x' }, response: res(401) })
+      .mockResolvedValue({ data: status({ describe_meal: true }), response: res(200) });
+    const POST: jest.Mock = jest.fn(async () => ({ data: { token_type: 'Bearer', access_token: 'a2', refresh_token: 'r2', access_token_expires_at: 'x', refresh_token_expires_at: 'y', user: { id: 'u1' } }, response: res(200) }));
+    const t = await tokens();
+    await render(
+      <AiProvider db={optedIn() as never} api={{ GET, POST } as unknown as ApiClient} tokens={t} signedIn now={NOW}>
+        <AiSection />
+      </AiProvider>,
+    );
+    expect(await screen.findByText('Available now: Describe a meal.')).toBeTruthy();
+    expect(POST.mock.calls.map((c) => c[0])).toEqual(['/auth/refresh']);
+    expect(await t.load()).toEqual({ access: 'a2', refresh: 'r2' });
+  });
+
   it('reads the status again after a sync run succeeds, so the feature appears without a foreground', async () => {
     const GET = jest
       .fn()
