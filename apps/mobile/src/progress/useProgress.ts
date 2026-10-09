@@ -47,16 +47,15 @@ export function useProgress({ db, now, notify, reloadKey = 0 }: Options) {
     let live = true;
     (async () => {
       const days = Array.from({ length: 8 }, (_, i) => addDays(date, i - 7));
-      const read = await freshRead({ queue, writes }, () => Promise.all([loadWeights(db), loadMeasurements(db), Promise.all(days.map((d) => loadDayNote(db, d)))]), () => live);
-      if (!read || !live) return;
-      const [w, m, n] = read;
-      weightsRef.current = w;
-      tapesRef.current = m;
-      notesRef.current = n.filter((x): x is DayNote => x !== null);
-      setWeights(w);
-      setTapes(m);
-      setNotes(notesRef.current);
-      setReady(true);
+      await freshRead({ queue, writes }, () => Promise.all([loadWeights(db), loadMeasurements(db), Promise.all(days.map((d) => loadDayNote(db, d)))]), () => live, ([w, m, n]) => {
+        weightsRef.current = w;
+        tapesRef.current = m;
+        notesRef.current = n.filter((x): x is DayNote => x !== null);
+        setWeights(w);
+        setTapes(m);
+        setNotes(notesRef.current);
+        setReady(true);
+      });
     })().catch(() => {
       if (live) notify('Couldn’t read your saved progress.');
     });

@@ -92,16 +92,17 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   useEffect(() => {
     let live = true;
     (async () => {
-      const read = await freshRead({ queue, writes }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live);
-      if (!read || !live) return;
-      const [workout, sets, lifts, sessions] = read;
-      commit({
-        ready: true,
-        workout,
-        exs: workout ? exercisesFrom(workout, sets) : [],
-        lifts,
-        sessions,
-      });
+      // The result is applied inside freshRead, in the same step as its counter check: a session being built
+      // (start, addSecond) resumes from an await and must not land between the check and the commit.
+      await freshRead({ queue, writes }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([workout, sets, lifts, sessions]) =>
+        commit({
+          ready: true,
+          workout,
+          exs: workout ? exercisesFrom(workout, sets) : [],
+          lifts,
+          sessions,
+        }),
+      );
     })().catch(() => notify('Couldn’t read your saved workout.'));
     return () => {
       live = false;

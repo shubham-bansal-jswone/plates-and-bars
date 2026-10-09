@@ -12,15 +12,18 @@ export interface WriteTracker {
  * Reads SQLite for a reload after sync pulled records, without clobbering local edits. It waits for queued writes (this screen's and the ones other screens registered with `trackWrite`), reads,
  * and throws the result away when a local edit was made while the read was in flight, then reads
  * again: a read that straddled an edit holds the old rows, and showing it would drop the edit from the screen and let a
- * later save write the old values back. `alive()` ends the loop when the screen no longer wants the result.
+ * later save write the old values back. `apply` runs straight after the counter check, in the same synchronous step, so no edit can slip in between. `alive()` ends the loop when the screen no longer wants the result.
  */
-export async function freshRead<T>(t: WriteTracker, read: () => Promise<T>, alive: () => boolean): Promise<T | undefined> {
+export async function freshRead<T>(t: WriteTracker, read: () => Promise<T>, alive: () => boolean, apply: (result: T) => void): Promise<void> {
   while (alive()) {
     const seen = t.writes.current;
     await pendingWrites(); // saves made on other screens (recipes, kitchen tests) that change what is shown
     await t.queue.current;
     const result = await read();
-    if (t.writes.current === seen) return result;
+    // Checked and applied in one synchronous step: a local edit that resumes from an await (a session being built) cannot land between them.
+    if (t.writes.current === seen) {
+      if (alive()) apply(result);
+      return;
+    }
   }
-  return undefined;
 }

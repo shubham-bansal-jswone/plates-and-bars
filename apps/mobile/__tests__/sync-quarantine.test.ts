@@ -130,6 +130,22 @@ describe('a 400 from /sync', () => {
   });
 });
 
+describe('a run with very many refused records', () => {
+  it('spends a bounded number of requests setting them aside, and the rest wait for the next run', async () => {
+    const { db, server, deps } = await setup();
+    server.rejectIf = null;
+    for (let i = 0; i < 100; i++) await saveWeightDoc(db, weight(`2026-01-${String(i + 1).padStart(3, '0')}`, 80));
+    // The server names one record per request (the first), as its per-record checks do.
+    for (let i = 0; i < 100; i++) server.force400.push([{ field: 'changes.weights[0].weight_kg', issue: 'x' }]);
+    const r = await syncOnce(deps);
+    expect(r.status).toBe('ok');
+    // 40 set-aside rounds do not count against the 40-round limit, then each one does: 80 requests, not 100.
+    expect(r.quarantined).toBe(80);
+    expect(server.calls.filter((c) => c.path === '/sync')).toHaveLength(80);
+    expect(await quarantineCount(db)).toBe(80);
+  });
+});
+
 function listPushedId(server: ReturnType<typeof fakeServer>) {
   return Promise.resolve(server.pushed().find((p) => p.date === '2026-10-08')?.id);
 }

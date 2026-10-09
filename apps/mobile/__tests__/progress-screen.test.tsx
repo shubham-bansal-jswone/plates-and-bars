@@ -411,6 +411,26 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
   });
 
+  it('shows the week-on-week weight change, the burn card\'s weekly trend and the sleep warning from core (#264)', async () => {
+    const db = memoryDb();
+    await seed(db, 1500, true);
+    await setup({ db });
+    // Weigh-ins 80.0 today up to 81.1 eleven days ago: this week averages 80.3, last week (5 of them) 80.9.
+    expect(await screen.findByText('Weight: weekly average 80.3 kg, down 0.6 kg from last week.')).toBeTruthy();
+    expect(screen.getByText(/your weight trend \(down 0\.7 kg a week\)/)).toBeTruthy();
+    expect(screen.getByText(/Sleep: 6\.5 hours a night, under the 7–9 hours/)).toBeTruthy();
+  });
+
+  it('7 hours of sleep is not short, and two weigh-ins give no weekly change (#264)', async () => {
+    const db = memoryDb();
+    await saveDayNote(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: DATE, complete: null, steps: null, sleep: 7, fast: false });
+    for (const i of [0, 1]) await saveWeight(db, weigh(day(i), 80));
+    await setup({ db });
+    expect(await screen.findByText(/Sleep: 7 hours a night\.$/)).toBeTruthy();
+    expect(screen.queryByText(/under the 7–9 hours/)).toBeNull();
+    expect(screen.getByText(/^Weight: log at least 3 weigh-ins a week/)).toBeTruthy();
+  });
+
   it('counts a day with a done work set as a session', async () => {
     const db = memoryDb();
     await saveWorkout(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: DATE, template: 'Upper A', base: 'Upper A', where: 'gym', cardio_min: 30, mods: {}, exercises: [], ci_choice: null });
