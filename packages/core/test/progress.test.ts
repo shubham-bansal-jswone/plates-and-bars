@@ -510,6 +510,14 @@ describe('weeklyCheckin', () => {
   });
   it('slope per week is the real-burn slope × 7, null until the burn is ready (#264)', () => {
     expect(weeklyCheckin(base)).toMatchObject({ burn: { ready: false }, slopePerWeek: null });
+    // Ready: 10 complete days with food and 10 daily weigh-ins moving 0.1 kg a day, so 0.7 kg a week.
+    const eaten: ProgressDay[] = Array.from({ length: 10 }, (_, b) => ({ date: addDays(DATE, -b), logs: [{ name: 'dal', qty: 1, kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60 }], complete: true, trained: false }));
+    const trend = (perDay: number): WeighIn[] => Array.from({ length: 10 }, (_, b) => ({ date: addDays(DATE, -b), weight_kg: 80 - perDay * b }));
+    const down = weeklyCheckin({ ...base, days: eaten, weighIns: trend(-0.1) }), up = weeklyCheckin({ ...base, days: eaten, weighIns: trend(0.1) });
+    expect(down.burn.ready && up.burn.ready).toBe(true);
+    expect(down.slopePerWeek).toBeCloseTo(-0.7, 10);
+    expect(up.slopePerWeek).toBeCloseTo(0.7, 10);
+    expect(down.slopePerWeek).toBe(down.burn.ready ? down.burn.slope * 7 : NaN);
   });
   it(`matches prototype renderCheckin over ${RUNS / 3} random weeks`, async () => {
     const r = rng(2026);
