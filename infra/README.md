@@ -8,6 +8,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
+| `.github/workflows/site-deploy.yml` | push to `main` touching `apps/site`, manual | Builds `apps/site` and deploys it; every job is skipped until repository variable `SITE_DEPLOY_TARGET` is set (see below) |
 | `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
 | `.github/dependabot.yml` | weekly | Updates for GitHub Actions, npm (`packages/api`, `packages/core`, `apps/mobile`, `tools`) and `backend` (gradle) |
 
@@ -77,3 +78,16 @@ shellcheck infra/scripts/*.sh
 infra/scripts/lane-check.sh origin/main
 infra/scripts/detect-changes.sh origin/main
 ```
+
+## Website deploy (#305)
+
+The plan named Cloudflare Pages; that needs a vendor account and terms, so the workflow offers two open options instead. Nothing runs until you set the repository variable `SITE_DEPLOY_TARGET`.
+
+| Value | What happens | You provide |
+| --- | --- | --- |
+| `github-pages` | `npm ci`, `check`, `build`, then `actions/deploy-pages` | Settings > Pages > Source: GitHub Actions; a custom domain (the site is built for the domain root, so the default `user.github.io/repo/` path would break asset links) |
+| `caddy` | Build, then `rsync --delete` of `dist/` to the VM over SSH; Caddy serves it (`infra/caddy/Caddyfile.site`) | variables `SITE_SSH_HOST`, `SITE_SSH_USER`, `SITE_WEB_ROOT`; secrets `SITE_SSH_KEY` (private key of a deploy-only user), `SITE_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); a GitHub environment named `site` |
+
+Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The Caddyfile has not been run through `caddy validate` yet (no Docker daemon was available when written); validate it on first use.
+
+To turn it off again, delete the variable.

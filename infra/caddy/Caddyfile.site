@@ -1,0 +1,13 @@
+# Caddy (Apache-2.0) serving the static Astro build. Replace example.com.
+# Caddy obtains and renews the Let's Encrypt certificate itself.
+# The deploy workflow rsyncs apps/site/dist into /srv/site.
+example.com {
+	root * /srv/site
+	encode zstd gzip
+	file_server
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+	}
+}
