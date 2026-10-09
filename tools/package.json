@@ -14,6 +14,8 @@
     "import:eatout": "node eatout-import/cli.mjs",
     "import:cards": "node cards-import/cli.mjs",
     "validate:cards": "node validate/cards-cli.mjs",
+    "import:recipes": "node recipes-import/cli.mjs",
+    "validate:recipes": "node validate/recipes-cli.mjs",
     "check:sources": "node check-no-ifct/cli.mjs"
   }
 }

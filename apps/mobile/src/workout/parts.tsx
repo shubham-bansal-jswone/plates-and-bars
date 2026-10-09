@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Button, Hint } from '../components/ui';
+import { Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
@@ -11,7 +11,7 @@ import { catalog } from './catalog';
 export function Chip({ label, text, pressed, onPress }: { label: string; text?: string; pressed?: boolean; onPress: () => void }) {
   const c = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={pressed === undefined ? undefined : { selected: pressed }}
@@ -21,7 +21,7 @@ export function Chip({ label, text, pressed, onPress }: { label: string; text?: 
       style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }]}
     >
       <Text style={{ color: pressed ? c.onBrand : c.ink, ...type.buttonSm }}>{text ?? label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -64,22 +64,25 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
   const left = Math.max(0, Math.round((rest.end - nowMs) / 1000));
   const pct = Math.min(100, (1 - left / rest.total) * 100);
   return (
-    <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
-      <View style={styles.restRow}>
-        <View style={{ flexShrink: 1 }}>
-          {/* Announced at start (the label line) and at the end only, not every second. */}
-          <Text accessibilityLiveRegion={left ? 'none' : 'polite'} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
-            {left ? `Rest ${mmss(left)}` : 'Rest done, go!'}
-          </Text>
-          <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
+    // The outer layer is opaque and runs to the screen edge, so the page behind never shows through the gap around the panel.
+    <View style={[styles.restDock, { backgroundColor: c.bg }]}>
+      <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
+        <View style={styles.restRow}>
+          <View style={{ flexShrink: 1 }}>
+            {/* Announced at start (the label line) and at the end only, not every second. */}
+            <Text accessibilityLiveRegion={left ? 'none' : 'polite'} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
+              {left ? `Rest ${mmss(left)}` : 'Rest done, go!'}
+            </Text>
+            <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
+          </View>
+          <View style={styles.restBtns}>
+            <Button label="+30 s" kind="ghost" onPress={onAdd} />
+            <Button label={left ? 'Skip' : 'Close'} kind="ghost" onPress={onSkip} />
+          </View>
         </View>
-        <View style={styles.restBtns}>
-          <Button label="+30 s" kind="ghost" onPress={onAdd} />
-          <Button label={left ? 'Skip' : 'Close'} kind="ghost" onPress={onSkip} />
+        <View style={[styles.track, { backgroundColor: c.track }]}>
+          <View accessibilityLabel={`Rest ${Math.round(pct)}% done`} style={[styles.fill, { backgroundColor: c.brand, width: `${pct}%` }]} />
         </View>
-      </View>
-      <View style={[styles.track, { backgroundColor: c.track }]}>
-        <View accessibilityLabel={`Rest ${Math.round(pct)}% done`} style={[styles.fill, { backgroundColor: c.brand, width: `${pct}%` }]} />
       </View>
     </View>
   );
@@ -160,7 +163,8 @@ const styles = StyleSheet.create({
   chip: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
-  rest: { position: 'absolute', left: 8, right: 8, bottom: 8, borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
+  restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 8, alignItems: 'center' },
+  rest: { width: '100%', borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
   restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
   restBtns: { flexDirection: 'row', gap: 8 },
   track: { height: 6, borderRadius: radius.full, overflow: 'hidden' },

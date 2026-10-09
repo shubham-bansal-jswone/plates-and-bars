@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
-import { Button, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout } from '../components/ui';
+import { Button, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
 import { buildProfile, draftFromProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
@@ -39,9 +39,9 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
             setErr('');
           }}
         />
-        <Pressable accessibilityElementsHidden importantForAccessibility="no" onPress={() => setOk(!ok)} style={{ flex: 1 }}>
+        <Press focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setOk(!ok)} style={{ flex: 1 }}>
           <Text style={{ color: c.ink }}>{CONSENT.checkbox}</Text>
-        </Pressable>
+        </Press>
       </View>
       {err ? <ErrorText>{err}</ErrorText> : null}
       <Button
