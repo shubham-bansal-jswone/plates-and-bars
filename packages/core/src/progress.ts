@@ -1,7 +1,7 @@
 import { addDays, daysBetween, mondayOf } from './dates';
 import { dayComplete, logTotals, type FoodLogFacts } from './food';
 import { num } from './num';
-import { splitFor, type PlanProfile, type SessionLog, type WeekPlan } from './plan';
+import { planList, splitFor, type PlanProfile, type SessionLog, type WeekPlan } from './plan';
 import type { LiftRecord } from './progression';
 import { toTargetsProfile, type SetupProfile } from './setup';
 import { stalledList } from './stalls';
@@ -210,14 +210,15 @@ export interface WeightDrift {
 
 /**
  * Whether the Targets screen offers "Recalculate targets": the latest weigh-in (any date) is at least
- * 2 kg from the setup weight. Null otherwise, or with no weigh-in. "Recalculate" starts setup with the
+ * 2 kg from the setup weight, comparing the gap rounded to 0.1 kg as the note shows it, so 64.1 vs
+ * 62.1 (1.999… in floating point) counts (#209). Null otherwise, or with no weigh-in. "Recalculate" starts setup with the
  * latest weigh-in as the weight (`latestWeight(weighIns)`), as prototype `startSetup` does.
  *
  * Mirrors the `drift` check and note in prototype `setupSummaryHtml()` (#161).
  */
 export function weightDrift(weighIns: readonly WeighIn[], setupWeightKg: number): WeightDrift | null {
   const lw = latestWeight(weighIns);
-  if (!lw || !(Math.abs(lw - setupWeightKg) >= WEIGHT_DRIFT_KG)) return null;
+  if (!lw || !(Math.round(Math.abs(lw - setupWeightKg) * 10) / 10 >= WEIGHT_DRIFT_KG)) return null;
   return { latest: lw, diff: Math.abs(lw - setupWeightKg), lower: lw < setupWeightKg };
 }
 
@@ -430,6 +431,7 @@ export interface WeeklyCheckin {
   /** Dismissal key, `ci:<Monday>`. */
   key: string;
   sessions: number;
+  /** This week's plan length, else the profile's plan (`planList`; 6 with no profile, 0 at 0 days) (#215). */
   plannedN: number;
   /** Days with food logged, of 7. */
   logged: number;
@@ -458,6 +460,9 @@ export interface WeeklyCheckin {
 /**
  * The weekly check-in for the 7 days ending on `date`.
  *
+ * The shorter-week suggestion (a 4-day plan next week) needs more than 4 planned sessions,
+ * `sessions + 2 <= plannedN` and no current or future week plan; a past week plan no longer blocks it (#215).
+ *
  * Mirrors prototype `renderCheckin()` (its numbers and choice of suggestion, not its HTML).
  */
 export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
@@ -465,7 +470,7 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
   const tt = wk.filter((d) => live(d.logs).length).map((d) => logTotals(d.logs, []));
   const avgK = tt.length ? tt.reduce((a, t) => a + t.kcal, 0) / tt.length : 0, avgP = tt.length ? tt.reduce((a, t) => a + t.protein_g, 0) / tt.length : 0;
   const sessions = wk.filter((d) => d.trained).length;
-  const plannedN = i.weekPlan && i.weekPlan.start === monday ? i.weekPlan.list.length : 6;
+  const plannedN = i.weekPlan && i.weekPlan.start === monday ? i.weekPlan.list.length : planList(i.profile).length;
   const start = addDays(i.date, -6);
   const improved = Object.entries(i.lifts)
     .map(([n, L]) => {
@@ -482,7 +487,7 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
   if (!i.dismissed?.[key] && !i.muted?.['checkin']) {
     const nt = burn.ready ? targetFromBurn(burn.burn, i.profile, i.weighIns, i.protein) : null;
     if (nt && Math.abs(nt.kcal - i.kcal) >= CHECKIN_KCAL_STEP) suggestion = { kind: 'kcal', target: nt };
-    else if (sessions + 2 <= plannedN && !i.weekPlan) suggestion = { kind: 'week' };
+    else if (plannedN > 4 && sessions + 2 <= plannedN && !(i.weekPlan && i.weekPlan.start >= monday)) suggestion = { kind: 'week' };
     else if (tt.length >= 3 && avgP < i.protein * 0.85) suggestion = { kind: 'protein' };
   }
   const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);

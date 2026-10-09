@@ -92,6 +92,7 @@ export function loadProgress(): ProtoProgress {
     sliceLine(src, 'const ORDER = '),
     sliceBlock(src, 'const SPLITS = {', '};'),
     sliceBlock(src, 'function splitFor(){', '}'),
+    sliceLine(src, 'const planList = '),
     sliceLine(src, 'const blankDay = '),
     sliceLine(src, 'function normDay(d){'),
     sliceBlock(src, 'const ACTIVITY = {', '};'),
