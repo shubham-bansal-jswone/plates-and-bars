@@ -52,12 +52,21 @@ dependencies {
 // The sync request validator reads the contract itself: the one openapi.yaml, never a copy.
 tasks.named('processResources') {
     doFirst {
+        if (!file('../content/cards.json').exists() || !file('../content/exercises.json').exists()) {
+            throw new GradleException('../content/cards.json or exercises.json is missing: build from a full checkout (see Dockerfile)')
+        }
         if (!file('../packages/api/openapi.yaml').exists()) {
             throw new GradleException('../packages/api/openapi.yaml is missing: build from a full checkout (see Dockerfile)')
         }
     }
     from('../packages/api') {
         include 'openapi.yaml'
+    }
+    // The AI proxy grounds Ask why on the cards and checks exercise names against the catalogue: the content
+    // agent's files, copied (never edited) into the jar under /content at build time.
+    from('../content') {
+        include 'cards.json', 'exercises.json'
+        into 'content'
     }
 }
 

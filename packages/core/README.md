@@ -28,6 +28,8 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Progress: body and day targets | `latestWeight`, `measureAt`, `navyBodyFat`, `waterTarget`, `workoutBurn`, `stepsTarget`, `weightDrift`, `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`, `WATER_TRAINING_ML`, `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX`, `WEIGHT_DRIFT_KG` | `latestWeight`, `measureAt`, `navyBF`, `waterTarget`, `workoutBurn`, `stepsTarget`, the `drift` check in `setupSummaryHtml` (#161) | `formulas.json` (plus differential tests) |
 | Progress: real burn, check-in, habits | `weeklyAvg`, `rapidLoss`, `addKcal`, `weightSlope`, `adaptiveBurn`, `nextAdaptive`, `targetFromBurn`, `weeklyCheckin`, `habits`, `KCAL_PER_KG`, `RAPID_LOSS_KCAL`, `CHECKIN_KCAL_STEP`, `CARDIO_WEEK_MIN` | `weeklyAvg`, `calorieCard`, `adjAction` `adj-kcal`, `weightSlope`, `adaptiveBurn`, the `settings.adaptive` update and facts of `renderCheckin`, `targetFromBurn`, `consistencyHtml` | none (differential tests) |
 | Progress: weight and waist trend, entry limits (#233) | `weightSeries`, `waistSeries`, `trendChange`, `chartLayout`, `scaleJump`, `weightEntry`, `measurementRow`, `sleepEntry`, `round1`, `WEIGHT_CHART_POINTS`, `WAIST_CHART_POINTS`, `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX`, `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS`, `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`, `TAPE_MAX_CM`, `SLEEP_MAX_H` | `weightChart`, `waistPts` and `change` in `measuresHtml`, `lineChart`, `case 'saveW'` (value, `S.ui.scaleJump`), `scaleJumpHtml`, `saveMeasures`, `r1`; `sleepEntry` and the limits follow the contract (`Weight`, `TapeCm`, `DayNote.sleep`), `weightEntry` rejects values that round to 20.0 or 400.0, and `sleepEntry` rejects text that is not a number (#247) | none (differential tests) |
+| Meal ideas | `nextMealInfo`, `mealByTime`, `combos`, `combosFast`, `round05`, `ideasPage`, `OLDER_MEAL_PROTEIN_G`, `IDEAS_PER_PAGE`, `IDEAS_KCAL_LEFT_MIN`, `MEAL_ORDER` | same names (`mealByTime` takes the hour); `ideasPage` is the paging and protein note of `guidanceHtml`; `MEAL_ORDER` is `MEALS` | none (differential tests) |
+| Meal plan and grocery list | `buildPlan`, `planItems`, `swapPlanMeal`, `planIsCurrent`, `planForMeal`, `planDayTotals`, `groceryList`, `groceryAmount`, `PLAN_DAYS`, `PLAN_OPTIONS`, `PLAN_ROTATION` | `buildPlan`, `planItems`, `case 'mp-swap'`, the saved-plan check and day line of `planSheet`, `planForMeal`, `grocerySheet` and its `fmtAmt` | none (differential tests) |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
 
 `calcTargets` returns the same fields as the prototype, unrounded where the prototype leaves them
@@ -99,6 +101,21 @@ ingredient amount, pot, cooked or serving weight below 0, where the prototype sa
 as 0 g counts (a tared scale, #214); a blank empty pot does not. Tests
 check content against golden `raw100g` and `rawFibre100g` and the prototype's `FATTY`, `KATORI_G` and
 `PRESETS`, then run the port on content against the prototype.
+
+The meal-idea rules read their data from content, passed in as is: meal and protein weights, portion
+caps and minimums (prototype `MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`) as content/meal-planning.json, and foods
+as content/foods.json `foods`, in that order (it breaks ties between equal scores, as `FOODS` order does).
+Food roles (prototype `ROLE`) are content/meal-planning.json `roles` (`{ food, role, diet }`, #230); a test
+checks them against the prototype's table, fasting-day rows included, in order. The combo shapes (sides with a main,
+breakfast extras, the fasting-day pools) are the prototype's inline lists and stay in core. A food the
+combos need but `foods` lacks is skipped, where the prototype throws. Ideas return the food objects passed
+in, with unrounded totals; show them with `Math.round`, as the prototype does.
+
+The weekly plan is contract `Settings.meal_plan` in the prototype's `mealPlan` shape (`start`, `opts` per
+meal, `days[i][meal].k`). The grocery map (prototype `GROC`) is content/meal-planning.json `grocery`, passed in.
+`groceryList` returns the sheet's rows sorted by item and the "Copy as text" lines in first-seen order, as
+the prototype does (#240). `buildPlan` applies no 60+ protein floor, also as the prototype does (#239).
+`planDayTotals` finds foods by name ignoring case: pass the user's foods first, then the shared ones.
 
 ## Browser support
 
