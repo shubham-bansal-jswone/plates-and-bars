@@ -248,6 +248,8 @@ export const MIGRATIONS: readonly string[] = [
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {
+  // Wait up to 5 s for a lock instead of failing at once with "database is locked" (belt and braces next to the app write lock).
+  await db.execAsync('PRAGMA busy_timeout = 5000;');
   await db.execAsync('PRAGMA journal_mode = WAL;');
   await db.execAsync('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY NOT NULL);');
   const row = await db.getFirstAsync<{ version: number }>('SELECT MAX(version) AS version FROM schema_version');

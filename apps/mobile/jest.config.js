@@ -7,5 +7,7 @@ module.exports = {
   moduleDirectories: ['node_modules', '<rootDir>/node_modules'],
   // The setup-flow test walks every step of a long form; on a cold CI runner it needs more than jest's 5 s default.
   testTimeout: 20000,
+  // openapi-fetch (used by the generated API client): jest-expo resolves its ES module build, so point it at the CommonJS one.
+  moduleNameMapper: { '^openapi-fetch$': '<rootDir>/node_modules/openapi-fetch/dist/index.cjs' },
   testMatch: ['<rootDir>/__tests__/**/*.test.ts?(x)'],
 };
