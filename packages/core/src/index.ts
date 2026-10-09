@@ -129,9 +129,10 @@ export type { Exclusion, ExclusionScope, ExclusionReason, RuleMatch, Swap, ReplE
  * - `recheckDue` mirrors the filter in prototype `recheckCards()`: timed rules whose `until` has come, still applying until answered.
  * - `recheckBack`, `recheckLater`, `recheckKeep` mirror the `rule-back`, `rule-later` and `rule-keep` steps of prototype `exAction`.
  * - `cantRule` mirrors the rule built in prototype `applyCant(choice)`; `widerRuleReplacements` mirrors its "caught by a wider rule" loop.
+ * - `cantDefaultScope` mirrors prototype `defaultScope()`; `cantScopeOptions` mirrors the scope step's `opts` in prototype `renderCant()`; `cantAfterDuration` mirrors the `dur` branch of the `cx` action in prototype `exAction`.
  */
-export { recheckDue, recheckBack, recheckLater, recheckKeep, cantRule, widerRuleReplacements } from './exclusions';
-export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement } from './exclusions';
+export { recheckDue, recheckBack, recheckLater, recheckKeep, cantRule, cantDefaultScope, cantScopeOptions, cantAfterDuration, widerRuleReplacements } from './exclusions';
+export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement, CantScope, CantScopeOption, CantAfterDuration } from './exclusions';
 
 /**
  * The "can't do" answer applied to today's workout (#265), over contract `Workout.exercises` and `WorkoutSet`s.
@@ -419,7 +420,8 @@ export type {
  * - `addKcal` mirrors the `adj-kcal` step of prototype `adjAction`.
  * - `weightSlope`, `adaptiveBurn`, `targetFromBurn` mirror the prototype functions of the same name (state passed in);
  *   `KCAL_PER_KG` mirrors prototype `KCAL_PER_KG`; `nextAdaptive` mirrors the `settings.adaptive` update in `renderCheckin()`.
- * - `weeklyCheckin` mirrors prototype `renderCheckin()` (facts and choice of suggestion, not HTML); `CHECKIN_KCAL_STEP`
+ * - `weeklyCheckin` mirrors prototype `renderCheckin()` (facts and choice of suggestion, not HTML), including its
+ *   sleep-under-7 h rule, week-on-week weight change and weight trend per week (#264); `CHECKIN_KCAL_STEP`
  *   and `CARDIO_WEEK_MIN` are its 100 kcal and WHO 150 min.
  * - `habits` mirrors prototype `consistencyHtml()` (numbers and choice of line, not HTML).
  */
