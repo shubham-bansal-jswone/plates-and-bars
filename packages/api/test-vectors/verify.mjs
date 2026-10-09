@@ -1,4 +1,5 @@
-// Checks test-vectors/sync-ids.json against an independent UUIDv5 (RFC 9562 / RFC 4122) built on node:crypto.
+// Checks test-vectors/sync-ids.json against an independent UUIDv5 (RFC 9562 / RFC 4122) built on node:crypto,
+// and test-vectors/content-hash.json against node:crypto's SHA-256.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -37,8 +38,37 @@ for (const [pattern, name] of [
   if (found.length === 0) failures.push(`openapi.yaml: no example id for ${name}`);
   for (const id of found) if (vector && id !== vector.id) failures.push(`openapi.yaml: ${name} example id ${id}, expected ${vector.id}`);
 }
+// content-hash.json: sha256, size and ETag of exact bytes; two FIPS 180-2 / NIST values pin the hash itself.
+const content = JSON.parse(readFileSync(new URL("./content-hash.json", import.meta.url), "utf8"));
+const nist = {
+  "": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  abc: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+};
+for (const [text, sha] of Object.entries(nist)) {
+  if (!content.cases.some((c) => c.text === text && c.sha256 === sha)) failures.push(`content-hash.json: missing NIST vector for "${text}"`);
+}
+for (const [i, c] of content.cases.entries()) {
+  const bytes = Buffer.from(c.text, "utf8");
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  if (bytes.toString("hex") !== c.utf8_hex) failures.push(`content-hash cases[${i}].utf8_hex`);
+  if (bytes.length !== c.size_bytes) failures.push(`content-hash cases[${i}].size_bytes`);
+  if (sha !== c.sha256) failures.push(`content-hash cases[${i}].sha256: expected ${sha}`);
+  if (c.etag !== `"${sha}"`) failures.push(`content-hash cases[${i}].etag is not the quoted sha256`);
+}
+// The spec's content examples: the manifest is sorted by name, and every quoted-hash (ETag) example is the
+// sha256 of the measures entry in the manifest example, the bundle the /content/{bundle} example shows.
+const manifest = [...spec.matchAll(/- name: ([a-z][a-z0-9-]*)\n\s+schema_version: \d+\n\s+sha256: ([0-9a-f]{64})/g)];
+const names = manifest.map((m) => m[1]);
+if (names.length === 0) failures.push("openapi.yaml: no content manifest example");
+if (names.join() !== [...names].sort().join()) failures.push("openapi.yaml: content manifest example is not sorted by name");
+const measures = manifest.find((m) => m[1] === "measures");
+if (!measures) failures.push("openapi.yaml: content manifest example has no measures entry");
+const etags = [...spec.matchAll(/"([0-9a-f]{64})"/g)].map((m) => m[1]);
+if (etags.length === 0) failures.push("openapi.yaml: no ETag examples");
+for (const e of etags) if (measures && e !== measures[2]) failures.push(`openapi.yaml: ETag example ${e} is not the measures sha256`);
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and openapi.yaml example ids verified`);
+console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);

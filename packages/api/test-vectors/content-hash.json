@@ -1,0 +1,53 @@
+{
+  "description": "Content bundle hash vectors (see the content tag in openapi.yaml): sha256 is the lowercase hex SHA-256 of the exact UTF-8 bytes (utf8_hex), size_bytes their length, etag the sha256 in double quotes. Backend and app tests load this file.",
+  "cases": [
+    {
+      "note": "empty body is never served, shown for completeness",
+      "text": "",
+      "utf8_hex": "",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "etag": "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+    },
+    {
+      "note": "FIPS 180-2 example",
+      "text": "abc",
+      "utf8_hex": "616263",
+      "size_bytes": 3,
+      "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      "etag": "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\""
+    },
+    {
+      "note": "minimal bundle",
+      "text": "{\"schema_version\":1}",
+      "utf8_hex": "7b22736368656d615f76657273696f6e223a317d",
+      "size_bytes": 20,
+      "sha256": "a9d5f6d002d956b8af5787a05e0ca000d45c03977ffa54ee8fbed719fed5fd23",
+      "etag": "\"a9d5f6d002d956b8af5787a05e0ca000d45c03977ffa54ee8fbed719fed5fd23\""
+    },
+    {
+      "note": "same JSON, different bytes: whitespace changes the hash",
+      "text": "{ \"schema_version\": 1 }",
+      "utf8_hex": "7b2022736368656d615f76657273696f6e223a2031207d",
+      "size_bytes": 23,
+      "sha256": "847298bca926fb315ff3d55f7afc6185392a1e6583c291bac13585d3de09fd2b",
+      "etag": "\"847298bca926fb315ff3d55f7afc6185392a1e6583c291bac13585d3de09fd2b\""
+    },
+    {
+      "note": "trailing newline is part of the bytes",
+      "text": "{\"schema_version\":1}\n",
+      "utf8_hex": "7b22736368656d615f76657273696f6e223a317d0a",
+      "size_bytes": 21,
+      "sha256": "c5d130e87e377f65c0f77eda3629f01de137de88cd3b0a181aa1b6fda001afdc",
+      "etag": "\"c5d130e87e377f65c0f77eda3629f01de137de88cd3b0a181aa1b6fda001afdc\""
+    },
+    {
+      "note": "non-ASCII text is hashed as UTF-8",
+      "text": "{\"schema_version\":1,\"name\":\"दही\"}\n",
+      "utf8_hex": "7b22736368656d615f76657273696f6e223a312c226e616d65223a22e0a4a6e0a4b9e0a580227d0a",
+      "size_bytes": 40,
+      "sha256": "b614f1d52affebe9cfcb920622f540b001966967d0fb8953db96bc6a281445d7",
+      "etag": "\"b614f1d52affebe9cfcb920622f540b001966967d0fb8953db96bc6a281445d7\""
+    }
+  ]
+}

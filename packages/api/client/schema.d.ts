@@ -470,6 +470,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/content/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the content bundles the server serves, with their hashes
+         * @description One entry per bundle, sorted by `name`. The app compares each entry with the copy
+         *     it holds (see the `content` tag) and fetches only bundles that changed.
+         *
+         *     **Caching.** `Cache-Control: public, max-age=300`, so a content fix reaches apps
+         *     within five minutes of a deploy. The `ETag` is the quoted lowercase hex SHA-256 of
+         *     this response body; a request whose `If-None-Match` matches it gets 304 with no body.
+         */
+        get: operations["getContentManifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content/{bundle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download one content bundle
+         * @description The exact bytes of `content/<bundle>.json` in the server's deployed build, as
+         *     `application/json; charset=utf-8`. The body's SHA-256 and length equal the
+         *     manifest entry's `sha256` and `size_bytes`. The server may compress the body when
+         *     the request allows it (`Accept-Encoding`); the hash and size are of the
+         *     uncompressed body.
+         *
+         *     **Caching.** `Cache-Control: public, no-cache`: caches may store the bundle but
+         *     revalidate it every time, so a cached copy never lags the manifest. The `ETag` is
+         *     the manifest's `sha256` in double quotes; a request whose `If-None-Match` matches
+         *     it gets 304 with no body.
+         *
+         *     A well-formed name that is not in the manifest is 404 `not_found`.
+         */
+        get: operations["getContentBundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -479,8 +535,8 @@ export interface components {
             /**
              * @description Stable machine-readable code. `token_expired`: refresh the access token and
              *     retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
-             *     or expired. `not_found`: reserved for later milestones; no M0 operation
-             *     returns it. `quota_exceeded` (429): the daily AI quota is used up until
+             *     or expired. `not_found` (404): the named resource does not exist; today only
+             *     `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
              *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
              *     the server; use the non-AI fallback. Clients treat an unknown code like
              *     `internal`.
@@ -566,6 +622,48 @@ export interface components {
             status: "ok";
             /** @description Deployed API build version. */
             version: string;
+        };
+        /**
+         * @description A bundle name: the file name of `content/<name>.json` without `.json`, such as
+         *     `exercises`, `cards`, `recipes`, `foods` or `meal-planning`. New bundles may appear;
+         *     the app ignores names it does not know.
+         * @example measures
+         */
+        ContentBundleName: string;
+        ContentManifest: {
+            /** @description Every bundle the server serves, sorted by `name`, each name once. */
+            bundles: components["schemas"]["ContentBundleInfo"][];
+        };
+        ContentBundleInfo: {
+            name: components["schemas"]["ContentBundleName"];
+            /**
+             * @description The bundle's top-level `schema_version`. It changes only when the bundle's shape
+             *     changes. The app applies a bundle only when it supports this version.
+             */
+            schema_version: number;
+            /**
+             * @description Lowercase hex SHA-256 of the bundle's exact bytes. This is the bundle's version
+             *     and its `ETag` (in double quotes).
+             */
+            sha256: string;
+            /** @description Length of the uncompressed bundle body in bytes. */
+            size_bytes: number;
+            /**
+             * @description When the bundle's content last changed: the commit time, in UTC, of the last
+             *     commit that changed `content/<name>.json`. An app build and a server deploy of
+             *     the same content therefore agree on it. It changes only when `sha256` changes.
+             */
+            updated_at: components["schemas"]["Timestamp"];
+        };
+        /**
+         * @description A content bundle, exactly as `content/<name>.json` holds it. The shape of each
+         *     bundle is owned by `content/` and checked by the validators in `tools/`, not by this
+         *     contract; every bundle has a top-level `schema_version`.
+         */
+        ContentBundle: {
+            schema_version: number;
+        } & {
+            [key: string]: unknown;
         };
         FoodPage: {
             items: components["schemas"]["Food"][];
@@ -1420,6 +1518,19 @@ export interface components {
         };
     };
     responses: {
+        /**
+         * @description Not modified: `If-None-Match` matched the current `ETag`. No body; keep the cached
+         *     copy.
+         */
+        NotModified: {
+            headers: {
+                ETag: components["headers"]["ContentETag"];
+                /** @description The same value the 200 response would carry. */
+                "Cache-Control"?: string;
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
         /** @description Signed in; a new token pair. */
         TokenPair: {
             headers: {
@@ -1496,11 +1607,25 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        /**
+         * @description An `ETag` from an earlier response. When it matches the current one, the server
+         *     answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
+         *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
+         *     `*` are accepted.
+         * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+         */
+        IfNoneMatch: string;
+    };
     requestBodies: never;
     headers: {
         /** @description Always `no-store`. */
         NoStore: "no-store";
+        /**
+         * @description Strong entity tag, the lowercase hex SHA-256 of the uncompressed body in double quotes.
+         * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+         */
+        ContentETag: string;
     };
     pathItems: never;
 }
@@ -1867,6 +1992,92 @@ export interface operations {
             429: components["responses"]["AiLimited"];
             500: components["responses"]["Internal"];
             503: components["responses"]["AiUnavailable"];
+        };
+    };
+    getContentManifest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description An `ETag` from an earlier response. When it matches the current one, the server
+                 *     answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
+                 *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
+                 *     `*` are accepted.
+                 * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+                 */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The manifest. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ContentETag"];
+                    /** @description Always `public, max-age=300`. */
+                    "Cache-Control"?: "public, max-age=300";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentManifest"];
+                };
+            };
+            304: components["responses"]["NotModified"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+        };
+    };
+    getContentBundle: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description An `ETag` from an earlier response. When it matches the current one, the server
+                 *     answers 304 with no body. Compared as RFC 9110 requires for `If-None-Match` (weak
+                 *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
+                 *     `*` are accepted.
+                 * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+                 */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
+            path: {
+                /**
+                 * @description Bundle name, the manifest entry's `name`.
+                 * @example measures
+                 */
+                bundle: components["schemas"]["ContentBundleName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bundle, byte for byte. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ContentETag"];
+                    /** @description Always `public, no-cache`. */
+                    "Cache-Control"?: "public, no-cache";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentBundle"];
+                };
+            };
+            304: components["responses"]["NotModified"];
+            400: components["responses"]["InvalidRequest"];
+            /** @description No bundle with this name. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
         };
     };
 }
