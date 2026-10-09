@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { addDays, num, type MeasureKey } from '@plate-and-bar/core';
 import { loadMeasurements, loadWeights, saveMeasurement, saveWeight } from '../db/progress';
-import { loadDayNote, saveDayNote } from '../db/food';
+import { loadDayNote, patchDayNote } from '../db/food';
 import type { WorkoutDb } from '../db/workouts';
 import type { DayNote } from '../food/types';
 import { localDate } from '../setup/logic';
@@ -19,6 +19,7 @@ interface Options {
 }
 
 const blankNote = (date: string): DayNote => ({ id: null, version: 0, deleted_at: null, updated_at: '', date, complete: null, steps: null, sleep: null, fast: false });
+const isNumber = (text: string): boolean => Number.isFinite(Number(text.trim()));
 const blankTape = (date: string): Measurement => ({ id: null, version: 0, updated_at: '', deleted_at: null, date, waist_cm: null, neck_cm: null, chest_cm: null, arm_cm: null, thigh_cm: null, hips_cm: null });
 
 /**
@@ -100,8 +101,10 @@ export function useProgress({ db, now, notify }: Options) {
         if (v >= TAPE_MIN_CM && v <= TAPE_MAX_CM) row[k] = tenth(v);
       }
       if (!Object.keys(row).length) return notify(MEASURE_NONE);
-      const prev = tapesRef.current.find((m) => m.date === date && !m.deleted_at);
-      const m: Measurement = { ...(prev ?? blankTape(date)), ...row, deleted_at: null, updated_at: stamp(now()) };
+      // A deleted row's values are gone, but its version carries on (the record is revived, not a new one).
+      const prev = tapesRef.current.find((m) => m.date === date);
+      const base = prev && !prev.deleted_at ? prev : { ...blankTape(date), version: prev?.version ?? 0 };
+      const m: Measurement = { ...base, ...row, deleted_at: null, updated_at: stamp(now()) };
       tapesRef.current = [...tapesRef.current.filter((x) => x.date !== date), m];
       setTapes(tapesRef.current);
       enqueue(() => saveMeasurement(db, m));
@@ -113,6 +116,8 @@ export function useProgress({ db, now, notify }: Options) {
   /** Saves today's steps and sleep on the day note; an empty box clears that value. */
   const saveStepsSleep = useCallback(
     (stepsText: string, sleepText: string) => {
+      if (stepsText.trim() && !isNumber(stepsText)) return notify(STEPS_BAD);
+      if (sleepText.trim() && !isNumber(sleepText)) return notify(SLEEP_BAD);
       const steps = stepsText.trim() ? Math.round(num(stepsText)) : null;
       const sleep = sleepText.trim() ? num(sleepText) : null;
       if (steps !== null && !(steps >= 0)) return notify(STEPS_BAD);
@@ -120,7 +125,7 @@ export function useProgress({ db, now, notify }: Options) {
       const n: DayNote = { ...(notesRef.current.find((x) => x.date === date) ?? blankNote(date)), steps, sleep, updated_at: stamp(now()) };
       notesRef.current = [...notesRef.current.filter((x) => x.date !== date), n];
       setNotes(notesRef.current);
-      enqueue(() => saveDayNote(db, n));
+      enqueue(() => patchDayNote(db, date, { steps, sleep }, n.updated_at));
       notify('Saved');
     },
     [db, date, now, notify, enqueue],

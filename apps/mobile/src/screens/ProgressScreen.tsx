@@ -8,6 +8,7 @@ import { fmt } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, MEASURES, WEIGHT_HINT } from '../progress/copy';
 import { useProgress } from '../progress/useProgress';
 import { useProfile } from '../state/ProfileProvider';
+import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 
@@ -63,7 +64,7 @@ function WeightSection({ p }: { p: Progress }) {
   const recent = p.weights.filter((w) => !w.deleted_at && w.date <= p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_WEIGH_INS);
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[styles.h2, { color: c.ink }]}>Body weight</Text>
+      <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Body weight</Text>
       <View style={styles.inline}>
         <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={text} onChangeText={setText} />
         <Button label="Save weight" onPress={() => p.saveWeightText(text)} />
@@ -85,13 +86,14 @@ function MeasureSection({ p }: { p: Progress }) {
   const { profile } = useProfile();
   const mine = p.tapes.find((m) => m.date === p.date && !m.deleted_at);
   const [text, setText] = useState<Partial<Record<MeasureKey, string>>>(() => Object.fromEntries(MEASURES.map((m) => [m.key, mine?.[m.key] ? r1(mine[m.key] as number) : ''])));
-  const female = profile?.sex === 'female';
-  // content/measures.json: hips show for women, or when entered that day.
-  const shown = MEASURES.filter((m) => m.show === 'always' || (female && m.show.sex === 'female') || (m.show.or_entered_that_day && !!mine?.[m.key]));
+  // content/measures.json: a part with a rule shows for that sex, or when entered that day.
+  const hasRule = (m: (typeof MEASURES)[number]) => m.show !== 'always' && m.show.sex === profile?.sex;
+  const shown = MEASURES.filter((m) => m.show === 'always' || hasRule(m) || (m.show.or_entered_that_day && !!mine?.[m.key]));
+  const female = MEASURES.some(hasRule);
   const bf = navyBodyFat(profile, p.tapes, p.date);
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[styles.h2, { color: c.ink }]}>Measurements</Text>
+      <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Measurements</Text>
       {shown.map((m) => (
         <View key={m.key} style={styles.field}>
           <Label>{`${m.label} (cm)`}</Label>
@@ -118,7 +120,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
   const [sleep, setSleep] = useState(p.today?.sleep ? String(p.today.sleep) : '');
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[styles.h2, { color: c.ink }]}>Steps and sleep</Text>
+      <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Text>
       <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={steps} onChangeText={setSteps} />
       <Hint>{`steps today, target about ${fmt(stepsTarget(p.notes, p.date))}`}</Hint>
       <Field label="Hours slept last night" inputMode="decimal" placeholder="Hours" value={sleep} onChangeText={setSleep} />
@@ -131,7 +133,6 @@ function StepsSleepSection({ p }: { p: Progress }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   section: { gap: 8, marginTop: 16 },
-  h2: { fontSize: 20, fontWeight: '600' },
   inline: { gap: 8 },
   field: { gap: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

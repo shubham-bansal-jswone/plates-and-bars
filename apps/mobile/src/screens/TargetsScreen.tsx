@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { weightDrift } from '@plate-and-bar/core';
+import { latestWeight, weightDrift } from '@plate-and-bar/core';
 import { loadWeights } from '../db/progress';
 import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
@@ -58,6 +58,9 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
     );
   }
   const drift = weightDrift(weights, profile.weight_kg);
+  // Setup starts with the latest weigh-in as the weight, as the prototype's `startSetup` does (redo and recalculate).
+  const latest = latestWeight(weights);
+  const setupPath = (q: string) => `/setup?${q}${latest ? `&weight=${latest}` : ''}`;
   return (
     <View style={{ flex: 1 }}>
       <Page>
@@ -65,10 +68,10 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         {drift ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
-            <Button label="Recalculate targets" onPress={() => router.push('/setup?recalc=1' as never)} />
+            <Button label="Recalculate targets" onPress={() => router.push(setupPath('recalc=1') as never)} />
           </View>
         ) : null}
-        <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
+        <Button label="Redo setup" kind="ghost" onPress={() => router.push(setupPath('redo=1') as never)} />
         {ready ? (
           <>
             <FocusSection focus={settings.focus} onChange={setFocus} notify={notify} />

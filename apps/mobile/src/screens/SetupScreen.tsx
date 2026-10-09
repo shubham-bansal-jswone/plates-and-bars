@@ -215,21 +215,21 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
 }
 
 /** Consent first, then four question steps, then the results; "Use these targets" saves the profile. */
-export function SetupScreen({ recalc = false }: { recalc?: boolean }) {
+export function SetupScreen({ recalc = false, weight }: { recalc?: boolean; weight?: string }) {
   const { status } = useProfile();
   // Wait for the stored profile, so a redo starts from its answers.
-  return status === 'ready' ? <SetupFlow recalc={recalc} /> : null;
+  return status === 'ready' ? <SetupFlow recalc={recalc} weight={weight} /> : null;
 }
 
 /**
  * With a stored profile (redo), the form starts with its answers, and `recalc` opens straight on the results
- * (prototype `su-recalc`, `startSetup(4)`); saving keeps the profile's `created` and `cleared`.
+ * (prototype `su-recalc`, `startSetup(4)`); `weight` (the latest weigh-in, from Targets) replaces the stored weight; saving keeps the profile's `created` and `cleared`.
  */
-function SetupFlow({ recalc }: { recalc: boolean }) {
+function SetupFlow({ recalc, weight }: { recalc: boolean; weight?: string }) {
   const { profile: stored, consent, giveConsent, setProfile, skipSetup } = useProfile();
   const router = useRouter();
   const c = useTheme();
-  const [d, setD] = useState<Draft>(() => (stored ? draftFromProfile(stored) : emptyDraft()));
+  const [d, setD] = useState<Draft>(() => (stored ? { ...draftFromProfile(stored), ...(weight ? { weight } : {}) } : emptyDraft()));
   const [step, setStep] = useState(stored && recalc ? STEPS : 0);
   const [err, setErr] = useState('');
   const set: Pick = (k, v) => {
