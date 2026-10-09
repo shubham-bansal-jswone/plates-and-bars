@@ -21,11 +21,11 @@ Token names are ours. Every value below was checked with the contrast script des
 
 | Token | Value | Role |
 |---|---|---|
-| `brand` | `#2457E6` | Primary button fill, active chip fill, active tab icon and label (light), progress fill for protein (light), focus ring (light) |
+| `brand` | `#2457E6` | Primary button fill, active chip fill, active tab icon and label (light), progress fill for protein (light), focus ring on light surfaces |
 | `brand-pressed` | `#1D48C2` | Primary button while pressed or hovered |
 | `brand-active` | `#16389A` | Primary button while selected or toggled on |
 | `link-light` | `#1D48C2` | Link and blue text on light surfaces |
-| `link-dark` | `#8AB0FF` | Link, blue text, blue icons and the focus ring on dark surfaces |
+| `link-dark` | `#8AB0FF` | Link, blue text, blue icons and the focus ring on any dark surface (dark mode, and the dark band in light mode) |
 
 On the dark canvas, filled buttons keep `brand` with white text. Any blue used as text or an icon on dark uses `link-dark`, never `brand` (`brand` on black is 3.58:1, enough for a button shape, not for text).
 
@@ -92,11 +92,11 @@ Both fonts are SIL OFL 1.1, which allows bundling, self-hosting and redistributi
 
 Fallback stack for both: `system-ui, -apple-system, "Segoe UI", Arial, sans-serif`.
 
-Both fonts are **bundled with the app and self-hosted on the website**. Neither product requests fonts from a third-party server, so fonts add nothing to the privacy policy. Ship only the weights listed above. Keep the licence file of each font next to the font files.
+Both fonts are **bundled with the app and self-hosted on the website**. Neither product requests fonts from a third-party server, so fonts add nothing to the privacy policy. Packages: the app uses `@expo-google-fonts/inter` and `@expo-google-fonts/roboto` (MIT code, OFL 1.1 fonts), which bundle the font files into the app; the website uses `@fontsource/inter` and `@fontsource/roboto` (OFL 1.1), served from our own host. Do not swap in a package or stylesheet that loads fonts from a CDN. Ship only the weights listed above. Keep the licence file of each font next to the font files.
 
 ### 4.2 App scale (mobile)
 
-Size / weight / line height, in px (points on native). Tracking in px.
+Size / weight / line height, in px (points on native). Tracking in px. Type styles are named `text-*` or by role (`display`, `caption`) so they never clash with colour tokens such as `body`.
 
 | Style | Font | Size | Weight | Line height | Tracking | Use |
 |---|---|---|---|---|---|---|
@@ -104,14 +104,16 @@ Size / weight / line height, in px (points on native). Tracking in px.
 | `title` | Roboto | 28 | 300 | 1.25 | 0 | Screen titles |
 | `heading` | Roboto | 22 | 300 | 1.25 | 0 | Section headings, card titles |
 | `label` | Inter | 18 | 600 | 1.2 | 0 | Form and group labels |
-| `body` | Inter | 16 | 400 | 1.5 | 0 | Body copy |
-| `body-strong` | Inter | 16 | 500 | 1.5 | 0 | Emphasis in body copy, list item titles |
+| `text-body` | Inter | 16 | 400 | 1.5 | 0 | Body copy |
+| `text-body-strong` | Inter | 16 | 500 | 1.5 | 0 | Emphasis in body copy, list item titles |
 | `caption` | Inter | 14 | 400 | 1.5 | 0 | Supporting text, hints |
 | `small` | Inter | 12 | 500 | 1.5 | 0 | Metadata, badges, tab labels |
 | `button` | Inter | 16 | 700 | 1.25 | +0.4 | Buttons |
 | `button-sm` | Inter | 14 | 700 | 1.25 | +0.3 | Small buttons, chips |
 
 ### 4.3 Website scale
+
+Sizes and tracking in px.
 
 | Style | Font | Size | Weight | Line height | Tracking |
 |---|---|---|---|---|---|
@@ -120,9 +122,9 @@ Size / weight / line height, in px (points on native). Tracking in px.
 | `display-m` | Roboto | 35 | 300 | 1.2 | +0.1 |
 | `display-s` | Roboto | 28 | 300 | 1.25 | +0.1 |
 | `display-xs` | Roboto | 22 | 300 | 1.3 | +0.1 |
-| `body` | Inter | 18 | 400 | 1.5 | 0 |
+| `text-body-site` | Inter | 18 | 400 | 1.5 | 0 |
 
-Buttons, captions and small text on the website use the app styles. The hero headline steps down the breakpoints as shown in section 9.
+Body copy on the website uses `text-body-site` (18); buttons, captions and small text use the app styles. Hero and section headings step down the breakpoints as shown in section 9.
 
 ### 4.4 Type rules
 
@@ -173,7 +175,7 @@ All buttons are pills (`radius-full`), minimum height 48, horizontal padding 24,
 - One primary button per screen or band. Everything else is secondary or text.
 - The secondary button's border is decorative: the label (21:1) identifies the control. Do not use a secondary button without a visible label.
 - Destructive actions use a secondary button with `danger` text, and a confirm step.
-- Focus: 2px ring, 2px offset, `brand` on light and `link-dark` on dark.
+- Focus: 2px ring, 2px offset. The colour follows the surface the control sits on, not the mode: `brand` on light surfaces; `link-dark` on any dark surface, including the dark band in light mode; white (`#FFFFFF`) on `brand` fills such as the blue band.
 
 ### 8.2 Chips
 
@@ -184,16 +186,16 @@ All buttons are pills (`radius-full`), minimum height 48, horizontal padding 24,
 
 ### 8.3 Inputs
 
-- Height 48, `radius-sm`, padding 12 horizontal, `body` text style, `canvas` fill (light) or `surface` fill (dark).
-- Border 1px `outline` at rest; focus 2px `brand` (light) or `link-dark` (dark), with the padding reduced by 1 so text does not move.
+- Height 48, `radius-sm`, padding 12 horizontal, `text-body` type style, `canvas` fill (light) or `surface` fill (dark).
+- Border 1px `outline` at rest; focus 2px in the focus colour for the surface (8.1), with the padding reduced by 1 so text does not move.
 - Label above the field in `label` style; hint below in `caption`, `muted`. Placeholder text is `muted`, never the only label.
 - Error: border 2px `danger`, message below in `caption` `danger` with an icon.
 
 ### 8.4 Cards and tiles
 
 - `surface` fill, `radius-md`, padding 16, no border, no shadow.
-- Card title `heading`; content `body` / `caption`.
-- A whole tappable card shows the pressed shadow and a `brand-pressed` title on press. A card never contains more than one primary button.
+- Card title `heading`; content in type styles `text-body` / `caption`.
+- A whole tappable card shows the pressed shadow and its title turns `brand-pressed` (light) or `link-dark` (dark) on press. A card never contains more than one primary button.
 
 ### 8.5 Progress bars and meters
 
@@ -204,7 +206,7 @@ All buttons are pills (`radius-full`), minimum height 48, horizontal padding 24,
 
 ### 8.6 Toasts
 
-- Toasts invert the canvas: `ink` fill with `canvas` text (black toast on light, white toast on dark). Text in `body` style.
+- Toasts invert the canvas: `ink` fill with `canvas` text (black toast on light, white toast on dark). Text in the `text-body` type style.
 - One optional action as a text button: `link-dark` on the black toast, `link-light` on the white toast.
 - `radius-md`, padding 12 × 16, pressed-level shadow (the one place a resting shadow is allowed, because the toast floats over content), bottom of the screen above the tab bar. 4 seconds, longer (8) when there is an undo action.
 
@@ -219,36 +221,37 @@ All buttons are pills (`radius-full`), minimum height 48, horizontal padding 24,
 
 The website is a stack of full-width bands. Each band is one idea with one call to action.
 
-| Band | Fill | Headline | Body | Button |
-|---|---|---|---|---|
-| Light | `canvas` (light) | `ink` | `body` | Primary |
-| Soft | `surface` (light) | `ink` | `body` | Primary |
-| Dark | `canvas` (dark) | `ink` (dark) | `body` (dark) | Primary (`brand`), links `link-dark` |
-| Blue | `brand` | White | White | Secondary with white 1px border and white text |
+| Band | Light-mode fill | Dark-mode fill | Headline | Body text | Button | Focus ring |
+|---|---|---|---|---|---|---|
+| Light | `canvas` `#FFFFFF` | `surface-elevated` `#121314` | `ink` | `body` | Primary | `brand` (light mode), `link-dark` (dark mode) |
+| Soft (feature) | `surface` `#F5F7FA` | `surface-elevated` `#121314` | `ink` | `body` | Primary | `brand` (light mode), `link-dark` (dark mode) |
+| Dark | `#000000` | `#000000` | White | `body` (dark) `#B3B3B3` | Primary (`brand`), links `link-dark` | `link-dark` |
+| Blue | `brand` | `brand` | White | White | Secondary with white 1px border and white text | White |
 
-In dark mode the soft band (the feature band) uses `surface-elevated` `#121314` instead of `surface`, so it stays distinct from the black hero above it; `ink`, `body` and `link-dark` all pass on it (section 11.3).
+The dark band is black in both modes; in light mode it is the "chapter" break. Text on it always uses the dark-mode tokens. In dark mode the light and soft bands become `surface-elevated` so they stay distinct from the black dark band and hero; `ink`, `body` and `link-dark` all pass on it (section 11.3).
 
 - Alternate light and soft or dark bands; never two dark bands in a row. Use at most one blue band per page.
 - Content max width 1200, centred; text columns max 680.
 
 ### 8.9 Footer
 
-- `surface` fill (light) or `canvas` (dark), 1px `line` top border.
-- Links in `body` style, `body` colour, underline on hover and focus; legal line in `caption`, `muted`.
+- Black (`#000000`) in both modes, 1px dark `line` (`#2A2B2D`) top border; uses the dark-mode tokens in both modes.
+- Links in the `text-body` type style, dark `body` colour (`#B3B3B3`), underline on hover and focus, `link-dark` focus ring; legal line in the `caption` type style, dark `muted` (`#A3A3A3`).
 - Holds the privacy policy, terms and account deletion links on every page.
 
 ## 9. Responsive behaviour (website)
 
-| Breakpoint | Width | Hero headline | Section rhythm | Columns |
-|---|---|---|---|---|
-| Desktop large | ≥ 1280 | `display-xl` 54 | 96 | 12, gutter 24 |
-| Desktop | 1024 to 1279 | `display-l` 44 | 96 | 12, gutter 24 |
-| Tablet | 768 to 1023 | `display-m` 35 | 64 | 8, gutter 24 |
-| Mobile | < 768 | `display-s` 28 | 48 | 4, gutter 16, side padding 16 |
+Written mobile-first: each row applies from its `min-width` up, until the next row takes over. Use these exact edges in CSS (`@media (min-width: 480px)` and so on).
 
-- Section headings use the next step down from the hero at each breakpoint.
-- Media and text that sit side by side on desktop stack on tablet and mobile, media first.
-- Buttons become full width on mobile when they are the band's only action.
+| Applies from | Hero headline | Section headings | Section padding (top and bottom) | Columns |
+|---|---|---|---|---|
+| 0 (base) | 28 (`display-s`) | 28 (`display-s`) | 48 | 4, gutter 16, side padding 16 |
+| `min-width: 480px` | 32 (hero-only step) | 28 (`display-s`) | 48 | 4, gutter 16, side padding 16 |
+| `min-width: 768px` | 44 (`display-l`) | 35 (`display-m`) | 64 | 8, gutter 24 |
+| `min-width: 1024px` | 54 (`display-xl`) | 44 (`display-l`) | 96 | 12, gutter 24 |
+
+- Media and text that sit side by side from 1024 up stack below 1024, media first.
+- Below 768, a button is full width when it is the band's only action.
 - No horizontal scrolling at any width down to 320.
 
 ## 10. Do's and don'ts
@@ -290,7 +293,7 @@ Changes from issue #179:
 - New `outline` token (light `#8B8F9B`, dark `#63656A`) for input borders, which the issue left unspecified; the existing `disabled` and `line` borders are below 3:1 and only acceptable as decoration on labelled buttons.
 - New dark `surface-soft` `#1F1F1F` and dark `disabled` `#5C5C5C`, which the issue did not define.
 - Macro colours are restricted to non-text marks: light carbs (3.67:1) and fat do not reach 4.5:1 as text.
-- Website tablet hero uses `display-m` 35 from the scale instead of a separate 32.
+- Website breakpoints are given as exact mobile-first `min-width` edges (480, 768, 1024); the hero's 32 step is kept as a hero-only size.
 
 ### 11.3 Results
 
@@ -331,6 +334,11 @@ L = light mode, D = dark mode.
 | L non-text: outline (input border) on canvas | `#8B8F9B` | `#FFFFFF` | 3.23:1 | 3:1 | pass |
 | L non-text: outline on surface | `#8B8F9B` | `#F5F7FA` | 3.01:1 | 3:1 | pass |
 | L non-text: focus (brand) on canvas | `#2457E6` | `#FFFFFF` | 5.86:1 | 3:1 | pass |
+| L text: pressed card title, brand-pressed on surface | `#1D48C2` | `#F5F7FA` | 7.09:1 | 4.5:1 | pass |
+| L non-text: focus (brand) on surface | `#2457E6` | `#F5F7FA` | 5.46:1 | 3:1 | pass |
+| L non-text: focus (brand) on tint | `#2457E6` | `#EAF0FE` | 5.14:1 | 3:1 | pass |
+| L non-text: focus (link-dark) on dark band | `#8AB0FF` | `#000000` | 9.73:1 | 3:1 | pass |
+| L non-text: focus (white) on blue band / brand fill | `#FFFFFF` | `#2457E6` | 5.86:1 | 3:1 | pass |
 | D text: ink on canvas | `#FFFFFF` | `#000000` | 21.00:1 | 4.5:1 | pass |
 | D text: ink on surface | `#FFFFFF` | `#181818` | 17.76:1 | 4.5:1 | pass |
 | D text: ink on surface-elevated | `#FFFFFF` | `#121314` | 18.60:1 | 4.5:1 | pass |
@@ -366,5 +374,9 @@ L = light mode, D = dark mode.
 | D non-text: outline on surface-elevated | `#63656A` | `#121314` | 3.19:1 | 3:1 | pass |
 | D non-text: focus (link-dark) on canvas | `#8AB0FF` | `#000000` | 9.73:1 | 3:1 | pass |
 | D non-text: brand button shape on canvas | `#2457E6` | `#000000` | 3.58:1 | 3:1 | pass |
+| D text: pressed card title, link-dark on surface | `#8AB0FF` | `#181818` | 8.23:1 | 4.5:1 | pass |
+| D non-text: focus (link-dark) on surface | `#8AB0FF` | `#181818` | 8.23:1 | 3:1 | pass |
+| D non-text: focus (link-dark) on surface-elevated (light and soft bands) | `#8AB0FF` | `#121314` | 8.62:1 | 3:1 | pass |
+| D non-text: focus (white) on blue band / brand fill | `#FFFFFF` | `#2457E6` | 5.86:1 | 3:1 | pass |
 
-68 pairs, 0 failing
+77 pairs, 0 failing
