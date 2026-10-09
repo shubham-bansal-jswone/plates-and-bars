@@ -1,5 +1,6 @@
 /** @jest-environment node */
-import { pendingCount } from '../src/db/outbox';
+import { applyPulled, isQueued, pendingCount } from '../src/db/outbox';
+import { WriteLock } from '../src/db/writeLock';
 import { saveWeightDoc, type WeightDoc } from './sync-fixtures';
 import { syncOnce } from '../src/sync/engine';
 import { createClient } from '@plate-and-bar/api';
@@ -7,6 +8,20 @@ import { naturalId, uuidv5 } from '../src/sync/ids';
 import { getCursor, setKv, KEY_USER, getLiftVersion } from '../src/sync/store';
 import { saveLift, deleteLift } from '../src/db/workouts';
 import { openDb, fakeServer, memoryTokens } from './sync-helpers';
+// No @types/node in this app: describe the few node:crypto calls used.
+interface Hash { update(d: unknown): Hash; digest(): { subarray(a: number, b: number): { [i: number]: number; toString(enc: string): string } } }
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createHash } = require('node:crypto') as { createHash(a: string): Hash };
+declare const Buffer: { from(s: string, enc: string): unknown };
+
+// expo-crypto's native/web digest is not available under Jest; node's SHA-1 stands in for it.
+jest.mock('expo-crypto', () => ({
+  CryptoDigestAlgorithm: { SHA1: 'SHA-1' },
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  digest: async (_a: string, data: Uint8Array) => { const b = require('node:crypto').createHash('sha1').update(data).digest() as Uint8Array; return b.buffer.slice(b.byteOffset, b.byteOffset + b.length); },
+  randomUUID: () => globalThis.crypto.randomUUID(),
+}));
+
 const vectors = require('../../../packages/api/test-vectors/sync-ids.json') as { rfc_example: { namespace: string; name: string; id: string }; cases: { user_id: string; table: string; key: string; id: string }[] };
 
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
@@ -25,9 +40,96 @@ async function setup() {
 const weight = (date: string, kg: number, version = 0): WeightDoc => ({ id: null, version, updated_at: '2026-10-09T06:00:00Z', deleted_at: null, date, weight_kg: kg });
 
 describe('UUIDv5 ids', () => {
-  it('matches the RFC example and every shared test vector', () => {
-    expect(uuidv5(vectors.rfc_example.namespace, vectors.rfc_example.name)).toBe(vectors.rfc_example.id);
-    for (const c of vectors.cases) expect(naturalId(c.user_id, c.table as never, c.key)).toBe(c.id);
+  it('matches the RFC example and every shared test vector', async () => {
+    expect(await uuidv5(vectors.rfc_example.namespace, vectors.rfc_example.name)).toBe(vectors.rfc_example.id);
+    for (const c of vectors.cases) expect(await naturalId(c.user_id, c.table as never, c.key)).toBe(c.id);
+  });
+});
+
+describe('UUIDv5 beyond one SHA-1 block', () => {
+  // The shared vectors are all under 64 bytes; names of 0 to 200 bytes (second and third blocks) must match an independent UUIDv5.
+  it('matches an independent implementation for names of 0 to 200 bytes', async () => {
+    const ref = (ns: string, name: string) => {
+      const h = createHash('sha1').update(Buffer.from(ns.replace(/-/g, ''), 'hex')).update(Buffer.from(name, 'utf8')).digest().subarray(0, 16);
+      h[6] = ((h[6] as number) & 0x0f) | 0x50;
+      h[8] = ((h[8] as number) & 0x3f) | 0x80;
+      const x = h.toString('hex');
+      return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+    };
+    for (let n = 0; n <= 200; n += 7) expect(await uuidv5(USER, 'x'.repeat(n))).toBe(ref(USER, 'x'.repeat(n)));
+    expect(await uuidv5(USER, 'lift_stats:' + 'Bulgarian split squat, कसरत '.repeat(6))).toBe(ref(USER, 'lift_stats:' + 'Bulgarian split squat, कसरत '.repeat(6)));
+  });
+});
+
+describe('write lock', () => {
+  it('runs tasks one at a time in order, even when an earlier one fails', async () => {
+    const lock = new WriteLock();
+    const log: string[] = [];
+    const slow = lock.run(async () => { log.push('a start'); await new Promise((r) => setTimeout(r, 20)); log.push('a end'); throw new Error('x'); });
+    const fast = lock.run(async () => void log.push('b'));
+    await expect(slow).rejects.toThrow();
+    await fast;
+    expect(log).toEqual(['a start', 'a end', 'b']);
+  });
+});
+
+describe('applyPulled', () => {
+  it('skips the write when the record has an unpushed edit by the time the transaction runs (the lost-edit interleave)', async () => {
+    const db = await openDb();
+    await saveWeightDoc(db, weight('2026-10-08', 80, 1));
+    await db.runAsync('DELETE FROM sync_outbox'); // synced
+    // The edit lands after the caller decided to pull, before the transaction starts.
+    db.beforeTxn = async () => void (await saveWeightDoc(db, weight('2026-10-08', 79, 1)));
+    const applied = await applyPulled(db, 'weights', '2026-10-08', async (txn) => void (await txn.runAsync("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-08', ?)", JSON.stringify(weight('2026-10-08', 80, 2)))));
+    expect(applied).toBe(false);
+    expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM weights WHERE key = '2026-10-08'"))!.data)).toMatchObject({ weight_kg: 79 });
+    expect(await isQueued(db, 'weights', '2026-10-08')).toBe(true);
+  });
+
+  it('the engine keeps an edit made while the pull was being applied, and pushes it next', async () => {
+    const { db, server, deps } = await setup();
+    const id = await naturalId(USER, 'weights', '2026-10-08');
+    server.put('weights', { id, version: 2, updated_at: '2026-10-09T09:00:00Z', deleted_at: null, date: '2026-10-08', weight_kg: 80 });
+    db.beforeTxn = async () => {
+      db.beforeTxn = undefined;
+      await saveWeightDoc(db, weight('2026-10-08', 79, 1));
+    };
+    await syncOnce(deps);
+    expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM weights WHERE key = '2026-10-08'"))!.data)).toMatchObject({ weight_kg: 79 });
+    expect(await pendingCount(db)).toBe(1);
+  });
+});
+
+describe('sync engine errors and records', () => {
+  it('a local failure is an error state, not offline, and carries no data', async () => {
+    const { db, deps } = await setup();
+    await saveWeightDoc(db, weight('2026-10-08', 81));
+    await db.runAsync("UPDATE weights SET data = '{not json' WHERE key = '2026-10-08'");
+    const r = await syncOnce(deps);
+    expect(r.status).toBe('error');
+    expect(r.errorName).toBe('SyntaxError');
+    expect(JSON.stringify(r)).not.toContain('not json');
+  });
+
+  it('a 404 is rejected, a 500 is unavailable, a dropped connection is offline', async () => {
+    const { server, deps } = await setup();
+    server.forceStatus.push({ status: 404 });
+    expect((await syncOnce(deps)).status).toBe('rejected');
+    server.forceStatus.push({ status: 500 });
+    expect((await syncOnce(deps)).status).toBe('unavailable');
+    server.online = false;
+    expect((await syncOnce(deps)).status).toBe('offline');
+  });
+
+  it('skips a pulled record whose timestamp is invalid, stores the rest, and leaves user text alone', async () => {
+    const { db, server, deps } = await setup();
+    const log = { version: 1, deleted_at: null, date: '2026-10-09', meal: 'Lunch', qty: 1, kcal: 200, protein_g: 10, carbs_g: 20, fat_g: 5, food_id: null };
+    server.put('food_logs', { id: 'bad', ...log, updated_at: '2026-13-45T99:00:00Z', name: 'x' });
+    server.put('food_logs', { id: 'good', ...log, updated_at: '2026-10-09T05:00:00Z', name: '2026-10-09T05:00:00Z' });
+    const r = await syncOnce(deps);
+    expect(r).toMatchObject({ status: 'ok', pulled: 1, skipped: 1 });
+    expect(await db.getFirstAsync("SELECT key FROM food_logs WHERE key = 'bad'")).toBeNull();
+    expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM food_logs WHERE key = 'good'"))!.data)).toMatchObject({ name: '2026-10-09T05:00:00Z', updated_at: '2026-10-09T05:00:00.000Z' });
   });
 });
 
@@ -41,7 +143,7 @@ describe('sync engine', () => {
 
     server.online = true;
     expect((await syncOnce(deps)).status).toBe('ok');
-    const id = naturalId(USER, 'weights', '2026-10-08');
+    const id = await naturalId(USER, 'weights', '2026-10-08');
     expect(id).toBe('640dee2b-d92d-5a00-bd03-568962bf90ea');
     expect(server.pushed()).toEqual([expect.objectContaining({ table: 'weights', id, version: 0, weight_kg: 81.4 })]);
     expect(await pendingCount(db)).toBe(0);
@@ -56,7 +158,7 @@ describe('sync engine', () => {
   it('applies a pulled record without queuing it, and settles a local edit of another record through the server', async () => {
     const { db, server, deps } = await setup();
     server.put('food_logs', { id: 'f1', version: 2, updated_at: '2026-10-09T05:00:00Z', deleted_at: null, date: '2026-10-09', meal: 'Lunch', name: 'Dal', qty: 1, kcal: 200, protein_g: 10, carbs_g: 20, fat_g: 5, food_id: null });
-    server.put('weights', { id: naturalId(USER, 'weights', '2026-10-07'), version: 1, updated_at: '2026-10-09T05:00:00Z', deleted_at: null, date: '2026-10-07', weight_kg: 80 });
+    server.put('weights', { id: await naturalId(USER, 'weights', '2026-10-07'), version: 1, updated_at: '2026-10-09T05:00:00Z', deleted_at: null, date: '2026-10-07', weight_kg: 80 });
     await saveWeightDoc(db, weight('2026-10-07', 79)); // local edit of the same day, still queued
     await syncOnce(deps);
     expect(await db.getFirstAsync("SELECT key FROM food_logs WHERE key = 'f1' AND log_date = '2026-10-09'")).not.toBeNull();
@@ -76,7 +178,7 @@ describe('sync engine', () => {
 
   it('a real conflict replaces the local copy with the server record and is counted', async () => {
     const { db, server, deps } = await setup();
-    const id = naturalId(USER, 'weights', '2026-10-08');
+    const id = await naturalId(USER, 'weights', '2026-10-08');
     server.put('weights', { id, version: 4, updated_at: '2026-10-09T09:00:00Z', deleted_at: null, date: '2026-10-08', weight_kg: 82 });
     await syncOnce(deps); // pulls it
     await saveWeightDoc(db, { ...weight('2026-10-08', 81, 3) });
@@ -89,7 +191,7 @@ describe('sync engine', () => {
 
   it('an idempotent retry (same content, older version) adopts the stored version without counting a conflict', async () => {
     const { db, server, deps } = await setup();
-    const id = naturalId(USER, 'weights', '2026-10-08');
+    const id = await naturalId(USER, 'weights', '2026-10-08');
     server.put('weights', { id, version: 2, updated_at: '2026-10-09T06:00:05Z', deleted_at: null, date: '2026-10-08', weight_kg: 81.4 });
     await saveWeightDoc(db, weight('2026-10-08', 81.4, 1));
     const r = await syncOnce(deps);
@@ -148,7 +250,7 @@ describe('sync engine', () => {
 
   it('a set carries its workout id, and a pulled set finds its workout date', async () => {
     const { db, server, deps } = await setup();
-    const wid = naturalId(USER, 'workouts', '2026-10-08');
+    const wid = await naturalId(USER, 'workouts', '2026-10-08');
     server.put('workouts', { id: wid, version: 1, updated_at: '2026-10-09T05:00:00Z', deleted_at: null, date: '2026-10-08', template: null, base: null, where: null, cardio_min: null, mods: {}, exercises: [], ci_choice: null });
     server.put('workout_sets', { id: 's1', version: 1, updated_at: '2026-10-09T05:00:00Z', deleted_at: null, workout_id: wid, exercise: 'Squat', kind: 'work', set_index: 0, weight_kg: 50, reps: 5, done: true, rate: null, t: null });
     await syncOnce(deps);

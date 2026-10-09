@@ -1,8 +1,7 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
-import { applyPulled, clearPushed, isQueued, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
-import type { StoreDb } from '../db/records';
+import { applyPulled, clearPushed, inTransaction, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
 import type { WorkoutDb } from '../db/workouts';
-import { buildRecord, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
+import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 
@@ -18,14 +17,22 @@ export type SyncStatus =
   | 'unavailable'
   /** 429: wait `retryAfterSec`. */
   | 'rate_limited'
-  /** 400: the server refused the request; retrying the same request will not help. */
-  | 'rejected';
+  /** The server refused the request (400 or another 4xx); retrying the same request will not help. */
+  | 'rejected'
+  /** A bug or a local failure (storage, mapping): not a network problem. Nothing about the data is attached. */
+  | 'error';
 
 export interface SyncResult {
   status: SyncStatus;
   retryAfterSec?: number;
   /** Real conflicts the server resolved this run (idempotent retries are not counted). */
   conflicts: number;
+  /** Pulled records stored this run. */
+  pulled?: number;
+  /** Pulled records skipped because a field was invalid. */
+  skipped?: number;
+  /** For `error`: the exception's class name only. */
+  errorName?: string;
 }
 
 export interface SyncDeps {
@@ -45,14 +52,24 @@ const fail = (status: SyncStatus, retryAfterSec?: number): Failure => ({ ok: fal
 
 function failFrom(res: Response): Failure {
   if (res.status === 429) return fail('rate_limited', Math.max(1, Number(res.headers.get('Retry-After')) || DEFAULT_RETRY_SEC));
-  if (res.status === 400) return fail('rejected');
-  return fail('unavailable');
+  return res.status >= 500 ? fail('unavailable') : fail('rejected');
+}
+
+/** A rejected fetch: no connection. Only this (not any exception) maps to `offline`. */
+class NetworkError extends Error {}
+
+async function net<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch {
+    throw new NetworkError('network');
+  }
 }
 
 /** POSTs /sync; on 401 refreshes the tokens once and retries. Tokens are never logged. */
 async function post(d: SyncDeps, body: Schemas['SyncRequest']): Promise<Outcome<Schemas['SyncResponse']>> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const { data, response } = await d.api.POST('/sync', { body });
+    const { data, response } = await net(() => d.api.POST('/sync', { body }));
     if (data) return { ok: true, data };
     if (response.status !== 401) return failFrom(response);
     if (attempt === 1 || !(await refresh(d))) return fail('signed_out');
@@ -64,7 +81,7 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest']): Promise<Outcome<
 async function refresh(d: SyncDeps): Promise<boolean> {
   const t = await d.tokens.load();
   if (!t) return false;
-  const { data, response } = await d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh } });
+  const { data, response } = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh } }));
   if (data) {
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
     return true;
@@ -84,11 +101,11 @@ class TransientError extends Error {
  * Runs `write` for a pushed entry without queuing it again. `clean` is true when the record was not edited while the
  * request was in flight; if it was edited, the newer edit stays queued and the write must only touch sync fields.
  */
-async function settle(db: PullDb, e: OutboxEntry, write: (txn: StoreDb, clean: boolean) => Promise<void>): Promise<void> {
-  await db.withExclusiveTransactionAsync(async (txn) => {
+async function settle(db: PullDb, e: OutboxEntry, write: (txn: WorkoutDb, clean: boolean) => Promise<void>): Promise<void> {
+  await inTransaction(db, async (txn) => {
     const seqOf = async () => (await txn.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', e.tbl, e.key))?.seq ?? null;
     const clean = (await seqOf()) === e.seq;
-    await write(txn, clean);
+    await write(txn as WorkoutDb, clean);
     const after = await seqOf();
     if (clean && after !== null) await clearPushed(txn, { tbl: e.tbl, key: e.key, seq: after });
   });
@@ -109,6 +126,8 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   if (!userId || !(await d.tokens.load())) return { status: 'signed_out', conflicts: 0 };
   const ctx: PullCtx = { userId, dates: null };
   let conflicts = 0;
+  let pulled = 0;
+  let skipped = 0;
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const entries = await pendingChanges(d.db, 500);
@@ -124,7 +143,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         (changes[e.tbl] ??= []).push(record);
       }
       const out = await post(d, { cursor: await getCursor(d.db), changes: changes as Schemas['SyncChanges'] });
-      if (!out.ok) return { ...out.result, conflicts };
+      if (!out.ok) return { ...out.result, conflicts, pulled, skipped };
       const res = out.data;
       for (const a of res.applied) {
         const s = sent.get(`${a.table}:${a.id}`);
@@ -134,40 +153,56 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         const s = sent.get(`${c.table}:${c.id}`);
         if (!s) continue;
         const server = c.server_record as unknown as Doc;
-        if (sameContent(s.record, server)) {
+        let same: boolean;
+        try {
+          same = sameContent(s.record, server);
+        } catch (err) {
+          if (err instanceof InvalidRecord) continue; // stays queued; the server's copy cannot be stored
+          throw err;
+        }
+        if (same) {
           // An idempotent retry (see POST /sync): adopt the stored version and time, nothing else changes.
           await settle(d.db, s.entry, (txn) => patchMeta(txn, s.entry.tbl, s.entry.key, { version: server.version as number, updated_at: server.updated_at as string }));
           continue;
         }
         conflicts++;
         await settle(d.db, s.entry, async (txn, clean) => {
-          if (clean) await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(d.db, ctx, server) : null);
+          if (clean) await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
           else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
         });
       }
-      await pull(d.db, res.changes as unknown as Record<string, Doc[]>, ctx);
+      const p = await pull(d.db, res.changes as unknown as Record<string, Doc[]>, ctx);
+      pulled += p.stored;
+      skipped += p.skipped;
       await setKv(d.db, KEY_CURSOR, res.cursor);
       if (!res.has_more && entries.length < 500) break;
     }
   } catch (e) {
-    if (e instanceof TransientError) return { ...e.outcome.result, conflicts };
-    // A thrown fetch is a lost connection; local data and the queue are untouched either way.
-    return { status: 'offline', conflicts };
+    if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, skipped };
+    if (e instanceof NetworkError) return { status: 'offline', conflicts, pulled, skipped };
+    // Anything else is a bug or a local failure, not the network: report it as an error state (class name only).
+    return { status: 'error', conflicts, pulled, skipped, errorName: e instanceof Error ? e.constructor.name : 'Unknown' };
   }
-  return { status: 'ok', conflicts };
+  return { status: 'ok', conflicts, pulled, skipped };
 }
 
-async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx): Promise<void> {
+async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx): Promise<{ stored: number; skipped: number }> {
+  let stored = 0;
+  let skipped = 0;
   for (const tbl of ORDER) {
     for (const rec of changes[tbl] ?? []) {
-      const key = localKey(tbl, rec);
-      // A record with an unpushed local edit is not overwritten: the next push resolves it through the server.
-      if (await isQueued(db, tbl, key)) continue;
-      const setDate = tbl === 'workout_sets' ? await setWorkoutDate(db, ctx, rec) : null;
-      await applyPulled(db, tbl, key, (txn) => storeRecord(txn, tbl, rec, setDate));
-      if (tbl === 'workouts') ctx.dates?.set(String(rec.id), key);
+      try {
+        const key = localKey(tbl, rec);
+        const setDate = tbl === 'workout_sets' ? await setWorkoutDate(db, ctx, rec) : null;
+        // A record with an unpushed local edit is skipped inside the transaction: the next push settles it through the server.
+        if (await applyPulled(db, tbl, key, (txn) => storeRecord(txn, tbl, rec, setDate))) stored++;
+        if (tbl === 'workouts') ctx.dates?.set(String(rec.id), key);
+      } catch (e) {
+        if (!(e instanceof InvalidRecord)) throw e;
+        skipped++;
+      }
     }
   }
   await resolveOrphanSets(db, ctx);
+  return { stored, skipped };
 }
-
