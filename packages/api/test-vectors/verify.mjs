@@ -22,12 +22,14 @@ for (const [i, c] of vectors.cases.entries()) {
   if (Buffer.from(name, "utf8").toString("hex") !== c.name_utf8_hex) failures.push(`cases[${i}].name_utf8_hex`);
   if (uuidv5(c.user_id, name) !== c.id) failures.push(`cases[${i}] (${name}): expected ${c.id}`);
 }
-// The spec's own /sync examples must use the real ids for the example user.
+// The spec's own /sync and /me/export examples must use the real ids for the example user.
 const spec = readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8");
 const exampleUser = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d";
 for (const [pattern, name] of [
   [/workout_id: ([0-9a-f-]{36})/g, "workouts:2026-10-08"],
   [/weights:\s*\n\s*- id: ([0-9a-f-]{36})/g, "weights:2026-10-08"],
+  [/profiles:\s*\n\s*- id: ([0-9a-f-]{36})/g, "profiles:me"],
+  [/settings:\s*\n\s*- id: ([0-9a-f-]{36})/g, "settings:me"],
 ]) {
   const vector = vectors.cases.find((c) => c.user_id === exampleUser && c.name === name);
   if (!vector) failures.push(`no vector for ${name}`);

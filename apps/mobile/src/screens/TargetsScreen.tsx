@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
-import { Button, ErrorText, H1, Hint, Label, Page, Switch } from '../components/ui';
+import { Button, ErrorText, H1, Hint, Label, Page, Switch, Press } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
@@ -64,9 +64,9 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
                 onValueChange={(on) => setRestOff(!on)}
               />
               {/* The text toggles the switch too, as the prototype's label does; the switch carries the spoken name. */}
-              <Pressable accessibilityElementsHidden importantForAccessibility="no" onPress={() => setRestOff(!settings.rest_off)} style={{ flex: 1 }}>
+              <Press focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setRestOff(!settings.rest_off)} style={{ flex: 1 }}>
                 <Text style={{ color: c.ink, fontSize: 16 }}>Start a rest timer after each set</Text>
-              </Pressable>
+              </Press>
             </View>
             {loadFailed ? <ErrorText>Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.</ErrorText> : null}
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
