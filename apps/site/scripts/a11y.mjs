@@ -51,6 +51,18 @@ for (const scheme of ["light", "dark"]) {
       await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: "load" });
       await page.evaluate(axeSource);
       const result = await page.evaluate(() => globalThis.axe.run());
+      const emptyVars = await page.evaluate(() => {
+        const root = getComputedStyle(document.documentElement);
+        const names = new Set();
+        for (const sheet of document.styleSheets)
+          for (const rule of sheet.cssRules)
+            if (rule.selectorText === ":root") for (const n of rule.style) if (n.startsWith("--")) names.add(n);
+        return [...names].filter((n) => root.getPropertyValue(n).trim() === "");
+      });
+      for (const n of emptyVars) {
+        violations++;
+        console.log(`[${scheme} ${viewport.width}px ${path}] custom property ${n} resolves empty`);
+      }
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       if (overflow) {
         violations++;
