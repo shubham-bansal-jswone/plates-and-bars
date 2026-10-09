@@ -1,7 +1,7 @@
 // Extracts the recipe builder's data from the prototype and maps it to three content files:
 //   content/raw-ingredients.json  (RAW + RAW_FIB, per 100 g)
 //   content/recipes.json          (LIBRARY and PRESETS)
-//   content/meal-planning.json    (GROC, MEAL_W, PROT_W, MAXQ, MINQ)
+//   content/meal-planning.json    (GROC, MEAL_W, PROT_W, MAXQ, MINQ, ROLE)
 // Pure and deterministic: order follows the prototype; ids are derived from names.
 // Every row is marked needs_dietitian_review until a dietitian signs it off.
 import { createHash } from 'node:crypto';
@@ -66,11 +66,13 @@ export function extractRecipeData(html) {
     grab(html, /^const LIBRARY = \{[\s\S]*?^\};$/m, 'LIBRARY'),
     grab(html, /^const GROC = \{[\s\S]*?^\};$/m, 'GROC'),
     grab(html, /^const MEAL_W = .*, PROT_W = .*;$/m, 'MEAL_W/PROT_W'),
+    grab(html, /^const ROLE = \{[\s\S]*?^\};$/m, 'ROLE'),
+    grab(html, /^Object\.assign\(ROLE, \{.*\}\);$/m, 'Object.assign(ROLE, ...)'),
     grab(html, /^const MAXQ = .*;$/m, 'MAXQ'),
     grab(html, /^ *const MINQ = .*;$/m, 'MINQ'),
   ];
   const ctx = vm.createContext({});
-  vm.runInContext(`${parts.join('\n')}\nthis.out = { RAW, RAW_FIB, FATTY: [...FATTY], UNIT_G, KATORI_G, PRESETS, LIBRARY, GROC, MEAL_W, PROT_W, MAXQ, MINQ };`, ctx, { timeout: 1000 });
+  vm.runInContext(`${parts.join('\n')}\nthis.out = { RAW, RAW_FIB, FATTY: [...FATTY], UNIT_G, KATORI_G, PRESETS, LIBRARY, GROC, MEAL_W, PROT_W, ROLE, MAXQ, MINQ };`, ctx, { timeout: 1000 });
   return JSON.parse(JSON.stringify(ctx.out));
 }
 
@@ -129,7 +131,7 @@ export function importRecipes(p) {
 export function importPlanning(p) {
   return {
     schema_version: 1,
-    source: 'docs/prototype/plate-and-bar.html (GROC, MEAL_W, PROT_W, MAXQ, MINQ)',
+    source: 'docs/prototype/plate-and-bar.html (GROC, MEAL_W, PROT_W, MAXQ, MINQ, ROLE)',
     updated_at: UPDATED_AT,
     needs_dietitian_review: true,
     meal_weights: p.MEAL_W,
@@ -137,6 +139,7 @@ export function importPlanning(p) {
     max_portions: p.MAXQ,
     min_portions: p.MINQ,
     grocery: Object.entries(p.GROC).map(([food, items]) => ({ food, items: items.map(([item, amount, unit]) => ({ item, amount, unit })) })),
+    roles: Object.entries(p.ROLE).map(([food, [role, diet]]) => ({ food, role, diet })),
   };
 }
 
