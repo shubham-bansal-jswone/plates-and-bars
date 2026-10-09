@@ -81,8 +81,12 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - While `StubAiProvider` is the active provider (`AiProvider.isStub()`), every feature is off whatever the flags say:
     `/ai/status` reports false and the endpoints answer 503 `feature_disabled`, so canned text never reaches users.
     A real provider bean replaces the stub and turns that off.
+    `AiProviderConfig` is an auto-configuration (listed in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`)
+    so its `@ConditionalOnMissingBean(AiProvider.class)` is evaluated after every other bean is known.
   - Provider: `AiProvider` is the one seam; `StubAiProvider` (canned replies, no network, no key, no SDK) is the only
-    implementation until one is chosen (#200). A real one must use the cheapest suitable (small text) model, set
+    implementation until one is chosen (#200). To add a real one, write a class implementing `AiProvider` (leave
+    `isStub()` false) and make it a bean (`@Component` or a `@Bean` method); the stub then backs off and the three
+    flags decide per feature. Do not also keep the stub as a second bean. No SDK or key is in the repo. A real one must use the cheapest suitable (small text) model, set
     timeouts, read its key from the environment only, and send only the prompt strings (`AiPrompts`): user text sits
     between `<<<` and `>>>` markers carrying a random per-request token (so no text can close them), after Unicode
     format, bidi, zero-width and control characters are stripped, and the instructions say it is data.
