@@ -32,6 +32,7 @@ class ContentRateLimitTest {
     }
 
     @Autowired MockMvc mvc;
+    @Autowired app.plateandbar.api.auth.JwtService jwt;
 
     @Test
     void thirdRequestFromTheSameIpIs429WithRetryAfter() throws Exception {
@@ -41,5 +42,21 @@ class ContentRateLimitTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"))
                 .andExpect(jsonPath("$.code").value("rate_limited"));
+    }
+
+    @Test
+    void aValidOrGarbageBearerTokenSharesTheSamePerIpBucketAndNeedsNoUserLookup() throws Exception {
+        // EveryUserExists would answer for a valid user; the content path never asks, and never uses the per-user bucket.
+        String valid = jwt.issue(java.util.UUID.randomUUID().toString()).value();
+        java.time.Clock past = java.time.Clock.fixed(
+                java.time.Instant.now().minus(java.time.Duration.ofMinutes(16)), java.time.ZoneOffset.UTC);
+        String expired = new app.plateandbar.api.auth.JwtService(
+                        new app.plateandbar.api.auth.AuthProperties(System.getenv("JWT_SIGNING_KEY"), java.util.List.of()), past)
+                .issue("11111111-1111-1111-1111-111111111111")
+                .value();
+        mvc.perform(get("/api/v1/content/manifest").with(r -> { r.setRemoteAddr("10.9.9.9"); return r; }).header("Authorization", "Bearer " + valid)).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/content/cards").with(r -> { r.setRemoteAddr("10.9.9.9"); return r; }).header("Authorization", "Bearer " + expired)).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/content/cards").with(r -> { r.setRemoteAddr("10.9.9.9"); return r; }).header("Authorization", "Bearer " + valid))
+                .andExpect(status().isTooManyRequests());
     }
 }

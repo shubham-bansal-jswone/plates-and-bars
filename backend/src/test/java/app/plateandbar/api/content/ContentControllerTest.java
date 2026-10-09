@@ -92,6 +92,26 @@ class ContentControllerTest {
     }
 
     @Test
+    void emptyElementsInAnIfNoneMatchListAreSkipped() throws Exception {
+        String e = etag("measures");
+        for (String h : new String[] {"," + e, e + ",", ", ," + e + ", ,", "\"" + "0".repeat(64) + "\",," + e}) {
+            assertThat(mvc.perform(get("/api/v1/content/measures").header("If-None-Match", h))
+                    .andReturn().getResponse().getStatus()).as(h).isEqualTo(304);
+        }
+        assertThat(mvc.perform(get("/api/v1/content/measures").header("If-None-Match", ","))
+                .andReturn().getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void authorizationIsIgnoredEntirely() throws Exception {
+        mvc.perform(get("/api/v1/content/measures").header("Authorization", "Bearer garbage"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/content/manifest").header("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.abc"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/content/cards").header("Authorization", "Basic xyz")).andExpect(status().isOk());
+    }
+
+    @Test
     void manifest304KeepsItsOwnCacheControl() throws Exception {
         mvc.perform(get("/api/v1/content/manifest").header("If-None-Match", bundles.manifest().etag()))
                 .andExpect(status().isNotModified())

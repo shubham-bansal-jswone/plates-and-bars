@@ -20,7 +20,7 @@ public class ContentController {
 
     static final int MAX_IF_NONE_MATCH = 1024;
     private static final String TAG = "(?:W/)?\"[\\x21\\x23-\\x7E\\x80-\\xFF]*\"";
-    private static final Pattern HEADER = Pattern.compile("^\\s*(?:\\*|" + TAG + "(?:\\s*,\\s*" + TAG + ")*)\\s*$");
+    private static final Pattern HEADER = Pattern.compile("^\\s*(?:\\*|(?:" + TAG + ")?(?:\\s*,\\s*(?:" + TAG + ")?)*)\\s*$");
     private static final Pattern ONE_TAG = Pattern.compile(TAG);
 
     private final ContentBundles content;
@@ -71,7 +71,7 @@ public class ContentController {
         response.getOutputStream().write(served.body());
     }
 
-    /** RFC 9110 If-None-Match with weak comparison; a header that is too long or does not parse counts as absent. */
+    /** RFC 9110 If-None-Match with weak comparison; empty list elements are skipped; a header that is too long or does not parse counts as absent. */
     static boolean matches(HttpServletRequest request, String etag) {
         String header = String.join(",", Collections.list(request.getHeaders(HttpHeaders.IF_NONE_MATCH)));
         if (header.isBlank() || header.length() > MAX_IF_NONE_MATCH || !HEADER.matcher(header).matches()) {

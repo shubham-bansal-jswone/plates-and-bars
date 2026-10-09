@@ -11,6 +11,7 @@ COPY backend/gradle gradle
 RUN ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
 COPY packages/api/openapi.yaml /src/packages/api/openapi.yaml
 COPY content/*.json /src/content/
+COPY backend/scripts scripts
 ARG CONTENT_UPDATED_AT
 RUN sh /src/backend/scripts/content-updated-at.sh --check "$CONTENT_UPDATED_AT"
 COPY backend/src src
