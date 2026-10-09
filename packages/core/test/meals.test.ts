@@ -214,6 +214,8 @@ describe('nextMealInfo (prototype nextMealInfo)', () => {
     expect(nextMealInfo(base({ age: 60, proteinTarget: 60 }))?.protein_g).toBe(OLDER_MEAL_PROTEIN_G);
     expect(nextMealInfo(base({ age: 59, proteinTarget: 60 }))?.protein_g).toBe(15);
     expect(nextMealInfo(base({ age: 70, hour: 17, proteinTarget: 100 }))?.protein_g).toBeCloseTo((100 * 0.15) / 0.45, 10);
+    // boundary: exactly 25 g left still gets the floor (prototype pLeft >= 25)
+    expect(nextMealInfo(base({ age: 60, proteinTarget: 25 }))?.protein_g).toBe(OLDER_MEAL_PROTEIN_G);
     expect(nextMealInfo(base({ age: 70, proteinTarget: 24 }))?.protein_g).toBe(6);
     expect(nextMealInfo(base({ age: null, proteinTarget: 60 }))?.protein_g).toBe(15);
   });
