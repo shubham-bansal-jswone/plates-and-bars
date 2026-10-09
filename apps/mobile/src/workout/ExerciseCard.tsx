@@ -1,4 +1,7 @@
-import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
+import { StyleSheet, View, Pressable } from 'react-native';
+import { Input } from '../components/Input';
+import { radius } from '../theme/tokens';
+import { Text } from '../components/Text';
 import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
 import { Button, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
@@ -51,12 +54,11 @@ function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: 
 
 function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): void; nl: boolean }) {
   const c = useTheme();
-  const input = { color: c.ink, borderColor: c.line, backgroundColor: c.surface };
   return (
     <View style={styles.set}>
       <Text style={{ color: c.muted, width: 28, fontWeight: '700' }}>{n}</Text>
-      <TextInput accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" value={row.w} placeholder={ph.w} placeholderTextColor={c.muted} onChangeText={(v) => onEdit('w', v)} style={[styles.input, input]} />
-      <TextInput accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" value={row.r} placeholder={ph.r} placeholderTextColor={c.muted} onChangeText={(v) => onEdit('r', v)} style={[styles.input, input]} />
+      <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" value={row.w} placeholder={ph.w} onChangeText={(v) => onEdit('w', v)} style={styles.input} />
+      <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" value={row.r} placeholder={ph.r} onChangeText={(v) => onEdit('r', v)} style={styles.input} />
       <Pressable
         accessibilityRole="checkbox"
         accessibilityLabel={`Mark ${label} done`}
@@ -65,7 +67,7 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
         onPress={onTick}
         style={[styles.tick, { borderColor: c.brand, backgroundColor: row.done ? c.brand : c.surface }]}
       >
-        <Text style={{ color: row.done ? c.onBrand : c.brand, fontWeight: '800', fontSize: 18 }}>✓</Text>
+        <Text style={{ color: row.done ? c.onBrand : c.link, fontWeight: '700', fontSize: 18 }}>✓</Text>
       </Pressable>
     </View>
   );
@@ -90,7 +92,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
 
   return (
     <Card>
-      <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '800', fontSize: 18 }}>
+      <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>
         {ex.name}
       </Text>
       <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
@@ -100,7 +102,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
       </Text>
       {tag ? (
         <Text style={{ color: c.ink, fontSize: 14 }}>
-          {isFocus(ex.name, focus, catalog.tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.brand, fontWeight: '800' }}>Focus </Text> : null}
+          {isFocus(ex.name, focus, catalog.tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
           <Text style={{ fontWeight: '700' }}>Works: </Text>
           {listJoin(tag.primary.map((m) => MUSCLE[m] ?? m))}
           {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => MUSCLE[m] ?? m))}</Text> : null}
@@ -189,8 +191,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  guide: { borderRadius: 10, borderWidth: 1, padding: 10, gap: 6 },
+  guide: { borderRadius: radius.md, borderWidth: 1, padding: 10, gap: 6 },
   set: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, minWidth: 60, minHeight: 48, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, fontSize: 16 },
+  input: { flex: 1, minWidth: 60 },
   tick: { width: 48, height: 48, borderWidth: 2, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 });

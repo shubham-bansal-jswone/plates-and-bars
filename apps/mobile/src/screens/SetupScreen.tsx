@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, layout } from '../components/ui';
@@ -33,6 +34,7 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
         <Switch
           accessibilityLabel={CONSENT.checkbox}
           value={ok}
+          trackColor={{ true: c.brand, false: c.muted }} thumbColor={c.onBrand}
           onValueChange={(v) => {
             setOk(v);
             setErr('');

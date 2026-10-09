@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, ErrorText, Field, Hint, Label } from '../components/ui';
+import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { catalogFoods, cuisines, type CatalogFood } from './catalog';
 import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL } from './copy';
@@ -32,19 +34,19 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '800', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Text>
+          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Text>
           <View accessibilityRole="tablist" style={styles.row}>
             {MODES.map(([k, l]) => (
               <Pressable key={k} accessibilityRole="tab" accessibilityLabel={l} accessibilityState={{ selected: mode === k }} onPress={() => { setMode(k); setStatus(null); }}
-                style={[styles.tab, { borderColor: mode === k ? c.brand : c.line, backgroundColor: mode === k ? c.tint : c.surface }]}>
-                <Text style={{ color: c.ink, fontWeight: '600' }}>{l}</Text>
+                style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
+                <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Pressable>
             ))}
           </View>
           {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
-          {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.brand, fontWeight: '600' }}>{status.text}</Text>) : null}
+          {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
       </ScrollView>
@@ -125,6 +127,7 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
 
 function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; onAdd: (n: NewLog) => void; onSaveMine: Props['onSaveMine']; onClose: () => void; say: Say }) {
   const [f, setF] = useState({ name: '', kcal: '', protein: '', carbs: '', fat: '', qty: '1', unit: '' });
+  const c = useTheme();
   const [save, setSave] = useState(true);
   const set = (k: keyof typeof f) => (v: string) => setF((o) => ({ ...o, [k]: v }));
   const submit = () => {
@@ -146,7 +149,7 @@ function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; on
         <Field label="Serving size" placeholder="1 plate" value={f.unit} onChangeText={set('unit')} />
       </View>
       <View style={styles.row}>
-        <Switch accessibilityLabel="Save to my foods for next time" value={save} onValueChange={setSave} />
+        <Switch accessibilityLabel="Save to my foods for next time" value={save} onValueChange={setSave} trackColor={{ true: c.brand, false: c.muted }} thumbColor={c.onBrand} />
         <Label>Save to my foods for next time</Label>
       </View>
       <Button label={`Add to ${meal.toLowerCase()}`} onPress={submit} />
@@ -159,9 +162,9 @@ const styles = StyleSheet.create({
   body: { width: '100%', maxWidth: 560, gap: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   gap: { gap: 8 },
-  tab: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
-  step: { borderWidth: 1, borderRadius: 10, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12, minHeight: 56 },
+  tab: { borderRadius: radius.full, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
+  step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: radius.md, padding: 12, minHeight: 56 },
   fill: { flex: 1 },
   search: { maxWidth: undefined },
   wide: { maxWidth: undefined },
