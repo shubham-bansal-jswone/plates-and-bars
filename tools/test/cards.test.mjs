@@ -17,7 +17,7 @@ test('content files equal a fresh import of the prototype (drift) and validate',
   assert.equal(raw('labels.json'), serialize(importLabels(html)));
   assert.deepEqual(validateCards(load('cards.json')), []);
   assert.deepEqual(validateMeasures(load('measures.json')), []);
-  assert.deepEqual(validateLabels(load('labels.json')), []);
+  assert.deepEqual(validateLabels(load('labels.json'), load('exercises.json')), []);
 });
 
 test('all 20 KB cards carry over in prototype order with title, summary, evidence and source unchanged', () => {
@@ -131,6 +131,20 @@ test('labels match the prototype and reproduce its replacement text', () => {
   delete bad.replacement_reasons.done_before;
   const e = validateLabels(bad);
   assert.ok(e.some((m) => m.includes('muscles.chest')) && e.some((m) => m.includes('done_before')));
+});
+
+test('family and pattern labels come from the prototype, cover every tag in use and include balance', () => {
+  const l = load('labels.json');
+  assert.equal(l.families.bench, 'bench press variations');
+  assert.equal(l.families.balance, 'balance variations');
+  assert.equal(l.patterns['h-press'], 'chest pressing');
+  const ex = load('exercises.json');
+  const bad = structuredClone(l);
+  delete bad.families.balance;
+  delete bad.patterns.calf;
+  const e = validateLabels(bad, ex);
+  assert.ok(e.some((m) => m.includes('families.balance')) && e.some((m) => m.includes('patterns.calf')));
+  assert.throws(() => importLabels(html.replace('const FAMILY = {', 'const FAMILYX = {')), /FAMILY not found/);
 });
 
 test('measures keep the prototype list; hips rule is encoded in full', () => {
