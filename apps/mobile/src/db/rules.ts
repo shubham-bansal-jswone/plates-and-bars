@@ -29,3 +29,9 @@ export const deleteExclusion = (db: StoreDb, r: ExclusionRecord, at: string): Pr
 
 /** Undoes a swap: its record kept with `deleted_at` set. */
 export const deleteSwap = (db: StoreDb, r: SwapRecord, at: string): Promise<void> => saveSwap(db, { ...r, deleted_at: at, updated_at: at });
+
+/** The version stored for a record, tombstones included (0 when there is none): a re-created record carries on from it. */
+export async function storedVersion(db: StoreDb, table: 'exclusions' | 'swaps', key: string): Promise<number | null> {
+  const row = await db.getFirstAsync<{ data: string }>(`SELECT data FROM ${table} WHERE key = ?`, key);
+  return row ? (JSON.parse(row.data) as { version: number }).version : null;
+}
