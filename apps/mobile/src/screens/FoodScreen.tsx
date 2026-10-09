@@ -9,7 +9,8 @@ import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
 import { catalogFoods } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
-import { useFoodDay } from '../food/useFoodDay';
+import { logOf, useFoodDay } from '../food/useFoodDay';
+import { IdeasCard } from '../meals/IdeasCard';
 import { useWater } from '../food/useWater';
 import { WaterCard } from '../food/WaterCard';
 import { useProfile } from '../state/ProfileProvider';
@@ -30,8 +31,7 @@ const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 export function FoodScreen({ db, now = () => new Date() }: Props) {
   const c = useTheme();
   const { profile, status } = useProfile();
-  const { ready: settingsReady, settings, loadFailed, setFlex } = useSettings();
-  const [flexOpen, setFlexOpen] = useState(false);
+  const { ready: settingsReady, settings, loadFailed, setFlex, setDiet } = useSettings();
   const [toast, setToast] = useState<string | null>(null);
   const [adding, setAdding] = useState<Meal | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,7 +63,6 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     if (blocked()) return;
     const r = planFlex({ extra, date: f.date, today: f.date, id: newId(), flex: settings.flex }, profile);
     setFlex(r.flex);
-    setFlexOpen(false);
     notify(flexToast(extra, r));
   };
   const undo = (id: string) => {
@@ -101,18 +100,27 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             {todaysPlan ? <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysPlan.id)} /> : null}
           </View>
         ) : null}
-        <View style={styles.gap}>
-          {/* TODO: move these chips into the "What should I eat next?" card (as in the prototype) once that card exists. */}
-          <Button label="Plan a bigger day" kind="ghost" expanded={flexOpen} onPress={() => setFlexOpen(!flexOpen)} />
-          {flexOpen ? (
-            <>
-              <View style={styles.wrap}>
-                {[300, 500, 800].map((x) => <Button key={x} label={`+${x} kcal today`} kind="ghost" onPress={() => plan(x)} />)}
-              </View>
-              <Hint>For a wedding, party or big meal out. The extra is taken off the next few days, never below your minimum.</Hint>
-            </>
-          ) : null}
-        </View>
+        <IdeasCard
+          today={f.date}
+          hour={now().getHours()}
+          logs={f.logs}
+          totals={t}
+          kcalTarget={target}
+          proteinTarget={profile?.targets.protein_g ?? DEFAULT_PROTEIN_TARGET}
+          fatTarget={profile?.targets.fat_g ?? DEFAULT_FAT_TARGET}
+          age={profile?.age}
+          diet={settings.diet}
+          fasting={f.note?.fast === true}
+          onDiet={(d) => {
+            if (!blocked()) setDiet(d);
+          }}
+          onFasting={f.setFast}
+          onAdd={(meal, items) => {
+            items.forEach((i) => f.add(meal, logOf(i.food, i.qty)));
+            notify(`Added to ${meal.toLowerCase()}`);
+          }}
+          onFlex={plan}
+        />
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} onRemove={f.remove} onAdd={() => setAdding(m)} />

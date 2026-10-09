@@ -16,6 +16,8 @@ interface SettingsState {
   setRestOff(off: boolean): void;
   /** Replaces the flex entries (the Food tab plans them with core's `planFlex`/`undoFlex`). */
   setFlex(flex: readonly FlexEntry[]): void;
+  /** Sets the meal-idea diet filter. */
+  setDiet(diet: Settings['diet']): void;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -73,7 +75,9 @@ export function SettingsProvider({ db, children }: { db: StoreDb; children: Reac
 
   const setFlex = useCallback((flex: readonly FlexEntry[]) => change({ flex: [...flex] }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex]);
+  const setDiet = useCallback((diet: Settings['diet']) => change({ diet }), [change]);
+
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

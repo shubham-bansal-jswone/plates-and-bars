@@ -59,6 +59,7 @@ describe('Food screen', () => {
   describe('flex chips', () => {
     const flexOf = async (db: Db) => (await loadSettings(db))?.flex ?? [];
     const plan = async (label: string) => {
+      if (!screen.queryByLabelText('Plan a bigger day')) await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       await fireEvent.press(screen.getByLabelText(label));
     };
@@ -89,6 +90,7 @@ describe('Food screen', () => {
 
     it('announces whether the chips are open', async () => {
       await setup();
+      await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: false });
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: true });
@@ -164,6 +166,68 @@ describe('Food screen', () => {
       expect(screen.getByLabelText('0 of 1,990 kcal eaten')).toBeTruthy();
       await act(async () => {});
       expect(docs(db, 'user_settings')).toHaveLength(0);
+    });
+  });
+
+  describe('ideas card', () => {
+    const openCard = async () => fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+
+    it('is closed at first and shows the next meal’s share, three ideas and the diet it filters by', async () => {
+      await setup();
+      expect(screen.queryByText(/fits breakfast/)).toBeNull();
+      await openCard();
+      expect(screen.getByText(/fits breakfast, based on what’s left today. Showing all foods./)).toBeTruthy();
+      expect(screen.getAllByLabelText(/^Add .* to breakfast$/)).toHaveLength(3);
+      expect(screen.getByText('The thali plate guide')).toBeTruthy();
+    });
+
+    it('Add logs every item of the idea under the meal and moves on', async () => {
+      const db = await setup();
+      await openCard();
+      await fireEvent.press(screen.getAllByLabelText(/^Add .* to breakfast$/)[0]!);
+      expect(await screen.findByText('Added to breakfast')).toBeTruthy();
+      await waitFor(() => expect(docs(db, 'food_logs').length).toBeGreaterThan(1));
+      expect(docs(db, 'food_logs').every((l) => l.meal === 'Breakfast' && l.deleted_at === null)).toBe(true);
+      expect(screen.getByLabelText('What should I eat next? Lunch ideas')).toBeTruthy();
+    });
+
+    it('the diet chips filter the ideas and are saved to settings', async () => {
+      const db = await setup();
+      await openCard();
+      await fireEvent.press(screen.getByLabelText('Vegetarian'));
+      expect(screen.getByText(/Showing vegetarian foods./)).toBeTruthy();
+      expect(screen.queryByLabelText(/^Add .*(Chicken|Egg).* to breakfast$/)).toBeNull();
+      await waitFor(async () => expect((await loadSettings(db))?.diet).toBe('veg'));
+    });
+
+    it('Fasting day switches to the fasting pool and is saved on the day note', async () => {
+      const db = await setup();
+      await openCard();
+      await fireEvent.press(screen.getByLabelText('Fasting day'));
+      expect(screen.getByLabelText('Fasting day').props.accessibilityState).toMatchObject({ checked: true });
+      expect(screen.getAllByLabelText(/^Add .*(Kuttu|Sabudana|Sweet potato).* to breakfast$/).length).toBeGreaterThan(0);
+      await waitFor(() => expect(docs(db, 'day_notes')[0]).toMatchObject({ date: DATE, fast: true }));
+    });
+
+    it('More ideas pages through the rest', async () => {
+      await setup();
+      await openCard();
+      const first = screen.getAllByLabelText(/^Add .* to breakfast$/)[0]!.props.accessibilityLabel;
+      await fireEvent.press(screen.getByLabelText(/^More ideas \(1 of \d+\)$/));
+      expect(screen.getAllByLabelText(/^Add .* to breakfast$/)[0]!.props.accessibilityLabel).not.toBe(first);
+    });
+
+    it('says the calories are reached instead of ideas', async () => {
+      const db = memoryDb();
+      await saveProfile(db, profile());
+      const nowDay = '2026-10-08T00:00:00Z';
+      for (const [i, kcal] of [1000, 1000].entries()) {
+        db.rows.set(`food_logs:l${i}`, JSON.stringify({ id: `l${i}`, version: 0, updated_at: nowDay, deleted_at: null, date: DATE, meal: 'Breakfast', name: 'X', qty: 1, kcal, protein_g: 10, carbs_g: 0, fat_g: 0, food_id: null }));
+      }
+      await setup({ db });
+      await fireEvent.press(screen.getByLabelText('What should I eat next? Lunch ideas'));
+      expect(screen.getByText(/You’ve reached today’s calories/)).toBeTruthy();
+      expect(screen.queryByLabelText('Fasting day')).toBeNull();
     });
   });
 
