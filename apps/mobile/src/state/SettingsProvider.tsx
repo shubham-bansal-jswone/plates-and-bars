@@ -21,7 +21,7 @@ interface SettingsState {
   /** Saves the weekly meal plan. */
   setMealPlan(plan: MealPlan): void;
   /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
-  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): void;
+  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -63,8 +63,8 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)) => {
-      if (blocked.current) return;
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean => {
+      if (blocked.current) return false;
       const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
       ref.current = next;
       setState(next);
@@ -72,6 +72,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
         .then(() => saveSettings(db, ref.current))
         .then(() => setSaveFailed(false))
         .catch(() => setSaveFailed(true));
+      return true;
     },
     [db],
   );
