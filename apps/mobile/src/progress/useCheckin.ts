@@ -32,7 +32,9 @@ interface Options {
  */
 export function useCheckin({ db, date, weights, now, notify }: Options) {
   const { profile, setProfile } = useProfile();
-  const { settings, update } = useSettings();
+  const { settings, update, ready: settingsReady, loadFailed } = useSettings();
+  // Settings feed the suggestion and are written back, so nothing runs until the stored record has loaded.
+  const usable = settingsReady && !loadFailed;
   const [days, setDays] = useState<ProgressDay[] | null>(null);
   const [lifts, setLifts] = useState<Record<string, LiftRecord>>({});
   const [sessions, setSessions] = useState<SessionLog>({});
@@ -68,35 +70,44 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
   const adaptive = settings.adaptive as AdaptiveState;
   const checkin = useMemo(
     () =>
-      profile && days
+      profile && days && usable
         ? weeklyCheckin({ date, days, weighIns: weights, lifts, kcal: profile.targets.kcal, protein: profile.targets.protein_g, profile, adaptive, weekPlan: A.weekPlan, dismissed: A.dismissed, muted: A.muted })
         : null,
-    [profile, days, date, weights, lifts, adaptive, A.weekPlan, A.dismissed, A.muted],
+    [profile, days, usable, date, weights, lifts, adaptive, A.weekPlan, A.dismissed, A.muted],
   );
   const habit = useMemo(() => (profile && days ? habits(date, sessions, profile, days) : null), [profile, days, date, sessions]);
 
   // As the prototype does on showing the check-in: remember a ready burn estimate, and that this week's was seen.
   const burn = checkin?.burn.ready ? checkin.burn.burn : null;
   useEffect(() => {
-    if (burn === null) return;
+    if (burn === null || !usable) return;
     const next = nextAdaptive(adaptive, date, burn);
     if (next.value !== adaptive.value || next.week !== adaptive.week || next.prev !== adaptive.prev) update({ adaptive: { ...next } });
-  }, [burn, adaptive, date, update]);
-  const seen = !!checkin && settings.checkin_seen !== mondayOf(date);
+  }, [burn, usable, adaptive, date, update]);
+  const seen = usable && !!checkin && settings.checkin_seen !== mondayOf(date);
   useEffect(() => {
     if (seen) update({ checkin_seen: mondayOf(date) });
   }, [seen, date, update]);
 
-  const dismiss = (key: string, extra: Partial<Adjustments> = {}) => update({ adjustments: { ...settings.adjustments, ...extra, dismissed: { ...A.dismissed, [key]: true } } });
+  const blocked = (): boolean => {
+    if (loadFailed) notify('Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.');
+    return loadFailed;
+  };
+  // Each change builds on the provider's latest record, so two quick taps both count.
+  const dismiss = (key: string, extra: (a: Adjustments) => Partial<Adjustments> = () => ({})) =>
+    update((s) => {
+      const a = s.adjustments as Adjustments;
+      return { adjustments: { ...s.adjustments, ...extra(a), dismissed: { ...a.dismissed, [key]: true } } };
+    });
 
   return {
     checkin,
     habit,
-    ready: days !== null,
+    ready: days !== null && usable,
     /** "Update my targets": the suggested kcal and macros go on the profile. */
     applyTargets: async () => {
       const s = checkin?.suggestion;
-      if (!profile || !s || s.kind !== 'kcal') return;
+      if (!profile || !s || s.kind !== 'kcal' || blocked()) return;
       const t = s.target;
       try {
         await setProfile({ ...profile, targets: { kcal: t.kcal, protein_g: t.protein, carbs_g: t.carbs, fat_g: t.fat }, updated_at: stamp(now()) });
@@ -108,18 +119,19 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
     },
     /** "Use a 4-day plan next week". */
     shorterWeek: () => {
-      if (!checkin) return;
-      dismiss(checkin.key, { weekPlan: { start: addDays(mondayOf(date), 7), list: SPLITS[4].list } });
+      if (!checkin || blocked()) return;
+      dismiss(checkin.key, () => ({ weekPlan: { start: addDays(mondayOf(date), 7), list: SPLITS[4].list } }));
       notify('Next week: 4-day plan');
     },
     /** "Not now" / "Keep current targets": counts a decline; three stop the suggestion. */
     decline: () => {
-      if (!checkin) return;
-      dismiss(checkin.key, { declines: { ...A.declines, checkin: (A.declines?.checkin ?? 0) + 1 } });
+      if (!checkin || blocked()) return;
+      dismiss(checkin.key, (a) => ({ declines: { ...a.declines, checkin: (a.declines?.checkin ?? 0) + 1 } }));
     },
     declines: A.declines?.checkin ?? 0,
     stopSuggesting: () => {
-      update({ adjustments: { ...settings.adjustments, muted: { ...A.muted, checkin: true } } });
+      if (blocked()) return;
+      update((st) => ({ adjustments: { ...st.adjustments, muted: { ...(st.adjustments as Adjustments).muted, checkin: true } } }));
       notify('Got it, no more of these');
     },
   };

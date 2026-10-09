@@ -36,7 +36,9 @@ export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
   );
   if (!k || !h) return null;
   const target = profile.targets.kcal;
+  // TODO(#264): the week-on-week weight change.
   const weekly = k.w1 !== null && k.w0 !== null ? `Weight: weekly average ${L(k.w1)} kg, ${k.w1 <= k.w0 ? 'down' : 'up'} ${L(Math.abs(k.w1 - k.w0))} kg from last week.` : WEIGHT_WEEK_NONE;
+  // TODO(#264): sleep < 7 (below) and slope x 7 (burn card) come from core's weeklyCheckin once it returns them.
   const cardio = `Cardio: ${fmt(k.cardioMin)} of ${CARDIO_WEEK_MIN} min this week (brisk walking counts).${k.steps !== null ? ` Steps: about ${fmt(k.steps)} a day.` : ''}${k.sleep !== null ? ` Sleep: ${round1(k.sleep)} hours a night${k.sleep < 7 ? ', under the 7–9 hours that best supports fat loss and recovery' : ''}.` : ''}`;
   const lifts = `${k.improved.length ? `Stronger on ${k.improved.map((x) => `${x.n} (+${x.pct}%)`).join(', ')}.` : 'No lift beat its previous best this week.'}${k.stalled.length ? ` Stalled: ${k.stalled.join(', ')}.` : ''}`;
   const b = k.burn;

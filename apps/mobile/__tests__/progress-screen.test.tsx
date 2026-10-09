@@ -8,7 +8,9 @@ import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveConsent, saveProfile } from '../src/db/records';
 import { saveWorkout, saveSet } from '../src/db/workouts';
 import { saveMeasurement, saveWeight } from '../src/db/progress';
-import { addDays } from '@plate-and-bar/core';
+import { addDays, targetFromBurn } from '@plate-and-bar/core';
+import { saveSettings } from '../src/db/settings';
+import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
@@ -402,7 +404,7 @@ describe('Weekly check-in, burn and habits', () => {
     expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments.dismissed).toEqual({ 'ci:2026-10-05': true });
   });
 
-  it('offers a 4-day plan next week when sessions fall short, and "Not now" counts a decline', async () => {
+  it('offers a 4-day plan next week when sessions fall short', async () => {
     const db = memoryDb();
     await setup({ db });
     await fireEvent.press(await screen.findByLabelText('Use a 4-day plan next week'));
@@ -415,5 +417,58 @@ describe('Weekly check-in, burn and habits', () => {
     await fireEvent.press(await screen.findByLabelText('Not now'));
     await waitFor(() => expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments).toMatchObject({ declines: { checkin: 1 }, dismissed: { 'ci:2026-10-05': true } }));
     expect(screen.queryByLabelText('Use a 4-day plan next week')).toBeNull();
+  });
+
+  const settingsDoc = (db: Db) => JSON.parse(db.rows.get('user_settings:me')!);
+
+  it('waits for the stored settings before writing any, so a slow read cannot overwrite them with defaults', async () => {
+    const db = memoryDb();
+    await seed(db, 1500, true);
+    await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), focus: ['Chest'], diet: 'veg', adjustments: { declines: { checkin: 2 } } });
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('user_settings')) await new Promise((r) => setTimeout(r, 300));
+      return read(sql, ...p);
+    };
+    await setup({ db });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 500));
+    });
+    expect(settingsDoc(db)).toMatchObject({ focus: ['Chest'], diet: 'veg', checkin_seen: '2026-10-05', adjustments: { declines: { checkin: 2 } } });
+  });
+
+  it('saves the real-burn state and that this week\'s check-in was seen', async () => {
+    const db = memoryDb();
+    await seed(db, 1500, true);
+    await setup({ db });
+    await waitFor(() => expect(settingsDoc(db)).toMatchObject({ checkin_seen: '2026-10-05', adaptive: { prev: null, week: '2026-10-05', value: expect.any(Number) } }));
+  });
+
+  it('puts all four suggested targets on the profile, protein kept', async () => {
+    const db = memoryDb();
+    await seed(db, 1500, true);
+    await setup({ db });
+    await waitFor(() => expect(settingsDoc(db).adaptive.value).toEqual(expect.any(Number)));
+    const before = JSON.parse(db.rows.get('profiles:me')!);
+    const weights = docs(db, 'weights');
+    await fireEvent.press(await screen.findByLabelText('Update my targets'));
+    const want = targetFromBurn(settingsDoc(db).adaptive.value, before, weights, before.targets.protein_g)!;
+    await waitFor(() => expect(JSON.parse(db.rows.get('profiles:me')!).targets).toEqual({ kcal: want.kcal, protein_g: before.targets.protein_g, carbs_g: want.carbs, fat_g: want.fat }));
+  });
+
+  it.each([
+    [2, false],
+    [3, true],
+  ])('with %i declines, "Stop suggesting this" shown: %s', async (n, shown) => {
+    const db = memoryDb();
+    await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), adjustments: { declines: { checkin: n } } });
+    await setup({ db });
+    await screen.findByLabelText('Not now');
+    expect(!!screen.queryByLabelText('Stop suggesting this')).toBe(shown);
+    if (shown) {
+      await fireEvent.press(screen.getByLabelText('Stop suggesting this'));
+      await waitFor(() => expect(settingsDoc(db).adjustments).toMatchObject({ muted: { checkin: true }, declines: { checkin: 3 } }));
+      expect(screen.queryByLabelText('Not now')).toBeNull();
+    }
   });
 });
