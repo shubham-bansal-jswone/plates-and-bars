@@ -144,6 +144,10 @@ describe('estimateFor', () => {
     expect(estimateFor('One-Arm Dumbbell Row', { 'Barbell Row': { sets: [{ w: 1, r: 8 }] } }, { type: 'bodyweight', lo: 8, hi: 12, step: 0 })).toEqual({ from: 'Barbell Row', fromW: 1, w: 2.5 });
   });
 
+  it('every ESTIMATE_PAIRS exercise exists in content/exercises.json tags', () => {
+    for (const p of ESTIMATE_PAIRS) expect([p.from, p.to].filter((n) => !(n in tags))).toEqual([]);
+  });
+
   it('matches the prototype on 3,000 random histories', () => {
     const r = rng(7);
     const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
