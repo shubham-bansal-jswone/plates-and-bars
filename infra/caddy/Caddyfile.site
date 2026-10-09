@@ -1,0 +1,26 @@
+# Caddy (Apache-2.0) serving the static Astro build. Replace example.com.
+# Caddy obtains and renews the Let's Encrypt certificate itself.
+# The deploy workflow rsyncs apps/site/dist into /srv/site.
+# Validated in CI (caddy validate) on every change to this file.
+example.com {
+	root * /srv/site
+	encode zstd gzip
+	file_server
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Content-Security-Policy "frame-ancestors 'none'"
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# Astro writes content-hashed files to /_astro/: cache forever.
+	# Everything else (HTML and unhashed files) must revalidate so a deploy shows up.
+	@hashed path /_astro/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@revalidate not path /_astro/*
+	header @revalidate Cache-Control "no-cache"
+}
