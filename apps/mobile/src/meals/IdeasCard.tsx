@@ -121,7 +121,7 @@ export function IdeasCard(p: Props) {
           <Button label="The thali plate guide" kind="link" expanded={plateOpen} onPress={() => setPlateOpen(!plateOpen)} />
           {plateOpen ? (
             <View style={styles.plate}>
-              <Svg width={120} height={120} viewBox="0 0 120 120" accessible={false} importantForAccessibility="no-hide-descendants">
+              <Svg width={120} height={120} viewBox="0 0 120 120" aria-hidden testID="plate-svg">
                 <Circle cx={60} cy={60} r={56} fill={c.track} />
                 <Path d="M60 60 L60 4 A56 56 0 0 0 60 116 Z" fill={c.protein} opacity={0.85} />
                 <Path d="M60 60 L60 4 A56 56 0 0 1 116 60 Z" fill={c.fat} opacity={0.85} />
