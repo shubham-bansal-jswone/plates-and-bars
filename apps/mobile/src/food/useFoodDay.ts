@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
-import { loadDayNote, loadLogs, loadUserFoods, saveDayNote, saveLog, saveUserFood } from '../db/food';
+import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
@@ -113,7 +113,7 @@ export function useFoodDay({ db, now, notify }: Options) {
       const n: DayNote = { ...(noteRef.current ?? { id: null, version: 0, deleted_at: null, date, steps: null, sleep: null, fast: false }), complete, updated_at: stamp(now()) };
       noteRef.current = n;
       setNote(n);
-      enqueue(() => saveDayNote(db, n));
+      enqueue(() => patchDayNote(db, date, { complete }, n.updated_at));
     },
     [db, date, now, enqueue],
   );

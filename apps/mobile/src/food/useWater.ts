@@ -5,7 +5,8 @@ import { newId } from '../db/records';
 import { loadSessionLog, loadSets, type WorkoutDb } from '../db/workouts';
 import type { Profile } from '../setup/types';
 import type { WaterLog } from './water';
-import { loadWaterLogs, loadWeighIns, saveWaterLog } from './waterDb';
+import { loadWeights } from '../db/progress';
+import { loadWaterLogs, saveWaterLog } from './waterDb';
 
 // Keeps the milliseconds: `updated_at` is what orders the day's drinks, so two taps in one second stay in order.
 const stamp = (d: Date): string => d.toISOString();
@@ -51,7 +52,7 @@ export function useWater({ db, date, now, profile, notify }: Options) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const [weighIns, sets, sessions] = await Promise.all([loadWeighIns(db), loadSets(db, date), loadSessionLog(db)]);
+      const [weighIns, sets, sessions] = await Promise.all([loadWeights(db), loadSets(db, date), loadSessionLog(db)]);
       if (!live) return;
       setTarget(
         waterTarget({

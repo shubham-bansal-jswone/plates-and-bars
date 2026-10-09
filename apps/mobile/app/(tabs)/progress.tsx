@@ -1,4 +1,6 @@
-import { Placeholder } from '../../src/screens/Placeholder';
+import { useSQLiteContext } from 'expo-sqlite';
+import { ProgressScreen } from '../../src/screens/ProgressScreen';
+
 export default function Progress() {
-  return <Placeholder title="Progress" />;
+  return <ProgressScreen db={useSQLiteContext()} />;
 }

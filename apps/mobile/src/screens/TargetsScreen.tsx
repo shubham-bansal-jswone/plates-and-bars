@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { weightDrift } from '@plate-and-bar/core';
+import { loadWeights } from '../db/progress';
 import { ResultsView } from '../components/ResultsView';
-import { Button, ErrorText, H1, Hint, Label, Page, Switch, Press } from '../components/ui';
+import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
@@ -11,6 +13,8 @@ import { useSettings } from '../state/SettingsProvider';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
+
+const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
 interface Props {
   db: WorkoutDb;
@@ -32,6 +36,17 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  // Tab screens stay mounted, so the weigh-ins are read again each time the tab is shown.
+  const [weights, setWeights] = useState<Awaited<ReturnType<typeof loadWeights>>>([]);
+  const [shown, setShown] = useState(0);
+  useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
+  useEffect(() => {
+    let live = true;
+    loadWeights(db).then((w) => live && setWeights(w)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [db, shown]);
 
   if (!profile) {
     return (
@@ -42,11 +57,17 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
       </Page>
     );
   }
+  const drift = weightDrift(weights, profile.weight_kg);
   return (
     <View style={{ flex: 1 }}>
       <Page>
         <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} />
-        {/* TODO(#161): "Recalculate targets" (`/setup?recalc=1`) shows when the latest weigh-in is far from the setup weight; that check is a core rule and the app has no weigh-ins yet. */}
+        {drift ? (
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
+            <Button label="Recalculate targets" onPress={() => router.push('/setup?recalc=1' as never)} />
+          </View>
+        ) : null}
         <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
         {ready ? (
           <>
