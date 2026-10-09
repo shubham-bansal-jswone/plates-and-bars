@@ -136,7 +136,7 @@ test('labels match the prototype and reproduce its replacement text', () => {
 test('family and pattern labels come from the prototype, cover every tag in use and include balance', () => {
   const l = load('labels.json');
   assert.equal(l.families.bench, 'bench press variations');
-  assert.equal(l.families.balance, 'Balance');
+  assert.equal(l.families.balance, 'balance variations');
   assert.equal(l.patterns['h-press'], 'chest pressing');
   const ex = load('exercises.json');
   const bad = structuredClone(l);

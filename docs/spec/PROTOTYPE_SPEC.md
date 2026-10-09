@@ -11,7 +11,7 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 ## 0. Changes since the Development Plan was written
 
 **2026-10-09 — prototype fix (spec-change; golden fixtures unchanged).**
-- #275: the `balance` exercise family had no entry in `FAMILY`, so a replacement rule scoped to it would read "All undefined". `FAMILY.balance` is now 'Balance' (so the scope reads "All Balance"). The family and pattern labels are exported to `content/labels.json` (`families`, `patterns`) by the cards/labels importer.
+- #275: the `balance` exercise family had no entry in `FAMILY`, so a replacement rule scoped to it would read "All undefined". `FAMILY.balance` is now 'balance variations' (so the scope reads "All balance variations"). The family and pattern labels are exported to `content/labels.json` (`families`, `patterns`) by the cards/labels importer.
 
 **2026-10-08 — prototype fixes (spec-change; golden fixtures unchanged).**
 - #101: "Below the range two sessions running → drop" reads sessions before today only (`prevOf`), so ticking today's first set no longer flips the advice from drop to hold. To keep that session, `updateLift` now stores the earlier session's own `prev` (one level, as `{date, sets, form}`) inside the new record's `prev` when a new day starts.

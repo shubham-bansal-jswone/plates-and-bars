@@ -178,7 +178,7 @@ export function importLabels(html) {
     origin: 'docs/prototype/plate-and-bar.html (MUSCLE, JOINT, FAMILY, PATTERN, candidates)',
     muscles: p.MUSCLE,
     joints: p.JOINT,
-    // Used as "All {label}" in the replacement-rule scope options. Families end in "variations" except balance.
+    // Used as "All {label}" in the replacement-rule scope options.
     families: p.FAMILY,
     patterns: p.PATTERN,
     // Text builder: "Works your {muscles}" + the clauses below joined with ", ", first letter capitalised.
