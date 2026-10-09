@@ -25,6 +25,7 @@ import {
   type ChartLayout,
   type MeasureKey,
   type MeasurementFacts,
+  type TrendChange,
   type TrendPoint,
   type WeighIn,
 } from '../src';
@@ -33,6 +34,13 @@ const proto = loadTrend();
 const RUNS = 2000;
 const DATE = '2026-10-07';
 const KEYS = ['waist', 'neck', 'chest', 'arm', 'thigh', 'hips'] as const;
+
+/** The change line the edited prototype prints (#246). */
+function changeText(ch: TrendChange, what: 'kg' | 'cm'): string {
+  const since = ` since ${proto.shortDate(ch.since)}.`;
+  if (what === 'kg') return ch.direction === 'none' ? `No change${since}` : `${ch.direction === 'down' ? 'Down' : 'Up'} ${ch.amount} kg${since}`;
+  return ch.direction === 'none' ? `No change in waist${since}` : `Waist ${ch.direction} ${ch.amount} cm${since}`;
+}
 
 function setWeights(ws: readonly WeighIn[]): void {
   proto.S.weights.entries = Object.fromEntries(ws.filter((w) => !w.deleted_at).map((w) => [w.date, w.weight_kg]));
@@ -75,7 +83,7 @@ describe('weightSeries, trendChange and chartLayout', () => {
       { date: '2026-10-01', v: 81.2 },
       { date: '2026-10-05', v: 80 },
     ]);
-    expect(trendChange(weightSeries(ws, DATE))).toEqual({ diff: 80 - 81.2, amount: 1.2, down: true, since: '2026-10-01' });
+    expect(trendChange(weightSeries(ws, DATE))).toEqual({ diff: 80 - 81.2, amount: 1.2, direction: 'down', since: '2026-10-01' });
     expect(trendChange(weightSeries(ws, '2026-10-03'))).toBeNull();
     expect(trendChange([])).toBeNull();
   });
@@ -97,9 +105,10 @@ describe('weightSeries, trendChange and chartLayout', () => {
   });
   it(`matches prototype weightChart() over ${RUNS} random weigh-in sets`, () => {
     const r = rng(233);
-    let charts = 0;
+    let charts = 0, none = 0;
     for (let i = 0; i < RUNS; i++) {
       const ws = randomWeighIns(r, Math.floor(r() * 45));
+      if (r() < 0.15) for (const w of ws) w.weight_kg = ws[0]?.weight_kg ?? 80;
       const upTo = addDays(DATE, Math.floor(r() * 10) - 5);
       setWeights(ws);
       proto.S.date = upTo;
@@ -110,17 +119,22 @@ describe('weightSeries, trendChange and chartLayout', () => {
         continue;
       }
       charts++;
+      if (ch.direction === 'none') none++;
       for (const part of chartParts(pts, l, 'kg')) expect(html).toContain(part);
-      expect(html).toContain(`<p class="hint">${ch.down ? 'Down' : 'Up'} ${ch.amount} kg since ${proto.shortDate(ch.since)}.</p>`);
+      expect(html).toContain(`<p class="hint">${changeText(ch, 'kg')}</p>`);
     }
     expect(charts).toBeGreaterThan(RUNS / 2);
+    expect(none).toBeGreaterThan(20);
   });
-  it('PINNED QUIRK (#246): no change reads "Down 0 kg"', () => {
-    const ws: WeighIn[] = [{ date: '2026-10-01', weight_kg: 80 }, { date: DATE, weight_kg: 80 }];
-    expect(trendChange(weightSeries(ws, DATE))).toMatchObject({ amount: 0, down: true });
+  it('no change reads "No change since …" (#246)', () => {
+    const ws: WeighIn[] = [{ date: '2026-10-01', weight_kg: 80 }, { date: '2026-10-04', weight_kg: 81.3 }, { date: DATE, weight_kg: 80 }];
+    expect(trendChange(weightSeries(ws, DATE))).toEqual({ diff: 0, amount: 0, direction: 'none', since: '2026-10-01' });
     setWeights(ws);
     proto.S.date = DATE;
-    expect(proto.weightChart()).toContain('Down 0 kg since');
+    expect(proto.weightChart()).toContain('<p class="hint">No change since 1 Oct.</p>');
+    expect(trendChange([{ date: '2026-10-01', v: 80 }, { date: DATE, v: 80.04 }])).toMatchObject({ amount: 0, direction: 'none' });
+    expect(trendChange([{ date: '2026-10-01', v: 80 }, { date: DATE, v: 80.1 }])).toMatchObject({ amount: 0.1, direction: 'up' });
+    expect(trendChange([{ date: '2026-10-01', v: 80 }, { date: DATE, v: 79.9 }])).toMatchObject({ amount: 0.1, direction: 'down' });
   });
 });
 
@@ -139,19 +153,20 @@ describe('waistSeries', () => {
       { date: '2026-10-01', v: 90 },
       { date: '2026-10-03', v: 88 },
     ]);
-    expect(trendChange(s)).toEqual({ diff: -2, amount: 2, down: true, since: '2026-10-01' });
+    expect(trendChange(s)).toEqual({ diff: -2, amount: 2, direction: 'down', since: '2026-10-01' });
     const many = Array.from({ length: 25 }, (_, k) => ({ date: addDays(DATE, -k), waist_cm: 80 + k }));
     expect(waistSeries(many, DATE)).toHaveLength(WAIST_CHART_POINTS);
   });
   it(`matches prototype measuresHtml()'s waist chart and change over ${RUNS} random sets`, () => {
     const r = rng(2330);
     proto.S.settings.profile = null;
-    let charts = 0;
+    let charts = 0, none = 0;
     for (let i = 0; i < RUNS; i++) {
       const ms: MeasurementFacts[] = [];
+      const same = r() < 0.15 ? round1(70 + r() * 30) : null;
       for (let k = Math.floor(r() * 30); k > 0; k--) {
         const date = addDays(DATE, Math.floor(r() * 40) - 35);
-        if (!ms.some((m) => m.date === date)) ms.push({ date, waist_cm: r() < 0.15 ? 0 : round1(70 + r() * 30) });
+        if (!ms.some((m) => m.date === date)) ms.push({ date, waist_cm: r() < 0.15 ? 0 : same ?? round1(70 + r() * 30) });
       }
       setWaists(ms);
       proto.S.date = DATE;
@@ -162,17 +177,26 @@ describe('waistSeries', () => {
         continue;
       }
       charts++;
+      if (ch.direction === 'none') none++;
       for (const part of chartParts(pts, l, 'cm')) expect(html).toContain(part);
-      expect(html).toContain(`<p class="hint">Waist ${ch.down ? 'down' : 'up'} ${ch.amount} cm since ${proto.shortDate(ch.since)}.</p>`);
+      expect(html).toContain(`<p class="hint">${changeText(ch, 'cm')}</p>`);
     }
     expect(charts).toBeGreaterThan(RUNS / 2);
+    expect(none).toBeGreaterThan(20);
+  });
+  it('no change in waist reads "No change in waist since …" (#246)', () => {
+    const ms: MeasurementFacts[] = [{ date: '2026-10-01', waist_cm: 90, neck_cm: 38 }, { date: DATE, waist_cm: 90, neck_cm: 38 }];
+    expect(trendChange(waistSeries(ms, DATE))).toEqual({ diff: 0, amount: 0, direction: 'none', since: '2026-10-01' });
+    setWaists(ms);
+    proto.S.date = DATE;
+    expect(proto.measuresHtml()).toContain('<p class="hint">No change in waist since 1 Oct.</p>');
   });
 });
 
 describe('weightEntry and scaleJump', () => {
   it('reads the box like the prototype', () => {
-    expect(weightEntry('81,6')).toEqual({ kind: 'save', kg: 81.6, raw: 81.6 });
-    expect(weightEntry('81.64 kg')).toEqual({ kind: 'save', kg: 81.6, raw: 81.64 });
+    expect(weightEntry('81,6')).toEqual({ kind: 'save', kg: 81.6 });
+    expect(weightEntry('81.64 kg')).toEqual({ kind: 'save', kg: 81.6 });
     expect(weightEntry('  ')).toEqual({ kind: 'clear' });
     expect(weightEntry('20')).toEqual({ kind: 'bad' });
     expect(weightEntry('400')).toEqual({ kind: 'bad' });
@@ -187,21 +211,27 @@ describe('weightEntry and scaleJump', () => {
       { date: DATE, weight_kg: 75 },
     ];
     expect(scaleJump(ws, DATE, 81)).toEqual({ date: DATE, kg: 1 });
+    expect(scaleJump(ws, DATE, 80.8)).toEqual({ date: DATE, kg: 0.8 });
     expect(scaleJump(ws, DATE, 80.7)).toBeNull();
     expect(scaleJump(ws.slice(0, 1), DATE, 90)).toBeNull();
     expect(scaleJump([], DATE, 90)).toBeNull();
   });
   it(`matches the prototype's saveW (saved value, toast and note) over ${RUNS} random entries`, () => {
     const r = rng(2331);
-    const texts = ['', '  ', 'abc', '0', '20', '400', '-80', '81,6', '1e2'];
-    let jumps = 0;
+    const texts = ['', '  ', 'abc', '0', '20', '400', '-80', '81,6', '1e2', '20.04', '20.05', '399.94', '399.96'];
+    let jumps = 0, roundedJumps = 0;
     for (let i = 0; i < RUNS; i++) {
       const ws: WeighIn[] = [];
       for (let k = Math.floor(r() * 5); k > 0; k--) {
         const date = addDays(DATE, -Math.floor(r() * 6));
         if (!ws.some((w) => w.date === date)) ws.push({ date, weight_kg: round1(78 + r() * 4) });
       }
-      const text = r() < 0.15 ? (texts[Math.floor(r() * texts.length)] as string) : (78 + r() * 5).toFixed(Math.floor(r() * 3));
+      const prev = ws.filter((w) => w.date < DATE && w.date >= addDays(DATE, -SCALE_JUMP_DAYS)).sort((a, b) => (a.date < b.date ? -1 : 1)).pop()?.weight_kg;
+      const p = r();
+      const text =
+        p < 0.15 ? (texts[Math.floor(r() * texts.length)] as string)
+        : p < 0.4 && prev !== undefined ? (prev + [0.75, 0.76, 0.8, 0.84, 0.85, 0.7, 0.74][Math.floor(r() * 7)]!).toFixed(2)
+        : (78 + r() * 5).toFixed(Math.floor(r() * 3));
       setWeights(ws);
       proto.S.date = DATE;
       proto.S.ui.scaleJump = null;
@@ -209,10 +239,11 @@ describe('weightEntry and scaleJump', () => {
       if (e.kind === 'save') {
         expect(toast).toBe('Weight saved');
         expect(proto.S.weights.entries[DATE]).toBe(e.kg);
-        const j = scaleJump(ws, DATE, e.raw);
+        const j = scaleJump(ws, DATE, e.kg);
         expect(proto.S.ui.scaleJump ?? null).toEqual(j);
         if (j) {
           jumps++;
+          if (prev !== undefined && parseFloat(text) - prev < SCALE_JUMP_KG) roundedJumps++;
           expect(proto.scaleJumpHtml()).toContain(`<b>The scale went up ${round1(j.kg)} kg</b>`);
         }
       } else {
@@ -223,39 +254,59 @@ describe('weightEntry and scaleJump', () => {
       }
     }
     expect(jumps).toBeGreaterThan(50);
+    expect(roundedJumps).toBeGreaterThan(20);
   });
-  it('PINNED QUIRK (#246): the rise is not rounded, so 80.8 after 80.0 (0.7999… in floating point) gives no note', () => {
+  it('rounds the rise to 0.1 kg, so 80.8 after 80.0 (0.7999… in floating point) gives a 0.8 kg note (#246)', () => {
     const ws: WeighIn[] = [{ date: addDays(DATE, -1), weight_kg: 80 }];
     expect(80.8 - 80).toBeLessThan(SCALE_JUMP_KG);
-    expect(scaleJump(ws, DATE, 80.8)).toBeNull();
+    expect(scaleJump(ws, DATE, 80.8)).toEqual({ date: DATE, kg: 0.8 });
     setWeights(ws);
     proto.S.date = DATE;
     proto.S.ui.scaleJump = null;
     proto.saveW('80.8');
-    expect(proto.S.ui.scaleJump).toBeNull();
+    expect(proto.S.ui.scaleJump).toEqual({ date: DATE, kg: 0.8 });
+    expect(proto.scaleJumpHtml()).toContain('<b>The scale went up 0.8 kg</b>');
   });
-  it('PINNED QUIRK (#246): the rise uses the value as typed, so 80.76 after 80.0 saves 80.8 with no note', () => {
+  it('checks the saved value: 80.76 after 80.0 saves 80.8 with a note, 80.74 saves 80.7 with none (#246)', () => {
     const ws: WeighIn[] = [{ date: addDays(DATE, -1), weight_kg: 80 }];
-    const e = weightEntry('80.76');
-    expect(e).toEqual({ kind: 'save', kg: 80.8, raw: 80.76 });
-    expect(scaleJump(ws, DATE, 80.76)).toBeNull();
+    for (const [text, kg, note] of [['80.76', 80.8, { date: DATE, kg: 0.8 }], ['80.74', 80.7, null]] as const) {
+      const e = weightEntry(text);
+      expect(e).toEqual({ kind: 'save', kg });
+      expect(scaleJump(ws, DATE, kg)).toEqual(note);
+      setWeights(ws);
+      proto.S.date = DATE;
+      proto.S.ui.scaleJump = null;
+      proto.saveW(text);
+      expect(proto.S.weights.entries[DATE]).toBe(kg);
+      expect(proto.S.ui.scaleJump).toEqual(note);
+    }
+  });
+  it('keeps an earlier note for the day when a later save is not a jump (#246)', () => {
+    const ws: WeighIn[] = [{ date: addDays(DATE, -1), weight_kg: 80 }];
     setWeights(ws);
     proto.S.date = DATE;
     proto.S.ui.scaleJump = null;
-    proto.saveW('80.76');
-    expect(proto.S.weights.entries[DATE]).toBe(80.8);
-    expect(proto.S.ui.scaleJump).toBeNull();
+    proto.saveW('81.5');
+    expect(proto.S.ui.scaleJump).toEqual({ date: DATE, kg: 1.5 });
+    expect(scaleJump([...ws, { date: DATE, weight_kg: 81.5 }], DATE, 80.2)).toBeNull();
+    proto.saveW('80.2');
+    expect(proto.S.weights.entries[DATE]).toBe(80.2);
+    expect(proto.S.ui.scaleJump).toEqual({ date: DATE, kg: 1.5 });
   });
-  it('DEPARTURE (contract, #247): a value that rounds to 20.0 or 400.0 is bad, where the prototype saves it', () => {
-    for (const [text, saved] of [['20.04', 20], ['399.96', 400]] as const) {
+  it('a value that rounds to 20.0 or 400.0 is bad, in core and the prototype (contract, #247)', () => {
+    for (const text of ['20.04', '399.96']) {
       expect(weightEntry(text)).toEqual({ kind: 'bad' });
       setWeights([]);
       proto.S.date = DATE;
-      expect(proto.saveW(text)).toBe('Weight saved');
-      expect(proto.S.weights.entries[DATE]).toBe(saved);
+      expect(proto.saveW(text)).toBe('Enter your weight in kg, like 81.6');
+      expect(proto.S.weights.entries[DATE]).toBeUndefined();
     }
-    expect(weightEntry('20.05')).toEqual({ kind: 'save', kg: 20.1, raw: 20.05 });
-    expect(weightEntry('399.94')).toEqual({ kind: 'save', kg: 399.9, raw: 399.94 });
+    for (const [text, kg] of [['20.05', 20.1], ['399.94', 399.9]] as const) {
+      expect(weightEntry(text)).toEqual({ kind: 'save', kg });
+      setWeights([]);
+      expect(proto.saveW(text)).toBe('Weight saved');
+      expect(proto.S.weights.entries[DATE]).toBe(kg);
+    }
   });
 });
 
@@ -296,11 +347,31 @@ describe('sleepEntry (contract DayNote.sleep, 0–24 h)', () => {
     expect(sleepEntry('-1')).toEqual({ kind: 'bad' });
     expect(SLEEP_MAX_H).toBe(24);
   });
-  it('DEPARTURE (#247): text that is not a number is bad, where the prototype stores it and later reads 0', () => {
+  it('text that is not a number is bad, in core and the prototype (#247)', () => {
     expect(sleepEntry('abc')).toEqual({ kind: 'bad' });
     expect(sleepEntry('h7')).toEqual({ kind: 'bad' });
     expect(sleepEntry('Infinity')).toEqual({ kind: 'bad' });
     expect(sleepEntry('7 h')).toEqual({ kind: 'save', h: 7 });
+    proto.S.day = { sleep: 7 };
+    expect(proto.saveSleep('abc')).toBe(false);
+    expect(proto.S.day.sleep).toBe(7);
+    expect(proto.saveSleep('7 h')).toBe(true);
+    expect(proto.S.day.sleep).toBe(7);
+  });
+  it(`matches the prototype's enSleep input over ${RUNS} random entries (#247)`, () => {
+    const r = rng(2470);
+    const texts = ['', '  ', 'abc', 'h7', '7 h', '7,5', '0', '24', '24.01', '-0.5', '-1', '25', 'Infinity', '1e1', '.5', ',5'];
+    const seen = { save: 0, clear: 0, bad: 0 };
+    for (let i = 0; i < RUNS; i++) {
+      const text = r() < 0.4 ? (texts[Math.floor(r() * texts.length)] as string) : (r() * 30 - 3).toFixed(Math.floor(r() * 3));
+      const before = r() < 0.5 ? 8 : '';
+      proto.S.day = { sleep: before };
+      const saved = proto.saveSleep(text), e = sleepEntry(text);
+      seen[e.kind]++;
+      expect(saved).toBe(e.kind !== 'bad');
+      expect(proto.S.day.sleep).toBe(e.kind === 'save' ? e.h : e.kind === 'clear' ? '' : before);
+    }
+    expect(Math.min(seen.save, seen.clear, seen.bad)).toBeGreaterThan(50);
   });
 });
 

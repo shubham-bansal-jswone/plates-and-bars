@@ -594,14 +594,17 @@ export function waistSeries(measurements: readonly MeasurementFacts[], upTo: str
     .map(([date, v]) => ({ date, v }));
 }
 
-/** Result of `trendChange`: "Down 1.2 kg since 1 Oct." or "Waist up 0.5 cm since 1 Oct." */
+/**
+ * Result of `trendChange`: "Down 1.2 kg since 1 Oct." or "Waist up 0.5 cm since 1 Oct.", and at `none`
+ * "No change since 1 Oct." or "No change in waist since 1 Oct." (#246).
+ */
 export interface TrendChange {
   /** Last point minus first, unrounded. */
   diff: number;
-  /** `round1(|diff|)`, the number shown. */
+  /** `round1(|diff|)`, the number shown (not shown at `none`). */
   amount: number;
-  /** "Down" (weight) or "down" (waist) when `diff <= 0`, so no change reads "Down 0 kg" (pinned, #246). */
-  down: boolean;
+  /** `none` when `amount` is 0, else `down` when `diff < 0`, else `up`. */
+  direction: 'down' | 'up' | 'none';
   /** Date of the first point, shown with `shortDate`. */
   since: string;
 }
@@ -614,8 +617,8 @@ export interface TrendChange {
 export function trendChange(points: readonly TrendPoint[]): TrendChange | null {
   const first = points[0], last = points[points.length - 1];
   if (!first || !last || points.length < 2) return null;
-  const diff = last.v - first.v;
-  return { diff, amount: round1(Math.abs(diff)), down: diff <= 0, since: first.date };
+  const diff = last.v - first.v, amount = round1(Math.abs(diff));
+  return { diff, amount, direction: amount === 0 ? 'none' : diff < 0 ? 'down' : 'up', since: first.date };
 }
 
 /** Chart box in viewBox units: width, height, left and vertical padding. */
@@ -663,17 +666,18 @@ export const SCALE_JUMP_KG = 0.8;
 /** How many days back the scale-jump note looks for the last weigh-in (prototype's 3). */
 export const SCALE_JUMP_DAYS = 3;
 
-/** The scale-jump note: "The scale went up `round1(kg)` kg". Shown only while the day shown is `date`. */
+/** The scale-jump note: "The scale went up `kg` kg". Shown only while the day shown is `date`. */
 export interface ScaleJump {
   date: string;
+  /** The rise, rounded to 0.1 kg. */
   kg: number;
 }
 
 /**
- * The scale-jump note on saving a weigh-in of `kg` on `date`: when the latest weigh-in in the 3 days
- * before rose by 0.8 kg or more. `kg` is the value as entered (`WeightEntry.raw`), not rounded, and the
- * difference is not rounded before comparing, so 80.8 after 80.0 (0.7999… in floating point) gives no
- * note (pinned, #246). Null means no new note; the prototype keeps an earlier note for the day until "Got it".
+ * The scale-jump note on saving a weigh-in of `kg` (the saved value, `WeightEntry.kg`) on `date`: when
+ * the rise over the latest weigh-in in the 3 days before, rounded to 0.1 kg, is 0.8 kg or more, so 80.8
+ * after 80.0 (0.7999… in floating point) gives a note (#246). Null means no new note: as in the
+ * prototype, an earlier note for the day stays until "Got it", even after a later save that is not a jump.
  *
  * Mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'` (document click listener) and `scaleJumpHtml()`.
  */
@@ -683,7 +687,8 @@ export function scaleJump(weighIns: readonly WeighIn[], date: string, kg: number
     .filter(([d]) => d < date && d >= from)
     .sort(byDate)
     .pop();
-  return pv && kg - pv[1] >= SCALE_JUMP_KG ? { date, kg: kg - pv[1] } : null;
+  const rise = pv ? round1(kg - pv[1]) : 0;
+  return rise >= SCALE_JUMP_KG ? { date, kg: rise } : null;
 }
 
 /** Weigh-ins must be above this, kg (contract `Weight.weight_kg` exclusiveMinimum; prototype `case 'saveW'`). */
@@ -694,23 +699,22 @@ export const WEIGHT_BELOW_KG = 400;
 export const TAPE_MIN_CM = 10;
 /** Tape measurements up to this, cm (contract `TapeCm` maximum; prototype `saveMeasures`). */
 export const TAPE_MAX_CM = 250;
-/** Hours of sleep up to this (contract `DayNote.sleep` maximum; the prototype has no limit). */
+/** Hours of sleep up to this (contract `DayNote.sleep` maximum; prototype `enSleep` input). */
 export const SLEEP_MAX_H = 24;
 
 /** What to do with the weight box: save `kg`, clear the day's weigh-in, or show "Enter your weight in kg, like 81.6". */
-export type WeightEntry = { kind: 'save'; kg: number; raw: number } | { kind: 'clear' } | { kind: 'bad' };
+export type WeightEntry = { kind: 'save'; kg: number } | { kind: 'clear' } | { kind: 'bad' };
 
 /**
- * Reads the weight box: above 20 and below 400 kg saves the value rounded to 0.1 (`raw` is the parsed
- * value, for `scaleJump`); a blank box clears; anything else is bad. Departure (contract): a value
- * that rounds to 20.0 or 400.0 (20.01–20.04, 399.95–399.99), which the prototype saves, is bad here,
- * because the contract's bounds are exclusive (#247).
+ * Reads the weight box: the value rounded to 0.1 saves when it is above 20 and below 400 kg, the
+ * contract's exclusive bounds, so 20.01–20.04 and 399.95–399.99 (which round to 20.0 and 400.0) are
+ * bad (#247); a blank box clears; anything else is bad.
  *
  * Mirrors the checks in the prototype's `case 'saveW'` (document click listener).
  */
 export function weightEntry(text: string): WeightEntry {
-  const v = num(text), kg = round1(v);
-  if (v > WEIGHT_ABOVE_KG && v < WEIGHT_BELOW_KG && kg > WEIGHT_ABOVE_KG && kg < WEIGHT_BELOW_KG) return { kind: 'save', kg, raw: v };
+  const kg = round1(num(text));
+  if (kg > WEIGHT_ABOVE_KG && kg < WEIGHT_BELOW_KG) return { kind: 'save', kg };
   if (!text.trim()) return { kind: 'clear' };
   return { kind: 'bad' };
 }
@@ -736,11 +740,11 @@ export type SleepEntry = { kind: 'save'; h: number } | { kind: 'clear' } | { kin
 
 /**
  * Reads the hours-slept box: blank clears; otherwise the parsed hours (comma decimals accepted, not
- * rounded), bad when below 0 or above 24, or when the text is not a number. Departures (#247): the
- * prototype stores any text, and `num` later reads text that is not a number as 0; here "abc" is bad, so a
- * typo is not saved as a 0-hour night. The 0–24 check is the contract's.
+ * rounded), bad when below 0 or above 24 (the contract's `DayNote.sleep` bounds), or when the text is not
+ * a number, so a typo is not saved as a 0-hour night (#247). Text that starts with a number reads as
+ * `parseFloat` does: "7 h" is 7. On bad the prototype keeps the stored value.
  *
- * Mirrors the `enSleep` step of the prototype's document input listener, with the contract `DayNote.sleep` bounds.
+ * Mirrors the `enSleep` step of the prototype's document input listener.
  */
 export function sleepEntry(text: string): SleepEntry {
   if (!text.trim()) return { kind: 'clear' };
