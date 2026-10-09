@@ -77,6 +77,23 @@ test('meal planning: weights, caps and grocery map match the prototype', () => {
   assert.deepEqual(c.grocery.map((g) => [g.food, g.items.map((i) => [i.item, i.amount, i.unit])]), Object.entries(p.GROC));
 });
 
+test('meal planning roles equal the prototype ROLE table in order, with a valid role and diet each', () => {
+  const p = extractRecipeData(html);
+  const c = load('meal-planning.json');
+  assert.deepEqual(c.roles.map((r) => [r.food, r.role, r.diet]), Object.entries(p.ROLE).map(([f, [r, d]]) => [f, r, d]));
+  assert.equal(c.roles.length, 37);
+  assert.deepEqual(c.roles.find((r) => r.food === 'Egg, whole'), { food: 'Egg, whole', role: 'bp', diet: 'e' });
+});
+
+test('planning roles: unknown food, bad role or diet, duplicates and extra fields fail', () => {
+  assert.ok(plan((c) => { c.roles[0].food = 'Mystery'; }).some((e) => e.includes('roles/Mystery: not a food in foods.json')));
+  assert.ok(plan((c) => { c.roles[0].role = 'x'; }).some((e) => e.includes('is not one of')));
+  assert.ok(plan((c) => { c.roles[0].diet = 'vegan'; }).some((e) => e.includes('diet "vegan" is not one of')));
+  assert.ok(plan((c) => { c.roles[1].food = c.roles[0].food; }).some((e) => e.includes('duplicate food')));
+  assert.ok(plan((c) => { c.roles[0].extra = 1; }).some((e) => e.includes('unknown field "extra"')));
+  assert.ok(plan((c) => { c.roles = []; }).some((e) => e.includes('roles must be a non-empty array')));
+});
+
 test('raw: missing licence, unknown source, bad macros, duplicates fail', () => {
   assert.ok(raw((c) => { c.ingredients[0].source.licence = ''; }).some((e) => e.includes('source.licence missing')));
   assert.ok(raw((c) => { c.ingredients[0].source.code = 'indb'; }).some((e) => e.includes('is not one of')));
