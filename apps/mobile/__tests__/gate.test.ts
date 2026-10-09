@@ -4,6 +4,7 @@ describe('gateRedirect', () => {
   const base = { status: 'ready' as const, hasProfile: false, pathname: '/', firstOpen: true };
   it('waits while loading', () => expect(gateRedirect({ ...base, status: 'loading' })).toBeNull());
   it('sends a user with no profile to setup', () => expect(gateRedirect(base)).toBe('/setup'));
+  it('lets a user with no profile open sign-in (to pull records instead of doing setup)', () => expect(gateRedirect({ ...base, pathname: '/sign-in' })).toBeNull());
   it('stays on setup without a profile', () => expect(gateRedirect({ ...base, pathname: '/setup' })).toBeNull());
   it('opens to targets when a profile exists', () => expect(gateRedirect({ ...base, hasProfile: true })).toBe('/targets'));
   it('sends a bare /setup (reload, restored URL) to targets once a profile exists', () => expect(gateRedirect({ ...base, hasProfile: true, pathname: '/setup', firstOpen: false })).toBe('/targets'));

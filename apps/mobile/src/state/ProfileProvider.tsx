@@ -31,7 +31,7 @@ const Ctx = createContext<ProfileState | null>(null);
 const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /** Holds the local profile and consent. Every write goes to SQLite first; nothing waits on the network. */
-export function ProfileProvider({ db, children }: { db: WorkoutDb; children: ReactNode }) {
+export function ProfileProvider({ db, reloadKey = 0, children }: { db: WorkoutDb; /** Changes when records were pulled from the server: the profile and consent are read again. */ reloadKey?: number; children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
   const [profile, setProfileState] = useState<Profile | null>(null);
   const [consent, setConsent] = useState<Consent | null>(null);
@@ -50,7 +50,7 @@ export function ProfileProvider({ db, children }: { db: WorkoutDb; children: Rea
     return () => {
       live = false;
     };
-  }, [db]);
+  }, [db, reloadKey]);
 
   const giveConsent = useCallback(async () => {
     const now = new Date();

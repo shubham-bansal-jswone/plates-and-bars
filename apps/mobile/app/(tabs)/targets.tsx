@@ -1,5 +1,5 @@
-import { useSQLiteContext } from 'expo-sqlite';
+import { useDb } from '../../src/db/lockedDb';
 import { TargetsScreen } from '../../src/screens/TargetsScreen';
 export default function Targets() {
-  return <TargetsScreen db={useSQLiteContext()} />;
+  return <TargetsScreen db={useDb()} />;
 }
