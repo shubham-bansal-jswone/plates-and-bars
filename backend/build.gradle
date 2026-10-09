@@ -62,10 +62,11 @@ tasks.named('processResources') {
     from('../packages/api') {
         include 'openapi.yaml'
     }
-    // The AI proxy grounds Ask why on the cards and checks exercise names against the catalogue: the content
-    // agent's files, copied (never edited) into the jar under /content at build time.
+    // Every content file is served as a bundle (GET /content/*), and the AI proxy grounds Ask why on the cards and
+    // checks exercise names against the catalogue: the content agent's files, copied (never edited) into the jar
+    // under /content at build time.
     from('../content') {
-        include 'cards.json', 'exercises.json'
+        include '*.json'
         into 'content'
     }
 }
@@ -78,6 +79,9 @@ tasks.named('test') {
     // Full-context tests start outside the dev profile, which needs an SMTP host; nothing connects to it.
     environment 'SMTP_HOST', 'localhost'
     environment 'SMTP_FROM', 'noreply@example.invalid'
+    // Every content file needs an updated_at or the app refuses to start; tests use a fixed one for each file.
+    environment 'CONTENT_UPDATED_AT', fileTree('../content') { include '*.json' }.files
+            .collect { it.name.replace('.json', '') + '=2026-01-02T03:04:05Z' }.sort().join(',')
 }
 
 // Only the executable jar is produced (the Dockerfile copies build/libs/*.jar).

@@ -94,13 +94,36 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     `WeeklySummaryResponse` from the contract itself. Describe a meal drops items with non-finite or out-of-range
     numbers and keeps only the six contract fields of an item; Ask why nulls an unknown `card_id` and refuses `{` or `}` in the answer; Weekly summary sends any exercise
     that is not a catalogue id as `custom exercise`.
-  - Content: Gradle copies `content/cards.json` and `content/exercises.json` into the jar under `/content`
-    (`processResources`; the Dockerfile copies them too, and the build fails if they are missing). Ask why sends every
+  - Content: Gradle copies every `content/*.json` into the jar under `/content` (`processResources`; the Dockerfile
+    copies them too, and the build fails if `cards.json` or `exercises.json` is missing). Ask why sends every
     card with conditional blocks `{?x}..{/x}` dropped (else branch kept) and bare `{x}` replaced by a neutral phrase.
   - Cache: per user, in memory, Caffeine, 12 hours, keyed by user id and a hash of the normalised request. A cached
     answer still counts against the quota; failures are never cached.
   - Logs: one line per call with user id, feature, status and duration. Bodies, prompts and replies are never logged.
-- Not yet: foods and content endpoints.
+- Not yet: the foods endpoint.
+
+## Content bundles
+
+`GET /content/manifest` and `GET /content/{bundle}` (public, package `content`) serve every `content/*.json` byte for
+byte: no allow-list, so a new file is a new bundle. `ContentBundles` computes each bundle's SHA-256, size and
+`schema_version` once at startup from the exact bytes. The manifest is sorted by name; its ETag is the SHA-256 of its
+body. A bundle's ETag is its SHA-256 in double quotes (strong). `If-None-Match` is compared weakly and accepts a list
+and `*`; a value over 1024 characters or one that does not parse is ignored (200). A 304 carries `ETag`,
+`Cache-Control` and `Vary: Accept-Encoding`. `Cache-Control` is `public, max-age=300` for the manifest and
+`public, no-cache` for a bundle. The responses are not compressed by the app (a proxy may). A malformed name is 400
+`invalid_request`, a well-formed name not in the manifest is 404 `not_found`. Requests use the shared public per-IP rate
+limit. Nothing is logged.
+
+`updated_at` is the committer date of each file (`git log -1 --format=%cI -- content/<name>.json`, UTC) on a
+full-history checkout of `main`. The app reads it from `CONTENT_UPDATED_AT`, a comma-separated list of `name=timestamp`
+with one entry per `content/*.json`. It refuses to start if a bundle has no value, and never falls back to the build
+time. `scripts/content-updated-at.sh` prints the value (it fails on a shallow clone or a file with no commit):
+
+```sh
+CONTENT_UPDATED_AT="$(backend/scripts/content-updated-at.sh)" ./gradlew bootRun
+```
+
+`./gradlew test` sets a fixed value for every file in `content/` itself.
 
 ## Sync
 
@@ -148,15 +171,17 @@ Needs JDK 21 and a MySQL 8 database.
 
 ```sh
 cd backend
-DB_URL=jdbc:mysql://localhost:3306/plateandbar DB_USER=plateandbar DB_PASSWORD=... JWT_SIGNING_KEY=... GOOGLE_CLIENT_IDS=... ./gradlew bootRun
+CONTENT_UPDATED_AT="$(scripts/content-updated-at.sh)" DB_URL=jdbc:mysql://localhost:3306/plateandbar DB_USER=plateandbar DB_PASSWORD=... JWT_SIGNING_KEY=... GOOGLE_CLIENT_IDS=... ./gradlew bootRun
 curl localhost:8080/api/v1/health
 ```
 
 Docker (multi-stage, works on arm64 and amd64). Build from the repository root, because the API reads
-`packages/api/openapi.yaml`; `backend/Dockerfile.dockerignore` limits the context to `backend/` and that file:
+`packages/api/openapi.yaml` and `content/*.json`; `backend/Dockerfile.dockerignore` limits the context to `backend/` and
+those files. The build argument `CONTENT_UPDATED_AT` is required (compute it on the host from a full-history checkout,
+because `.git` is not in the context); the build fails without it or if a content file has no value:
 
 ```sh
-docker build -f backend/Dockerfile -t plateandbar-api .
+docker build -f backend/Dockerfile --build-arg CONTENT_UPDATED_AT="$(backend/scripts/content-updated-at.sh)" -t plateandbar-api .
 docker run --rm -p 8080:8080 -e DB_URL=... -e DB_USER=... -e DB_PASSWORD=... \
   -e JWT_SIGNING_KEY=... -e GOOGLE_CLIENT_IDS=... plateandbar-api
 ```
@@ -172,8 +197,8 @@ cd backend
 `HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`) use Testcontainers to start MySQL 8, so Docker must be running.
 `SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
-`UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
-`JWT_SIGNING_KEY`, `GOOGLE_CLIENT_IDS`, `SMTP_HOST` and `SMTP_FROM` for tests; run tests from an IDE with the same variables.
+`ContentBundlesTest` (loads `content-hash.json`), `ContentControllerTest`, `ContentRealFilesTest` and `ContentRateLimitTest` (WebMvc), `UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
+`JWT_SIGNING_KEY`, `GOOGLE_CLIENT_IDS`, `SMTP_HOST` and `SMTP_FROM` for tests; `CONTENT_UPDATED_AT` has one `name=timestamp` entry per file in `content/` (the build sets it for Gradle; in an IDE set it, for example to `"$(backend/scripts/content-updated-at.sh)"`). Run tests from an IDE with the same variables.
 
 ## Environment variables
 
@@ -182,6 +207,7 @@ cd backend
 | `DB_URL` | `jdbc:mysql://localhost:3306/plateandbar` | JDBC URL |
 | `DB_USER` | `plateandbar` | Database user |
 | `DB_PASSWORD` | empty | Database password |
+| `CONTENT_UPDATED_AT` | none, required | `name=timestamp,...` for every `content/*.json`; set it to `"$(backend/scripts/content-updated-at.sh)"`. The app refuses to start without it. Deploys compute it on a full-history checkout of `main` (HEAD of that checkout) and pass it as the Docker build arg |
 | `PORT` | `8080` | HTTP port |
 | `APP_VERSION` | `0.1.0` | Value returned as `version` by `/health` |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |

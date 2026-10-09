@@ -44,6 +44,10 @@ app:
     password: ${SMTP_PASSWORD:}
     from: ${SMTP_FROM:}
     starttls: ${SMTP_STARTTLS:true}
+  content:
+    # Environment only, from the build argument of the same name: name=timestamp pairs, one per content/*.json
+    # (backend/scripts/content-updated-at.sh prints it). The app refuses to start if a bundle has no value.
+    updated-at: ${CONTENT_UPDATED_AT:}
   cors:
     # Comma-separated exact web app origins, e.g. https://app.example.com. Empty refuses every cross-origin call.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
