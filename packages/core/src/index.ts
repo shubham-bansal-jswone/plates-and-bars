@@ -134,6 +134,14 @@ export { recheckDue, recheckBack, recheckLater, recheckKeep, cantRule, widerRule
 export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement } from './exclusions';
 
 /**
+ * The "can't do" answer applied to today's workout (#265), over contract `Workout.exercises` and `WorkoutSet`s.
+ * - `replaceAt` mirrors the `replaceAt(idx, pick)` step of prototype `applyCant(choice)` (the pick's sets as prototype `newExercise(name)`).
+ * - `cantSession` mirrors the workout steps of prototype `applyCant(choice)`: the tapped exercise, then `widerRuleReplacements`.
+ */
+export { replaceAt, cantSession } from './cant';
+export type { CantExercise, CantSet, NewCantSet, CantResult, CantLifts } from './cant';
+
+/**
  * Ladders (#111). Prototype `LADDERS` is content/exercises.json `ladders`, passed in `LadderCatalog`.
  * - `ladderOf`, `nextStep`, `prevStep`, `sidewaysOf`, `estimateFor` mirror the prototype functions of the same name (state passed in).
  * - `ladderCard` mirrors prototype `ladderCard(ex)`, returning facts, not HTML.
