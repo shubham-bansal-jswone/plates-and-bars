@@ -664,14 +664,12 @@ describe('planFlex and undoFlex', () => {
   it('undoFlex removes every entry of the plan and nothing else', () => {
     const a = planFlex({ ...at, extra: 500 }, null).flex;
     const b = planFlex({ ...at, id: 'p2', date: '2026-10-09', extra: 300, flex: a }, null).flex;
-    const undos = [(f: FlexEntry[] | null | undefined, id: string) => undoFlex(f, id), (f: FlexEntry[] | null | undefined, id: string) => undoFlex(f, id, { profile: null })];
-    for (const undo of undos) {
-      expect(undo(b, 'p1')).toEqual(b.filter((x) => x.id === 'p2'));
-      expect(undo(b, 'p2')).toEqual(a);
-      expect(undo(b, 'none')).toEqual(b);
-      expect(undo(null, 'p1')).toEqual([]);
-      expect(undo(undefined, 'p1')).toEqual([]);
-    }
+    const undo = (f: FlexEntry[] | null | undefined, id: string) => undoFlex(f, id, { profile: null });
+    expect(undo(b, 'p1')).toEqual(b.filter((x) => x.id === 'p2'));
+    expect(undo(b, 'p2')).toEqual(a);
+    expect(undo(b, 'none')).toEqual(b);
+    expect(undo(null, 'p1')).toEqual([]);
+    expect(undo(undefined, 'p1')).toEqual([]);
     expect(undoFlex(b, 'p2', { profile: null })).toEqual(protoUndo(b, 'p2', null));
   });
 
@@ -835,10 +833,6 @@ describe('planFlex and undoFlex', () => {
       expect(kcalTarget('2026-10-08', { flex: got }, c.profile)).toBe(c.day8);
     });
 
-    it('without the floor argument nothing is trimmed (the app’s call until its #178 follow-up)', () => {
-      expect(undoFlex(ab(1300), 'A')).toEqual([e('B', '2026-10-07', 300), e('B', '2026-10-08', -300)]);
-    });
-
     it(`matches prototype flexPlanFor and flexNoteHtml over ${RUNS} random days`, () => {
       const r = rng(2924);
       const days = ['2026-10-07', '2026-10-08', '2026-10-09'];
@@ -879,7 +873,8 @@ describe('planFlex and undoFlex', () => {
             if (!plan) continue;
             const next = undoFlex(flex, plan.id, { profile: prof, labHold });
             expect(next).toEqual(protoUndo(flex, plan.id, prof, labHold));
-            if (JSON.stringify(next) !== JSON.stringify(undoFlex(flex, plan.id))) trims++;
+            // some cut changed: the result differs from removing the plan's entries alone
+            if (JSON.stringify(next) !== JSON.stringify(flex.filter((x) => x.id !== plan.id))) trims++;
             // a day of the undone plan whose target without cuts is below the floor keeps no cut
             for (const d of new Set(flex.filter((x) => x.id === plan.id).map((x) => x.date))) {
               const uncut = (prof ? prof.targets.kcal : DEFAULT_KCAL_TARGET) + next.filter((x) => x.date === d && x.kcal_delta > 0).reduce((a, x) => a + x.kcal_delta, 0);
