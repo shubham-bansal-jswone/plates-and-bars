@@ -44,3 +44,4 @@ if has_npm packages/core && want packages/core/ packages/api/ content/ docs/spec
 if has_npm apps/mobile && want apps/mobile/ packages/core/ packages/api/; then emit mobile true; else emit mobile false; fi
 if has_gradle backend && want backend/ packages/api/openapi.yaml; then emit backend true; else emit backend false; fi
 if has_npm tools && want tools/ content/ docs/spec/golden/ docs/prototype/; then emit tools true; else emit tools false; fi
+if has_npm apps/site && want apps/site/; then emit site true; else emit site false; fi

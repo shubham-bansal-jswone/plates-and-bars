@@ -27,6 +27,7 @@ jobs:
       run_mobile: ${{ steps.d.outputs.run_mobile }}
       run_backend: ${{ steps.d.outputs.run_backend }}
       run_tools: ${{ steps.d.outputs.run_tools }}
+      run_site: ${{ steps.d.outputs.run_site }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -154,3 +155,38 @@ jobs:
         with:
           cache-provider: basic # MIT-only path; the default 'enhanced' loads proprietary gradle-actions-caching
       - run: ./gradlew build --no-daemon
+
+  site:
+    name: site (build, check, a11y)
+    needs: changes
+    if: needs.changes.outputs.run_site == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/site/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      # Open-source Chromium (BSD-3-Clause) via @puppeteer/browsers (Apache-2.0), not proprietary Google Chrome
+      - name: Install Chromium
+        run: |
+          # lockfile-pinned @puppeteer/browsers from apps/site (npm ci already ran); no network fetch of the tool
+          out="$(npx --no-install @puppeteer/browsers install chromium@latest --path "$RUNNER_TEMP/browsers")"
+          echo "$out"
+          echo "CHROME_PATH=${out##* }" >> "$GITHUB_ENV"
+      - name: Chromium is available
+        run: '"$CHROME_PATH" --version'
+      # Ubuntu 24.04 runners block unprivileged user namespaces via AppArmor, which Chromium's
+      # sandbox needs. Relax that on this throwaway runner so the sandbox stays enabled
+      # (we do not pass --no-sandbox).
+      - name: Allow Chromium sandbox (unprivileged user namespaces)
+        working-directory: .
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: npm run a11y
