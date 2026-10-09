@@ -37,6 +37,7 @@ describe('tab bar', () => {
     expect(o.tabBarStyle).toMatchObject({ height: 76, paddingBottom: 20, borderTopWidth: 1 });
     expect(o.tabBarLabelPosition).toBe('below-icon');
     expect(o.headerShown).toBe(false);
+    expect(o.tabBarActiveTintColor).toBe('#2457E6');
     expect(o.sceneStyle).toMatchObject({ paddingTop: 24 });
   });
 

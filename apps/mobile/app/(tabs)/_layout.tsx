@@ -26,7 +26,8 @@ export default function TabsLayout() {
         // Each screen draws its own heading, so the navigator's header would show the title twice.
         headerShown: false,
         sceneStyle: { backgroundColor: c.bg, paddingTop: insets.top },
-        tabBarActiveTintColor: c.link,
+        // 8.7: brand on light, link-dark on dark; the focus token is exactly that pair.
+        tabBarActiveTintColor: c.focus,
         tabBarInactiveTintColor: c.muted,
         tabBarLabelPosition: 'below-icon',
         tabBarLabelStyle: { ...type.small, lineHeight: 16 },
