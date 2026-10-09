@@ -231,6 +231,7 @@ The website is a stack of full-width bands. Each band is one idea with one call 
 The dark band is black in both modes; in light mode it is the "chapter" break. Text on it always uses the dark-mode tokens. In dark mode the light and soft bands become `surface-elevated` so they stay distinct from the black dark band and hero; `ink`, `body` and `link-dark` all pass on it (section 11.3).
 
 - Alternate light and soft or dark bands; never two dark bands in a row. Use at most one blue band per page.
+- In dark mode the light and soft bands are both `#121314`, so alternation between them disappears and only shows against the black dark band. This is intended; do not add a third dark grey to separate them.
 - Content max width 1200, centred; text columns max 680.
 
 ### 8.9 Footer
