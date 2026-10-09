@@ -3,6 +3,7 @@ import { applyPulled, clearPushed, inTransaction, pendingChanges, type OutboxEnt
 import type { WorkoutDb } from '../db/workouts';
 import type { StoreDb } from '../db/records';
 import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
+import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 
@@ -87,10 +88,10 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard): Pr
 }
 
 /** Rotates the token pair. False means the session is over (tokens cleared); transient errors keep the tokens. */
-async function refresh(d: SyncDeps, guard: Guard): Promise<boolean> {
+async function refresh(d: SyncDeps, guard: Guard, signal?: AbortSignal): Promise<boolean> {
   const t = await d.tokens.load();
   if (!t) return false;
-  const { data, response } = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh } }));
+  const { data, response } = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh }, signal }));
   if (data) {
     await guard(d.db); // a wipe or sign-out may have happened while the request was in flight: do not bring the old tokens back
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
@@ -103,6 +104,30 @@ async function refresh(d: SyncDeps, guard: Guard): Promise<boolean> {
   }
   else throw new TransientError(failFrom(response));
   return false;
+}
+
+export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
+
+/**
+ * The engine's token refresh for callers outside a sync run (export, delete). The caller must hold the account lock (`withSyncPaused`), which also pauses sync. It also
+ * guards the store owner as defence in depth behind that lock: if the owner changed
+ * while the request was in flight the answer is dropped and no tokens are saved or cleared: 'ended'. Otherwise 'ended'
+ * means the session is over and the tokens are cleared; transient failures keep the tokens.
+ */
+export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
+  const owner = await getUserId(d.db);
+  const guard: Guard = async (db) => {
+    if ((await getUserId(db)) !== owner) throw new Aborted();
+  };
+  try {
+    // A stalled request is given up after the timeout, so the account lock is never held for long.
+    const r = await withTimeout(d.timeoutMs ?? REQUEST_TIMEOUT_MS, (signal) => refresh(d as SyncDeps, guard, signal));
+    if (r.timedOut) return 'unavailable';
+    return r.value ? 'ok' : 'ended';
+  } catch (e) {
+    if (e instanceof Aborted) return 'ended';
+    return e instanceof NetworkError ? 'offline' : 'unavailable';
+  }
 }
 
 class TransientError extends Error {

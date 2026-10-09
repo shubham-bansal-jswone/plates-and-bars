@@ -6,6 +6,7 @@ import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
+import { DeletionNotice } from '../account/DeletionNotice';
 import { buildProfile, draftFromProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useTheme } from '../theme/useTheme';
@@ -227,7 +228,12 @@ export function SetupScreen({ recalc = false }: { recalc?: boolean }) {
     };
   }, [latestWeigh]);
   // Wait for the stored profile and weigh-ins, so a redo starts from its answers and the latest weight.
-  return status === 'ready' && (weight !== undefined || !profile) ? <SetupFlow recalc={recalc} weight={weight ?? null} /> : null;
+  return (
+    <>
+      <DeletionNotice />
+      {status === 'ready' && (weight !== undefined || !profile) ? <SetupFlow recalc={recalc} weight={weight ?? null} /> : null}
+    </>
+  );
 }
 
 /**

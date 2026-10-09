@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 import type { ApiClient } from '@plate-and-bar/api';
+import { deleteEverything, exportFromServer, wipePending as readWipePending, type DeleteResult, type ServerExportResult } from '../account/server';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
 import { syncOnce, type SyncDb, type SyncResult } from './engine';
@@ -16,6 +17,13 @@ export interface SyncState {
   /** False when this build has no server address: the app is local-only and shows no sync UI. */
   configured: boolean;
   signedIn: boolean;
+  /** This device's store belongs to an account (it was signed in before), whether or not a session exists now. */
+  linked: boolean;
+  /** The server already deleted this account and only this device's wipe is left (kept across restarts): never offer to sign in to delete. */
+  wipePending: boolean;
+  /** Set by a finished deletion, above the remount it causes, so the next screen can say so once. */
+  lastDeletion: { server: boolean } | null;
+  clearLastDeletion(): void;
   /** Unsynced local changes (0 when everything is pushed). */
   pending: number;
   syncing: boolean;
@@ -34,6 +42,10 @@ export interface SyncState {
   signOut(opts?: { discard?: boolean }): Promise<number>;
   /** "Discard and sign out" after a refused account switch: wipes the previous user's store. */
   discardAndSignOut(): Promise<void>;
+  /** `GET /me/export` for the signed-in account (#27). */
+  exportFromServer(): Promise<ServerExportResult>;
+  /** Delete everything (#27): `DELETE /me` first when signed in, then the local store; never reports deletion without a 204. */
+  deleteEverything(opts?: { deviceOnly?: boolean }): Promise<DeleteResult>;
 }
 
 export const SyncContext = createContext<SyncState | null>(null);
@@ -52,6 +64,9 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const api = useMemo(() => apiOverride ?? (API_URL ? makeApi(API_URL, tokens) : null), [apiOverride, tokens]);
   const configured = api !== null;
   const [signedIn, setSignedIn] = useState(false);
+  const [linked, setLinked] = useState(false);
+  const [wipePending, setWipePending] = useState(false);
+  const [lastDeletion, setLastDeletion] = useState<{ server: boolean } | null>(null);
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
@@ -61,6 +76,25 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const holdUntil = useRef(0);
   const backoff = useRef(SYNC_INTERVAL_MS);
 
+  const clearLastDeletion = useCallback(() => setLastDeletion(null), []);
+  /** State changes after a delete attempt; shared by the screen's call and the finish-on-launch run. */
+  const afterDelete = useCallback(
+    async (r: DeleteResult): Promise<DeleteResult> => {
+      if (r.kind === 'deleted') {
+        setSignedIn(false);
+        setLinked(false);
+        setWipePending(false);
+        setLastDeletion({ server: r.server });
+        setEpoch((e) => e + 1);
+        setPending(await pendingCount(db));
+      } else if (r.kind === 'local_failed') {
+        setSignedIn(false);
+        setWipePending(true);
+      } else if (r.kind === 'unconfirmed' && !(await tokens.load())) setSignedIn(false);
+      return r;
+    },
+    [db, tokens],
+  );
   const refreshPending = useCallback(async () => setPending(await pendingCount(db)), [db]);
 
   const runSync = useCallback(async (force: boolean): Promise<SyncResult | null> => {
@@ -90,13 +124,20 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     (async () => {
       const t = await tokens.load();
       if (!live) return;
-      setSignedIn(!!t && !!(await getUserId(db)));
+      const user = await getUserId(db);
+      setSignedIn(!!t && !!user);
+      setLinked(!!user);
+      // An account deletion that did not finish clearing this device (app closed, wipe failed): finish it now.
+      if (await readWipePending(db)) {
+        setWipePending(true);
+        if (live) await afterDelete(await deleteEverything({ db, api, tokens }));
+      }
       await refreshPending();
     })().catch(() => undefined);
     return () => {
       live = false;
     };
-  }, [db, tokens, refreshPending]);
+  }, [db, tokens, api, refreshPending, afterDelete]);
 
   // Schedule: now, every 30 s, when the app comes back to the foreground, and when the browser reports it is online.
   useEffect(() => {
@@ -125,6 +166,10 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     () => ({
       configured,
       signedIn,
+      linked,
+      wipePending,
+      lastDeletion,
+      clearLastDeletion,
       pending,
       syncing,
       last,
@@ -140,6 +185,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
           holdUntil.current = 0;
           if (r.wiped) setEpoch((e) => e + 1);
           setSignedIn(true);
+          setLinked(true);
           // Pull right away (the user just asked to sign in): a returning user's records arrive before the screen closes.
           await runSync(true);
           await refreshPending();
@@ -150,7 +196,10 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         const blocked = await guardedSignOut(db, tokens, opts);
         if (blocked === 0) {
           setSignedIn(false);
-          if (opts?.discard) setEpoch((e) => e + 1);
+          if (opts?.discard) {
+            setLinked(false);
+            setEpoch((e) => e + 1);
+          }
           await refreshPending();
         }
         return blocked;
@@ -158,11 +207,14 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       discardAndSignOut: async () => {
         await discardAll(db, tokens);
         setSignedIn(false);
+        setLinked(false);
         setEpoch((e) => e + 1);
         await refreshPending();
       },
+      exportFromServer: () => exportFromServer(db, api, tokens),
+      deleteEverything: async (opts) => afterDelete(await deleteEverything({ db, api, tokens }, opts)),
     }),
-    [configured, signedIn, pending, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
+    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }
