@@ -22,6 +22,9 @@ import org.springframework.http.ResponseEntity;
  */
 class AccountRightsIT extends SyncITBase {
 
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    app.plateandbar.api.auth.UserExistenceCheck existence;
+
     static final String MID = "2026-10-08T11:00:00Z";
     static final String NEW = "2026-10-08T11:30:00Z";
 
@@ -273,5 +276,29 @@ class AccountRightsIT extends SyncITBase {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    void accountDeletedRightAfterTheFilterCheckPassesGives401AndLeavesNoRows() {
+        String a = newUser();
+        String token = jwt.issue(a).value();
+        org.mockito.Mockito.doAnswer(inv -> {
+                    Object real = inv.callRealMethod(); // the filter sees the user ...
+                    jdbc.update("DELETE FROM users WHERE id = ?", a); // ... and the account vanishes before the sync runs
+                    return real;
+                })
+                .when(existence)
+                .exists(a);
+        String body = Req.of(null).add(SyncTable.water_logs, waterLog(id(), 0, MID, null, 250)).build().toString();
+        try {
+            Resp r = post(token, body);
+            assertThat(r.status()).isEqualTo(401);
+            assertThat(r.body().path("code").asText()).isEqualTo("unauthorized");
+        } finally {
+            org.mockito.Mockito.reset(existence);
+        }
+        assertThat(count("SELECT COUNT(*) FROM water_logs WHERE user_id = ?", a)).isZero();
+        assertThat(count("SELECT COUNT(*) FROM sync_state WHERE user_id = ?", a)).isZero();
+        assertThat(count("SELECT COUNT(*) FROM users WHERE id = ?", a)).isZero();
     }
 }
