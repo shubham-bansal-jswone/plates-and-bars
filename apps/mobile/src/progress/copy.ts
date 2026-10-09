@@ -29,3 +29,19 @@ export const SLEEP_BAD = 'Enter hours slept, like 7.5.';
 export const TREND_NONE = 'Log a few weigh-ins to see your trend line here.';
 export const SCALE_JUMP_TITLE = (kg: number): string => `The scale went up ${kg} kg`;
 export const SCALE_JUMP_BODY = 'That’s almost certainly water, not fat. Your weekly average is what counts.';
+
+// Weekly check-in, burn card and habits (prototype `renderCheckin`, `consistencyHtml`).
+export const CHECKIN_TITLE = 'Weekly check-in';
+export const CHECKIN_NEEDS_SETUP = 'Run setup (Targets tab) to see your weekly check-in.';
+export const WEIGHT_WEEK_NONE = 'Weight: log at least 3 weigh-ins a week to see your weekly trend.';
+export const BURN_TITLE = 'Calorie burn from your real data';
+export const BURN_HOW = 'If you eat about the same each day and your weight trend changes, the difference shows your real burn: about 7,700 kcal equals 1 kg of body weight. This is usually more accurate than any formula or fitness tracker. It’s smoothed week to week so one odd week doesn’t swing your targets.';
+export const NOT_NOW = 'Not now';
+export const STOP_SUGGESTING = 'Stop suggesting this';
+export const KEEP_TARGETS = 'Keep current targets';
+export const HABIT_MESSAGE = {
+  streak: (weeks: number, goal: number): string => `${weeks} weeks in a row with ${goal}+ sessions. That’s how habits form.`,
+  missed: 'Missed a few days? No problem. Pick up with your next meal or session; one week never undoes progress.',
+  steady: 'Aim for most days, not perfect days. Consistency over weeks is what counts.',
+} as const;
+export const SETTINGS_UNREADABLE = 'Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.';
