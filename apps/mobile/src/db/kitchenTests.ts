@@ -2,7 +2,7 @@ import { isKitchenTest, type KitchenTest } from '../kitchen/types';
 import type { StoreDb } from './records';
 import type { WorkoutDb } from './workouts';
 
-/** Kitchen tests, newest first, tombstones and rows of the wrong shape left out. */
+/** Kitchen tests, last saved first (the prototype lists them in reverse save order), tombstones and rows of the wrong shape left out. */
 export async function loadKitchenTests(db: WorkoutDb): Promise<KitchenTest[]> {
   const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM kitchen_tests');
   const out: KitchenTest[] = [];
@@ -14,7 +14,7 @@ export async function loadKitchenTests(db: WorkoutDb): Promise<KitchenTest[]> {
       // not JSON: skipped like any other damaged row
     }
   }
-  return out.sort((a, b) => b.date.localeCompare(a.date) || b.updated_at.localeCompare(a.updated_at));
+  return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 }
 
 export async function saveKitchenTest(db: StoreDb, t: KitchenTest): Promise<void> {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { num, type UserFoodFields } from '@plate-and-bar/core';
+import { trackWrite } from '../db/pendingWrites';
 import { loadKitchenTests, saveKitchenTest } from '../db/kitchenTests';
 import type { WorkoutDb } from '../db/workouts';
 import { saveFood } from '../recipes/useRecipes';
@@ -31,6 +32,7 @@ export interface TestFields {
  */
 export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () => Date; notify: (msg: string) => void }) {
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [tests, setTests] = useState<KitchenTest[]>([]);
   const queue = useRef<Promise<void>>(Promise.resolve());
 
@@ -42,7 +44,11 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
         setTests(t);
         setReady(true);
       },
-      () => live && notify(LOAD_FAILED),
+      () => {
+        if (!live) return;
+        setFailed(true);
+        notify(LOAD_FAILED);
+      },
     );
     return () => {
       live = false;
@@ -57,6 +63,7 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
           setTests(await loadKitchenTests(db));
         })
         .catch(() => notify(SAVE_FAILED));
+      trackWrite(queue.current);
     },
     [db, notify],
   );
@@ -67,6 +74,7 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
       const t = stamp(now());
       enqueue(async () => {
         const old = (await loadKitchenTests(db)).find((x) => x.id === f.id);
+        // TODO: core's kitchenTest could return the kept rows (amount above 0) so this filter is not repeated here.
         const ingredients: Ingredient[] = f.rows.filter((r) => num(r.amount) > 0).map((r) => ({ ingredient: r.ingredient, amount: num(r.amount), unit: r.unit }));
         await saveKitchenTest(db, {
           id: f.id,
@@ -103,5 +111,5 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
   );
 
   const idle = useCallback(() => queue.current, []);
-  return { ready, tests, save, remove, idle };
+  return { ready, failed, tests, save, remove, idle };
 }

@@ -6,7 +6,7 @@ import { Button, ErrorText, Field, H1, Hint, Label, Page, Press } from '../compo
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BAD_DATE, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, problem } from '../kitchen/copy';
+import { BAD_DATE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, problem } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
 import { rawIngredients } from '../recipes/content';
@@ -15,6 +15,10 @@ import { localDate } from '../setup/logic';
 import { useTheme } from '../theme/useTheme';
 import { Chip, ToastBar } from '../workout/parts';
 
+/** A visible caption over a field that already carries its spoken label: hidden from screen readers so it is not read twice. */
+const Cap = ({ children }: { children: string }) => (
+  <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Label>{children}</Label></View>
+);
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 const blank = (date: string): TestFields => ({ id: newId(), name: '', date, note: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '', unit: 'g' }], pot: '', potFull: '', cooked: '', serving: '', sname: 'katori' });
 const validDate = (s: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(s) && localDate(new Date(`${s}T00:00:00`)) === s;
@@ -40,9 +44,16 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
   const store = useKitchenTests({ db, now, notify });
   const [d, setD] = useState<TestFields | null>(null);
   const [showHow, setShowHow] = useState<boolean | null>(null);
+  const leaving = useRef(false);
+  // Back waits for queued writes; a second press while waiting does nothing.
+  const back = () => {
+    if (leaving.current) return;
+    leaving.current = true;
+    void store.idle().then(onBack, onBack);
+  };
+  if (store.failed) return <Page><ErrorText>{LOAD_FAILED}</ErrorText><Button label="Back" kind="link" onPress={back} /></Page>;
   if (!store.ready) return <Page><Hint>Loading…</Hint></Page>;
 
-  const back = () => void store.idle().then(onBack);
   if (!d) {
     return (
       <View style={styles.fill}>
@@ -106,12 +117,12 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           </View>
         ) : null}
         <View style={styles.gap}>
-          <Label>Dish</Label>
+          <Cap>Dish</Cap>
           <Field label="Dish" placeholder="e.g. Dal" value={d.name} onChangeText={(name) => set({ name })} />
-          <Label>Date</Label>
+          <Cap>Date</Cap>
           <Field label="Date" placeholder="2026-10-08" autoCapitalize="none" value={d.date} onChangeText={(date) => set({ date })} />
           {dateOk ? null : <ErrorText>{BAD_DATE}</ErrorText>}
-          <Label>Notes (who cooked, region, method)</Label>
+          <Cap>Notes (who cooked, region, method)</Cap>
           <Field label="Notes" placeholder="e.g. Mom’s Punjabi-style, pressure cooker" value={d.note} onChangeText={(note) => set({ note })} />
         </View>
         <View style={styles.gap}>

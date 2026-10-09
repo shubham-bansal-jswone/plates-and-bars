@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { num, saveBuiltFood, type RecipeFoodResult, type UserFoodFields } from '@plate-and-bar/core';
+import { trackWrite } from '../db/pendingWrites';
 import { loadRecipes, saveRecipe } from '../db/recipes';
 import { loadUserFoods, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
@@ -33,6 +34,7 @@ export interface RecipeSave {
  */
 export function useRecipes({ db, now, notify }: { db: WorkoutDb; now: () => Date; notify: (msg: string) => void }) {
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const queue = useRef<Promise<void>>(Promise.resolve());
 
@@ -44,7 +46,11 @@ export function useRecipes({ db, now, notify }: { db: WorkoutDb; now: () => Date
         setRecipes(r);
         setReady(true);
       },
-      () => live && notify(LOAD_FAILED),
+      () => {
+        if (!live) return;
+        setFailed(true);
+        notify(LOAD_FAILED);
+      },
     );
     return () => {
       live = false;
@@ -94,6 +100,7 @@ export function useRecipes({ db, now, notify }: { db: WorkoutDb; now: () => Date
           setRecipes(await loadRecipes(db));
         })
         .catch(() => notify(SAVE_FAILED));
+      trackWrite(queue.current);
     },
     [db, now, notify],
   );
@@ -101,7 +108,7 @@ export function useRecipes({ db, now, notify }: { db: WorkoutDb; now: () => Date
   /** Resolves when every queued write has finished (the Food screen reads again after this). */
   const idle = useCallback(() => queue.current, []);
 
-  return { ready, recipes, save, idle };
+  return { ready, failed, recipes, save, idle };
 }
 
 /** Puts `fields` first in my foods (merged with what is stored now) and tombstones the foods that drop out. Returns the saved food. */

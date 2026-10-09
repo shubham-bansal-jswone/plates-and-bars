@@ -1,5 +1,5 @@
 import { presetIngredients, type OilLevel } from '@plate-and-bar/core';
-import { MEALS, type Meal } from '../food/types';
+import type { Meal } from '../food/types';
 import { rawIngredients, type RecipeContent } from './content';
 import type { DraftRow } from './IngredientRows';
 import type { Recipe } from './types';
@@ -22,7 +22,7 @@ export interface Draft {
   meal: Meal;
 }
 
-export const blankDraft = (): Draft => ({ name: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '', unit: 'g' }], ymode: 'katori', katoris: '4', grams: '', preset: null, oil: 'normal', lib: null, editing: null, log: 1, meal: MEALS[1] });
+export const blankDraft = (meal: Meal): Draft => ({ name: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '', unit: 'g' }], ymode: 'katori', katoris: '4', grams: '', preset: null, oil: 'normal', lib: null, editing: null, log: 1, meal });
 
 const asRows = (rows: readonly { ingredient: string; amount: number | string; unit: string }[]): DraftRow[] => rows.map((r) => ({ ingredient: r.ingredient, amount: String(r.amount), unit: r.unit }));
 

@@ -5,6 +5,7 @@ import { fmt } from '../src/format';
 import { rawIngredients } from '../src/recipes/content';
 import { loadKitchenTests } from '../src/db/kitchenTests';
 import { loadUserFoods } from '../src/db/food';
+import { pendingWrites } from '../src/db/pendingWrites';
 import { memoryDb } from './helpers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
@@ -90,6 +91,67 @@ describe('Kitchen test screen', () => {
     const food = mine.find((f) => f.name === 'Dal')!;
     expect(food).toMatchObject({ unit: '1 katori (250 g)', kcal: r.ready && r.perServing ? Math.round(r.perServing.kcal) : -1, origin: 'kitchen_test', added_sugar_g: 0, fruit_veg_servings: null });
     expect(mine.some((f) => f.name === 'Other')).toBe(true);
+  });
+
+  it('merges with my foods as stored at save time: the 80 cap tombstones the oldest, a same-name food keeps its id', async () => {
+    const db = memoryDb();
+    await setup(db);
+    await start();
+    const food = (name: string, extra: Record<string, unknown>) => ({ id: name, version: 1, updated_at: '2026-09-10T00:00:00Z', deleted_at: null, name, unit: '1', kcal: 1, protein_g: 0, carbs_g: 0, fat_g: 0, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom', ...extra });
+    // Seeded after the screen loaded, so only a re-read at write time sees them.
+    for (let i = 0; i < 80; i++) db.rows.set(`user_foods:f${i}`, JSON.stringify(food(`Food ${i}`, { id: `f${i}`, updated_at: `2026-09-${String(10 + Math.floor(i / 10)).padStart(2, '0')}T0${i % 10}:00:00Z` })));
+    db.rows.set('user_foods:same', JSON.stringify(food('Dal', { id: 'same', version: 4 })));
+    await fill();
+    await fireEvent.press(screen.getByLabelText('Save and use for my logging'));
+    await waitFor(async () => expect((await loadUserFoods(db)).some((f) => f.origin === 'kitchen_test')).toBe(true));
+    const all = stored(db, 'user_foods');
+    expect(all.filter((f) => f.name === 'Dal')).toEqual([expect.objectContaining({ id: 'same', version: 4, origin: 'kitchen_test' })]);
+    expect(await loadUserFoods(db)).toHaveLength(80);
+    expect(all.filter((f) => f.deleted_at).map((f) => f.name)).toEqual(['Food 0']);
+  });
+
+  it('registers its writes so Food waits for them, and Back waits once, even when pressed twice', async () => {
+    const db = memoryDb();
+    db.lag = () => 40;
+    const { onBack } = await setup(db);
+    await start();
+    await fill();
+    await fireEvent.press(screen.getByLabelText('Save and use for my logging'));
+    let landed = false;
+    void pendingWrites().then(() => (landed = stored(db, 'kitchen_tests').length === 1 && stored(db, 'user_foods').length === 1));
+    await fireEvent.press(screen.getByLabelText('Back'));
+    await fireEvent.press(screen.getByLabelText('Back'));
+    expect(onBack).not.toHaveBeenCalled();
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 100));
+    expect(landed).toBe(true);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists the last saved test first', async () => {
+    const db = memoryDb();
+    let minute = 0;
+    await render(<KitchenTestScreen db={db} onBack={jest.fn()} now={() => new Date(2026, 9, 8, 10, minute++, 0)} />);
+    await screen.findByRole('header', { name: 'Kitchen tests' });
+    for (const name of ['Dal', 'Rice']) {
+      await start();
+      await fireEvent.changeText(screen.getByLabelText('Dish'), name);
+      await fireEvent.changeText(screen.getByLabelText('Amount for ingredient 1'), '100');
+      await fireEvent.changeText(screen.getByLabelText('Or cooked weight directly (g)'), '300');
+      await fireEvent.press(screen.getByLabelText('Save test'));
+      await waitFor(async () => expect((await loadKitchenTests(db)).map((t) => t.name)).toContain(name));
+    }
+    await waitFor(() => expect(screen.getAllByLabelText(/^Delete /).map((n) => n.props.accessibilityLabel)).toEqual(['Delete Rice', 'Delete Dal']));
+  });
+
+  it('shows an error with Back when the saved tests cannot be read', async () => {
+    const db = memoryDb();
+    db.getAllAsync = () => Promise.reject(new Error('disk'));
+    const onBack = jest.fn();
+    await render(<KitchenTestScreen db={db} onBack={onBack} now={NOW} />);
+    expect(await screen.findByText('Couldn’t read your saved kitchen tests.')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Back'));
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
   });
 
   it('Save and use without a serving saves the test, says to weigh one, and keeps the form', async () => {
