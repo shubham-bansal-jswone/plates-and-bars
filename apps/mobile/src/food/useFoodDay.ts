@@ -118,6 +118,16 @@ export function useFoodDay({ db, now, notify }: Options) {
     [db, date, now, enqueue],
   );
 
+  const setFast = useCallback(
+    (fast: boolean) => {
+      const n: DayNote = { ...(noteRef.current ?? { id: null, version: 0, deleted_at: null, date, complete: null, steps: null, sleep: null, fast: false }), fast, updated_at: stamp(now()) };
+      noteRef.current = n;
+      setNote(n);
+      enqueue(() => patchDayNote(db, date, { fast }, n.updated_at));
+    },
+    [db, date, now, enqueue],
+  );
+
   /** Saves a custom food to my foods (core's `saveMyFood`: newest first, same name replaced, capped); foods pushed out are tombstoned. */
   const saveMine = useCallback(
     (food: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => {
@@ -137,5 +147,5 @@ export function useFoodDay({ db, now, notify }: Options) {
     [db, now, enqueue],
   );
 
-  return { date, ready, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, saveMine };
+  return { date, ready, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
 }
