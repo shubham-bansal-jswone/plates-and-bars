@@ -85,8 +85,10 @@ Rules:
 
 | Use | Family | Weights | Licence |
 |---|---|---|---|
-| Display (headlines, big numbers) | Roboto | 300 | SIL Open Font License 1.1 for the current release we bundle (releases before 2023 were Apache-2.0; both allow bundling and self-hosting) |
+| Display (headlines, big numbers) | Roboto | 300 | SIL Open Font License 1.1 |
 | Body and UI | Inter | 400, 500, 600, 700 | SIL Open Font License 1.1 |
+
+Both fonts are SIL OFL 1.1, which allows bundling, self-hosting and redistribution with the licence text.
 
 Fallback stack for both: `system-ui, -apple-system, "Segoe UI", Arial, sans-serif`.
 
@@ -223,6 +225,8 @@ The website is a stack of full-width bands. Each band is one idea with one call 
 | Soft | `surface` (light) | `ink` | `body` | Primary |
 | Dark | `canvas` (dark) | `ink` (dark) | `body` (dark) | Primary (`brand`), links `link-dark` |
 | Blue | `brand` | White | White | Secondary with white 1px border and white text |
+
+In dark mode the soft band (the feature band) uses `surface-elevated` `#121314` instead of `surface`, so it stays distinct from the black hero above it; `ink`, `body` and `link-dark` all pass on it (section 11.3).
 
 - Alternate light and soft or dark bands; never two dark bands in a row. Use at most one blue band per page.
 - Content max width 1200, centred; text columns max 680.
