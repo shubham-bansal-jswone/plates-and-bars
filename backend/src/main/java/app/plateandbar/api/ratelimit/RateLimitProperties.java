@@ -82,6 +82,10 @@ public class RateLimitProperties {
     private Limit emailVerifyPerIp = new Limit(30, Duration.ofHours(1));
     /** Every authenticated endpoint, per user id. */
     private Limit authenticatedPerUser = new Limit(120, Duration.ofMinutes(1));
+    /** GET /me/export, per user id (on top of the per-user cap every endpoint has). */
+    private Limit exportPerUser = new Limit(5, Duration.ofHours(1));
+    /** GET /me/export, per client IP. */
+    private Limit exportPerIp = new Limit(20, Duration.ofHours(1));
     /** Codes issued per email address. */
     private Caps emailStartPerAddress =
             new Caps(new Limit(5, Duration.ofHours(1)), new Limit(10, Duration.ofDays(1)));
@@ -145,6 +149,22 @@ public class RateLimitProperties {
 
     public void setAuthenticatedPerUser(Limit v) {
         this.authenticatedPerUser = v;
+    }
+
+    public Limit getExportPerUser() {
+        return exportPerUser;
+    }
+
+    public void setExportPerUser(Limit v) {
+        this.exportPerUser = v;
+    }
+
+    public Limit getExportPerIp() {
+        return exportPerIp;
+    }
+
+    public void setExportPerIp(Limit v) {
+        this.exportPerIp = v;
     }
 
     public Caps getEmailStartPerAddress() {

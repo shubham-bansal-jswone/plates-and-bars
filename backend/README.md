@@ -18,8 +18,14 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - Access token: HS256 JWT, 15 minutes, `sub` is the user id.
 - Every other route under `/api/v1` requires `Authorization: Bearer <access token>`; `JwtAuthFilter` answers 401
   `token_expired` or `unauthorized` in the contract's `Error` shape. The principal is the user id string.
-- Mail goes through the `MailSender` interface. `LoggingMailSender` (local and staging) logs only that a code was
-  issued, never the code or the address. A real provider is a later issue.
+- Mail goes through the `MailSender` interface. Outside the dev profile `SmtpMailSender` delivers the code over SMTP
+  (staging runs this too, with real SMTP settings; only local development uses the dev profile; settings from the environment only; the app refuses to start without `SMTP_HOST` and `SMTP_FROM`). With
+  `SPRING_PROFILES_ACTIVE=dev`, `LoggingMailSender` is used instead and logs only that a code was issued, never the
+  code or the address. Neither sender logs the code or address; a failed send is logged by exception class only.
+- SMTP supports STARTTLS on submission ports such as 587. Implicit TLS (port 465) is out of scope for now.
+- CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
+  `Authorization`, `Content-Type` and `Accept` request headers, `Retry-After` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
+  Empty means every cross-origin call is refused.
 - Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
@@ -38,7 +44,21 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     (`app.rate-limit.address-max-tracked-keys`) so an IP-keyed flood cannot evict them. Within a cache, eviction under
     pressure can forgive an evicted key; the email guessing cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
 - Sync (#28, ADR 001): `POST /api/v1/sync`, the whole offline-first round trip in one transaction. See "Sync" below.
-- Not yet: `GET /me/export`, `DELETE /me`, foods, content and the AI proxy.
+- Account rights (#192), package `account`:
+  - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
+    the 16 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
+    One read-only transaction. `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
+    Limited to 5 per hour per user and 20 per hour per IP (`app.rate-limit.export-per-user`, `export-per-ip`);
+    429 `rate_limited` with `Retry-After`. Credentials (tokens, codes) are not included. Not compressed by the app.
+  - `DELETE /me`: one transaction removes the user's email-keyed rows (`email_sign_in_codes`, `email_verify_failures`
+    for the account's addresses) and the `users` row; every user-owned table cascades from it (`ON DELETE CASCADE`),
+    so a table added later with that foreign key is covered. 204, and 204 again on a repeat. Logs user id and time only.
+  - `JwtAuthFilter` does an uncached primary-key lookup on `users` for every authenticated request, so an access
+    token issued before the deletion gets 401 `unauthorized` everywhere except `DELETE /me`. Ids are never reused,
+    so no denylist is needed. Cost: one indexed query per request. A database error in that lookup is 503
+    `unavailable`, never 401. The sync transaction starts with `SELECT ... FROM users ... FOR SHARE`, so a
+    concurrent `DELETE /me` waits for it, and a sync after the delete is 401 (never a foreign-key 500).
+- Not yet: foods, content and the AI proxy.
 
 ## Sync
 
@@ -108,9 +128,10 @@ cd backend
 ```
 
 `HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`) use Testcontainers to start MySQL 8, so Docker must be running.
+`SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
 `UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
-`JWT_SIGNING_KEY` and `GOOGLE_CLIENT_IDS` for tests; run tests from an IDE with the same variables.
+`JWT_SIGNING_KEY`, `GOOGLE_CLIENT_IDS`, `SMTP_HOST` and `SMTP_FROM` for tests; run tests from an IDE with the same variables.
 
 ## Environment variables
 
@@ -123,6 +144,13 @@ cd backend
 | `APP_VERSION` | `0.1.0` | Value returned as `version` by `/health` |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
 | `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted `POST /sync` body |
+| `SMTP_HOST` | none, required outside the dev profile | SMTP server host |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_USER`, `SMTP_PASSWORD` | empty | SMTP credentials; leave `SMTP_USER` empty for no authentication |
+| `SMTP_FROM` | none, required outside the dev profile | Sender address of sign-in mails |
+| `SMTP_STARTTLS` | `true` | Require STARTTLS; set `false` only for a local test server. The app refuses to start if `SMTP_USER` or `SMTP_PASSWORD` is set while this is `false` |
+| `CORS_ALLOWED_ORIGINS` | empty | Comma-separated web app origins, e.g. `https://app.example.com` |
+| `SPRING_PROFILES_ACTIVE` | empty | `dev` swaps SMTP for the logging mail sender |
 | `GOOGLE_CLIENT_IDS` | empty | Comma-separated OAuth client ids accepted as the Google ID token audience; empty refuses every Google sign-in |
 
 Rate limits are `app.rate-limit.<name>.capacity` and `.window` (a duration such as `60s`), for

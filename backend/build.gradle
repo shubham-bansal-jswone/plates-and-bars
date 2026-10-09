@@ -34,12 +34,16 @@ dependencies {
     // Validates sync requests against the schemas in openapi.yaml (Apache-2.0), and reads that YAML (Apache-2.0).
     implementation 'com.networknt:json-schema-validator:1.5.9'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
+    // SMTP delivery of sign-in codes (Spring Boot starter Apache-2.0; Jakarta Mail via Eclipse Angus, EPL-2.0).
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    // In-process SMTP server for delivery tests (Apache-2.0).
+    testImplementation 'com.icegreen:greenmail-junit5:2.1.14'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:mysql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -62,6 +66,9 @@ tasks.named('test') {
     // The signing key is environment-only; tests use a throwaway one.
     environment 'JWT_SIGNING_KEY', 'test-only-signing-key-0123456789-abcdefghij'
     environment 'GOOGLE_CLIENT_IDS', 'test-client-id.apps.googleusercontent.com'
+    // Full-context tests start outside the dev profile, which needs an SMTP host; nothing connects to it.
+    environment 'SMTP_HOST', 'localhost'
+    environment 'SMTP_FROM', 'noreply@example.invalid'
 }
 
 // Only the executable jar is produced (the Dockerfile copies build/libs/*.jar).

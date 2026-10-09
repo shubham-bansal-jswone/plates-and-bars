@@ -58,6 +58,9 @@ public class SyncService {
 
     @Transactional
     public ObjectNode sync(String userId, Parsed req) {
+        if (!repo.lockUser(userId)) {
+            throw ApiException.sessionEnded(); // valid token, but the account no longer exists
+        }
         long before;
         try {
             // Every read below happens after this lock, so each sees whatever the previous sync committed.
@@ -198,6 +201,11 @@ public class SyncService {
     }
 
     private ObjectNode record(Stored s) {
+        return toRecord(json, s);
+    }
+
+    /** The contract's record shape: meta fields plus the stored data. */
+    static ObjectNode toRecord(ObjectMapper json, Stored s) {
         ObjectNode r = json.createObjectNode();
         r.put("id", s.id());
         r.put("version", s.version());

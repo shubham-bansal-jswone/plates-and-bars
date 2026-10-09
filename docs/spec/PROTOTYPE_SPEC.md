@@ -1,6 +1,6 @@
 # Plate & Bar — Prototype Behaviour Spec
 
-**Status:** source of truth for app behaviour, as of 2026-10-08.
+**Status:** source of truth for app behaviour, as of 2026-10-09.
 **Reference implementation:** `docs/prototype/plate-and-bar.html` (single file; open it in a browser to use it).
 **Golden fixtures:** `docs/spec/golden/*.json`, generated from the prototype. Ported code must reproduce them exactly.
 
@@ -24,6 +24,10 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 **2026-10-08 — prototype fix, batch 3 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
 - #167: `planFlex` never takes a day below the minimum (`calcTargets` floor, or 1200 with no profile). Entries dated before `TODAY()` - 7 are dropped first (unchanged: counted from today, not the planned day). Each of the next 6 days has room = its target minus the floor, rounded down to 10, never below 0; the target is the lower of `kcalTarget(day)` and the saved target plus that day's flex entries, so other flex plans count and a cut made during a lab hold stays safe when the hold ends. The spread is the first of 3 to 6 days where each of those days has room for `extra / days` rounded down to 10; each takes that cut, so the cuts never total more than the extra (+800 is 3 × 260). If no even spread fits, the 6 days are filled level, in steps of 10, each up to its room, never more than the extra in total; a day with no room gets no entry. Whatever does not fit with all 6 days at their room is not cut, today still gets the whole extra, and the toast says so: "Today +800 kcal; the next 6 days 100 lower; 200 kcal could not be spread without going below your minimum". Uneven cuts read "the next 6 days up to 220 lower".
+
+**2026-10-09 — prototype fix, batch 4 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
+- #178: the flex note and its Undo on a day use the most recent plan whose extra (its positive entry) is on that day (`flexPlanFor`; plans are added at the end of `settings.flex`, so it is the last such entry). The note shows that plan's extra ("Today's target includes +300 kcal for a bigger meal, ..."), not the day's net sum, and Undo removes that plan. A day with no plan's extra on it (only cuts) shows "Today's target is 160 kcal lower to balance an earlier bigger day." with no Undo; its cuts are undone from the day that got the extra.
+- #176: Undo (`undoFlex`) removes the plan's entries, then checks each of that plan's days with the `planFlex` floor rule (`calcTargets` floor, or 1200 with no profile; the target is the lower of `kcalTarget(day)` and the saved target plus that day's flex entries, so other plans and the lab hold count). On a day below the floor the shortfall, rounded up to 10, is taken off the cuts left on that day, the most recent cut first; a cut trimmed to 0 is removed. The trimmed calories are simply not cut. If the saved target alone is below the floor, every cut on that day goes.
 
 These change the scope table in the Development Plan. Treat them as v1 unless marked otherwise.
 
