@@ -89,7 +89,8 @@ describe('stored swaps in the session', () => {
 describe('re-swap after Undo', () => {
   it('carries on from the stored tombstone’s version', async () => {
     const db = memoryDb();
-    const { result } = await renderHook(() => useRules({ db, now: THURSDAY, notify: jest.fn() }));
+    const notify = jest.fn();
+    const { result } = await renderHook(() => useRules({ db, now: THURSDAY, notify }));
     await waitFor(() => expect(result.current.rules.ready).toBe(true));
     const to = { from: 'A', to: 'B', since: DATE, bridge_until: null };
     // The server already holds the undone swap at version 3 (a pull stored the tombstone).
