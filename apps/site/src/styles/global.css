@@ -7,12 +7,12 @@
   --ink:#000000;--body:#5C5F66;--muted:#6B6B6B;--disabled:#CCCCCC;--outline:#8B8F9B;
   --line:#E6E8EC;--tint:#EAF0FE;
   --danger:#C81B3A;--caution:#C2410C;
-  --protein:#2457E6;--carbs:#0E8F8E;--fat:#D97706;
+  --protein:#2457E6;--carbs:#0E8F8E;--fat:#C86D06;
   --r-sm:4px;--r-md:8px;--r-lg:16px;--r-full:9999px;
-  --section-y:96px;
+  --section-y:48px;
   --font-display:Roboto,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
   --font-body:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
-  --fs-display:54px;--fs-h2:35px;
+  --fs-display:28px;--fs-h2:28px;
   color-scheme:light dark;
 }
 @media (prefers-color-scheme:dark){:root{
@@ -22,16 +22,16 @@
   --danger:#FF6B81;--caution:#FB923C;
   --protein:#6F95FF;--carbs:#2DD4BF;--fat:#F5B53D;
 }}
-@media (max-width:1024px){:root{--section-y:64px;--fs-display:44px}}
-@media (max-width:640px){:root{--section-y:48px;--fs-display:32px;--fs-h2:28px}}
-@media (max-width:400px){:root{--fs-display:28px}}
+@media (min-width:480px){:root{--fs-display:32px}}
+@media (min-width:768px){:root{--section-y:64px;--fs-display:44px;--fs-h2:35px}}
+@media (min-width:1024px){:root{--section-y:96px;--fs-display:54px;--fs-h2:44px}}
 
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;background:var(--canvas);color:var(--body);font-family:var(--font-body);font-size:18px;line-height:1.5;-webkit-text-size-adjust:100%}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 a{color:var(--link)}
 h1,h2,h3{font-family:var(--font-display);font-weight:300;color:var(--ink);margin:0}
-h1{font-size:var(--fs-display);line-height:1.1;letter-spacing:.1px}
+h1{font-size:var(--fs-display);line-height:1.2;letter-spacing:.1px}
 h2{font-size:var(--fs-h2);line-height:1.2;letter-spacing:.1px}
 h3{font-size:22px;line-height:1.25}
 p,ul{margin:0 0 16px}
@@ -42,7 +42,7 @@ p,ul{margin:0 0 16px}
 /* Header */
 .site-header{background:var(--canvas);border-bottom:1px solid var(--line)}
 .site-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:72px;flex-wrap:wrap}
-.mark{font-family:var(--font-display);font-weight:400;font-size:22px;color:var(--ink);text-decoration:none}
+.mark{font-family:var(--font-display);font-weight:300;font-size:22px;color:var(--ink);text-decoration:none}
 .mark span{color:var(--link)}
 nav ul{display:flex;gap:8px;list-style:none;margin:0;padding:0}
 nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;color:var(--body);font-size:16px;font-weight:500;text-decoration:none;border-radius:var(--r-full)}
@@ -50,7 +50,7 @@ nav a:hover{color:var(--ink);text-decoration:underline}
 
 /* Pill controls */
 .btn,.badge{display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-full);text-decoration:none;font-family:var(--font-body)}
-.btn{min-height:48px;padding:0 32px;font-size:16px;font-weight:700;line-height:1.25;letter-spacing:.4px;border:1px solid transparent}
+.btn{min-height:48px;padding:12px 28px;font-size:16px;font-weight:700;line-height:1.25;letter-spacing:.4px;border:1px solid transparent}
 .btn-ghost{border-color:var(--white);color:var(--white)}
 .btn-ghost:hover{background:var(--white);color:var(--brand-pressed)}
 .badge{min-height:36px;padding:0 16px;font-size:14px;font-weight:700;background:var(--on-dark-soft);color:var(--white)}
@@ -62,7 +62,7 @@ nav a:hover{color:var(--ink);text-decoration:underline}
 .band-black a{color:var(--link-on-black)}
 .band-white{background:var(--surface-elevated)}
 .band-blue{background:var(--brand);color:var(--white)}
-.band-black a:focus-visible,.landing .site-header :focus-visible,footer :focus-visible{outline-color:var(--link-on-black)}
+.band-black :focus-visible,.landing .site-header :focus-visible,footer :focus-visible{outline-color:var(--link-on-black)}
 .band-blue :focus-visible{outline-color:var(--white)}
 .band-blue h2{color:var(--white)}
 .landing .site-header{background:var(--black);border-bottom:1px solid var(--line-dark)}
