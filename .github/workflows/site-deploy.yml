@@ -1,0 +1,128 @@
+name: Site deploy
+
+# Static Astro build from apps/site. Disabled until the owner sets the
+# repository variable SITE_DEPLOY_TARGET (Settings > Secrets and variables >
+# Actions > Variables) to one of:
+#   github-pages  deploy with GitHub Pages (needs Settings > Pages > Source: GitHub Actions
+#                 and a custom domain, because the site is built for the domain root)
+#   caddy         rsync dist/ over SSH to a VM served by Caddy (see infra/caddy/Caddyfile.site)
+# Unset or any other value: every deploy job is skipped. Deploys only run from
+# main, even for manual runs. The `caddyfile` job validates infra/caddy on PRs.
+# See infra/README.md.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/site/**'
+      - '.github/workflows/site-deploy.yml'
+  pull_request:
+    paths:
+      - 'infra/caddy/**'
+      - '.github/workflows/site-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # PR validation must never cancel a queued deploy
+  group: ${{ github.event_name == 'pull_request' && format('site-validate-{0}', github.ref) || 'site-deploy' }}
+  cancel-in-progress: false
+
+jobs:
+  caddyfile:
+    name: validate Caddyfile
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # Official Caddy image (Apache-2.0)
+      - run: docker run --rm -v "$PWD/infra/caddy:/c:ro" caddy:2.11.7 caddy validate --config /c/Caddyfile.site --adapter caddyfile
+
+  build:
+    name: build site
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (vars.SITE_DEPLOY_TARGET == 'github-pages' || vars.SITE_DEPLOY_TARGET == 'caddy')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/site/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - if: vars.SITE_DEPLOY_TARGET == 'github-pages'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/site/dist
+      - if: vars.SITE_DEPLOY_TARGET == 'caddy'
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-dist
+          path: apps/site/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-pages:
+    name: deploy (GitHub Pages)
+    needs: build
+    if: vars.SITE_DEPLOY_TARGET == 'github-pages'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  deploy-caddy:
+    name: deploy (Caddy VM)
+    needs: build
+    if: vars.SITE_DEPLOY_TARGET == 'caddy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: site
+    env:
+      # Secrets: SITE_SSH_KEY (private key), SITE_SSH_KNOWN_HOSTS (output of ssh-keyscan -t ed25519 host)
+      # Variables: SITE_SSH_HOST, SITE_SSH_USER, SITE_WEB_ROOT (for example /srv/site)
+      SSH_HOST: ${{ vars.SITE_SSH_HOST }}
+      SSH_USER: ${{ vars.SITE_SSH_USER }}
+      WEB_ROOT: ${{ vars.SITE_WEB_ROOT }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: site-dist
+          path: dist
+      - name: Install SSH key
+        env:
+          SSH_KEY: ${{ secrets.SITE_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SITE_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Sync
+        run: |
+          : "${SSH_HOST:?SITE_SSH_HOST is not set}" "${SSH_USER:?SITE_SSH_USER is not set}" "${WEB_ROOT:?SITE_WEB_ROOT is not set}"
+          # rsync --delete: only a directory under /srv, /var/www or /opt (never / or a home directory)
+          case "$WEB_ROOT" in
+            *..*|*[[:space:]]*) echo "::error::SITE_WEB_ROOT must not contain '..' or spaces"; exit 1 ;;
+          esac
+          if ! printf '%s' "$WEB_ROOT" | grep -Eq '^/(srv|opt|var/www)/[^/]+'; then
+            echo "::error::SITE_WEB_ROOT must be a directory under /srv, /var/www or /opt, for example /srv/site"
+            exit 1
+          fi
+          rsync -az --delete -e "ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes" \
+            dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"
