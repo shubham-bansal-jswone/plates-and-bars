@@ -7,6 +7,7 @@ The Plate & Bar API contract and the TypeScript client generated from it.
 - `client/index.ts`: `createClient(baseUrl, getToken)`, a typed client on `openapi-fetch` that adds the bearer token to each request.
 - `client/contract-guards.ts`: compile-time checks that `SyncChanges` and `ExportTables` each have exactly one key per `SyncTable` value; `npm run typecheck` fails on drift.
 - `test-vectors/sync-ids.json`: shared vectors for natural-key sync ids (UUIDv5 of `<table>:<key>` in the user's namespace, see `POST /sync`). Backend and app tests load this file; `test-vectors/verify.mjs` checks it, and the natural-key ids in the `/sync` and `/me/export` examples, against an independent UUIDv5.
+- `test-vectors/content-hash.json`: shared vectors for content bundle hashes (`sha256`, `size_bytes` and `ETag` of exact UTF-8 bytes, see the `content` tag). Backend and app tests load this file; `verify.mjs` checks it against SHA-256 and checks the `/content/*` examples (manifest sorted by name with no repeated name, ETag examples equal the example bundle's `sha256`). It also checks that every tag an operation uses is declared once under the top-level `tags`.
 
 ## Commands
 
@@ -17,7 +18,7 @@ npm install
 npm run lint        # validate the spec (Redocly CLI, recommended rules)
 npm run generate    # regenerate client/schema.d.ts from openapi.yaml
 npm run typecheck   # type-check the client
-npm run test-vectors  # verify test-vectors/sync-ids.json
+npm run test-vectors  # verify test-vectors/sync-ids.json and content-hash.json
 npm run check       # all of the above, failing if schema.d.ts is out of date
 ```
 
