@@ -50,4 +50,37 @@ class SmtpMailSenderTest {
         assertThatThrownBy(() -> new SmtpMailSender(new MailProperties("localhost", null, null, null, "", null)))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void defaultStarttlsRefusesAPlainServerAndDeliversNothing() {
+        SmtpMailSender strict = new SmtpMailSender(
+                new MailProperties("localhost", SMTP.getSmtp().getPort(), null, null, "noreply@example.invalid", null));
+        assertThatThrownBy(() -> strict.sendSignInCode("ada@example.com", "123456", Instant.now()))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(SMTP.getReceivedMessages()).isEmpty();
+    }
+
+    @Test
+    void credentialsWithoutStarttlsRefuseToStart() {
+        assertThatThrownBy(() -> new SmtpMailSender(
+                        new MailProperties("localhost", 25, "user", "pw", "noreply@example.invalid", false)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageNotContaining("pw");
+        assertThatThrownBy(() -> new SmtpMailSender(
+                        new MailProperties("localhost", 25, "user", null, "noreply@example.invalid", false)))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void failureMessageNeverContainsTheRecipientOrTheCode() {
+        assertThatThrownBy(() -> sender("localhost", 1).sendSignInCode("ada@example.com", "654321", Instant.now()))
+                .satisfies(e -> {
+                    assertThat(e.getMessage()).doesNotContain("ada@example.com").doesNotContain("654321");
+                    assertThat(e.getCause()).isNull();
+                });
+        // Also when the server is reachable but rejects the recipient.
+        assertThatThrownBy(() -> sender("localhost", SMTP.getSmtp().getPort())
+                        .sendSignInCode("not an address@@", "654321", Instant.now()))
+                .satisfies(e -> assertThat(String.valueOf(e.getMessage())).doesNotContain("not an address"));
+    }
 }

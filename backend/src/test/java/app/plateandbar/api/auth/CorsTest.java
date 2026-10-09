@@ -45,6 +45,24 @@ class CorsTest {
     }
 
     @Test
+    void retryAfterIsExposedAndOnlyGetPostDeleteAreAllowed() throws Exception {
+        mvc.perform(get("/api/v1/health").header("Origin", "https://app.example.com"))
+                .andExpect(header().string("Access-Control-Expose-Headers", "Retry-After"));
+        for (String method : List.of("GET", "POST", "DELETE")) {
+            mvc.perform(options("/api/v1/me")
+                            .header("Origin", "https://app.example.com")
+                            .header("Access-Control-Request-Method", method))
+                    .andExpect(status().isOk());
+        }
+        for (String method : List.of("PUT", "PATCH")) {
+            mvc.perform(options("/api/v1/me")
+                            .header("Origin", "https://app.example.com")
+                            .header("Access-Control-Request-Method", method))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
     void preflightFromAnyOtherOriginIsRejected() throws Exception {
         preflight("https://evil.example.org").andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));

@@ -32,8 +32,12 @@ public class SmtpMailSender implements MailSender {
             sender.setUsername(props.username());
             sender.setPassword(props.password());
         }
+        boolean credentials = sender.getUsername() != null;
+        if (credentials && !props.starttls()) {
+            throw new IllegalStateException("SMTP_USER and SMTP_PASSWORD need SMTP_STARTTLS=true: credentials are never sent in plaintext");
+        }
         Properties p = sender.getJavaMailProperties();
-        p.put("mail.smtp.auth", String.valueOf(sender.getUsername() != null));
+        p.put("mail.smtp.auth", String.valueOf(credentials));
         p.put("mail.smtp.starttls.enable", String.valueOf(props.starttls()));
         p.put("mail.smtp.starttls.required", String.valueOf(props.starttls()));
         p.put("mail.smtp.connectiontimeout", "5000");
@@ -53,8 +57,9 @@ public class SmtpMailSender implements MailSender {
             helper.setText("Your Plate & Bar sign-in code is " + code + ".\n\nIt expires at " + expiresAt
                     + ". If you did not ask for it, ignore this message.\n");
             sender.send(message);
-        } catch (jakarta.mail.MessagingException e) {
-            throw new org.springframework.mail.MailPreparationException(e.getClass().getSimpleName());
+        } catch (jakarta.mail.MessagingException | org.springframework.mail.MailException e) {
+            // No cause and no original message: both can carry the recipient address.
+            throw new org.springframework.mail.MailSendException("SMTP delivery failed (" + e.getClass().getSimpleName() + ")");
         }
     }
 }

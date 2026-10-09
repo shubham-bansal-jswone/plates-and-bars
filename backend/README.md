@@ -19,11 +19,12 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
 - Every other route under `/api/v1` requires `Authorization: Bearer <access token>`; `JwtAuthFilter` answers 401
   `token_expired` or `unauthorized` in the contract's `Error` shape. The principal is the user id string.
 - Mail goes through the `MailSender` interface. Outside the dev profile `SmtpMailSender` delivers the code over SMTP
-  (settings from the environment only; the app refuses to start without `SMTP_HOST` and `SMTP_FROM`). With
+  (staging runs this too, with real SMTP settings; only local development uses the dev profile; settings from the environment only; the app refuses to start without `SMTP_HOST` and `SMTP_FROM`). With
   `SPRING_PROFILES_ACTIVE=dev`, `LoggingMailSender` is used instead and logs only that a code was issued, never the
   code or the address. Neither sender logs the code or address; a failed send is logged by exception class only.
-- CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with
-  `Authorization`, `Content-Type` and `Accept` headers and no credentials (auth is a bearer header, not a cookie).
+- SMTP supports STARTTLS on submission ports such as 587. Implicit TLS (port 465) is out of scope for now.
+- CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
+  `Authorization`, `Content-Type` and `Accept` request headers, `Retry-After` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   Empty means every cross-origin call is refused.
 - Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
@@ -133,7 +134,7 @@ cd backend
 | `SMTP_PORT` | `587` | SMTP port |
 | `SMTP_USER`, `SMTP_PASSWORD` | empty | SMTP credentials; leave `SMTP_USER` empty for no authentication |
 | `SMTP_FROM` | none, required outside the dev profile | Sender address of sign-in mails |
-| `SMTP_STARTTLS` | `true` | Require STARTTLS; set `false` only for a local test server |
+| `SMTP_STARTTLS` | `true` | Require STARTTLS; set `false` only for a local test server. The app refuses to start if `SMTP_USER` or `SMTP_PASSWORD` is set while this is `false` |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated web app origins, e.g. `https://app.example.com` |
 | `SPRING_PROFILES_ACTIVE` | empty | `dev` swaps SMTP for the logging mail sender |
 | `GOOGLE_CLIENT_IDS` | empty | Comma-separated OAuth client ids accepted as the Google ID token audience; empty refuses every Google sign-in |
