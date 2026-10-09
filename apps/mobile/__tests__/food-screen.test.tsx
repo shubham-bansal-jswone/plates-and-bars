@@ -8,7 +8,12 @@ import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { cuisines } from '../src/food/catalog';
 import { memoryDb, withProfile } from './helpers';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }) }));
+const mockFocus = { n: 0 };
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  // Runs the callback when the screen mounts and each time `mockFocus.n` changes on a re-render (the tab being shown again).
+  useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [mockFocus.n]),
+}));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);

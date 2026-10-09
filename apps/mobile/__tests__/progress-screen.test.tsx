@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { SetupScreen } from '../src/screens/SetupScreen';
+import SetupRoute from '../app/setup';
 import { saveLog, saveDayNote } from '../src/db/food';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
@@ -11,8 +12,10 @@ import { memoryDb, withProfile } from './helpers';
 
 const mockPush = jest.fn();
 const mockFocus = { n: 0 };
+const mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: mockPush }),
+  useLocalSearchParams: () => mockParams,
   // Runs when the screen mounts and each time `mockFocus.n` changes on a re-render (the tab being shown again).
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [mockFocus.n]),
 }));
@@ -79,6 +82,9 @@ describe('Progress screen', () => {
     await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '80.5');
     await fireEvent.press(screen.getByLabelText('Save weight'));
     await waitFor(() => expect(docs(db, 'weights')[0].weight_kg).toBe(80.5));
+    // The slow first write must not land afterwards and put 81 back.
+    await new Promise((r) => setTimeout(r, 150));
+    expect(docs(db, 'weights')[0].weight_kg).toBe(80.5);
   });
 
   it('shows the navy body-fat estimate from core once waist and neck are saved', async () => {
@@ -210,10 +216,10 @@ describe('Targets: recalculate after weigh-in drift (#161)', () => {
     await targets(db);
     expect(await screen.findByText('Your latest weight is 79.4 kg, 2.6 kg lower than at setup. Recalculate your targets?')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Recalculate targets'));
-    expect(mockPush).toHaveBeenCalledWith('/setup?recalc=1&weight=79.4');
+    expect(mockPush).toHaveBeenCalledWith('/setup?recalc=1');
   });
 
-  it('Redo setup also carries the latest weigh-in', async () => {
+  it('Redo setup opens setup plainly', async () => {
     mockPush.mockClear();
     const db = memoryDb();
     await saveProfile(db, profile());
@@ -221,7 +227,7 @@ describe('Targets: recalculate after weigh-in drift (#161)', () => {
     await targets(db);
     await screen.findByText(/Recalculate your targets/);
     await fireEvent.press(screen.getByLabelText('Redo setup'));
-    expect(mockPush).toHaveBeenCalledWith('/setup?redo=1&weight=79.4');
+    expect(mockPush).toHaveBeenCalledWith('/setup?redo=1');
   });
 
   it('reads the weigh-ins again each time the tab is shown', async () => {
@@ -242,14 +248,29 @@ describe('Targets: recalculate after weigh-in drift (#161)', () => {
     mockFocus.n = 0;
   });
 
-  it('setup opened with the latest weight starts from it, so the saved targets change and the drift clears', async () => {
+  const consent = { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage' as const, given_at: '2026-09-01T00:00:00Z', text_version: 'x' };
+
+  it('setup in recalculate reads the latest weigh-in itself, so the saved targets change and the drift clears', async () => {
     const db = memoryDb();
     await saveProfile(db, profile());
-    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
-    await render(withProfile(db, <SetupScreen recalc weight="79.4" />));
+    await saveWeight(db, weigh('2026-10-01', 79.4));
+    await saveConsent(db, consent);
+    await render(withProfile(db, <SetupScreen recalc />));
     await fireEvent.press(await screen.findByLabelText('Use these targets'));
     await waitFor(() => expect(JSON.parse(db.rows.get('profiles:me')!)).toMatchObject({ weight_kg: 79.4 }));
     expect(JSON.parse(db.rows.get('profiles:me')!).targets.kcal).not.toBe(1990);
+  });
+
+  it('ignores a ?weight= deep link: only stored weigh-ins set the weight', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveConsent(db, consent);
+    await saveWeight(db, weigh('2026-10-01', 79.4));
+    Object.assign(mockParams, { recalc: '1', weight: '50' });
+    await render(withProfile(db, <SetupRoute />));
+    await fireEvent.press(await screen.findByLabelText('Use these targets'));
+    await waitFor(() => expect(JSON.parse(db.rows.get('profiles:me')!)).toMatchObject({ weight_kg: 79.4 }));
+    for (const k of Object.keys(mockParams)) delete mockParams[k];
   });
 
   it('does not offer it for a small change, nor for a deleted weigh-in', async () => {
