@@ -10,22 +10,33 @@ import vm from 'node:vm';
 // Bump when any value changes so synced clients see it.
 export const UPDATED_AT = '2026-10-09T00:00:00Z';
 
+import { SOURCES as FOOD_SOURCES } from '../foods-import/import.mjs';
+
 export const SOURCES = {
-  usda_fdc: { code: 'usda_fdc', name: 'USDA FoodData Central (SR Legacy)', licence: 'Public domain (CC0 1.0)', url: 'https://fdc.nal.usda.gov/', reference: null },
-  fssai: { code: 'fssai', name: 'Values derived from FSSAI composition standards', licence: 'Values calculated by us from published standards; no table copied', url: null, reference: null },
-  label_typical: { code: 'label_typical', name: 'Typical label values (packaged food)', licence: 'Nutrition facts read from product labels; no label database copied', url: null, reference: null },
+  usda_fdc: FOOD_SOURCES.usda_fdc,
+  fssai: FOOD_SOURCES.fssai,
+  label_typical: FOOD_SOURCES.label_typical,
+  own_recipe: FOOD_SOURCES.own_recipe,
   own_estimate: { code: 'own_estimate', name: 'Plate & Bar own estimate (generic mix or approximation; not weighed)', licence: 'Own work', url: null, reference: null },
-  own_recipe: { code: 'own_recipe', name: 'Plate & Bar recipe written for this app', licence: 'Own work', url: null, reference: null },
+};
+
+// USDA entry each usda_fdc row borrows when the prototype's name is not a USDA food name, so the FDC ids (#98) are
+// looked up for the right food. Rows not listed here are the USDA food of the same name.
+export const USDA_PROXY = {
+  'Chana dal (dry)': 'chickpeas, mature seeds, raw',
+  'Moong dal (dry)': 'mung beans, mature seeds, raw (whole beans used for split dal)',
+  'Moong (whole, dry)': 'mung beans, mature seeds, raw',
+  'Chicken curry cut (raw)': 'chicken, broilers or fryers, thigh, meat only, raw',
 };
 
 // The prototype's comment on RAW: "USDA SR28 / FoodData Central; paneer, curd and milk derived from FSSAI composition
 // standards; poha approximated from rice". Everything else is usda_fdc. Packaged foods are label_typical (ADR 005);
-// the generic mixed-vegetable blend and fresh cream have no single USDA entry, so they are our own estimates.
+// the generic mixed-vegetable blend has no single USDA entry, so it is our own estimate; fresh cream is a typical label value.
 // A row missing here is usda_fdc; a name not in RAW fails the import.
 export const SOURCE_OVERRIDE = {
   'Paneer': 'fssai', 'Curd': 'fssai', 'Milk (toned)': 'fssai',
-  'Poha (dry)': 'own_estimate', 'Mixed vegetables': 'own_estimate', 'Fresh cream': 'own_estimate',
-  'Whey protein': 'label_typical', 'Greek yogurt': 'label_typical', 'Makhana': 'label_typical',
+  'Poha (dry)': 'own_estimate', 'Mixed vegetables': 'own_estimate',
+  'Fresh cream': 'label_typical', 'Whey protein': 'label_typical', 'Greek yogurt': 'label_typical', 'Makhana': 'label_typical',
 };
 
 export function idFor(ns, name) {
@@ -63,9 +74,16 @@ export function extractRecipeData(html) {
   return JSON.parse(JSON.stringify(ctx.out));
 }
 
+const sourceFor = (name) => {
+  const src = SOURCES[SOURCE_OVERRIDE[name] ?? 'usda_fdc'];
+  return USDA_PROXY[name] ? { ...src, name: `${src.name}; values match USDA "${USDA_PROXY[name]}"` } : src;
+};
+
 export function importRaw(p) {
   const unknown = Object.keys(p.RAW_FIB).filter((n) => !(n in p.RAW));
   if (unknown.length) throw new Error(`RAW_FIB names not in RAW: ${unknown.join(', ')}`);
+  const badProxy = Object.keys(USDA_PROXY).filter((n) => !(n in p.RAW) || (SOURCE_OVERRIDE[n] ?? 'usda_fdc') !== 'usda_fdc');
+  if (badProxy.length) throw new Error(`USDA_PROXY names not usda_fdc rows in RAW: ${badProxy.join(', ')}`);
   const badOverride = Object.keys(SOURCE_OVERRIDE).filter((n) => !(n in p.RAW));
   if (badOverride.length) throw new Error(`SOURCE_OVERRIDE names not in RAW: ${badOverride.join(', ')}`);
   return {
@@ -78,8 +96,8 @@ export function importRaw(p) {
       name_hi: null,
       aliases: [],
       fatty: p.FATTY.includes(name),
-      per_100g: { kcal, protein_g: protein, carbs_g: carbs, fibre_g: p.RAW_FIB[name] ?? null, fat_g: fat },
-      source: SOURCES[SOURCE_OVERRIDE[name] ?? 'usda_fdc'],
+      per_100g: { kcal, protein_g: protein, carbs_g: carbs, fibre_g: p.RAW_FIB[name] ?? 0, fat_g: fat }, // a missing RAW_FIB entry counts as 0, as in the prototype
+      source: sourceFor(name),
       needs_dietitian_review: true,
       updated_at: UPDATED_AT,
     })),

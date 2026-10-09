@@ -64,7 +64,7 @@
       },
       "source": {
         "code": "usda_fdc",
-        "name": "USDA FoodData Central (SR Legacy)",
+        "name": "USDA FoodData Central (SR Legacy); values match USDA \"mung beans, mature seeds, raw (whole beans used for split dal)\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
         "reference": null
@@ -110,7 +110,7 @@
       },
       "source": {
         "code": "usda_fdc",
-        "name": "USDA FoodData Central (SR Legacy)",
+        "name": "USDA FoodData Central (SR Legacy); values match USDA \"chickpeas, mature seeds, raw\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
         "reference": null
@@ -312,7 +312,7 @@
         "kcal": 280,
         "protein_g": 18,
         "carbs_g": 2.5,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 22
       },
       "source": {
@@ -335,7 +335,7 @@
         "kcal": 120,
         "protein_g": 22.5,
         "carbs_g": 0,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 2.6
       },
       "source": {
@@ -358,12 +358,12 @@
         "kcal": 121,
         "protein_g": 19.7,
         "carbs_g": 0,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 4.1
       },
       "source": {
         "code": "usda_fdc",
-        "name": "USDA FoodData Central (SR Legacy)",
+        "name": "USDA FoodData Central (SR Legacy); values match USDA \"chicken, broilers or fryers, thigh, meat only, raw\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
         "reference": null
@@ -381,7 +381,7 @@
         "kcal": 143,
         "protein_g": 12.6,
         "carbs_g": 0.7,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 9.5
       },
       "source": {
@@ -588,7 +588,7 @@
         "kcal": 884,
         "protein_g": 0,
         "carbs_g": 0,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 100
       },
       "source": {
@@ -611,7 +611,7 @@
         "kcal": 876,
         "protein_g": 0.3,
         "carbs_g": 0,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 99.5
       },
       "source": {
@@ -634,7 +634,7 @@
         "kcal": 717,
         "protein_g": 0.9,
         "carbs_g": 0.1,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 81
       },
       "source": {
@@ -657,13 +657,13 @@
         "kcal": 250,
         "protein_g": 2,
         "carbs_g": 3,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 25
       },
       "source": {
-        "code": "own_estimate",
-        "name": "Plate & Bar own estimate (generic mix or approximation; not weighed)",
-        "licence": "Own work",
+        "code": "label_typical",
+        "name": "Typical label values (packaged food)",
+        "licence": "Nutrition facts read from product labels; no label database copied",
         "url": null,
         "reference": null
       },
@@ -680,7 +680,7 @@
         "kcal": 58,
         "protein_g": 3.2,
         "carbs_g": 4.8,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 3
       },
       "source": {
@@ -703,7 +703,7 @@
         "kcal": 58,
         "protein_g": 3.1,
         "carbs_g": 4.6,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 3
       },
       "source": {
@@ -726,7 +726,7 @@
         "kcal": 387,
         "protein_g": 0,
         "carbs_g": 100,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 0
       },
       "source": {
@@ -864,7 +864,7 @@
         "kcal": 75,
         "protein_g": 9,
         "carbs_g": 4,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 2
       },
       "source": {
@@ -892,7 +892,7 @@
       },
       "source": {
         "code": "usda_fdc",
-        "name": "USDA FoodData Central (SR Legacy)",
+        "name": "USDA FoodData Central (SR Legacy); values match USDA \"mung beans, mature seeds, raw\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
         "reference": null
@@ -979,7 +979,7 @@
         "kcal": 400,
         "protein_g": 80,
         "carbs_g": 10,
-        "fibre_g": null,
+        "fibre_g": 0,
         "fat_g": 5
       },
       "source": {

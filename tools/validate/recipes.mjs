@@ -48,7 +48,8 @@ function uniqueness(rows, what, errors) {
 
 export function validateRaw(content) {
   const errors = [];
-  if (!Array.isArray(content.ingredients) || content.ingredients.length === 0) return ['ingredients must be a non-empty array'];
+  checkKeys(content, ['schema_version', 'source', 'per', 'ingredients'], (m) => errors.push(m));
+  if (!Array.isArray(content.ingredients) || content.ingredients.length === 0) return [...errors, 'ingredients must be a non-empty array'];
   for (const i of content.ingredients) {
     const at = nonEmpty(i.name) ? i.name : `(row ${i.id ?? '?'})`;
     const err = (m) => errors.push(`${at}: ${m}`);
@@ -59,11 +60,11 @@ export function validateRaw(content) {
     if (typeof i.fatty !== 'boolean') err('fatty must be true or false');
     const n = i.per_100g ?? {};
     for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g']) if (!num(n[k])) err(`per_100g.${k} must be a number >= 0`);
-    if (n.fibre_g !== null && !num(n.fibre_g)) err('per_100g.fibre_g must be a number >= 0 or null');
+    if (!num(n.fibre_g)) err('per_100g.fibre_g must be a number >= 0');
     if (['kcal', 'protein_g', 'carbs_g', 'fat_g'].every((k) => num(n[k]))) {
       const macro = n.protein_g + n.carbs_g + n.fat_g;
       if (macro > 100.05) err(`macros total ${macro} g, more than 100 g per 100 g`);
-      if (n.fibre_g !== null && n.fibre_g > n.carbs_g) err('fibre_g exceeds carbs_g (carbs include fibre)');
+      if (n.fibre_g > n.carbs_g) err('fibre_g exceeds carbs_g (carbs include fibre)');
       const calc = 4 * n.protein_g + 4 * n.carbs_g + 9 * n.fat_g;
       if (Math.abs(calc - n.kcal) > kcalTolerance(n.kcal)) err(`kcal ${n.kcal} does not match macros (4/4/9 gives ${calc.toFixed(0)})`);
     }
@@ -80,6 +81,7 @@ export function validateRaw(content) {
 // rawNames: names from raw-ingredients.json; every recipe ingredient must be one of them.
 export function validateRecipes(content, rawNames) {
   const errors = [];
+  checkKeys(content, ['schema_version', 'source', 'katori_g', 'library', 'presets'], (m) => errors.push(m));
   if (!pos(content.katori_g)) errors.push('katori_g must be a number > 0');
   const lists = [['library', 'library'], ['presets', 'preset']];
   for (const [key] of lists) if (!Array.isArray(content[key]) || content[key].length === 0) errors.push(`${key} must be a non-empty array`);

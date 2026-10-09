@@ -31,7 +31,7 @@ test('raw ingredients carry the prototype numbers, including fibre, in prototype
   assert.deepEqual(c.ingredients.map((i) => i.name), Object.keys(p.RAW));
   for (const i of c.ingredients) {
     const [kcal, protein, carbs, fat] = p.RAW[i.name];
-    assert.deepEqual(i.per_100g, { kcal, protein_g: protein, carbs_g: carbs, fibre_g: p.RAW_FIB[i.name] ?? null, fat_g: fat });
+    assert.deepEqual(i.per_100g, { kcal, protein_g: protein, carbs_g: carbs, fibre_g: p.RAW_FIB[i.name] ?? 0, fat_g: fat });
   }
   const toor = c.ingredients.find((i) => i.name === 'Toor dal (dry)');
   assert.deepEqual(toor.per_100g, { kcal: 343, protein_g: 21.7, carbs_g: 62.8, fibre_g: 15, fat_g: 1.5 });
@@ -88,7 +88,10 @@ test('raw: missing licence, unknown source, bad macros, duplicates fail', () => 
   assert.ok(raw((c) => { c.ingredients[0].aliases = [c.ingredients[1].name]; }).some((m) => m.includes('is the name of')));
   assert.ok(raw((c) => { delete c.ingredients[0].needs_dietitian_review; }).some((m) => m.includes('"needs_dietitian_review" missing')));
   assert.ok(raw((c) => { c.ingredients[0].extra = 1; }).some((m) => m.includes('unknown field "extra"')));
-  assert.deepEqual(validateRaw({ ingredients: [] }), ['ingredients must be a non-empty array']);
+  assert.ok(validateRaw({ ingredients: [] }).includes('ingredients must be a non-empty array'));
+  assert.ok(raw((c) => { c.extra = 1; }).some((m) => m.includes('unknown field "extra"')));
+  assert.ok(rec((c) => { c.extra = 1; }).some((m) => m.includes('unknown field "extra"')));
+  assert.ok(raw((c) => { c.ingredients[0].per_100g.fibre_g = null; }).some((m) => m.includes('fibre_g must be')));
 });
 
 test('recipes: unknown ingredient, bad amount, missing steps, bad cost, duplicates fail', () => {
@@ -116,4 +119,24 @@ test('planning: weights must sum to 1, caps need a known food, min may not excee
 test('the IFCT/INDB ban covers the new files', async () => {
   const { scanContent } = await import('../check-no-ifct/check.mjs');
   assert.deepEqual(scanContent(`${repo}/content`), []);
+});
+
+test('golden cross-check: raw100g and rawFibre100g in docs/spec/golden/foods.json match the content', () => {
+  const g = JSON.parse(readFileSync(`${repo}/docs/spec/golden/foods.json`, 'utf8'));
+  const c = load('raw-ingredients.json').ingredients;
+  assert.deepEqual(c.map((i) => i.name), Object.keys(g.raw100g));
+  for (const i of c) {
+    const [kcal, protein, carbs, fat] = g.raw100g[i.name];
+    assert.deepEqual(i.per_100g, { kcal, protein_g: protein, carbs_g: carbs, fibre_g: g.rawFibre100g[i.name] ?? 0, fat_g: fat }, i.name);
+  }
+  for (const n of Object.keys(g.rawFibre100g)) assert.ok(n in g.raw100g, n);
+});
+
+test('fresh cream is a label value; borrowed USDA entries are recorded in the source name', () => {
+  const by = (n) => load('raw-ingredients.json').ingredients.find((i) => i.name === n).source;
+  assert.equal(by('Fresh cream').code, 'label_typical');
+  assert.match(by('Chana dal (dry)').name, /chickpeas/);
+  assert.match(by('Moong dal (dry)').name, /mung/);
+  assert.match(by('Chicken curry cut (raw)').name, /thigh/);
+  assert.doesNotMatch(by('Toor dal (dry)').name, /values match/);
 });
