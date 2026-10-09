@@ -41,6 +41,13 @@ class AiUsageRepository {
                 userId, day, feature.key());
     }
 
+    void addTokens(String userId, LocalDate day, AiFeature feature, int in, int out) {
+        jdbc.update(
+                "UPDATE ai_usage SET input_tokens = input_tokens + ?, output_tokens = output_tokens + ?"
+                        + " WHERE user_id = ? AND day = ? AND feature = ?",
+                Math.max(0, in), Math.max(0, out), userId, day, feature.key());
+    }
+
     /** Input plus output tokens recorded by every user from {@code from} (inclusive) to {@code to} (exclusive). */
     long tokensBetween(LocalDate from, LocalDate to) {
         Long n = jdbc.queryForObject(

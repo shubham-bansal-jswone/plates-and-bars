@@ -28,6 +28,7 @@ class AiControllerTest {
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
     @MockitoBean AiQuotaService quotas;
+    @MockitoBean AiService ai;
 
     private org.springframework.test.web.servlet.ResultActions callStatus(String ip) throws Exception {
         return mvc.perform(get("/api/v1/ai/status")
