@@ -71,6 +71,11 @@ public class AiQuotaService {
         usage.removeCall(r.userId(), r.day(), r.feature());
     }
 
+    /** Adds the provider's token counts to the reserved row (counts only, for the monthly budget). */
+    public void recordTokens(Reservation r, int inputTokens, int outputTokens) {
+        usage.addTokens(r.userId(), r.day(), r.feature(), inputTokens, outputTokens);
+    }
+
     private LocalDate today() {
         return LocalDate.now(clock.withZone(ZoneOffset.UTC));
     }
