@@ -522,7 +522,7 @@ describe('weeklyCheckin', () => {
       if (c.suggestion?.kind === 'kcal') expect(html).toContain(`data-v="${JSON.stringify(c.suggestion.target).replace(/"/g, '&quot;')}"`);
       if (c.burn.ready) expect(nextAdaptive(adaptive, DATE, c.burn.burn)).toEqual(proto.S.settings.adaptive);
       if (weekPlan && weekPlan.start < mondayOf(DATE) && c.suggestion?.kind === 'week') reached.pastPlanCard++;
-      if (weekPlan && weekPlan.start > mondayOf(DATE) && c.sessions + 2 <= c.plannedN && !dismissed[key] && !muted.checkin && c.suggestion?.kind !== 'kcal') reached.futurePlanBlocks++;
+      if (weekPlan && weekPlan.start > mondayOf(DATE) && c.plannedN > 4 && c.sessions + 2 <= c.plannedN && !dismissed[key] && !muted.checkin && c.suggestion?.kind !== 'kcal') reached.futurePlanBlocks++;
       if (profile && !weekPlan && c.plannedN !== 6) reached.profilePlanned++;
       if (c.plannedN <= 4 && c.sessions + 2 <= c.plannedN && !(weekPlan && weekPlan.start >= mondayOf(DATE)) && !dismissed[key] && !muted.checkin && c.suggestion?.kind !== 'kcal') reached.smallPlanSkips++;
     }
