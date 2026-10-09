@@ -5,6 +5,7 @@ Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm
 - `exercises-import/` regenerates `content/exercises.json` from `docs/spec/golden/exercises.json` plus `exerciseMeta` in `docs/spec/golden/progression.json` (`npm run import:exercises`). `meta` maps each exercise to `{type, rep_low, rep_high}` (names as in the contract's `exercise_overrides`; the golden table's `lo`/`hi`). Default step, the fallback for unknown exercises and the home-dumbbell raise are rules and stay in core. The validator requires meta for every exercise.
 - `validate/` checks `content/exercises.json` (`npm run validate:exercises`) and `content/foods.json` (`npm run validate:foods`).
 - `foods-import/` regenerates `content/foods.json` from `docs/spec/golden/foods.json` (`npm run import:foods`).
+- `cards-import/` regenerates `content/cards.json` (KB and LEARN), `content/measures.json` (MEASURES) and `content/labels.json` (MUSCLE, JOINT, replacement-reason phrases) from the prototype (`npm run import:cards`); `validate/cards-cli.mjs` checks them (`npm run validate:cards`) and rejects a card without a source. See "Cards, measures and labels" below.
 - `check-no-ifct/` exits non-zero if "IFCT" or "INDB" (any case) appears in a file name or file under `content/` (`npm run check:sources`). CI wiring lives in `.github/workflows/` (infra).
 
 ## Exercise card keys
@@ -57,6 +58,20 @@ Dishes are Food rows plus `cuisine` (and `alcohol: true` on the four alcoholic d
 - `source` is `own_estimate` (ADR 005): our own rough estimates for a typical restaurant portion (the prototype calls them "rough restaurant estimates"; they are not weighed).
 - Validation (`npm run validate:foods`, `validateEatOut`) applies the same Food checks, with names and ids unique across the file. Rows flagged `alcohol` skip the upper kcal bound (alcohol is about 7 kcal/g and is not in the macros) but kcal may not be below what the macros give.
 - Beer, whisky/rum/vodka and wine are still held back from `foods.json` (see `HELD_BACK`); only their eat-out rows are in content.
+
+## Cards, measures and labels
+
+Everything is derived from the prototype by running its own code with stub state; no text is hand-typed.
+
+- `cards.json`: `learn_order` is the card's index in the prototype's `LEARN` list (null if absent). `bulky` has `audience: "female"` and `learn_insert_at` (the index the prototype splices it into the list for female profiles).
+- Body syntax for the three cards built from the user's numbers (`targets`, `protein`, `split`). `placeholders` lists `{name}` values and `sections` lists the optional inline sections. The app fills values from `packages/core`; the cards carry no numbers.
+  - `{name}` is replaced by a value (`{kcal}`, `{protein_g}`, `{tdee}`, `{bmr}`, `{movement}`, `{training}`, `{digestion}`, `{weight}`, `{protein_floor}`, supplied by `packages/core` in the app, not computed from 1.6 here, `{minutes}`, `{days}`, `{split_name}`).
+  - `{?sec}text{/sec}` is shown only when the section applies; `{?sec}yes{:}no{/sec}` shows `no` otherwise. Sections do not nest.
+  - Sections: `tdee` (profile present), `weight` (a weight is known), `minutes` (profile has session minutes), `new_lifter` (profile experience is new).
+  - `split_names` (top level, keys "2" to "6") maps training days to `{split_name}`.
+  - Tests render the body with all sections off (equals the prototype with no profile) and on (equals it with a stub profile).
+- `measures.json`: `show: "always"`, or for hips `{ sex: "female", or_entered_that_day: true }` (shown for female profiles, or when a hips value is already entered for the selected day).
+- `labels.json` replacement text, as in the prototype's `candidates()`: build the clauses in this order and join with ", ", then capitalise the first letter. (1) `works` with `{muscles}` = the shared primary muscles' labels joined "a, b and c" (two: "a and b"; one: "a"). (2) `same_movement` if the movement pattern matches. (3) `spares_joint` with `{joint}` when a joint was asked to be spared, otherwise `easier_on_joints` if pain was reported and the candidate loads fewer joints. (4) `easier_to_learn` if the form-learning flag is set and the candidate is easier. (5) `done_before` if the user has logged the lift.
 
 ## Recipes, raw ingredients and meal planning
 

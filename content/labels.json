@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "origin": "docs/prototype/plate-and-bar.html (MUSCLE, JOINT, candidates)",
+  "muscles": {
+    "chest": "chest",
+    "front-delt": "front shoulders",
+    "side-delt": "side shoulders",
+    "rear-delt": "rear shoulders",
+    "triceps": "triceps",
+    "lats": "lats",
+    "upper-back": "upper back",
+    "biceps": "biceps",
+    "forearms": "forearms",
+    "quads": "quads",
+    "hams": "hamstrings",
+    "glutes": "glutes",
+    "calves": "calves",
+    "abs": "abs",
+    "lower-back": "lower back"
+  },
+  "joints": {
+    "shoulder": "shoulder",
+    "elbow": "elbow",
+    "wrist": "wrist",
+    "lower-back": "lower back",
+    "hip": "hip",
+    "knee": "knee",
+    "ankle": "ankle"
+  },
+  "replacement_reasons": {
+    "works": "works your {muscles}",
+    "same_movement": "same movement",
+    "spares_joint": "doesn’t load the {joint}",
+    "easier_on_joints": "easier on the joints",
+    "easier_to_learn": "easier to learn",
+    "done_before": "you’ve done it before"
+  }
+}

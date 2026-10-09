@@ -12,6 +12,8 @@
     "import:foods": "node foods-import/cli.mjs",
     "validate:foods": "node validate/foods-cli.mjs",
     "import:eatout": "node eatout-import/cli.mjs",
+    "import:cards": "node cards-import/cli.mjs",
+    "validate:cards": "node validate/cards-cli.mjs",
     "import:recipes": "node recipes-import/cli.mjs",
     "validate:recipes": "node validate/recipes-cli.mjs",
     "check:sources": "node check-no-ifct/cli.mjs"
