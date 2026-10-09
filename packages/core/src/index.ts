@@ -286,3 +286,32 @@ export { DEFAULT_PROTEIN_TARGET, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET } from
  */
 export { plannedCoverage, coverageTemplates, doneCoverage, coverageRows, weeklyCoverage, focusPicker, toggleFocus, COVER_SHOW, COVER_LOW, COVER_FULL, FOCUS_MAX } from './coverage';
 export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, CoverageDay, CoverageRow, WeeklyCoverageInput, FocusPicker, FocusToggleResult } from './coverage';
+
+/**
+ * Progress: body measures and day targets. Weigh-ins, measurements, day notes and sets come in
+ * contract shapes (`Weight`, `Measurement`, `DayNote`, `WorkoutSet`).
+ * - `latestWeight` mirrors prototype `latestWeight(upTo)`; `measureAt` mirrors `measureAt(key, upTo)`.
+ * - `navyBodyFat` mirrors prototype `navyBF(upTo)`.
+ * - `waterTarget` mirrors prototype `waterTarget()` (state passed in); `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`,
+ *   `WATER_TRAINING_ML` are its 2500, 33 and 600.
+ * - `workoutBurn` mirrors prototype `workoutBurn(w, kg)`.
+ * - `stepsTarget` mirrors prototype `stepsTarget()` (days passed in); `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX` are its 7000, 5000 and 12000.
+ * - `weightDrift` mirrors the `drift` check in prototype `setupSummaryHtml()` (#161); `WEIGHT_DRIFT_KG` is its 2.
+ */
+export {
+  latestWeight,
+  measureAt,
+  navyBodyFat,
+  waterTarget,
+  workoutBurn,
+  stepsTarget,
+  weightDrift,
+  WATER_DEFAULT_ML,
+  WATER_ML_PER_KG,
+  WATER_TRAINING_ML,
+  STEPS_DEFAULT,
+  STEPS_MIN,
+  STEPS_MAX,
+  WEIGHT_DRIFT_KG,
+} from './progress';
+export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WorkoutBurn, WeightDrift } from './progress';
