@@ -10,6 +10,8 @@ import { AddSheet } from '../food/AddSheet';
 import { catalogFoods } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { useFoodDay } from '../food/useFoodDay';
+import { useWater } from '../food/useWater';
+import { WaterCard } from '../food/WaterCard';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { radius } from '../theme/tokens';
@@ -40,6 +42,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const f = useFoodDay({ db, now, notify });
+  const water = useWater({ db, date: f.date, now, profile, notify });
 
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;
 
@@ -110,6 +113,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             </>
           ) : null}
         </View>
+        {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} onRemove={f.remove} onAdd={() => setAdding(m)} />
         ))}
