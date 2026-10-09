@@ -12,7 +12,7 @@ import type { LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 // Thursday 2026-10-08: the 6-day plan gives Push B (Barbell Bench Press, Machine Shoulder Press, Pec Deck Fly,
