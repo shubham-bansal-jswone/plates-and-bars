@@ -12,7 +12,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: jest
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 const base: SyncState = {
-  configured: true, signedIn: false, linked: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0,
+  configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0,
   dataVersion: 0, holdSchedule: () => undefined,
   syncNow: async () => null,
   startSignIn: async () => ({ ok: true, resendAfterSec: 60 }),

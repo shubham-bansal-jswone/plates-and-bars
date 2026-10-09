@@ -12,7 +12,7 @@ jest.mock('../src/account/saveFile', () => ({ clearOldExports: () => undefined, 
 jest.mock('../src/account/exportLocal', () => ({ buildLocalExport: async () => ({ file: { exported_at: '2026-10-09T08:00:00.000Z' }, csv: 'date' }) }));
 
 const base: SyncState = {
-  configured: true, signedIn: false, linked: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0, dataVersion: 0, holdSchedule: () => undefined,
+  configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0, dataVersion: 0, holdSchedule: () => undefined,
   syncNow: async () => null,
   startSignIn: async () => ({ ok: true, resendAfterSec: 60 }),
   verifyCode: async () => ({ kind: 'signed_in', wiped: false }),
@@ -102,14 +102,19 @@ describe('data screen (#27)', () => {
     expect(await screen.findByText('The data on this device is deleted.')).toBeTruthy();
   });
 
-  it('after a failed device clear following a server deletion, only the device half is offered', async () => {
-    const results = [{ kind: 'local_failed' as const }, { kind: 'deleted' as const, server: true }];
-    const deleteEverything = jest.fn(async () => results.shift()!);
-    await show({ signedIn: true, linked: true, deleteEverything });
-    await fireEvent.press(screen.getByLabelText('Delete everything'));
-    await fireEvent.press(screen.getByLabelText('Yes, delete everything'));
-    await fireEvent.press(await screen.findByLabelText('Finish deleting this device'));
-    await waitFor(() => expect(deleteEverything).toHaveBeenCalledTimes(2));
+  it('with the account already deleted and the device wipe pending, only finishing the device is offered, on every visit', async () => {
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true }));
+    for (let visit = 0; visit < 2; visit++) {
+      const view = await show({ linked: true, wipePending: true, deleteEverything });
+      expect(screen.queryByLabelText('Sign in to download from your account')).toBeNull();
+      await fireEvent.press(screen.getByLabelText('Delete everything'));
+      expect(screen.queryByLabelText('Sign in to delete your account')).toBeNull();
+      expect(screen.queryByLabelText('Delete only this device')).toBeNull();
+      expect(screen.getByLabelText('Finish deleting this device')).toBeTruthy();
+      if (visit === 0) await view.unmount(); // leave the screen and come back
+    }
+    await fireEvent.press(screen.getByLabelText('Finish deleting this device'));
+    await waitFor(() => expect(deleteEverything).toHaveBeenCalledWith(undefined));
   });
 });
 

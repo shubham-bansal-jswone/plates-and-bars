@@ -2,7 +2,7 @@ import type { Schemas } from '@plate-and-bar/api';
 import { SYNC_TABLES, inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_USER, getUserId, setKv } from './store';
+import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
@@ -26,14 +26,19 @@ export async function withSyncPaused<T>(f: () => Promise<T>): Promise<T> {
  * transaction and wipes nothing when there are any; the count is returned (0 means wiped).
  * TODO(#251, photo vault): the encrypted progress-photo vault must be wiped here too once it exists (ADR 004).
  */
-export async function wipeLocalStore(db: Db, opts: { force?: boolean } = {}): Promise<number> {
+/** Thrown by `wipeLocalStore` when `expectUser` no longer owns the store: someone else signed in meanwhile, nothing was wiped. */
+export class OwnerChanged extends Error {}
+
+export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser?: string | null } = {}): Promise<number> {
   let pending = 0;
   await inTransaction(db, async (txn) => {
+    if (opts.expectUser !== undefined && (await getUserId(txn)) !== opts.expectUser) throw new OwnerChanged();
     pending = (await txn.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox'))?.n ?? 0;
     if (pending > 0 && !opts.force) return;
     for (const local of Object.values(SYNC_TABLES)) await txn.runAsync(`DELETE FROM ${local}`);
     await txn.runAsync('DELETE FROM sync_outbox');
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
+    if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     pending = 0;
   });
   return pending;

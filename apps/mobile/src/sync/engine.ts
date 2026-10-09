@@ -108,14 +108,20 @@ async function refresh(d: SyncDeps, guard: Guard): Promise<boolean> {
 export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
 
 /**
- * The engine's token refresh for callers outside a sync run (export, delete). The caller must hold sync paused, so
- * the engine's own write guard is not needed (and would refuse, because paused). 'ended' means the session is over and
- * the tokens are cleared; transient failures keep the tokens.
+ * The engine's token refresh for callers outside a sync run (export, delete). The caller must hold sync paused. It also
+ * guards the store owner: pausing does not stop a sign-in as another user (that pauses too), so if the owner changed
+ * while the request was in flight the answer is dropped and no tokens are saved or cleared: 'ended'. Otherwise 'ended'
+ * means the session is over and the tokens are cleared; transient failures keep the tokens.
  */
 export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb }): Promise<RefreshOutcome> {
+  const owner = await getUserId(d.db);
+  const guard: Guard = async (db) => {
+    if ((await getUserId(db)) !== owner) throw new Aborted();
+  };
   try {
-    return (await refresh(d as SyncDeps, async () => undefined)) ? 'ok' : 'ended';
+    return (await refresh(d as SyncDeps, guard)) ? 'ok' : 'ended';
   } catch (e) {
+    if (e instanceof Aborted) return 'ended';
     return e instanceof NetworkError ? 'offline' : 'unavailable';
   }
 }

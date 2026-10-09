@@ -1,9 +1,10 @@
 /** @jest-environment node */
 import { buildLocalExport, foodCsv } from '../src/account/exportLocal';
-import { deleteEverything, exportFromServer } from '../src/account/server';
+import { deleteEverything, exportFromServer, wipePending } from '../src/account/server';
 import { SYNC_TABLES } from '../src/db/outbox';
 import { makeApi } from '../src/sync/auth';
-import { KEY_USER, getUserId, setKv } from '../src/sync/store';
+import { refreshSession } from '../src/sync/engine';
+import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from '../src/sync/store';
 import { fakeServer, memoryTokens, openDb } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -134,6 +135,66 @@ describe('export from the server', () => {
   });
 });
 
+const OTHER = '0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f';
+const gate = () => {
+  let release!: () => void;
+  const p = new Promise<void>((r) => (release = r));
+  return { p, release };
+};
+
+describe('refreshSession guards the store owner', () => {
+  async function pendingRefresh(refreshOk: boolean) {
+    const db = await openDb();
+    const server = fakeServer(USER);
+    net.fetch = server.fetch;
+    const a = { access: 'access-A', refresh: 'refresh-A' };
+    const tokens = memoryTokens(a);
+    await setKv(db, KEY_USER, USER);
+    server.refreshOk = refreshOk;
+    const slow = gate();
+    server.hold = slow.p;
+    server.holdPath = '/auth/refresh';
+    const run = refreshSession({ db, api: makeApi(BASE, tokens), tokens });
+    await new Promise((r) => setTimeout(r, 10));
+    // User B signs in while the request is out: their tokens are stored and the store is rebound.
+    await setKv(db, KEY_USER, OTHER);
+    const b = { access: 'access-B', refresh: 'refresh-B' };
+    await tokens.save(b);
+    slow.release();
+    return { run, tokens, b };
+  }
+  it('a 200 for user A is dropped: A\'s new tokens are not saved into B\'s store', async () => {
+    const { run, tokens, b } = await pendingRefresh(true);
+    expect(await run).toBe('ended');
+    expect(tokens.current).toEqual(b);
+  });
+  it('a 401 for user A does not clear B\'s tokens', async () => {
+    const { run, tokens, b } = await pendingRefresh(false);
+    expect(await run).toBe('ended');
+    expect(tokens.current).toEqual(b);
+  });
+  it('without a rebind: 401 is \'ended\' and clears the tokens; 200 is \'ok\' and saves the new pair; 503 is \'unavailable\' and keeps them', async () => {
+    const db = await openDb();
+    const server = fakeServer(USER);
+    net.fetch = server.fetch;
+    const tokens = memoryTokens({ access: 'access-A', refresh: 'refresh-A' });
+    const api = makeApi(BASE, tokens);
+    await setKv(db, KEY_USER, USER);
+    server.refreshOk = false;
+    expect(await refreshSession({ db, api, tokens })).toBe('ended');
+    expect(tokens.current).toBeNull();
+    tokens.current = { access: 'a', refresh: 'r' };
+    server.refreshOk = true;
+    expect(await refreshSession({ db, api, tokens })).toBe('ok');
+    expect(tokens.current?.refresh).toBe('refresh-2');
+    server.forceStatus.push({ status: 503 });
+    const before = tokens.current;
+    net.fetch = async () => new Response('{"code":"unavailable","message":"x"}', { status: 503, headers: { 'Content-Type': 'application/json' } });
+    expect(await refreshSession({ db, api, tokens })).toBe('unavailable');
+    expect(tokens.current).toEqual(before);
+  });
+});
+
 describe('delete everything (#27)', () => {
   const noContent = () => new Response(null, { status: 204 });
   const err = (status: number, headers: Record<string, string> = {}) => new Response(JSON.stringify({ code: 'x', message: 'x' }), { status, headers: { 'Content-Type': 'application/json', ...headers } });
@@ -238,6 +299,38 @@ describe('delete everything (#27)', () => {
     expect(await deleteEverything({ db, api, tokens }, { deviceOnly: true })).toEqual({ kind: 'deleted', server: false });
     expect(calls).toEqual([]);
     expect(await count(db)).toBe(0);
+  });
+
+  it('a different user signing in just before the wipe: nothing of theirs is deleted', async () => {
+    const { db, tokens, api } = await signedIn();
+    db.beforeTxn = async () => {
+      db.beforeTxn = undefined;
+      await setKv(db, KEY_USER, OTHER);
+    };
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'owner_changed' });
+    expect(await count(db)).toBe(2);
+    expect(await getUserId(db)).toBe(OTHER);
+  });
+
+  it('"server deleted, wipe pending" is stored on the device: it survives a restart, which finishes the wipe without DELETE /me', async () => {
+    const { db, tokens, api, calls } = await signedIn();
+    await db.execAsync('ALTER TABLE food_logs RENAME TO food_logs_x');
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'local_failed' });
+    expect(await wipePending(db)).toBe(true);
+    // restart: fresh in-memory state, same database
+    await db.execAsync('ALTER TABLE food_logs_x RENAME TO food_logs');
+    expect(await wipePending(db)).toBe(true);
+    expect(await deleteEverything({ db, api, tokens: memoryTokens() })).toEqual({ kind: 'deleted', server: true });
+    expect(calls).toEqual(['DELETE /me']);
+    expect(await wipePending(db)).toBe(false);
+    expect(await db.getFirstAsync('SELECT key FROM settings')).toBeNull();
+  });
+
+  it('a pending marker for another user than the current owner is dropped as stale', async () => {
+    const { db } = await signedIn();
+    await setKv(db, KEY_SERVER_DELETED, OTHER);
+    expect(await wipePending(db)).toBe(false);
+    expect(await db.getFirstAsync('SELECT key FROM settings WHERE key = ?', KEY_SERVER_DELETED)).toBeNull();
   });
 
   it('never signed in: wipes the local store only and makes no request', async () => {

@@ -1,9 +1,9 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
-import type { PullDb } from '../db/outbox';
+import { inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { refreshSession } from '../sync/engine';
-import { wipeLocalStore, withSyncPaused } from '../sync/guard';
-import { getUserId } from '../sync/store';
+import { OwnerChanged, wipeLocalStore, withSyncPaused } from '../sync/guard';
+import { KEY_SERVER_DELETED, getKv, getUserId, setKv } from '../sync/store';
 import type { TokenStore } from '../sync/tokens';
 
 type Db = StoreDb & PullDb;
@@ -67,10 +67,21 @@ export type DeleteResult =
   /** The device is linked to an account but has no session: sign in to delete the account, or delete only this device. */
   | { kind: 'needs_sign_in' }
   /** The server deleted the account, but clearing this device failed; run it again (the server is not called again). */
-  | { kind: 'local_failed' };
+  | { kind: 'local_failed' }
+  /** Another account was signed in on this device meanwhile; nothing on this device was deleted. */
+  | { kind: 'owner_changed' };
 
-/** User id whose account the server already deleted in this app run; lets a failed local wipe be retried without DELETE /me. */
-let serverDeletedFor: string | null = null;
+/**
+ * True when the server already deleted this store's account and only the device wipe is left. Kept in the store (a
+ * device-only key), so it survives a restart. A marker for another user than the current owner is stale and removed.
+ */
+export async function wipePending(db: Db): Promise<boolean> {
+  const marked = await getKv(db, KEY_SERVER_DELETED);
+  if (marked === null) return false;
+  if (marked === ((await getUserId(db)) ?? '')) return true;
+  await inTransaction(db, (txn) => txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED).then(() => undefined));
+  return false;
+}
 
 /**
  * Delete everything (#27). With a session: `DELETE /me` first and the local store only after its 204, so a failure never
@@ -83,7 +94,7 @@ export async function deleteEverything(d: { db: Db; api: ApiClient | null; token
   return withSyncPaused(async () => {
     const { api, tokens, db } = d;
     const userId = await getUserId(db);
-    let server = serverDeletedFor !== null && serverDeletedFor === (userId ?? '');
+    let server = await wipePending(db);
     if (!server && api && (await tokens.load())) {
       const r = await authedCall<never>({ db, api, tokens }, () => api.DELETE('/me'));
       if (r.kind === 'session_ended') return { kind: 'unconfirmed' };
@@ -93,8 +104,8 @@ export async function deleteEverything(d: { db: Db; api: ApiClient | null; token
       if (s === 429) return { kind: 'rate_limited', retryAfterSec: Number(r.response.headers.get('Retry-After')) || 60 };
       if (s !== 204) return { kind: 'unavailable' };
       server = true;
-      serverDeletedFor = userId ?? '';
       try {
+        await inTransaction(db, (txn) => setKv(txn, KEY_SERVER_DELETED, userId ?? ''));
         await tokens.clear();
       } catch {
         return { kind: 'local_failed' };
@@ -105,12 +116,11 @@ export async function deleteEverything(d: { db: Db; api: ApiClient | null; token
     try {
       // wipeLocalStore covers the synced tables, the outbox and the sync keys (the only device flags there are).
       // TODO(#251): the photo vault is wiped inside wipeLocalStore once it exists.
-      await wipeLocalStore(db, { force: true });
-      await tokens.clear();
-    } catch {
-      return { kind: 'local_failed' };
+      // No tokens are cleared here: they are gone already on every path that had a session, and a new sign-in's must stay.
+      await wipeLocalStore(db, { force: true, expectUser: userId });
+    } catch (e) {
+      return { kind: e instanceof OwnerChanged ? 'owner_changed' : 'local_failed' };
     }
-    serverDeletedFor = null;
     return { kind: 'deleted', server };
   });
 }

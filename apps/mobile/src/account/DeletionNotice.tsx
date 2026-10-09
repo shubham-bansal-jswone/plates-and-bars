@@ -10,7 +10,8 @@ export function DeletionNotice() {
   // Kept in state, so clearing the provider's copy on leaving does not blank the notice while it is still on screen.
   const [shown] = useState(s?.lastDeletion ?? null);
   const clear = s?.clearLastDeletion;
-  useEffect(() => clear, [clear]);
+  // Only a notice that showed something clears it: one that unmounts with the wiped tree must not eat the message.
+  useEffect(() => (shown ? clear : undefined), [shown, clear]);
   if (!shown) return null;
   return (
     <View style={{ padding: 16 }} accessibilityLiveRegion="polite">

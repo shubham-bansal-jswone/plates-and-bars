@@ -15,7 +15,7 @@ const saved = (name: string, r: SaveResult) => (r === 'saved' ? t.exportSaved(na
 const serverMessage = (r: Exclude<ServerExportResult, { kind: 'ok' }>): string =>
   r.kind === 'offline' ? t.serverOffline : r.kind === 'rate_limited' ? t.serverRate(r.retryAfterSec) : r.kind === 'unavailable' ? t.serverUnavailable : t.serverSession;
 const deleteMessage = (r: Exclude<DeleteResult, { kind: 'deleted' }>): string =>
-  r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'needs_sign_in' ? t.needsSignIn : r.kind === 'local_failed' ? t.localFailed : t.unavailable;
+  r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'needs_sign_in' ? t.needsSignIn : r.kind === 'local_failed' ? t.localFailed : r.kind === 'owner_changed' ? t.ownerChanged : t.unavailable;
 
 /** Export and delete everything (#27; prototype `exportData`, `deleteEverything`). Export works offline from this device. */
 export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?: () => Date }) {
@@ -26,8 +26,6 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleted, setDeleted] = useState<DeleteResult | null>(null);
-  // The server already deleted the account but this device could not clear: only the local half is left to do.
-  const [serverGone, setServerGone] = useState(false);
   const [deviceOnly, setDeviceOnly] = useState(false);
 
   const run = async (f: () => Promise<void>) => {
@@ -77,12 +75,11 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
         setDeleted(r);
         setStep('done');
       } else {
-        if (r.kind === 'local_failed') setServerGone(true);
         setError(deleteMessage(r));
       }
     });
   // Linked to an account without a session: the account can only be deleted after signing in.
-  const linkedOut = s.linked && !s.signedIn && !serverGone;
+  const linkedOut = s.linked && !s.signedIn && !s.wipePending;
   const toSignIn = () => router.push('/sign-in' as never);
 
   if (step === 'done') {
@@ -100,7 +97,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
       <Page>
         <H1>{t.confirmTitle}</H1>
         <Note>{deviceOnly ? t.confirmDeviceOnly : t.confirmDevice}</Note>
-        {deviceOnly ? null : <Note>{s.signedIn ? t.confirmAccount : linkedOut ? t.confirmLinkedSignedOut : serverGone ? t.localFailed : t.confirmNoAccount}</Note>}
+        {deviceOnly ? null : <Note>{s.signedIn ? t.confirmAccount : linkedOut ? t.confirmLinkedSignedOut : s.wipePending ? t.localFailed : t.confirmNoAccount}</Note>}
         {error ? <ErrorText>{error}</ErrorText> : null}
         <View style={{ gap: 12 }}>
           {linkedOut && !deviceOnly ? (
@@ -109,7 +106,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
               <Button kind="ghost" label={t.deleteDeviceOnly} onPress={() => setDeviceOnly(true)} />
             </>
           ) : (
-            <Button label={busy ? t.deleting : serverGone ? t.finishDevice : t.confirmDelete} onPress={() => void confirmDelete(deviceOnly)} />
+            <Button label={busy ? t.deleting : s.wipePending ? t.finishDevice : t.confirmDelete} onPress={() => void confirmDelete(deviceOnly)} />
           )}
           <Button
             kind="ghost"
@@ -139,7 +136,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
             <Hint>{t.exportServerHint}</Hint>
             <Button kind="ghost" label={t.exportServer} onPress={() => void exportServer()} />
           </>
-        ) : s.linked ? (
+        ) : s.linked && !s.wipePending ? (
           <>
             <Hint>{t.exportLinkedHint}</Hint>
             <Button kind="ghost" label={t.signInToExport} onPress={toSignIn} />
