@@ -119,12 +119,16 @@ export function validateRecipes(content, rawNames) {
 }
 
 const MEALS = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'];
+// Prototype ROLE codes: p protein, c carb, v veg/side, b breakfast base, s snack, f fruit; bp, sp and side as used there.
+export const ROLES = ['p', 'c', 'v', 'b', 's', 'f', 'bp', 'sp', 'side'];
+// Diet: v veg, e egg, n non-veg.
+export const DIETS = ['v', 'e', 'n'];
 const GROCERY_UNITS = ['g', 'ml', 'pcs', 'scoops', 'slices'];
 
 // foodNames: names from foods.json plus eat-out dishes; every food keyed here must be one of them.
 export function validatePlanning(content, foodNames) {
   const errors = [];
-  checkKeys(content, ['schema_version', 'source', 'updated_at', 'needs_dietitian_review', 'meal_weights', 'protein_weights', 'max_portions', 'min_portions', 'grocery'], (m) => errors.push(m));
+  checkKeys(content, ['schema_version', 'source', 'updated_at', 'needs_dietitian_review', 'meal_weights', 'protein_weights', 'max_portions', 'min_portions', 'grocery', 'roles'], (m) => errors.push(m));
   for (const k of ['meal_weights', 'protein_weights']) {
     const w = content[k] ?? {};
     if (JSON.stringify(Object.keys(w)) !== JSON.stringify(MEALS)) errors.push(`${k} must have exactly ${MEALS.join(', ')} in that order`);
@@ -142,6 +146,22 @@ export function validatePlanning(content, foodNames) {
   for (const [food, lo] of Object.entries(content.min_portions ?? {})) {
     const hi = (content.max_portions ?? {})[food];
     if (hi !== undefined && lo > hi) errors.push(`${food}: min_portions ${lo} is above max_portions ${hi}`);
+  }
+  if (!Array.isArray(content.roles) || content.roles.length === 0) errors.push('roles must be a non-empty array');
+  else {
+    const seenRole = new Set();
+    for (const r of content.roles) {
+      const err = (m) => errors.push(`roles/${r.food}: ${m}`);
+      checkKeys(r, ['food', 'role', 'diet'], err);
+      if (!nonEmpty(r.food)) err('food must be a non-empty string');
+      else {
+        if (seenRole.has(norm(r.food))) err('duplicate food');
+        seenRole.add(norm(r.food));
+        if (foodNames && !foodNames.has(r.food)) err('not a food in foods.json');
+      }
+      if (!ROLES.includes(r.role)) err(`role "${r.role}" is not one of ${ROLES.join(', ')}`);
+      if (!DIETS.includes(r.diet)) err(`diet "${r.diet}" is not one of ${DIETS.join(', ')}`);
+    }
   }
   if (!Array.isArray(content.grocery) || content.grocery.length === 0) return [...errors, 'grocery must be a non-empty array'];
   const seen = new Set();
