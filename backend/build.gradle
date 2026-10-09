@@ -32,7 +32,7 @@ dependencies {
     // Bounded cache for the rate-limit buckets (Apache-2.0).
     implementation 'com.github.ben-manes.caffeine:caffeine'
     // Validates sync requests against the schemas in openapi.yaml (Apache-2.0), and reads that YAML (Apache-2.0).
-    implementation 'com.networknt:json-schema-validator:1.5.9'
+    implementation 'com.networknt:json-schema-validator:3.0.8'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
     // SMTP delivery of sign-in codes (Spring Boot starter Apache-2.0; Jakarta Mail via Eclipse Angus, EPL-2.0).
     implementation 'org.springframework.boot:spring-boot-starter-mail'
