@@ -20,6 +20,8 @@ const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 interface Props {
   db: WorkoutDb;
   onBack: () => void;
+  /** Opens the kitchen tests. */
+  onKitchen: () => void;
   /** The meal Recipes was opened from; "Save and add" logs to it unless another is chosen. */
   meal?: Meal;
   /** Clock, injectable for tests. */
@@ -31,7 +33,7 @@ interface Props {
  * steps and cooking mode, the ingredient rows, per-katori nutrition, and save (to my foods, optionally logging it).
  * Every number and rule is core's.
  */
-export function RecipesScreen({ db, onBack, meal = 'Lunch', now = () => new Date() }: Props) {
+export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () => new Date() }: Props) {
   const c = useTheme();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,6 +158,7 @@ export function RecipesScreen({ db, onBack, meal = 'Lunch', now = () => new Date
         <View style={styles.wrap}>
           <Button label={`Save and add to ${d.meal.toLowerCase()}`} onPress={() => save(true)} />
           <Button label="Save only" kind="ghost" onPress={() => save(false)} />
+          <Button label="Kitchen tests" kind="ghost" onPress={() => leave(onKitchen)} />
           <Button label="Back" kind="link" onPress={() => leave(onBack)} />
         </View>
       </Page>
