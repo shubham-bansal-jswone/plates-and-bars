@@ -302,3 +302,83 @@ describe('Targets: recalculate after weigh-in drift (#161)', () => {
     expect(screen.queryByLabelText('Recalculate targets')).toBeNull();
   });
 });
+
+describe('Progress trends and scale-jump note', () => {
+  it('draws the weight chart and the "Down X since" line from core', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-01', 82));
+    await saveWeight(db, weigh('2026-10-05', 80.5));
+    await setup({ db });
+    expect(await screen.findByLabelText('Weight from 82 to 80.5 kg')).toBeTruthy();
+    expect(screen.getByText('Down 1.5 kg since 1 Oct.')).toBeTruthy();
+  });
+
+  it('asks for more weigh-ins with fewer than two', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-01', 80));
+    await setup({ db });
+    expect(screen.getByText('Log a few weigh-ins to see your trend line here.')).toBeTruthy();
+  });
+
+  it('shows the waist chart and change with two waist measurements', async () => {
+    const db = memoryDb();
+    const tape = (date: string, waist_cm: number) => ({ id: null, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, waist_cm, neck_cm: null, chest_cm: null, arm_cm: null, thigh_cm: null, hips_cm: null });
+    await saveMeasurement(db, tape('2026-10-01', 90));
+    await saveMeasurement(db, tape('2026-10-06', 90.5));
+    await setup({ db });
+    expect(await screen.findByLabelText('Waist from 90 to 90.5 cm')).toBeTruthy();
+    expect(screen.getByText('Waist up 0.5 cm since 1 Oct.')).toBeTruthy();
+  });
+
+  it('says "No change since" when the weight ended where it started', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-01', 80));
+    await saveWeight(db, weigh('2026-10-05', 81));
+    await saveWeight(db, weigh('2026-10-06', 80.04));
+    await setup({ db });
+    expect(await screen.findByText('No change since 1 Oct.')).toBeTruthy();
+  });
+
+  it('says "No change in waist since" when the waist ended where it started', async () => {
+    const db = memoryDb();
+    const tape = (date: string, waist_cm: number) => ({ id: null, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, waist_cm, neck_cm: null, chest_cm: null, arm_cm: null, thigh_cm: null, hips_cm: null });
+    await saveMeasurement(db, tape('2026-10-01', 90));
+    await saveMeasurement(db, tape('2026-10-06', 90));
+    await setup({ db });
+    expect(await screen.findByText('No change in waist since 1 Oct.')).toBeTruthy();
+  });
+
+  it('shows the scale-jump note on a big rise, keeps it after a later non-jump save, and dismisses it', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-07', 80));
+    await setup({ db });
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '81');
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    expect(await screen.findByText('The scale went up 1 kg')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '80.2');
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    expect(screen.getByText('The scale went up 1 kg')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Got it'));
+    expect(screen.queryByText('The scale went up 1 kg')).toBeNull();
+  });
+
+  it('judges the jump on the saved, rounded kg (#246): 80.86 saves as 80.9, 0.8 above 80.1', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-07', 80.1));
+    await setup({ db });
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '80.86');
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    expect(await screen.findByText('The scale went up 0.8 kg')).toBeTruthy();
+  });
+
+  it('shows no note for a rise under 0.8 kg or an invalid save', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh('2026-10-07', 80));
+    await setup({ db });
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '80.5');
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '12');
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    expect(screen.queryByText(/The scale went up/)).toBeNull();
+  });
+});
