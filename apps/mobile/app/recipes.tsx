@@ -11,6 +11,7 @@ export default function Recipes() {
       db={useDb()}
       meal={MEALS.find((m) => m === meal)}
       onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      onKitchen={() => router.push('/kitchen-test')}
     />
   );
 }

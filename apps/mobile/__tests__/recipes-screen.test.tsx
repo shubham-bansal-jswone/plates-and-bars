@@ -14,8 +14,8 @@ const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 type Db = ReturnType<typeof memoryDb>;
 const stored = (db: Db, table: string) => [...db.rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => JSON.parse(v) as Record<string, unknown>);
 
-async function setup(db: Db = memoryDb(), onBack = jest.fn()) {
-  await render(<RecipesScreen db={db} onBack={onBack} now={NOW} />);
+async function setup(db: Db = memoryDb(), onBack = jest.fn(), onKitchen = jest.fn()) {
+  await render(<RecipesScreen db={db} onBack={onBack} onKitchen={onKitchen} now={NOW} />);
   await screen.findByRole('header', { name: 'Recipes' });
   return { db, onBack };
 }
@@ -145,6 +145,13 @@ describe('Recipes screen: builder', () => {
     expect(screen.queryByLabelText('Broken')).toBeNull();
   });
 
+  it('opens the kitchen tests', async () => {
+    const onKitchen = jest.fn();
+    await setup(memoryDb(), jest.fn(), onKitchen);
+    await fireEvent.press(screen.getByLabelText('Kitchen tests'));
+    await waitFor(() => expect(onKitchen).toHaveBeenCalled());
+  });
+
   it('Back waits for the queued writes, and a second press does nothing', async () => {
     const db = memoryDb();
     db.lag = () => 30;
@@ -163,7 +170,7 @@ describe('Recipes screen: builder', () => {
   it('logs to the meal Recipes was opened from', async () => {
     const db = memoryDb();
     const onBack = jest.fn();
-    await render(<RecipesScreen db={db} onBack={onBack} meal="Snacks" now={NOW} />);
+    await render(<RecipesScreen db={db} onBack={onBack} onKitchen={jest.fn()} meal="Snacks" now={NOW} />);
     await screen.findByRole('header', { name: 'Recipes' });
     await fireEvent.press(screen.getByLabelText('Dal'));
     await fireEvent.press(screen.getByLabelText('Save and add to snacks'));
@@ -175,7 +182,7 @@ describe('Recipes screen: builder', () => {
     const db = memoryDb();
     db.getAllAsync = () => Promise.reject(new Error('disk'));
     const onBack = jest.fn();
-    await render(<RecipesScreen db={db} onBack={onBack} now={NOW} />);
+    await render(<RecipesScreen db={db} onBack={onBack} onKitchen={jest.fn()} now={NOW} />);
     expect(await screen.findByText('Couldn’t read your saved recipes.')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Back'));
     await waitFor(() => expect(onBack).toHaveBeenCalled());
