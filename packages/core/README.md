@@ -22,6 +22,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `metaFor`, `applyCustomTags`, `customExerciseMeta`, `overridesFromSettings`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction`; `metaFor` is the `['other',8,12]` fallback in `exInfo`, `customExerciseMeta` the meta step of `applyCustomTags`; `overridesFromSettings` renames contract `exercise_overrides` to `settings.ex` | `progression.json` |
 | Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction` | none (differential tests) |
 | Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET`, `kcalTarget`, `DEFAULT_KCAL_TARGET`, `planFlex`, `undoFlex`, `FLEX_FLOOR_DEFAULT`, `flexToast`, `stepServings`, `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP`, `highProtein`, `customFood`, `saveMyFood`, `MY_FOODS_MAX`, `FOOD_NAME_MAX`, `userFoodFacts` | `foodListHtml` query, `foodMatch` and badge, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete`, `kcalTarget`, `planFlex` (its 1200 and its toast), `case 'flex-undo'`, `case 'serv'`, `case 'addcustom'`, `allFoods` | `foods.json` (plus differential tests) |
+| Recipes and kitchen tests | `recipeTotals`, `presetIngredients`, `stepRecipeLog`, `recipeFood`, `kitchenTest`, `kitchenTestFood`, `saveBuiltFood`, `ingredientGrams`, `UNIT_GRAMS`, `KATORI_G`, `FATTY_INGREDIENTS`, `OIL_LEVEL`, `RECIPE_VEG_INGREDIENTS`, `FRUIT_VEG_SERVING_G`, `SUGAR_INGREDIENT`, `BUILT_FOODS_MAX`, `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` | `rbTotals`, `rbFromPreset` rows, `case 'rb-log'`, `case 'rb-save'`, `ktCalc`, `ktSave(true)`, `UNIT_G`, `KATORI_G`, `FATTY`, `OIL_LEVEL` | `foods.json` (`raw100g`, `rawFibre100g`; plus differential tests) |
 | Default macro targets | `DEFAULT_PROTEIN_TARGET`, `DEFAULT_CARBS_TARGET`, `DEFAULT_FAT_TARGET` | `DEFAULT_SETTINGS.protein`, `.carbs`, `.fat` | none (differential test) |
 | Coverage and focus picker | `plannedCoverage`, `coverageTemplates`, `doneCoverage`, `coverageRows`, `weeklyCoverage`, `focusPicker`, `toggleFocus`, `COVER_SHOW`, `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` | `weeklyCoverage`, `actualCoverage`, `coverageHtml`/`fillActualCoverage` rows, `focusHtml`, `focusAction`, `COVER_SHOW` | none (differential tests) |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
@@ -81,6 +82,15 @@ saves keep the prototype's 80. Turn a contract `UserFood` into the food-maths in
 prototype takes the first user food with its name and then checks its fibre; the two differ only when
 two user foods share a name, which the prototype's save prevents but the contract does not (#151,
 revisit with `food_id` lookups).
+
+The recipe and kitchen-test rules take the raw-ingredient table (prototype `RAW` and `RAW_FIB`,
+content/raw-ingredients.json) as a `RawIngredientTable` argument: name → per-100 g `kcal`, `protein_g`,
+`carbs_g`, `fat_g` and `fibre_g` (null where the prototype has no fibre value; counted as 0). Ingredients
+come in the contract's `Ingredient` shape, recipes and kitchen tests in `Recipe` and `KitchenTest` fields;
+amounts and weights are read with `num`, as the prototype reads its text boxes. `recipeFood` and
+`kitchenTestFood` return contract `UserFood` fields (origin `recipe` or `kitchen_test`) and, like
+`customFood`, `name-too-long` for a trimmed name over 200 characters (the prototype saves it). Tests build
+the table from golden `raw100g` and `rawFibre100g`, which a test checks against the prototype's own tables.
 
 ## Running
 

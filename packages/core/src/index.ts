@@ -286,3 +286,59 @@ export { DEFAULT_PROTEIN_TARGET, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET } from
  */
 export { plannedCoverage, coverageTemplates, doneCoverage, coverageRows, weeklyCoverage, focusPicker, toggleFocus, COVER_SHOW, COVER_LOW, COVER_FULL, FOCUS_MAX } from './coverage';
 export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, CoverageDay, CoverageRow, WeeklyCoverageInput, FocusPicker, FocusToggleResult } from './coverage';
+
+/**
+ * Recipe builder and kitchen tests. The raw-ingredient table (prototype `RAW` and `RAW_FIB`,
+ * content/raw-ingredients.json) is passed in as a `RawIngredientTable`; ingredients, recipes and kitchen
+ * tests come in contract `Ingredient`, `Recipe` and `KitchenTest` fields; saved foods are contract `UserFood` fields.
+ * - `recipeTotals` mirrors prototype `rbTotals()` (whole pot, katoris made, per katori; grams mode is cooked g ÷ `KATORI_G`).
+ * - `presetIngredients` mirrors the rows step of prototype `rbFromPreset(k)` (oil level applied to `FATTY_INGREDIENTS`).
+ * - `stepRecipeLog` mirrors prototype `case 'rb-log'`; `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` its limits.
+ * - `recipeFood` mirrors prototype `case 'rb-save'` (checks, kept rows, saved food), plus `name-too-long` (contract limit, as #150).
+ * - `kitchenTest` mirrors prototype `ktCalc(d)` (cooked weight from pot weights, per 100 g, per serving).
+ * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), plus `name-too-long`.
+ * - `saveBuiltFood` mirrors the `myFoods` step of `case 'rb-save'` and `ktSave`; `BUILT_FOODS_MAX` its 80.
+ * - `ingredientGrams` mirrors the grams step of `rbTotals` and `ktCalc`; `UNIT_GRAMS` mirrors `UNIT_G`.
+ * - `KATORI_G`, `FATTY_INGREDIENTS`, `OIL_LEVEL` mirror `KATORI_G`, `FATTY`, `OIL_LEVEL`; `RECIPE_VEG_INGREDIENTS`,
+ *   `FRUIT_VEG_SERVING_G`, `SUGAR_INGREDIENT` mirror the vegetable list, `/80` and `'Sugar'` in `case 'rb-save'`.
+ */
+export {
+  recipeTotals,
+  presetIngredients,
+  stepRecipeLog,
+  recipeFood,
+  kitchenTest,
+  kitchenTestFood,
+  saveBuiltFood,
+  ingredientGrams,
+  UNIT_GRAMS,
+  KATORI_G,
+  FATTY_INGREDIENTS,
+  OIL_LEVEL,
+  RECIPE_VEG_INGREDIENTS,
+  FRUIT_VEG_SERVING_G,
+  SUGAR_INGREDIENT,
+  BUILT_FOODS_MAX,
+  RECIPE_LOG_MIN,
+  RECIPE_LOG_MAX,
+  RECIPE_LOG_STEP,
+} from './recipes';
+export type {
+  RawIngredient,
+  RawIngredientTable,
+  IngredientRow,
+  OilLevel,
+  RecipeYield,
+  RecipeTotals,
+  PerKatori,
+  RecipeTotalsResult,
+  RecipeInput,
+  RecipeFoodResult,
+  KitchenTestInput,
+  KitchenTotals,
+  KitchenAmount,
+  KitchenServing,
+  KitchenTestResult,
+  KitchenTestFoodInput,
+  KitchenTestFoodResult,
+} from './recipes';
