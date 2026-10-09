@@ -9,15 +9,12 @@ Server copies of the `content/*.json` bundles are fetched and stored by `refresh
 ## The pattern (copy `src/food/catalog.ts`)
 
 1. Keep the static JSON import. It is the synchronous baseline and the fallback.
-2. Write a pure shape validator `(v: unknown) => v is Raw` that checks every key and type the reader uses (not more). It must never throw. Use `isObj`, `isStr`, `isNum`, `isNumOrNull`, `isStrOrNull`, `isArrOf` from `reader.ts`. Reject empty lists where an empty bundle would leave the screen useless.
-3. Export a getter made with `contentReader(name, shippedImport, validator, read)`:
+2. Write ONE pure validator `(v: unknown) => v is Raw` for the whole bundle, as the contract (`openapi.yaml`) and `content/` spec require, run once per bundle: every row, every required key, its type and its contract bounds (finite numbers, minimums such as `>= 0` and `exclusiveMinimum: 0`, uuid ids, `maxLength`s), plus a generous upper bound for values the contract leaves open (check the shipped data's real ranges and leave headroom). Reject empty lists where an empty bundle would leave a screen useless. It must never throw (a throw counts as a rejection). Do not write a second, narrower validator for another reader: that lets two screens disagree about one stored copy.
+3. Export the single decision: `export const chosenFoods = contentReader('foods', shippedImport, isFoods);`. It returns the stored copy chosen at app start only if the whole bundle validates, else the shipped import, and runs once until the next `loadContent`. Every reader of that bundle (catalog, About sources, and so on) derives from this one getter, so a stored copy is wholly used or wholly rejected. Derive values with `perLoad(() => chosenFoods().foods)`; `perLoad` computes at first call after each `loadContent` and is memoised.
+4. If screens look rows up by name (past-day totals, core meal rules), the validator must also require every name in the shipped copy (additions and value edits allowed; removals and renames reject the copy). Foods does this.
+5. Replace each use of the old constant with a call to the getter, inside the function or component (never at module level).
+6. Tests (see `__tests__/content-readers-foods.test.ts`): shipped copy when nothing is stored; a valid newer copy is used only after `loadContent` (assert the same reference and a validator spy count, so the test fails without the memo); one rejection case per checked key and bound (negative, huge, zero, non-uuid, empty, 5000 characters); a validator that throws; every reader of the bundle agrees on accept and reject.
 
-```ts
-export const getFoodCatalog = contentReader('foods', foods as unknown as FoodsBundle, isFoods, (b) => b.foods);
-```
+A bundle `name` is the file name without `.json` (it must exist in `bundled.json`). `loadContent` already drops copies whose `schema_version` this build does not support.
 
-   The getter uses the stored copy chosen at start only if the validator accepts it, otherwise the shipped import. It computes at first call and returns the same value until the next `loadContent`. Use `perLoad(() => ...)` for a value derived from several readers (see `getFoodSources`).
-4. Replace each use of the old constant with a call to the getter, inside the function or component (never at module level). It is cheap after the first call.
-5. Tests (see `__tests__/content-readers-foods.test.ts`): shipped copy with nothing stored; a valid newer stored copy is used only after `loadContent` (not when stored mid-session); an invalid-shape stored copy falls back to shipped; reader-specific bad shapes (null, empty, wrong types).
-
-Bundle `name` is the file name without `.json` (it must exist in `bundled.json`). A reader that needs the stored copy's `schema_version` has nothing to do: `loadContent` already drops copies whose version this build does not support.
+A bundle that another area still reads from the shipped import (raw-ingredients until recipes migrate) is read from the shipped import by every reader until all of them move together.

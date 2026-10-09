@@ -26,7 +26,6 @@ export const contentGeneration = (): number => generation;
  */
 export async function loadContent(db: ContentDb): Promise<void> {
   active.clear();
-  generation++;
   try {
     for (const row of await loadStored(db)) {
       try {
@@ -41,6 +40,8 @@ export async function loadContent(db: ContentDb): Promise<void> {
     }
   } catch {
     // store unavailable: bundled copies
+  } finally {
+    generation++; // after the awaited load, so nothing cached while it ran outlives it
   }
 }
 
