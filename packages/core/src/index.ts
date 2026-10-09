@@ -194,6 +194,17 @@ export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './
 export { addDays } from './dates';
 
 /**
+ * Lift records on the wire (#135): core's record (prototype `S.lifts[name]`) and the contract's `LiftStat`.
+ * The prototype has no counterpart (it kept records in `localStorage`); the fallbacks for older records are its rules.
+ * - `recordToLiftStat` renames to contract fields, fills required fields (null where unknown, `sessions` = prototype
+ *   `updateLift`'s `n || (prev ? 2 : 1)`, `first` = `first || prev.date || date`) and keeps nested `prev` one level deep.
+ * - `liftStatToRecord` is its inverse.
+ * - `liftStatTombstone` is the schema-valid tombstone for a deleted record (`updateLift` gave `record: null`).
+ */
+export { recordToLiftStat, liftStatToRecord, liftStatTombstone } from './liftStat';
+export type { LiftStatSet, LiftStatSession, LiftStatPrev, LiftStatBody, LiftStatTombstone } from './liftStat';
+
+/**
  * Workout screen: rest timer, warm-up line, next template and the check-in.
  * - `restFor`, `restLabel` mirror the prototype functions of the same name (`TAGS` passed in);
  *   `REST_COMPOUND_SEC`, `REST_OTHER_SEC` are its 150 and 75 seconds.
@@ -402,8 +413,43 @@ export {
 export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, CheckinInput, CheckinSuggestion, WeeklyCheckin, Habits } from './progress';
 
 /**
+ * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
+ * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
+ *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
+ * - `trendChange` mirrors `diff` in `weightChart()` ("Down/Up X kg since …") and `change` in `measuresHtml()`.
+ * - `chartLayout` mirrors the geometry of `weightChart()` and `lineChart()`; `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
+ * - `scaleJump` mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'`; `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS` are its 0.8 and 3.
+ * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
+ *   input with the contract's 0–24 h; `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
+ *   `TAPE_MAX_CM`, `SLEEP_MAX_H` are the contract's `Weight`, `TapeCm` and `DayNote.sleep` bounds.
+ */
+export {
+  round1,
+  weightSeries,
+  waistSeries,
+  trendChange,
+  chartLayout,
+  scaleJump,
+  weightEntry,
+  measurementRow,
+  sleepEntry,
+  WEIGHT_CHART_POINTS,
+  WAIST_CHART_POINTS,
+  WEIGHT_CHART_BOX,
+  WAIST_CHART_BOX,
+  SCALE_JUMP_KG,
+  SCALE_JUMP_DAYS,
+  WEIGHT_ABOVE_KG,
+  WEIGHT_BELOW_KG,
+  TAPE_MIN_CM,
+  TAPE_MAX_CM,
+  SLEEP_MAX_H,
+} from './progress';
+export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry } from './progress';
+
+/**
  * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
- * `ROLE` as `roles`, #230) and content/foods.json `foods`.
+ * `ROLE` as `roles`) and content/foods.json `foods`.
  * - `nextMealInfo` mirrors prototype `nextMealInfo()` (date, hour, logs and targets passed in); `mealByTime` mirrors
  *   `mealByTime()` (hour passed in); `OLDER_MEAL_PROTEIN_G` is its 25 g for 60+ users.
  * - `combos` mirrors prototype `combos(info)`; `combosFast` mirrors `combosFast(info)`; `round05` mirrors `round05`.

@@ -1,7 +1,7 @@
 import { addDays, daysBetween, mondayOf } from './dates';
 import { dayComplete, logTotals, type FoodLogFacts } from './food';
 import { num } from './num';
-import { splitFor, type PlanProfile, type SessionLog, type WeekPlan } from './plan';
+import { planList, splitFor, type PlanProfile, type SessionLog, type WeekPlan } from './plan';
 import type { LiftRecord } from './progression';
 import { toTargetsProfile, type SetupProfile } from './setup';
 import { stalledList } from './stalls';
@@ -210,14 +210,15 @@ export interface WeightDrift {
 
 /**
  * Whether the Targets screen offers "Recalculate targets": the latest weigh-in (any date) is at least
- * 2 kg from the setup weight. Null otherwise, or with no weigh-in. "Recalculate" starts setup with the
+ * 2 kg from the setup weight, comparing the gap rounded to 0.1 kg as the note shows it, so 64.1 vs
+ * 62.1 (1.999… in floating point) counts (#209). Null otherwise, or with no weigh-in. "Recalculate" starts setup with the
  * latest weigh-in as the weight (`latestWeight(weighIns)`), as prototype `startSetup` does.
  *
  * Mirrors the `drift` check and note in prototype `setupSummaryHtml()` (#161).
  */
 export function weightDrift(weighIns: readonly WeighIn[], setupWeightKg: number): WeightDrift | null {
   const lw = latestWeight(weighIns);
-  if (!lw || !(Math.abs(lw - setupWeightKg) >= WEIGHT_DRIFT_KG)) return null;
+  if (!lw || !(Math.round(Math.abs(lw - setupWeightKg) * 10) / 10 >= WEIGHT_DRIFT_KG)) return null;
   return { latest: lw, diff: Math.abs(lw - setupWeightKg), lower: lw < setupWeightKg };
 }
 
@@ -430,6 +431,7 @@ export interface WeeklyCheckin {
   /** Dismissal key, `ci:<Monday>`. */
   key: string;
   sessions: number;
+  /** This week's plan length, else the profile's plan (`planList`; 6 with no profile, 0 at 0 days) (#215). */
   plannedN: number;
   /** Days with food logged, of 7. */
   logged: number;
@@ -458,6 +460,9 @@ export interface WeeklyCheckin {
 /**
  * The weekly check-in for the 7 days ending on `date`.
  *
+ * The shorter-week suggestion (a 4-day plan next week) needs more than 4 planned sessions,
+ * `sessions + 2 <= plannedN` and no current or future week plan; a past week plan no longer blocks it (#215).
+ *
  * Mirrors prototype `renderCheckin()` (its numbers and choice of suggestion, not its HTML).
  */
 export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
@@ -465,7 +470,7 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
   const tt = wk.filter((d) => live(d.logs).length).map((d) => logTotals(d.logs, []));
   const avgK = tt.length ? tt.reduce((a, t) => a + t.kcal, 0) / tt.length : 0, avgP = tt.length ? tt.reduce((a, t) => a + t.protein_g, 0) / tt.length : 0;
   const sessions = wk.filter((d) => d.trained).length;
-  const plannedN = i.weekPlan && i.weekPlan.start === monday ? i.weekPlan.list.length : 6;
+  const plannedN = i.weekPlan && i.weekPlan.start === monday ? i.weekPlan.list.length : planList(i.profile).length;
   const start = addDays(i.date, -6);
   const improved = Object.entries(i.lifts)
     .map(([n, L]) => {
@@ -482,7 +487,7 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
   if (!i.dismissed?.[key] && !i.muted?.['checkin']) {
     const nt = burn.ready ? targetFromBurn(burn.burn, i.profile, i.weighIns, i.protein) : null;
     if (nt && Math.abs(nt.kcal - i.kcal) >= CHECKIN_KCAL_STEP) suggestion = { kind: 'kcal', target: nt };
-    else if (sessions + 2 <= plannedN && !i.weekPlan) suggestion = { kind: 'week' };
+    else if (plannedN > 4 && sessions + 2 <= plannedN && !(i.weekPlan && i.weekPlan.start >= monday)) suggestion = { kind: 'week' };
     else if (tt.length >= 3 && avgP < i.protein * 0.85) suggestion = { kind: 'protein' };
   }
   const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -537,4 +542,209 @@ export function habits(date: string, sessions: SessionLog, profile: PlanProfile 
   const logged = daysEnding(days, date, 7).filter((d) => live(d.logs).length).length;
   const thisWeek = dates.filter((d) => d >= monday && d <= date).length;
   return { goal, weeks, thisWeek, logged, message: weeks >= 2 ? 'streak' : logged < 4 ? 'missed' : 'steady' };
+}
+
+/* ---------- weight and waist trend, scale-jump note, entry limits (#233) ---------- */
+
+/** Prototype `r1`: to the nearest 0.1, as weigh-ins and tape measurements are saved and shown. */
+export function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+/** A dated value on a trend chart (kg or cm). */
+export interface TrendPoint {
+  date: string;
+  v: number;
+}
+
+/** Weigh-ins on the weight chart (prototype `weightChart`'s `slice(-30)`). */
+export const WEIGHT_CHART_POINTS = 30;
+/** Measurements on the waist chart (prototype `measuresHtml`'s `slice(-20)`). */
+export const WAIST_CHART_POINTS = 20;
+
+const byDate = <T extends readonly [string, unknown]>(a: T, b: T): number => (a[0] < b[0] ? -1 : 1);
+
+/**
+ * The weight chart's points: the last 30 weigh-ins on or before `upTo`, oldest first. The chart, and
+ * `trendChange`, need 2 or more; with fewer the prototype shows "Log a few weigh-ins to see your trend
+ * line here."
+ *
+ * Mirrors the series in prototype `weightChart()`.
+ */
+export function weightSeries(weighIns: readonly WeighIn[], upTo: string): TrendPoint[] {
+  return [...entries(weighIns)]
+    .filter(([d]) => d <= upTo)
+    .sort(byDate)
+    .slice(-WEIGHT_CHART_POINTS)
+    .map(([date, v]) => ({ date, v }));
+}
+
+/**
+ * The waist chart's points: the last 20 days with a nonzero waist on or before `upTo`, oldest first.
+ * The chart and the change line show only with 2 or more.
+ *
+ * Mirrors `waistPts` in prototype `measuresHtml()`.
+ */
+export function waistSeries(measurements: readonly MeasurementFacts[], upTo: string): TrendPoint[] {
+  return live(measurements)
+    .filter((m) => m.waist_cm && m.date <= upTo)
+    .map((m) => [m.date, m.waist_cm as number] as const)
+    .sort(byDate)
+    .slice(-WAIST_CHART_POINTS)
+    .map(([date, v]) => ({ date, v }));
+}
+
+/** Result of `trendChange`: "Down 1.2 kg since 1 Oct." or "Waist up 0.5 cm since 1 Oct." */
+export interface TrendChange {
+  /** Last point minus first, unrounded. */
+  diff: number;
+  /** `round1(|diff|)`, the number shown. */
+  amount: number;
+  /** "Down" (weight) or "down" (waist) when `diff <= 0`, so no change reads "Down 0 kg" (pinned, #246). */
+  down: boolean;
+  /** Date of the first point, shown with `shortDate`. */
+  since: string;
+}
+
+/**
+ * Change from the first to the last point of a `weightSeries` or `waistSeries`, or null with fewer than 2.
+ *
+ * Mirrors `diff` in prototype `weightChart()` and `change` in `measuresHtml()`.
+ */
+export function trendChange(points: readonly TrendPoint[]): TrendChange | null {
+  const first = points[0], last = points[points.length - 1];
+  if (!first || !last || points.length < 2) return null;
+  const diff = last.v - first.v;
+  return { diff, amount: round1(Math.abs(diff)), down: diff <= 0, since: first.date };
+}
+
+/** Chart box in viewBox units: width, height, left and vertical padding. */
+export interface ChartBox {
+  W: number;
+  H: number;
+  px: number;
+  py: number;
+}
+
+/** Prototype `weightChart`'s box. */
+export const WEIGHT_CHART_BOX: ChartBox = { W: 320, H: 150, px: 34, py: 16 };
+/** Prototype `lineChart`'s box (the waist chart). */
+export const WAIST_CHART_BOX: ChartBox = { W: 320, H: 130, px: 34, py: 14 };
+
+/** Result of `chartLayout`. */
+export interface ChartLayout {
+  /** Axis bounds, at least 1 apart (labelled with `round1`); grid lines at y = `py` and `H - py`. */
+  min: number;
+  max: number;
+  /** Each point's position, unrounded (the prototype prints them with `toFixed(1)`). */
+  points: { x: number; y: number }[];
+}
+
+/**
+ * Line-chart layout: points spread evenly from `px` to `W - 8`, values scaled between `py` (max) and
+ * `H - py` (min); a range under 1 is widened by 0.5 each way. Null with fewer than 2 points.
+ *
+ * Mirrors the geometry of prototype `weightChart()` (with `WEIGHT_CHART_BOX`) and `lineChart()` (`WAIST_CHART_BOX`).
+ */
+export function chartLayout(values: readonly number[], box: ChartBox): ChartLayout | null {
+  if (values.length < 2) return null;
+  const { W, H, px, py } = box;
+  let mn = Math.min(...values), mx = Math.max(...values);
+  if (mx - mn < 1) {
+    mn -= 0.5;
+    mx += 0.5;
+  }
+  const X = (i: number): number => px + (i * (W - px - 8)) / (values.length - 1), Y = (v: number): number => py + ((mx - v) * (H - py * 2)) / (mx - mn);
+  return { min: mn, max: mx, points: values.map((v, i) => ({ x: X(i), y: Y(v) })) };
+}
+
+/** A rise at least this big over the last weigh-in triggers the scale-jump note, kg (prototype's 0.8). */
+export const SCALE_JUMP_KG = 0.8;
+/** How many days back the scale-jump note looks for the last weigh-in (prototype's 3). */
+export const SCALE_JUMP_DAYS = 3;
+
+/** The scale-jump note: "The scale went up `round1(kg)` kg". Shown only while the day shown is `date`. */
+export interface ScaleJump {
+  date: string;
+  kg: number;
+}
+
+/**
+ * The scale-jump note on saving a weigh-in of `kg` on `date`: when the latest weigh-in in the 3 days
+ * before rose by 0.8 kg or more. `kg` is the value as entered (`WeightEntry.raw`), not rounded, and the
+ * difference is not rounded before comparing, so 80.8 after 80.0 (0.7999… in floating point) gives no
+ * note (pinned, #246). Null means no new note; the prototype keeps an earlier note for the day until "Got it".
+ *
+ * Mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'` (document click listener) and `scaleJumpHtml()`.
+ */
+export function scaleJump(weighIns: readonly WeighIn[], date: string, kg: number): ScaleJump | null {
+  const from = addDays(date, -SCALE_JUMP_DAYS);
+  const pv = [...entries(weighIns)]
+    .filter(([d]) => d < date && d >= from)
+    .sort(byDate)
+    .pop();
+  return pv && kg - pv[1] >= SCALE_JUMP_KG ? { date, kg: kg - pv[1] } : null;
+}
+
+/** Weigh-ins must be above this, kg (contract `Weight.weight_kg` exclusiveMinimum; prototype `case 'saveW'`). */
+export const WEIGHT_ABOVE_KG = 20;
+/** Weigh-ins must be below this, kg (contract exclusiveMaximum; prototype `case 'saveW'`). */
+export const WEIGHT_BELOW_KG = 400;
+/** Tape measurements from this, cm (contract `TapeCm` minimum; prototype `saveMeasures`). */
+export const TAPE_MIN_CM = 10;
+/** Tape measurements up to this, cm (contract `TapeCm` maximum; prototype `saveMeasures`). */
+export const TAPE_MAX_CM = 250;
+/** Hours of sleep up to this (contract `DayNote.sleep` maximum; the prototype has no limit). */
+export const SLEEP_MAX_H = 24;
+
+/** What to do with the weight box: save `kg`, clear the day's weigh-in, or show "Enter your weight in kg, like 81.6". */
+export type WeightEntry = { kind: 'save'; kg: number; raw: number } | { kind: 'clear' } | { kind: 'bad' };
+
+/**
+ * Reads the weight box: above 20 and below 400 kg saves the value rounded to 0.1 (`raw` is the parsed
+ * value, for `scaleJump`); a blank box clears; anything else is bad. Departure (contract): a value
+ * that rounds to 20.0 or 400.0 (20.01–20.04, 399.95–399.99), which the prototype saves, is bad here,
+ * because the contract's bounds are exclusive (#247).
+ *
+ * Mirrors the checks in the prototype's `case 'saveW'` (document click listener).
+ */
+export function weightEntry(text: string): WeightEntry {
+  const v = num(text), kg = round1(v);
+  if (v > WEIGHT_ABOVE_KG && v < WEIGHT_BELOW_KG && kg > WEIGHT_ABOVE_KG && kg < WEIGHT_BELOW_KG) return { kind: 'save', kg, raw: v };
+  if (!text.trim()) return { kind: 'clear' };
+  return { kind: 'bad' };
+}
+
+/**
+ * The tape boxes to save: each from 10 to 250 cm, rounded to 0.1; blank or out-of-range boxes are left
+ * out. An empty result means "Enter at least one measurement in cm." and nothing is saved; otherwise
+ * the row is merged over the day's stored measurement.
+ *
+ * Mirrors prototype `saveMeasures()`.
+ */
+export function measurementRow(entered: Readonly<Partial<Record<MeasureKey, string>>>): Partial<Record<MeasureKey, number>> {
+  const row: Partial<Record<MeasureKey, number>> = {};
+  for (const [k, text] of Object.entries(entered) as [MeasureKey, string | undefined][]) {
+    const v = num(text);
+    if (v >= TAPE_MIN_CM && v <= TAPE_MAX_CM) row[k] = round1(v);
+  }
+  return row;
+}
+
+/** What to do with the sleep box: save `h`, clear it, or reject it. */
+export type SleepEntry = { kind: 'save'; h: number } | { kind: 'clear' } | { kind: 'bad' };
+
+/**
+ * Reads the hours-slept box: blank clears; otherwise the parsed hours (comma decimals accepted, not
+ * rounded), bad when below 0 or above 24, or when the text is not a number. Departures (#247): the
+ * prototype stores any text, and `num` later reads text that is not a number as 0; here "abc" is bad, so a
+ * typo is not saved as a 0-hour night. The 0–24 check is the contract's.
+ *
+ * Mirrors the `enSleep` step of the prototype's document input listener, with the contract `DayNote.sleep` bounds.
+ */
+export function sleepEntry(text: string): SleepEntry {
+  if (!text.trim()) return { kind: 'clear' };
+  if (!Number.isFinite(parseFloat(text.replace(',', '.')))) return { kind: 'bad' };
+  const h = num(text);
+  return h >= 0 && h <= SLEEP_MAX_H ? { kind: 'save', h } : { kind: 'bad' };
 }

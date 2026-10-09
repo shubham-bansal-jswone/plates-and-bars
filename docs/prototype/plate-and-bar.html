@@ -2702,7 +2702,7 @@ async function renderCheckin(){
   const avgK = tt.length ? tt.reduce((a, t) => a + t.kcal, 0)/tt.length : 0, avgP = tt.length ? tt.reduce((a, t) => a + t.p, 0)/tt.length : 0;
   const pDays = tt.filter(t => t.p >= g.protein*0.9).length;
   const sessions = wk.filter(d => d.day.workout.exercises.some(e => e.sets.some(s => s.done))).length;
-  const plannedN = A.weekPlan && A.weekPlan.start === mondayOf(S.date) ? A.weekPlan.list.length : 6;
+  const plannedN = A.weekPlan && A.weekPlan.start === mondayOf(S.date) ? A.weekPlan.list.length : planList().length;
   const w1 = weeklyAvg(S.date), w0 = weeklyAvg(addDays(S.date, -7));
   const start = addDays(S.date, -6);
   const improved = Object.entries(S.lifts).map(([n, L]) => {
@@ -2721,7 +2721,7 @@ async function renderCheckin(){
     if(nt && Math.abs(nt.kcal - g.kcal) >= 100)
       sug = adjCard('checkin', key, `Adjust calories to ${fmt(nt.kcal)}?`, `Your real data puts your burn at about ${fmt(ab.burn)} kcal a day. To stay on track for your goal, a target of ${fmt(nt.kcal)} kcal fits better than ${fmt(g.kcal)}. Protein stays at ${nt.protein} g.`,
         [['ci-apply', 'Update my targets', true, JSON.stringify(nt)], ['adj-no', 'Keep current targets']]);
-    else if(sessions + 2 <= plannedN && !A.weekPlan)
+    else if(plannedN > 4 && sessions + 2 <= plannedN && !(A.weekPlan && A.weekPlan.start >= mondayOf(S.date))) // not on 4 days or fewer; a past week plan no longer blocks it (#215)
       sug = adjCard('checkin', key, 'A shorter week might fit better', `You trained ${sessions} of ${plannedN} days. A 4-day plan next week keeps every muscle covered with fewer sessions.`,
         [['ci-week', 'Use a 4-day plan next week', true], ['adj-no', 'Not now']]);
     else if(tt.length >= 3 && avgP < g.protein*0.85)
@@ -4209,7 +4209,7 @@ function setupSummaryHtml(){
   const p = S.settings.profile;
   if(!p) return `<section class="block"><h2>Your setup</h2><p class="hint">Answer a few questions and the app works out your calorie burn and targets.</p><div><button class="primary" data-act="su-start">Start setup</button></div></section>`;
   const r = calcTargets(p), lw = latestWeight();
-  const drift = lw && Math.abs(lw - p.weight) >= 2;
+  const drift = lw && Math.round(Math.abs(lw - p.weight)*10)/10 >= 2; // the gap as shown, to 0.1 kg, so 64.1 vs 62.1 counts (#209)
   return `<section class="block"><h2>Your setup</h2>
     <p>${p.sex === 'male' ? 'Male' : 'Female'}, ${p.age}, ${heightText(p.height)}, ${r1(p.weight)} kg. ${ACTIVITY[p.activity].label}; ${p.days ? `${p.days} sessions a week of about ${p.minutes} min` : 'no regular training yet'}. Goal: ${GOALS[p.goal].label.toLowerCase()}.</p>
     <p class="hint">Estimated burn: about ${fmt(r.tdee)} kcal a day.</p>

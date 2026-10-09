@@ -17,7 +17,7 @@ export const MEAL_ORDER: readonly Meal[] = ['Breakfast', 'Lunch', 'Snacks', 'Din
 /** Meal-idea diet filter: contract `Settings.diet`. A missing value is `any`. */
 export type MealDiet = 'any' | 'egg' | 'veg';
 
-/** A food's role and diet: an entry of content/meal-planning.json `roles` (prototype `ROLE[food]`, #230). */
+/** A food's role and diet: an entry of content/meal-planning.json `roles` (prototype `ROLE[food]`). */
 export interface MealRole {
   food: string;
   /** `p` main protein, `c` carb, `v` veg, `b` breakfast base, `bp` breakfast protein, `sp` snack protein, `s` snack, `f` fruit, `side`. */

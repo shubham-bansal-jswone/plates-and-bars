@@ -18,23 +18,19 @@ import {
   type MealFood,
   type MealPlan,
   type MealPlanningContent,
-  type MealRole,
 } from '../src/index';
 import foodsContent from '../../../content/foods.json';
 import planningContent from '../../../content/meal-planning.json';
-import { loadMealPlan, loadMeals, type ProtoPlan } from './prototype-meals';
+import { loadMealPlan, type ProtoPlan } from './prototype-meals';
 import { rng } from './prototype-plan';
 
 const proto = loadMealPlan();
-const ROLE = loadMeals().ROLE;
 const RUNS = 300;
 
 // content is passed in as is; these assignments are the type check.
 const foods: readonly MealFood[] = foodsContent.foods;
 const grocery: readonly GroceryEntry[] = planningContent.grocery;
-/** Prototype `ROLE` as content/meal-planning.json `roles` is to carry it (#230). */
-const roles: MealRole[] = Object.entries(ROLE).map(([food, [role, diet]]) => ({ food, role, diet }));
-const planning: MealPlanningContent = { ...planningContent, roles };
+const planning: MealPlanningContent = planningContent;
 
 const pick = <T>(rand: () => number, xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)] as T;
 const DIETS: readonly (MealDiet | undefined)[] = [undefined, 'any', 'egg', 'veg'];

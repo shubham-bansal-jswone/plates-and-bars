@@ -30,9 +30,8 @@ const RUNS = 3000;
 
 // content is passed in as is; these assignments are the type check.
 const foods: readonly MealFood[] = foodsContent.foods;
-/** Prototype `ROLE` as the `roles` entries content/meal-planning.json is to carry (#230). */
-const roles: MealRole[] = Object.entries(proto.ROLE).map(([food, [role, diet]]) => ({ food, role, diet }));
-const planning: MealPlanningContent = { ...planningContent, roles };
+const roles: readonly MealRole[] = planningContent.roles;
+const planning: MealPlanningContent = planningContent;
 
 /** A port idea in the prototype's shape, for comparing with the sliced `combos`. */
 function toProto(c: MealIdea): { items: [string, number][]; kcal: number; p: number; fat?: number; score: number } {
@@ -63,6 +62,11 @@ describe('meal-planning content matches the prototype', () => {
     expect(foods.map((f) => [f.name, f.per_serving.kcal, f.per_serving.protein_g, f.per_serving.fat_g])).toEqual(
       proto.FOODS.map((f) => [f[0], f[2], f[3], f[5]]),
     );
+  });
+
+  it('roles are the prototype ROLE table, fasting-day rows included, in order (#230)', () => {
+    expect(roles.map((r) => [r.food, r.role, r.diet])).toEqual(Object.entries(proto.ROLE).map(([food, [role, diet]]) => [food, role, diet]));
+    expect(roles.map((r) => r.food).slice(-7)).toEqual(['Sabudana khichdi', 'Makhana, roasted', 'Kuttu atta roti', 'Sweet potato, boiled', 'Peanuts, roasted', 'Buttermilk (chaas)', 'Fruit bowl']);
   });
 
   it('every food with a role is a content food', () => {
