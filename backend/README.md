@@ -26,7 +26,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
 - CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
   `Authorization`, `Content-Type` and `Accept` request headers, `Retry-After` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   Empty means every cross-origin call is refused.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`).
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`.
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
@@ -58,7 +58,19 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     so no denylist is needed. Cost: one indexed query per request. A database error in that lookup is 503
     `unavailable`, never 401. The sync transaction starts with `SELECT ... FROM users ... FOR SHARE`, so a
     concurrent `DELETE /me` waits for it, and a sync after the delete is 401 (never a foreign-key 500).
-- Not yet: foods, content and the AI proxy.
+- AI (#232, contract 0.1.6), package `ai`, part 1 (quota, switches, status; the three POST endpoints follow):
+  - `GET /ai/status`: which features are on and the user's daily quota (`no-store`; only the per-IP limit applies).
+  - Every feature is off by default. A feature is on only while its flag is set (`AI_DESCRIBE_MEAL_ENABLED`,
+    `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
+    by the tokens recorded in `ai_usage` for the UTC month (0, the default, keeps everything off). A switched-off
+    endpoint answers 503 `feature_disabled` and counts nothing.
+  - Daily quota: `AI_DAILY_LIMIT` (default 10) per user per UTC day, shared by the three endpoints. `AiQuotaService`
+    reserves a unit inside a transaction that locks the user's `users` row (so concurrent calls cannot overrun) and
+    releases it if the call fails. At the limit: 429 `quota_exceeded` with `quota` and `Retry-After` until 00:00Z.
+  - `ai_usage` (V5): user id, UTC day, feature, call count, token counts. No text, ever. Cascades on user delete;
+    not part of the export.
+  - Limits: `app.rate-limit.ai-per-user` (5 per minute, the three POSTs) and `ai-per-ip` (60 per minute, all four).
+- Not yet: foods and content.
 
 ## Sync
 
