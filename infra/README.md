@@ -63,7 +63,7 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 
 Do not require `lane-check (warns only)`; it only annotates. Skipped jobs (folder absent or untouched) count as passing, so requiring all of the above is safe now. Note that `dependency-review` only runs on PRs, so it will not report on pushes to `main`; that is fine for PR-based protection.
 
-The `site` job uses the Google Chrome already installed on `ubuntu-latest` (`CHROME_PATH=/usr/bin/google-chrome`); no browser-setup action is used.
+The `site` job installs open-source Chromium (BSD-3-Clause) with `@puppeteer/browsers` 3.2.4 (Apache-2.0, pinned exact) and sets `CHROME_PATH` to it; it does not use Google Chrome (proprietary, Google ToS). Licences checked 2026-10-09 (npm registry metadata for `@puppeteer/browsers`).
 
 Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions/*` majors (ignored, so a human re-checks the licence). gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
 
