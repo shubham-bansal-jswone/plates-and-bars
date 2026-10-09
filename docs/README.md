@@ -5,6 +5,7 @@ Where to find things. The prototype is the behaviour specification; everything e
     AGENTS.md                      rules and lanes for every agent (read first)
     development-plan.md            scope, stack, data model, milestones, budget
     adr/                           architecture decision records
+    design/DESIGN.md               design system: colour and type tokens, components, contrast
     prototype/plate-and-bar.html   reference implementation (open in a browser)
     spec/PROTOTYPE_SPEC.md         behaviour spec; section 0 lists what changed and when
     spec/golden/*.json             fixtures generated from the prototype; never edit by hand
