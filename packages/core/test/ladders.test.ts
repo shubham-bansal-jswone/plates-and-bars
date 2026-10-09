@@ -103,16 +103,42 @@ describe('ladderOf, nextStep, prevStep, sidewaysOf', () => {
     expect(nextStep('Barbell Back Squat', [], catalog)).toBeNull();
     expect(prevStep('Goblet Squat', [], catalog)).toBeNull();
     expect(prevStep('Barbell Back Squat', [rule('exercise', 'Hack Squat'), rule('exercise', 'Leg Press')], catalog)).toBeNull();
-    expect(sidewaysOf('Hack Squat', [], catalog)).toBe('Leg Press');
-    expect(sidewaysOf('Not An Exercise', [], catalog)).toBeNull();
+    expect(sidewaysOf('Hack Squat', [], catalog, 'gym')).toBe('Leg Press');
+    expect(sidewaysOf('Not An Exercise', [], catalog, 'gym')).toBeNull();
   });
 
-  it('PINNED QUIRK (#262): sidewaysOf ignores where the user trains, so at home it can offer a gym-only exercise', () => {
-    const side = sidewaysOf('Lateral Raise', [], catalog) as string;
-    expect(side).toBe('Cable Lateral Raise');
-    // saved as a swap, it resolves back to the exercise itself at home: the button changes nothing
-    const swap = { ...ladderSwap('side', 'Lateral Raise', side, DATE) };
-    expect(resolveName('Lateral Raise', 'dumbbells', { date: DATE, exclusions: [], swaps: [swap] }, catalog)).toBe('Lateral Raise');
+  it('sidewaysOf offers only what the equipment where the user trains can do (#262)', () => {
+    expect(sidewaysOf('Lateral Raise', [], catalog, 'gym')).toBe('Cable Lateral Raise');
+    expect(sidewaysOf('Lateral Raise', [], catalog, 'dumbbells')).toBeNull();
+    expect(sidewaysOf('Rear Delt Fly', [], catalog, 'gym')).toBe('Face Pull');
+    expect(sidewaysOf('Rear Delt Fly', [], catalog, 'dumbbells')).toBe('Prone Y-T-W Raise');
+    expect(sidewaysOf('Crunch', [], catalog, 'dumbbells')).toBeNull();
+    expect(sidewaysOf('Dumbbell Fly', [], catalog, 'dumbbells')).toBeNull();
+    expect(sidewaysOf('Goblet Squat', [], catalog, 'gym')).toBe('Leg Press');
+    expect(sidewaysOf('Goblet Squat', [], catalog, 'dumbbells')).toBe('Bodyweight Squat');
+  });
+
+  it('every sideways swap offered changes the session where the user trains (#262)', () => {
+    let offered = 0;
+    for (const where of WHERES) {
+      const allow = where === 'gym' ? null : where === 'dumbbells' ? ['dumbbell', 'bodyweight'] : ['bodyweight'];
+      for (const n of NAMES) {
+        const side = sidewaysOf(n, [], catalog, where);
+        if (!side) continue;
+        offered++;
+        if (allow) expect(allow).toContain((tags[side as keyof typeof tags] as ExerciseTag).equipment);
+        const before = resolveName(n, where, { date: DATE, exclusions: [], swaps: [] }, catalog);
+        const swap = ladderSwap('side', n, side, DATE);
+        expect(resolveName(n, where, { date: DATE, exclusions: [], swaps: [swap] }, catalog)).not.toBe(before);
+      }
+    }
+    expect(offered).toBeGreaterThan(50);
+  });
+
+  it('sidewaysOf: an untagged ladder mate fits only at the gym', () => {
+    const c = { tags, ladders: { t: { label: 'T', steps: [['Push-ups', 'Mystery Move']] } } };
+    expect(sidewaysOf('Push-ups', [], c, 'gym')).toBe('Mystery Move');
+    expect(sidewaysOf('Push-ups', [], c, 'bodyweight')).toBe('Incline Push-ups'); // same family and difficulty
   });
 
   it('match the prototype for every catalogue exercise under 300 random rule sets', () => {
@@ -120,13 +146,14 @@ describe('ladderOf, nextStep, prevStep, sidewaysOf', () => {
     const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
     for (let k = 0; k < 300; k++) {
       const excl = randRules(r, Math.floor(r() * 4), pick);
-      setProto({}, { excl: toProtoRules(excl) });
+      const where = pick(WHERES);
+      setProto({ where }, { excl: toProtoRules(excl) });
       for (const n of [...NAMES, 'Not An Exercise']) {
         const want = proto.ladderOf(n);
         expect(ladderOf(n, catalog.ladders)).toEqual(want);
         expect(nextStep(n, excl, catalog)).toBe(proto.nextStep(n));
         expect(prevStep(n, excl, catalog)).toBe(proto.prevStep(n));
-        expect(sidewaysOf(n, excl, catalog)).toBe(proto.sidewaysOf(n));
+        expect(sidewaysOf(n, excl, catalog, where)).toBe(proto.sidewaysOf(n));
       }
     }
   });

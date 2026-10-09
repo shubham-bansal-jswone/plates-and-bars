@@ -74,7 +74,8 @@ prototype does after every tick, rating or form change, except that a same-day r
 `pbToast` so the best toast shows at most once a day (#121; the prototype follows in a spec-change PR). Cards come back as facts (key, names, rep
 range), not HTML. Save "Switch to lo–hi" with `stallRangeOverride`, which returns the contract
 `Settings.exercise_overrides[name]` entry (#128). The stall card's "Or switch to …" button shows when
-`sidewaysOf` returns a name; it ignores where the user trains, as the prototype does (#262). After a
+`sidewaysOf` returns a name; pass where the user trains today (the day's override, else the
+profile's), so it only offers an exercise the equipment there can do (#262). After a
 settings sync, call `applyCustomTags` again so re-tagged custom exercises update mid-session.
 
 Ladders read prototype `LADDERS` from content/exercises.json `ladders`, passed in a `LadderCatalog`

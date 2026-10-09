@@ -1,5 +1,6 @@
 import { addDays } from './dates';
 import { isExcluded, type Exclusion, type Swap } from './exclusions';
+import type { Where } from './plan';
 import { snap, type ExInfo, type LiftRecord, type LiftSession, type SetEntry } from './progression';
 import type { ExerciseCatalog } from './session';
 import type { AdjState } from './stalls';
@@ -54,21 +55,29 @@ export function prevStep(name: string, exclusions: readonly Exclusion[], catalog
 
 /**
  * A sideways swap (the stall card's "Or switch to …" button): another exercise on the same ladder
- * step, else the first catalogue exercise of the same family and difficulty, skipping excluded ones.
- * Equipment is not checked. Null when there is none.
+ * step, else the first catalogue exercise of the same family and difficulty, skipping excluded ones
+ * and ones the equipment at `where` can't do (as `candidates`: away from the gym, only dumbbell and
+ * bodyweight exercises, or bodyweight only; an untagged name never fits there). Null when there is none.
+ * `where` is where the user trains today: the day's override, else the profile's (prototype `whereNow()`).
  *
- * Mirrors prototype `sidewaysOf(name)`.
+ * Mirrors prototype `sidewaysOf(name)` (#262).
  */
-export function sidewaysOf(name: string, exclusions: readonly Exclusion[], catalog: LadderCatalog): string | null {
+export function sidewaysOf(name: string, exclusions: readonly Exclusion[], catalog: LadderCatalog, where: Where): string | null {
   const { tags } = catalog;
+  const allow = where === 'gym' ? null : where === 'dumbbells' ? ['dumbbell', 'bodyweight'] : ['bodyweight'];
+  const fits = (n: string): boolean => {
+    if (isExcluded(n, exclusions, tags)) return false;
+    const tn = tags[n];
+    return !allow || (!!tn && allow.includes(tn.equipment));
+  };
   const l = ladderOf(name, catalog.ladders);
   if (l) {
-    const mate = (l.steps[l.i] as readonly string[]).find((n) => n !== name && !isExcluded(n, exclusions, tags));
+    const mate = (l.steps[l.i] as readonly string[]).find((n) => n !== name && fits(n));
     if (mate) return mate;
   }
   const t = tags[name];
   if (!t) return null;
-  const alt = Object.entries(tags).find(([n, x]) => n !== name && x.family === t.family && x.difficulty === t.difficulty && !isExcluded(n, exclusions, tags));
+  const alt = Object.entries(tags).find(([n, x]) => n !== name && x.family === t.family && x.difficulty === t.difficulty && fits(n));
   return alt ? alt[0] : null;
 }
 
