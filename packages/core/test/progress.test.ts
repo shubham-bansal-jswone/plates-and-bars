@@ -240,27 +240,38 @@ describe('weightDrift (#161)', () => {
   it('reads the latest weigh-in of any date', () => {
     expect(weightDrift(ws(70, '2027-01-01'), 80)).toMatchObject({ latest: 70 });
   });
-  it('PINNED QUIRK (#209): a 2.0 kg gap that is 1.99999… in floating point offers nothing', () => {
+  it('compares the gap rounded to 0.1 kg, so a 2.0 kg gap that is 1.99999… in floating point counts (#209)', () => {
     expect(64.1 - 62.1).toBeLessThan(2);
-    expect(weightDrift(ws(64.1), 62.1)).toBeNull();
+    // Hand-worked: |64.1 − 62.1| = 1.999999999999993, × 10 = 19.99999999999993, rounds to 20, / 10 = 2.0 ≥ 2.
+    expect(weightDrift(ws(64.1), 62.1)).toEqual({ latest: 64.1, diff: 64.1 - 62.1, lower: false });
+    expect(weightDrift(ws(62.1), 64.1)).toMatchObject({ latest: 62.1, lower: true });
+    for (const [lw, w] of [[64.6, 62.6], [65.1, 63.1], [128.2, 126.2]] as const) expect(weightDrift(ws(lw), w)).not.toBeNull();
+    // 1.95 rounds to 2.0 (shown as 2 kg), 1.94 to 1.9.
+    expect(weightDrift(ws(81.95), 80)).not.toBeNull();
+    expect(weightDrift(ws(81.94), 80)).toBeNull();
     setWeights(ws(64.1));
     proto.S.settings.profile = { sex: 'male', age: 30, height: 175, weight: 62.1, activity: 'light', days: 3, minutes: 60, goal: 'lose', pace: 'moderate' };
-    expect(proto.setupSummaryHtml()).not.toContain('su-recalc');
+    expect(proto.setupSummaryHtml()).toContain('su-recalc');
+    expect(proto.setupSummaryHtml()).toContain('Your latest weight is 64.1 kg, 2 kg higher than at setup.');
   });
   it(`matches prototype setupSummaryHtml's note and startSetup's weight over ${RUNS} random weigh-ins`, () => {
     const r = rng(161);
+    let roundedIn = 0;
     for (let i = 0; i < RUNS; i++) {
       const weight = 50 + Math.round(r() * 600) / 10;
-      const list: WeighIn[] = r() < 0.15 ? [] : [{ date: addDays(DATE, -Math.floor(r() * 30)), weight_kg: Math.round((weight + (r() - 0.5) * 8) * 10) / 10 }];
+      const off = r() < 0.25 ? (r() < 0.5 ? -2 : 2) : (r() - 0.5) * 8; // a quarter exactly 2 kg off, many 1.99999… in floating point
+      const list: WeighIn[] = r() < 0.15 ? [] : [{ date: addDays(DATE, -Math.floor(r() * 30)), weight_kg: Math.round((weight + off) * 10) / 10 }];
       if (r() < 0.5) list.push({ date: addDays(DATE, -40), weight_kg: 100 });
       setWeights(list);
       proto.S.settings.profile = { sex: 'female', age: 40, height: 160, weight, activity: 'feet', days: 4, minutes: 45, goal: 'maintain', pace: 'moderate' };
       const d = weightDrift(list, weight), html = proto.setupSummaryHtml();
       expect(html.includes('su-recalc')).toBe(d !== null);
       if (d) expect(html).toContain(`Your latest weight is ${r1(d.latest)} kg, ${r1(d.diff)} kg ${d.lower ? 'lower' : 'higher'} than at setup.`);
+      if (d && d.diff < WEIGHT_DRIFT_KG) roundedIn++;
       proto.startSetup();
       expect(proto.SU.p['weight']).toBe(latestWeight(list) ?? weight);
     }
+    expect(roundedIn).toBeGreaterThan(0); // gaps like 64.1 vs 62.1 that only count after rounding (#209)
   });
 });
 
@@ -452,23 +463,37 @@ describe('weeklyCheckin', () => {
     const weekPlan: WeekPlan = { start: mondayOf(DATE), list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'] };
     expect(weeklyCheckin({ ...base, weekPlan })).toMatchObject({ plannedN: 4, suggestion: null });
   });
-  it('PINNED QUIRK (#215): with no week plan the planned count is 6, whatever the profile\'s days', () => {
-    const days: ProgressDay[] = [1, 3, 5].map((b) => ({ date: addDays(DATE, -b), logs: [], trained: true }));
-    const profile: BurnProfile = { sex: 'male', age: 30, height_cm: 175, weight_kg: 80, activity: 'light', days: 3, minutes: 60, goal: 'maintain', pace: 'moderate', special: 'none' };
-    // 3 of 3 planned sessions done, yet "3 / 6" and "A shorter week might fit better".
-    expect(weeklyCheckin({ ...base, days, profile })).toMatchObject({ sessions: 3, plannedN: 6, suggestion: { kind: 'week' } });
+  const profileOf = (days: number): BurnProfile => ({ sex: 'male', age: 30, height_cm: 175, weight_kg: 80, activity: 'light', days, minutes: 60, goal: 'maintain', pace: 'moderate', special: 'none' });
+  const trainedOn = (...back: number[]): ProgressDay[] => back.map((b) => ({ date: addDays(DATE, -b), logs: [], trained: true }));
+  it('with no week plan the planned count is the profile\'s plan length (#215)', () => {
+    // Hand-worked: 3 days → 3 planned; 3 of 3 done, 3 + 2 > 3, so no shorter-week card.
+    expect(weeklyCheckin({ ...base, days: trainedOn(1, 3, 5), profile: profileOf(3) })).toMatchObject({ sessions: 3, plannedN: 3, suggestion: null });
+    // 6 days, 4 done: 4 + 2 ≤ 6 → card. 5 days, 3 done: 3 + 2 ≤ 5 → card; 4 done: no card.
+    expect(weeklyCheckin({ ...base, days: trainedOn(0, 1, 2, 3), profile: profileOf(6) })).toMatchObject({ plannedN: 6, suggestion: { kind: 'week' } });
+    expect(weeklyCheckin({ ...base, days: trainedOn(0, 2, 4), profile: profileOf(5) })).toMatchObject({ plannedN: 5, suggestion: { kind: 'week' } });
+    expect(weeklyCheckin({ ...base, days: trainedOn(0, 1, 2, 4), profile: profileOf(5) })).toMatchObject({ plannedN: 5, suggestion: null });
+    // 0 days (no plan): 0 planned, never the card. No profile: the 6-day plan.
+    expect(weeklyCheckin({ ...base, profile: profileOf(0) })).toMatchObject({ sessions: 0, plannedN: 0, suggestion: null });
+    expect(weeklyCheckin({ ...base, profile: null })).toMatchObject({ plannedN: 6, suggestion: { kind: 'week' } });
   });
-  it('PINNED QUIRK (#215): any saved week plan, even a past one, stops the shorter-week suggestion', () => {
-    const weekPlan: WeekPlan = { start: '2026-08-03', list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'] };
-    expect(weeklyCheckin({ ...base, weekPlan })).toMatchObject({ plannedN: 6, sessions: 0, suggestion: null });
+  it('only a current or future week plan stops the shorter-week suggestion (#215)', () => {
+    const list = ['Upper A', 'Lower A', 'Upper B', 'Lower B'];
+    // Past plan: ignored for the count and the card.
+    expect(weeklyCheckin({ ...base, weekPlan: { start: '2026-08-03', list } })).toMatchObject({ plannedN: 6, sessions: 0, suggestion: { kind: 'week' } });
+    expect(weeklyCheckin({ ...base, weekPlan: { start: addDays(mondayOf(DATE), -7), list } })).toMatchObject({ plannedN: 6, suggestion: { kind: 'week' } });
+    // Next week's plan (what "Use a 4-day plan next week" saves): this week still counts 6, but no card.
+    expect(weeklyCheckin({ ...base, weekPlan: { start: addDays(mondayOf(DATE), 7), list } })).toMatchObject({ plannedN: 6, suggestion: null });
+    // This week's plan: counts 4; 0 + 2 ≤ 4 but the plan blocks the card.
+    expect(weeklyCheckin({ ...base, weekPlan: { start: mondayOf(DATE), list } })).toMatchObject({ plannedN: 4, suggestion: null });
   });
   it(`matches prototype renderCheckin over ${RUNS / 3} random weeks`, async () => {
     const r = rng(2026);
+    const reached = { pastPlanCard: 0, futurePlanBlocks: 0, profilePlanned: 0 };
     for (let i = 0; i < RUNS / 3; i++) {
       const dense = r() < 0.5, days = randomDays(r, 22, dense), ws = randomWeighIns(r, 24, dense), lifts = randomLifts(r), kcal = 1500 + Math.floor(r() * 130) * 10, protein = 100 + Math.floor(r() * 80);
       const profile = r() < 0.15 ? null : randomProfile(r);
       const adaptive: AdaptiveState | null = r() < 0.5 ? null : { week: '2026-09-28', prev: null, value: 2000 + Math.floor(r() * 1000) };
-      const weekPlan: WeekPlan | null = r() < 0.7 ? null : { start: r() < 0.7 ? mondayOf(DATE) : '2026-08-03', list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'].slice(0, 2 + Math.floor(r() * 3)) };
+      const weekPlan: WeekPlan | null = r() < 0.7 ? null : { start: pickOf(r, [mondayOf(DATE), mondayOf(DATE), addDays(mondayOf(DATE), 7), addDays(mondayOf(DATE), -7), '2026-08-03']), list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'].slice(0, 2 + Math.floor(r() * 3)) };
       const key = 'ci:' + mondayOf(DATE), dismissed = r() < 0.1 ? { [key]: true } : {}, muted = r() < 0.1 ? { checkin: true } : {};
       setDays(days);
       setWeights(ws);
@@ -490,7 +515,11 @@ describe('weeklyCheckin', () => {
       expect(c.suggestion?.kind ?? null).toBe(kind);
       if (c.suggestion?.kind === 'kcal') expect(html).toContain(`data-v="${JSON.stringify(c.suggestion.target).replace(/"/g, '&quot;')}"`);
       if (c.burn.ready) expect(nextAdaptive(adaptive, DATE, c.burn.burn)).toEqual(proto.S.settings.adaptive);
+      if (weekPlan && weekPlan.start < mondayOf(DATE) && c.suggestion?.kind === 'week') reached.pastPlanCard++;
+      if (weekPlan && weekPlan.start > mondayOf(DATE) && c.sessions + 2 <= c.plannedN && !dismissed[key] && !muted.checkin && c.suggestion?.kind !== 'kcal') reached.futurePlanBlocks++;
+      if (profile && !weekPlan && c.plannedN !== 6) reached.profilePlanned++;
     }
+    for (const n of Object.values(reached)) expect(n).toBeGreaterThan(0);
   });
 });
 
