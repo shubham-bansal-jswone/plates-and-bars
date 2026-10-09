@@ -400,3 +400,27 @@ export {
   CARDIO_WEEK_MIN,
 } from './progress';
 export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, CheckinInput, CheckinSuggestion, WeeklyCheckin, Habits } from './progress';
+
+/**
+ * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
+ * `ROLE` as `roles`, #230) and content/foods.json `foods`.
+ * - `nextMealInfo` mirrors prototype `nextMealInfo()` (date, hour, logs and targets passed in); `mealByTime` mirrors
+ *   `mealByTime()` (hour passed in); `OLDER_MEAL_PROTEIN_G` is its 25 g for 60+ users.
+ * - `combos` mirrors prototype `combos(info)`; `combosFast` mirrors `combosFast(info)`; `round05` mirrors `round05`.
+ * - `ideasPage` mirrors the paging and protein note in `guidanceHtml()`; `IDEAS_PER_PAGE` and
+ *   `IDEAS_KCAL_LEFT_MIN` are its 3 and 120.
+ * - `MEAL_ORDER` mirrors prototype `MEALS`.
+ */
+export {
+  nextMealInfo,
+  mealByTime,
+  combos,
+  combosFast,
+  round05,
+  ideasPage,
+  OLDER_MEAL_PROTEIN_G,
+  IDEAS_PER_PAGE,
+  IDEAS_KCAL_LEFT_MIN,
+  MEAL_ORDER,
+} from './meals';
+export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea, MealIdeaItem, MealTarget, MealIdeasInput, NextMealInput, NextMeal } from './meals';

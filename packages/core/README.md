@@ -27,6 +27,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Coverage and focus picker | `plannedCoverage`, `coverageTemplates`, `doneCoverage`, `coverageRows`, `weeklyCoverage`, `focusPicker`, `toggleFocus`, `COVER_SHOW`, `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` | `weeklyCoverage`, `actualCoverage`, `coverageHtml`/`fillActualCoverage` rows, `focusHtml`, `focusAction`, `COVER_SHOW` | none (differential tests) |
 | Progress: body and day targets | `latestWeight`, `measureAt`, `navyBodyFat`, `waterTarget`, `workoutBurn`, `stepsTarget`, `weightDrift`, `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`, `WATER_TRAINING_ML`, `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX`, `WEIGHT_DRIFT_KG` | `latestWeight`, `measureAt`, `navyBF`, `waterTarget`, `workoutBurn`, `stepsTarget`, the `drift` check in `setupSummaryHtml` (#161) | `formulas.json` (plus differential tests) |
 | Progress: real burn, check-in, habits | `weeklyAvg`, `rapidLoss`, `addKcal`, `weightSlope`, `adaptiveBurn`, `nextAdaptive`, `targetFromBurn`, `weeklyCheckin`, `habits`, `KCAL_PER_KG`, `RAPID_LOSS_KCAL`, `CHECKIN_KCAL_STEP`, `CARDIO_WEEK_MIN` | `weeklyAvg`, `calorieCard`, `adjAction` `adj-kcal`, `weightSlope`, `adaptiveBurn`, the `settings.adaptive` update and facts of `renderCheckin`, `targetFromBurn`, `consistencyHtml` | none (differential tests) |
+| Meal ideas | `nextMealInfo`, `mealByTime`, `combos`, `combosFast`, `round05`, `ideasPage`, `OLDER_MEAL_PROTEIN_G`, `IDEAS_PER_PAGE`, `IDEAS_KCAL_LEFT_MIN`, `MEAL_ORDER` | same names (`mealByTime` takes the hour); `ideasPage` is the paging and protein note of `guidanceHtml`; `MEAL_ORDER` is `MEALS` | none (differential tests) |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
 
 `calcTargets` returns the same fields as the prototype, unrounded where the prototype leaves them
@@ -98,6 +99,15 @@ ingredient amount, pot, cooked or serving weight below 0, where the prototype sa
 as 0 g counts (a tared scale, #214); a blank empty pot does not. Tests
 check content against golden `raw100g` and `rawFibre100g` and the prototype's `FATTY`, `KATORI_G` and
 `PRESETS`, then run the port on content against the prototype.
+
+The meal-idea rules read their data from content, passed in as is: meal and protein weights, portion
+caps and minimums (prototype `MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`) as content/meal-planning.json, and foods
+as content/foods.json `foods`, in that order (it breaks ties between equal scores, as `FOODS` order does).
+Food roles (prototype `ROLE`) are read from `roles` (`{ food, role, diet }`), which content/meal-planning.json
+does not have yet (#230); tests build them from the prototype. The combo shapes (sides with a main,
+breakfast extras, the fasting-day pools) are the prototype's inline lists and stay in core. A food the
+combos need but `foods` lacks is skipped, where the prototype throws. Ideas return the food objects passed
+in, with unrounded totals; show them with `Math.round`, as the prototype does.
 
 ## Browser support
 
