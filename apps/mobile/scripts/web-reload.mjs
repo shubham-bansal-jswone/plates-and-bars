@@ -177,6 +177,8 @@ try {
   console.log('after reload: the food log and the "logged everything" tick persisted');
   // Flex: plan a bigger day (+300), reload, the target still includes it.
   const before = await opfsStamp(page);
+  // The chips live in the "What should I eat next?" card, whose meal depends on the clock.
+  await (await page.waitForSelector('[aria-label^="What should I eat next?"]', { timeout: 20000 })).evaluate((e) => e.click());
   await click('Plan a bigger day');
   await click('+300 kcal today');
   await page.waitForSelector(sel('102 of 2,290 kcal eaten'), { timeout: 20000 });
