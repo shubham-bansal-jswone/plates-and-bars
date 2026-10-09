@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
+import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
@@ -43,7 +43,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;
 
-  // TODO(#159 follow-up): the lab hold is not stored yet, so it is off for the target and for planning a flex.
+  // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
   const target = kcalTarget(f.date, { flex: settings.flex }, profile);
   const facts: FoodFacts[] = [...catalogFoods, ...f.mineFacts];
   const t = logTotals(f.logs, facts);
@@ -51,6 +51,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const complete = f.note?.complete === true;
   const todaysFlex = settings.flex.filter((x) => x.date === f.date);
   const flexDelta = todaysFlex.reduce((a, x) => a + x.kcal_delta, 0);
+  const todaysPlan = flexPlanFor(settings.flex, f.date);
   const blocked = (): boolean => {
     if (loadFailed) notify('Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.');
     return loadFailed;
@@ -63,7 +64,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     notify(flexToast(extra, r));
   };
   const undo = (id: string) => {
-    if (!blocked()) setFlex(undoFlex(settings.flex, id));
+    // TODO(#219): labHold is off until the lab hold is stored.
+    if (!blocked()) setFlex(undoFlex(settings.flex, id, { profile }));
   };
 
   return (
@@ -92,9 +94,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         )}
         {todaysFlex.length ? (
           <View style={styles.gap}>
-            <Note>{flexDelta > 0 ? `Today’s target includes +${flexDelta} kcal for a bigger meal, balanced over the next few days.` : `Today’s target is ${-flexDelta} kcal lower to balance an earlier bigger day.`}</Note>
-            {/* TODO(#178): this undoes the first of today's plans, not the newest; fix with the spec change in the prototype and core. */}
-            <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysFlex[0]!.id)} />
+            <Note>{todaysPlan ? `Today’s target includes +${todaysPlan.kcal_delta} kcal for a bigger meal, balanced over the next few days.` : `Today’s target is ${-flexDelta} kcal lower to balance an earlier bigger day.`}</Note>
+            {todaysPlan ? <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysPlan.id)} /> : null}
           </View>
         ) : null}
         <View style={styles.gap}>
@@ -113,10 +114,10 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} onRemove={f.remove} onAdd={() => setAdding(m)} />
         ))}
         {f.logs.length ? (
-          <Pressable accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
+          <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
             <View style={[styles.box, { borderColor: c.brand, backgroundColor: complete ? c.brand : 'transparent' }]}>{complete ? <Text style={{ color: c.onBrand, fontWeight: '700' }}>✓</Text> : null}</View>
             <Text style={{ color: c.ink, flex: 1 }}>I’ve logged everything I ate today <Text style={{ color: c.muted }}>(only complete days are used for your real calorie burn)</Text></Text>
-          </Pressable>
+          </Press>
         ) : null}
       </Page>
       {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} /> : null}
@@ -155,7 +156,7 @@ function MealSection({ meal, items, facts, onRemove, onAdd }: { meal: Meal; item
             <Text style={{ color: c.muted, fontSize: 14 }}>{`${fmt(m.protein_g * m.qty)} g protein, ${fmt(m.carbs_g * m.qty)} g carbs, ${fmt(m.fat_g * m.qty)} g fat`}</Text>
           </View>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(m.kcal * m.qty)}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${m.name}`} onPress={() => onRemove(m.id)} style={styles.x}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></Pressable>
+          <Press accessibilityRole="button" accessibilityLabel={`Remove ${m.name}`} onPress={() => onRemove(m.id)} style={styles.x}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></Press>
         </Card>
       ))}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
