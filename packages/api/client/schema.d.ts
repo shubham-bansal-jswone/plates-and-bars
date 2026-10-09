@@ -873,7 +873,11 @@ export interface components {
             weight_avg_kg: number | null;
             /** @description Last week's average weight, null if unknown. Prototype and core: `w0`. */
             prev_weight_avg_kg: number | null;
-            /** @description Lifts that beat their previous best this week, best first. Prototype and core: `improved` (`n`, `pct`). */
+            /**
+             * @description Lifts that beat their previous best this week, best first. Prototype and core:
+             *     `improved` (`n`, `pct`); core's exercise name `n` becomes `exercise` after the
+             *     app swaps custom exercise names for `custom exercise`.
+             */
             improved: {
                 exercise: components["schemas"]["SummaryExercise"];
                 /** @description Gain over the previous best, in percent. */

@@ -50,6 +50,10 @@ tags:
       with AI off. Signed-in users only (sign-in is optional, so signed-out users get the
       fallbacks).
 
+      **Content.** The backend bundles `content/exercises.json` and `content/cards.json`
+      at build time: the exercise catalogue that `SummaryExercise` ids are checked against,
+      and the cards Ask why is grounded on. Both are the versions in the deployed build.
+
       **Order of checks.** Access token (401), per-user and per-IP rate limit (429
       `rate_limited`), feature switch (503 `feature_disabled`), request validation (400),
       daily quota (429 `quota_exceeded`), then the provider call. A request rejected at
@@ -2029,7 +2033,10 @@ components:
         improved:
           type: array
           maxItems: 3
-          description: 'Lifts that beat their previous best this week, best first. Prototype and core: `improved` (`n`, `pct`).'
+          description: |
+            Lifts that beat their previous best this week, best first. Prototype and core:
+            `improved` (`n`, `pct`); core's exercise name `n` becomes `exercise` after the
+            app swaps custom exercise names for `custom exercise`.
           items:
             type: object
             additionalProperties: false
