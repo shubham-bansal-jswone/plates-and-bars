@@ -5,6 +5,7 @@ import { saveProfile } from '../src/db/records';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { catalog } from '../src/workout/catalog';
 import type { Workout, WorkoutSet } from '../src/workout/types';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({
@@ -118,9 +119,12 @@ describe('Can’t-do sheet options come from core', () => {
 describe('Workout tab can’t-do uses core and merges inside the queue', () => {
   it('tombstones the old sets at the stored version and stores new blank sets with ids', async () => {
     const db = await built();
-    for (const [k, v] of db.sets) db.sets.set(k, { ...v, data: JSON.stringify({ ...JSON.parse(v.data), version: 6 }) });
     const target = workout(db).exercises[0]!.name;
     await render(withProfile(db, <WorkoutScreen db={db} now={NOW} />));
+    await screen.findByLabelText(`Can’t do ${target}`);
+    // A pull stored newer versions after the tab loaded: the screen's copy is stale, the queued write must merge.
+    for (const [k, v] of db.sets) db.sets.set(k, { ...v, data: JSON.stringify({ ...JSON.parse(v.data), version: 6 }) });
+    db.rows.set(`workouts:${DATE}`, JSON.stringify({ ...workout(db), version: 9 }));
     await press(`Can’t do ${target}`);
     await press('I don’t like it');
     await press('Just today');
@@ -129,6 +133,62 @@ describe('Workout tab can’t-do uses core and merges inside the queue', () => {
     const old = sets(db).filter((s) => s.exercise === target);
     expect(old.length).toBeGreaterThan(0);
     expect(old.every((s) => s.deleted_at && s.version === 6)).toBe(true);
+    expect(workout(db).version).toBe(9);
     expect([...db.rows.keys()].some((k) => k.startsWith('exclusions:'))).toBe(false);
+  });
+});
+
+describe('Targets path edge cases', () => {
+  it('keeps ticked sets: an exercise with a ticked set is not replaced by a wider rule', async () => {
+    const db = await built();
+    const target = workout(db).exercises[0]!.name;
+    for (const [k, v] of db.sets) {
+      const rec = JSON.parse(v.data) as WorkoutSet;
+      if (rec.exercise === target && rec.kind === 'work' && rec.set_index === 0) db.sets.set(k, { ...v, done: 1, data: JSON.stringify({ ...rec, done: true, weight_kg: 20, reps: 8 }) });
+    }
+    const before = sets(db).filter((s) => s.exercise === target);
+    await avoidOnTargets(db, target, 'I don’t like it', /^All /);
+    await waitFor(() => expect([...db.rows.keys()].some((k) => k.startsWith('exclusions:'))).toBe(true));
+    await waitFor(() => expect(workout(db).exercises.length).toBeGreaterThan(0));
+    expect(workout(db).exercises.map((e) => e.name)).toContain(target);
+    expect(sets(db).filter((s) => s.exercise === target)).toEqual(before);
+  });
+
+  it('a failed write to today’s workout shows a message and the rule is still stored', async () => {
+    const db = await built();
+    const target = workout(db).exercises[0]!.name;
+    const run = db.runAsync.bind(db);
+    db.runAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('INTO workouts') || sql.includes('INTO workout_sets')) throw new Error('disk');
+      return run(sql, ...p);
+    }) as typeof db.runAsync;
+    await avoidOnTargets(db, target, 'I don’t like it', /^All /);
+    expect(await screen.findByText('Couldn’t update today’s workout. Try again.')).toBeTruthy();
+    expect([...db.rows.keys()].some((k) => k.startsWith('exclusions:'))).toBe(true);
+  });
+
+  it('when the rules become unreadable while the sheet is open, nothing is saved and today stays as it was', async () => {
+    const db = await built();
+    const target = workout(db).exercises[0]!.name;
+    const snapshot = JSON.stringify([workout(db), sets(db)]);
+    const ui = (v: number) => withProfile(db, <SyncContext.Provider value={{ dataVersion: v } as SyncState}><TargetsScreen db={db} now={NOW} /></SyncContext.Provider>);
+    const view = await render(ui(0));
+    await fireEvent.press(await screen.findByLabelText('Add an exercise to avoid'));
+    await fireEvent.press(screen.getByLabelText(target));
+    await fireEvent.press(screen.getByLabelText('I don’t like it'));
+    await fireEvent.press(screen.getByLabelText('Permanently'));
+    await fireEvent.press(screen.getAllByLabelText(/^All /)[0] as never);
+    await fireEvent.press(screen.getByLabelText('Continue'));
+    const real = db.getAllAsync.bind(db);
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM exclusions')) throw new Error('disk');
+      return real(sql, ...p);
+    }) as typeof db.getAllAsync;
+    await view.rerender(ui(1)); // a sync pull makes the rules read again, and the read fails
+    await waitFor(() => expect(screen.queryByText(/Couldn’t read your saved exercise rules/)).toBeTruthy());
+    await fireEvent.press(await screen.findByLabelText(/^Skip it, no replacement/));
+    await new Promise((r) => setTimeout(r, 50));
+    expect([...db.rows.keys()].some((k) => k.startsWith('exclusions:'))).toBe(false);
+    expect(JSON.stringify([workout(db), sets(db)])).toBe(snapshot);
   });
 });
