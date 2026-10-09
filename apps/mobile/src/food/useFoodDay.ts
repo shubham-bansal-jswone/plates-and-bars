@@ -66,16 +66,15 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const read = await freshRead({ queue, writes }, () => Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]), () => live);
-      if (!read || !live) return;
-      const [l, n, m] = read;
-      logsRef.current = l;
-      noteRef.current = n;
-      mineRef.current = m;
-      setLogs(l);
-      setNote(n);
-      setMine(m);
-      setReady(true);
+      await freshRead({ queue, writes }, () => Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]), () => live, ([l, n, m]) => {
+        logsRef.current = l;
+        noteRef.current = n;
+        mineRef.current = m;
+        setLogs(l);
+        setNote(n);
+        setMine(m);
+        setReady(true);
+      });
     })().catch(() => {
       if (!live) return;
       setFailed(true);

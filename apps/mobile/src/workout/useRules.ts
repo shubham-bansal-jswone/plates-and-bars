@@ -45,10 +45,7 @@ export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
   useEffect(() => {
     let live = true;
     // Local edits still being written land first, and a read that straddled a new edit is read again.
-    freshRead({ queue, writes }, () => Promise.all([loadExclusions(db), loadSwaps(db)]), () => live)
-      .then((read) => {
-        if (read && live) commit({ ready: true, exclusions: read[0], swaps: read[1], loadFailed: false });
-      })
+    freshRead({ queue, writes }, () => Promise.all([loadExclusions(db), loadSwaps(db)]), () => live, ([exclusions, swaps]) => commit({ ready: true, exclusions, swaps, loadFailed: false }))
       .catch(() => {
         notify('Couldn’t read your exercise rules.');
         if (live) commit({ ...ref.current, ready: true, loadFailed: true });

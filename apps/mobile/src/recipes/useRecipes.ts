@@ -42,12 +42,11 @@ export function useRecipes({ db, now, notify, reloadKey = 0 }: { db: WorkoutDb; 
 
   useEffect(() => {
     let live = true;
-    freshRead({ queue, writes }, () => loadRecipes(db), () => live).then(
-      (r) => {
-        if (!r || !live) return;
-        setRecipes(r);
-        setReady(true);
-      },
+    freshRead({ queue, writes }, () => loadRecipes(db), () => live, (r) => {
+      setRecipes(r);
+      setReady(true);
+    }).then(
+      () => undefined,
       () => {
         if (!live) return;
         setFailed(true);
