@@ -15,13 +15,15 @@ interface Options {
   db: WorkoutDb;
   now: () => Date;
   notify: (msg: string) => void;
+  /** Changes when the tab is shown again: the rules are read again (tab screens stay mounted). */
+  reloadKey?: number;
 }
 
 /**
  * The saved exclusion rules and swaps. A change shows at once and its write is queued (FIFO), so nothing waits
  * on the network; removing a record writes a tombstone. Rules come from core; this only stores them.
  */
-export function useRules({ db, now, notify }: Options) {
+export function useRules({ db, now, notify, reloadKey = 0 }: Options) {
   const [rules, setRules] = useState<Rules>({ ready: false, exclusions: [], swaps: [] });
   const ref = useRef(rules);
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -32,16 +34,18 @@ export function useRules({ db, now, notify }: Options) {
 
   useEffect(() => {
     let live = true;
-    Promise.all([loadExclusions(db), loadSwaps(db)])
+    // Local edits still being written land first, so a reload never reads around them.
+    queue.current
+      .then(() => Promise.all([loadExclusions(db), loadSwaps(db)]))
       .then(([exclusions, swaps]) => live && commit({ ready: true, exclusions, swaps }))
       .catch(() => {
         notify('Couldn’t read your exercise rules.');
-        if (live) commit({ ready: true, exclusions: [], swaps: [] });
+        if (live) commit({ ...ref.current, ready: true });
       });
     return () => {
       live = false;
     };
-  }, [db, commit, notify]);
+  }, [db, commit, notify, reloadKey]);
 
   const write = useCallback(
     (task: () => Promise<void>) => {

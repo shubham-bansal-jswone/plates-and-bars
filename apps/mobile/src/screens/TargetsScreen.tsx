@@ -10,6 +10,7 @@ import type { WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
+import { RulesSection } from '../targets/RulesSection';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
@@ -71,6 +72,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
         {ready ? (
           <>
+            <RulesSection db={db} today={localDate(now())} now={now} notify={notify} />
             <FocusSection focus={settings.focus} onChange={setFocus} notify={notify} />
             <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           </>
