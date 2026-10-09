@@ -285,11 +285,12 @@ export interface paths {
          *
          *     **What is deleted, and when.** Before the server answers 204, in one transaction:
          *     every row of every synced table (tombstones included), the conflict log, the
-         *     account (`User`), its sign-in identities (Google and email), every refresh token
-         *     and session, and any pending one-time codes for the account's email address.
-         *     When the 204 arrives the data is gone from the live database. Copies in the
-         *     encrypted nightly backups are not edited; they disappear when those backups expire
-         *     under the backup retention policy, which the privacy policy states. Server logs
+         *     per-user sync bookkeeping, the account (`User`), its sign-in identities (Google and
+         *     email), every refresh token and session, and, for the account's email address,
+         *     any pending one-time codes and the wrong-code records kept for rate limiting
+         *     (`email_verify_failures`). When the 204 arrives the data is gone from the live
+         *     database. Copies in the encrypted nightly backups are not edited; they disappear
+         *     when those backups expire, at most 30 days later (backup retention, #36). Server logs
          *     hold no user data to delete. If anything fails, the transaction rolls back, the
          *     server answers 500 and nothing is deleted; the app retries.
          *
@@ -305,10 +306,15 @@ export interface paths {
          *     call with an access token that is still within its lifetime (valid signature,
          *     not expired) whose user no longer exists answers 204 again. A device that lost
          *     the first response can therefore retry. If the access token has expired by then,
-         *     the retry gets 401 `token_expired` and the app refreshes as usual: if the refresh
-         *     succeeds, the first call never took effect and the app retries with the new token;
-         *     if it fails with 401, the refresh token was revoked, which after a sent
-         *     `DELETE /me` means the account is deleted.
+         *     the retry gets 401 `token_expired` and the app refreshes as usual. If the refresh
+         *     succeeds, the first call never took effect and the app retries with the new token.
+         *     If the refresh fails with 401, that does not prove the deletion: the session may
+         *     have ended for another reason (expiry, or refresh-token reuse revoking it). The
+         *     app must not tell the user the account is deleted on that alone; it says the
+         *     deletion could not be confirmed and asks the user to sign in. If that sign-in
+         *     returns `new_user: false`, the account still exists and the app offers deletion
+         *     again. If it returns `new_user: true`, the old account is gone (and the new,
+         *     empty one is the user's to keep or delete).
          *
          *     **Signing in again** with the same Google account or email address afterwards
          *     creates a new, empty account with a new user id (`new_user: true`). Nothing from
@@ -630,9 +636,20 @@ export interface components {
              * @description Id of the record the losing copy belongs to.
              */
             id: string;
+            /**
+             * @description Which side's copy lost: `client` when the conflict resolved `server_won`,
+             *     `server` when it resolved `client_won`.
+             * @enum {string}
+             */
+            loser: "client" | "server";
+            /** @description The record's version stored after resolution (`SyncConflict.server_version`). */
+            winner_version: number;
             /** @description When the server resolved the conflict. */
             logged_at: components["schemas"]["Timestamp"];
-            /** @description The losing copy as it was pushed or stored. Pick its schema by `table`. */
+            /**
+             * @description The losing copy as it was pushed or stored; its `version` is the losing copy's
+             *     (for the client, the version it sent). Pick its schema by `table`.
+             */
             record: components["schemas"]["SyncRecord"];
         };
         /**
