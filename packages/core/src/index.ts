@@ -424,3 +424,15 @@ export {
   MEAL_ORDER,
 } from './meals';
 export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea, MealIdeaItem, MealTarget, MealIdeasInput, NextMealInput, NextMeal } from './meals';
+
+/**
+ * Weekly meal plan and grocery list. The plan is contract `Settings.meal_plan` in the prototype's
+ * `mealPlan` shape; the grocery map is content/meal-planning.json `grocery` (prototype `GROC`).
+ * - `buildPlan` mirrors prototype `buildPlan()` (targets, start and diet passed in); `PLAN_DAYS`, `PLAN_OPTIONS`
+ *   and `PLAN_ROTATION` are its 7, 4 and 3.
+ * - `planItems` mirrors `planItems`; `swapPlanMeal` mirrors `case 'mp-swap'`; `planForMeal` mirrors `planForMeal(meal)` (date passed in).
+ * - `planIsCurrent` mirrors the saved-plan check and `planDayTotals` the "About … kcal" line of `planSheet()`.
+ * - `groceryList` mirrors `grocerySheet()` (rows and copy text, not HTML); `groceryAmount` mirrors its `fmtAmt`.
+ */
+export { buildPlan, planItems, swapPlanMeal, planIsCurrent, planForMeal, planDayTotals, groceryList, groceryAmount, PLAN_DAYS, PLAN_OPTIONS, PLAN_ROTATION } from './mealplan';
+export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from './mealplan';

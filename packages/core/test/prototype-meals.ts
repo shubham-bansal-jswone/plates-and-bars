@@ -61,12 +61,27 @@ function sliceUntil(src: string, start: string, end: string): string {
  */
 export function loadMeals(): ProtoMeals {
   const src = prototypeSource();
+  const code = [
+    ...mealsCode(src),
+    'const copy = x => JSON.parse(JSON.stringify(x));',
+    'return {',
+    '  FOODS, ROLE, MEAL_W, PROT_W, MAXQ, MINQ,',
+    '  combos(info, diet){ S.settings = { diet }; return combos(copy(info)); },',
+    '  combosFast(info){ return combosFast(copy(info)); },',
+    '  nextMealInfo(st){ HOUR = st.hour; TODAY_ = st.today; KT = st.kcalTarget; S.date = st.date; S.day = { meals: copy(st.meals) }; S.settings = copy(st.settings); return nextMealInfo(); },',
+    '};',
+  ].join('\n');
+  return new Function(code)() as ProtoMeals;
+}
+
+/** The prototype's meal-idea code and the stubs it needs, as lines to run. */
+function mealsCode(src: string): string[] {
   const combos = sliceBlock(src, 'function combos(info){', '}');
   const minq = combos.split('\n').find((l) => l.trim().startsWith('const MINQ = '));
   if (!minq) throw new Error('prototype: no MINQ in combos');
-  const code = [
+  return [
     'let HOUR = 12, TODAY_ = "", KT = 0;',
-    'const S = { date:"", day:{ meals:[] }, settings:{ protein:0, fat:0, profile:null } };',
+    'const S = { date:"", day:{ meals:[] }, ui:{}, settings:{ protein:0, fat:0, profile:null } };',
     'const mealByTime = () => { const h = HOUR; return h < 11 ? "Breakfast" : h < 16 ? "Lunch" : h < 19 ? "Snacks" : "Dinner"; };',
     'const TODAY = () => TODAY_, kcalTarget = () => KT;',
     sliceLine(src, 'const older = '),
@@ -84,13 +99,71 @@ export function loadMeals(): ProtoMeals {
     sliceBlock(src, 'function combosFast(info){', '}'),
     sliceBlock(src, 'function nextMealInfo(){', '}'),
     minq.trim(),
+  ];
+}
+
+/** Prototype weekly plan (`mealPlan`). */
+export interface ProtoPlan {
+  start: string;
+  opts: Record<string, [string, number][][]>;
+  days: Record<string, { k: number }>[];
+}
+
+export interface ProtoMealPlan {
+  GROC: Record<string, [string, number, string][]>;
+  /** `buildPlan()` with `S.date` and the settings targets and diet. */
+  buildPlan(date: string, settings: { kcal: number; protein: number; fat: number; diet?: string }): ProtoPlan;
+  /** `case 'mp-swap'` on day `i`'s meal; returns the plan after. */
+  swap(plan: ProtoPlan, i: number, meal: string): ProtoPlan;
+  /** `grocerySheet()` on `plan`: the sheet's rows (item and amount, as shown) and the copy text. */
+  grocery(plan: ProtoPlan): { rows: [string, string][]; text: string };
+  /** `planSheet()` on `plan` (as `S.ui.plan`) with user foods: each day's "About … kcal, … g protein" line. */
+  planTotals(plan: ProtoPlan, myFoods: { name: string; unit: string; kcal: number; p: number; c: number; f: number }[]): string[];
+  /** Whether `planSheet()` reuses a saved plan rather than building a new one, on `today`. */
+  reusesSaved(plan: ProtoPlan, today: string): boolean;
+  /** `planForMeal(meal)` with `S.date` and the saved plan. */
+  planForMeal(plan: ProtoPlan | null, date: string, meal: string): [string, number][] | null;
+}
+
+/**
+ * Runs the prototype's weekly plan and grocery list, sliced out of the HTML on top of the meal-idea
+ * code: `GROC`, `buildPlan`, `planItems`, `planSheet`, `grocerySheet`, `planForMeal`, `case 'mp-swap'`,
+ * with `esc`, `fmt`, `r1`, the date helpers, `foodByName` and `allFoods`. `openSheet` keeps the HTML.
+ */
+export function loadMealPlan(): ProtoMealPlan {
+  const src = prototypeSource();
+  const code = [
+    ...mealsCode(src),
+    'let HTML = "";',
+    'const openSheet = h => { HTML = h; };',
+    sliceLine(src, 'const esc = '),
+    sliceLine(src, 'const pad = '),
+    sliceLine(src, 'const ymd = '),
+    sliceLine(src, 'const parseYmd = '),
+    sliceLine(src, 'const addDays = '),
+    sliceLine(src, 'const fmt = '),
+    sliceLine(src, 'const r1 = '),
+    sliceLine(src, 'const daysBetween = '),
+    sliceLine(src, 'function allFoods(){'),
+    sliceLine(src, 'function foodByName(n){'),
+    sliceBlock(src, 'const GROC = {', '};'),
+    sliceBlock(src, 'function buildPlan(){', '}'),
+    sliceLine(src, 'const planItems = '),
+    sliceBlock(src, 'function planSheet(){', '}'),
+    sliceBlock(src, 'function grocerySheet(){', '}'),
+    sliceBlock(src, 'function planForMeal(meal){', '}'),
+    `function swapAction(b, meal){ switch('mp-swap'){ ${sliceLine(src, "    case 'mp-swap':").trim()} } }`,
     'const copy = x => JSON.parse(JSON.stringify(x));',
+    'const ROW = /<input type="checkbox" style="width:20px;height:20px"> (.*?)<\\/label><b>(.*?)<\\/b>/g;',
     'return {',
-    '  FOODS, ROLE, MEAL_W, PROT_W, MAXQ, MINQ,',
-    '  combos(info, diet){ S.settings = { diet }; return combos(copy(info)); },',
-    '  combosFast(info){ return combosFast(copy(info)); },',
-    '  nextMealInfo(st){ HOUR = st.hour; TODAY_ = st.today; KT = st.kcalTarget; S.date = st.date; S.day = { meals: copy(st.meals) }; S.settings = copy(st.settings); return nextMealInfo(); },',
+    '  GROC,',
+    '  buildPlan(date, settings){ S.date = date; S.settings = copy(settings); return copy(buildPlan()); },',
+    '  swap(plan, i, meal){ S.settings = { myFoods:[] }; S.ui = { plan: copy(plan) }; swapAction({ dataset:{ v:String(i) } }, meal); return copy(S.ui.plan); },',
+    '  grocery(plan){ S.ui = { plan: copy(plan) }; HTML = ""; grocerySheet(); return { rows: [...HTML.matchAll(ROW)].map(m => [m[1], m[2]]), text: S.ui.grocText }; },',
+    '  planTotals(plan, myFoods){ S.settings = { kcal:2000, protein:100, myFoods: copy(myFoods) }; S.ui = { plan: copy(plan) }; HTML = ""; planSheet(); return [...HTML.matchAll(/<p class="hint">(About [^<]*)<\\/p>/g)].map(m => m[1]); },',
+    '  reusesSaved(plan, today){ TODAY_ = today; S.date = today; S.settings = { kcal:2000, protein:100, fat:60, myFoods:[], mealPlan: copy(plan) }; S.ui = {}; planSheet(); return S.ui.plan.start === plan.start && JSON.stringify(S.ui.plan) === JSON.stringify(plan); },',
+    '  planForMeal(plan, date, meal){ S.date = date; S.settings = { mealPlan: plan && copy(plan) }; return planForMeal(meal); },',
     '};',
   ].join('\n');
-  return new Function(code)() as ProtoMeals;
+  return new Function(code)() as ProtoMealPlan;
 }

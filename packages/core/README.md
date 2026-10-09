@@ -28,6 +28,7 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Progress: body and day targets | `latestWeight`, `measureAt`, `navyBodyFat`, `waterTarget`, `workoutBurn`, `stepsTarget`, `weightDrift`, `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`, `WATER_TRAINING_ML`, `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX`, `WEIGHT_DRIFT_KG` | `latestWeight`, `measureAt`, `navyBF`, `waterTarget`, `workoutBurn`, `stepsTarget`, the `drift` check in `setupSummaryHtml` (#161) | `formulas.json` (plus differential tests) |
 | Progress: real burn, check-in, habits | `weeklyAvg`, `rapidLoss`, `addKcal`, `weightSlope`, `adaptiveBurn`, `nextAdaptive`, `targetFromBurn`, `weeklyCheckin`, `habits`, `KCAL_PER_KG`, `RAPID_LOSS_KCAL`, `CHECKIN_KCAL_STEP`, `CARDIO_WEEK_MIN` | `weeklyAvg`, `calorieCard`, `adjAction` `adj-kcal`, `weightSlope`, `adaptiveBurn`, the `settings.adaptive` update and facts of `renderCheckin`, `targetFromBurn`, `consistencyHtml` | none (differential tests) |
 | Meal ideas | `nextMealInfo`, `mealByTime`, `combos`, `combosFast`, `round05`, `ideasPage`, `OLDER_MEAL_PROTEIN_G`, `IDEAS_PER_PAGE`, `IDEAS_KCAL_LEFT_MIN`, `MEAL_ORDER` | same names (`mealByTime` takes the hour); `ideasPage` is the paging and protein note of `guidanceHtml`; `MEAL_ORDER` is `MEALS` | none (differential tests) |
+| Meal plan and grocery list | `buildPlan`, `planItems`, `swapPlanMeal`, `planIsCurrent`, `planForMeal`, `planDayTotals`, `groceryList`, `groceryAmount`, `PLAN_DAYS`, `PLAN_OPTIONS`, `PLAN_ROTATION` | `buildPlan`, `planItems`, `case 'mp-swap'`, the saved-plan check and day line of `planSheet`, `planForMeal`, `grocerySheet` and its `fmtAmt` | none (differential tests) |
 | Helpers | `num`, `mondayOf`, `daysBetween`, `weekdayOf`, `addDays` | `num`, `mondayOf`, `daysBetween`, `parseYmd(d).getDay()`, `addDays` | none |
 
 `calcTargets` returns the same fields as the prototype, unrounded where the prototype leaves them
@@ -108,6 +109,12 @@ does not have yet (#230); tests build them from the prototype. The combo shapes 
 breakfast extras, the fasting-day pools) are the prototype's inline lists and stay in core. A food the
 combos need but `foods` lacks is skipped, where the prototype throws. Ideas return the food objects passed
 in, with unrounded totals; show them with `Math.round`, as the prototype does.
+
+The weekly plan is contract `Settings.meal_plan` in the prototype's `mealPlan` shape (`start`, `opts` per
+meal, `days[i][meal].k`). The grocery map (prototype `GROC`) is content/meal-planning.json `grocery`, passed in.
+`groceryList` returns the sheet's rows sorted by item and the "Copy as text" lines in first-seen order, as
+the prototype does (#240). `buildPlan` applies no 60+ protein floor, also as the prototype does (#239).
+`planDayTotals` finds foods by name ignoring case: pass the user's foods first, then the shared ones.
 
 ## Browser support
 
