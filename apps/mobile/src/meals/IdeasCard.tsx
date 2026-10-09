@@ -31,6 +31,8 @@ interface Props {
   onAdd: (meal: NextMeal['meal'], items: { food: CatalogFood; qty: number }[]) => void;
   /** Plans a bigger day: the extra kcal for today. */
   onFlex: (extra: number) => void;
+  /** Opens the weekly meal plan. */
+  onPlanWeek: () => void;
 }
 
 /** "What should I eat next?": the next meal's targets, three ideas at a time, the bigger-day chips and the plate guide. Nothing here is computed in the app: core's `nextMealInfo`, `combos`, `combosFast` and `ideasPage` decide. */
@@ -104,6 +106,7 @@ export function IdeasCard(p: Props) {
               {pg.pages > 1 ? <Button label={`More ideas (${pg.page + 1} of ${pg.pages})`} kind="ghost" onPress={() => setPage(pg.page + 1)} /> : null}
             </>
           )}
+          <Button label="Plan my week" kind="ghost" onPress={p.onPlanWeek} />
           <Button label="Plan a bigger day" kind="ghost" expanded={flexOpen} onPress={() => setFlexOpen(!flexOpen)} />
           {flexOpen ? (
             <>
