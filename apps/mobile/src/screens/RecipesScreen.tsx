@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Field, Hint, H1, Label, Page, Press } from '../components/ui';
+import { Button, ErrorText, Field, Hint, H1, Label, Page, Press } from '../components/ui';
 import { fmt } from '../format';
 import type { WorkoutDb } from '../db/workouts';
-import { MEALS } from '../food/types';
+import { MEALS, type Meal } from '../food/types';
 import { katoriG, library, presets, rawIngredients } from '../recipes/content';
 import { CookMode } from '../recipes/CookMode';
-import { NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT } from '../recipes/copy';
+import { LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT } from '../recipes/copy';
 import { blankDraft, fromLibrary, fromPreset, fromRecipe, type Draft } from '../recipes/draft';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { useRecipes } from '../recipes/useRecipes';
@@ -20,6 +20,8 @@ const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 interface Props {
   db: WorkoutDb;
   onBack: () => void;
+  /** The meal Recipes was opened from; "Save and add" logs to it unless another is chosen. */
+  meal?: Meal;
   /** Clock, injectable for tests. */
   now?: () => Date;
 }
@@ -29,7 +31,7 @@ interface Props {
  * steps and cooking mode, the ingredient rows, per-katori nutrition, and save (to my foods, optionally logging it).
  * Every number and rule is core's.
  */
-export function RecipesScreen({ db, onBack, now = () => new Date() }: Props) {
+export function RecipesScreen({ db, onBack, meal = 'Lunch', now = () => new Date() }: Props) {
   const c = useTheme();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,8 +42,16 @@ export function RecipesScreen({ db, onBack, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   const store = useRecipes({ db, now, notify });
-  const [d, setD] = useState<Draft>(blankDraft);
+  const [d, setD] = useState<Draft>(() => blankDraft(meal));
+  const leaving = useRef(false);
   const [cooking, setCooking] = useState(false);
+  // Back and Kitchen tests wait for queued writes; a second press while waiting does nothing.
+  const leave = (go: () => void) => {
+    if (leaving.current) return;
+    leaving.current = true;
+    void store.idle().then(go, go);
+  };
+  if (store.failed) return <Page><ErrorText>{LOAD_FAILED}</ErrorText><Button label="Back" kind="link" onPress={() => leave(onBack)} /></Page>;
   if (!store.ready) return <Page><Hint>Loading…</Hint></Page>;
 
   const yieldFields = { yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams };
@@ -50,10 +60,10 @@ export function RecipesScreen({ db, onBack, now = () => new Date() }: Props) {
     const r = recipeFood({ name: d.name, ingredients: d.rows, ...yieldFields }, rawIngredients, katoriG);
     if (r.kind !== 'ok') return notify(problem(r));
     store.save({ result: r, yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams, oil: d.oil, editing: d.editing, log: log ? { meal: d.meal, qty: d.log } : null });
-    notify(log ? `Saved, and added ${r1(d.log)} katori of ${r.name}` : `Saved ${r.name} to your foods`);
-    setD(blankDraft());
+    if (log) return leave(onBack);
+    notify(`Saved ${r.name} to your foods`);
+    setD(blankDraft(d.meal));
   };
-  const back = () => void store.idle().then(onBack);
   const steps = d.lib?.steps ?? [];
 
   return (
@@ -70,7 +80,7 @@ export function RecipesScreen({ db, onBack, now = () => new Date() }: Props) {
           <Label>{RB_INTRO}</Label>
           <View style={styles.wrap}>
             {presets.map((p) => <Chip key={p.name} label={p.name} pressed={d.preset === p} onPress={() => setD(fromPreset(d, p, d.oil, !!d.editing && !!d.name))} />)}
-            <Chip label="Blank" onPress={() => setD(blankDraft())} />
+            <Chip label="Blank" onPress={() => setD(blankDraft(meal))} />
           </View>
         </View>
         <View style={styles.gap}>
@@ -146,7 +156,7 @@ export function RecipesScreen({ db, onBack, now = () => new Date() }: Props) {
         <View style={styles.wrap}>
           <Button label={`Save and add to ${d.meal.toLowerCase()}`} onPress={() => save(true)} />
           <Button label="Save only" kind="ghost" onPress={() => save(false)} />
-          <Button label="Back" kind="link" onPress={back} />
+          <Button label="Back" kind="link" onPress={() => leave(onBack)} />
         </View>
       </Page>
       {cooking ? <CookMode name={d.name} steps={steps} onClose={() => setCooking(false)} onDone={() => { setCooking(false); notify('Enjoy your meal'); }} /> : null}

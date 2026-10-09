@@ -46,17 +46,17 @@ describe('Recipes screen: builder', () => {
     expect(screen.getByText('Makes about 5 katoris.')).toBeTruthy();
   });
 
-  it('Save and add stores the recipe, my food and the log, newest food first, and keeps a food saved elsewhere meanwhile', async () => {
+  it('Save and add stores the recipe, my food and the log, goes back to Food, and keeps a food saved elsewhere meanwhile', async () => {
     const db = memoryDb();
-    await setup(db);
-    // Another screen saves a food after this one loaded: the save must merge with it, not overwrite my foods.
+    const { onBack } = await setup(db);
     db.rows.set('user_foods:f-Other', JSON.stringify(food('Other')));
     await fireEvent.press(screen.getByLabelText('Dal'));
     await fireEvent.press(screen.getByLabelText('More katoris'));
     await fireEvent.press(screen.getByLabelText('Dinner'));
     await fireEvent.press(screen.getByLabelText('Save and add to dinner'));
-    expect(await screen.findByText('Saved, and added 1.5 katori of Dal (home-style)')).toBeTruthy();
-    await waitFor(() => expect(stored(db, 'food_logs')).toHaveLength(1));
+    // Back to Food, as the prototype's sheet closes, once the writes have landed.
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
+    expect(stored(db, 'food_logs')).toHaveLength(1);
     const [log] = stored(db, 'food_logs');
     expect(log).toMatchObject({ meal: 'Dinner', date: '2026-10-08', qty: 1.5, name: 'Dal (home-style)' });
     const mine = await loadUserFoods(db);
@@ -88,6 +88,27 @@ describe('Recipes screen: builder', () => {
     const old = stored(db, 'user_foods').find((f) => f.name === 'Rajma')!;
     expect(old.deleted_at).toEqual(expect.any(String));
     expect(stored(db, 'recipes')).toHaveLength(1);
+  });
+
+  it('merges with my foods as stored at save time: the 80 cap tombstones the oldest, a same-name food keeps its id', async () => {
+    const db = memoryDb();
+    await setup(db);
+    // Seeded after the screen loaded, so only a re-read at write time sees them.
+    for (let i = 0; i < 80; i++) db.rows.set(`user_foods:f${i}`, JSON.stringify(food(`Food ${i}`, { id: `f${i}`, updated_at: `2026-09-${String(10 + Math.floor(i / 10)).padStart(2, '0')}T0${i % 10}:00:00Z` })));
+    db.rows.set('user_foods:same', JSON.stringify(food('Dal (home-style)', { id: 'same', version: 4 })));
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Save only'));
+    await waitFor(async () => expect((await loadUserFoods(db)).some((f) => f.origin === 'recipe')).toBe(true));
+    const all = stored(db, 'user_foods');
+    const dal = all.filter((f) => f.name === 'Dal (home-style)');
+    expect(dal).toHaveLength(1);
+    expect(dal[0]).toMatchObject({ id: 'same', version: 4, origin: 'recipe', deleted_at: null });
+    const live = await loadUserFoods(db);
+    expect(live).toHaveLength(80);
+    // 81 foods in all; the one pushed out (the oldest) is a tombstone, not gone.
+    const gone = all.filter((f) => f.deleted_at);
+    expect(gone).toHaveLength(1);
+    expect(gone[0]!.name).toBe('Food 0');
   });
 
   it('says what is missing instead of saving', async () => {
@@ -124,16 +145,40 @@ describe('Recipes screen: builder', () => {
     expect(screen.queryByLabelText('Broken')).toBeNull();
   });
 
-  it('Back waits for the queued writes', async () => {
+  it('Back waits for the queued writes, and a second press does nothing', async () => {
     const db = memoryDb();
     db.lag = () => 30;
     const { onBack } = await setup(db);
     await fireEvent.press(screen.getByLabelText('Dal'));
     await fireEvent.press(screen.getByLabelText('Save only'));
     await fireEvent.press(screen.getByLabelText('Back'));
+    await fireEvent.press(screen.getByLabelText('Back'));
     expect(onBack).not.toHaveBeenCalled();
     await waitFor(() => expect(onBack).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 80));
+    expect(onBack).toHaveBeenCalledTimes(1);
     expect(stored(db, 'recipes')).toHaveLength(1);
+  });
+
+  it('logs to the meal Recipes was opened from', async () => {
+    const db = memoryDb();
+    const onBack = jest.fn();
+    await render(<RecipesScreen db={db} onBack={onBack} meal="Snacks" now={NOW} />);
+    await screen.findByRole('header', { name: 'Recipes' });
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Save and add to snacks'));
+    await waitFor(() => expect(stored(db, 'food_logs')).toHaveLength(1));
+    expect(stored(db, 'food_logs')[0]).toMatchObject({ meal: 'Snacks' });
+  });
+
+  it('shows an error with Back when the saved recipes cannot be read', async () => {
+    const db = memoryDb();
+    db.getAllAsync = () => Promise.reject(new Error('disk'));
+    const onBack = jest.fn();
+    await render(<RecipesScreen db={db} onBack={onBack} now={NOW} />);
+    expect(await screen.findByText('Couldn’t read your saved recipes.')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Back'));
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
   });
 });
 
