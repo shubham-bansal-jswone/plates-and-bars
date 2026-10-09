@@ -14,8 +14,8 @@ const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 type Db = ReturnType<typeof memoryDb>;
 const stored = (db: Db, table: string) => [...db.rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => JSON.parse(v) as Record<string, unknown>);
 
-async function setup(db: Db = memoryDb(), onBack = jest.fn()) {
-  await render(<RecipesScreen db={db} onBack={onBack} now={NOW} />);
+async function setup(db: Db = memoryDb(), onBack = jest.fn(), onKitchen = jest.fn()) {
+  await render(<RecipesScreen db={db} onBack={onBack} onKitchen={onKitchen} now={NOW} />);
   await screen.findByRole('header', { name: 'Recipes' });
   return { db, onBack };
 }
@@ -122,6 +122,13 @@ describe('Recipes screen: builder', () => {
     expect(screen.getByLabelText('Good one')).toBeTruthy();
     expect(screen.queryByLabelText('Gone')).toBeNull();
     expect(screen.queryByLabelText('Broken')).toBeNull();
+  });
+
+  it('opens the kitchen tests', async () => {
+    const onKitchen = jest.fn();
+    await setup(memoryDb(), jest.fn(), onKitchen);
+    await fireEvent.press(screen.getByLabelText('Kitchen tests'));
+    await waitFor(() => expect(onKitchen).toHaveBeenCalled());
   });
 
   it('Back waits for the queued writes', async () => {
