@@ -424,6 +424,75 @@ export function cantRule(d: CantDraft, choice: string | null, date: string): Can
   };
 }
 
+/** A scope the "can't do" sheet can leave out: `scope` with its `key` (as in `CantDraft`). */
+export interface CantScope {
+  scope: ExclusionScope;
+  key: string;
+}
+
+/**
+ * The scope the "can't do" sheet starts on for `reason`: pain leaves out the first joint the exercise
+ * loads, form its whole family, anything else (or no reason, or an exercise with no tags, or pain on an
+ * exercise that loads no joint) just the exercise.
+ *
+ * Mirrors prototype `defaultScope()` (`CX.name` and `CX.reason` passed in).
+ */
+export function cantDefaultScope(name: string, reason: ExclusionReason | null, tags: ExerciseCatalog['tags']): CantScope {
+  const t = tags[name];
+  if (!t) return { scope: 'exercise', key: name };
+  if (reason === 'pain' && t.joints.length) return { scope: 'joint', key: t.joints[0] as string };
+  if (reason === 'form') return { scope: 'family', key: t.family };
+  return { scope: 'exercise', key: name };
+}
+
+/** What the "can't do" sheet does after the duration answer. */
+export interface CantAfterDuration {
+  /** True: show the scope step next. False: go straight to the pick step. */
+  asksScope: boolean;
+  /** The scope to switch to (`today`: just the exercise), or null to keep the current one. */
+  scope: CantScope | null;
+}
+
+/**
+ * The "can't do" sheet after the duration answer `dur`: a `today` answer or an untagged exercise skips
+ * the scope step; a `today` answer also sets the scope back to just the exercise (any other answer
+ * keeps the scope chosen so far, which for an untagged exercise is already the exercise).
+ *
+ * Mirrors the `dur` branch of the `cx` action in prototype `exAction`.
+ */
+export function cantAfterDuration(name: string, dur: CantDuration, tags: ExerciseCatalog['tags']): CantAfterDuration {
+  return {
+    asksScope: !(dur === 'today' || !tags[name]),
+    scope: dur === 'today' ? { scope: 'exercise', key: name } : null,
+  };
+}
+
+/** One option on the "can't do" sheet's scope step. */
+export interface CantScopeOption extends CantScope {
+  /** For the family option: how many exercises in the whole catalog share the family (the option's "N exercises" line). Null otherwise. */
+  count: number | null;
+}
+
+/**
+ * The scopes the "can't do" sheet offers for `name`, in order: just the exercise; its family, only
+ * when more than one exercise in the catalog (every tagged exercise, wherever you train) has it; its
+ * movement pattern; then each joint it loads, in tag order. Only the exercise for an untagged name
+ * (the prototype skips the scope step then). Labels are app copy (prototype `FAMILY`, `PATTERN`,
+ * `JOINT`).
+ *
+ * Mirrors the `opts` list of the `scope` step in prototype `renderCant()`.
+ */
+export function cantScopeOptions(name: string, tags: ExerciseCatalog['tags']): CantScopeOption[] {
+  const t = tags[name];
+  const opts: CantScopeOption[] = [{ scope: 'exercise', key: name, count: null }];
+  if (!t) return opts;
+  const famCount = Object.values(tags).filter((x) => x.family === t.family).length;
+  if (famCount > 1) opts.push({ scope: 'family', key: t.family, count: famCount });
+  opts.push({ scope: 'pattern', key: t.pattern, count: null });
+  for (const j of t.joints) opts.push({ scope: 'joint', key: j, count: null });
+  return opts;
+}
+
 /** One replacement in today's session: the exercise at `index` becomes `to`, or is removed when `to` is null. */
 export interface CantReplacement {
   index: number;
