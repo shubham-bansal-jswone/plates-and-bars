@@ -43,7 +43,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;
 
-  // TODO(#159 follow-up): the lab hold is not stored yet, so it is off for the target and for planning a flex.
+  // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
   const target = kcalTarget(f.date, { flex: settings.flex }, profile);
   const facts: FoodFacts[] = [...catalogFoods, ...f.mineFacts];
   const t = logTotals(f.logs, facts);
@@ -64,7 +64,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     notify(flexToast(extra, r));
   };
   const undo = (id: string) => {
-    // TODO(#159 follow-up): labHold is off until the lab hold is stored (no separate issue exists yet).
+    // TODO(#219): labHold is off until the lab hold is stored.
     if (!blocked()) setFlex(undoFlex(settings.flex, id, { profile }));
   };
 

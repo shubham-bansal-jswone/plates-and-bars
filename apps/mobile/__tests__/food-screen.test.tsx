@@ -133,12 +133,8 @@ describe('Food screen', () => {
         expect(f.some((x) => x.id === 'p1')).toBe(false);
         return f;
       });
-      const net = left.reduce((a, x) => a + x.kcal_delta, 0);
-      expect(net).toBeGreaterThan(-1000);
-      const target = Number(screen.getByLabelText(/kcal eaten$/).props.accessibilityLabel.match(/of ([\d,]+) kcal/)[1].replace(',', ''));
-      expect(target).toBe(1990 + net);
       expect(left).toEqual([{ id: 'p0', date: DATE, kcal_delta: -490 }]);
-      expect(target).toBe(1500);
+      expect(screen.getByLabelText('0 of 1,500 kcal eaten')).toBeTruthy();
     });
 
     it('says what could not be spread when the next days have no room', async () => {
