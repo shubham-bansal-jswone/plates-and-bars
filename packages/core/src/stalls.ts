@@ -1,6 +1,6 @@
 import { addDays, daysBetween, mondayOf } from './dates';
 import { num } from './num';
-import { noLoad, type ExInfo, type ExType, type ExerciseOverride, type LiftRecord, type LiftSet, type ScoreEntry, type SetEntry } from './progression';
+import { noLoad, type ExInfo, type ExType, type ExerciseOverride, type LiftRecord, type LiftSet, type ScoreEntry, type SetEntry, type SettingsExerciseOverride } from './progression';
 
 /**
  * Session score: total reps for bodyweight and timed exercises; for assisted, the best effective
@@ -113,7 +113,8 @@ export interface StallCard {
 /**
  * The stall card for an exercise in today's session: stalled, no set ticked yet, the `stall` card not
  * muted and its key not dismissed. `info` is the exercise's `exInfo` (where-aware). Null when not
- * shown. The prototype's "Or switch to …" button (`sidewaysOf`, ladders) is not ported here.
+ * shown. The prototype's "Or switch to …" button shows when `sidewaysOf` finds an exercise; save it with
+ * `ladderSwap('side', ...)`.
  *
  * Mirrors prototype `stallCard(ex)` (state passed in).
  */
@@ -138,6 +139,17 @@ export function stallCard(
  */
 export function stallRange(override: ExerciseOverride | null | undefined, info: ExInfo, range: readonly [number, number]): ExerciseOverride {
   return { ...(override || {}), type: info.type, step: info.step, lo: range[0], hi: range[1] };
+}
+
+/**
+ * `stallRange` in the contract's shape: the contract `Settings.exercise_overrides[name]` entry to save
+ * for "Switch to lo–hi", merged as the prototype merges it (other fields of `existing` kept; `type` and
+ * `step_kg` from `info`, the new range). Also dismiss the card's key.
+ *
+ * Mirrors prototype `adjAction('adj-range')` on contract settings (#128).
+ */
+export function stallRangeOverride(existing: SettingsExerciseOverride | null | undefined, info: ExInfo, range: readonly [number, number]): SettingsExerciseOverride {
+  return { ...(existing || {}), type: info.type, step_kg: info.step, rep_low: range[0], rep_high: range[1] };
 }
 
 /**

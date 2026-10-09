@@ -16,6 +16,10 @@ interface SettingsState {
   setRestOff(off: boolean): void;
   /** Replaces the flex entries (the Food tab plans them with core's `planFlex`/`undoFlex`). */
   setFlex(flex: readonly FlexEntry[]): void;
+  /** Sets the meal-idea diet filter. */
+  setDiet(diet: Settings['diet']): void;
+  /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
+  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): void;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -57,9 +61,9 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings>) => {
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)) => {
       if (blocked.current) return;
-      const next = { ...ref.current, ...patch, updated_at: stamp(new Date()) };
+      const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
       ref.current = next;
       setState(next);
       queue.current = queue.current
@@ -74,7 +78,9 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
 
   const setFlex = useCallback((flex: readonly FlexEntry[]) => change({ flex: [...flex] }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex]);
+  const setDiet = useCallback((diet: Settings['diet']) => change({ diet }), [change]);
+
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, update: change }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, change]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

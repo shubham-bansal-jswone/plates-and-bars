@@ -19,8 +19,10 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Plan engine | `planned`, `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `beginnerRamp`, `older`, `TEMPLATES`, `ORDER`, `SPLITS` | same names (`beginnerRamp` is inline in `setsFor`) | `plan.json` |
 | Session building | `mapForWhere` (home mapping), `trimSession`, `applyFocus`, `focusPick`, `isFocus`, `muscleAllowed`, `shortSession`, `setsFor`, `sessionSets`, `COMPOUND`, `BALANCE_EXERCISE` | same names; `shortSession` and `sessionSets` are the inline steps of `buildSession` | `sessions.json` |
 | Exclusions and swaps | `resolveSession`, `resolveName`, `candidates`, `ruleMatches`, `activeRules`, `isExcluded`, `replFromSwaps` | same names; `replFromSwaps` builds `settings.repl` from contract swaps | `exercises.json` (catalogue only; differential tests) |
+| Re-check cards and "can't do" (#111) | `recheckDue`, `recheckBack`, `recheckLater`, `recheckKeep`, `cantRule`, `widerRuleReplacements` | the filter in `recheckCards`; the `rule-back`, `rule-later`, `rule-keep` steps of `exAction`; the rule and the "caught by a wider rule" loop of `applyCant` | none (differential tests) |
+| Ladders (#111) | `ladderOf`, `nextStep`, `prevStep`, `sidewaysOf`, `estimateFor`, `ladderCard`, `ladderSwap`, `ladderStayUntil`, `ESTIMATE_PAIRS` | same names; `ladderSwap` and `ladderStayUntil` are the `ladder-up`, `ladder-down`, `swap-side` and `ladder-stay` steps of `exAction`; `ESTIMATE_PAIRS` is `PAIR` | `exercises.json` (`ladders`; differential tests) |
 | Weight guidance | `suggestBase`, `applyMods`, `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, `exInfo`, `metaFor`, `applyCustomTags`, `customExerciseMeta`, `overridesFromSettings`, `lastFor`, `snap`, `harder`, `easier`, `kgLabel`, `noLoad`, `repWord`, `DEFAULT_STEP` | same names; `tickFill`, `rampRate`, `rampTickFill` are the `tick`, ramp `rate` and `ramp-tick` steps of `workoutAction`; `metaFor` is the `['other',8,12]` fallback in `exInfo`, `customExerciseMeta` the meta step of `applyCustomTags`; `overridesFromSettings` renames contract `exercise_overrides` to `settings.ex` | `progression.json` |
-| Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction` | none (differential tests) |
+| Stalls and personal bests | `sessionScore`, `stalled`, `stalledList`, `inRange`, `recoveryCard`, `recoveryWeek`, `stallCard`, `stallRange`, `stallRangeOverride`, `checkBest`, `updateLift` | same names; `recoveryCard` is the stall step of `renderStart`, `recoveryWeek` and `stallRange` the `adj-deload` and `adj-range` steps of `adjAction`; `stallRangeOverride` is `stallRange` in contract `exercise_overrides` shape (#128) | none (differential tests) |
 | Food screen | `searchFoods`, `unitGrams`, `quantityFromGrams`, `logTotals`, `fibreTarget`, `fruitVegServings`, `showAddedSugar`, `dayComplete`, `FRUIT_VEG_TARGET`, `kcalTarget`, `DEFAULT_KCAL_TARGET`, `planFlex`, `undoFlex`, `flexPlanFor`, `FLEX_FLOOR_DEFAULT`, `flexToast`, `stepServings`, `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP`, `highProtein`, `customFood`, `saveMyFood`, `MY_FOODS_MAX`, `FOOD_NAME_MAX`, `userFoodFacts` | `foodListHtml` query, `foodMatch` and badge, `unitGrams`, `case 'pick'` grams steps, `totals`, `fibreTotals` (`fibOf`, `produceOf`), `fibreTarget`, `fibreHtml`, `dayComplete`, `kcalTarget`, `planFlex` (its 1200 and its toast), `undoFlex` (`case 'flex-undo'`), `flexPlanFor` (`flexNoteHtml`), `case 'serv'`, `case 'addcustom'`, `allFoods` | `foods.json` (plus differential tests) |
 | Recipes and kitchen tests | `recipeTotals`, `presetIngredients`, `stepRecipeLog`, `recipeFood`, `kitchenTest`, `kitchenTestFood`, `saveBuiltFood`, `ingredientGrams`, `UNIT_GRAMS`, `OIL_LEVEL`, `RECIPE_VEG_INGREDIENTS`, `FRUIT_VEG_SERVING_G`, `SUGAR_INGREDIENT`, `BUILT_FOODS_MAX`, `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` | `rbTotals`, `rbFromPreset` rows, `case 'rb-log'`, `case 'rb-save'`, `ktCalc`, `ktSave(true)`, `UNIT_G`, `OIL_LEVEL` (`RAW`, `RAW_FIB`, `FATTY`, `KATORI_G`, `PRESETS` read from content) | `foods.json` (`raw100g`, `rawFibre100g`), content/raw-ingredients.json and recipes.json checked against them (plus differential tests) |
 | Default macro targets | `DEFAULT_PROTEIN_TARGET`, `DEFAULT_CARBS_TARGET`, `DEFAULT_FAT_TARGET` | `DEFAULT_SETTINGS.protein`, `.carbs`, `.fat` | none (differential test) |
@@ -70,7 +72,20 @@ Stalls and personal bests read each lift's `hist` (scores rounded to 0.1, last 8
 (contract `LiftStat.history` with `score`, and `pb_toast_date`). `updateLift` writes both, as the
 prototype does after every tick, rating or form change, except that a same-day record keeps its
 `pbToast` so the best toast shows at most once a day (#121; the prototype follows in a spec-change PR). Cards come back as facts (key, names, rep
-range), not HTML; the stall card's "Or switch to …" button (`sidewaysOf`) waits for the ladder port.
+range), not HTML. Save "Switch to lo–hi" with `stallRangeOverride`, which returns the contract
+`Settings.exercise_overrides[name]` entry (#128). The stall card's "Or switch to …" button shows when
+`sidewaysOf` returns a name; it ignores where the user trains, as the prototype does (#262). After a
+settings sync, call `applyCustomTags` again so re-tagged custom exercises update mid-session.
+
+Ladders read prototype `LADDERS` from content/exercises.json `ladders`, passed in a `LadderCatalog`
+(`tags` and `ladders`). `ladderCard` returns facts (`up` or `down`, the target, the dismissal key), not
+HTML; save its buttons with `ladderSwap` (contract `Swap` fields; a step up keeps the old exercise as a
+bridge for 14 days) and `ladderStayUntil` (contract `Settings.ladder_stay`). Timed exclusions keep
+applying after `until` until the user answers the re-check card: `recheckDue` lists the rules to ask
+about, and `recheckBack`, `recheckLater` and `recheckKeep` return the answered rule (and, for "Try it
+again", the `Settings.returning` entries to add). The "can't do" sheet saves `cantRule(...)` (add an
+`id`; for a saved rule, also tombstone any swap from that exercise). It then applies
+`widerRuleReplacements` to today's session, in the order returned.
 
 The food rules take foods in content/foods.json's `Food` shape and logs in the contract's `FoodLog`
 shape (logs with `deleted_at` set are left out). Fibre, added sugar and fruit and veg are looked up by
