@@ -44,6 +44,8 @@ class AiPromptsTest {
                 .map(r -> r.group(1)).findFirst().orElseThrow();
         assertThat(real).isNotEqualTo("DATA-" + "0".repeat(24));
         assertThat(p.input()).doesNotContain("DATA-" + "0".repeat(24) + ">>>");
-        assertThat(AiPrompts.sanitize(attack)).doesNotContain(real); // the per-request marker is never in the user text
+        String other = Pattern.compile("<<<(DATA-[0-9a-f]{24})").matcher(AiPrompts.describeMeal(attack).input())
+                .results().map(r -> r.group(1)).findFirst().orElseThrow();
+        assertThat(other).as("two prompts never share a marker").isNotEqualTo(real);
     }
 }
