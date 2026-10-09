@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.6
+  version: 0.1.7
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -733,6 +733,11 @@ paths:
                           learn: {}
                           meal_plan: null
                           prep: []
+                          reminders:
+                            - kind: workout
+                              time: '07:00'
+                              days: [1, 3, 5]
+                              on: false
                     conflict_log:
                       - table: weights
                         id: 640dee2b-d92d-5a00-bd03-568962bf90ea
@@ -2279,6 +2284,13 @@ components:
             steps:
               type: [integer, 'null']
               minimum: 0
+            steps_source:
+              type: [string, 'null']
+              enum: [manual, device, null]
+              description: |
+                Where `steps` came from: typed in (`manual`) or read from the phone's step
+                sensor (`device`). Null when `steps` is null. Optional: records written
+                before 0.1.7 omit it, and an absent value with a non-null `steps` means `manual`.
             sleep:
               type: [number, 'null']
               minimum: 0
@@ -2322,7 +2334,15 @@ components:
               description: 'Prototype: `cardio`.'
             mods:
               type: object
-              description: Session modifiers (light, short, deload, re-entry). Shape owned by packages/core; stored as-is.
+              description: |
+                Session modifiers. Shape owned by packages/core (`SessionMods`); stored as-is.
+                The keys core writes:
+                - `light` (boolean): no weight increases and one fewer set (check-in "light", lab hold or needs clearance).
+                - `short` (boolean): short session, main exercises only.
+                - `where` (`gym`, `dumbbells` or `bodyweight`): where the session happens.
+                - `deload` (boolean): recovery week in range.
+                - `reentry` (number): re-entry fraction (0.15 or 0.3) when a re-entry period is in range, else 0.
+                Readers treat a missing key as false (or 0 for `reentry`) and keep unknown keys.
               additionalProperties: true
             exercises:
               type: array
@@ -2733,6 +2753,10 @@ components:
           type: string
         equipment:
           type: string
+          enum: [barbell, dumbbell, machine, cable, bodyweight, other]
+          description: |
+            The prototype's custom-exercise equipment values, plus `other`. Core maps
+            anything but barbell, dumbbell, machine, cable and bodyweight to type `other`.
         difficulty:
           type: integer
           minimum: 1
@@ -2747,6 +2771,32 @@ components:
           type: array
           items:
             type: string
+
+    Reminder:
+      type: object
+      required: [kind, time, days, on]
+      properties:
+        kind:
+          type: string
+          enum: [workout, weigh_in, water, log_food]
+        time:
+          type: string
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+          description: Local wall-clock time on the phone, 24-hour `HH:MM`.
+          examples: ['07:30']
+        days:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          description: ISO weekdays the reminder fires on, 1 = Monday to 7 = Sunday.
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+        on:
+          type: boolean
+          description: Whether the reminder is scheduled.
 
     Muscle:
       type: string
@@ -2799,6 +2849,8 @@ components:
                 properties:
                   type:
                     type: string
+                    enum: [barbell, dumbbell, machine, cable, assisted, bodyweight, other, time]
+                    description: Exercise type; the keys of core's `DEFAULT_STEP` and content's `defaultStep`.
                   step_kg:
                     type: number
                     minimum: 0
@@ -2871,3 +2923,12 @@ components:
               items:
                 type: object
                 additionalProperties: true
+            reminders:
+              type: array
+              maxItems: 20
+              description: |
+                Local reminders, scheduled on the phone (no push service). All default off.
+                The web app does not show or fire them but keeps the list as synced. Optional:
+                records written before 0.1.7 omit it, and absent means no reminders.
+              items:
+                $ref: '#/components/schemas/Reminder'

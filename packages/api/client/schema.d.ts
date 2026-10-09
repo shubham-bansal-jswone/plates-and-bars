@@ -1013,6 +1013,13 @@ export interface components {
             /** @description "I've logged everything" tick; null when never set. */
             complete: boolean | null;
             steps: number | null;
+            /**
+             * @description Where `steps` came from: typed in (`manual`) or read from the phone's step
+             *     sensor (`device`). Null when `steps` is null. Optional: records written
+             *     before 0.1.7 omit it, and an absent value with a non-null `steps` means `manual`.
+             * @enum {string|null}
+             */
+            steps_source?: "manual" | "device" | null;
             /** @description Hours slept. */
             sleep: number | null;
             /** @description Fasting day (switches meal ideas to the fasting pool). */
@@ -1042,7 +1049,16 @@ export interface components {
             where: "gym" | "dumbbells" | "bodyweight" | null;
             /** @description Prototype: `cardio`. */
             cardio_min: number | null;
-            /** @description Session modifiers (light, short, deload, re-entry). Shape owned by packages/core; stored as-is. */
+            /**
+             * @description Session modifiers. Shape owned by packages/core (`SessionMods`); stored as-is.
+             *     The keys core writes:
+             *     - `light` (boolean): no weight increases and one fewer set (check-in "light", lab hold or needs clearance).
+             *     - `short` (boolean): short session, main exercises only.
+             *     - `where` (`gym`, `dumbbells` or `bodyweight`): where the session happens.
+             *     - `deload` (boolean): recovery week in range.
+             *     - `reentry` (number): re-entry fraction (0.15 or 0.3) when a re-entry period is in range, else 0.
+             *     Readers treat a missing key as false (or 0 for `reentry`) and keep unknown keys.
+             */
             mods: {
                 [key: string]: unknown;
             };
@@ -1282,11 +1298,29 @@ export interface components {
         ExerciseTags: {
             pattern: string;
             family: string;
-            equipment: string;
+            /**
+             * @description The prototype's custom-exercise equipment values, plus `other`. Core maps
+             *     anything but barbell, dumbbell, machine, cable and bodyweight to type `other`.
+             * @enum {string}
+             */
+            equipment: "barbell" | "dumbbell" | "machine" | "cable" | "bodyweight" | "other";
             difficulty: number;
             primary: components["schemas"]["Muscle"][];
             secondary: components["schemas"]["Muscle"][];
             joints: string[];
+        };
+        Reminder: {
+            /** @enum {string} */
+            kind: "workout" | "weigh_in" | "water" | "log_food";
+            /**
+             * @description Local wall-clock time on the phone, 24-hour `HH:MM`.
+             * @example 07:30
+             */
+            time: string;
+            /** @description ISO weekdays the reminder fires on, 1 = Monday to 7 = Sunday. */
+            days: number[];
+            /** @description Whether the reminder is scheduled. */
+            on: boolean;
         };
         /** @enum {string} */
         Muscle: "chest" | "front-delt" | "side-delt" | "rear-delt" | "triceps" | "lats" | "upper-back" | "biceps" | "forearms" | "quads" | "hams" | "glutes" | "calves" | "abs" | "lower-back";
@@ -1318,7 +1352,11 @@ export interface components {
             /** @description Per-exercise type, step and rep range, keyed by exercise name. Prototype: `ex`. */
             exercise_overrides: {
                 [key: string]: {
-                    type: string;
+                    /**
+                     * @description Exercise type; the keys of core's `DEFAULT_STEP` and content's `defaultStep`.
+                     * @enum {string}
+                     */
+                    type: "barbell" | "dumbbell" | "machine" | "cable" | "assisted" | "bodyweight" | "other" | "time";
                     step_kg: number;
                     rep_low: number;
                     rep_high: number;
@@ -1373,6 +1411,12 @@ export interface components {
             prep: {
                 [key: string]: unknown;
             }[];
+            /**
+             * @description Local reminders, scheduled on the phone (no push service). All default off.
+             *     The web app does not show or fire them but keeps the list as synced. Optional:
+             *     records written before 0.1.7 omit it, and absent means no reminders.
+             */
+            reminders?: components["schemas"]["Reminder"][];
         };
     };
     responses: {
