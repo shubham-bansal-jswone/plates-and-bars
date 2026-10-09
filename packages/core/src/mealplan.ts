@@ -1,5 +1,5 @@
 import { addDays, daysBetween } from './dates';
-import { combos, MEAL_ORDER, type Meal, type MealFood, type MealIdeasInput } from './meals';
+import { combos, MEAL_ORDER, OLDER_MEAL_PROTEIN_G, type Meal, type MealFood, type MealIdeasInput } from './meals';
 
 /**
  * Weekly meal plan and grocery list (spec §5): a week of meal ideas from the day's targets, a swap per
@@ -28,11 +28,13 @@ export interface GroceryEntry {
   items: readonly { item: string; amount: number; unit: string }[];
 }
 
-/** The day targets a plan is built from: contract `Settings` `kcal`, `protein`, `fat`. */
+/** The day targets a plan is built from: contract `Settings` `kcal`, `protein`, `fat`, and the profile age. */
 export interface PlanTargets {
   kcal: number;
   protein: number;
   fat: number;
+  /** Profile age; 60 and over gets at least 25 g protein per main meal (#239). */
+  age: number | null | undefined;
 }
 
 /** Days in a plan, ideas kept per meal, and ideas rotated over the week. Mirror the 7, 4 and 3 in prototype `buildPlan()`. */
@@ -42,15 +44,18 @@ export const PLAN_ROTATION = 3;
 
 /**
  * A new week's plan from `start`: per meal, the day's targets times the meal and protein weights, the
- * best four `combos` for it, and days rotating over the first three. No fasting pool and no 60+
- * protein floor, as in the prototype (PINNED QUIRK, #239). Mirrors prototype `buildPlan()`.
+ * best four `combos` for it, and days rotating over the first three. At 60 and over, breakfast, lunch
+ * and dinner aim for at least 25 g protein when the day's protein is 25 g or more, as `nextMealInfo`
+ * does (#239). No fasting pool, as in the prototype. Mirrors prototype `buildPlan()`.
  */
 export function buildPlan<T extends MealFood>(targets: PlanTargets, start: string, input: MealIdeasInput<T>): MealPlan {
   const W = input.planning.meal_weights;
   const PW = input.planning.protein_weights;
   const opts: Partial<Record<Meal, PlanItem[][]>> = {};
+  const older = targets.age != null && targets.age >= 60;
   for (const m of MEAL_ORDER) {
-    const info = { meal: m, kcal: targets.kcal * W[m], protein_g: targets.protein * PW[m], fat_g: targets.fat * W[m] };
+    const floor = older && m !== 'Snacks' && targets.protein >= OLDER_MEAL_PROTEIN_G ? OLDER_MEAL_PROTEIN_G : 0;
+    const info = { meal: m, kcal: targets.kcal * W[m], protein_g: Math.max(floor, targets.protein * PW[m]), fat_g: targets.fat * W[m] };
     opts[m] = combos(info, input)
       .slice(0, PLAN_OPTIONS)
       .map((c) => c.items.map((i): PlanItem => [i.food.name, i.qty]));
@@ -132,9 +137,8 @@ export function groceryAmount(v: number, unit: string): string {
 
 /**
  * The week's grocery list: every planned food's raw items times its servings, summed per item and
- * unit. `rows` are sorted by item then unit, as the sheet shows them; `text` (the "Copy as text"
- * lines) keeps the order items were first met (PINNED QUIRK, #240). Foods without a grocery
- * entry add nothing. Mirrors prototype `grocerySheet()`.
+ * unit. `rows` are sorted by item then unit, as the sheet shows them, and `text` (the "Copy as text"
+ * lines) lists them in the same order (#240). Foods without a grocery entry add nothing. Mirrors prototype `grocerySheet()`.
  */
 export function groceryList(plan: MealPlan, grocery: readonly GroceryEntry[]): { rows: GroceryRow[]; text: string } {
   const map = new Map<string, GroceryEntry>();
@@ -153,8 +157,8 @@ export function groceryList(plan: MealPlan, grocery: readonly GroceryEntry[]): {
     ),
   );
   const row = (t: { item: string; unit: string; amount: number }): GroceryRow => ({ ...t, label: groceryAmount(t.amount, t.unit) });
-  const entries = [...tot.entries()];
-  const rows = [...entries].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, t]) => row(t));
-  const text = entries.map(([, t]) => `${t.item}: ${groceryAmount(t.amount, t.unit)}`).join('\n');
+  const sorted = [...tot.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  const rows = sorted.map(([, t]) => row(t));
+  const text = sorted.map(([, t]) => `${t.item}: ${groceryAmount(t.amount, t.unit)}`).join('\n');
   return { rows, text };
 }
