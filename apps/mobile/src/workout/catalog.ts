@@ -12,7 +12,11 @@ export interface ExerciseCard {
   harder_version?: string;
 }
 
-export type Catalog = ExerciseCatalog & Pick<LadderCatalog, 'ladders'> & { cards: Readonly<Record<string, ExerciseCard>> };
+export type Catalog = ExerciseCatalog & Pick<LadderCatalog, 'ladders'> & {
+  cards: Readonly<Record<string, ExerciseCard>>;
+  /** The exercise library by group (prototype `LIB`), the "Add an exercise to avoid" picker's list. */
+  library: Readonly<Record<string, readonly string[]>>;
+};
 
 /** The exercise content, passed to core as is. */
 export const catalog = exercises as unknown as Catalog;

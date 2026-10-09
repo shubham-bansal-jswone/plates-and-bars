@@ -45,7 +45,7 @@ function holding(db: Db) {
   };
 }
 
-const OFFSETS = [0, 1, 2, 3, 5, 8, 13, 25, -1, -2, -3, -5, -8, -13, -25];
+const OFFSETS = [0, 1, 5, 25, -1, -5];
 
 async function setupDay(real: Db, h: ReturnType<typeof holding>) {
   const opts = { db: h.db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];

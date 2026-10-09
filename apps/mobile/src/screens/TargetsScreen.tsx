@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { weightDrift } from '@plate-and-bar/core';
+import { weightDrift, type WeekPlan } from '@plate-and-bar/core';
 import { loadWeights } from '../db/progress';
 import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
@@ -73,7 +73,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
         {ready ? (
           <>
-            <RulesSection db={db} today={localDate(now())} now={now} notify={notify} />
+            <RulesSection db={db} today={localDate(now())} now={now} notify={notify} profile={profile} weekPlan={settings.adjustments.weekPlan as WeekPlan | undefined} />
             <FocusSection focus={settings.focus} onChange={setFocus} notify={notify} />
             <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           </>
