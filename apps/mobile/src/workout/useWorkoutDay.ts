@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  cantRule,
+  lastFor,
+  widerRuleReplacements,
   noLoad,
   rampRate,
   rampTickFill,
@@ -9,16 +12,21 @@ import {
   updateLift,
   mergeSecondSession,
   templateName,
+  type CantDraft,
+  type CantRule,
   type Checkin,
+  type Exclusion,
   type LiftRecord,
   type Rate,
   type SessionLog,
+  type Swap,
 } from '@plate-and-bar/core';
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
-import { guidance, progressionContext } from './guidance';
+import { guidance, progressionContext, type Tuning } from './guidance';
+import { catalog } from './catalog';
 import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState } from './model';
 import type { Workout } from './types';
 
@@ -39,6 +47,13 @@ interface Options {
   notify: (msg: string) => void;
   /** A set was ticked: start the rest timer for `name`, then show `next`. */
   startRest: (name: string, next: string) => void;
+  /** Saved exercise rules and swaps; they shape the session being built. */
+  exclusions: readonly Exclusion[];
+  swaps: readonly Swap[];
+  /** Stores a rule made by the "can't do" sheet, returning the saved record. */
+  saveRule: (rule: CantRule) => Exclusion;
+  /** Changed rep ranges and exercises coming back (settings). */
+  tune: Tuning;
 }
 
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
@@ -47,7 +62,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Options) {
+export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule, tune }: Options) {
   const date = localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
   const ref = useRef(day);
@@ -103,7 +118,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     const d = ref.current;
     const ex = d.exs[i];
     if (!profile || !ex) return;
-    const { info } = guidance(ex, progressionContext(date, d.lifts, profile, d.workout), d.workout);
+    const { info } = guidance(ex, progressionContext(date, d.lifts, profile, d.workout, tune), d.workout);
     // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
     const res = updateLift(d.lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, profile.weight_kg);
     if (!res) return;
@@ -147,6 +162,8 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
           ciChoice,
           checkin,
           focus,
+          exclusions,
+          swaps,
         });
         d.workout = {
           id: null,
@@ -174,7 +191,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, commit, enqueue],
+    [db, profile, date, focus, exclusions, swaps, commit, enqueue],
   );
 
   const addSecond = useCallback(
@@ -195,6 +212,8 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
           ciChoice: old.ci_choice,
           checkin: {},
           focus,
+          exclusions,
+          swaps,
         });
         const first = d.exs.length;
         const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
@@ -213,7 +232,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, commit, enqueue, notify],
+    [db, profile, date, focus, exclusions, swaps, commit, enqueue, notify],
   );
 
   const editSet = (i: number, kind: 'work' | 'ramp', j: number, field: 'w' | 'r', value: string) =>
@@ -229,7 +248,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !d0.workout || !ex0) return;
-    const ctx = progressionContext(date, d0.lifts, profile, d0.workout);
+    const ctx = progressionContext(date, d0.lifts, profile, d0.workout, tune);
     const { info, sug } = guidance(ex0, ctx, d0.workout);
     change(
       i,
@@ -308,7 +327,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
-    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout), d0.workout);
+    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout, tune), d0.workout);
     change(
       i,
       (ex) => {
@@ -342,7 +361,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
-    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout), d0.workout);
+    const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout, tune), d0.workout);
     change(
       i,
       (ex) => {
@@ -358,5 +377,51 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest }: Op
     );
   };
 
-  return { date, day, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, start, addSecond };
+  /**
+   * The "can't do" sheet's pick. A timed or permanent answer saves a rule (`today` does not, it only steers
+   * today's session); the tapped exercise is replaced, and so is anything else today a wider rule covers.
+   * An exercise with ticked sets keeps them and the replacement follows it, as in the prototype.
+   */
+  const cant = (i: number | null, draft: CantDraft, choice: string | null) => {
+    const where = ref.current.workout?.where ?? profile?.where ?? 'gym';
+    const rule = cantRule(draft, choice, date);
+    const today = draft.dur === 'today';
+    const rules: Exclusion[] = today ? [...exclusions] : [...exclusions, saveRule(rule)];
+    const d = clone(ref.current);
+    // Sets of the old exercise to tombstone (`rows` index into the copy taken before the change), and exercises to write.
+    const gone: { ex: ExState; rows: ['work' | 'ramp', number][] }[] = [];
+    const touched = new Set<string>();
+    // TODO(#265, #269): core's cantSession/replaceAt replace this local copy (a replacement keeps the part of the exercise it replaces, #267).
+    const replaceAt = (k: number, pick: string | null) => {
+      const ex = d.exs[k] as ExState;
+      const keep = ex.sets.some((s) => s.done);
+      const rows: ['work' | 'ramp', number][] = ex.sets.flatMap((s, j) => (s.done ? [] : [['work', j] as ['work', number]]));
+      if (!keep) ex.ramp.forEach((_, j) => rows.push(['ramp', j]));
+      gone.push({ ex: structuredClone(ex), rows });
+      const n = Math.max(3, lastFor(pick ?? '', d.lifts, date)?.sets.length ?? 0);
+      const fresh: ExState[] = pick ? [{ name: pick, part: ex.part, bridge: false, form: null, found: null, skipRamp: false, sets: Array.from({ length: n }, blankRow), ramp: [] }] : [];
+      if (pick) touched.add(pick);
+      if (keep) {
+        ex.sets = ex.sets.filter((s) => s.done);
+        touched.add(ex.name);
+        d.exs.splice(k + 1, 0, ...fresh);
+      } else d.exs.splice(k, 1, ...fresh);
+    };
+    if (i !== null && d.exs[i]?.name === draft.name) replaceAt(i, choice);
+    if (!today && rule.scope !== 'exercise')
+      for (const r of widerRuleReplacements(d.exs, rule, choice, where, rules, d.lifts, catalog)) replaceAt(r.index, r.to);
+    commit(d);
+    notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
+    void enqueue(async () => {
+      const at = stamp(now());
+      for (const g of gone) for (const [kind, j] of g.rows) await saveSet(db, date, { ...setRecord(g.ex, kind, j, now()), deleted_at: at });
+      await writeWorkout();
+      for (let k = 0; k < ref.current.exs.length; k++) {
+        const ex = ref.current.exs[k] as ExState;
+        if (touched.has(ex.name)) await writeSets(k, 'work', Array.from(ex.sets.keys()));
+      }
+    });
+  };
+
+  return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, start, addSecond };
 }

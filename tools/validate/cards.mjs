@@ -77,9 +77,10 @@ export function validateMeasures(content) {
   return errors;
 }
 
-export function validateLabels(content) {
+// `exercises` (content/exercises.json), when given, must have a label for every family and pattern it uses.
+export function validateLabels(content, exercises) {
   const errors = [];
-  for (const group of ['muscles', 'joints']) {
+  for (const group of ['muscles', 'joints', 'families', 'patterns']) {
     const g = content?.[group];
     if (!g || typeof g !== 'object' || Object.keys(g).length === 0) { errors.push(`${group} must be a non-empty object`); continue; }
     const seen = new Set();
@@ -87,6 +88,12 @@ export function validateLabels(content) {
       if (!nonEmpty(v)) errors.push(`${group}.${k}: label missing`);
       else if (seen.has(v)) errors.push(`${group}.${k}: duplicate label '${v}'`);
       seen.add(v);
+    }
+  }
+  if (exercises?.tags) {
+    for (const [field, group] of [['family', 'families'], ['pattern', 'patterns']]) {
+      const used = new Set(Object.values(exercises.tags).map((t) => t[field]));
+      for (const k of [...used].sort()) if (!nonEmpty(content?.[group]?.[k])) errors.push(`${group}.${k}: no label (used by content/exercises.json)`);
     }
   }
   const r = content?.replacement_reasons ?? {};

@@ -10,6 +10,13 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-09 — prototype fix, batch 10 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
+- #267: in the "can't do" flow (`applyCant`'s `replaceAt`), the replacement takes the part of the exercise it replaces (`nx.part = ex.part`), whether it takes its place or goes after its ticked sets. A pick for a second-session exercise stays in the second session, so the "Second session" heading no longer moves below it or shows twice. Exercises added in other ways are unchanged.
+- #272: `candidates` with no `o.where` uses where the user trains today (`whereNow()`: the day's override, else the profile's, else gym) instead of the day's override, else gym. Its two callers without a `where`, the "can't do" sheet's pick list (`renderCant`) and `applyCant`'s "caught by a wider rule" loop, no longer offer or insert gym-only exercises for a user whose profile says dumbbells or bodyweight. Session building (`resolveName`) already passed `where`; unchanged.
+
+**2026-10-09 — prototype fix (spec-change; golden fixtures unchanged).**
+- #275: the `balance` exercise family had no entry in `FAMILY`, so a replacement rule scoped to it would read "All undefined". `FAMILY.balance` is now 'balance variations' (so the scope reads "All balance variations"). The family and pattern labels are exported to `content/labels.json` (`families`, `patterns`) by the cards/labels importer.
+
 **2026-10-08 — prototype fixes (spec-change; golden fixtures unchanged).**
 - #101: "Below the range two sessions running → drop" reads sessions before today only (`prevOf`), so ticking today's first set no longer flips the advice from drop to hold. To keep that session, `updateLift` now stores the earlier session's own `prev` (one level, as `{date, sets, form}`) inside the new record's `prev` when a new day starts.
 - #102: the bodyweight "+kg" value carried to the next set is parsed with `num()` (`setTarget`), so "2,5" gives 2.5 instead of "NaN"; an empty field stays empty.
@@ -47,10 +54,6 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 **2026-10-09 — prototype fix, batch 9 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
 - #262: the stall card's "Or switch to …" swap (`sidewaysOf`) offers only exercises the equipment where the user trains today can do (`whereNow()`: the day's override, else the profile's), with the same rule as `candidates`: at the gym anything; with dumbbells, dumbbell and bodyweight exercises; bodyweight, bodyweight only. Both steps are filtered: another exercise on the same ladder step, else the first catalogue exercise of the same family and difficulty; excluded exercises are still skipped. A swap that resolves back to the same exercise is no longer offered: with dumbbells, Lateral Raise, Crunch and Dumbbell Fly get no button (they offered Cable Lateral Raise, Cable Crunch and Cable Crossover), Rear Delt Fly offers Prone Y-T-W Raise instead of Face Pull, and Goblet Squat offers Bodyweight Squat instead of Leg Press.
-
-**2026-10-09 — prototype fix, batch 10 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
-- #267: in the "can't do" flow (`applyCant`'s `replaceAt`), the replacement takes the part of the exercise it replaces (`nx.part = ex.part`), whether it takes its place or goes after its ticked sets. A pick for a second-session exercise stays in the second session, so the "Second session" heading no longer moves below it or shows twice. Exercises added in other ways are unchanged.
-- #272: `candidates` with no `o.where` uses where the user trains today (`whereNow()`: the day's override, else the profile's, else gym) instead of the day's override, else gym. Its two callers without a `where`, the "can't do" sheet's pick list (`renderCant`) and `applyCant`'s "caught by a wider rule" loop, no longer offer or insert gym-only exercises for a user whose profile says dumbbells or bodyweight. Session building (`resolveName`) already passed `where`; unchanged.
 
 These change the scope table in the Development Plan. Treat them as v1 unless marked otherwise.
 

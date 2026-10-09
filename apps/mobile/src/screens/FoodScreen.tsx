@@ -1,13 +1,14 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
+import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, planForMeal, showAddedSugar, undoFlex, type FoodFacts, type PlanItem } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, H1, Hint, Note, Page, Press } from '../components/ui';
+import { Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { catalogFoods } from '../food/catalog';
+import { catalogFoods, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
@@ -31,6 +32,7 @@ const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 /** Food tab: today's calories and macros, fibre row, the four meals, and the add-food sheet. */
 export function FoodScreen({ db, now = () => new Date() }: Props) {
   const c = useTheme();
+  const router = useRouter();
   const { profile, status } = useProfile();
   const { ready: settingsReady, settings, loadFailed, setFlex, setDiet } = useSettings();
   const [toast, setToast] = useState<string | null>(null);
@@ -45,6 +47,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const f = useFoodDay({ db, now, notify });
   const water = useWater({ db, date: f.date, now, profile, notify });
 
+  if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;
 
   // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
@@ -69,6 +72,16 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const undo = (id: string) => {
     // TODO(#219): labHold is off until the lab hold is stored.
     if (!blocked()) setFlex(undoFlex(settings.flex, id, { profile }));
+  };
+
+  const logPlanned = (meal: Meal, items: PlanItem[]) => {
+    for (const [n, q] of items) {
+      // My foods first, as the prototype's foodByName does.
+      const mineFood = f.mine.map((u, i) => ({ ...f.mineFacts[i]!, id: u.id }) as CatalogFood).find((x) => x.name.toLowerCase() === n.toLowerCase());
+      const food = mineFood ?? catalogFoods.find((x) => x.name.toLowerCase() === n.toLowerCase());
+      if (food) f.add(meal, logOf(food, q));
+    }
+    notify(`Logged your planned ${meal.toLowerCase()}`);
   };
 
   return (
@@ -123,10 +136,11 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             notify(`Added to ${meal.toLowerCase()}`);
           }}
           onFlex={plan}
+          onPlanWeek={() => router.push('/meal-plan')}
         />
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} onRemove={f.remove} onAdd={() => setAdding(m)} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
           <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -155,7 +169,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   );
 }
 
-function MealSection({ meal, items, facts, onRemove, onAdd }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; onRemove: (id: string) => void; onAdd: () => void }) {
+function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAdd, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; onRemove: (id: string) => void; onAdd: () => void; onRecipes: () => void }) {
   const c = useTheme();
   const kcal = logTotals(items, facts).kcal;
   return (
@@ -174,7 +188,14 @@ function MealSection({ meal, items, facts, onRemove, onAdd }: { meal: Meal; item
           <Press accessibilityRole="button" accessibilityLabel={`Remove ${m.name}`} onPress={() => onRemove(m.id)} style={styles.x}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></Press>
         </Card>
       ))}
+      {!items.length && planned?.length ? (
+        <View style={[styles.between, styles.item]}>
+          <Text style={{ color: c.ink, flex: 1 }}>{`From your plan: ${planned.map(([n, q]) => `${n}${q !== 1 ? ` ×${r1(q)}` : ''}`).join(' + ')}`}</Text>
+          <Button label="Log it" a11yLabel={`Log your planned ${meal.toLowerCase()}`} kind="ghost" onPress={() => onLogPlanned(meal, planned)} />
+        </View>
+      ) : null}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
+      <Button label="Recipes" a11yLabel={`Recipes for ${meal.toLowerCase()}: build a recipe, the library and cooking mode`} onPress={onRecipes} kind="link" />
     </View>
   );
 }

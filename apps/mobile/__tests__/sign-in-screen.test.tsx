@@ -12,13 +12,15 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: jest
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 const base: SyncState = {
-  configured: true, signedIn: false, pending: 0, syncing: false, last: null, epoch: 0,
+  configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0,
   dataVersion: 0, holdSchedule: () => undefined,
   syncNow: async () => null,
   startSignIn: async () => ({ ok: true, resendAfterSec: 60 }),
   verifyCode: async () => ({ kind: 'signed_in', wiped: false }),
   signOut: async () => 0,
   discardAndSignOut: async () => undefined,
+  exportFromServer: async () => ({ kind: 'not_signed_in' }),
+  deleteEverything: async () => ({ kind: 'deleted', server: false }),
 };
 const pdb = memoryDb();
 const withSync = (s: Partial<SyncState>, ui: React.ReactElement) => (
@@ -39,6 +41,15 @@ describe('badge', () => {
     expect(screen.getByLabelText('Not synced. 3 changes on this device are not synced yet. Opens account')).toBeTruthy();
     await render(withSync({ configured: false }, <SyncBadge />));
     expect(screen.queryByText('Sign in to sync')).toBeNull();
+  });
+});
+
+describe('badge during a pending device wipe', () => {
+  it('does not offer sign-in once the account is deleted', async () => {
+    await render(withSync({ linked: true, wipePending: true }, <SyncBadge />));
+    expect(screen.queryByText('Sign in to sync')).toBeNull();
+    await render(withSync({}, <SyncBadge />));
+    expect(screen.getByText('Sign in to sync')).toBeTruthy();
   });
 });
 
