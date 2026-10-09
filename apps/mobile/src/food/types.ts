@@ -28,6 +28,8 @@ export interface DayNote extends Omit<SyncMeta, 'id'> {
   date: string;
   complete: boolean | null;
   steps: number | null;
+  /** Where `steps` came from; absent on records from before contract 0.1.7 (with steps, that means manual). */
+  steps_source?: 'manual' | 'device' | null;
   sleep: number | null;
   fast: boolean;
 }

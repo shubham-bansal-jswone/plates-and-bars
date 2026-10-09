@@ -123,8 +123,30 @@ describe('Progress screen', () => {
     await fireEvent.changeText(screen.getByLabelText('Steps today'), '8200');
     await fireEvent.changeText(screen.getByLabelText('Hours slept last night'), '7.5');
     await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
-    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ date: DATE, steps: 8200, sleep: 7.5, fast: true, complete: true, version: 2 })]));
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ date: DATE, steps: 8200, steps_source: 'manual', sleep: 7.5, fast: true, complete: true, version: 2 })]));
     expect(screen.getByText('steps today, target about 7,000')).toBeTruthy();
+  });
+
+  it('shows the steps source, treats a missing source as manual, and clears it with the steps', async () => {
+    const db = memoryDb();
+    await saveDayNote(db, { id: null, version: 1, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: null, steps: 5000, sleep: null, fast: false });
+    await setup({ db });
+    expect(screen.getByText('Source: entered by you')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Steps today'), '');
+    await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: null, steps_source: null })]));
+    expect(screen.queryByText(/^Source:/)).toBeNull();
+  });
+
+  it('a manual entry overrides a device source', async () => {
+    const db = memoryDb();
+    await saveDayNote(db, { id: null, version: 1, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: null, steps: 4000, steps_source: 'device', sleep: null, fast: false });
+    await setup({ db });
+    expect(screen.getByText('Source: phone step sensor')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Steps today'), '4100');
+    await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: 4100, steps_source: 'manual' })]));
+    expect(await screen.findByText('Source: entered by you')).toBeTruthy();
   });
 
   it('shows an error for non-numeric steps or sleep instead of saving 0', async () => {

@@ -20,7 +20,7 @@ interface Options {
   reloadKey?: number;
 }
 
-const blankNote = (date: string): DayNote => ({ id: null, version: 0, deleted_at: null, updated_at: '', date, complete: null, steps: null, sleep: null, fast: false });
+const blankNote = (date: string): DayNote => ({ id: null, version: 0, deleted_at: null, updated_at: '', date, complete: null, steps: null, steps_source: null, sleep: null, fast: false });
 const isNumber = (text: string): boolean => Number.isFinite(Number(text.trim()));
 const blankTape = (date: string): Measurement => ({ id: null, version: 0, updated_at: '', deleted_at: null, date, waist_cm: null, neck_cm: null, chest_cm: null, arm_cm: null, thigh_cm: null, hips_cm: null });
 
@@ -126,10 +126,11 @@ export function useProgress({ db, now, notify, reloadKey = 0 }: Options) {
       if (steps !== null && !(steps >= 0)) return notify(STEPS_BAD);
       if (slept.kind === 'bad') return notify(SLEEP_BAD);
       const sleep = slept.kind === 'save' ? slept.h : null;
-      const n: DayNote = { ...(notesRef.current.find((x) => x.date === date) ?? blankNote(date)), steps, sleep, updated_at: stamp(now()) };
+      const steps_source = steps === null ? null : ('manual' as const);
+      const n: DayNote = { ...(notesRef.current.find((x) => x.date === date) ?? blankNote(date)), steps, steps_source, sleep, updated_at: stamp(now()) };
       notesRef.current = [...notesRef.current.filter((x) => x.date !== date), n];
       setNotes(notesRef.current);
-      enqueue(() => patchDayNote(db, date, { steps, sleep }, n.updated_at));
+      enqueue(() => patchDayNote(db, date, { steps, steps_source, sleep }, n.updated_at));
       notify('Saved');
     },
     [db, date, now, notify, enqueue],
