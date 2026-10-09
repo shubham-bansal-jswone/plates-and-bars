@@ -1,6 +1,11 @@
-import { addDays } from './dates';
+import { addDays, daysBetween, mondayOf } from './dates';
+import { dayComplete, logTotals, type FoodLogFacts } from './food';
 import { num } from './num';
-import type { Sex } from './targets';
+import { splitFor, type PlanProfile, type SessionLog, type WeekPlan } from './plan';
+import type { LiftRecord } from './progression';
+import { toTargetsProfile, type SetupProfile } from './setup';
+import { stalledList } from './stalls';
+import { calcTargets, type Sex } from './targets';
 
 /**
  * Progress formulas (PROTOTYPE_SPEC section 6): body measures and day targets. Weigh-ins come in the
@@ -214,4 +219,322 @@ export function weightDrift(weighIns: readonly WeighIn[], setupWeightKg: number)
   const lw = latestWeight(weighIns);
   if (!lw || !(Math.abs(lw - setupWeightKg) >= WEIGHT_DRIFT_KG)) return null;
   return { latest: lw, diff: Math.abs(lw - setupWeightKg), lower: lw < setupWeightKg };
+}
+
+/* ---------- real burn, rapid loss, habits, weekly check-in ---------- */
+
+/** Kcal per kg of body weight (prototype `KCAL_PER_KG`). */
+export const KCAL_PER_KG = 7700;
+/** Calories added when weight drops fast (prototype `calorieCard`'s 150). */
+export const RAPID_LOSS_KCAL = 150;
+/** Minimum change before the check-in suggests a new calorie target (prototype `renderCheckin`'s 100). */
+export const CHECKIN_KCAL_STEP = 100;
+/** WHO weekly moderate-activity minutes (prototype `renderCheckin`'s "of 150 min"). */
+export const CARDIO_WEEK_MIN = 150;
+
+/** One day's facts for the check-in, habits and real burn (one per date; a missing date is a blank day). */
+export interface ProgressDay {
+  date: string;
+  /** That day's food logs (contract `FoodLog`). */
+  logs: readonly FoodLogFacts[];
+  /** Contract `DayNote.complete`, `steps`, `sleep`. */
+  complete?: boolean | null | undefined;
+  steps?: number | null | undefined;
+  sleep?: number | null | undefined;
+  /** Contract `Workout.cardio_min`. */
+  cardioMin?: number | null | undefined;
+  /** Any work set of the day's workout ticked done. */
+  trained: boolean;
+}
+
+const BLANK = (date: string): ProgressDay => ({ date, logs: [], trained: false });
+
+/** The `n` days ending on `end`, oldest first, as prototype `loadDays(end, n)` gives them. */
+function daysEnding(days: readonly ProgressDay[], end: string, n: number): ProgressDay[] {
+  return Array.from({ length: n }, (_, k) => {
+    const d = addDays(end, k - n + 1);
+    return days.find((x) => x.date === d) ?? BLANK(d);
+  });
+}
+
+function entries(weighIns: readonly WeighIn[]): Map<string, number> {
+  return new Map(live(weighIns).map((w) => [w.date, w.weight_kg]));
+}
+
+/**
+ * Average of the weigh-ins in the 7 days ending on `end`, or null with fewer than 3.
+ *
+ * Mirrors prototype `weeklyAvg(end)`.
+ */
+export function weeklyAvg(weighIns: readonly WeighIn[], end: string): number | null {
+  const e = entries(weighIns), v: number[] = [];
+  for (let i = 0; i < 7; i++) {
+    const w = e.get(addDays(end, -i));
+    if (w) v.push(w);
+  }
+  return v.length >= 3 ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+
+/** Result of `rapidLoss`: the "Weight is dropping fast" card. */
+export interface RapidLoss {
+  /** Dismissal key, `kcal:<Monday>`. */
+  key: string;
+  /** This week's average below last week's, kg (show to 0.1). */
+  drop: number;
+  /** Over 1% a week for 2 weeks running; otherwise 1 week plus 2 or more stalled lifts. */
+  twoWeeks: boolean;
+  stalls: number;
+}
+
+/**
+ * Whether to suggest adding `RAPID_LOSS_KCAL`: the weekly average fell more than 1% this week and the
+ * week before, or this week with 2 or more stalled lifts. `today` is the real today (prototype `TODAY()`);
+ * `stalls` is `stalledList(lifts, date).length`. The app hides the card when muted or dismissed.
+ *
+ * Mirrors prototype `calorieCard()`.
+ */
+export function rapidLoss(weighIns: readonly WeighIn[], today: string, stalls: number): RapidLoss | null {
+  const w1 = weeklyAvg(weighIns, today), w0 = weeklyAvg(weighIns, addDays(today, -7)), w2 = weeklyAvg(weighIns, addDays(today, -14));
+  const fast1 = !!w1 && !!w0 && w0 - w1 > 0.01 * w0, fast2 = fast1 && !!w2 && w2 - (w0 as number) > 0.01 * w2;
+  if (!fast2 && !(fast1 && stalls >= 2)) return null;
+  return { key: 'kcal:' + mondayOf(today), drop: (w0 as number) - (w1 as number), twoWeeks: fast2, stalls };
+}
+
+/**
+ * New calorie and carb targets after "Add 150 kcal" (or any change `v`): calories never below 1,200,
+ * carbs change by `v / 4` g, never below 0.
+ *
+ * Mirrors the `adj-kcal` step of prototype `adjAction`.
+ */
+export function addKcal(t: { kcal: number; carbs: number }, v: number): { kcal: number; carbs: number } {
+  return { kcal: Math.max(1200, t.kcal + v), carbs: Math.max(0, t.carbs + Math.round(v / 4)) };
+}
+
+/**
+ * Least-squares weight trend in kg per day over the `span` days ending on `end` (`slope` only with 6
+ * or more weigh-ins; 0 if they share one day).
+ *
+ * Mirrors prototype `weightSlope(end, span)`.
+ */
+export function weightSlope(weighIns: readonly WeighIn[], end: string, span: number): { n: number; slope?: number } {
+  const start = addDays(end, -span);
+  const e = [...entries(weighIns)].filter(([d]) => d <= end && d > start);
+  if (e.length < 6) return { n: e.length };
+  const xs = e.map(([d]) => daysBetween(start, d)), ys = e.map(([, v]) => v);
+  const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+  let nu = 0, den = 0;
+  xs.forEach((x, i) => {
+    nu += (x - mx) * ((ys[i] as number) - my);
+    den += (x - mx) * (x - mx);
+  });
+  return { n: e.length, slope: den ? nu / den : 0 };
+}
+
+/** Real-burn state kept between check-ins (contract `Settings.adaptive`; prototype `settings.adaptive`). */
+export interface AdaptiveState {
+  /** Monday of the week `value` was last set. */
+  week?: string | null | undefined;
+  /** Last week's estimate. */
+  prev?: number | null | undefined;
+  /** The latest estimate. */
+  value?: number | null | undefined;
+}
+
+/** Result of `adaptiveBurn`. */
+export type AdaptiveBurn =
+  | { ready: false; needDays: number; needW: number }
+  | { ready: true; intake: number; slope: number; raw: number; burn: number; logged: number };
+
+/**
+ * Real burn: average intake on complete days with food in the 14 days ending on `date`, minus the
+ * 21-day weight slope × 7,700, smoothed 60/40 with last week's estimate and rounded. Needs 10 such
+ * days and 6 weigh-ins. `kcalTarget` is the settings target, for `dayComplete`.
+ *
+ * Mirrors prototype `adaptiveBurn(days)` (days, weigh-ins and state passed in).
+ */
+export function adaptiveBurn(days: readonly ProgressDay[], weighIns: readonly WeighIn[], date: string, kcalTarget: number, adaptive: AdaptiveState | null | undefined): AdaptiveBurn {
+  const logged = daysEnding(days, date, 14).filter((d) => live(d.logs).length && dayComplete(d, d.logs, kcalTarget));
+  const ws = weightSlope(weighIns, date, 21);
+  const needDays = Math.max(0, 10 - logged.length), needW = Math.max(0, 6 - ws.n);
+  if (needDays || needW) return { ready: false, needDays, needW };
+  const intake = logged.reduce((a, d) => a + logTotals(d.logs, []).kcal, 0) / logged.length;
+  const slope = ws.slope as number, raw = intake - slope * KCAL_PER_KG, AD = adaptive ?? {};
+  const prev = AD.week === mondayOf(date) ? AD.prev : AD.value;
+  return { ready: true, intake, slope, raw, burn: Math.round(prev ? 0.6 * prev + 0.4 * raw : raw), logged: logged.length };
+}
+
+/**
+ * The real-burn state to save after a ready estimate: on a new week last week's value moves to `prev`.
+ *
+ * Mirrors the `S.settings.adaptive` update in prototype `renderCheckin()`.
+ */
+export function nextAdaptive(adaptive: AdaptiveState | null | undefined, date: string, burn: number): AdaptiveState {
+  const AD = { ...adaptive };
+  if (AD.week !== mondayOf(date)) {
+    AD.prev = AD.value || null;
+    AD.week = mondayOf(date);
+  }
+  AD.value = burn;
+  return AD;
+}
+
+/** What `targetFromBurn` reads from the profile (contract `Profile`). */
+export type BurnProfile = Pick<SetupProfile, 'sex' | 'age' | 'height_cm' | 'weight_kg' | 'activity' | 'days' | 'minutes' | 'goal' | 'pace' | 'special'>;
+
+/**
+ * Targets from a real burn: the goal's adjustment, the 750 kcal cap and the floor as in `calcTargets`,
+ * to 10 kcal; protein kept; fat the larger of 25% and 0.6 g per kg (latest weigh-in, else profile
+ * weight); carbs the rest. Null with no profile.
+ *
+ * Mirrors prototype `targetFromBurn(burn)`.
+ */
+export function targetFromBurn(burn: number, profile: BurnProfile | null | undefined, weighIns: readonly WeighIn[], protein: number): { kcal: number; protein: number; fat: number; carbs: number } | null {
+  if (!profile) return null;
+  const r = calcTargets(toTargetsProfile(profile)), adj = r.adj;
+  let kcal = burn * (1 + adj);
+  if (adj < 0 && burn - kcal > 750) kcal = burn - 750;
+  if (adj < 0 && kcal < r.floor) kcal = Math.min(r.floor, burn);
+  kcal = Math.round(kcal / 10) * 10;
+  const w = latestWeight(weighIns) || profile.weight_kg;
+  const fat = Math.max(Math.round((kcal * 0.25) / 9), Math.round(0.6 * w)), carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
+  return { kcal, protein, fat, carbs };
+}
+
+/** What the weekly check-in reads. */
+export interface CheckinInput {
+  /** The day shown (prototype `S.date`); the week is the 7 days ending on it. */
+  date: string;
+  /** At least the 21 days ending on `date`. */
+  days: readonly ProgressDay[];
+  weighIns: readonly WeighIn[];
+  lifts: Readonly<Record<string, LiftRecord>>;
+  /** Settings targets (prototype `S.settings.kcal`, `.protein`). */
+  kcal: number;
+  protein: number;
+  profile: BurnProfile | null | undefined;
+  adaptive?: AdaptiveState | null | undefined;
+  /** Prototype `adj.weekPlan`, `adj.dismissed`, `adj.muted`. */
+  weekPlan?: WeekPlan | null | undefined;
+  dismissed?: Readonly<Record<string, boolean>> | undefined;
+  muted?: Readonly<Record<string, boolean>> | undefined;
+}
+
+/** The check-in's one suggestion, if any. */
+export type CheckinSuggestion =
+  | { kind: 'kcal'; target: { kcal: number; protein: number; fat: number; carbs: number } }
+  | { kind: 'week' }
+  | { kind: 'protein' };
+
+/** The weekly check-in's facts (prototype `S.ciData` plus the cardio, steps, sleep and burn lines). */
+export interface WeeklyCheckin {
+  /** Dismissal key, `ci:<Monday>`. */
+  key: string;
+  sessions: number;
+  plannedN: number;
+  /** Days with food logged, of 7. */
+  logged: number;
+  /** Averages over days with food (0 with none); `pDays` = days at 90% of the protein target or more. */
+  avgK: number;
+  avgP: number;
+  pDays: number;
+  /** This and last week's average weight. */
+  w1: number | null;
+  w0: number | null;
+  /** Lifts whose best score this week beat earlier ones by more than 1%, best first, top 3. */
+  improved: { n: string; pct: number }[];
+  /** Stalled lifts, top 3. */
+  stalled: string[];
+  /** Cardio minutes this week, of `CARDIO_WEEK_MIN`. */
+  cardioMin: number;
+  /** Average steps and sleep over days with a value above 0, or null. */
+  steps: number | null;
+  sleep: number | null;
+  burn: AdaptiveBurn;
+  /** Setup formula burn (`calcTargets` tdee), or null with no profile. */
+  formula: number | null;
+  suggestion: CheckinSuggestion | null;
+}
+
+/**
+ * The weekly check-in for the 7 days ending on `date`.
+ *
+ * Mirrors prototype `renderCheckin()` (its numbers and choice of suggestion, not its HTML).
+ */
+export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
+  const days = daysEnding(i.days, i.date, 21), wk = days.slice(-7), monday = mondayOf(i.date);
+  const tt = wk.filter((d) => live(d.logs).length).map((d) => logTotals(d.logs, []));
+  const avgK = tt.length ? tt.reduce((a, t) => a + t.kcal, 0) / tt.length : 0, avgP = tt.length ? tt.reduce((a, t) => a + t.protein_g, 0) / tt.length : 0;
+  const sessions = wk.filter((d) => d.trained).length;
+  const plannedN = i.weekPlan && i.weekPlan.start === monday ? i.weekPlan.list.length : 6;
+  const start = addDays(i.date, -6);
+  const improved = Object.entries(i.lifts)
+    .map(([n, L]) => {
+      const h = L.hist ?? [], cur = h.filter((x) => x.date >= start), before = h.filter((x) => x.date < start);
+      if (!cur.length || !before.length) return null;
+      const a = Math.max(...before.map((x) => x.e)), b = Math.max(...cur.map((x) => x.e));
+      return b > a * 1.01 ? { n, pct: Math.round((b / a - 1) * 100) } : null;
+    })
+    .filter((x): x is { n: string; pct: number } => x !== null)
+    .sort((a, b) => b.pct - a.pct);
+  const st = stalledList(i.lifts, i.date), burn = adaptiveBurn(days, i.weighIns, i.date, i.kcal, i.adaptive);
+  const key = 'ci:' + monday;
+  let suggestion: CheckinSuggestion | null = null;
+  if (!i.dismissed?.[key] && !i.muted?.['checkin']) {
+    const nt = burn.ready ? targetFromBurn(burn.burn, i.profile, i.weighIns, i.protein) : null;
+    if (nt && Math.abs(nt.kcal - i.kcal) >= CHECKIN_KCAL_STEP) suggestion = { kind: 'kcal', target: nt };
+    else if (sessions + 2 <= plannedN && !i.weekPlan) suggestion = { kind: 'week' };
+    else if (tt.length >= 3 && avgP < i.protein * 0.85) suggestion = { kind: 'protein' };
+  }
+  const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  return {
+    key,
+    sessions,
+    plannedN,
+    logged: tt.length,
+    avgK,
+    avgP,
+    pDays: tt.filter((t) => t.protein_g >= i.protein * 0.9).length,
+    w1: weeklyAvg(i.weighIns, i.date),
+    w0: weeklyAvg(i.weighIns, addDays(i.date, -7)),
+    improved: improved.slice(0, 3),
+    stalled: st.slice(0, 3),
+    cardioMin: wk.reduce((a, d) => a + num(d.cardioMin), 0),
+    steps: avg(wk.map((d) => num(d.steps)).filter((x) => x > 0)),
+    sleep: avg(wk.map((d) => num(d.sleep)).filter((x) => x > 0)),
+    burn,
+    formula: i.profile ? calcTargets(toTargetsProfile(i.profile)).tdee : null,
+    suggestion,
+  };
+}
+
+/** Result of `habits`. */
+export interface Habits {
+  /** Sessions a week to be on track: plan days − 1, at least 2. */
+  goal: number;
+  /** Consecutive on-track weeks before this one (up to 26). */
+  weeks: number;
+  /** Sessions this week so far. */
+  thisWeek: number;
+  /** Days with food logged in the 7 days ending on `date`. */
+  logged: number;
+  /** Which line shows: `streak` (2+ weeks), `missed` (food on fewer than 4 days), else `steady`. */
+  message: 'streak' | 'missed' | 'steady';
+}
+
+/**
+ * Gentle habits: on-track weeks in a row, not streaks of days.
+ *
+ * Mirrors prototype `consistencyHtml()` (its numbers and choice of line, not its HTML).
+ */
+export function habits(date: string, sessions: SessionLog, profile: PlanProfile | null | undefined, days: readonly ProgressDay[]): Habits {
+  const goal = Math.max(2, splitFor(profile).list.length - 1), dates = Object.keys(sessions), monday = mondayOf(date);
+  let weeks = 0;
+  for (let k = 1; k <= 26; k++) {
+    const ws = addDays(monday, -7 * k), we = addDays(ws, 7);
+    if (dates.filter((d) => d >= ws && d < we).length >= goal) weeks++;
+    else break;
+  }
+  const logged = daysEnding(days, date, 7).filter((d) => live(d.logs).length).length;
+  const thisWeek = dates.filter((d) => d >= monday && d <= date).length;
+  return { goal, weeks, thisWeek, logged, message: weeks >= 2 ? 'streak' : logged < 4 ? 'missed' : 'steady' };
 }
