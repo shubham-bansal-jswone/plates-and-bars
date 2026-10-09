@@ -1,3 +1,4 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
@@ -45,9 +46,21 @@ export function useFoodDay({ db, now, notify }: Options) {
   const mineRef = useRef(mine);
   const queue = useRef<Promise<void>>(Promise.resolve());
 
+  // The tab stays mounted under the Recipes screen, which saves foods and logs, so everything is read again when it is shown
+  // (not on the first show: the mount already reads).
+  const [shown, setShown] = useState(0);
+  const first = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (first.current) first.current = false;
+      else setShown((n) => n + 1);
+    }, []),
+  );
+
   useEffect(() => {
     let live = true;
     (async () => {
+      await queue.current;
       const [l, n, m] = await Promise.all([loadLogs(db, date), loadDayNote(db, date), loadUserFoods(db)]);
       if (!live) return;
       logsRef.current = l;
@@ -63,7 +76,7 @@ export function useFoodDay({ db, now, notify }: Options) {
     return () => {
       live = false;
     };
-  }, [db, date, notify]);
+  }, [db, date, notify, shown]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {

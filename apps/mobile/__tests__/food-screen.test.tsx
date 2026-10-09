@@ -9,8 +9,9 @@ import { cuisines } from '../src/food/catalog';
 import { memoryDb, withProfile } from './helpers';
 
 const mockFocus = { n: 0 };
+const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  useRouter: () => ({ replace: jest.fn(), push: mockPush }),
   // Runs the callback when the screen mounts and each time `mockFocus.n` changes on a re-render (the tab being shown again).
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [mockFocus.n]),
 }));
@@ -391,5 +392,25 @@ describe('Food screen', () => {
     expect(await screen.findByText('Added Roti / chapati')).toBeTruthy();
     await fireEvent.press(screen.getByText('Done'));
     expect(await screen.findByText('Couldn’t save that. Try again.')).toBeTruthy();
+  });
+
+  describe('recipes', () => {
+    afterEach(() => void (mockFocus.n = 0));
+
+    it('opens the Recipes screen', async () => {
+      await setup();
+      await fireEvent.press(screen.getByLabelText('Recipes: build a recipe, the library and cooking mode'));
+      expect(mockPush).toHaveBeenCalledWith('/recipes');
+    });
+
+    it('reads the day again when the tab is shown after a recipe was logged', async () => {
+      const db = await setup();
+      expect(screen.queryByText('Dal (home-style)')).toBeNull();
+      const log = { id: 'l1', version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, date: DATE, meal: 'Lunch', name: 'Dal (home-style)', qty: 1, kcal: 200, protein_g: 10, carbs_g: 30, fat_g: 5, food_id: null };
+      db.rows.set('food_logs:l1', JSON.stringify(log));
+      mockFocus.n++;
+      await screen.rerender(withProfile(db, <FoodScreen db={db} now={NOW} />));
+      expect(await screen.findByText('Dal (home-style)')).toBeTruthy();
+    });
   });
 });

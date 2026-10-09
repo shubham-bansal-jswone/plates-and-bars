@@ -137,6 +137,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           onFlex={plan}
           onPlanWeek={() => router.push('/meal-plan')}
         />
+        <Button label="Recipes" a11yLabel="Recipes: build a recipe, the library and cooking mode" kind="ghost" onPress={() => router.push('/recipes')} />
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} />
