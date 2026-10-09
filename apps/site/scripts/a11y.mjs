@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const axeSource = await readFile(require.resolve("axe-core/axe.min.js"), "utf8");
 const root = fileURLToPath(new URL("../dist/", import.meta.url));
 const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".txt": "text/plain" };
-const pages = ["/", "/privacy/", "/terms/"];
+const pages = ["/", "/privacy/", "/terms/", "/delete-account/"];
 const viewports = [{ width: 1280, height: 800 }, { width: 360, height: 740 }, { width: 320, height: 640 }];
 
 const chrome = [
