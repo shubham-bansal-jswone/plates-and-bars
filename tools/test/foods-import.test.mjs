@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ALIAS_PHRASES, HELD_BACK, PRODUCE, SOURCES, SOURCE_OF, foodId, importFoods, serialize, servingGrams,
+  ALIAS_PHRASES, HELD_BACK, PRODUCE, SOURCES, SOURCE_OF, UNIT_GRAMS_RE, foodId, importFoods, serialize, servingGrams,
 } from '../foods-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -147,4 +147,38 @@ test('a golden food with no source assignment fails the import', () => {
   bad.foods.push({ name: 'Mystery', unit: '1 g', kcal: 1, protein: 0, carbs: 0, fat: 0 });
   assert.throws(() => importFoods(bad), /Mystery: no source assigned/);
   assert.throws(() => importFoods({}), /missing/);
+});
+
+// Core's unitGrams (packages/core/src/food.ts) and the prototype's are the reference; the tools mirror them.
+const REGEX_IN = /\.match\((\/.*\/)\);/;
+const regexFrom = (file, fnMarker) => {
+  const text = readFileSync(`${repo}/${file}`, 'utf8');
+  const at = text.indexOf(fnMarker);
+  assert.ok(at >= 0, `${fnMarker} not found in ${file}`);
+  const lit = REGEX_IN.exec(text.slice(at, at + 400))?.[1];
+  assert.ok(lit, `regex not found in ${file}`);
+  return lit;
+};
+const coreLiteral = regexFrom('packages/core/src/food.ts', 'export function unitGrams');
+const protoLiteral = regexFrom('docs/prototype/plate-and-bar.html', 'const unitGrams');
+const refGrams = (literal, label) => {
+  const m = String(label).match(new RegExp(literal.slice(1, literal.lastIndexOf('/'))));
+  return m ? +(m[1] ?? m[2]).replace(/,/g, '') : 0;
+};
+
+test('tools use the same grams pattern as core and the prototype', () => {
+  assert.equal(coreLiteral, protoLiteral);
+  assert.equal(UNIT_GRAMS_RE.source, coreLiteral.slice(1, coreLiteral.lastIndexOf('/')));
+  assert.ok(!/\(\?<[=!]/.test(UNIT_GRAMS_RE.source), 'no lookbehind');
+});
+
+test('servingGrams agrees with core unitGrams on a label set (0 in core is null here)', () => {
+  const labels = [
+    '100 g', '1 medium (30 g atta)', '1 glass (250 ml)', '1 tbsp', '1 plate (1,250 g)', '1,250 g', '1,00,000 g',
+    '1,234,567 g', '1,5 g', '0,500 g', '1234,567 g', '1.5 g scoop', '2 x 1,250 ml', '12 g', '0 g', '',
+    ...JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8')).foods.map((f) => f.serving.label),
+  ];
+  for (const l of labels) assert.equal(servingGrams(l), refGrams(coreLiteral, l) || null, `label "${l}"`);
+  assert.equal(servingGrams('1 plate (1,250 g)'), 1250);
+  assert.equal(servingGrams('1,5 g'), 5);
 });

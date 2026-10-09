@@ -79,9 +79,13 @@ export const PRODUCE = {
 // Grams logging: ported from `unitGrams` in the prototype, the first "<n> g" in the serving label
 // ("100 g" gives 100, "1 medium (30 g atta)" gives 30). Whether a bracketed ingredient weight should
 // count is a spec question, not decided here.
+// Same pattern as core's `unitGrams` (packages/core/src/food.ts) and the prototype's, so "1,250 g" gives 1250
+// (grouped digits, thousands or Indian grouping). No lookbehind. A test keeps the three in step.
+export const UNIT_GRAMS_RE = /(?:^|\D)([1-9]\d{0,2}(?:,\d{3})+|[1-9]\d?(?:,\d{2})+,\d{3})\s*g\b|(\d+)\s*g\b/;
 export function servingGrams(label) {
-  const m = /(\d+)\s*g\b/.exec(label);
-  return m ? Number(m[1]) : null;
+  const m = UNIT_GRAMS_RE.exec(String(label));
+  const g = m ? Number((m[1] ?? m[2]).replace(/,/g, '')) : 0;
+  return g > 0 ? g : null;
 }
 
 // Multi-word aliases that the prototype matches as one phrase (foodMatch checks the whole query as a
