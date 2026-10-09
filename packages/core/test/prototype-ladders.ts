@@ -31,6 +31,8 @@ export interface ProtoLadderState {
     ladderStay: Record<string, string>;
     adj: { declines?: Record<string, number>; muted?: Record<string, boolean>; dismissed?: Record<string, boolean> };
     ex: Record<string, unknown>;
+    /** Read by the prototype's `homeWhere()` (the profile's `where`), which `whereNow()` falls back to. */
+    profile?: { where: string };
   };
   day: { workout: { where?: string; exercises: ProtoExercise[] } };
 }
@@ -55,16 +57,18 @@ export interface ProtoLadders {
   estimateFor(name: string): { from: string; fromW: number; w: number } | null;
   ladderCard(ex: ProtoExercise): string;
   recheckCards(): string;
+  candidates(name: string, o: Record<string, unknown>): { name: string; score: number; why: string }[];
   applyCant(choice: string | null): void;
   exAction(a: string, b: { dataset: Record<string, string> }): void;
 }
 
 /**
  * Runs the prototype's ladder, re-check and "can't do" functions (`ladderOf`, `nextStep`, `prevStep`,
- * `sidewaysOf`, `estimateFor`, `ladderCard`, `recheckCards`, `applyCant`, `exAction`) sliced out of
+ * `sidewaysOf`, `estimateFor`, `ladderCard`, `recheckCards`, `candidates`, `applyCant`, `exAction`) sliced out of
  * the HTML against a fake `S`, with `TAGS`, `AWAY` and `LADDERS` from golden/exercises.json and
  * `EX_META` passed in. UI calls are stubbed (`whyLink`, `saveSettings`, `saveDay`, `render`, `toast`,
- * `sheet.close`, `shortDate`); `newId` counts up.
+ * `sheet.close`, `shortDate`); `newId` counts up. `homeWhere` and `whereNow` are the prototype's own
+ * (the day's `where`, else `settings.profile.where`, else gym).
  */
 export function loadLadders(meta: MetaTable): ProtoLadders {
   const g = loadGolden<{ tags: Record<string, unknown>; ladders: Record<string, unknown>; awayMap_dumbbells_bodyweight: Record<string, unknown> }>('exercises');
@@ -73,7 +77,9 @@ export function loadLadders(meta: MetaTable): ProtoLadders {
     'const S = { date:"", where:"gym", lifts:{}, settings:{}, day:{ workout:{ exercises:[] } } };',
     'let ids = 0; const newId = () => "id" + (++ids);',
     'const whyLink = () => "", saveSettings = () => {}, saveDay = () => {}, render = () => {}, toast = () => {}, sheet = { close(){} };',
-    'const shortDate = s => s, whereNow = () => S.where;',
+    'const shortDate = s => s;',
+    sliceLine(src, 'const homeWhere = '),
+    sliceLine(src, 'const whereNow = '),
     sliceLine(src, 'const esc = '),
     sliceLine(src, 'const pad = '),
     sliceLine(src, 'const ymd = '),
@@ -108,7 +114,7 @@ export function loadLadders(meta: MetaTable): ProtoLadders {
     sliceBlock(src, 'function sidewaysOf(name){', '}'),
     sliceBlock(src, 'function recheckCards(){', '}'),
     sliceBlock(src, 'function exAction(a, b){', '}'),
-    'return { S, CX, ladderOf, nextStep, prevStep, sidewaysOf, estimateFor, ladderCard, recheckCards, applyCant, exAction };',
+    'return { S, CX, ladderOf, nextStep, prevStep, sidewaysOf, estimateFor, ladderCard, recheckCards, candidates, applyCant, exAction };',
   ].join('\n');
   return new Function('TAGS', 'AWAY', 'LADDERS', 'EX_META', code)(g.tags, g.awayMap_dumbbells_bodyweight, g.ladders, meta) as ProtoLadders;
 }

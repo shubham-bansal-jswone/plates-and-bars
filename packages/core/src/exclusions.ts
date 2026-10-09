@@ -102,7 +102,7 @@ export function isExcluded(name: string, exclusions: readonly Exclusion[], tags:
 
 /** Options for `candidates` (prototype `o`). */
 export interface CandidateOptions {
-  /** Equipment available (prototype `o.where`, falling back to today's workout, then gym). */
+  /** Equipment available (prototype `o.where`, falling back to `whereNow()`: the day's override, else the profile's; #272). */
   where: Where;
   /**
    * Exercises already in the session, left out. Unlike the prototype, which leaves out today's workout
@@ -438,7 +438,8 @@ export interface CantReplacement {
  * `rule`. Returned from the last exercise to the first: apply them in that order (each index is valid
  * then). Empty for an `exercise` rule; do not call it for a `today` answer, which the prototype skips.
  *
- * Mirrors the "caught by a wider rule" loop of prototype `applyCant(choice)` (`where` is today's).
+ * Mirrors the "caught by a wider rule" loop of prototype `applyCant(choice)` (`where`: the day's
+ * override, else the profile's, prototype `whereNow()`, #272).
  */
 export function widerRuleReplacements(
   exercises: readonly { name: string; sets: readonly { done?: boolean }[] }[],

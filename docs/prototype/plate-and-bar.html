@@ -1885,7 +1885,7 @@ const listJoin = a => a.length < 2 ? (a[0] || '') : a.slice(0, -1).join(', ') + 
 
 function candidates(name, o = {}){
   const t = TAGS[name]; if(!t) return [];
-  const where = o.where || (S.day && S.day.workout.where) || 'gym';
+  const where = o.where || whereNow(); // the day's override, else the profile's
   const allow = where === 'gym' ? null : where === 'dumbbells' ? ['dumbbell','bodyweight'] : ['bodyweight'];
   const inSession = new Set(o.ignoreSession ? (o.taken || []) : ((S.day && S.day.workout.exercises) || []).map(e => e.name));
   const out = [];
@@ -2013,6 +2013,7 @@ function applyCant(choice){
   const w = S.day.workout, rules = today ? [rule] : [];
   const replaceAt = (idx, pick) => {
     const ex = w.exercises[idx], done = ex.sets.filter(s => s.done), nx = pick ? newExercise(pick) : null;
+    if(nx && ex.part) nx.part = ex.part; // the pick stays in the same session (first or second)
     if(done.length){ ex.sets = done; if(nx) w.exercises.splice(idx + 1, 0, nx); }
     else if(nx) w.exercises.splice(idx, 1, nx); else w.exercises.splice(idx, 1);
   };

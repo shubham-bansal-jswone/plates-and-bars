@@ -105,9 +105,12 @@ describe('replaceAt', () => {
     expect(got.sets).toHaveLength(sets.length - 1);
   });
 
-  it('PINNED QUIRK (#267): a pick replacing a second-session exercise reads as part 1 (prototype newExercise has no part)', () => {
-    const got = replaceAt([ex('A'), ex('B', { part: 2 })], [], 1, 'C', noLifts);
-    expect(got.exercises[1]).toEqual(ex('C'));
+  it('the pick stays in the part of the exercise it replaces (#267)', () => {
+    const w = [ex('A'), ex('B', { part: 2 }), ex('D', { part: 2 })];
+    expect(replaceAt(w, [], 1, 'C', noLifts).exercises).toEqual([ex('A'), ex('C', { part: 2 }), ex('D', { part: 2 })]);
+    expect(replaceAt(w, [], 0, 'C', noLifts).exercises[0]).toEqual(ex('C'));
+    const kept = replaceAt(w, [set('b0', 'B', 'work', 0, true)], 1, 'C', noLifts);
+    expect(kept.exercises.map((e) => [e.name, e.part])).toEqual([['A', 1], ['B', 2], ['C', 2], ['D', 2]]);
   });
 
   it('leaves tombstoned sets as they are', () => {
@@ -157,6 +160,25 @@ describe('cantSession', () => {
     expect(today.exercises.map((e) => e.name)).toEqual(['Goblet Squat', 'Bench Press']);
   });
 
+  it("the sheet's candidates and the wider-rule loop use the profile's where when the day has none (#272)", () => {
+    const fits = (n: string): boolean => ['dumbbell', 'bodyweight'].includes((tags[n as keyof typeof tags] as ExerciseTag).equipment);
+    // at home with dumbbells (profile), no day override; a rule leaving out every horizontal press
+    const pattern = (tags['Dumbbell Bench Press' as keyof typeof tags] as ExerciseTag).pattern;
+    const w = [ex('Dumbbell Bench Press'), ex('Push-ups'), ex('Lateral Raise')];
+    const protoEx = w.map((e) => ({ name: e.name, sets: [{ w: '', r: '', done: false }] }));
+    Object.assign(proto.S, { date: DATE, where: 'gym', lifts: {}, day: { workout: { exercises: protoEx } } });
+    proto.S.settings = { excl: [], repl: {}, returning: {}, ladderStay: {}, adj: {}, ex: {}, profile: { where: 'dumbbells' } };
+    const sheet = proto.candidates('Dumbbell Bench Press', { rules: [{ scope: 'pattern', key: pattern }] });
+    expect(sheet.length).toBeGreaterThan(0);
+    expect(sheet.every((c) => fits(c.name))).toBe(true); // was Pec Deck Fly, Cable Crossover, ... (gym)
+    Object.assign(proto.CX, { i: 0, name: 'Dumbbell Bench Press', step: 'pick', reason: 'equip', dur: 'perm', scope: 'pattern', key: pattern });
+    proto.applyCant(null);
+    const d: CantDraft = { name: 'Dumbbell Bench Press', reason: 'equip', dur: 'perm', scope: 'pattern', key: pattern };
+    const got = cantSession(w, [], 0, d, null, 'dumbbells', [], noLifts, catalog);
+    expect(got.exercises.map((e) => e.name)).toEqual(proto.S.day.workout.exercises.map((e) => e.name));
+    expect(got.exercises.map((e) => e.name)).toEqual(['Dumbbell Fly', 'Lateral Raise']);
+  });
+
   it('matches prototype applyCant (exercises, kept, removed and new sets) on 3,000 random sessions', () => {
     const r = rng(265);
     const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
@@ -167,7 +189,10 @@ describe('cantSession', () => {
     let changedSeen = 0;
     let wider = 0;
     for (let k = 0; k < 3000; k++) {
-      const where = pick(WHERES);
+      // where the user trains (#272): the day's override, else the profile's, else gym
+      const dayWhere = r() < 0.5 ? null : pick(WHERES);
+      const profileWhere = r() < 0.1 ? null : pick(WHERES);
+      const where: Where = dayWhere || profileWhere || 'gym';
       const names = [...new Set(Array.from({ length: 6 }, () => pick(NAMES)))];
       let id = 0;
       const exercises = names.map((name) => ex(name, { part: r() < 0.2 ? 2 : 1, bridge: r() < 0.1, form: pick(['yes', 'no', null] as const), found_kg: r() < 0.2 ? 40 : null, skip_ramp: r() < 0.1 }));
@@ -199,16 +224,27 @@ describe('cantSession', () => {
       );
       const draft: CantDraft = { name, reason, dur, scope: (scope || null) as ExclusionScope | null, key: key || null };
       const draftRule = { scope: (scope || 'exercise') as ExclusionScope, key: key || name, reason };
-      const cands = candidates(name, { where, rules: [draftRule], joint: draftRule.scope === 'joint' ? draftRule.key : null, pain: reason === 'pain', form: reason === 'form', inSession: i === null ? [] : names }, existing, lifts, catalog);
-      const choice = r() < 0.2 ? null : cands[0] ? pick(cands).name : null;
-
       const protoEx = exercises.map((e) => {
         const rows = (kind: 'work' | 'ramp') => sets.filter((s) => s.exercise === e.name && s.kind === kind).map((s) => ({ id: s.id, w: s.done ? '20' : '', r: s.done ? '8' : '', done: s.done }));
         const ramp = rows('ramp');
         return { name: e.name, sets: rows('work'), ...(e.part === 2 ? { part: 2 } : {}), ...(e.bridge ? { bridge: true } : {}), form: e.form, found: e.found_kg, skipRamp: e.skip_ramp, ...(ramp.length ? { ramp } : {}) };
       });
-      Object.assign(proto.S, { date: DATE, where, lifts: clone(lifts), day: { workout: { where, exercises: protoEx } } });
-      proto.S.settings = { excl: existing.map((x) => clone({ id: x.id, scope: x.scope, key: x.key, reason: x.reason, until: null, to: x.to, done: x.done }) as ProtoRule), repl: {}, returning: {}, ladderStay: {}, adj: {}, ex: {} };
+      Object.assign(proto.S, { date: DATE, where: 'gym', lifts: clone(lifts), day: { workout: { ...(dayWhere ? { where: dayWhere } : {}), exercises: protoEx } } });
+      proto.S.settings = {
+        excl: existing.map((x) => clone({ id: x.id, scope: x.scope, key: x.key, reason: x.reason, until: null, to: x.to, done: x.done }) as ProtoRule),
+        repl: {},
+        returning: {},
+        ladderStay: {},
+        adj: {},
+        ex: {},
+        ...(profileWhere ? { profile: { where: profileWhere } } : {}),
+      };
+
+      // the sheet's pick list (renderCant calls candidates with no where)
+      const cands = candidates(name, { where, rules: [draftRule], joint: draftRule.scope === 'joint' ? draftRule.key : null, pain: reason === 'pain', form: reason === 'form', inSession: i === null ? [] : names }, existing, lifts, catalog);
+      const sheet = proto.candidates(name, { rules: [draftRule], joint: draftRule.scope === 'joint' ? draftRule.key : null, pain: reason === 'pain', form: reason === 'form', ignoreSession: i === null });
+      expect(cands.map((x) => [x.name, x.score])).toEqual(sheet.map((x) => [x.name, x.score]));
+      const choice = r() < 0.2 ? null : cands[0] ? pick(cands).name : null;
       Object.assign(proto.CX, { i, name, step: 'pick', reason, dur, scope, key });
       proto.applyCant(choice);
 
