@@ -2,7 +2,7 @@ import {
   applyFocus,
   lastFor,
   mapForWhere,
-  resolveSession,
+  resolveSessionWithLost,
   sessionMods,
   type SessionMods,
   sessionSets,
@@ -10,7 +10,8 @@ import {
   TEMPLATES,
   trimSession,
   type LiftRecord,
-  type SessionItem,
+  type Exclusion,
+  type Swap,
   type SessionLog,
   type Checkin,
   type Where,
@@ -30,6 +31,9 @@ export interface BuildInput {
   checkin: Checkin;
   /** Focus muscles (contract `Settings.focus`); empty until the app stores settings. */
   focus: readonly string[];
+  /** Saved exercise rules and swaps (contract `Exclusion` and `Swap` records). */
+  exclusions: readonly Exclusion[];
+  swaps: readonly Swap[];
 }
 
 export interface BuiltSession {
@@ -40,18 +44,19 @@ export interface BuiltSession {
   left: string[];
   /** The exercises `applyFocus` added, for the focus badge. */
   focus: string[];
+  /** Excluded exercises left out with no replacement: the preview says the muscles get fewer sets. */
+  lost: string[];
 }
 
 /**
  * Today's session for a template, in the prototype's `buildSession` order: home mapping, swaps and
  * exclusions, trim to the session length, focus, the check-in short cut, then set counts. Every step is core's.
- * Exclusions, swaps and recovery weeks are settings the app does not store yet, so they are empty.
+ * Recovery weeks are a setting the app does not store yet.
  */
 export function buildSession(i: BuildInput): BuiltSession {
   const names = mapForWhere([...(TEMPLATES[i.template] ?? [])], i.where, catalog);
-  const resolve = { exclusions: [], swaps: [], lifts: i.lifts, date: i.date };
-  // TODO: once exclusions are stored, use resolveSessionWithLost and show its `lost` note in the preview (#110).
-  const all: SessionItem[] = resolveSession(names, i.where, resolve, catalog);
+  const resolve = { exclusions: i.exclusions, swaps: i.swaps, lifts: i.lifts, date: i.date };
+  const { items: all, lost } = resolveSessionWithLost(names, i.where, resolve, catalog);
   const state = { profile: i.profile, sessions: i.sessions };
   let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, catalog);
   items = shortSession(items, i.checkin.time);
@@ -71,5 +76,6 @@ export function buildSession(i: BuildInput): BuiltSession {
     mods,
     left: all.filter((x) => !kept.has(x.name)).map((x) => x.name),
     focus: items.filter((x) => x.focus).map((x) => x.name),
+    lost,
   };
 }

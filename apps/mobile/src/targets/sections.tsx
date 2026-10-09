@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
 import { loadSets, loadWorkout, loadLifts, type WorkoutDb } from '../db/workouts';
+import { loadExclusions, loadSwaps } from '../db/rules';
 import { fmt } from '../format';
 import { Hint, Label } from '../components/ui';
 import type { Profile } from '../setup/types';
@@ -67,10 +68,9 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   useEffect(() => {
     let live = true;
     (async () => {
-      const [days, lifts] = await Promise.all([loadDays(db, today), loadLifts(db)]);
+      const [days, lifts, exclusions, swaps] = await Promise.all([loadDays(db, today), loadLifts(db), loadExclusions(db), loadSwaps(db)]);
       if (!live) return;
-      // Exclusions and swaps are not stored in the app yet, so none are passed.
-      const planned = plannedCoverage({ date: today, profile, weekPlan: adjustments.weekPlan as WeekPlan | undefined, lifts }, catalog);
+      const planned = plannedCoverage({ date: today, profile, weekPlan: adjustments.weekPlan as WeekPlan | undefined, exclusions, swaps, lifts }, catalog);
       setRows({ planned: coverageRows(planned), done: coverageRows(doneCoverage(today, days, catalog.tags)) });
     })().catch(() => live && setFailed(true));
     return () => {
