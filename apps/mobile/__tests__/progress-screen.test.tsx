@@ -261,6 +261,25 @@ describe('Targets: recalculate after weigh-in drift (#161)', () => {
     expect(JSON.parse(db.rows.get('profiles:me')!).targets.kcal).not.toBe(1990);
   });
 
+  it('waits for a slow weigh-ins read before showing setup, so the form starts from the latest weight', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveConsent(db, consent);
+    await saveWeight(db, weigh('2026-10-01', 79.4));
+    const read = db.getAllAsync.bind(db);
+    db.getAllAsync = async <T,>(sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM weights')) await new Promise((r) => setTimeout(r, 150));
+      return read<T>(sql, ...p);
+    };
+    await render(withProfile(db, <SetupScreen recalc />));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(screen.queryByLabelText('Use these targets')).toBeNull();
+    await fireEvent.press(await screen.findByLabelText('Use these targets'));
+    await waitFor(() => expect(JSON.parse(db.rows.get('profiles:me')!)).toMatchObject({ weight_kg: 79.4 }));
+  });
+
   it('ignores a ?weight= deep link: only stored weigh-ins set the weight', async () => {
     const db = memoryDb();
     await saveProfile(db, profile());
