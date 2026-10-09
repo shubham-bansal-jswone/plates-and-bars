@@ -44,5 +44,8 @@
     "puppeteer-core": "^25.13.0",
     "react-test-renderer": "^19.2.3",
     "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }
