@@ -5,11 +5,12 @@ const later = (a: string, b: string): boolean => Date.parse(a) > Date.parse(b);
 
 /**
  * True when a stored server copy should be used over the bundled one: the name is known, the build supports its
- * schema_version, its bytes differ and its updated_at is later. Same test at app start and before a fetch.
+ * schema_version and its updated_at is later than the bundled copy's (the contract's rule; bytes are not compared, so a
+ * server revert to the shipped bytes, which carries a later date, is kept like any other later copy).
  */
 export function beatsBundled(name: string, copy: BundleMeta): boolean {
   const bundled = BUNDLED[name];
-  return !!bundled && copy.schema_version === bundled.schema_version && copy.sha256 !== bundled.sha256 && later(copy.updated_at, bundled.updated_at);
+  return !!bundled && copy.schema_version === bundled.schema_version && later(copy.updated_at, bundled.updated_at);
 }
 
 const active = new Map<string, unknown>();

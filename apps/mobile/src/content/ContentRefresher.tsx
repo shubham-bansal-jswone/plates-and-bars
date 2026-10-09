@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createClient } from '@plate-and-bar/api';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useDb } from '../db/lockedDb';
 import { API_URL } from '../sync/auth';
 import { refreshContent } from './refresh';
 
@@ -11,7 +11,7 @@ export const CONTENT_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
  * stays open (the app start picks which copy is used: `loadContent`, called from the database init). Not tied to sign-in or consent.
  */
 export function ContentRefresher() {
-  const db = useSQLiteContext();
+  const db = useDb();
   useEffect(() => {
     if (!API_URL) return;
     const api = createClient(API_URL, () => null);

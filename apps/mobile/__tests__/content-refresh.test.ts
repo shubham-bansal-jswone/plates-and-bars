@@ -1,6 +1,6 @@
 import { BUNDLED } from '../src/content/bundled';
 import { bundle, loadContent } from '../src/content/loader';
-import { etagHash, refreshContent, sha256Hex } from '../src/content/refresh';
+import { MAX_BUNDLE_BYTES, etagHash, refreshContent, sha256Hex } from '../src/content/refresh';
 import { getManifestEtag, loadStored, putStored } from '../src/content/store';
 import { openDb } from './sync-helpers';
 
@@ -36,12 +36,13 @@ const body = (extra = 'x') => JSON.stringify({ schema_version: bundledSchema, no
 
 interface Served { entry: Record<string, unknown>; bytes?: ArrayBuffer; status?: number }
 /** A fake generated client: records every call (path and headers) and serves the given manifest and bundles. */
-function fakeApi(served: Served[], opts: { manifestEtag?: string; offline?: boolean; manifestStatus?: number } = {}) {
-  const calls: { path: string; headers?: Record<string, string> }[] = [];
+function fakeApi(served: Served[], opts: { manifestEtag?: string; offline?: boolean; manifestStatus?: number; hang?: boolean; stream?: boolean; contentLength?: number } = {}) {
+  const calls: { path: string; headers?: Record<string, string>; signal?: AbortSignal }[] = [];
   const api = {
-    GET: async (path: string, o: { params?: { path: { bundle: string } }; headers?: Record<string, string> }) => {
-      calls.push({ path, headers: o.headers });
+    GET: async (path: string, o: { params?: { path: { bundle: string } }; headers?: Record<string, string>; signal?: AbortSignal }) => {
+      calls.push({ path, headers: o.headers, signal: o.signal });
       if (opts.offline) throw new TypeError('Network request failed');
+      if (opts.hang) return new Promise((_r, rej) => o.signal?.addEventListener('abort', () => rej(new Error('aborted'))));
       if (path === '/content/manifest') {
         const status = opts.manifestStatus ?? 200;
         const headers = new Headers({ ETag: opts.manifestEtag ?? '"m1"' });
@@ -49,7 +50,10 @@ function fakeApi(served: Served[], opts: { manifestEtag?: string; offline?: bool
       }
       const s = served.find((x) => x.entry.name === o.params!.path.bundle);
       if (!s || !s.bytes) return { response: new Response('{}', { status: 404 }) };
-      return { data: s.bytes, response: new Response(null, { status: s.status ?? 200 }) };
+      const headers = new Headers(opts.contentLength === undefined ? {} : { 'Content-Length': String(opts.contentLength) });
+      const response = new Response(s.bytes, { status: s.status ?? 200, headers });
+      // data is the body stream where the platform has one (the client's parseAs 'stream'), else null and the body is read whole
+      return { data: opts.stream ? response.body : null, response };
     },
   };
   return { api: api as never, calls };
@@ -107,11 +111,27 @@ describe('content refresh', () => {
     expect(await loadStored(db)).toEqual([]);
   });
 
-  it('rejects a body that is not JSON with the manifest schema_version', async () => {
+  it('rejects a body whose own schema_version differs from the manifest entry', async () => {
     const db = await openDb();
     const bad = JSON.stringify({ schema_version: bundledSchema + 1 });
     const { api } = fakeApi([{ entry: entryFor(bad), bytes: enc(bad) }]);
     expect(await refreshContent({ db, api })).toBe(0);
+    expect(await loadStored(db)).toEqual([]);
+  });
+
+  it.each([['not JSON', utf8('not json at all')], ['a JSON array', utf8('[1]')]])('rejects a body that is %s', async (_n, bytes) => {
+    const db = await openDb();
+    const entry = { name: NAME, schema_version: bundledSchema, sha256: createHash('sha256').update(bytes).digest('hex'), size_bytes: bytes.length, updated_at: LATER };
+    expect(await refreshContent({ db, ...fakeApi([{ entry, bytes: bytes.buffer as ArrayBuffer }]) })).toBe(0);
+    expect(await loadStored(db)).toEqual([]);
+  });
+
+  it('rejects a body that is not valid UTF-8 even when size and hash match', async () => {
+    const db = await openDb();
+    const head = utf8(`{"schema_version":${bundledSchema},"a":"`);
+    const bytes = new Uint8Array([...head, 0xff, 0xfe, ...utf8('"}')]); // 0xff is never valid UTF-8; a lenient decode would store U+FFFD
+    const entry = { name: NAME, schema_version: bundledSchema, sha256: createHash('sha256').update(bytes).digest('hex'), size_bytes: bytes.length, updated_at: LATER };
+    expect(await refreshContent({ db, ...fakeApi([{ entry, bytes: bytes.buffer as ArrayBuffer }]) })).toBe(0);
     expect(await loadStored(db)).toEqual([]);
   });
 
@@ -122,7 +142,7 @@ describe('content refresh', () => {
     expect(await getManifestEtag(db)).toBe('abc123'); // W/ prefix tolerated
     const second = fakeApi([], { manifestStatus: 304 });
     expect(await refreshContent({ db, api: second.api })).toBe(0);
-    expect(second.calls).toEqual([{ path: '/content/manifest', headers: { 'If-None-Match': '"abc123"' } }]);
+    expect(second.calls.map(({ path, headers }) => ({ path, headers }))).toEqual([{ path: '/content/manifest', headers: { 'If-None-Match': '"abc123"' } }]);
   });
 
   it('sends no Authorization header and no user data', async () => {
@@ -139,6 +159,91 @@ describe('content refresh', () => {
     expect(await refreshContent({ db, ...fakeApi([], { offline: true }) })).toBe(0);
     expect((await loadStored(db))[0]?.body).toBe(old);
     expect(await getManifestEtag(db)).toBeNull();
+  });
+
+  it('stores a server revert to the shipped bytes, and a later rollback to older content does not resurrect the old copy', async () => {
+    const db = await openDb();
+    const shippedAt = BUNDLED[NAME]!.updated_at;
+    const x = body('X');
+    await putStored(db, { name: NAME, sha256: sha(x), schema_version: bundledSchema, updated_at: '2090-01-01T00:00:00Z', body: x });
+    // the shipped copy B is re-served with a later date (a revert commit): stored like any later bundle
+    const b = text(readFileSync(`${CONTENT}/${NAME}.json`));
+    const revert = { name: NAME, schema_version: bundledSchema, sha256: BUNDLED[NAME]!.sha256, size_bytes: utf8(b).length, updated_at: '2091-01-01T00:00:00Z' };
+    expect(await refreshContent({ db, ...fakeApi([{ entry: revert, bytes: utf8(b).buffer as ArrayBuffer }]) })).toBe(1);
+    expect((await loadStored(db))[0]).toMatchObject({ sha256: BUNDLED[NAME]!.sha256, updated_at: '2091-01-01T00:00:00Z' });
+    await loadContent(db);
+    expect(bundle(NAME, 'bundled')).not.toBe('bundled'); // kept at launch: later than the bundled date
+    // the server image is rolled back to X's older date: ignored
+    const rolled = fakeApi([{ entry: entryFor(x, { updated_at: '2090-01-01T00:00:00Z' }), bytes: enc(x) }]);
+    expect(await refreshContent({ db, api: rolled.api })).toBe(0);
+    expect((await loadStored(db))[0]?.updated_at).toBe('2091-01-01T00:00:00Z');
+    expect(shippedAt < '2091-01-01T00:00:00Z').toBe(true);
+  });
+
+  it('does not save the manifest hash when a write fails', async () => {
+    const db = await openDb();
+    const t = body('new');
+    const failing = { ...db, runAsync: async (sql: string, ...p: (string | number)[]) => { if (sql.startsWith('INSERT OR REPLACE INTO content_bundles')) throw new Error('disk full'); return db.runAsync(sql, ...p); } };
+    expect(await refreshContent({ db: failing, ...fakeApi([{ entry: entryFor(t), bytes: enc(t) }]) })).toBe(0);
+    expect(await getManifestEtag(db)).toBeNull();
+    expect(await refreshContent({ db, ...fakeApi([{ entry: entryFor(t), bytes: enc(t) }]) })).toBe(1); // retried next pass
+    expect(await getManifestEtag(db)).toBe('m1');
+  });
+
+  it('saves the manifest hash only after every bundle write', async () => {
+    const db = await openDb();
+    const order: string[] = [];
+    const spy = { ...db, runAsync: async (sql: string, ...p: (string | number)[]) => { order.push(sql.includes('content_bundles') ? 'bundle' : sql.includes('settings') ? 'etag' : 'other'); return db.runAsync(sql, ...p); } };
+    const t = body('a');
+    await refreshContent({ db: spy, ...fakeApi([{ entry: entryFor(t), bytes: enc(t) }]) });
+    expect(order).toEqual(['bundle', 'etag']);
+  });
+
+  it('refuses a bundle over the size cap without fetching it', async () => {
+    const db = await openDb();
+    const t = body('a');
+    const { api, calls } = fakeApi([{ entry: entryFor(t, { size_bytes: MAX_BUNDLE_BYTES + 1 }), bytes: enc(t) }]);
+    expect(await refreshContent({ db, api })).toBe(0);
+    expect(calls.map((c) => c.path)).toEqual(['/content/manifest']);
+    expect(await getManifestEtag(db)).toBeNull();
+  });
+
+  it('refuses a body whose Content-Length is larger than the manifest says', async () => {
+    const db = await openDb();
+    const t = body('a');
+    const { api } = fakeApi([{ entry: entryFor(t), bytes: enc(t) }], { contentLength: MAX_BUNDLE_BYTES * 2 });
+    expect(await refreshContent({ db, api })).toBe(0);
+    expect(await loadStored(db)).toEqual([]);
+  });
+
+  it('stops reading a streamed body that runs past the manifest size, and stores a correct streamed one', async () => {
+    const db = await openDb();
+    const t = body('streamed');
+    const long = utf8(t + ' '.repeat(50));
+    const over = fakeApi([{ entry: entryFor(t), bytes: long.buffer as ArrayBuffer }], { stream: true });
+    expect(await refreshContent({ db, api: over.api })).toBe(0);
+    expect(await loadStored(db)).toEqual([]);
+    expect(await refreshContent({ db, ...fakeApi([{ entry: entryFor(t), bytes: enc(t) }], { stream: true, manifestEtag: '"m2"' }) })).toBe(1);
+  });
+
+  it('gives every request an abort signal and gives up on a request that hangs', async () => {
+    const db = await openDb();
+    const ok = fakeApi([]);
+    await refreshContent({ db, api: ok.api });
+    expect(ok.calls[0]?.signal).toBeInstanceOf(AbortSignal);
+    const hung = fakeApi([], { hang: true });
+    expect(await refreshContent({ db, api: hung.api, timeoutMs: 20 })).toBe(0);
+    expect(hung.calls[0]?.signal?.aborted).toBe(true);
+  });
+
+  it('joins a refresh that is already running instead of starting a second', async () => {
+    const db = await openDb();
+    const t = body('a');
+    const { api, calls } = fakeApi([{ entry: entryFor(t), bytes: enc(t) }]);
+    const [a, b] = await Promise.all([refreshContent({ db, api }), refreshContent({ db, api })]);
+    expect(a).toBe(b);
+    expect(calls.filter((c) => c.path === '/content/manifest')).toHaveLength(1);
+    expect(await refreshContent({ db, api: fakeApi([], { manifestStatus: 304 }).api })).toBe(0); // free again afterwards
   });
 
   it('keeps the old copy when the swap fails midway', async () => {
@@ -179,7 +284,6 @@ describe('content at app start', () => {
   it.each([
     ['older updated_at (app upgrade caught up)', { updated_at: EARLIER }],
     ['unsupported schema_version', { schema_version: bundledSchema + 1 }],
-    ['same bytes as the bundled copy', { sha256: BUNDLED[NAME]!.sha256 }],
     ['unknown name', { name: 'not-a-bundle' }],
   ])('discards a stored copy with %s and uses the bundled one', async (_n, over) => {
     const db = await openDb();
@@ -187,6 +291,13 @@ describe('content at app start', () => {
     await loadContent(db);
     expect(bundle(NAME, 'bundled')).toBe('bundled');
     expect(await loadStored(db)).toEqual([]);
+  });
+
+  it('keeps a later stored copy even when its bytes equal the shipped ones (a server revert)', async () => {
+    const db = await openDb();
+    await put(db, { sha256: BUNDLED[NAME]!.sha256 });
+    await loadContent(db);
+    expect(bundle(NAME, 'bundled')).not.toBe('bundled');
   });
 
   it('uses the bundled copy when the store cannot be read', async () => {
