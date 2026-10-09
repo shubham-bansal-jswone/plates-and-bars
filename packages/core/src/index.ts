@@ -446,3 +446,39 @@ export {
   SLEEP_MAX_H,
 } from './progress';
 export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry } from './progress';
+
+/**
+ * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
+ * `ROLE` as `roles`) and content/foods.json `foods`.
+ * - `nextMealInfo` mirrors prototype `nextMealInfo()` (date, hour, logs and targets passed in); `mealByTime` mirrors
+ *   `mealByTime()` (hour passed in); `OLDER_MEAL_PROTEIN_G` is its 25 g for 60+ users.
+ * - `combos` mirrors prototype `combos(info)`; `combosFast` mirrors `combosFast(info)`; `round05` mirrors `round05`.
+ * - `ideasPage` mirrors the paging and protein note in `guidanceHtml()`; `IDEAS_PER_PAGE` and
+ *   `IDEAS_KCAL_LEFT_MIN` are its 3 and 120.
+ * - `MEAL_ORDER` mirrors prototype `MEALS`.
+ */
+export {
+  nextMealInfo,
+  mealByTime,
+  combos,
+  combosFast,
+  round05,
+  ideasPage,
+  OLDER_MEAL_PROTEIN_G,
+  IDEAS_PER_PAGE,
+  IDEAS_KCAL_LEFT_MIN,
+  MEAL_ORDER,
+} from './meals';
+export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea, MealIdeaItem, MealTarget, MealIdeasInput, NextMealInput, NextMeal } from './meals';
+
+/**
+ * Weekly meal plan and grocery list. The plan is contract `Settings.meal_plan` in the prototype's
+ * `mealPlan` shape; the grocery map is content/meal-planning.json `grocery` (prototype `GROC`).
+ * - `buildPlan` mirrors prototype `buildPlan()` (targets, start and diet passed in); `PLAN_DAYS`, `PLAN_OPTIONS`
+ *   and `PLAN_ROTATION` are its 7, 4 and 3.
+ * - `planItems` mirrors `planItems`; `swapPlanMeal` mirrors `case 'mp-swap'`; `planForMeal` mirrors `planForMeal(meal)` (date passed in).
+ * - `planIsCurrent` mirrors the saved-plan check and `planDayTotals` the "About … kcal" line of `planSheet()`.
+ * - `groceryList` mirrors `grocerySheet()` (rows and copy text, not HTML); `groceryAmount` mirrors its `fmtAmt`.
+ */
+export { buildPlan, planItems, swapPlanMeal, planIsCurrent, planForMeal, planDayTotals, groceryList, groceryAmount, PLAN_DAYS, PLAN_OPTIONS, PLAN_ROTATION } from './mealplan';
+export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from './mealplan';
