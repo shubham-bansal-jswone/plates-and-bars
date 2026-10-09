@@ -460,8 +460,8 @@ export interface WeeklyCheckin {
 /**
  * The weekly check-in for the 7 days ending on `date`.
  *
- * The shorter-week suggestion needs `sessions + 2 <= plannedN` and no current or future week plan; a
- * past week plan no longer blocks it (#215).
+ * The shorter-week suggestion (a 4-day plan next week) needs more than 4 planned sessions,
+ * `sessions + 2 <= plannedN` and no current or future week plan; a past week plan no longer blocks it (#215).
  *
  * Mirrors prototype `renderCheckin()` (its numbers and choice of suggestion, not its HTML).
  */
@@ -487,7 +487,7 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
   if (!i.dismissed?.[key] && !i.muted?.['checkin']) {
     const nt = burn.ready ? targetFromBurn(burn.burn, i.profile, i.weighIns, i.protein) : null;
     if (nt && Math.abs(nt.kcal - i.kcal) >= CHECKIN_KCAL_STEP) suggestion = { kind: 'kcal', target: nt };
-    else if (sessions + 2 <= plannedN && !(i.weekPlan && i.weekPlan.start >= monday)) suggestion = { kind: 'week' };
+    else if (plannedN > 4 && sessions + 2 <= plannedN && !(i.weekPlan && i.weekPlan.start >= monday)) suggestion = { kind: 'week' };
     else if (tt.length >= 3 && avgP < i.protein * 0.85) suggestion = { kind: 'protein' };
   }
   const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);

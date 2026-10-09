@@ -2721,7 +2721,7 @@ async function renderCheckin(){
     if(nt && Math.abs(nt.kcal - g.kcal) >= 100)
       sug = adjCard('checkin', key, `Adjust calories to ${fmt(nt.kcal)}?`, `Your real data puts your burn at about ${fmt(ab.burn)} kcal a day. To stay on track for your goal, a target of ${fmt(nt.kcal)} kcal fits better than ${fmt(g.kcal)}. Protein stays at ${nt.protein} g.`,
         [['ci-apply', 'Update my targets', true, JSON.stringify(nt)], ['adj-no', 'Keep current targets']]);
-    else if(sessions + 2 <= plannedN && !(A.weekPlan && A.weekPlan.start >= mondayOf(S.date))) // a past week plan no longer blocks it (#215)
+    else if(plannedN > 4 && sessions + 2 <= plannedN && !(A.weekPlan && A.weekPlan.start >= mondayOf(S.date))) // not on 4 days or fewer; a past week plan no longer blocks it (#215)
       sug = adjCard('checkin', key, 'A shorter week might fit better', `You trained ${sessions} of ${plannedN} days. A 4-day plan next week keeps every muscle covered with fewer sessions.`,
         [['ci-week', 'Use a 4-day plan next week', true], ['adj-no', 'Not now']]);
     else if(tt.length >= 3 && avgP < g.protein*0.85)

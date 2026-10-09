@@ -472,6 +472,12 @@ describe('weeklyCheckin', () => {
     expect(weeklyCheckin({ ...base, days: trainedOn(0, 1, 2, 3), profile: profileOf(6) })).toMatchObject({ plannedN: 6, suggestion: { kind: 'week' } });
     expect(weeklyCheckin({ ...base, days: trainedOn(0, 2, 4), profile: profileOf(5) })).toMatchObject({ plannedN: 5, suggestion: { kind: 'week' } });
     expect(weeklyCheckin({ ...base, days: trainedOn(0, 1, 2, 4), profile: profileOf(5) })).toMatchObject({ plannedN: 5, suggestion: null });
+    // 4 days or fewer: never offered "a 4-day plan". 4 days, 2 done (2 + 2 ≤ 4) and 3 days, 0 done (0 + 2 ≤ 3): no card.
+    expect(weeklyCheckin({ ...base, days: trainedOn(0, 2), profile: profileOf(4) })).toMatchObject({ sessions: 2, plannedN: 4, suggestion: null });
+    expect(weeklyCheckin({ ...base, profile: profileOf(3) })).toMatchObject({ sessions: 0, plannedN: 3, suggestion: null });
+    expect(weeklyCheckin({ ...base, profile: profileOf(2) })).toMatchObject({ sessions: 0, plannedN: 2, suggestion: null });
+    // 5 days, 0 done: the smallest count that still gets the card.
+    expect(weeklyCheckin({ ...base, profile: profileOf(5) })).toMatchObject({ plannedN: 5, suggestion: { kind: 'week' } });
     // 0 days (no plan): 0 planned, never the card. No profile: the 6-day plan.
     expect(weeklyCheckin({ ...base, profile: profileOf(0) })).toMatchObject({ sessions: 0, plannedN: 0, suggestion: null });
     expect(weeklyCheckin({ ...base, profile: null })).toMatchObject({ plannedN: 6, suggestion: { kind: 'week' } });
@@ -488,7 +494,7 @@ describe('weeklyCheckin', () => {
   });
   it(`matches prototype renderCheckin over ${RUNS / 3} random weeks`, async () => {
     const r = rng(2026);
-    const reached = { pastPlanCard: 0, futurePlanBlocks: 0, profilePlanned: 0 };
+    const reached = { pastPlanCard: 0, futurePlanBlocks: 0, profilePlanned: 0, smallPlanSkips: 0 };
     for (let i = 0; i < RUNS / 3; i++) {
       const dense = r() < 0.5, days = randomDays(r, 22, dense), ws = randomWeighIns(r, 24, dense), lifts = randomLifts(r), kcal = 1500 + Math.floor(r() * 130) * 10, protein = 100 + Math.floor(r() * 80);
       const profile = r() < 0.15 ? null : randomProfile(r);
@@ -518,6 +524,7 @@ describe('weeklyCheckin', () => {
       if (weekPlan && weekPlan.start < mondayOf(DATE) && c.suggestion?.kind === 'week') reached.pastPlanCard++;
       if (weekPlan && weekPlan.start > mondayOf(DATE) && c.sessions + 2 <= c.plannedN && !dismissed[key] && !muted.checkin && c.suggestion?.kind !== 'kcal') reached.futurePlanBlocks++;
       if (profile && !weekPlan && c.plannedN !== 6) reached.profilePlanned++;
+      if (c.plannedN <= 4 && c.sessions + 2 <= c.plannedN && !(weekPlan && weekPlan.start >= mondayOf(DATE)) && !dismissed[key] && !muted.checkin && c.suggestion?.kind !== 'kcal') reached.smallPlanSkips++;
     }
     for (const n of Object.values(reached)) expect(n).toBeGreaterThan(0);
   });
