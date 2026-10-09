@@ -1,5 +1,6 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
+import { StyleSheet, Text } from 'react-native';
 import TabsLayout from '../app/(tabs)/_layout';
 
 interface MockScreen {
@@ -26,10 +27,10 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 const mockScreens: MockScreen[] = [];
 
 describe('tab bar', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockScreens.length = 0;
     mockTabs.mockClear();
-    render(<TabsLayout />);
+    await render(<TabsLayout />);
   });
 
   it('is 56 plus the bottom safe area, labels below 24px icons, and hides the duplicate header', () => {
@@ -50,5 +51,21 @@ describe('tab bar', () => {
       expect(on.name).not.toMatch(/-outline$/);
       expect(off.name).toBe(`${on.name}-outline`);
     }
+  });
+
+  it('gives tab buttons the 2px focus ring and keeps their role, state and label', async () => {
+    const o = mockTabs.mock.calls[0][0].screenOptions;
+    const onPress = jest.fn();
+    await render(
+      o.tabBarButton({ role: 'tab', 'aria-label': 'Food', 'aria-selected': true, onPress, children: <Text>Food</Text> }),
+    );
+    const tab = screen.getByLabelText('Food');
+    expect(tab.props.role).toBe('tab');
+    expect(tab.props.accessibilityState).toMatchObject({ selected: true });
+    expect(StyleSheet.flatten(tab.props.style).outlineWidth).toBeUndefined();
+    await fireEvent(tab, 'focus', { target: 1 });
+    expect(StyleSheet.flatten(screen.getByLabelText('Food').props.style)).toMatchObject({ outlineWidth: 2, outlineOffset: 2, outlineColor: '#2457E6' });
+    await fireEvent.press(screen.getByLabelText('Food'));
+    expect(onPress).toHaveBeenCalled();
   });
 });

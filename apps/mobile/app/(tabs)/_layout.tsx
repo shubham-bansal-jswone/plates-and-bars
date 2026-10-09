@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import type { ReactNode } from 'react';
+import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Press } from '../../src/components/ui';
 import { type } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
 
@@ -13,6 +16,34 @@ const TABS: readonly { name: string; title: string; on: IconName; off: IconName 
   { name: 'progress', title: 'Progress', on: 'stats-chart', off: 'stats-chart-outline' },
   { name: 'targets', title: 'Targets', on: 'flag', off: 'flag-outline' },
 ];
+
+interface TabButtonProps {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  onPress?: PressableProps['onPress'];
+  onLongPress?: PressableProps['onLongPress'];
+  testID?: string;
+  role?: PressableProps['role'];
+  'aria-label'?: string;
+  'aria-selected'?: boolean;
+}
+
+/** Tab button with the app's 2px focus ring in place of the browser's default outline; keeps the tab role, selected state and label. */
+function TabButton({ children, style, onPress, onLongPress, testID, role, 'aria-label': label, 'aria-selected': selected }: TabButtonProps) {
+  return (
+    <Press
+      role={role}
+      aria-label={label}
+      aria-selected={selected}
+      testID={testID}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={[style, { alignItems: 'center' }]}
+    >
+      {children}
+    </Press>
+  );
+}
 
 /** Tab bar height from DESIGN.md 8.7: 56 plus the bottom safe area. */
 const TAB_BAR_HEIGHT = 56;
@@ -29,6 +60,7 @@ export default function TabsLayout() {
         // 8.7: brand on light, link-dark on dark; the focus token is exactly that pair.
         tabBarActiveTintColor: c.focus,
         tabBarInactiveTintColor: c.muted,
+        tabBarButton: (props) => <TabButton {...props} />,
         tabBarLabelPosition: 'below-icon',
         tabBarLabelStyle: { ...type.small, lineHeight: 16 },
         tabBarStyle: {
