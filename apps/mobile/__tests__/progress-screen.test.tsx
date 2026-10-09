@@ -498,4 +498,30 @@ describe('Weekly check-in, burn and habits', () => {
       expect(screen.queryByLabelText('Not now')).toBeNull();
     }
   });
+
+  it('two quick "Not now" taps count two declines', async () => {
+    const db = memoryDb();
+    await setup({ db });
+    const btn = await screen.findByLabelText('Not now');
+    await act(async () => {
+      fireEvent.press(btn);
+      fireEvent.press(btn);
+    });
+    await waitFor(() => expect(settingsDoc(db).adjustments.declines.checkin).toBe(2));
+  });
+
+  it('when the stored settings cannot be read, keeps the card with the message and no actions', async () => {
+    const db = memoryDb();
+    await saveSettings(db, defaultSettings('2026-10-01T00:00:00Z'));
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('user_settings')) throw new Error('locked');
+      return read(sql, ...p);
+    };
+    await setup({ db });
+    expect(await screen.findByText(/Couldn’t read your saved settings, so changes are not saved/)).toBeTruthy();
+    expect(screen.getByText('Weekly check-in')).toBeTruthy();
+    expect(screen.queryByLabelText('Not now')).toBeNull();
+    expect(screen.queryByLabelText('Update my targets')).toBeNull();
+  });
 });

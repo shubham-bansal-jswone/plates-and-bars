@@ -44,3 +44,4 @@ export const HABIT_MESSAGE = {
   missed: 'Missed a few days? No problem. Pick up with your next meal or session; one week never undoes progress.',
   steady: 'Aim for most days, not perfect days. Consistency over weeks is what counts.',
 } as const;
+export const SETTINGS_UNREADABLE = 'Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.';

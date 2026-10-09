@@ -89,10 +89,6 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
     if (seen) update({ checkin_seen: mondayOf(date) });
   }, [seen, date, update]);
 
-  const blocked = (): boolean => {
-    if (loadFailed) notify('Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.');
-    return loadFailed;
-  };
   // Each change builds on the provider's latest record, so two quick taps both count.
   const dismiss = (key: string, extra: (a: Adjustments) => Partial<Adjustments> = () => ({})) =>
     update((s) => {
@@ -104,10 +100,12 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
     checkin,
     habit,
     ready: days !== null && usable,
+    /** The stored settings could not be read: the card shows a message and no actions. */
+    settingsFailed: loadFailed,
     /** "Update my targets": the suggested kcal and macros go on the profile. */
     applyTargets: async () => {
       const s = checkin?.suggestion;
-      if (!profile || !s || s.kind !== 'kcal' || blocked()) return;
+      if (!profile || !s || s.kind !== 'kcal') return;
       const t = s.target;
       try {
         await setProfile({ ...profile, targets: { kcal: t.kcal, protein_g: t.protein, carbs_g: t.carbs, fat_g: t.fat }, updated_at: stamp(now()) });
@@ -119,18 +117,17 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
     },
     /** "Use a 4-day plan next week". */
     shorterWeek: () => {
-      if (!checkin || blocked()) return;
+      if (!checkin) return;
       dismiss(checkin.key, () => ({ weekPlan: { start: addDays(mondayOf(date), 7), list: SPLITS[4].list } }));
       notify('Next week: 4-day plan');
     },
     /** "Not now" / "Keep current targets": counts a decline; three stop the suggestion. */
     decline: () => {
-      if (!checkin || blocked()) return;
+      if (!checkin) return;
       dismiss(checkin.key, (a) => ({ declines: { ...a.declines, checkin: (a.declines?.checkin ?? 0) + 1 } }));
     },
     declines: A.declines?.checkin ?? 0,
     stopSuggesting: () => {
-      if (blocked()) return;
       update((st) => ({ adjustments: { ...st.adjustments, muted: { ...(st.adjustments as Adjustments).muted, checkin: true } } }));
       notify('Got it, no more of these');
     },

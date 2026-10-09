@@ -6,7 +6,7 @@ import { fmt, shortDate } from '../format';
 import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { BURN_HOW, BURN_TITLE, CHECKIN_NEEDS_SETUP, CHECKIN_TITLE, HABIT_MESSAGE, KEEP_TARGETS, NOT_NOW, STOP_SUGGESTING, WEIGHT_WEEK_NONE } from './copy';
+import { BURN_HOW, BURN_TITLE, CHECKIN_NEEDS_SETUP, CHECKIN_TITLE, HABIT_MESSAGE, KEEP_TARGETS, NOT_NOW, SETTINGS_UNREADABLE, STOP_SUGGESTING, WEIGHT_WEEK_NONE } from './copy';
 import type { useCheckin } from './useCheckin';
 
 type Checkin = ReturnType<typeof useCheckin>;
@@ -32,6 +32,12 @@ export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
     <View style={styles.section}>
       <Text accessibilityRole="header" style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Text>
       <Hint>{CHECKIN_NEEDS_SETUP}</Hint>
+    </View>
+  );
+  if (ci.settingsFailed) return (
+    <View style={styles.section}>
+      <Text accessibilityRole="header" style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Text>
+      <Hint>{SETTINGS_UNREADABLE}</Hint>
     </View>
   );
   if (!k || !h) return null;
