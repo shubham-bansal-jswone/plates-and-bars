@@ -93,7 +93,7 @@ Ingredients come in the contract's `Ingredient` shape, recipes and kitchen tests
 `recipeFood` and `kitchenTestFood` return contract `UserFood` fields (origin `recipe` or `kitchen_test`)
 and, like `customFood` (#150), `name-too-long` for a trimmed name over 200 characters and `invalid` for an
 ingredient amount, pot, cooked or serving weight below 0, where the prototype saves. An empty pot weighed
-as 0 g gives no cooked weight, as in the prototype (#214 decides to accept it, in a spec change). Tests
+as 0 g counts (a tared scale, #214); a blank empty pot does not. Tests
 check content against golden `raw100g` and `rawFibre100g` and the prototype's `FATTY`, `KATORI_G` and
 `PRESETS`, then run the port on content against the prototype.
 

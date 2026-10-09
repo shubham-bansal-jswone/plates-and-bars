@@ -95,13 +95,15 @@ export function searchFoods<T extends SearchableFood>(query: string, foods: read
 
 /**
  * Grams in a serving label: the first whole number followed by "g" (e.g. "1 katori (35 g dal)" → 35),
- * else 0. Content foods carry this as `serving.grams` (null for 0); use this for user foods' `unit`.
+ * else 0. The number may use en-US or en-IN digit grouping ("1,250 g", "1,00,000 g"), as kitchen-test
+ * labels do (#213); a comma that is not grouping (a decimal "1,5 g") is not, so that reads 5 as before.
+ * Content foods carry this as `serving.grams` (null for 0); use this for user foods' `unit`.
  *
  * Mirrors prototype `unitGrams(f)` (label passed in).
  */
 export function unitGrams(label: string): number {
-  const m = String(label).match(/(\d+)\s*g\b/);
-  return m ? +(m[1] as string) : 0;
+  const m = String(label).match(/((?<!\d)[1-9]\d{0,2}(?:,\d{3})+|(?<!\d)[1-9]\d?(?:,\d{2})+,\d{3}|\d+)\s*g\b/);
+  return m ? +(m[1] as string).replace(/,/g, '') : 0;
 }
 
 /**

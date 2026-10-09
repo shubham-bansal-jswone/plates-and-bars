@@ -3560,7 +3560,8 @@ function ktCalc(d){
   const t = { kcal:0, p:0, c:0, f:0, fib:0, oil:0, g:0 };
   d.rows.forEach(r => { const v = RAW[r.ing]; if(!v) return; const g = num(r.amt)*(UNIT_G[r.unit] || 1); t.g += g;
     t.kcal += v[0]*g/100; t.p += v[1]*g/100; t.c += v[2]*g/100; t.f += v[3]*g/100; t.fib += (RAW_FIB[r.ing] || 0)*g/100; if(FATTY.has(r.ing)) t.oil += g; });
-  const cooked = num(d.cooked) || (num(d.potFull) && num(d.pot) ? num(d.potFull) - num(d.pot) : 0), sv = num(d.serving);
+  const potWeighed = isFinite(parseFloat(String(d.pot).replace(',', '.'))); // 0 g counts (a tared scale); blank does not
+  const cooked = num(d.cooked) || (num(d.potFull) && potWeighed ? num(d.potFull) - num(d.pot) : 0), sv = num(d.serving);
   if(!cooked || cooked <= 0) return { t, ready:false };
   const k = 100/cooked, s = sv ? sv/cooked : 0;
   return { t, cooked, ready:true, per100:{ kcal:t.kcal*k, p:t.p*k, c:t.c*k, f:t.f*k, fib:t.fib*k }, perServ: sv ? { kcal:t.kcal*s, p:t.p*s, c:t.c*s, f:t.f*s, fib:t.fib*s, oil:t.oil*s, g:sv } : null, servings: sv ? cooked/sv : null };
@@ -3765,7 +3766,7 @@ const ALIAS = { 'Roti / chapati':'phulka fulka rotli chapathi', 'Rice, cooked':'
   'Sabudana khichdi':'sago', 'Makhana, roasted':'fox nut phool makhana lotus seed', 'Kuttu atta roti':'buckwheat', 'Sweet potato, boiled':'shakarkandi', 'Peanuts, roasted':'moongphali mungfali groundnut',
   'Buttermilk (chaas)':'chhaas mattha', 'Fruit bowl':'fruit chaat', 'Poha':'aval chivda flattened rice' };
 const foodMatch = (f, q) => !q || f[0].toLowerCase().includes(q) || (ALIAS[f[0]] || '').includes(q);
-const unitGrams = f => { const m = String(f[1]).match(/(\d+)\s*g\b/); return m ? +m[1] : 0; };
+const unitGrams = f => { const m = String(f[1]).match(/((?<!\d)[1-9]\d{0,2}(?:,\d{3})+|(?<!\d)[1-9]\d?(?:,\d{2})+,\d{3}|\d+)\s*g\b/); return m ? +m[1].replace(/,/g, '') : 0; };
 
 /* ---------- 7. tags for your own exercises ---------- */
 const TAGQ = { name:'', busy:false, tags:null };

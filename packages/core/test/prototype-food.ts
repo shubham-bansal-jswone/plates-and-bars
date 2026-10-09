@@ -39,6 +39,8 @@ export interface ProtoFood {
   FIB: Record<string, [number, number]>;
   PRODUCE: Record<string, number>;
   ALIAS: Record<string, string>;
+  /** The prototype's `unitGrams(f)` (reads `f[1]`, the serving label). */
+  unitGrams(f: [string, string]): number;
   /** `foodListHtml()`'s query and filter over `allFoods()`, returning the matching names. */
   search(q: string): string[];
   /** `case 'pick'`'s grams steps for food `name` with grams input `g` and servings `serv`. */
@@ -174,7 +176,7 @@ export function loadFood(): ProtoFood {
     addCustom,
     '  })();',
     '  const out = { toast:TOAST, meal:MEAL, myFoods:S.settings.myFoods }; S.settings.myFoods = keep; return out; }',
-    'return { S, FOODS, FIB, PRODUCE, ALIAS, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, planFlex: planFlexRun, flexUndo: flexRun.flexUndo, flexNote: flexRun.flexNote, serv, highProtein, addCustom };',
+    'return { S, FOODS, FIB, PRODUCE, ALIAS, unitGrams, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, planFlex: planFlexRun, flexUndo: flexRun.flexUndo, flexNote: flexRun.flexNote, serv, highProtein, addCustom };',
   ].join('\n');
   return new Function(code)() as ProtoFood;
 }

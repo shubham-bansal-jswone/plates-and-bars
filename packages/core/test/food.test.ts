@@ -224,6 +224,31 @@ describe('unitGrams and quantityFromGrams', () => {
     expect(unitGrams('30 gm')).toBe(0);
     expect(unitGrams('1.5 g scoop')).toBe(5); // PINNED QUIRK (#151): decimals lose their whole part
   });
+  it('#213: reads en-IN and en-US digit grouping, as kitchen-test labels use it (fmt)', () => {
+    expect(unitGrams('1 plate (1,250 g)')).toBe(1250);
+    expect(unitGrams('1,00,000 g')).toBe(100000);
+    expect(unitGrams('12,34,567g')).toBe(1234567);
+    expect(unitGrams('1 pot (10,000 g)')).toBe(10000);
+    expect(unitGrams('1,234,567 g')).toBe(1234567);
+    // Not grouping (a decimal comma, a short group, a leading 0, a run of 4 digits): read as before.
+    expect(unitGrams('1,5 g')).toBe(5);
+    expect(unitGrams('1,25 g')).toBe(25);
+    expect(unitGrams('0,500 g')).toBe(500);
+    expect(unitGrams('1234,567 g')).toBe(567);
+    expect(unitGrams('2 x 1,250 ml')).toBe(0);
+    for (const l of ['1 plate (1,250 g)', '1,00,000 g', '1,234,567 g', '1,5 g', '0,500 g', '1234,567 g', '1.5 g scoop']) {
+      expect([l, unitGrams(l)]).toEqual([l, proto.unitGrams(['', l])]);
+    }
+  });
+  it('#213: grams logging for a kitchen-test food of 1,250 g matches the prototype', () => {
+    const my: ProtoMyFood = { name: 'Biryani (weighed)', unit: '1 plate (1,250 g)', kcal: 900, p: 20, c: 120, f: 30 };
+    proto.S.settings.myFoods = [my];
+    const f = userFoodFacts({ name: my.name, unit: my.unit, kcal: 900, protein_g: 20, carbs_g: 120, fat_g: 30, fibre_g: null, added_sugar_g: 0, fruit_veg_servings: null });
+    expect(f.serving.grams).toBe(1250);
+    expect(quantityFromGrams(f, 625)).toEqual({ kind: 'grams', qty: 0.5 });
+    expect(proto.pick(my.name, '625', 1)).toEqual({ qty: 0.5 });
+    proto.S.settings.myFoods = [];
+  });
   it('grams over the serving weight, to 0.1; the bracketed weight is the dry weight (#97)', () => {
     expect(quantityFromGrams(byName('Rice, cooked'), 75)).toEqual({ kind: 'grams', qty: 1.5 });
     expect(quantityFromGrams(byName('Paneer'), '150')).toEqual({ kind: 'grams', qty: 1.5 });
