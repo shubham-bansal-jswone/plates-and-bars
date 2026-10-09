@@ -15,13 +15,6 @@ export const MEASURES: readonly MeasureDef[] = measuresContent.measures.map((m) 
   show: m.show as MeasureDef['show'],
 }));
 
-// Limits from the contract (openapi Weight, TapeCm, DayNote); core has no entry rules for these yet.
-export const WEIGHT_ABOVE_KG = 20;
-export const WEIGHT_BELOW_KG = 400;
-export const TAPE_MIN_CM = 10;
-export const TAPE_MAX_CM = 250;
-export const SLEEP_MAX_H = 24;
-
 // Messages from the prototype's Progress screen.
 export const WEIGHT_HINT = 'Weigh in each morning before eating. Day-to-day swings of a kilo are normal; the weekly direction is what counts.';
 export const WEIGHT_BAD = 'Enter your weight in kg, like 81.6';
@@ -33,3 +26,6 @@ export const BF_MISSING = (hips: boolean): string => `Add waist and neck${hips ?
 export const BF_NO_PROFILE = 'Run setup (Targets tab) and add waist and neck for a body-fat estimate.';
 export const STEPS_BAD = 'Enter steps as a whole number, like 8000.';
 export const SLEEP_BAD = 'Enter hours slept, like 7.5.';
+export const TREND_NONE = 'Log a few weigh-ins to see your trend line here.';
+export const SCALE_JUMP_TITLE = (kg: number): string => `The scale went up ${kg} kg`;
+export const SCALE_JUMP_BODY = 'That’s almost certainly water, not fat. Your weekly average is what counts.';
