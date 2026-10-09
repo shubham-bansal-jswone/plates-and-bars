@@ -178,7 +178,6 @@ describe('Food screen', () => {
       await openCard();
       expect(screen.getByText(/fits breakfast, based on what’s left today. Showing all foods./)).toBeTruthy();
       expect(screen.getAllByLabelText(/^Add .* to breakfast$/)).toHaveLength(3);
-      expect(screen.getByText('The thali plate guide')).toBeTruthy();
     });
 
     it('Add logs every item of the idea under the meal and moves on', async () => {
@@ -196,17 +195,44 @@ describe('Food screen', () => {
       await openCard();
       await fireEvent.press(screen.getByLabelText('Vegetarian'));
       expect(screen.getByText(/Showing vegetarian foods./)).toBeTruthy();
+      expect(screen.getByText('Vegetarian ideas')).toBeTruthy();
       expect(screen.queryByLabelText(/^Add .*(Chicken|Egg).* to breakfast$/)).toBeNull();
       await waitFor(async () => expect((await loadSettings(db))?.diet).toBe('veg'));
     });
 
-    it('Fasting day switches to the fasting pool and is saved on the day note', async () => {
-      const db = await setup();
+    it('Fasting day switches to the fasting pool and is saved on the day note, keeping steps, sleep and the logged-everything tick', async () => {
+      const db = memoryDb();
+      db.rows.set(`day_notes:${DATE}`, JSON.stringify({ id: null, version: 3, updated_at: '2026-10-08T01:00:00Z', deleted_at: null, date: DATE, complete: true, steps: 7000, sleep: 7.5, fast: false }));
+      await setup({ db });
       await openCard();
       await fireEvent.press(screen.getByLabelText('Fasting day'));
       expect(screen.getByLabelText('Fasting day').props.accessibilityState).toMatchObject({ checked: true });
       expect(screen.getAllByLabelText(/^Add .*(Kuttu|Sabudana|Sweet potato).* to breakfast$/).length).toBeGreaterThan(0);
-      await waitFor(() => expect(docs(db, 'day_notes')[0]).toMatchObject({ date: DATE, fast: true }));
+      await waitFor(() => expect(docs(db, 'day_notes')[0]).toMatchObject({ date: DATE, fast: true, complete: true, steps: 7000, sleep: 7.5 }));
+    });
+
+    it('refuses a diet change when the saved settings could not be read, and writes nothing', async () => {
+      const db = memoryDb();
+      const read = db.getFirstAsync.bind(db);
+      db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+        if (sql.includes('user_settings')) throw new Error('corrupt');
+        return read(sql, ...p);
+      }) as typeof db.getFirstAsync;
+      await setup({ db });
+      await openCard();
+      await fireEvent.press(screen.getByLabelText('Vegetarian'));
+      expect(await screen.findByText(/Couldn’t read your saved settings/)).toBeTruthy();
+      expect(screen.queryByText('Vegetarian ideas')).toBeNull();
+      await act(async () => {});
+      expect(docs(db, 'user_settings')).toHaveLength(0);
+    });
+
+    it('The thali plate guide starts collapsed', async () => {
+      await setup();
+      await openCard();
+      expect(screen.queryByText(/^No counting needed/)).toBeNull();
+      await fireEvent.press(screen.getByLabelText('The thali plate guide'));
+      expect(screen.getByText(/^No counting needed/)).toBeTruthy();
     });
 
     it('More ideas pages through the rest', async () => {

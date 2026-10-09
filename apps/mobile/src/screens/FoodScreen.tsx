@@ -10,6 +10,7 @@ import { AddSheet } from '../food/AddSheet';
 import { catalogFoods } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
+import { DIET_CHIPS } from '../meals/copy';
 import { IdeasCard } from '../meals/IdeasCard';
 import { useWater } from '../food/useWater';
 import { WaterCard } from '../food/WaterCard';
@@ -112,7 +113,9 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           diet={settings.diet}
           fasting={f.note?.fast === true}
           onDiet={(d) => {
-            if (!blocked()) setDiet(d);
+            if (blocked()) return;
+            setDiet(d);
+            notify(`${DIET_CHIPS.find((x) => x.key === d)?.label ?? d} ideas`);
           }}
           onFasting={f.setFast}
           onAdd={(meal, items) => {
