@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
 import { loadSets, loadWorkout, loadLifts, type WorkoutDb } from '../db/workouts';
 import { fmt } from '../format';
 import { Hint, Label } from '../components/ui';
 import type { Profile } from '../setup/types';
 import type { Settings } from '../settings/types';
+import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from '../workout/catalog';
 import { MUSCLE, listJoin } from '../workout/copy';
@@ -99,9 +101,9 @@ function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
         <View key={r.muscle} accessible accessibilityLabel={`${title}, ${name(r.muscle)}: ${fmt(r.shown)} sets${r.low ? ', low' : ''}`} style={styles.row}>
           <Text style={[styles.muscle, { color: c.ink }]}>{name(r.muscle)}</Text>
           <View style={[styles.track, { backgroundColor: c.track }]}>
-            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: 4, backgroundColor: r.low ? c.danger : c.brand }} />
+            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: radius.full, backgroundColor: r.low ? c.caution : c.brand }} />
           </View>
-          <Text style={{ color: r.low ? c.danger : c.ink, fontWeight: '700', minWidth: 28, textAlign: 'right' }}>{fmt(r.shown)}</Text>
+          <Text style={{ color: r.low ? c.caution : c.ink, fontWeight: '700', minWidth: 28, textAlign: 'right' }}>{fmt(r.shown)}</Text>
         </View>
       ))}
     </View>
@@ -113,5 +115,5 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   muscle: { width: 110, fontSize: 14 },
-  track: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
+  track: { flex: 1, height: 8, borderRadius: radius.full, overflow: 'hidden' },
 });

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
@@ -11,6 +12,7 @@ import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { useFoodDay } from '../food/useFoodDay';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
+import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 
@@ -69,8 +71,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
       <Page>
         <H1>Food</H1>
         <View accessibilityRole="summary" accessibilityLabel={`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`} style={styles.gap}>
-          <Text style={{ color: left < 0 ? c.danger : c.ink, fontSize: 40, fontWeight: '800' }}>{fmt(Math.abs(left))}</Text>
-          <Text style={{ color: c.muted }}>{left < 0 ? 'kcal over' : 'kcal left'}</Text>
+          <Text style={{ color: left < 0 ? c.caution : c.ink, fontSize: 40, fontWeight: '300' }}>{fmt(Math.abs(left))}</Text>
+          <Text style={{ color: c.body }}>{left < 0 ? 'kcal over' : 'kcal left'}</Text>
           <Text style={{ color: c.ink }}>{`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`}</Text>
         </View>
         <Macro name="Protein" v={t.protein_g} goal={profile?.targets.protein_g ?? DEFAULT_PROTEIN_TARGET} color={c.protein} />
@@ -112,7 +114,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         ))}
         {f.logs.length ? (
           <Pressable accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
-            <View style={[styles.box, { borderColor: c.brand, backgroundColor: complete ? c.brand : 'transparent' }]}>{complete ? <Text style={{ color: c.onBrand, fontWeight: '800' }}>✓</Text> : null}</View>
+            <View style={[styles.box, { borderColor: c.brand, backgroundColor: complete ? c.brand : 'transparent' }]}>{complete ? <Text style={{ color: c.onBrand, fontWeight: '700' }}>✓</Text> : null}</View>
             <Text style={{ color: c.ink, flex: 1 }}>I’ve logged everything I ate today <Text style={{ color: c.muted }}>(only complete days are used for your real calorie burn)</Text></Text>
           </Pressable>
         ) : null}
@@ -132,7 +134,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
         <Text style={{ color: c.ink, fontWeight: '700' }}>{name}</Text>
         <Text style={{ color: c.muted }}>{`${fmt(v)} / ${fmt(goal)} g · ${left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}`}</Text>
       </View>
-      <View style={[styles.track, { backgroundColor: c.track }]}><View style={{ height: 8, borderRadius: 4, backgroundColor: color, width: `${goal > 0 ? Math.min(100, (v / goal) * 100) : 0}%` }} /></View>
+      <View style={[styles.track, { backgroundColor: c.track }]}><View style={{ height: 8, borderRadius: radius.full, backgroundColor: color, width: `${goal > 0 ? Math.min(100, (v / goal) * 100) : 0}%` }} /></View>
     </View>
   );
 }
@@ -143,18 +145,18 @@ function MealSection({ meal, items, facts, onRemove, onAdd }: { meal: Meal; item
   return (
     <View style={styles.gap}>
       <View style={styles.between}>
-        <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '800', fontSize: 18 }}>{meal}</Text>
+        <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>{meal}</Text>
         <Text style={{ color: c.muted }}>{items.length ? `${fmt(kcal)} kcal` : ''}</Text>
       </View>
       {items.map((m) => (
-        <View key={m.id} style={[styles.item, { borderColor: c.line, backgroundColor: c.surface }]}>
+        <Card key={m.id} style={styles.item}>
           <View style={styles.fill}>
             <Text style={{ color: c.ink, fontWeight: '600' }}>{m.name}{m.qty !== 1 ? ` ×${r1(m.qty)}` : ''}</Text>
             <Text style={{ color: c.muted, fontSize: 14 }}>{`${fmt(m.protein_g * m.qty)} g protein, ${fmt(m.carbs_g * m.qty)} g carbs, ${fmt(m.fat_g * m.qty)} g fat`}</Text>
           </View>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(m.kcal * m.qty)}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${m.name}`} onPress={() => onRemove(m.id)} style={styles.x}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></Pressable>
-        </View>
+        </Card>
       ))}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
     </View>
@@ -167,9 +169,9 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   b: { fontWeight: '700' },
-  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12 },
+  track: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 8, },
   x: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, marginTop: 12 },
-  box: { width: 24, height: 24, borderWidth: 2, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  box: { width: 24, height: 24, borderWidth: 2, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
 });

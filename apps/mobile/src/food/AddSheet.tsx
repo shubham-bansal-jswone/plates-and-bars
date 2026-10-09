@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, ErrorText, Field, Hint, Label } from '../components/ui';
+import { Button, ErrorText, Field, Hint, Label, Switch } from '../components/ui';
+import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { catalogFoods, cuisines, type CatalogFood } from './catalog';
 import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL } from './copy';
@@ -32,19 +34,19 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '800', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Text>
+          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Text>
           <View accessibilityRole="tablist" style={styles.row}>
             {MODES.map(([k, l]) => (
-              <Pressable key={k} accessibilityRole="tab" accessibilityLabel={l} accessibilityState={{ selected: mode === k }} onPress={() => { setMode(k); setStatus(null); }}
-                style={[styles.tab, { borderColor: mode === k ? c.brand : c.line, backgroundColor: mode === k ? c.tint : c.surface }]}>
-                <Text style={{ color: c.ink, fontWeight: '600' }}>{l}</Text>
+              <Pressable key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} accessibilityState={{ selected: mode === k }} onPress={() => { setMode(k); setStatus(null); }}
+                style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
+                <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Pressable>
             ))}
           </View>
           {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
-          {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.brand, fontWeight: '600' }}>{status.text}</Text>) : null}
+          {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
       </ScrollView>
@@ -58,7 +60,7 @@ function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress:
   const high = badge && highProtein(food);
   const c = useTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Add ${food.name}, ${sub}, ${fmt(food.per_serving.kcal)} kcal${high ? ', high protein' : ''}`} onPress={onPress} style={[styles.food, { borderColor: c.line, backgroundColor: c.surface }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Add ${food.name}, ${sub}, ${fmt(food.per_serving.kcal)} kcal${high ? ', high protein' : ''}`} onPress={onPress} style={[styles.food, { backgroundColor: c.surface }]}>
       <View style={styles.fill}>
         <Text style={{ color: c.ink, fontWeight: '600', fontSize: 16 }}>{food.name}</Text>
         <Text style={{ color: c.muted, fontSize: 14 }}>{sub}{high ? ' · high protein' : ''}</Text>
@@ -109,7 +111,7 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
     <View style={styles.gap}>
       <View style={styles.row}>
         {cuisines.map((x) => (
-          <Pressable key={x.name} accessibilityRole="button" accessibilityLabel={x.name} accessibilityState={{ selected: x.name === name }} onPress={() => setName(x.name)}
+          <Pressable key={x.name} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={x.name} accessibilityState={{ selected: x.name === name }} onPress={() => setName(x.name)}
             style={[styles.tab, { borderColor: x.name === name ? c.brand : c.line, backgroundColor: x.name === name ? c.tint : c.surface }]}>
             <Text style={{ color: c.ink, fontWeight: '600' }}>{x.name}</Text>
           </Pressable>
@@ -159,9 +161,9 @@ const styles = StyleSheet.create({
   body: { width: '100%', maxWidth: 560, gap: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   gap: { gap: 8 },
-  tab: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
-  step: { borderWidth: 1, borderRadius: 10, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12, minHeight: 56 },
+  tab: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
+  step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },
   fill: { flex: 1 },
   search: { maxWidth: undefined },
   wide: { maxWidth: undefined },

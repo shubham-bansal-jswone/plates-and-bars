@@ -6,6 +6,7 @@ import { DB_NAME, MIGRATIONS, migrate } from '../src/db/migrations';
 import { ProfileProvider } from '../src/state/ProfileProvider';
 import { SettingsProvider } from '../src/state/SettingsProvider';
 import { Gate } from '../src/state/Gate';
+import { FontsProvider } from '../src/theme/fonts';
 
 async function initDb(db: SQLiteDatabase): Promise<void> {
   const version = await migrate(db);
@@ -30,8 +31,10 @@ function Providers() {
 // Same database and migrations on Android, iOS and web (web uses expo-sqlite's wasm build).
 export default function RootLayout() {
   return (
-    <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
-      <Providers />
-    </SQLiteProvider>
+    <FontsProvider>
+      <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
+        <Providers />
+      </SQLiteProvider>
+    </FontsProvider>
   );
 }
