@@ -79,14 +79,54 @@ describe('a 400 from /sync', () => {
     expect(await db.getFirstAsync("SELECT key FROM weights WHERE key = '2026-10-08'")).not.toBeNull();
   });
 
-  it('a 400 that names no record is still a rejected run, and nothing is set aside', async () => {
+  it.each([
+    ['a path that is not a record', [{ field: 'changes', issue: 'too_many_records' }]],
+    ['an index out of range', [{ field: 'changes.weights[9].weight_kg', issue: 'x' }]],
+    ['an unknown table', [{ field: 'changes.nope[0].id', issue: 'x' }]],
+    ['no details at all', undefined],
+    ['an empty list', []],
+    ['a field that is not text', [{ field: null, issue: 'x' }]],
+  ])('a real 400 with %s is still a rejected run: nothing is set aside, nothing is lost', async (_name, details) => {
     const { db, server, deps } = await setup();
     server.rejectIf = null;
-    await saveWeightDoc(db, weight('2026-10-08', 80));
-    server.forceStatus.push({ status: 404 });
+    await saveWeightDoc(db, weight('2026-10-07', 80));
+    await saveWeightDoc(db, weight('2026-10-08', 81));
+    server.force400.push(details as never);
     expect((await syncOnce(deps)).status).toBe('rejected');
     expect(await quarantineCount(db)).toBe(0);
-    expect(await pendingCount(db)).toBe(1);
+    expect(await pendingCount(db)).toBe(2);
+  });
+
+  it('several fields naming one record set it aside once', async () => {
+    const { db, server, deps } = await setup();
+    server.rejectIf = null;
+    await saveWeightDoc(db, weight('2026-10-07', 80));
+    await saveWeightDoc(db, weight('2026-10-08', 81));
+    server.force400.push([
+      { field: 'changes.weights[1].weight_kg', issue: 'a' },
+      { field: 'changes.weights[1].date', issue: 'b' },
+      { field: 'changes.weights[1].updated_at', issue: 'c' },
+    ]);
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok', quarantined: 1 });
+    expect(await quarantineCount(db)).toBe(1);
+  });
+
+  it('a record edited after it was sent is not hidden by the refusal of the older edit', async () => {
+    const { db, server, deps } = await setup();
+    server.rejectIf = null;
+    await saveWeightDoc(db, weight('2026-10-08', -1));
+    // The refusal arrives while the user fixes the value: the edit made meanwhile must still go out.
+    let release = () => {};
+    server.hold = new Promise<void>((r) => (release = r));
+    server.force400.push([{ field: 'changes.weights[0].weight_kg', issue: 'x' }]);
+    const run = syncOnce(deps);
+    await new Promise((r) => setTimeout(r, 20)); // the request is in flight
+    await saveWeightDoc(db, weight('2026-10-08', 80));
+    server.hold = null;
+    release();
+    await run;
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok' });
+    expect(await pendingCount(db)).toBe(0);
   });
 });
 

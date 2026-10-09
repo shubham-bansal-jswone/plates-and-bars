@@ -12,6 +12,7 @@ import { saveRecipe } from '../src/db/recipes';
 import { useRecipes } from '../src/recipes/useRecipes';
 import { useRules } from '../src/workout/useRules';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
+import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { openDb } from './sync-helpers';
 
 jest.mock('expo-router', () => ({ useFocusEffect: () => {} }));
@@ -116,6 +117,60 @@ describe('a pull makes the screens read SQLite again (dataVersion)', () => {
     g.release();
     await waitFor(() => expect(result.current.rules.exclusions.map((r) => r.name).sort()).toEqual(['Barbell Squat', 'Lunge']));
     await waitFor(async () => expect(await loadExclusions(real)).toHaveLength(2));
+  });
+});
+
+describe('the wait for queued writes and the write counter matter', () => {
+  it('Food: a reload started while a log is still being written shows the log (it waits for the queued write)', async () => {
+    const real = await openDb();
+    // Every write takes a while, so the log is still unwritten when the reload starts reading.
+    const slow = Object.assign(Object.create(real) as Db, {
+      runAsync: async (...a: Parameters<Db['runAsync']>) => {
+        await new Promise((r) => setTimeout(r, 60));
+        return real.runAsync(...a);
+      },
+    });
+    const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db: slow, now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => result.current.add('Lunch', { name: 'still writing', qty: 1, kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }));
+    await rerender({ k: 1 });
+    await act(async () => void (await new Promise((r) => setTimeout(r, 250))));
+    expect(result.current.logs.map((l) => l.name)).toEqual(['still writing']);
+  });
+
+  it('Workout: a session started while the reload is reading is not replaced by the older read', async () => {
+    const real = await openDb();
+    const { g, db } = gated(real);
+    const profile = buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1));
+    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result, rerender } = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
+    await waitFor(() => expect(result.current.day.ready).toBe(true));
+    g.arm();
+    await rerender({ k: 1 });
+    await g.hit; // the reload has read "no workout today" and waits
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    g.release();
+    await act(async () => void (await new Promise((r) => setTimeout(r, 80))));
+    expect(result.current.day.workout?.base).toBe('Upper A');
+    expect(result.current.day.exs.length).toBeGreaterThan(0);
+    expect(await real.getFirstAsync("SELECT key FROM workouts WHERE key = '2026-10-08'")).not.toBeNull();
+  });
+
+  it('the rules refuse changes and say why when the stored rules could not be read, and write nothing', async () => {
+    const real = await openDb();
+    const failing = Object.assign(Object.create(real) as Db, { getAllAsync: async () => Promise.reject(new Error('disk')) });
+    const say = jest.fn();
+    const { result } = await renderHook(() => useRules({ db: failing, now: NOW, notify: say }));
+    await waitFor(() => expect(result.current.rules.loadFailed).toBe(true));
+    let saved: unknown = 'unset';
+    await act(async () => void (saved = result.current.addRule({ name: 'Lunge', scope: 'exercise', key: 'Lunge', reason: 'dislike', created: DATE, until: null, to: {}, done: false } as never)));
+    result.current.putSwap({ from: 'A', to: 'B', since: DATE, bridge_until: null });
+    result.current.removeRule('x');
+    expect(saved).toBeNull();
+    expect(say).toHaveBeenCalledWith(expect.stringMatching(/Couldn’t read your saved exercise rules, so changes are not saved/));
+    expect(await real.getAllAsync('SELECT key FROM exclusions')).toHaveLength(0);
+    expect(await real.getAllAsync('SELECT key FROM swaps')).toHaveLength(0);
+    expect(result.current.rules.exclusions).toHaveLength(0);
   });
 });
 

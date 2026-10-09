@@ -6,7 +6,7 @@ import { useProfile } from '../state/ProfileProvider';
 import { useSync } from '../sync/SyncProvider';
 import { SIGN_IN_COPY as t } from '../sync/copy';
 
-type Step = 'email' | 'code' | 'refused' | 'confirm-discard';
+type Step = 'email' | 'code' | 'refused' | 'confirm-discard' | 'confirm-stop';
 
 /** Optional sign-in by emailed code, and sign-out with the unsynced-changes guard (#31). The app works fully without it. */
 export function SignInScreen() {
@@ -86,19 +86,27 @@ export function SignInScreen() {
                 })
               }
             />
-            <Button
-              kind="ghost"
-              label={t.discardQuarantined}
-              onPress={() =>
-                void run(async () => {
-                  try {
-                    await s.discardQuarantined();
-                  } catch {
-                    setError(t.discardFailed);
+            {step === 'confirm-stop' ? (
+              <>
+                <Note>{t.confirmStopRefused(s.quarantined)}</Note>
+                <Button
+                  label={t.confirmStop}
+                  onPress={() =>
+                    void run(async () => {
+                      try {
+                        await s.discardQuarantined();
+                      } catch {
+                        setError(t.discardFailed);
+                      }
+                      setStep('email');
+                    })
                   }
-                })
-              }
-            />
+                />
+                <Button kind="ghost" label={t.keepTrying} onPress={() => setStep('email')} />
+              </>
+            ) : (
+              <Button kind="ghost" label={t.discardQuarantined} onPress={() => setStep('confirm-stop')} />
+            )}
           </>
         ) : null}
         {s.last && s.last.conflicts > 0 ? <Note>{t.conflicts(s.last.conflicts)}</Note> : null}
@@ -129,7 +137,7 @@ export function SignInScreen() {
                   void run(async () => {
                     if (unsynced > 0) await s.syncNow();
                     const blocked = await s.signOut();
-                    if (blocked > 0) setError(t.stillUnsynced(blocked));
+                    if (blocked > 0) setError(s.quarantined > 0 ? t.stillUnsyncedRefused(blocked, s.quarantined) : t.stillUnsynced(blocked));
                   })
                 }
               />
