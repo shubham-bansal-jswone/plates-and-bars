@@ -417,10 +417,22 @@ describe('kitchenTest (prototype ktCalc)', () => {
     expect(r.ready && r.cooked_g).toBe(200);
   });
 
-  it('PINNED QUIRK (#214): an empty pot weighed as 0 g gives no cooked weight (prototype needs both pot weights non-zero)', () => {
+  it('#214: an empty pot weighed as 0 g (a tared scale) gives cooked weight = pot with food', () => {
     const d: ProtoKitchenTest = { id: 'k', name: 'Dal', rows: [{ ing: 'Egg', amt: '100', unit: 'g' }], pot: '0', potFull: '500', cooked: '', serving: '', sname: 'katori' };
-    expect(proto.ktCalc(d).ready).toBe(false);
-    expect(kitchenTest(testInput(d), raw).ready).toBe(false);
+    expect(proto.ktCalc(d)).toMatchObject({ ready: true, cooked: 500 });
+    expect(kitchenTest(testInput(d), raw)).toMatchObject({ ready: true, cooked_g: 500 });
+    expect(kitchenTest({ ingredients: [], pot_g: 0, pot_full_g: 500, cooked_g: null, serving_g: null }, raw)).toMatchObject({ ready: true, cooked_g: 500 });
+    expect(kitchenTest({ ingredients: [], pot_g: ' 0,0 ', pot_full_g: '500', cooked_g: '', serving_g: '' }, raw)).toMatchObject({ ready: true, cooked_g: 500 });
+  });
+
+  it('#214: an empty-pot box left blank or not a number is not 0 g, so no cooked weight', () => {
+    for (const pot of ['', '  ', 'x']) {
+      const d: ProtoKitchenTest = { id: 'k', name: 'Dal', rows: [{ ing: 'Egg', amt: '100', unit: 'g' }], pot, potFull: '500', cooked: '', serving: '', sname: 'katori' };
+      expect([pot, proto.ktCalc(d).ready]).toEqual([pot, false]);
+      expect([pot, kitchenTest(testInput(d), raw).ready]).toEqual([pot, false]);
+    }
+    expect(kitchenTest({ ingredients: [], pot_g: null, pot_full_g: 500, cooked_g: null, serving_g: null }, raw).ready).toBe(false);
+    expect(kitchenTest({ ingredients: [], pot_g: 0, pot_full_g: 0, cooked_g: null, serving_g: null }, raw).ready).toBe(false);
   });
 
   it('pot with food lighter than the pot is not ready', () => {
@@ -482,6 +494,8 @@ describe('kitchenTestFood (prototype ktSave(true))', () => {
     const d: ProtoKitchenTest = { id: 'k', name: 'Biryani', rows: [{ ing: 'Rice (raw)', amt: '1000', unit: 'g' }], pot: '', potFull: '', cooked: '3000', serving: '1249.6', sname: 'plate' };
     expect(big.kind === 'ok' && big.food.unit).toBe('1 plate (1,250 g)');
     expect(big.kind === 'ok' && big.food.unit).toBe(proto.ktSave(d, true, []).myFoods[0]!.unit);
+    // #213: the grouped label reads back as 1250 g for grams logging.
+    expect(big.kind === 'ok' && userFoodFacts(big.food).serving.grams).toBe(1250);
     const small = kitchenTestFood({ ...base, serving_g: 180, serving_name: 'katori' }, raw);
     expect(small.kind === 'ok' && small.food).toMatchObject({ unit: '1 katori (180 g)', added_sugar_g: 0, fruit_veg_servings: null, origin: 'kitchen_test' });
   });

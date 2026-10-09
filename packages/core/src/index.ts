@@ -221,7 +221,7 @@ export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInpu
  * Food screen maths. Foods in content/foods.json's `Food` shape (user foods as `FoodFacts`), logs in the
  * contract's `FoodLog` shape; logs with `deleted_at` set are left out.
  * - `searchFoods` mirrors the query and `foodMatch(f, q)` filter of prototype `foodListHtml()` (list order kept).
- * - `unitGrams` mirrors prototype `unitGrams(f)` (label passed in; content carries it as `serving.grams`).
+ * - `unitGrams` mirrors prototype `unitGrams(f)` (label passed in; content carries it as `serving.grams`; reads "1,250 g", #213).
  * - `quantityFromGrams` mirrors the grams steps of prototype `case 'pick'` (`serving.grams`, #97), plus `too-small` (#150).
  * - `logTotals` mirrors prototype `totals(meals)` plus the fibre, added sugar and unknown parts of `fibreTotals(meals)`.
  * - `fibreTarget` mirrors prototype `fibreTarget()` (today's calorie target passed in).
@@ -327,7 +327,7 @@ export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProf
  * - `presetIngredients` mirrors the rows step of prototype `rbFromPreset(k)` (oil level applied to `fatty` ingredients).
  * - `stepRecipeLog` mirrors prototype `case 'rb-log'`; `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` its limits.
  * - `recipeFood` mirrors prototype `case 'rb-save'` (checks, kept rows, saved food), plus `name-too-long` and `invalid` (contract limits, as #150).
- * - `kitchenTest` mirrors prototype `ktCalc(d)` (cooked weight from pot weights, per 100 g, per serving; 0 g empty pot pinned, #214).
+ * - `kitchenTest` mirrors prototype `ktCalc(d)` (cooked weight from pot weights, per 100 g, per serving; a 0 g empty pot counts, #214).
  * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), plus `name-too-long` and `invalid`.
  * - `saveBuiltFood` mirrors the `myFoods` step of `case 'rb-save'` and `ktSave`; `BUILT_FOODS_MAX` its 80.
  * - `ingredientGrams` mirrors the grams step of `rbTotals` and `ktCalc`; `UNIT_GRAMS` mirrors `UNIT_G`.
