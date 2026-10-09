@@ -1,9 +1,6 @@
 package app.plateandbar.api.ai;
 
-import org.springframework.stereotype.Component;
-
-/** Canned replies, no network and no key. The only provider until one is chosen; flags are off by default. */
-@Component
+/** Canned replies, no network and no key. Registered by {@link AiProviderConfig} only when no other provider bean exists; flags are off by default. */
 class StubAiProvider implements AiProvider {
 
     /** Canned text must never reach users, so every feature stays off (status and endpoints) while this is active. */
