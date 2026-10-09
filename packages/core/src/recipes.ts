@@ -298,8 +298,8 @@ export type KitchenTestResult =
 
 /**
  * A kitchen test's results. `raw` is content/raw-ingredients.json `ingredients`. The cooked weight is
- * `cooked_g`, or else pot with food minus empty pot when both are non-zero. An empty pot weighed as 0 g
- * gives no cooked weight, as in the prototype (#214: decided to accept 0 g, to ship as a spec change).
+ * `cooked_g`, or else pot with food minus empty pot when pot with food is non-zero and the empty pot is
+ * a number. An empty pot of 0 g counts (a tared scale, #214); a blank or non-numeric empty pot does not.
  * Not ready while the cooked weight is 0 or below. Values are unrounded; the prototype shows energy and
  * weights with `fmt` (rounded) and macros, fibre, oil and servings with r1.
  *
@@ -322,7 +322,9 @@ export function kitchenTest(test: KitchenTestInput, raw: readonly RawIngredient[
     if (i.fatty) t.oil += g;
   });
   const total: KitchenTotals = { kcal: t.kcal, protein_g: t.p, carbs_g: t.c, fat_g: t.f, fibre_g: t.fib, oil_g: t.oil, grams: t.g };
-  const cooked = num(test.cooked_g) || (num(test.pot_full_g) && num(test.pot_g) ? num(test.pot_full_g) - num(test.pot_g) : 0);
+  // An empty pot of 0 g counts (a tared scale, #214); a blank or non-numeric box does not.
+  const potWeighed = Number.isFinite(parseFloat(String(test.pot_g).replace(',', '.')));
+  const cooked = num(test.cooked_g) || (num(test.pot_full_g) && potWeighed ? num(test.pot_full_g) - num(test.pot_g) : 0);
   const sv = num(test.serving_g);
   if (!cooked || cooked <= 0) return { ready: false, total };
   const k = 100 / cooked, s = sv ? sv / cooked : 0;
