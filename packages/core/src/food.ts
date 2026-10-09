@@ -376,18 +376,9 @@ export interface UndoFlexFloor {
  *
  * Mirrors prototype `undoFlex(id)` (`case 'flex-undo'`; state passed in). Decided in #176.
  */
-export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string, floor: UndoFlexFloor): FlexEntry[];
-/**
- * Removes every entry of the flex plan `id` and trims nothing (the rule before #176).
- *
- * @deprecated Pass `floor` so no day is left below the minimum (#176). This form is kept only so the app
- * compiles until it passes its profile (#206, the #178 follow-up); `floor` becomes required then.
- */
-export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string): FlexEntry[];
-export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string, floor?: UndoFlexFloor): FlexEntry[] {
+export function undoFlex(flex: readonly FlexEntry[] | null | undefined, id: string, floor: UndoFlexFloor): FlexEntry[] {
   const all = flex ?? [];
   const kept = all.filter((x) => x.id !== id);
-  if (!floor) return kept;
   const { profile, labHold } = floor;
   const min = profile ? calcTargets(toTargetsProfile(profile)).floor : FLEX_FLOOR_DEFAULT;
   const trim = new Map<string, number>();
