@@ -411,7 +411,8 @@ export type {
  * - `addKcal` mirrors the `adj-kcal` step of prototype `adjAction`.
  * - `weightSlope`, `adaptiveBurn`, `targetFromBurn` mirror the prototype functions of the same name (state passed in);
  *   `KCAL_PER_KG` mirrors prototype `KCAL_PER_KG`; `nextAdaptive` mirrors the `settings.adaptive` update in `renderCheckin()`.
- * - `weeklyCheckin` mirrors prototype `renderCheckin()` (facts and choice of suggestion, not HTML); `CHECKIN_KCAL_STEP`
+ * - `weeklyCheckin` mirrors prototype `renderCheckin()` (facts and choice of suggestion, not HTML), including its
+ *   sleep-under-7 h rule, week-on-week weight change and weight trend per week (#264); `CHECKIN_KCAL_STEP`
  *   and `CARDIO_WEEK_MIN` are its 100 kcal and WHO 150 min.
  * - `habits` mirrors prototype `consistencyHtml()` (numbers and choice of line, not HTML).
  */
