@@ -51,6 +51,8 @@ export interface ProtoRecipes {
   RAW: Record<string, [number, number, number, number]>;
   RAW_FIB: Record<string, number>;
   PRESETS: Record<string, { rows: [string, number][]; k: number }>;
+  FATTY: Set<string>;
+  KATORI_G: number;
   /** `rbTotals()` with `RB` set to `rb`. */
   rbTotals(rb: Partial<ProtoRB>): { t: { kcal: number; p: number; c: number; f: number; g: number }; kat: number; per: { kcal: number; p: number; c: number; f: number } | null };
   /** `rbFromPreset(k)` at oil level `oil`; returns `RB.rows`. */
@@ -117,7 +119,7 @@ export function loadRecipes(): ProtoRecipes {
     sliceBlock(src, 'async function ktSave(use){', '}'),
     'const setRB = rb => { rbReset(); Object.assign(RB, JSON.parse(JSON.stringify(rb))); };',
     'return {',
-    '  RAW, RAW_FIB, PRESETS,',
+    '  RAW, RAW_FIB, PRESETS, FATTY, KATORI_G,',
     '  rbTotals(rb){ setRB(rb); return rbTotals(); },',
     '  rbFromPreset(k, oil){ rbReset(); RB.oil = oil; rbFromPreset(k); return JSON.parse(JSON.stringify(RB.rows)); },',
     '  recipeAction(a, dataset, rb, settings){ setRB(rb); S.settings = JSON.parse(JSON.stringify({ ...settings, kitchen:[] })); TOAST = ""; MEAL = null;',

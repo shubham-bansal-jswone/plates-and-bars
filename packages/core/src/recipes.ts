@@ -5,24 +5,37 @@ import { FOOD_NAME_MAX, type UserFoodFields } from './food';
  * Recipe builder and kitchen tests (spec §5): totals from raw ingredients, cooked yield, per katori,
  * per 100 g and per serving, and the personal food each one saves.
  *
- * The raw-ingredient table (prototype `RAW` and `RAW_FIB`) is content, not code: it is passed in as a
- * `RawIngredientTable`. Ingredients come in the contract's `Ingredient` shape, recipes and kitchen tests
- * in the fields of the contract's `Recipe` and `KitchenTest`.
+ * The data is content, not code, and is passed in: the raw ingredients (prototype `RAW`, `RAW_FIB` and
+ * `FATTY`) as content/raw-ingredients.json `ingredients`, and the katori size (prototype `KATORI_G`) as
+ * content/recipes.json `katori_g`. Ingredients come in the contract's `Ingredient` shape, recipes and
+ * kitchen tests in the fields of the contract's `Recipe` and `KitchenTest`.
  */
 
-/** One raw ingredient, per 100 g. Carbs include fibre. Prototype `RAW[name]` plus `RAW_FIB[name]`. */
-export interface RawIngredient {
+/** Per-100 g values of a raw ingredient. Carbs include fibre. Prototype `RAW[name]` plus `RAW_FIB[name]`. */
+export interface Per100g {
   kcal: number;
   protein_g: number;
   /** Total carbohydrate including fibre. */
   carbs_g: number;
   fat_g: number;
-  /** Null where the prototype has no `RAW_FIB` entry; counted as 0, as the prototype does. */
+  /** Null or 0 where the prototype has no `RAW_FIB` entry; both count as 0, as the prototype does. */
   fibre_g: number | null;
 }
 
-/** Raw ingredients by name (prototype `RAW` and `RAW_FIB`; content/raw-ingredients.json). */
-export type RawIngredientTable = Readonly<Record<string, RawIngredient>>;
+/** One raw ingredient: an item of content/raw-ingredients.json `ingredients` (the fields read here). */
+export interface RawIngredient {
+  name: string;
+  /** Oil, ghee, butter or cream: scaled by the oil level and counted as oil. Prototype `FATTY.has(name)`. */
+  fatty: boolean;
+  per_100g: Per100g;
+}
+
+/** Looks ingredients up by own name only, so names such as `constructor` are unknown; the first of a repeated name wins. */
+function indexRaw(raw: readonly RawIngredient[]): ReadonlyMap<string, RawIngredient> {
+  const m = new Map<string, RawIngredient>();
+  for (const i of raw) if (!m.has(i.name)) m.set(i.name, i);
+  return m;
+}
 
 /** A recipe or kitchen-test row: contract `Ingredient` (prototype `{ ing, amt, unit }`). */
 export interface IngredientRow {
@@ -35,12 +48,6 @@ export interface IngredientRow {
 
 /** Grams per unit. Mirrors prototype `UNIT_G`. */
 export const UNIT_GRAMS: Readonly<Record<string, number>> = { g: 1, tsp: 5, tbsp: 15 };
-
-/** Cooked grams in one katori. Mirrors prototype `KATORI_G`. */
-export const KATORI_G = 150;
-
-/** Ingredients counted as oil and scaled by the oil level. Mirrors prototype `FATTY`. */
-export const FATTY_INGREDIENTS: ReadonlySet<string> = new Set(['Oil', 'Ghee', 'Butter', 'Fresh cream']);
 
 /** Oil levels in the recipe builder. */
 export type OilLevel = 'low' | 'normal' | 'rich';
@@ -83,7 +90,7 @@ export interface RecipeTotals {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
-  /** Grams of rows found in the table. */
+  /** Grams of rows whose ingredient is known. */
   grams: number;
 }
 
@@ -108,23 +115,28 @@ export interface RecipeYield {
 /** Result of `recipeTotals`. */
 export interface RecipeTotalsResult {
   total: RecipeTotals;
-  /** Katoris made: as entered, or cooked grams ÷ 150 (0 when not given). Show with r1. */
+  /** Katoris made: as entered, or cooked grams ÷ `katoriG` (0 when not given). Show with r1. */
   katoris: number;
   /** Null until the yield is above 0. */
   perKatori: PerKatori | null;
 }
 
 /**
- * Whole-pot totals, katoris made and per-katori values. Rows whose ingredient is not in the table are
- * skipped. In grams mode the yield is `cooked_g / 150` katoris. Values are unrounded; the prototype shows
- * energy and macros with `fmt` (rounded) and katoris with r1.
+ * Whole-pot totals, katoris made and per-katori values. `raw` is content/raw-ingredients.json
+ * `ingredients`; rows whose ingredient is not there are skipped. `katoriG` is content/recipes.json
+ * `katori_g` (150): in grams mode the yield is `cooked_g / katoriG` katoris. Values are unrounded; the
+ * prototype shows energy and macros with `fmt` (rounded) and katoris with r1.
  *
- * Mirrors prototype `rbTotals()` (recipe and table passed in).
+ * Mirrors prototype `rbTotals()` (recipe, `RAW` and `KATORI_G` passed in).
  */
-export function recipeTotals(recipe: RecipeYield, table: RawIngredientTable): RecipeTotalsResult {
+export function recipeTotals(recipe: RecipeYield, raw: readonly RawIngredient[], katoriG: number): RecipeTotalsResult {
+  return totalsWith(recipe, indexRaw(raw), katoriG);
+}
+
+function totalsWith(recipe: RecipeYield, table: ReadonlyMap<string, RawIngredient>, katoriG: number): RecipeTotalsResult {
   const t = { kcal: 0, p: 0, c: 0, f: 0, g: 0 };
   recipe.ingredients.forEach((r) => {
-    const v = table[r.ingredient];
+    const v = table.get(r.ingredient)?.per_100g;
     if (!v) return;
     const g = num(r.amount) * unitG(r.unit);
     t.g += g;
@@ -133,21 +145,25 @@ export function recipeTotals(recipe: RecipeYield, table: RawIngredientTable): Re
     t.c += (v.carbs_g * g) / 100;
     t.f += (v.fat_g * g) / 100;
   });
-  const kat = recipe.yield_mode === 'katori' ? num(recipe.katoris) : num(recipe.cooked_g) ? num(recipe.cooked_g) / KATORI_G : 0;
+  const kat = recipe.yield_mode === 'katori' ? num(recipe.katoris) : num(recipe.cooked_g) ? num(recipe.cooked_g) / katoriG : 0;
   const perKatori = kat > 0 ? { kcal: t.kcal / kat, protein_g: t.p / kat, carbs_g: t.c / kat, fat_g: t.f / kat } : null;
   return { total: { kcal: t.kcal, protein_g: t.p, carbs_g: t.c, fat_g: t.f, grams: t.g }, katoris: kat, perKatori };
 }
 
 /**
- * A preset's rows at an oil level: fatty ingredients (`FATTY_INGREDIENTS`) scaled by `OIL_LEVEL`, every
- * amount rounded to a whole gram, unit `g`. `rows` are the preset's `[ingredient, grams]` pairs (prototype
- * `PRESETS[k].rows`; content/recipes.json).
+ * A preset's rows at an oil level: grams of fatty ingredients (`fatty` in `raw`) scaled by `OIL_LEVEL`,
+ * every amount rounded to a whole gram, unit `g`. `rows` are content/recipes.json `presets[].ingredients`
+ * (prototype `PRESETS[k].rows`, all in grams); a row in tsp or tbsp is turned into grams first. An
+ * ingredient missing from `raw` is not fatty.
  *
  * Mirrors the rows step of prototype `rbFromPreset(k)` (also run by `case 'rb-oil'` when a preset is loaded).
  */
-export function presetIngredients(rows: readonly (readonly [string, number])[], oil: OilLevel): IngredientRow[] {
-  const m = OIL_LEVEL[oil];
-  return rows.map(([ingredient, g]) => ({ ingredient, amount: Math.round(FATTY_INGREDIENTS.has(ingredient) ? g * m : g), unit: 'g' }));
+export function presetIngredients(rows: readonly IngredientRow[], oil: OilLevel, raw: readonly RawIngredient[]): IngredientRow[] {
+  const m = OIL_LEVEL[oil], table = indexRaw(raw);
+  return rows.map((r) => {
+    const g = ingredientGrams(r);
+    return { ingredient: r.ingredient, amount: Math.round(table.get(r.ingredient)?.fatty ? g * m : g), unit: 'g' };
+  });
 }
 
 /** The "Log now" katoris after a ± press (`step` is +0.5 or -0.5), kept within 0.5–6. Mirrors prototype `case 'rb-log'`. */
@@ -166,6 +182,8 @@ export type RecipeFoodResult =
   | { kind: 'no-name' }
   /** The trimmed name is over `FOOD_NAME_MAX` (200), the contract limit (as `customFood`, #150; the prototype saves it). */
   | { kind: 'name-too-long' }
+  /** An ingredient amount below 0 (contract `Ingredient.amount`; as `customFood`, #150; the prototype saves it). */
+  | { kind: 'invalid' }
   /** "Add at least one ingredient with an amount." */
   | { kind: 'no-ingredients' }
   /** "Add how many katoris it made, or the cooked weight." */
@@ -180,19 +198,21 @@ export type RecipeFoodResult =
  * Saving a recipe: checks, the rows kept and the personal food (unit "1 katori"): energy rounded,
  * macros, fibre, added sugar (grams of `Sugar` rows) and fruit and veg (grams of `RECIPE_VEG_INGREDIENTS`
  * rows ÷ 80) per katori, each to 0.1. Sugar and fruit and veg are read by ingredient name, whether or not
- * the name is in the table, as the prototype does.
+ * the name is in `raw`, as the prototype does. After the name checks, an amount below 0 gives `invalid`.
  *
- * Mirrors prototype `case 'rb-save'` (checks, `rec.rows` and `food`), plus `name-too-long`.
+ * Mirrors prototype `case 'rb-save'` (checks, `rec.rows` and `food`), plus `name-too-long` and `invalid` (#150).
  */
-export function recipeFood(recipe: RecipeInput, table: RawIngredientTable): RecipeFoodResult {
-  const { total, katoris: kat, perKatori: per } = recipeTotals(recipe, table);
+export function recipeFood(recipe: RecipeInput, raw: readonly RawIngredient[], katoriG: number): RecipeFoodResult {
+  const table = indexRaw(raw);
+  const { total, katoris: kat, perKatori: per } = totalsWith(recipe, table, katoriG);
   const name = recipe.name.trim();
   if (!name) return { kind: 'no-name' };
   if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
+  if (recipe.ingredients.some((r) => num(r.amount) < 0)) return { kind: 'invalid' };
   if (!total.grams) return { kind: 'no-ingredients' };
   if (!per) return { kind: 'no-yield' };
   const rows = recipe.ingredients;
-  const fibT = rows.reduce((a, r) => a + ((table[r.ingredient]?.fibre_g || 0) * num(r.amount) * unitG(r.unit)) / 100, 0);
+  const fibT = rows.reduce((a, r) => a + ((table.get(r.ingredient)?.per_100g.fibre_g || 0) * num(r.amount) * unitG(r.unit)) / 100, 0);
   const sugT = rows.filter((r) => r.ingredient === SUGAR_INGREDIENT).reduce((a, r) => a + num(r.amount) * unitG(r.unit), 0);
   const vegG = rows.filter((r) => RECIPE_VEG_INGREDIENTS.includes(r.ingredient)).reduce((a, r) => a + num(r.amount) * unitG(r.unit), 0);
   return {
@@ -241,7 +261,7 @@ export interface KitchenTestInput {
 /** Whole-dish totals of a kitchen test, unrounded. */
 export interface KitchenTotals extends RecipeTotals {
   fibre_g: number;
-  /** Grams of oil, ghee, butter and cream (`FATTY_INGREDIENTS`). */
+  /** Grams of fatty ingredients (oil, ghee, butter, cream: `fatty` in the raw table). */
   oil_g: number;
 }
 
@@ -277,18 +297,21 @@ export type KitchenTestResult =
     };
 
 /**
- * A kitchen test's results. The cooked weight is `cooked_g`, or else pot with food minus empty pot when
- * both are non-zero (an empty pot weighed as 0 gives no cooked weight, as in the prototype). Not ready
- * while the cooked weight is 0 or below. Values are unrounded; the prototype shows energy and weights
- * with `fmt` (rounded) and macros, fibre, oil and servings with r1.
+ * A kitchen test's results. `raw` is content/raw-ingredients.json `ingredients`. The cooked weight is
+ * `cooked_g`, or else pot with food minus empty pot when both are non-zero. An empty pot weighed as 0 g
+ * gives no cooked weight, as in the prototype (#214: decided to accept 0 g, to ship as a spec change).
+ * Not ready while the cooked weight is 0 or below. Values are unrounded; the prototype shows energy and
+ * weights with `fmt` (rounded) and macros, fibre, oil and servings with r1.
  *
- * Mirrors prototype `ktCalc(d)` (table passed in).
+ * Mirrors prototype `ktCalc(d)` (`RAW`, `RAW_FIB` and `FATTY` passed in as `raw`).
  */
-export function kitchenTest(test: KitchenTestInput, table: RawIngredientTable): KitchenTestResult {
+export function kitchenTest(test: KitchenTestInput, raw: readonly RawIngredient[]): KitchenTestResult {
   const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0, oil: 0, g: 0 };
+  const table = indexRaw(raw);
   test.ingredients.forEach((r) => {
-    const v = table[r.ingredient];
-    if (!v) return;
+    const i = table.get(r.ingredient);
+    if (!i) return;
+    const v = i.per_100g;
     const g = num(r.amount) * unitG(r.unit);
     t.g += g;
     t.kcal += (v.kcal * g) / 100;
@@ -296,7 +319,7 @@ export function kitchenTest(test: KitchenTestInput, table: RawIngredientTable): 
     t.c += (v.carbs_g * g) / 100;
     t.f += (v.fat_g * g) / 100;
     t.fib += ((v.fibre_g || 0) * g) / 100;
-    if (FATTY_INGREDIENTS.has(r.ingredient)) t.oil += g;
+    if (i.fatty) t.oil += g;
   });
   const total: KitchenTotals = { kcal: t.kcal, protein_g: t.p, carbs_g: t.c, fat_g: t.f, fibre_g: t.fib, oil_g: t.oil, grams: t.g };
   const cooked = num(test.cooked_g) || (num(test.pot_full_g) && num(test.pot_g) ? num(test.pot_full_g) - num(test.pot_g) : 0);
@@ -326,6 +349,8 @@ export type KitchenTestFoodResult =
   | { kind: 'no-name' }
   /** The trimmed name is over `FOOD_NAME_MAX` (200), the contract limit (as `customFood`, #150; the prototype saves it). Nothing saved. */
   | { kind: 'name-too-long' }
+  /** An ingredient amount, pot, cooked or serving weight below 0 (contract minimums; as `customFood`, #150; the prototype saves it). Nothing saved. */
+  | { kind: 'invalid' }
   /** "Add the raw ingredients with their weights." Nothing saved. */
   | { kind: 'no-ingredients' }
   /** "Add the cooked weight, or both pot weights." Nothing saved. */
@@ -340,14 +365,17 @@ export type KitchenTestFoodResult =
  * "1 <serving name> (<grams> g)" (grams rounded, en-IN digit grouping as prototype `fmt`), energy
  * rounded, macros and fibre to 0.1, added sugar 0, no fruit and veg data (null).
  *
- * Mirrors prototype `ktSave(true)` (checks and `food`), plus `name-too-long`. Plain "Save test" is the
- * same checks without the serving one.
+ * After the name checks, an amount or weight below 0 gives `invalid`.
+ *
+ * Mirrors prototype `ktSave(true)` (checks and `food`), plus `name-too-long` and `invalid` (#150). Plain
+ * "Save test" is the same checks without the serving one.
  */
-export function kitchenTestFood(test: KitchenTestFoodInput, table: RawIngredientTable): KitchenTestFoodResult {
-  const r = kitchenTest(test, table);
+export function kitchenTestFood(test: KitchenTestFoodInput, raw: readonly RawIngredient[]): KitchenTestFoodResult {
+  const r = kitchenTest(test, raw);
   const name = test.name.trim();
   if (!name) return { kind: 'no-name' };
   if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
+  if (test.ingredients.some((x) => num(x.amount) < 0) || [test.pot_g, test.pot_full_g, test.cooked_g, test.serving_g].some((w) => num(w) < 0)) return { kind: 'invalid' };
   if (!r.total.grams) return { kind: 'no-ingredients' };
   if (!r.ready) return { kind: 'not-ready' };
   const ps = r.perServing;
