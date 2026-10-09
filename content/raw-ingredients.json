@@ -1,0 +1,1019 @@
+{
+  "schema_version": 1,
+  "source": "docs/prototype/plate-and-bar.html (RAW, RAW_FIB)",
+  "per": "100 g raw. Carbs are total carbohydrate including fibre.",
+  "ingredients": [
+    {
+      "id": "848442fa-d789-5752-bafa-59ab888403bf",
+      "name": "Toor dal (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 343,
+        "protein_g": 21.7,
+        "carbs_g": 62.8,
+        "fibre_g": 15,
+        "fat_g": 1.5
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "ed466628-5764-50f4-82b1-358f4bd5b655",
+      "name": "Urad dal (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 341,
+        "protein_g": 25.2,
+        "carbs_g": 59,
+        "fibre_g": 18.3,
+        "fat_g": 1.6
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "d7f7e170-c732-559e-b29c-a04b00a7f0ef",
+      "name": "Moong dal (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 347,
+        "protein_g": 23.9,
+        "carbs_g": 62.6,
+        "fibre_g": 16.3,
+        "fat_g": 1.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "6973b054-32a8-591e-aa70-f303461db8fe",
+      "name": "Masoor dal (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 352,
+        "protein_g": 24.6,
+        "carbs_g": 63.4,
+        "fibre_g": 10.7,
+        "fat_g": 1.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "afa033d3-cdbd-5395-a4af-acf857cc1636",
+      "name": "Chana dal (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 378,
+        "protein_g": 20.5,
+        "carbs_g": 63,
+        "fibre_g": 12.2,
+        "fat_g": 6
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "d9da8cd1-591d-5395-889c-575e55f89f58",
+      "name": "Rajma (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 337,
+        "protein_g": 22.5,
+        "carbs_g": 61.3,
+        "fibre_g": 15.2,
+        "fat_g": 1.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "4cef1c03-f414-5d00-9f2d-d55312c7acef",
+      "name": "Kabuli chana (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 378,
+        "protein_g": 20.5,
+        "carbs_g": 63,
+        "fibre_g": 12.2,
+        "fat_g": 6
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "cacd697e-c078-520a-9ebb-deb0abcb4ee3",
+      "name": "Rice (raw)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 365,
+        "protein_g": 7.1,
+        "carbs_g": 80,
+        "fibre_g": 1.3,
+        "fat_g": 0.7
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "496ada3d-9651-5bbf-8d21-a0061c2d09ad",
+      "name": "Atta (whole wheat flour)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 340,
+        "protein_g": 13.2,
+        "carbs_g": 72,
+        "fibre_g": 10.7,
+        "fat_g": 2.5
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "3b776336-a5b4-5d29-a13d-5bf426de530d",
+      "name": "Besan",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 387,
+        "protein_g": 22.4,
+        "carbs_g": 57.8,
+        "fibre_g": 10.8,
+        "fat_g": 6.7
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "a88c7116-6e32-598d-b7e0-7657c17c90d0",
+      "name": "Poha (dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 365,
+        "protein_g": 7.1,
+        "carbs_g": 78.7,
+        "fibre_g": 1.3,
+        "fat_g": 0.7
+      },
+      "source": {
+        "code": "own_estimate",
+        "name": "Plate & Bar own estimate (generic mix or approximation; not weighed)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "494193d0-b7fe-55b7-b2d6-230b5dd2bce0",
+      "name": "Oats",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 389,
+        "protein_g": 16.9,
+        "carbs_g": 66.3,
+        "fibre_g": 10.6,
+        "fat_g": 6.9
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "173f621a-7612-5a52-8e52-5348b2ba6b91",
+      "name": "Soya chunks",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 327,
+        "protein_g": 51.5,
+        "carbs_g": 33.9,
+        "fibre_g": 17.5,
+        "fat_g": 1.2
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "3e407214-5bff-55cc-a87a-665fb718811a",
+      "name": "Paneer",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 280,
+        "protein_g": 18,
+        "carbs_g": 2.5,
+        "fibre_g": null,
+        "fat_g": 22
+      },
+      "source": {
+        "code": "fssai",
+        "name": "Values derived from FSSAI composition standards",
+        "licence": "Values calculated by us from published standards; no table copied",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "b1d699a3-7db1-5832-937c-9ce8f6756753",
+      "name": "Chicken breast (raw)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 120,
+        "protein_g": 22.5,
+        "carbs_g": 0,
+        "fibre_g": null,
+        "fat_g": 2.6
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "94164558-30d8-5f5b-bbd4-366f3bf7ffa9",
+      "name": "Chicken curry cut (raw)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 121,
+        "protein_g": 19.7,
+        "carbs_g": 0,
+        "fibre_g": null,
+        "fat_g": 4.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "87d50086-6429-5a9f-a7c8-78a947b494c3",
+      "name": "Egg",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 143,
+        "protein_g": 12.6,
+        "carbs_g": 0.7,
+        "fibre_g": null,
+        "fat_g": 9.5
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "6af416d1-e684-500d-a996-d63c329ac138",
+      "name": "Potato",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 77,
+        "protein_g": 2,
+        "carbs_g": 17.5,
+        "fibre_g": 2.1,
+        "fat_g": 0.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "a378fe38-ad10-513c-b901-b6ca41e04b83",
+      "name": "Onion",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 40,
+        "protein_g": 1.1,
+        "carbs_g": 9.3,
+        "fibre_g": 1.7,
+        "fat_g": 0.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "4efe7f47-7b41-5b35-b550-048287e6b2a1",
+      "name": "Tomato",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 18,
+        "protein_g": 0.9,
+        "carbs_g": 3.9,
+        "fibre_g": 1.2,
+        "fat_g": 0.2
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "25bd2829-e8ca-5968-8e64-af8f8a297b2a",
+      "name": "Mixed vegetables",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 40,
+        "protein_g": 2,
+        "carbs_g": 7,
+        "fibre_g": 3,
+        "fat_g": 0.3
+      },
+      "source": {
+        "code": "own_estimate",
+        "name": "Plate & Bar own estimate (generic mix or approximation; not weighed)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "ecf66531-7324-547e-b1f4-304681d3f788",
+      "name": "Spinach",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 23,
+        "protein_g": 2.9,
+        "carbs_g": 3.6,
+        "fibre_g": 2.2,
+        "fat_g": 0.4
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "ef666522-8f88-5979-86f5-9667d24c5444",
+      "name": "Bhindi",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 33,
+        "protein_g": 1.9,
+        "carbs_g": 7.5,
+        "fibre_g": 3.2,
+        "fat_g": 0.2
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "0891c620-bb6d-5f6d-af61-925a8236f0ef",
+      "name": "Cauliflower",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 25,
+        "protein_g": 1.9,
+        "carbs_g": 5,
+        "fibre_g": 2,
+        "fat_g": 0.3
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "09c30cab-f18c-5b36-953e-49b10b4dd41b",
+      "name": "Green peas",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 81,
+        "protein_g": 5.4,
+        "carbs_g": 14.4,
+        "fibre_g": 5.7,
+        "fat_g": 0.4
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "d74fa151-a150-5fff-aac5-ed8e8e69b535",
+      "name": "Oil",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": true,
+      "per_100g": {
+        "kcal": 884,
+        "protein_g": 0,
+        "carbs_g": 0,
+        "fibre_g": null,
+        "fat_g": 100
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "010fbcbf-2cc5-5d33-8e8e-1134ddae0b4f",
+      "name": "Ghee",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": true,
+      "per_100g": {
+        "kcal": 876,
+        "protein_g": 0.3,
+        "carbs_g": 0,
+        "fibre_g": null,
+        "fat_g": 99.5
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "e2467d30-c6d6-5b58-9409-47f72b2659db",
+      "name": "Butter",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": true,
+      "per_100g": {
+        "kcal": 717,
+        "protein_g": 0.9,
+        "carbs_g": 0.1,
+        "fibre_g": null,
+        "fat_g": 81
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "5cd3dddf-5f40-5d5d-be60-eb17d0fef9f9",
+      "name": "Fresh cream",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": true,
+      "per_100g": {
+        "kcal": 250,
+        "protein_g": 2,
+        "carbs_g": 3,
+        "fibre_g": null,
+        "fat_g": 25
+      },
+      "source": {
+        "code": "own_estimate",
+        "name": "Plate & Bar own estimate (generic mix or approximation; not weighed)",
+        "licence": "Own work",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "d45b811b-22e1-5188-b87c-7c450e65219c",
+      "name": "Milk (toned)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 58,
+        "protein_g": 3.2,
+        "carbs_g": 4.8,
+        "fibre_g": null,
+        "fat_g": 3
+      },
+      "source": {
+        "code": "fssai",
+        "name": "Values derived from FSSAI composition standards",
+        "licence": "Values calculated by us from published standards; no table copied",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "a8409de7-b414-5246-a8f7-9027da904f50",
+      "name": "Curd",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 58,
+        "protein_g": 3.1,
+        "carbs_g": 4.6,
+        "fibre_g": null,
+        "fat_g": 3
+      },
+      "source": {
+        "code": "fssai",
+        "name": "Values derived from FSSAI composition standards",
+        "licence": "Values calculated by us from published standards; no table copied",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "4eda30ae-c56f-5a6a-be8a-1e8f85f1a5be",
+      "name": "Sugar",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 387,
+        "protein_g": 0,
+        "carbs_g": 100,
+        "fibre_g": null,
+        "fat_g": 0
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "37072c70-78bc-539b-8535-86fb1c3dc1eb",
+      "name": "Cashews",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 553,
+        "protein_g": 18.2,
+        "carbs_g": 30.2,
+        "fibre_g": 3.3,
+        "fat_g": 43.9
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "e316b2f0-0e3e-566f-ae87-1453d7bf9555",
+      "name": "Coconut (fresh)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 354,
+        "protein_g": 3.3,
+        "carbs_g": 15.2,
+        "fibre_g": 9,
+        "fat_g": 33.5
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "622d7a78-e927-58d0-a4f2-e06ad4edb225",
+      "name": "Sabudana",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 358,
+        "protein_g": 0.2,
+        "carbs_g": 88.7,
+        "fibre_g": 0.9,
+        "fat_g": 0
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "9a6a4a00-a4b8-5f0d-9e87-f2de2df655fa",
+      "name": "Makhana",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 347,
+        "protein_g": 9.7,
+        "carbs_g": 77,
+        "fibre_g": 14,
+        "fat_g": 0.1
+      },
+      "source": {
+        "code": "label_typical",
+        "name": "Typical label values (packaged food)",
+        "licence": "Nutrition facts read from product labels; no label database copied",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "5b65fc58-7228-57bb-97af-f81e26423f31",
+      "name": "Peanuts",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 567,
+        "protein_g": 25.8,
+        "carbs_g": 16.1,
+        "fibre_g": 8.5,
+        "fat_g": 49.2
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "1ca3e0bd-efd0-5399-b4d7-d5a9cf3c67b4",
+      "name": "Greek yogurt",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 75,
+        "protein_g": 9,
+        "carbs_g": 4,
+        "fibre_g": null,
+        "fat_g": 2
+      },
+      "source": {
+        "code": "label_typical",
+        "name": "Typical label values (packaged food)",
+        "licence": "Nutrition facts read from product labels; no label database copied",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "2c3ec77e-f172-5fc6-9b19-f48ade44b79d",
+      "name": "Moong (whole, dry)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 347,
+        "protein_g": 23.9,
+        "carbs_g": 62.6,
+        "fibre_g": 16.3,
+        "fat_g": 1.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "cf21dd4e-f906-58b3-a0dc-f25a86f22e91",
+      "name": "Rava (sooji)",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 360,
+        "protein_g": 12.7,
+        "carbs_g": 72.8,
+        "fibre_g": 3.9,
+        "fat_g": 1.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "08646a5b-ce2b-554f-9bb4-7235e4fe652f",
+      "name": "Capsicum",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 20,
+        "protein_g": 0.9,
+        "carbs_g": 4.6,
+        "fibre_g": 1.7,
+        "fat_g": 0.2
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "9059c5f5-cf0a-5eeb-8a27-91ca68d5c7da",
+      "name": "Cucumber",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 15,
+        "protein_g": 0.7,
+        "carbs_g": 3.6,
+        "fibre_g": 0.5,
+        "fat_g": 0.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "7a43439a-35ff-5de3-87e5-1b231645f722",
+      "name": "Whey protein",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 400,
+        "protein_g": 80,
+        "carbs_g": 10,
+        "fibre_g": null,
+        "fat_g": 5
+      },
+      "source": {
+        "code": "label_typical",
+        "name": "Typical label values (packaged food)",
+        "licence": "Nutrition facts read from product labels; no label database copied",
+        "url": null,
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    },
+    {
+      "id": "ce9ec3ca-b946-5e1c-bb88-972f9edbfe7b",
+      "name": "Kuttu atta",
+      "name_hi": null,
+      "aliases": [],
+      "fatty": false,
+      "per_100g": {
+        "kcal": 335,
+        "protein_g": 12.6,
+        "carbs_g": 70.6,
+        "fibre_g": 10,
+        "fat_g": 3.1
+      },
+      "source": {
+        "code": "usda_fdc",
+        "name": "USDA FoodData Central (SR Legacy)",
+        "licence": "Public domain (CC0 1.0)",
+        "url": "https://fdc.nal.usda.gov/",
+        "reference": null
+      },
+      "needs_dietitian_review": true,
+      "updated_at": "2026-10-09T00:00:00Z"
+    }
+  ]
+}
