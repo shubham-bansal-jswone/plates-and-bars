@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type TextInputProps } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type SwitchProps, type TextInputProps, type ViewProps } from 'react-native';
+import { useColorScheme } from 'react-native';
 import { pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Input } from './Input';
@@ -26,7 +27,7 @@ export function H1({ children }: { children: ReactNode }) {
 
 export function Hint({ children }: { children: ReactNode }) {
   const c = useTheme();
-  return <Text style={[styles.hint, { color: c.body }]}>{children}</Text>;
+  return <Text style={[styles.hint, { color: c.muted }]}>{children}</Text>;
 }
 
 export function Label({ children }: { children: ReactNode }) {
@@ -64,9 +65,10 @@ export function Button({
   expanded?: boolean;
 }) {
   const c = useTheme();
+  const scheme = useColorScheme();
   const palette = {
     primary: { bg: c.brand, pressed: c.brandPressed, fg: c.onBrand, border: c.brand },
-    ghost: { bg: 'transparent', pressed: c.surfaceSoft, fg: c.ink, border: c.outline },
+    ghost: { bg: 'transparent', pressed: c.surfaceSoft, fg: c.ink, border: scheme === 'dark' ? c.line : c.disabled },
     link: { bg: 'transparent', pressed: 'transparent', fg: c.link, border: 'transparent' },
   }[kind];
   return (
@@ -107,6 +109,7 @@ export function Choice({
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       accessibilityState={{ selected, checked: selected }}
       onPress={onPress}
+      hitSlop={chip ? { top: 6, bottom: 6 } : undefined}
       style={[
         chip ? styles.chip : styles.opt,
         chip
@@ -132,6 +135,21 @@ export function Group({ children, label }: { children: ReactNode; label?: string
   );
 }
 
+/** Flat card: `surface` fill, 8px radius, 16 padding, no border or shadow. */
+export function Card({ style, ...rest }: ViewProps) {
+  const c = useTheme();
+  return <View {...rest} style={[styles.card, { backgroundColor: c.surface }, style]} />;
+}
+
+// react-native-web colours the on-state thumb with `activeThumbColor`; react-native's types do not list it.
+const webThumb = (activeThumbColor: string): object => ({ activeThumbColor });
+
+/** Switch with the off-state track kept visible (#153) and a white thumb on web too. */
+export function Switch(props: SwitchProps) {
+  const c = useTheme();
+  return <RNSwitch trackColor={{ true: c.brand, false: c.muted }} thumbColor={c.onBrand} {...webThumb(c.onBrand)} {...props} />;
+}
+
 export const layout = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   field: { gap: 8, marginTop: 16 },
@@ -142,12 +160,13 @@ const styles = StyleSheet.create({
   column: { width: '100%', maxWidth: 560, gap: space.sm },
   h1: { ...type.title, marginTop: space.sm },
   hint: { ...type.caption },
-  label: { ...type.bodyStrong },
+  label: { ...type.label },
   note: { ...type.caption, padding: space.md, borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
   btn: { minHeight: 48, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
   link: { minHeight: 44, paddingHorizontal: space.xs, alignSelf: 'flex-start', justifyContent: 'center' },
+  card: { borderRadius: radius.md, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
   opt: { borderRadius: radius.md, padding: 14, gap: 2, minHeight: 48 },
-  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, paddingVertical: 10, minHeight: 44, justifyContent: 'center' },
+  chip: { borderRadius: radius.full, paddingHorizontal: space.md, minHeight: 32, justifyContent: 'center' },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
 });

@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { modsNote, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -13,7 +13,7 @@ import { catalog } from '../workout/catalog';
 import { CHECKIN, MUSCLE, REASON_TEXT, listJoin, modsNoteText } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { guidance, progressionContext } from '../workout/guidance';
-import { Card, Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
+import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 

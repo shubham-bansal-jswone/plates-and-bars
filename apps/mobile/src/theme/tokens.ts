@@ -5,6 +5,8 @@ export interface Palette {
   bg: string;
   /** Cards and inputs. */
   surface: string;
+  /** Input fill: canvas in light, surface in dark. */
+  field: string;
   /** Raised band in dark mode (same as the canvas in light). */
   surfaceElevated: string;
   /** Default chip fill and disabled button fill. */
@@ -44,6 +46,7 @@ export interface Palette {
 export const light: Palette = {
   bg: '#FFFFFF',
   surface: '#F5F7FA',
+  field: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
   surfaceSoft: '#F3F3F3',
   ink: '#000000',
@@ -74,6 +77,7 @@ export const light: Palette = {
 export const dark: Palette = {
   bg: '#000000',
   surface: '#181818',
+  field: '#181818',
   surfaceElevated: '#121314',
   surfaceSoft: '#1F1F1F',
   ink: '#FFFFFF',

@@ -14,7 +14,7 @@ function contrast(a: string, b: string): number {
 type K = keyof Palette;
 // Text on the surfaces it is drawn on. Disabled text is exempt (WCAG), so it is not listed.
 const TEXT: [K, K][] = [
-  ['ink', 'bg'], ['ink', 'surface'], ['ink', 'surfaceElevated'], ['ink', 'surfaceSoft'], ['ink', 'tint'],
+  ['ink', 'bg'], ['ink', 'surface'], ['ink', 'surfaceElevated'], ['ink', 'surfaceSoft'], ['ink', 'tint'], ['ink', 'field'], ['muted', 'field'],
   ['body', 'bg'], ['body', 'surface'], ['body', 'surfaceElevated'], ['body', 'tint'],
   ['muted', 'bg'], ['muted', 'surface'], ['muted', 'surfaceElevated'], ['muted', 'surfaceSoft'],
   ['onBrand', 'brand'], ['onBrand', 'brandPressed'], ['onBrand', 'brandActive'],
@@ -28,7 +28,7 @@ const GRAPHIC: [K, K][] = [
   ['carbs', 'surface'], ['carbs', 'bg'], ['carbs', 'track'],
   ['fat', 'surface'], ['fat', 'bg'], ['fat', 'track'],
   ['caution', 'track'], ['danger', 'track'], ['brand', 'bg'], ['brand', 'surface'],
-  ['outline', 'bg'], ['outline', 'surface'], ['outline', 'surfaceElevated'],
+  ['outline', 'bg'], ['outline', 'surface'], ['outline', 'surfaceElevated'], ['outline', 'field'],
   ['focus', 'bg'], ['focus', 'surface'],
   // The off state of a switch (#153): its track must be visible against the page.
   ['muted', 'bg'], ['muted', 'surface'],

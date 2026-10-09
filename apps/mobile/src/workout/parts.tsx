@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { Button, Hint } from '../components/ui';
-import { radius, type } from '../theme/tokens';
+import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
 
@@ -17,16 +17,12 @@ export function Chip({ label, text, pressed, onPress }: { label: string; text?: 
       accessibilityState={pressed === undefined ? undefined : { selected: pressed }}
       aria-pressed={pressed}
       onPress={onPress}
+      hitSlop={{ top: 6, bottom: 6 }}
       style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }]}
     >
       <Text style={{ color: pressed ? c.onBrand : c.ink, ...type.buttonSm }}>{text ?? label}</Text>
     </Pressable>
   );
-}
-
-export function Card({ children }: { children: ReactNode }) {
-  const c = useTheme();
-  return <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.line }]}>{children}</View>;
 }
 
 /** The short message at the bottom of the screen (prototype `toast`). */
@@ -35,7 +31,7 @@ export function ToastBar({ message }: { message: string | null }) {
   if (!message) return null;
   return (
     <View pointerEvents="none" style={styles.toastWrap}>
-      <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.toast, { backgroundColor: c.toastBg, color: c.toastFg }]}>
+      <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.toast, { backgroundColor: c.toastBg, color: c.toastFg, shadowColor: c.shadow, ...pressedShadow }]}>
         {message}
       </Text>
     </View>
@@ -161,10 +157,9 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
 }
 
 const styles = StyleSheet.create({
-  chip: { borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 8, minHeight: 44, justifyContent: 'center' },
-  card: { borderRadius: radius.md, borderWidth: 1, padding: 14, gap: 8 },
+  chip: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
-  toast: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.full, overflow: 'hidden', fontSize: 15, fontWeight: '600', maxWidth: 520 },
+  toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   rest: { position: 'absolute', left: 8, right: 8, bottom: 8, borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
   restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
   restBtns: { flexDirection: 'row', gap: 8 },

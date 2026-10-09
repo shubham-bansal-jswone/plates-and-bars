@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Switch, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
-import { Button, ErrorText, H1, Hint, Label, Page } from '../components/ui';
+import { Button, ErrorText, H1, Hint, Label, Page, Switch } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
@@ -62,7 +62,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
                 accessibilityLabel="Start a rest timer after each set"
                 value={!settings.rest_off}
                 onValueChange={(on) => setRestOff(!on)}
-                trackColor={{ true: c.brand, false: c.muted }} thumbColor={c.onBrand}
+               
               />
               {/* The text toggles the switch too, as the prototype's label does; the switch carries the spoken name. */}
               <Pressable accessibilityElementsHidden importantForAccessibility="no" onPress={() => setRestOff(!settings.rest_off)} style={{ flex: 1 }}>

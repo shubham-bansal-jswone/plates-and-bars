@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, showAddedSugar, undoFlex, type FoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
@@ -149,14 +149,14 @@ function MealSection({ meal, items, facts, onRemove, onAdd }: { meal: Meal; item
         <Text style={{ color: c.muted }}>{items.length ? `${fmt(kcal)} kcal` : ''}</Text>
       </View>
       {items.map((m) => (
-        <View key={m.id} style={[styles.item, { borderColor: c.line, backgroundColor: c.surface }]}>
+        <Card key={m.id} style={styles.item}>
           <View style={styles.fill}>
             <Text style={{ color: c.ink, fontWeight: '600' }}>{m.name}{m.qty !== 1 ? ` ×${r1(m.qty)}` : ''}</Text>
             <Text style={{ color: c.muted, fontSize: 14 }}>{`${fmt(m.protein_g * m.qty)} g protein, ${fmt(m.carbs_g * m.qty)} g carbs, ${fmt(m.fat_g * m.qty)} g fat`}</Text>
           </View>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(m.kcal * m.qty)}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${m.name}`} onPress={() => onRemove(m.id)} style={styles.x}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></Pressable>
-        </View>
+        </Card>
       ))}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
     </View>
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   b: { fontWeight: '700' },
   track: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: radius.md, padding: 12 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 8, },
   x: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, marginTop: 12 },
   box: { width: 24, height: 24, borderWidth: 2, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },

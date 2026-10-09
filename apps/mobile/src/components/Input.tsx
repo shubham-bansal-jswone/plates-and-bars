@@ -23,7 +23,7 @@ export function Input({ style, onFocus, onBlur, ...rest }: TextInputProps) {
       }}
       style={[
         styles.input,
-        { color: c.ink, backgroundColor: c.surface, borderColor: focused ? c.focus : c.outline, fontFamily: family('400') },
+        { color: c.ink, backgroundColor: c.field, borderColor: focused ? c.focus : c.outline, fontFamily: family('400') },
         // A 2px ring replaces the 1px border; take the extra pixel from the padding so nothing moves.
         focused ? styles.focused : null,
         style,

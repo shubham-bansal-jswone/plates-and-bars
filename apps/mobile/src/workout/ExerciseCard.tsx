@@ -3,12 +3,12 @@ import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
 import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { Button, Hint } from '../components/ui';
+import { Button, Card, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
 import { MUSCLE, RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin } from './copy';
 import type { ExState, Row } from './model';
-import { Card, Chip } from './parts';
+import { Chip } from './parts';
 
 const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
 
