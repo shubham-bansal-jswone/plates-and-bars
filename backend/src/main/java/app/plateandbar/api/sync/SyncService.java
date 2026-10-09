@@ -198,6 +198,11 @@ public class SyncService {
     }
 
     private ObjectNode record(Stored s) {
+        return toRecord(json, s);
+    }
+
+    /** The contract's record shape: meta fields plus the stored data. */
+    static ObjectNode toRecord(ObjectMapper json, Stored s) {
         ObjectNode r = json.createObjectNode();
         r.put("id", s.id());
         r.put("version", s.version());

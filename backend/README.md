@@ -38,7 +38,19 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     (`app.rate-limit.address-max-tracked-keys`) so an IP-keyed flood cannot evict them. Within a cache, eviction under
     pressure can forgive an evicted key; the email guessing cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
 - Sync (#28, ADR 001): `POST /api/v1/sync`, the whole offline-first round trip in one transaction. See "Sync" below.
-- Not yet: `GET /me/export`, `DELETE /me`, foods, content and the AI proxy.
+- Account rights (#192), package `account`:
+  - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
+    the 16 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
+    One read-only transaction. `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
+    Limited to 5 per hour per user and 20 per hour per IP (`app.rate-limit.export-per-user`, `export-per-ip`);
+    429 `rate_limited` with `Retry-After`. Credentials (tokens, codes) are not included. Not compressed by the app.
+  - `DELETE /me`: one transaction removes the user's email-keyed rows (`email_sign_in_codes`, `email_verify_failures`
+    for the account's addresses) and the `users` row; every user-owned table cascades from it (`ON DELETE CASCADE`),
+    so a table added later with that foreign key is covered. 204, and 204 again on a repeat. Logs user id and time only.
+  - `JwtAuthFilter` does an uncached primary-key lookup on `users` for every authenticated request, so an access
+    token issued before the deletion gets 401 `unauthorized` everywhere except `DELETE /me`. Ids are never reused,
+    so no denylist is needed. Cost: one indexed query per request.
+- Not yet: foods, content and the AI proxy.
 
 ## Sync
 

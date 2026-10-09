@@ -33,13 +33,14 @@ public class SecurityConfig {
             JwtService jwtService,
             RateLimiter limiter,
             ClientIpResolver clientIps,
-            RateLimitProperties limits)
+            RateLimitProperties limits,
+            UserExistenceCheck users)
             throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, ex) -> writeUnauthorized(mapper, response);
         AccessDeniedHandler denied = (request, response, ex) -> writeUnauthorized(mapper, response);
         RateLimitFilter rateLimitFilter = new RateLimitFilter(limiter, clientIps, limits, mapper);
         // A rejected bearer token is answered before the rate-limit filter runs, so it is counted here.
-        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtService, mapper, rateLimitFilter::limitByIp);
+        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtService, mapper, rateLimitFilter::limitByIp, users);
         http.csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)

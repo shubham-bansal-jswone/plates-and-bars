@@ -136,6 +136,46 @@ class SyncRepository {
                 utc(loggedAt));
     }
 
+    /** A logged conflict; {@code losing} carries the losing copy's version, updated_at, deleted_at and data. */
+    record Conflict(String table, String recordId, String loser, int winnerVersion, Instant loggedAt, Stored losing) {}
+
+    /** Every row of the table for the user, tombstones included, oldest change first. */
+    List<Stored> all(SyncTable table, String userId) {
+        return jdbc.query(
+                "SELECT id, version, updated_at, deleted_at, seq, data FROM " + table.sqlName()
+                        + " WHERE user_id = ? ORDER BY seq, id",
+                (rs, n) -> map(rs),
+                userId);
+    }
+
+    List<Conflict> conflicts(String userId) {
+        return jdbc.query(
+                "SELECT table_name, record_id, loser, version, winner_version, updated_at, deleted_at, record, logged_at"
+                        + " FROM sync_conflicts WHERE user_id = ? ORDER BY id",
+                (rs, n) -> {
+                    try {
+                        LocalDateTime deleted = rs.getObject("deleted_at", LocalDateTime.class);
+                        Stored losing = new Stored(
+                                rs.getString("record_id"),
+                                rs.getInt("version"),
+                                rs.getObject("updated_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),
+                                deleted == null ? null : deleted.toInstant(ZoneOffset.UTC),
+                                0,
+                                json.readTree(rs.getString("record")));
+                        return new Conflict(
+                                rs.getString("table_name"),
+                                rs.getString("record_id"),
+                                rs.getString("loser"),
+                                rs.getInt("winner_version"),
+                                rs.getObject("logged_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),
+                                losing);
+                    } catch (JsonProcessingException e) {
+                        throw new IllegalStateException("stored record is not valid JSON", e);
+                    }
+                },
+                userId);
+    }
+
     private Stored map(ResultSet rs) throws SQLException {
         try {
             return new Stored(
