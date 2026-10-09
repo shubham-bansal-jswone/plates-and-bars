@@ -20,6 +20,8 @@ interface SettingsState {
   setDiet(diet: Settings['diet']): void;
   /** Saves the weekly meal plan. */
   setMealPlan(plan: MealPlan): void;
+  /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
+  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): void;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -61,9 +63,9 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings>) => {
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)) => {
       if (blocked.current) return;
-      const next = { ...ref.current, ...patch, updated_at: stamp(new Date()) };
+      const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
       ref.current = next;
       setState(next);
       queue.current = queue.current
@@ -82,7 +84,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
 
   const setMealPlan = useCallback((meal_plan: MealPlan) => change({ meal_plan }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan]);
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, update: change }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, change]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

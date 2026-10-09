@@ -45,6 +45,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - #239: the weekly meal plan (`buildPlan`) applies the 60+ rule as the next-meal ideas (`nextMealInfo`) do. At age 60 and over, breakfast, lunch and dinner aim for `max(25, protein × PROT_W[meal])` g protein when the day's protein target is 25 g or more; snacks keep their share. A 65-year-old on 80 g now gets plan ideas aimed at 25 g for each main meal, where the shares are 20, 24 and 24 g.
 - #240: "Copy as text" on the grocery list (`grocerySheet`, `S.ui.grocText`) lists the items in the same sorted order as the list on screen, not in the order they first appear in the plan.
 
+**2026-10-09 — prototype fix, batch 9 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
+- #262: the stall card's "Or switch to …" swap (`sidewaysOf`) offers only exercises the equipment where the user trains today can do (`whereNow()`: the day's override, else the profile's), with the same rule as `candidates`: at the gym anything; with dumbbells, dumbbell and bodyweight exercises; bodyweight, bodyweight only. Both steps are filtered: another exercise on the same ladder step, else the first catalogue exercise of the same family and difficulty; excluded exercises are still skipped. A swap that resolves back to the same exercise is no longer offered: with dumbbells, Lateral Raise, Crunch and Dumbbell Fly get no button (they offered Cable Lateral Raise, Cable Crunch and Cable Crossover), Rear Delt Fly offers Prone Y-T-W Raise instead of Face Pull, and Goblet Squat offers Bodyweight Squat instead of Leg Press.
+
 These change the scope table in the Development Plan. Treat them as v1 unless marked otherwise.
 
 | Change | Area | Agents affected |
