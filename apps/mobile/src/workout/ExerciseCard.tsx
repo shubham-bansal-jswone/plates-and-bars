@@ -1,9 +1,9 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
 import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { Button, Card, Hint } from '../components/ui';
+import { Button, Card, Hint, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { catalog } from './catalog';
 import { MUSCLE, RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin } from './copy';
@@ -59,7 +59,7 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
       <Text style={{ color: c.muted, width: 28, fontWeight: '700' }}>{n}</Text>
       <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" value={row.w} placeholder={ph.w} onChangeText={(v) => onEdit('w', v)} style={styles.input} />
       <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" value={row.r} placeholder={ph.r} onChangeText={(v) => onEdit('r', v)} style={styles.input} />
-      <Pressable
+      <Press
         accessibilityRole="checkbox"
         accessibilityLabel={`Mark ${label} done`}
         accessibilityState={{ checked: row.done }}
@@ -68,7 +68,7 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
         style={[styles.tick, { borderColor: c.brand, backgroundColor: row.done ? c.brand : c.surface }]}
       >
         <Text style={{ color: row.done ? c.onBrand : c.link, fontWeight: '700', fontSize: 18 }}>✓</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 }

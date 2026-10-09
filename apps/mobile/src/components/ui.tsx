@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type SwitchProps, type TextInputProps, type ViewProps } from 'react-native';
-import { pressedShadow, radius, space, type } from '../theme/tokens';
+import { useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type ViewProps } from 'react-native';
+import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Input } from './Input';
 import { Text } from './Text';
@@ -48,12 +48,50 @@ export function ErrorText({ children }: { children: string }) {
   );
 }
 
+/** The surface a control sits on decides its ring colour (DESIGN.md 8.1): the theme's focus colour on canvas, surface and tint; `link-dark` on a dark surface; white on a brand fill. */
+export type RingSurface = 'canvas' | 'dark' | 'brand';
+
+/** Focus ring for keyboard and switch-access focus: 2px, 2px offset. On web, mouse clicks do not show it (`:focus-visible`). */
+export function useFocusRing(surface: RingSurface = 'canvas') {
+  const c = useTheme();
+  const [focused, setFocused] = useState(false);
+  const color = surface === 'brand' ? c.onBrand : surface === 'dark' ? dark.focus : c.focus;
+  return {
+    ring: focused ? ({ outlineWidth: 2, outlineOffset: 2, outlineStyle: 'solid', outlineColor: color } as const) : null,
+    onFocus: (e: { target: unknown }) => {
+      const t = e.target as { matches?: (selector: string) => boolean };
+      setFocused(typeof t.matches === 'function' ? t.matches(':focus-visible') : true);
+    },
+    onBlur: () => setFocused(false),
+  };
+}
+
+/** Pressable with the focus ring. Every tappable control uses this, so none can miss the ring. */
+export function Press({ surface, style, onFocus, onBlur, ...rest }: PressableProps & { surface?: RingSurface }) {
+  const f = useFocusRing(surface);
+  return (
+    <Pressable
+      {...rest}
+      onFocus={(e) => {
+        f.onFocus(e);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        f.onBlur();
+        onBlur?.(e);
+      }}
+      style={(state) => [typeof style === 'function' ? style(state) : style, f.ring]}
+    />
+  );
+}
+
 export function Button({
   label,
   onPress,
   kind = 'primary',
   a11yLabel,
   expanded,
+  surface,
 }: {
   label: string;
   onPress: () => void;
@@ -62,6 +100,8 @@ export function Button({
   a11yLabel?: string;
   /** For a button that shows or hides something: announces open or closed. */
   expanded?: boolean;
+  /** Surface the button sits on, when not the plain page: picks the focus ring colour. */
+  surface?: RingSurface;
 }) {
   const c = useTheme();
   const palette = {
@@ -70,7 +110,8 @@ export function Button({
     link: { bg: 'transparent', pressed: 'transparent', fg: c.link, border: 'transparent' },
   }[kind];
   return (
-    <Pressable
+    <Press
+      surface={surface}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel ?? label}
       accessibilityState={expanded === undefined ? undefined : { expanded }}
@@ -82,7 +123,7 @@ export function Button({
       ]}
     >
       <Text style={[kind === 'link' ? type.bodyStrong : type.button, { color: palette.fg }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -102,7 +143,7 @@ export function Choice({
 }) {
   const c = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="radio"
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       accessibilityState={{ selected, checked: selected }}
@@ -117,7 +158,7 @@ export function Choice({
     >
       <Text style={[chip ? type.buttonSm : type.bodyStrong, { color: chip && selected ? c.onBrand : c.ink }]}>{label}</Text>
       {sub ? <Text style={[type.caption, { color: c.body }]}>{sub}</Text> : null}
-    </Pressable>
+    </Press>
   );
 }
 
@@ -145,7 +186,12 @@ const webThumb = (activeThumbColor: string): object => ({ activeThumbColor });
 /** Switch with the off-state track kept visible (#153) and a white thumb on web too. */
 export function Switch(props: SwitchProps) {
   const c = useTheme();
-  return <RNSwitch trackColor={{ true: c.brand, false: c.muted }} thumbColor={c.onBrand} {...webThumb(c.onBrand)} {...props} />;
+  const f = useFocusRing();
+  return (
+    <View onFocus={f.onFocus} onBlur={f.onBlur} style={[styles.switchRing, f.ring]}>
+      <RNSwitch trackColor={{ true: c.brand, false: c.muted }} thumbColor={c.onBrand} {...webThumb(c.onBrand)} {...props} />
+    </View>
+  );
 }
 
 export const layout = StyleSheet.create({
@@ -166,5 +212,6 @@ const styles = StyleSheet.create({
   group: { gap: space.sm },
   opt: { borderRadius: radius.md, padding: 14, gap: 2, minHeight: 48 },
   chip: { borderRadius: radius.full, paddingHorizontal: space.md, minHeight: 32, justifyContent: 'center' },
+  switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
 });

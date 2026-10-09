@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, ErrorText, Field, Hint, Label, Switch } from '../components/ui';
+import { Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { catalogFoods, cuisines, type CatalogFood } from './catalog';
@@ -37,10 +37,10 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
           <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Text>
           <View accessibilityRole="tablist" style={styles.row}>
             {MODES.map(([k, l]) => (
-              <Pressable key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} accessibilityState={{ selected: mode === k }} onPress={() => { setMode(k); setStatus(null); }}
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} accessibilityState={{ selected: mode === k }} onPress={() => { setMode(k); setStatus(null); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
-              </Pressable>
+              </Press>
             ))}
           </View>
           {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} /> : null}
@@ -60,13 +60,13 @@ function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress:
   const high = badge && highProtein(food);
   const c = useTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Add ${food.name}, ${sub}, ${fmt(food.per_serving.kcal)} kcal${high ? ', high protein' : ''}`} onPress={onPress} style={[styles.food, { backgroundColor: c.surface }]}>
+    <Press accessibilityRole="button" accessibilityLabel={`Add ${food.name}, ${sub}, ${fmt(food.per_serving.kcal)} kcal${high ? ', high protein' : ''}`} onPress={onPress} style={[styles.food, { backgroundColor: c.surface }]}>
       <View style={styles.fill}>
         <Text style={{ color: c.ink, fontWeight: '600', fontSize: 16 }}>{food.name}</Text>
         <Text style={{ color: c.muted, fontSize: 14 }}>{sub}{high ? ' · high protein' : ''}</Text>
       </View>
       <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(food.per_serving.kcal)}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -90,9 +90,9 @@ function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; m
     <View style={styles.gap}>
       <View style={styles.row}>
         <Label>Servings</Label>
-        <Pressable accessibilityRole="button" accessibilityLabel="Fewer servings" onPress={() => setServ(stepServings(serv, -1))} disabled={serv <= SERVINGS_MIN} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>−</Text></Pressable>
+        <Press accessibilityRole="button" accessibilityLabel="Fewer servings" onPress={() => setServ(stepServings(serv, -1))} disabled={serv <= SERVINGS_MIN} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>−</Text></Press>
         <Text accessibilityLabel={`${serv.toFixed(1)} servings`} style={{ color: c.ink, fontWeight: '700', fontSize: 18 }}>{serv.toFixed(1)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="More servings" onPress={() => setServ(stepServings(serv, 1))} disabled={serv >= SERVINGS_MAX} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>+</Text></Pressable>
+        <Press accessibilityRole="button" accessibilityLabel="More servings" onPress={() => setServ(stepServings(serv, 1))} disabled={serv >= SERVINGS_MAX} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>+</Text></Press>
         <Field label="Amount in grams" placeholder="or grams" keyboardType="numeric" value={grams} onChangeText={setGrams} />
       </View>
       <Hint>{GRAMS_HINT}</Hint>
@@ -111,10 +111,10 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
     <View style={styles.gap}>
       <View style={styles.row}>
         {cuisines.map((x) => (
-          <Pressable key={x.name} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={x.name} accessibilityState={{ selected: x.name === name }} onPress={() => setName(x.name)}
+          <Press key={x.name} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={x.name} accessibilityState={{ selected: x.name === name }} onPress={() => setName(x.name)}
             style={[styles.tab, { borderColor: x.name === name ? c.brand : c.line, backgroundColor: x.name === name ? c.tint : c.surface }]}>
             <Text style={{ color: c.ink, fontWeight: '600' }}>{x.name}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       <Label>Smart picks</Label>
