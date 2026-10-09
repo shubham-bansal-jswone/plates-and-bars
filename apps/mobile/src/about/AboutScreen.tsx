@@ -1,17 +1,22 @@
-import { View } from 'react-native';
+import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Button, Card, H1, Hint, Label, Page } from '../components/ui';
+import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { ABOUT_COPY as t, FONT_SOURCES, FOOD_SOURCES, type SourceInfo } from './sources';
+import { ABOUT_COPY as t, FONT_SOURCES, FOOD_SOURCES, sourceKey, type SourceInfo } from './sources';
 
 function Source({ s }: { s: SourceInfo }) {
   const c = useTheme();
   return (
-    <Card accessible accessibilityLabel={`${s.name}. ${t.licence(s.licence)}`}>
+    <Card>
       <Text style={[type.bodyStrong, { color: c.ink }]}>{s.name}</Text>
       <Text style={[type.caption, { color: c.body }]}>{t.licence(s.licence)}</Text>
-      {s.url ? <Text style={[type.caption, { color: c.link }]}>{s.url}</Text> : null}
+      {s.url ? (
+        <Press accessibilityRole="link" accessibilityLabel={`Open ${s.url}`} onPress={() => void Linking.openURL(s.url!)} style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Text style={[type.caption, { color: c.link }]}>{s.url}</Text>
+        </Press>
+      ) : null}
+      {s.reference ? <Text style={[type.caption, { color: c.body }]}>{`Reference: ${s.reference}`}</Text> : null}
     </Card>
   );
 }
@@ -24,7 +29,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
       <Label>{t.food}</Label>
-      <View style={{ gap: 8 }}>{FOOD_SOURCES.map((s) => <Source key={s.code} s={s} />)}</View>
+      <View style={{ gap: 8 }}>{FOOD_SOURCES.map((s) => <Source key={sourceKey(s)} s={s} />)}</View>
       <Label>{t.exercises}</Label>
       <Hint>{t.exercisesText}</Hint>
       <Label>{t.fonts}</Label>

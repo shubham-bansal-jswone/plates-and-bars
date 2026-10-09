@@ -7,17 +7,24 @@ export interface SourceInfo {
   name: string;
   licence: string;
   url: string | null;
+  reference?: string | null;
 }
 
-interface Src { code: string; name: string; licence: string; url: string | null }
+interface Src { code: string; name: string; licence: string; url: string | null; reference?: string | null }
 const fromContent: Src[] = [
   ...(foods as unknown as { foods: { source: Src }[] }).foods.map((f) => f.source),
   ...(eatout as unknown as { cuisines: { dishes: { source: Src }[] }[] }).cuisines.flatMap((c) => c.dishes.map((d) => d.source)),
   ...(raw as unknown as { ingredients: { source: Src }[] }).ingredients.map((i) => i.source),
 ];
 
-/** Food data sources, names and licences exactly as recorded on the content rows (ADR 002 and 005), one entry per source code. */
-export const FOOD_SOURCES: readonly SourceInfo[] = [...new Map(fromContent.map((s) => [s.code, { code: s.code, name: s.name, licence: s.licence, url: s.url }])).values()];
+/** One entry per distinct source (code and name), since one code can be recorded under more than one name. */
+// A few raw-ingredient rows add "; values match USDA <item>" to the source name; that is a per-row note, not another source.
+const baseName = (name: string): string => name.split('; values match')[0]!;
+export const sourceKey = (s: { code: string; name: string }): string => `${s.code}|${baseName(s.name)}`;
+
+/** Food data sources, names and licences exactly as recorded on the content rows (ADR 002 and 005). */
+export const FOOD_SOURCES: readonly SourceInfo[] = [...new Map(fromContent.map((s) => [sourceKey(s), { code: s.code, name: baseName(s.name), licence: s.licence, url: s.url, reference: s.reference }])).values()];
+
 
 /** Fonts bundled with the app (docs/design/DESIGN.md section 4.1). */
 export const FONT_SOURCES: readonly SourceInfo[] = [

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { BackHandler, FlatList, View } from 'react-native';
 import { Text } from '../components/Text';
 import { Button, Choice, Field, H1, Hint, Label, layout, Press } from '../components/ui';
 import { space, type } from '../theme/tokens';
@@ -12,8 +12,9 @@ function Chips<T extends string>({ title, values, label, value, onChange }: { ti
     <View style={{ gap: 6 }}>
       <Label>{title}</Label>
       <View accessibilityRole="radiogroup" accessibilityLabel={`${title} filter`} style={layout.row}>
+        <Choice chip label="All" selected={value === null} onPress={() => onChange(null)} />
         {values.map((v) => (
-          <Choice key={v} chip label={label(v)} selected={value === v} onPress={() => onChange(value === v ? null : v)} />
+          <Choice key={v} chip label={label(v)} selected={value === v} onPress={() => onChange(v)} />
         ))}
       </View>
     </View>
@@ -38,6 +39,15 @@ export function ExerciseLibraryScreen({ onBack, list = LIBRARY }: { onBack: () =
   const [open, setOpen] = useState<string | null>(null);
   const shown = useMemo(() => filterLibrary(list, f), [list, f]);
   const picked = open ? list.find((e) => e.name === open) : undefined;
+  // Android hardware back closes the detail and returns to the list.
+  useEffect(() => {
+    if (!picked) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setOpen(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [picked]);
   if (picked) return <ExerciseDetail exercise={picked} onBack={() => setOpen(null)} />;
   return (
     <FlatList

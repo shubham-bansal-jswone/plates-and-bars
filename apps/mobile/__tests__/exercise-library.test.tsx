@@ -1,5 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { ExerciseLibraryScreen } from '../src/library/ExerciseLibraryScreen';
+import labels from '../../../content/labels.json';
+import { BackHandler } from 'react-native';
 import { EQUIPMENT, filterLibrary, LIBRARY, MUSCLES, NO_FILTER, TYPES } from '../src/library/exercises';
 
 describe('library filtering', () => {
@@ -31,7 +33,7 @@ describe('library filtering', () => {
     for (const e of LIBRARY) {
       expect(EQUIPMENT).toContain(e.equipment);
       expect(TYPES).toContain(e.type);
-      for (const m of [...e.primary, ...e.secondary]) expect(MUSCLES).toContain(m);
+      for (const m of [...e.primary, ...e.secondary]) expect(Object.keys(labels.muscles)).toContain(m);
     }
   });
 });
@@ -63,6 +65,36 @@ describe('exercise library screen', () => {
     expect(screen.getByText('Where you should feel it')).toBeTruthy();
     expect(screen.getByText('Key cues')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Back to library'));
+    expect(screen.getByLabelText('Search exercises')).toBeTruthy();
+  });
+
+  it('radios cannot be unticked; All resets the group', async () => {
+    await render(<ExerciseLibraryScreen onBack={() => {}} />);
+    const n = filterLibrary(LIBRARY, { ...NO_FILTER, equipment: 'cable' }).length;
+    await fireEvent.press(screen.getAllByLabelText('Cable')[0]!);
+    await fireEvent.press(screen.getAllByLabelText('Cable')[0]!);
+    expect(screen.getByText(`${n} of 71 exercises`)).toBeTruthy();
+    await fireEvent.press(screen.getAllByLabelText('All')[0]!);
+    expect(screen.getByText('71 of 71 exercises')).toBeTruthy();
+  });
+
+  it('has no chip that can never match', () => {
+    for (const eq of EQUIPMENT) expect(filterLibrary(LIBRARY, { ...NO_FILTER, equipment: eq }).length).toBeGreaterThan(0);
+    for (const m of MUSCLES) expect(filterLibrary(LIBRARY, { ...NO_FILTER, muscle: m }).length).toBeGreaterThan(0);
+    for (const t of TYPES) expect(filterLibrary(LIBRARY, { ...NO_FILTER, type: t }).length).toBeGreaterThan(0);
+    expect(EQUIPMENT).not.toContain('other');
+  });
+
+  it('hardware back from a detail returns to the list', async () => {
+    let handler: () => boolean = () => false;
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, h) => {
+      handler = h as () => boolean;
+      return { remove: () => undefined };
+    });
+    await render(<ExerciseLibraryScreen onBack={() => {}} />);
+    await fireEvent.press(screen.getByLabelText(/^Barbell Bench Press\./));
+    expect(screen.getByLabelText('Back to library')).toBeTruthy();
+    await act(async () => { handler(); });
     expect(screen.getByLabelText('Search exercises')).toBeTruthy();
   });
 

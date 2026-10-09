@@ -1,58 +1,46 @@
-import content from '../../../../content/exercises.json';
+import type { ExType } from '@plate-and-bar/core';
 import labels from '../../../../content/labels.json';
+import { catalog, type ExerciseCard } from '../workout/catalog';
+import { MUSCLE, TYPE_LABEL } from '../workout/copy';
 
 type Labels = Record<string, string>;
-const L = labels as unknown as { muscles: Labels; joints: Labels; families: Labels; patterns: Labels };
-
-/** Contract `ExerciseTags.equipment` values that appear in the content, in the contract's order. */
-export const EQUIPMENT = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'other'] as const;
-export type Equipment = (typeof EQUIPMENT)[number];
-
-/** Contract `Muscle` values, in the contract's order. */
-export const MUSCLES = ['chest', 'front-delt', 'side-delt', 'rear-delt', 'triceps', 'lats', 'upper-back', 'biceps', 'forearms', 'quads', 'hams', 'glutes', 'calves', 'abs', 'lower-back'] as const;
-export type Muscle = (typeof MUSCLES)[number];
-
-/** Exercise types (content `meta.type`; the contract's `exercise_overrides` type values). */
-export const TYPES = ['barbell', 'dumbbell', 'machine', 'cable', 'assisted', 'bodyweight', 'time', 'other'] as const;
-export type ExType = (typeof TYPES)[number];
-
-const TYPE_LABEL: Record<ExType, string> = { barbell: 'Barbell', dumbbell: 'Dumbbell', machine: 'Machine', cable: 'Cable', assisted: 'Assisted', bodyweight: 'Bodyweight', time: 'Timed', other: 'Other' };
+const L = labels as unknown as { joints: Labels; families: Labels; patterns: Labels };
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+export type Equipment = string;
+export type Muscle = string;
+export type { ExType };
 
 export const equipmentLabel = (e: string): string => cap(e);
 export const typeLabel = (t: ExType): string => TYPE_LABEL[t];
-export const muscleLabel = (m: string): string => cap(L.muscles[m] ?? m);
+export const muscleLabel = (m: string): string => cap(MUSCLE[m] ?? m);
 export const jointLabel = (j: string): string => L.joints[j] ?? j;
-
-interface RawTags { pattern: string; family: string; equipment: Equipment; difficulty: number; primary: Muscle[]; secondary: Muscle[]; joints: string[] }
-interface RawCard { where_to_feel: string; setup: string[]; key_cues: string[]; common_mistakes: string[]; breathing?: string; easier_version?: string; harder_version?: string }
-const raw = content as unknown as { tags: Record<string, RawTags>; meta: Record<string, { type: ExType; rep_low: number; rep_high: number }>; cards: Record<string, RawCard> };
 
 export interface LibraryExercise {
   name: string;
   equipment: Equipment;
   type: ExType;
   difficulty: number;
-  primary: Muscle[];
-  secondary: Muscle[];
-  joints: string[];
+  primary: readonly Muscle[];
+  secondary: readonly Muscle[];
+  joints: readonly string[];
   movement: string;
   family: string;
   repLow: number;
   repHigh: number;
-  card: RawCard | null;
+  card: ExerciseCard | null;
 }
 
 /** Every exercise in the content, A to Z. Built once. */
-export const LIBRARY: readonly LibraryExercise[] = Object.keys(raw.tags)
+export const LIBRARY: readonly LibraryExercise[] = Object.keys(catalog.tags)
   .sort((a, b) => a.localeCompare(b))
   .map((name) => {
-    const t = raw.tags[name]!;
-    const m = raw.meta[name];
+    const t = catalog.tags[name]!;
+    const m = catalog.meta[name];
     return {
       name,
       equipment: t.equipment,
-      type: m?.type ?? 'other',
+      type: (m?.type as ExType | undefined) ?? 'other',
       difficulty: t.difficulty,
       primary: t.primary,
       secondary: t.secondary,
@@ -61,9 +49,15 @@ export const LIBRARY: readonly LibraryExercise[] = Object.keys(raw.tags)
       family: L.families[t.family] ?? t.family,
       repLow: m?.rep_low ?? 0,
       repHigh: m?.rep_high ?? 0,
-      card: raw.cards[name] ?? null,
+      card: catalog.cards[name] ?? null,
     };
   });
+
+/** Chip lists come from the data, in a fixed display order, so a chip never matches nothing. */
+const used = <T extends string>(order: readonly T[], seen: Set<string>): T[] => order.filter((v) => seen.has(v));
+export const EQUIPMENT: readonly string[] = used(['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'other'], new Set(LIBRARY.map((e) => e.equipment)));
+export const MUSCLES: readonly string[] = used(Object.keys(MUSCLE), new Set(LIBRARY.flatMap((e) => e.primary)));
+export const TYPES: readonly ExType[] = used(Object.keys(TYPE_LABEL) as ExType[], new Set(LIBRARY.map((e) => e.type)));
 
 export interface LibraryFilter {
   query: string;
