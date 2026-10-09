@@ -97,6 +97,12 @@ as 0 g counts (a tared scale, #214); a blank empty pot does not. Tests
 check content against golden `raw100g` and `rawFibre100g` and the prototype's `FATTY`, `KATORI_G` and
 `PRESETS`, then run the port on content against the prototype.
 
+## Browser support
+
+Core runs in the web bundle too, and a regex the browser cannot parse stops the whole bundle loading. Do
+not use regex lookbehind (`(?<=`, `(?<!`) or other regex features that Safari/iOS before 16.4 lacks; Babel
+cannot transpile them. A test in `test/food.test.ts` fails if `src/` or the prototype contains `(?<` (#213).
+
 ## Running
 
 Node 20 or later.

@@ -3766,7 +3766,7 @@ const ALIAS = { 'Roti / chapati':'phulka fulka rotli chapathi', 'Rice, cooked':'
   'Sabudana khichdi':'sago', 'Makhana, roasted':'fox nut phool makhana lotus seed', 'Kuttu atta roti':'buckwheat', 'Sweet potato, boiled':'shakarkandi', 'Peanuts, roasted':'moongphali mungfali groundnut',
   'Buttermilk (chaas)':'chhaas mattha', 'Fruit bowl':'fruit chaat', 'Poha':'aval chivda flattened rice' };
 const foodMatch = (f, q) => !q || f[0].toLowerCase().includes(q) || (ALIAS[f[0]] || '').includes(q);
-const unitGrams = f => { const m = String(f[1]).match(/((?<!\d)[1-9]\d{0,2}(?:,\d{3})+|(?<!\d)[1-9]\d?(?:,\d{2})+,\d{3}|\d+)\s*g\b/); return m ? +m[1].replace(/,/g, '') : 0; };
+const unitGrams = f => { const m = String(f[1]).match(/(?:^|\D)([1-9]\d{0,2}(?:,\d{3})+|[1-9]\d?(?:,\d{2})+,\d{3})\s*g\b|(\d+)\s*g\b/); return m ? +(m[1] ?? m[2]).replace(/,/g, '') : 0; };
 
 /* ---------- 7. tags for your own exercises ---------- */
 const TAGQ = { name:'', busy:false, tags:null };

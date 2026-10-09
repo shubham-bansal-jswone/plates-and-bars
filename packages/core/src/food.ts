@@ -102,8 +102,8 @@ export function searchFoods<T extends SearchableFood>(query: string, foods: read
  * Mirrors prototype `unitGrams(f)` (label passed in).
  */
 export function unitGrams(label: string): number {
-  const m = String(label).match(/((?<!\d)[1-9]\d{0,2}(?:,\d{3})+|(?<!\d)[1-9]\d?(?:,\d{2})+,\d{3}|\d+)\s*g\b/);
-  return m ? +(m[1] as string).replace(/,/g, '') : 0;
+  const m = String(label).match(/(?:^|\D)([1-9]\d{0,2}(?:,\d{3})+|[1-9]\d?(?:,\d{2})+,\d{3})\s*g\b|(\d+)\s*g\b/);
+  return m ? +((m[1] ?? m[2]) as string).replace(/,/g, '') : 0;
 }
 
 /**

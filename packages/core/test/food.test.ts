@@ -38,7 +38,9 @@ import {
   type GramsFood,
   type SearchableFood,
 } from '../src/index';
-import { loadGolden } from './helpers';
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { loadGolden, prototypeSource, REPO_ROOT } from './helpers';
 import { loadFood, type ProtoMeal, type ProtoMyFood } from './prototype-food';
 import { rng } from './prototype-plan';
 
@@ -238,6 +240,14 @@ describe('unitGrams and quantityFromGrams', () => {
     expect(unitGrams('2 x 1,250 ml')).toBe(0);
     for (const l of ['1 plate (1,250 g)', '1,00,000 g', '1,234,567 g', '1,5 g', '0,500 g', '1234,567 g', '1.5 g scoop']) {
       expect([l, unitGrams(l)]).toEqual([l, proto.unitGrams(['', l])]);
+    }
+  });
+  it('#213 review: no regex lookbehind in core or the prototype (a SyntaxError on Safari before 16.4)', () => {
+    const dir = resolve(REPO_ROOT, 'packages/core/src');
+    const sources = readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => [f, readFileSync(resolve(dir, f), 'utf8')] as const);
+    expect(sources.length).toBeGreaterThan(10);
+    for (const [name, text] of [...sources, ['plate-and-bar.html', prototypeSource()] as const]) {
+      expect([name, text.includes('(?<')]).toEqual([name, false]);
     }
   });
   it('#213: grams logging for a kitchen-test food of 1,250 g matches the prototype', () => {
