@@ -1,7 +1,7 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
 import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
-import { refreshSession } from '../sync/engine';
+import { refreshSession, syncIdle } from '../sync/engine';
 import { withSyncPaused } from '../sync/guard';
 import { getUserId } from '../sync/store';
 import { REQUEST_TIMEOUT_MS, withTimeout } from '../sync/timeout';
@@ -51,8 +51,12 @@ async function run<T>(d: AiDeps, call: (signal: AbortSignal) => Promise<Reply<T>
     } catch (e) {
       return { kind: e instanceof SyntaxError ? 'unavailable' : 'offline' };
     }
-    if ((await getUserId(d.db)) !== owner) return { kind: 'signed_out' };
+    // Signed out (tokens cleared) or another user signed in while the request was out: the answer is not shown.
+    if ((await getUserId(d.db)) !== owner || !(await d.tokens.load())) return { kind: 'signed_out' };
     if (reply.response.status === 401 && attempt === 0 && opts.refresh !== false) {
+      // A sync run that got the same 401 refreshes on its own: let it finish and save its rotated pair first (#287), then
+      // the check below sees the changed tokens and this call just retries.
+      await syncIdle();
       const out = await withSyncPaused(async () => {
         const now = await d.tokens.load();
         if (!now) return 'ended' as const;

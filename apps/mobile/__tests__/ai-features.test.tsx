@@ -413,3 +413,30 @@ describe('account lock', () => {
     await waitFor(() => expect(out).toHaveBeenCalledWith({ kind: 'signed_out' }));
   });
 });
+
+describe('cold start with an expired token', () => {
+  it('reads the status again after a sync run succeeds, so the feature appears without a foreground', async () => {
+    const GET = jest
+      .fn()
+      .mockResolvedValueOnce({ error: { code: 'token_expired', message: 'x' }, response: res(401) })
+      .mockResolvedValue({ data: status({ describe_meal: true }), response: res(200) });
+    const { api } = fakeApi({ get: GET });
+    const t = await tokens();
+    const kv = optedIn();
+    const tree = (stamp: unknown) => (
+      <AiProvider db={kv as never} api={api} tokens={t} signedIn syncStamp={stamp} now={NOW}>
+        <AiSection />
+      </AiProvider>
+    );
+    const view = await render(tree(null));
+    await waitFor(() => expect(GET).toHaveBeenCalledTimes(1));
+    await screen.findByLabelText('Use AI features');
+    expect(screen.queryByText(/Available now/)).toBeNull();
+    await view.rerender(tree({ status: 'ok' }));
+    expect(await screen.findByText('Available now: Describe a meal.')).toBeTruthy();
+    expect(GET).toHaveBeenCalledTimes(2);
+    // Once known, later sync runs do not ask again.
+    await view.rerender(tree({ status: 'ok' }));
+    expect(GET).toHaveBeenCalledTimes(2);
+  });
+});

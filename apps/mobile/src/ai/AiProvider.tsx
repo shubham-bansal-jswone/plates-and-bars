@@ -47,6 +47,8 @@ interface Props {
   api: ApiClient | null;
   tokens: TokenStore;
   signedIn: boolean;
+  /** Changes after each successful sync run: a status read that failed at start (expired token) is tried again then. */
+  syncStamp?: unknown;
   /** Clock, injectable for tests. */
   now?: () => Date;
   children: ReactNode;
@@ -57,7 +59,7 @@ interface Props {
  * off nothing is sent at all, not even the status read. Nothing the user types or gets back is stored: the sheets hold it
  * in their own state. A failed status read keeps the last known answer, so a dropped connection does not hide a feature.
  */
-export function AiProvider({ db, api, tokens, signedIn, now = () => new Date(), children }: Props) {
+export function AiProvider({ db, api, tokens, signedIn, syncStamp, now = () => new Date(), children }: Props) {
   const [consent, setConsentState] = useState(false);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const consentRef = useRef(false);
@@ -91,6 +93,11 @@ export function AiProvider({ db, api, tokens, signedIn, now = () => new Date(), 
     const r = await getAiStatus({ db, api, tokens });
     if (r.kind === 'ok' && consentRef.current) keep(r.data);
   }, [api, db, tokens, keep]);
+
+  // The first status read can fail on an expired token; the sync run that refreshes it is the cue to ask again.
+  useEffect(() => {
+    if (consent && live && syncStamp && !statusRef.current) void refresh();
+  }, [syncStamp, consent, live, refresh]);
 
   useEffect(() => {
     if (!consent || !live) return;

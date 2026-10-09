@@ -243,7 +243,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   // AI features sit inside the sync provider: they reuse its client and tokens (kept inside) and its signed-in state.
   return (
     <SyncContext.Provider value={value}>
-      <AiProvider db={db} api={api} tokens={tokens} signedIn={signedIn}>
+      <AiProvider db={db} api={api} tokens={tokens} signedIn={signedIn} syncStamp={last?.status === 'ok' ? last : null}>
         {children}
       </AiProvider>
     </SyncContext.Provider>
