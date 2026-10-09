@@ -3,6 +3,8 @@ package app.plateandbar.api.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
@@ -14,8 +16,11 @@ import org.springframework.context.annotation.Import;
 @Import(AiITBase.Config.class)
 class AiStubIT extends AiITBase {
 
+    @Autowired ApplicationContext ctx;
+
     @Test
     void statusReportsEveryFeatureOffAndEveryEndpointIsFeatureDisabled() {
+        assertThat(ctx.getBeansOfType(AiProvider.class)).hasSize(1).containsOnlyKeys("stubAiProvider");
         String u = newUser();
         assertThat(get(u, "/api/v1/ai/status").getBody())
                 .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false");

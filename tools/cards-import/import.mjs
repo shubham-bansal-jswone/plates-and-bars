@@ -1,4 +1,4 @@
-// Extracts KB, LEARN, MEASURES, MUSCLE and JOINT (and the replacement-reason phrases) from the prototype.
+// Extracts KB, LEARN, MEASURES, MUSCLE, JOINT, FAMILY and PATTERN (and the replacement-reason phrases) from the prototype.
 // Pure and deterministic. Output: content/cards.json, content/measures.json, content/labels.json.
 import vm from 'node:vm';
 
@@ -41,6 +41,8 @@ function run(html, { profile = 'null', days = 3, bodies = true } = {}) {
   const measures = grab(html, /^const MEASURES = \[.*\];$/m, 'MEASURES');
   const muscle = grab(html, /^const MUSCLE = \{.*\};$/m, 'MUSCLE');
   const joint = grab(html, /^const JOINT = \{.*\};$/m, 'JOINT');
+  const pattern = grab(html, /^const PATTERN = \{.*\};$/m, 'PATTERN');
+  const family = grab(html, /^const FAMILY = \{.*\};$/m, 'FAMILY');
   // 1000 stands in for the weight so Math.round(w * 1.6) is recognisable as 1600.
   const stub = `const S = { settings: { kcal: '{kcal}', protein: '{protein_g}', profile: ${profile} } };
     const fmt = (x) => x, r1 = (x) => (x === 1000 ? '{weight}' : x), latestWeight = () => null;
@@ -48,8 +50,8 @@ function run(html, { profile = 'null', days = 3, bodies = true } = {}) {
     const splitFor = () => ({ list: { length: ${days} } });
     const Math = { round: (x) => (x === 1600 ? '{protein_floor}' : x) };`;
   const ctx = vm.createContext({});
-  vm.runInContext(`${stub}\n${kb}\n${learn}\n${measures}\n${muscle}\n${joint}
-    this.out = { KB: Object.fromEntries(Object.entries(KB).map(([k, v]) => [k, { t: v.t, s: v.s, ev: v.ev, src: v.src, body: ${bodies} ? v.b() : null }])), LEARN, MEASURES, MUSCLE, JOINT };`, ctx, { timeout: 1000 });
+  vm.runInContext(`${stub}\n${kb}\n${learn}\n${measures}\n${muscle}\n${joint}\n${pattern}\n${family}
+    this.out = { KB: Object.fromEntries(Object.entries(KB).map(([k, v]) => [k, { t: v.t, s: v.s, ev: v.ev, src: v.src, body: ${bodies} ? v.b() : null }])), LEARN, MEASURES, MUSCLE, JOINT, PATTERN, FAMILY };`, ctx, { timeout: 1000 });
   return JSON.parse(JSON.stringify(ctx.out));
 }
 
@@ -173,9 +175,12 @@ export function importLabels(html) {
   }
   return {
     schema_version: 1,
-    origin: 'docs/prototype/plate-and-bar.html (MUSCLE, JOINT, candidates)',
+    origin: 'docs/prototype/plate-and-bar.html (MUSCLE, JOINT, FAMILY, PATTERN, candidates)',
     muscles: p.MUSCLE,
     joints: p.JOINT,
+    // Used as "All {label}" in the replacement-rule scope options.
+    families: p.FAMILY,
+    patterns: p.PATTERN,
     // Text builder: "Works your {muscles}" + the clauses below joined with ", ", first letter capitalised.
     // muscles are joined as "a, b and c" (listJoin). Order: works, same_movement, spares_joint OR easier_on_joints,
     // easier_to_learn, done_before.
