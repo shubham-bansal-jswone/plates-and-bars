@@ -1,17 +1,15 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.4
+  version: 0.1.5
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
     food maths) runs on the phone in `packages/core`.
 
-    M0 scope: auth, sync, food search and health. Content bundles, AI calls and account
-    rights (`/content/*`, `/ai/*`, `GET /me/export`, `DELETE /me`) are added in later
-    milestones as additive changes. In particular, the third criterion of spec item 10
-    ("Sync model additions") in `docs/spec/ISSUES.md`, `DELETE /me` and `GET /me/export`,
-    is deferred to a later contract PR; the backend should not expect it from this contract.
+    Scope: auth, sync, food search, health and account rights (`GET /me/export`,
+    `DELETE /me`). Content bundles and AI calls (`/content/*`, `/ai/*`) are added in later
+    milestones as additive changes.
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
@@ -39,6 +37,8 @@ tags:
     description: Offline-first sync of user-owned records.
   - name: foods
     description: Shared food database search.
+  - name: account
+    description: Account rights for the signed-in user (export and deletion).
   - name: system
     description: Health and status.
 
@@ -521,8 +521,210 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimited'
 
+  /me/export:
+    get:
+      tags: [account]
+      operationId: exportMyData
+      summary: Download everything the server stores about the signed-in user
+      description: |
+        Returns, in one JSON document, every record the server holds for the user: the
+        account (`user`), every row of every synced table (`profiles` and `settings`
+        included) and the server's conflict log. The response is built when requested,
+        so it reflects the server state at `exported_at`; changes still queued on a device
+        are not in it until they sync.
+
+        **Coverage.** `tables` has one array for every `SyncTable` value, always present
+        (empty when the user has no rows). Records use exactly the `/sync` record schemas,
+        with their stored `version`, `updated_at` and `deleted_at`. Soft-deleted records
+        (tombstones) the server still stores are included with `deleted_at` set, so the
+        export shows everything stored, not only what the app displays. A sync table added
+        to the contract later is added to the export in the same contract change.
+
+        **Not included**, because they are credentials or operational data rather than the
+        user's data: access and refresh tokens, emailed one-time codes, rate-limit counters
+        and server logs (which never hold food, weight, health answers or tokens). Progress
+        photos and other device-only data never reach the server, so the app exports them
+        on the device.
+
+        **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
+        `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
+        The server may compress the body when the request allows it (`Accept-Encoding`).
+
+        **Rate limit.** At most 5 exports per user per hour, on top of the per-IP limit
+        every endpoint has; beyond that, 429 `rate_limited` with `Retry-After`.
+
+        **Security.** The user id comes only from the access token; there is no way to ask
+        for another user's export. The backend logs only that an export happened (user id,
+        time, size), never its content.
+      responses:
+        '200':
+          description: The user's data.
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="plate-and-bar-export-<YYYY-MM-DD>.json"`'
+              schema:
+                type: string
+            Cache-Control:
+              description: Always `no-store`.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeExport'
+              examples:
+                default:
+                  summary: A new user one day after setup
+                  description: Natural-key ids (`profiles:me`, `settings:me`, `weights:2026-10-08`) are the real UUIDv5 values for the example user `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
+                  value:
+                    format_version: 1
+                    exported_at: '2026-10-09T08:00:00Z'
+                    user:
+                      id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                      email: asha@example.com
+                      created_at: '2026-10-08T06:30:00Z'
+                    tables:
+                      profiles:
+                        - id: bb9a1205-b5d1-57ac-8f72-619bdb573f77
+                          version: 1
+                          updated_at: '2026-10-08T06:34:00Z'
+                          deleted_at: null
+                          sex: female
+                          age: 29
+                          height_cm: 162
+                          weight_kg: 64
+                          activity: sitting
+                          where: gym
+                          days: 3
+                          exp: new
+                          minutes: 45
+                          goal: recomp
+                          pace: gentle
+                          special: none
+                          screen: ['no', 'no', 'no', 'no', 'no', 'no']
+                          created: '2026-10-08'
+                          cleared: null
+                          targets:
+                            kcal: 1750
+                            protein_g: 115
+                            carbs_g: 190
+                            fat_g: 58
+                      consents:
+                        - id: 5c2e8f1a-9b3d-4e7f-a1c2-3d4e5f6a7b8c
+                          version: 1
+                          updated_at: '2026-10-08T06:31:00Z'
+                          deleted_at: null
+                          kind: data_storage
+                          given_at: '2026-10-08T06:31:00Z'
+                          text_version: '2026-10-07'
+                      food_logs: []
+                      water_logs: []
+                      day_notes: []
+                      workouts: []
+                      workout_sets: []
+                      lift_stats: []
+                      weights:
+                        - id: 640dee2b-d92d-5a00-bd03-568962bf90ea
+                          version: 1
+                          updated_at: '2026-10-08T06:05:00Z'
+                          deleted_at: null
+                          date: '2026-10-08'
+                          weight_kg: 64
+                      measurements: []
+                      user_foods: []
+                      recipes: []
+                      kitchen_tests: []
+                      exclusions: []
+                      swaps: []
+                      settings:
+                        - id: 8e73d325-779b-5a79-845c-b29eb0d86202
+                          version: 1
+                          updated_at: '2026-10-08T06:34:00Z'
+                          deleted_at: null
+                          focus: []
+                          rest_off: false
+                          custom_tags: {}
+                          diet: any
+                          water_sizes:
+                            glass_ml: 250
+                            bottle_ml: 1000
+                          exercise_overrides: {}
+                          flex: []
+                          returning: {}
+                          ladder_stay: {}
+                          checkin_seen: null
+                          adjustments: {}
+                          adaptive: {}
+                          learn: {}
+                          meal_plan: null
+                          prep: []
+                    conflict_log: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
+  /me:
+    delete:
+      tags: [account]
+      operationId: deleteMyAccount
+      summary: Delete the signed-in user's account and all server-side data
+      description: |
+        Permanently deletes the account and everything the server stores for it. There is
+        no undo and no grace period. The app asks the user to confirm before calling this.
+
+        **What is deleted, and when.** Before the server answers 204, in one transaction:
+        every row of every synced table (tombstones included), the conflict log, the
+        account (`User`), its sign-in identities (Google and email), every refresh token
+        and session, and any pending one-time codes for the account's email address.
+        When the 204 arrives the data is gone from the live database. Copies in the
+        encrypted nightly backups are not edited; they disappear when those backups expire
+        under the backup retention policy, which the privacy policy states. Server logs
+        hold no user data to delete. If anything fails, the transaction rolls back, the
+        server answers 500 and nothing is deleted; the app retries.
+
+        **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
+        `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
+        15 minutes but are refused by every endpoint with 401 `unauthorized`, except
+        this one (see Idempotency). Other signed-in devices therefore get 401 on their
+        next request and must sign in again; no request made with a pre-deletion token
+        can write data. The server cannot erase data stored on other devices; the app
+        deletes the local store on the device that made the request.
+
+        **Idempotency.** Deleting an account that is already deleted succeeds: a repeat
+        call with an access token that is still within its lifetime (valid signature,
+        not expired) whose user no longer exists answers 204 again. A device that lost
+        the first response can therefore retry. If the access token has expired by then,
+        the retry gets 401 `token_expired` and the app refreshes as usual: if the refresh
+        succeeds, the first call never took effect and the app retries with the new token;
+        if it fails with 401, the refresh token was revoked, which after a sent
+        `DELETE /me` means the account is deleted.
+
+        **Signing in again** with the same Google account or email address afterwards
+        creates a new, empty account with a new user id (`new_user: true`). Nothing from
+        the deleted account comes back.
+
+        **Rate limit.** The per-user and per-IP limits every endpoint has apply. A 429
+        means nothing was deleted.
+
+        **Security.** The user id comes only from the access token; a user can delete only
+        their own account. The backend logs that a deletion happened (user id and time)
+        and nothing else.
+      responses:
+        '204':
+          description: The account and all its server-side data are deleted (or were already).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+
   # Later milestones (additive): /content/manifest, /content/{bundle}, /ai/describe-meal,
-  # /ai/ask-why, /ai/weekly-summary, GET /me/export, DELETE /me.
+  # /ai/ask-why, /ai/weekly-summary.
 
 components:
   securitySchemes:
@@ -1092,6 +1294,108 @@ components:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
           description: Set when deleted (tombstone); null otherwise.
+
+    # ---------- account ----------
+    MeExport:
+      type: object
+      description: Everything the server stores for one user (`GET /me/export`).
+      required: [format_version, exported_at, user, tables, conflict_log]
+      properties:
+        format_version:
+          type: integer
+          const: 1
+          description: |
+            Version of this export layout. Adding a table or a field keeps it at 1; it
+            changes only if existing content moves or changes meaning.
+        exported_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the server built the export.
+        user:
+          $ref: '#/components/schemas/User'
+        tables:
+          $ref: '#/components/schemas/ExportTables'
+        conflict_log:
+          type: array
+          description: |
+            Losing copies the server kept when resolving `/sync` conflicts (see
+            `SyncConflict.resolution`), oldest first. Empty when there were none.
+          items:
+            $ref: '#/components/schemas/ConflictLogEntry'
+
+    ExportTables:
+      type: object
+      description: |
+        Every synced table (one key per `SyncTable` value) with all of the user's stored
+        rows, tombstones included. Same record schemas as `SyncChanges`, but every table
+        is present, as an empty array when the user has no rows.
+      additionalProperties: false
+      required: [profiles, consents, food_logs, water_logs, day_notes, workouts, workout_sets, lift_stats, weights, measurements, user_foods, recipes, kitchen_tests, exclusions, swaps, settings]
+      properties:
+        profiles:
+          type: array
+          items: { $ref: '#/components/schemas/Profile' }
+        consents:
+          type: array
+          items: { $ref: '#/components/schemas/Consent' }
+        food_logs:
+          type: array
+          items: { $ref: '#/components/schemas/FoodLog' }
+        water_logs:
+          type: array
+          items: { $ref: '#/components/schemas/WaterLog' }
+        day_notes:
+          type: array
+          items: { $ref: '#/components/schemas/DayNote' }
+        workouts:
+          type: array
+          items: { $ref: '#/components/schemas/Workout' }
+        workout_sets:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSet' }
+        lift_stats:
+          type: array
+          items: { $ref: '#/components/schemas/LiftStat' }
+        weights:
+          type: array
+          items: { $ref: '#/components/schemas/Weight' }
+        measurements:
+          type: array
+          items: { $ref: '#/components/schemas/Measurement' }
+        user_foods:
+          type: array
+          items: { $ref: '#/components/schemas/UserFood' }
+        recipes:
+          type: array
+          items: { $ref: '#/components/schemas/Recipe' }
+        kitchen_tests:
+          type: array
+          items: { $ref: '#/components/schemas/KitchenTest' }
+        exclusions:
+          type: array
+          items: { $ref: '#/components/schemas/Exclusion' }
+        swaps:
+          type: array
+          items: { $ref: '#/components/schemas/Swap' }
+        settings:
+          type: array
+          items: { $ref: '#/components/schemas/Settings' }
+
+    ConflictLogEntry:
+      type: object
+      required: [table, id, logged_at, record]
+      properties:
+        table:
+          $ref: '#/components/schemas/SyncTable'
+        id:
+          type: string
+          format: uuid
+          description: Id of the record the losing copy belongs to.
+        logged_at:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the server resolved the conflict.
+        record:
+          $ref: '#/components/schemas/SyncRecord'
+          description: The losing copy as it was pushed or stored. Pick its schema by `table`.
 
     # ---------- sync tables ----------
     Profile:

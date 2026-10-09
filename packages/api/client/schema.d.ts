@@ -220,6 +220,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download everything the server stores about the signed-in user
+         * @description Returns, in one JSON document, every record the server holds for the user: the
+         *     account (`user`), every row of every synced table (`profiles` and `settings`
+         *     included) and the server's conflict log. The response is built when requested,
+         *     so it reflects the server state at `exported_at`; changes still queued on a device
+         *     are not in it until they sync.
+         *
+         *     **Coverage.** `tables` has one array for every `SyncTable` value, always present
+         *     (empty when the user has no rows). Records use exactly the `/sync` record schemas,
+         *     with their stored `version`, `updated_at` and `deleted_at`. Soft-deleted records
+         *     (tombstones) the server still stores are included with `deleted_at` set, so the
+         *     export shows everything stored, not only what the app displays. A sync table added
+         *     to the contract later is added to the export in the same contract change.
+         *
+         *     **Not included**, because they are credentials or operational data rather than the
+         *     user's data: access and refresh tokens, emailed one-time codes, rate-limit counters
+         *     and server logs (which never hold food, weight, health answers or tokens). Progress
+         *     photos and other device-only data never reach the server, so the app exports them
+         *     on the device.
+         *
+         *     **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
+         *     `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
+         *     The server may compress the body when the request allows it (`Accept-Encoding`).
+         *
+         *     **Rate limit.** At most 5 exports per user per hour, on top of the per-IP limit
+         *     every endpoint has; beyond that, 429 `rate_limited` with `Retry-After`.
+         *
+         *     **Security.** The user id comes only from the access token; there is no way to ask
+         *     for another user's export. The backend logs only that an export happened (user id,
+         *     time, size), never its content.
+         */
+        get: operations["exportMyData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete the signed-in user's account and all server-side data
+         * @description Permanently deletes the account and everything the server stores for it. There is
+         *     no undo and no grace period. The app asks the user to confirm before calling this.
+         *
+         *     **What is deleted, and when.** Before the server answers 204, in one transaction:
+         *     every row of every synced table (tombstones included), the conflict log, the
+         *     account (`User`), its sign-in identities (Google and email), every refresh token
+         *     and session, and any pending one-time codes for the account's email address.
+         *     When the 204 arrives the data is gone from the live database. Copies in the
+         *     encrypted nightly backups are not edited; they disappear when those backups expire
+         *     under the backup retention policy, which the privacy policy states. Server logs
+         *     hold no user data to delete. If anything fails, the transaction rolls back, the
+         *     server answers 500 and nothing is deleted; the app retries.
+         *
+         *     **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
+         *     `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
+         *     15 minutes but are refused by every endpoint with 401 `unauthorized`, except
+         *     this one (see Idempotency). Other signed-in devices therefore get 401 on their
+         *     next request and must sign in again; no request made with a pre-deletion token
+         *     can write data. The server cannot erase data stored on other devices; the app
+         *     deletes the local store on the device that made the request.
+         *
+         *     **Idempotency.** Deleting an account that is already deleted succeeds: a repeat
+         *     call with an access token that is still within its lifetime (valid signature,
+         *     not expired) whose user no longer exists answers 204 again. A device that lost
+         *     the first response can therefore retry. If the access token has expired by then,
+         *     the retry gets 401 `token_expired` and the app refreshes as usual: if the refresh
+         *     succeeds, the first call never took effect and the app retries with the new token;
+         *     if it fails with 401, the refresh token was revoked, which after a sent
+         *     `DELETE /me` means the account is deleted.
+         *
+         *     **Signing in again** with the same Google account or email address afterwards
+         *     creates a new, empty account with a new user id (`new_user: true`). Nothing from
+         *     the deleted account comes back.
+         *
+         *     **Rate limit.** The per-user and per-IP limits every endpoint has apply. A 429
+         *     means nothing was deleted.
+         *
+         *     **Security.** The user id comes only from the access token; a user can delete only
+         *     their own account. The backend logs that a deletion happened (user id and time)
+         *     and nothing else.
+         */
+        delete: operations["deleteMyAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -474,6 +581,59 @@ export interface components {
             updated_at: components["schemas"]["Timestamp"];
             /** @description Set when deleted (tombstone); null otherwise. */
             deleted_at: components["schemas"]["Timestamp"] | null;
+        };
+        /** @description Everything the server stores for one user (`GET /me/export`). */
+        MeExport: {
+            /**
+             * @description Version of this export layout. Adding a table or a field keeps it at 1; it
+             *     changes only if existing content moves or changes meaning.
+             * @constant
+             */
+            format_version: 1;
+            /** @description When the server built the export. */
+            exported_at: components["schemas"]["Timestamp"];
+            user: components["schemas"]["User"];
+            tables: components["schemas"]["ExportTables"];
+            /**
+             * @description Losing copies the server kept when resolving `/sync` conflicts (see
+             *     `SyncConflict.resolution`), oldest first. Empty when there were none.
+             */
+            conflict_log: components["schemas"]["ConflictLogEntry"][];
+        };
+        /**
+         * @description Every synced table (one key per `SyncTable` value) with all of the user's stored
+         *     rows, tombstones included. Same record schemas as `SyncChanges`, but every table
+         *     is present, as an empty array when the user has no rows.
+         */
+        ExportTables: {
+            profiles: components["schemas"]["Profile"][];
+            consents: components["schemas"]["Consent"][];
+            food_logs: components["schemas"]["FoodLog"][];
+            water_logs: components["schemas"]["WaterLog"][];
+            day_notes: components["schemas"]["DayNote"][];
+            workouts: components["schemas"]["Workout"][];
+            workout_sets: components["schemas"]["WorkoutSet"][];
+            lift_stats: components["schemas"]["LiftStat"][];
+            weights: components["schemas"]["Weight"][];
+            measurements: components["schemas"]["Measurement"][];
+            user_foods: components["schemas"]["UserFood"][];
+            recipes: components["schemas"]["Recipe"][];
+            kitchen_tests: components["schemas"]["KitchenTest"][];
+            exclusions: components["schemas"]["Exclusion"][];
+            swaps: components["schemas"]["Swap"][];
+            settings: components["schemas"]["Settings"][];
+        };
+        ConflictLogEntry: {
+            table: components["schemas"]["SyncTable"];
+            /**
+             * Format: uuid
+             * @description Id of the record the losing copy belongs to.
+             */
+            id: string;
+            /** @description When the server resolved the conflict. */
+            logged_at: components["schemas"]["Timestamp"];
+            /** @description The losing copy as it was pushed or stored. Pick its schema by `table`. */
+            record: components["schemas"]["SyncRecord"];
         };
         /**
          * @description Setup answers and targets. One per user; id = UUIDv5(`profiles:me`).
@@ -1191,6 +1351,54 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    exportMyData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user's data. */
+            200: {
+                headers: {
+                    /** @description `attachment; filename="plate-and-bar-export-<YYYY-MM-DD>.json"` */
+                    "Content-Disposition"?: string;
+                    /** @description Always `no-store`. */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeExport"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+        };
+    };
+    deleteMyAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account and all its server-side data are deleted (or were already). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
         };
     };
 }
