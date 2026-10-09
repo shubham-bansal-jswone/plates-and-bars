@@ -57,6 +57,9 @@ export interface SyncState {
 
 export const SyncContext = createContext<SyncState | null>(null);
 
+/** The server client and token store the provider uses, for features that call the API themselves (AI). Null client: no server in this build. */
+export const ApiContext = createContext<{ api: ApiClient | null; tokens: TokenStore } | null>(null);
+
 export function useSync(): SyncState {
   const v = useContext(SyncContext);
   if (!v) throw new Error('useSync needs a SyncProvider');
@@ -238,5 +241,10 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     }),
     [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
-  return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
+  const transport = useMemo(() => ({ api, tokens }), [api, tokens]);
+  return (
+    <SyncContext.Provider value={value}>
+      <ApiContext.Provider value={transport}>{children}</ApiContext.Provider>
+    </SyncContext.Provider>
+  );
 }

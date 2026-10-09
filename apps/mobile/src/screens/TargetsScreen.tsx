@@ -14,6 +14,7 @@ import { RulesSection } from '../targets/RulesSection';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
+import { AiSection } from '../ai/AiSection';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
@@ -78,6 +79,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           </>
         ) : null}
+        <AiSection />
         {ready ? (
           <View style={{ gap: 8, marginTop: 16 }}>
             <Label>Workout</Label>
