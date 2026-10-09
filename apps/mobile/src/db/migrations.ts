@@ -245,6 +245,15 @@ export const MIGRATIONS: readonly string[] = [
    INSERT OR IGNORE INTO sync_outbox (tbl, key, queued_at) SELECT 'lift_stats', key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM lift_stats;
    INSERT OR IGNORE INTO sync_outbox (tbl, key, queued_at) SELECT 'user_foods', key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM user_foods;
    INSERT OR IGNORE INTO sync_outbox (tbl, key, queued_at) SELECT 'settings', key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM user_settings;`,
+  // v7: server copies of content bundles (GET /content/*), verified before they are stored. Not user data, never synced
+  // and no outbox trigger. One row per bundle name; replacing a row is the atomic swap.
+  `CREATE TABLE IF NOT EXISTS content_bundles (
+     name TEXT PRIMARY KEY NOT NULL,
+     sha256 TEXT NOT NULL,
+     schema_version INTEGER NOT NULL,
+     updated_at TEXT NOT NULL,
+     body TEXT NOT NULL
+   );`,
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {

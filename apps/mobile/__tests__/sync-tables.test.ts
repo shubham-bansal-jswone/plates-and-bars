@@ -47,9 +47,10 @@ describe('sync tables migration (v6)', () => {
     expect(await pendingCount(db)).toBe(0);
   });
 
-  it('is the last, append-only migration and only adds objects', () => {
-    expect(MIGRATIONS).toHaveLength(6);
+  it('is append-only and only adds objects (v7 adds the content store after it)', () => {
+    expect(MIGRATIONS).toHaveLength(7);
     expect(MIGRATIONS[5]).not.toMatch(/DROP|DELETE|ALTER/i);
+    expect(MIGRATIONS[6]).not.toMatch(/DROP|DELETE|ALTER|sync_outbox/i);
   });
 
   it('upgrade from v5 keeps every row and queues rows made before sign-in', async () => {
@@ -67,7 +68,7 @@ describe('sync tables migration (v6)', () => {
       INSERT INTO user_settings (key, data) VALUES ('me', '{}');
       INSERT INTO settings (key, value) VALUES ('flag', '1');
     `);
-    expect(await migrate(db)).toBe(6);
+    expect(await migrate(db)).toBe(MIGRATIONS.length);
     expect(db.raw.prepare('SELECT COUNT(*) AS n FROM food_logs').get()).toEqual({ n: 2 });
     expect(db.raw.prepare("SELECT data FROM profiles WHERE key = 'me'").get()).toEqual({ data: '{"a":1}' });
     expect(db.raw.prepare("SELECT value FROM settings WHERE key = 'flag'").get()).toEqual({ value: '1' });
