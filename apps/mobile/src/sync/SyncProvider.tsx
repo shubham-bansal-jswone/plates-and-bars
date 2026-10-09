@@ -4,7 +4,7 @@ import type { ApiClient } from '@plate-and-bar/api';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
 import { syncOnce, type SyncDb, type SyncResult } from './engine';
-import { signOut as guardedSignOut, wipeLocalStore } from './guard';
+import { discardAll, signOut as guardedSignOut } from './guard';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
 
@@ -23,6 +23,10 @@ export interface SyncState {
   last: SyncResult | null;
   /** Bumps when the local store was wiped, so the screens reload from the empty store. */
   epoch: number;
+  /** Bumps after a sync stored pulled records; stores reload from SQLite when it changes (no remount). */
+  dataVersion: number;
+  /** True while a confirm dialog is open: the 30 s tick skips its run. */
+  holdSchedule(hold: boolean): void;
   syncNow(): Promise<SyncResult | null>;
   startSignIn(email: string): Promise<StartResult>;
   verifyCode(email: string, code: string): Promise<VerifyResult>;
@@ -52,17 +56,20 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
   const [epoch, setEpoch] = useState(0);
+  const [dataVersion, setDataVersion] = useState(0);
+  const held = useRef(false);
   const holdUntil = useRef(0);
   const backoff = useRef(SYNC_INTERVAL_MS);
 
   const refreshPending = useCallback(async () => setPending(await pendingCount(db)), [db]);
 
-  const syncNow = useCallback(async (): Promise<SyncResult | null> => {
-    if (!api || !signedIn) return null;
+  const runSync = useCallback(async (force: boolean): Promise<SyncResult | null> => {
+    if (!api || (!signedIn && !force)) return null;
     setSyncing(true);
     try {
       const r = await syncOnce({ db, api, tokens });
       setLast(r);
+      if ((r.pulled ?? 0) > 0) setDataVersion((v) => v + 1);
       if (r.status === 'ok') backoff.current = SYNC_INTERVAL_MS;
       else if (r.status === 'rate_limited') holdUntil.current = Date.now() + (r.retryAfterSec ?? 60) * 1000;
       else if (r.status === 'unavailable' || r.status === 'rejected') {
@@ -75,6 +82,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       await refreshPending().catch(() => undefined);
     }
   }, [api, db, tokens, signedIn, refreshPending]);
+  const syncNow = useCallback(() => runSync(false), [runSync]);
 
   // Load account state once, then keep the pending count fresh.
   useEffect(() => {
@@ -94,6 +102,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   useEffect(() => {
     if (!configured || !signedIn) return;
     const tick = () => {
+      if (held.current) return;
       if (Date.now() >= holdUntil.current) void syncNow();
       else void refreshPending().catch(() => undefined);
     };
@@ -120,6 +129,8 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       syncing,
       last,
       epoch,
+      dataVersion,
+      holdSchedule: (hold) => void (held.current = hold),
       syncNow,
       startSignIn: async (email) => (api ? startEmailSignIn(api, email) : { ok: false, reason: 'unavailable' }),
       verifyCode: async (email, code) => {
@@ -129,6 +140,8 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
           holdUntil.current = 0;
           if (r.wiped) setEpoch((e) => e + 1);
           setSignedIn(true);
+          // Pull right away (the user just asked to sign in): a returning user's records arrive before the screen closes.
+          await runSync(true);
           await refreshPending();
         }
         return r;
@@ -143,14 +156,13 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         return blocked;
       },
       discardAndSignOut: async () => {
-        await wipeLocalStore(db);
-        await tokens.clear();
+        await discardAll(db, tokens);
         setSignedIn(false);
         setEpoch((e) => e + 1);
         await refreshPending();
       },
     }),
-    [configured, signedIn, pending, syncing, last, epoch, syncNow, api, db, tokens, refreshPending],
+    [configured, signedIn, pending, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

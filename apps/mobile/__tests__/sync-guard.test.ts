@@ -5,7 +5,10 @@ import { makeApi, verifyEmailCode } from '../src/sync/auth';
 import { acceptTokenPair, signOut } from '../src/sync/guard';
 import { getUserId, setKv, KEY_USER } from '../src/sync/store';
 import { saveWeightDoc } from './sync-fixtures';
-import { fakeServer, memoryTokens, openDb } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 
 const USER_A = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const USER_B = '0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f';
@@ -29,6 +32,7 @@ describe('sign-out and account switch guard (#31)', () => {
     (globalThis as { fetch: unknown }).fetch = server.fetch;
     const tokens = memoryTokens({ access: 'stale', refresh: 'refresh-1' });
     await setKv(db, KEY_USER, USER_A);
+    await seedConsent(db);
     await saveWeightDoc(db, w('2026-10-08'));
     // The session expired: the refresh token is dead, so the app is signed out with the change still queued.
     server.refreshOk = false;
@@ -62,6 +66,7 @@ describe('sign-out and account switch guard (#31)', () => {
     (globalThis as { fetch: unknown }).fetch = server.fetch;
     const tokens = memoryTokens();
     await setKv(db, KEY_USER, USER_A);
+    await seedConsent(db);
     await saveWeightDoc(db, w('2026-10-08'));
     server.accessValid = pair(USER_A).access_token;
     expect(await acceptTokenPair(db, tokens, pair(USER_A))).toEqual({ kind: 'signed_in', wiped: false });

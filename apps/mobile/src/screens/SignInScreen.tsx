@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, ErrorText, Field, H1, Hint, Note, Page } from '../components/ui';
+import { useProfile } from '../state/ProfileProvider';
 import { useSync } from '../sync/SyncProvider';
 import { SIGN_IN_COPY as t } from '../sync/copy';
 
@@ -11,12 +12,21 @@ type Step = 'email' | 'code' | 'refused' | 'confirm-discard';
 export function SignInScreen() {
   const s = useSync();
   const router = useRouter();
+  const { giveConsent } = useProfile();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
+
+  // The 30 s tick must not run under an open discard confirmation.
+  const confirming = step === 'confirm-discard';
+  const { holdSchedule } = s;
+  useEffect(() => {
+    holdSchedule(confirming);
+    return () => holdSchedule(false);
+  }, [confirming, holdSchedule]);
 
   const run = async (f: () => Promise<void>) => {
     setBusy(true);
@@ -44,9 +54,26 @@ export function SignInScreen() {
         <H1>{t.title}</H1>
         <Hint>{unsynced > 0 ? t.unsynced(unsynced) : t.allSynced}</Hint>
         {s.last?.status === 'unavailable' || s.last?.status === 'offline' ? <Note>{t.retrying}</Note> : null}
+        {s.last?.status === 'rejected' ? <Note>{t.rejected}</Note> : null}
+        {s.last?.status === 'error' ? <Note>{t.failed}</Note> : null}
+        {s.last?.status === 'consent_required' ? (
+          <>
+            <Note>{t.consentNeeded}</Note>
+            <Button
+              label={t.agree}
+              onPress={() =>
+                void run(async () => {
+                  await giveConsent();
+                  await s.syncNow();
+                })
+              }
+            />
+          </>
+        ) : null}
         {s.last && s.last.conflicts > 0 ? <Note>{t.conflicts(s.last.conflicts)}</Note> : null}
         {error ? <ErrorText>{error}</ErrorText> : null}
         <View style={{ gap: 12 }}>
+          <Button kind="ghost" label={t.done} onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as never))} />
           {step === 'confirm-discard' ? (
             <>
               <Note>{t.confirmDiscard(pending)}</Note>
@@ -172,7 +199,7 @@ export function SignInScreen() {
                   setPending(r.pending);
                   setStep('refused');
                 } else if (r.kind === 'error') setError(t.verifyError(r.reason));
-                else router.back();
+                // On success the provider flips to signed in and this screen shows the signed-in view (and any consent prompt).
               })
             }
           />

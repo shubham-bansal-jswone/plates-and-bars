@@ -7,20 +7,15 @@ import { createClient } from '@plate-and-bar/api';
 import { naturalId, uuidv5 } from '../src/sync/ids';
 import { getCursor, setKv, KEY_USER, getLiftVersion } from '../src/sync/store';
 import { saveLift, deleteLift } from '../src/db/workouts';
-import { openDb, fakeServer, memoryTokens } from './sync-helpers';
+import { openDb, fakeServer, memoryTokens, seedConsent } from './sync-helpers';
 // No @types/node in this app: describe the few node:crypto calls used.
 interface Hash { update(d: unknown): Hash; digest(): { subarray(a: number, b: number): { [i: number]: number; toString(enc: string): string } } }
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createHash } = require('node:crypto') as { createHash(a: string): Hash };
 declare const Buffer: { from(s: string, enc: string): unknown };
 
-// expo-crypto's native/web digest is not available under Jest; node's SHA-1 stands in for it.
-jest.mock('expo-crypto', () => ({
-  CryptoDigestAlgorithm: { SHA1: 'SHA-1' },
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  digest: async (_a: string, data: Uint8Array) => { const b = require('node:crypto').createHash('sha1').update(data).digest() as Uint8Array; return b.buffer.slice(b.byteOffset, b.byteOffset + b.length); },
-  randomUUID: () => globalThis.crypto.randomUUID(),
-}));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 
 const vectors = require('../../../packages/api/test-vectors/sync-ids.json') as { rfc_example: { namespace: string; name: string; id: string }; cases: { user_id: string; table: string; key: string; id: string }[] };
 
@@ -33,6 +28,7 @@ async function setup() {
   (globalThis as { fetch: unknown }).fetch = server.fetch;
   const tokens = memoryTokens({ access: 'access-1', refresh: 'refresh-1' });
   await setKv(db, KEY_USER, USER);
+  await seedConsent(db);
   const deps = { db, api: createClient('http://fake/api/v1', async () => (await tokens.load())?.access ?? null), tokens };
   return { db, server, tokens, deps };
 }
@@ -96,6 +92,17 @@ describe('applyPulled', () => {
     };
     await syncOnce(deps);
     expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM weights WHERE key = '2026-10-08'"))!.data)).toMatchObject({ weight_kg: 79 });
+    expect(await pendingCount(db)).toBe(1);
+  });
+});
+
+describe('consent', () => {
+  it('does not push or pull until a data_storage consent is stored', async () => {
+    const { db, server, deps } = await setup();
+    await db.runAsync('DELETE FROM consents');
+    await saveWeightDoc(db, weight('2026-10-08', 81));
+    expect((await syncOnce(deps)).status).toBe('consent_required');
+    expect(server.calls).toHaveLength(0);
     expect(await pendingCount(db)).toBe(1);
   });
 });

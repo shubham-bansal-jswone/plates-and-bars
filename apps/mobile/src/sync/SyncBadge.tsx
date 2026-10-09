@@ -5,6 +5,7 @@ import { Press } from '../components/ui';
 import { Text } from '../components/Text';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { changes } from './copy';
 import { useSync } from './SyncProvider';
 
 /** The label the badge shows: signed out, unsynced changes, or all pushed. */
@@ -23,7 +24,7 @@ export function SyncBadge() {
   if (!s.configured || path === '/sign-in') return null;
   const label = badgeLabel(s);
   const warn = s.signedIn && s.pending > 0;
-  const hint = s.signedIn ? (s.pending > 0 ? `${s.pending} changes on this device are not synced yet` : 'All changes are synced') : 'Signing in is optional';
+  const hint = s.signedIn ? (s.pending > 0 ? `${changes(s.pending)} on this device ${s.pending === 1 ? 'is' : 'are'} not synced yet` : 'All changes are synced') : 'Signing in is optional';
   return (
     <Press
       accessibilityRole="button"
