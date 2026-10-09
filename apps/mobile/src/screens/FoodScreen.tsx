@@ -8,7 +8,7 @@ import { Button, Card, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { catalogFoods } from '../food/catalog';
+import { catalogFoods, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
@@ -75,7 +75,9 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   const logPlanned = (meal: Meal, items: PlanItem[]) => {
     for (const [n, q] of items) {
-      const food = catalogFoods.find((x) => x.name.toLowerCase() === n.toLowerCase());
+      // My foods first, as the prototype's foodByName does.
+      const mineFood = f.mine.map((u, i) => ({ ...f.mineFacts[i]!, id: u.id }) as CatalogFood).find((x) => x.name.toLowerCase() === n.toLowerCase());
+      const food = mineFood ?? catalogFoods.find((x) => x.name.toLowerCase() === n.toLowerCase());
       if (food) f.add(meal, logOf(food, q));
     }
     notify(`Logged your planned ${meal.toLowerCase()}`);
