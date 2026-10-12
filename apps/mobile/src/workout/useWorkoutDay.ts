@@ -84,15 +84,17 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     (async () => {
       // The result is applied inside freshRead, in the same step as its counter check: a session being built
       // (start, addSecond) resumes from an await and must not land between the check and the commit.
-      await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([workout, sets, lifts, sessions]) =>
+      await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([stored, sets, lifts, sessions]) => {
+        // A session deleted on another device shows as no session, so a new one can be started (#408).
+        const workout = stored?.deleted_at ? null : stored;
         commit({
           ready: true,
           workout,
           exs: workout ? exercisesFrom(workout, sets) : [],
           lifts,
           sessions,
-        }),
-      );
+        });
+      });
     })().catch(() => notify('Couldn’t read your saved workout.'));
     return () => {
       live = false;
@@ -101,11 +103,12 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
 
   // These run inside the day queue, so each re-reads the stored row first: a pull (or a rule saved on Targets) may have stored
   // a newer version since the screen loaded its copy. The stored version is kept, and a row the store has tombstoned stays deleted.
-  const writeWorkout = async () => {
+  // `overTombstone`: start() already saw the tombstone and is replacing it on purpose, whatever its clock says.
+  const writeWorkout = async (overTombstone = false) => {
     const d = ref.current;
     if (!d.workout) return;
     const stored = await loadWorkout(db, date);
-    if (stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
+    if (!overTombstone && stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
     await saveWorkout(db, { ...d.workout, version: stored?.version ?? d.workout.version, exercises: d.exs.map(exerciseRecord), updated_at: stamp(now()) });
   };
   const writeSets = async (i: number, kind: 'work' | 'ramp', indexes: number[]) => {
@@ -194,7 +197,14 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         commit(d);
         await enqueue(async () => {
-          await writeWorkout();
+          // Started over a session deleted on another device: its sets go with it, so the new session does not
+          // pick them up (the contract does not promise that the deleting device tombstoned them).
+          const overTombstone = !!(await loadWorkout(db, date))?.deleted_at;
+          if (overTombstone) {
+            const at = stamp(now());
+            for (const s of await loadSets(db, date)) if (!s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
+          }
+          await writeWorkout(overTombstone);
           for (let i = 0; i < d.exs.length; i++) await writeSets(i, 'work', Array.from((d.exs[i] as ExState).sets.keys()));
         });
       } finally {
