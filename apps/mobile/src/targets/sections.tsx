@@ -11,7 +11,7 @@ import type { Profile } from '../setup/types';
 import type { Settings } from '../settings/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { catalog } from '../workout/catalog';
+import { getCatalog } from '../workout/catalog';
 import { MUSCLE, listJoin } from '../workout/copy';
 import { Chip } from '../workout/parts';
 import type { Workout, WorkoutSet } from '../workout/types';
@@ -70,8 +70,8 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
     (async () => {
       const [days, lifts, exclusions, swaps] = await Promise.all([loadDays(db, today), loadLifts(db), loadExclusions(db), loadSwaps(db)]);
       if (!live) return;
-      const planned = plannedCoverage({ date: today, profile, weekPlan: adjustments.weekPlan as WeekPlan | undefined, exclusions, swaps, lifts }, catalog);
-      setRows({ planned: coverageRows(planned), done: coverageRows(doneCoverage(today, days, catalog.tags)) });
+      const planned = plannedCoverage({ date: today, profile, weekPlan: adjustments.weekPlan as WeekPlan | undefined, exclusions, swaps, lifts }, getCatalog());
+      setRows({ planned: coverageRows(planned), done: coverageRows(doneCoverage(today, days, getCatalog().tags)) });
     })().catch(() => live && setFailed(true));
     return () => {
       live = false;

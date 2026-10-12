@@ -7,7 +7,7 @@ import { defaultSettings } from '../src/settings/types';
 import { loadSessionLog, saveSet } from '../src/db/workouts';
 import { setRecord, blankRow, type ExState } from '../src/workout/model';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { catalog } from '../src/workout/catalog';
+import { getCatalog } from '../src/workout/catalog';
 import type { LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
@@ -61,7 +61,7 @@ async function mount(db: Db, opts: { now?: () => Date } = {}) {
 
 /** A previous session in core's lift record shape: 3 sets at the top of the range, so the suggestion is one step up. */
 async function seedLift(db: Db, name: string, w: number, scores?: number[]) {
-  const set = { w, r: catalog.meta[name]?.rep_high ?? 12, rate: 'right' as const };
+  const set = { w, r: getCatalog().meta[name]?.rep_high ?? 12, rate: 'right' as const };
   const rec: LiftRecord = {
     date: '2026-10-05',
     sets: [set, set, set],
@@ -244,7 +244,7 @@ describe('Workout tab: logging sets', () => {
   it('opens the how-to card from content (long keys)', async () => {
     await started();
     await press('How to do Barbell Bench Press');
-    const card = catalog.cards['Barbell Bench Press']!;
+    const card = getCatalog().cards['Barbell Bench Press']!;
     expect(await screen.findByText(`• ${card.key_cues[0]}`)).toBeTruthy();
     expect(screen.getByText(`1. ${card.setup[0]}`)).toBeTruthy();
     expect(screen.getByText(`• ${card.common_mistakes[0]}`)).toBeTruthy();

@@ -3,7 +3,7 @@ import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { catalog } from '../src/workout/catalog';
+import { getCatalog } from '../src/workout/catalog';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { memoryDb, withProfile } from './helpers';
@@ -51,8 +51,8 @@ describe('Targets avoid picker applies a wider rule to today’s built session',
     const db = await built();
     const before = workout(db).exercises.map((e) => e.name);
     const target = before[0] as string;
-    const pattern = (catalog.tags[target] as { pattern: string }).pattern;
-    const inPattern = before.filter((n) => catalog.tags[n]?.pattern === pattern);
+    const pattern = (getCatalog().tags[target] as { pattern: string }).pattern;
+    const inPattern = before.filter((n) => getCatalog().tags[n]?.pattern === pattern);
     // Stored sets carry a newer server version: the tombstones keep it (merge inside the queue).
     for (const [k, v] of db.sets) db.sets.set(k, { ...v, data: JSON.stringify({ ...JSON.parse(v.data), version: 4 }) });
     await avoidOnTargets(db, target, 'I don’t like it', /^All /);
@@ -105,8 +105,8 @@ describe('Can’t-do sheet options come from core', () => {
     await fireEvent.press(screen.getByLabelText('Barbell Bench Press'));
     await fireEvent.press(screen.getByLabelText('Not confident with the form'));
     await fireEvent.press(screen.getByLabelText('Permanently'));
-    const fam = (catalog.tags['Barbell Bench Press'] as { family: string }).family;
-    const n = Object.values(catalog.tags).filter((x) => x.family === fam).length;
+    const fam = (getCatalog().tags['Barbell Bench Press'] as { family: string }).family;
+    const n = Object.values(getCatalog().tags).filter((x) => x.family === fam).length;
     expect(screen.getByLabelText(new RegExp(`${n} exercises`))).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Continue'));
     await fireEvent.press(await screen.findByLabelText(/^Skip it, no replacement/));

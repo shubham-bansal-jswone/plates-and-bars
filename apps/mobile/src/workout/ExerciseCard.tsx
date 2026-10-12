@@ -6,7 +6,7 @@ import { Text } from '../components/Text';
 import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
 import { Button, Card, Hint, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
-import { catalog } from './catalog';
+import { getCatalog } from './catalog';
 import { MUSCLE, RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin } from './copy';
 import type { ExState, Row } from './model';
 import { Chip } from './parts';
@@ -84,7 +84,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
   const nl = noLoad(info.type);
   const rw = repWord(info.type);
   const wHead = info.type === 'dumbbell' ? 'kg each' : info.type === 'assisted' ? 'Assist kg' : nl ? '+kg' : 'kg';
-  const tag = catalog.tags[ex.name];
+  const tag = getCatalog().tags[ex.name];
   const working = ex.sets.some((s) => s.done);
   const allDone = ex.sets.length > 0 && ex.sets.every((s) => s.done);
   const showRamp = sug.mode === 'new' && !working && !ex.skipRamp;
@@ -103,11 +103,11 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
       <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
         {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
         {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
-        {'\n'}Rest {restLabel(ex.name, catalog.tags)} between sets{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
+        {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
       </Text>
       {tag ? (
         <Text style={{ color: c.ink, fontSize: 14 }}>
-          {isFocus(ex.name, focus, catalog.tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
+          {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
           <Text style={{ fontWeight: '700' }}>Works: </Text>
           {listJoin(tag.primary.map((m) => MUSCLE[m] ?? m))}
           {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => MUSCLE[m] ?? m))}</Text> : null}

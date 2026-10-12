@@ -4,7 +4,7 @@ import { candidates, cantAfterDuration, cantDefaultScope, cantScopeOptions, type
 import { Text } from '../components/Text';
 import { Button, Choice, Group, Hint, Note } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
-import { catalog } from './catalog';
+import { getCatalog } from './catalog';
 import { MUSCLE, listJoin } from './copy';
 import { reasonText, jointLabel } from './reasons';
 import { DURATIONS, FAMILY, PATTERN, REASONS } from './rulesCopy';
@@ -36,7 +36,7 @@ export function CantSheet(p: Props) {
 
 function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onClose, noToday }: Props & { name: string }) {
   const c = useTheme();
-  const t = catalog.tags[name];
+  const t = getCatalog().tags[name];
   const [step, setStep] = useState<Step>('why');
   const [reason, setReason] = useState<ExclusionReason | null>(null);
   const [dur, setDur] = useState<CantDuration>('perm');
@@ -45,7 +45,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
   const draft: CantDraft = { name, reason, dur, scope: scope.scope, key: scope.key };
 
   // The scope step's options come from core (the family option carries how many exercises share it); only the words are here.
-  const scopes = cantScopeOptions(name, catalog.tags).map((o): [NonNullable<CantDraft['scope']>, string, string, string] => {
+  const scopes = cantScopeOptions(name, getCatalog().tags).map((o): [NonNullable<CantDraft['scope']>, string, string, string] => {
     if (o.scope === 'family') return [o.scope, o.key, `All ${FAMILY[o.key] ?? o.key}`, `${o.count} exercises`];
     if (o.scope === 'pattern') return [o.scope, o.key, `All ${PATTERN[o.key] ?? o.key}`, 'The whole movement type'];
     if (o.scope === 'joint') return [o.scope, o.key, `Anything that loads the ${jointLabel(o.key)}`, 'Safest choice for pain'];
@@ -55,7 +55,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
   const cands = useMemo(
     () =>
       step === 'pick'
-        ? candidates(name, { where, rules: [{ scope: scope.scope ?? 'exercise', key: scope.key }], joint: scope.scope === 'joint' ? scope.key : null, pain: reason === 'pain', form: reason === 'form', inSession }, exclusions, lifts, catalog)
+        ? candidates(name, { where, rules: [{ scope: scope.scope ?? 'exercise', key: scope.key }], joint: scope.scope === 'joint' ? scope.key : null, pain: reason === 'pain', form: reason === 'form', inSession }, exclusions, lifts, getCatalog())
         : [],
     [step, name, where, scope, reason, inSession, exclusions, lifts],
   );
@@ -78,7 +78,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
                   selected={false} action
                   onPress={() => {
                     setReason(k);
-                    setScope(cantDefaultScope(name, k, catalog.tags));
+                    setScope(cantDefaultScope(name, k, getCatalog().tags));
                     setStep('long');
                   }}
                 />
@@ -95,7 +95,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
                   selected={false} action
                   onPress={() => {
                     setDur(k as CantDuration);
-                    const next = cantAfterDuration(name, k as CantDuration, catalog.tags);
+                    const next = cantAfterDuration(name, k as CantDuration, getCatalog().tags);
                     if (next.scope) setScope(next.scope);
                     setStep(next.asksScope ? 'scope' : 'pick');
                   }}

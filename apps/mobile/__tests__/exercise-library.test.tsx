@@ -2,7 +2,11 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { ExerciseLibraryScreen } from '../src/library/ExerciseLibraryScreen';
 import labels from '../../../content/labels.json';
 import { BackHandler } from 'react-native';
-import { EQUIPMENT, filterLibrary, LIBRARY, MUSCLES, NO_FILTER, TYPES } from '../src/library/exercises';
+import { filterLibrary, getEquipment, getLibrary, getMuscles, getTypes, NO_FILTER } from '../src/library/exercises';
+const LIBRARY = getLibrary();
+const EQUIPMENT = getEquipment();
+const MUSCLES = getMuscles();
+const TYPES = getTypes();
 
 describe('library filtering', () => {
   it('lists every content exercise A to Z with no filter', () => {

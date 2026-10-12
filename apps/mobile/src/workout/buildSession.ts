@@ -17,7 +17,7 @@ import {
   type Where,
 } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
-import { catalog } from './catalog';
+import { getCatalog } from './catalog';
 
 
 export interface BuildInput {
@@ -54,11 +54,11 @@ export interface BuiltSession {
  * Recovery weeks are a setting the app does not store yet.
  */
 export function buildSession(i: BuildInput): BuiltSession {
-  const names = mapForWhere([...(TEMPLATES[i.template] ?? [])], i.where, catalog);
+  const names = mapForWhere([...(TEMPLATES[i.template] ?? [])], i.where, getCatalog());
   const resolve = { exclusions: i.exclusions, swaps: i.swaps, lifts: i.lifts, date: i.date };
-  const { items: all, lost } = resolveSessionWithLost(names, i.where, resolve, catalog);
+  const { items: all, lost } = resolveSessionWithLost(names, i.where, resolve, getCatalog());
   const state = { profile: i.profile, sessions: i.sessions };
-  let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, catalog);
+  let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, getCatalog());
   items = shortSession(items, i.checkin.time);
   // Recovery week and re-entry are settings the app does not store yet. TODO(recovery issue): pass them here.
   const { setsLight, mods } = sessionMods({ date: i.date, ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile, deload: null, reentry: null });
@@ -66,7 +66,7 @@ export function buildSession(i: BuildInput): BuiltSession {
     profile: i.profile,
     date: i.date,
     focus: i.focus,
-    tags: catalog.tags,
+    tags: getCatalog().tags,
     lastSets: (n) => lastFor(n, i.lifts, i.date)?.sets.length,
     light: setsLight,
   });
