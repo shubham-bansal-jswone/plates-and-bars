@@ -153,6 +153,35 @@ describe('raw ingredients and recipes through the content store', () => {
     expect(getRawIngredients()).toHaveLength(rawCount);
   });
 
+  describe('raw: each bound is what rejects, not another check', () => {
+    const lastRow = (b: Obj) => b.ingredients[b.ingredients.length - 1];
+    const set = (per: Obj, extra: Obj = {}) => rawWith((b) => { Object.assign(lastRow(b), extra); lastRow(b).per_100g = { fibre_g: 0, ...per }; });
+    const accepted = async (value: Obj) => { await launch({ 'raw-ingredients': value }); return rawNames().includes('Server-only test ingredient'); };
+
+    it('kcal below 0 rejects when the macros are all zero (so the tolerance does not)', async () => {
+      expect(await accepted(set({ kcal: -5, protein_g: 0, carbs_g: 0, fat_g: 0 }))).toBe(false);
+      expect(await accepted(set({ kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }))).toBe(true);
+    });
+    it('protein below 0 rejects when kcal, the 100 g total and fibre are otherwise consistent', async () => {
+      expect(await accepted(set({ kcal: 32, protein_g: -2, carbs_g: 10, fat_g: 0 }))).toBe(false);
+      expect(await accepted(set({ kcal: 32, protein_g: 2, carbs_g: 6, fat_g: 0 }))).toBe(true);
+    });
+    it('the kcal tolerance is 15 kcal or 15 percent, whichever is larger', async () => {
+      // 10 g protein gives 40 kcal: 15 off is inside, 16 off is outside.
+      expect(await accepted(set({ kcal: 55, protein_g: 10, carbs_g: 0, fat_g: 0 }))).toBe(true);
+      expect(await accepted(set({ kcal: 25, protein_g: 10, carbs_g: 0, fat_g: 0 }))).toBe(true);
+      expect(await accepted(set({ kcal: 56, protein_g: 10, carbs_g: 0, fat_g: 0 }))).toBe(false);
+      expect(await accepted(set({ kcal: 24, protein_g: 10, carbs_g: 0, fat_g: 0 }))).toBe(false);
+      // 80 g protein, 0 other: calc 320; 15 percent of 370 is 55.5: 370 is inside (50 off), 380 is outside (60 off).
+      expect(await accepted(set({ kcal: 370, protein_g: 80, carbs_g: 0, fat_g: 0 }))).toBe(true);
+      expect(await accepted(set({ kcal: 380, protein_g: 80, carbs_g: 0, fat_g: 0 }))).toBe(false);
+    });
+    it('an alias of 200 characters is accepted and 201 rejected', async () => {
+      expect(await accepted(rawWith((b) => { lastRow(b).aliases = ['a'.repeat(200)]; }))).toBe(true);
+      expect(await accepted(rawWith((b) => { lastRow(b).aliases = ['a'.repeat(201)]; }))).toBe(false);
+    });
+  });
+
   it('raw: accepts a null name_hi, a hindi name and a 200 character name', async () => {
     await launch({ 'raw-ingredients': rawWith((b) => { const r = b.ingredients[b.ingredients.length - 1]; r.name_hi = null; r.name = 'x'.repeat(200); }) });
     expect(rawNames()).toContain('x'.repeat(200));
