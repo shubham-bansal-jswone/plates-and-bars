@@ -57,6 +57,8 @@ export function fakeServer(userId: string) {
   const pending: Record<string, Rec[]> = {};
   const s = {
     calls: [] as Call[],
+    /** Body size in bytes of every request that reached the data checks. */
+    sizes: [] as number[],
     online: true,
     /** Next responses to force for /sync: status, optional Retry-After. */
     forceStatus: [] as { status: number; retryAfter?: string }[],
@@ -71,6 +73,10 @@ export function fakeServer(userId: string) {
     force400: [] as ({ field?: unknown; issue: string }[] | undefined)[],
     /** Answers 400 `invalid_request` naming every pushed record this returns a field for (the request applies nothing). */
     rejectIf: null as null | ((table: string, rec: Rec) => string | null),
+    /** The request size limit in bytes (the contract's 2 MB); a larger body is refused with 400 `too_large` and no record named. */
+    maxBytes: 2_097_152,
+    /** What an over-limit body is answered with: the contract's 400, or 413 as a proxy in front of the API may. */
+    tooLargeStatus: 400 as 400 | 413,
     /** Resolution to apply to every version mismatch. */
     conflictResolution: null as null | 'server_won',
     put(table: string, rec: Rec) {
@@ -84,10 +90,15 @@ export function fakeServer(userId: string) {
       if (!s.online) throw new TypeError('network down');
       const req = input as Request;
       const path = new URL(req.url).pathname.replace('/api/v1', '');
-      const body = (await req.clone().json()) as Call['body'];
+      const text = await req.clone().text();
+      const body = JSON.parse(text) as Call['body'];
+      const bytes = new TextEncoder().encode(text).length;
       const auth = req.headers.get('Authorization');
       s.calls.push({ path, auth, body });
       const json = (status: number, b: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+      // The size check runs before anything else (contract wire conventions): before forced statuses, auth and holds.
+      if (path === '/sync') s.sizes.push(bytes);
+      if (bytes > s.maxBytes) return json(s.tooLargeStatus, s.tooLargeStatus === 413 ? { code: 'too_large', message: 'x' } : { code: 'invalid_request', message: 'The request is too large.', details: [{ field: '', issue: 'too_large' }] });
       if (s.hold && (!s.holdPath || s.holdPath === path)) await s.hold;
       if (path === '/auth/email/verify') {
         s.accessValid = 'access-verified';
