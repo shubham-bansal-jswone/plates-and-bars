@@ -21,13 +21,14 @@ import Base from "../layouts/Base.astro";
 
   <h2>What gets deleted</h2>
   <ul>
-    <li>On our server, immediately and with no undo: your account, your email and Google sign-in identities, all sessions, all synced records, the conflict log copies and your AI usage counters.</li>
+    <li>On our server, immediately and with no undo: your account, your email and Google sign-in identities, all sessions, all synced records, the conflict log copies, your daily AI usage counters and, for your email address, any pending one-time codes and records of wrong codes kept for rate limiting.</li>
+    <li>Not deleted: one anonymous monthly total of AI tokens (the month and the token count only, with no user id) kept to enforce the shared AI budget. It cannot be linked to your account, so your AI use still counts toward that month's budget. Server logs are also not deleted; see below.</li>
     <li>On the device you delete from: your profile and targets, consent record, food, water and workout logs (including sets and lift history), day notes, weights, measurements, your own foods, recipes and kitchen tests, exclusions, swaps, settings and anything waiting to sync.</li>
     <li>Other devices where you were signed in are signed out the next time they contact the server. Data already on them stays on them until you clear it there.</li>
   </ul>
 
   <h2>What is kept, and for how long</h2>
-  <p>[Planned policy to confirm: nightly backups are not edited, and your data disappears from them when they expire, at most 30 days after deletion.] Server logs hold no food, weight or health answers; the identifier-only lines are covered in the <a href="/privacy/">privacy policy</a>.</p>
+  <p>[Planned policy to confirm: nightly backups are not edited, and your data disappears from them when they expire, at most 30 days after deletion.] Server logs record opaque user ids with operational events (never food, weight, health answers or tokens) and expire after a bounded retention period: [log retention period]. See the <a href="/privacy/">privacy policy</a>.</p>
 
   <h2>If you cannot use the app</h2>
   <p>This is a manual request handled by a person, not an automatic process, and we do not delete anything on the strength of the sender address alone. In-app deletion is faster and immediate, so use it if you can.</p>
