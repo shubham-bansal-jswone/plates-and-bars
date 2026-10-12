@@ -12,7 +12,7 @@ import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
 import { getCatalog } from '../workout/catalog';
-import { CHECKIN, MUSCLE, REASON_TEXT, listJoin, modsNoteText } from '../workout/copy';
+import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards } from '../workout/ExerciseCards';
@@ -140,12 +140,12 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
         <Card>
           <Text style={{ color: c.ink, fontSize: 15 }}>
             <Text style={{ fontWeight: '700' }}>Main focus: </Text>
-            {listJoin(prim.map((m) => MUSCLE[m] ?? m))}
+            {listJoin(prim.map((m) => muscleName(m)))}
           </Text>
           {names.map((n, i) => (
             <Text key={n} accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15 }}>
               {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
-              <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => MUSCLE[m] ?? m))}</Text>
+              <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
               {isFocus(n, focus, getCatalog().tags) ? <Text style={{ color: c.link, fontWeight: '700' }}> Focus</Text> : null}
             </Text>
           ))}
@@ -157,7 +157,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
           </Hint>
           {built.lost.map((n) => (
             <Hint key={n}>
-              {n} is left out with no replacement{getCatalog().tags[n] ? `, so your ${listJoin(getCatalog().tags[n]!.primary.map((m) => MUSCLE[m] ?? m))} get fewer sets each week` : ''}.
+              {n} is left out with no replacement{getCatalog().tags[n] ? `, so your ${listJoin(getCatalog().tags[n]!.primary.map((m) => muscleName(m)))} get fewer sets each week` : ''}.
             </Hint>
           ))}
 
