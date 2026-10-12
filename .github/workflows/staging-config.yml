@@ -1,0 +1,37 @@
+name: Staging config
+
+# Validates infra/staging without deploying anything. Path-filtered on purpose: it is not a required check.
+on:
+  pull_request:
+    paths:
+      - 'infra/staging/**'
+      - 'infra/caddy/**'
+      - '.github/workflows/staging-config.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    name: staging compose config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra/staging
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker compose config with .env.example
+        run: docker compose --env-file .env.example config --quiet
+      - name: required secrets must have no default
+        run: |
+          if env -i PATH="$PATH" docker compose --env-file /dev/null config --quiet 2> err.txt; then
+            echo "::error::compose config passed without any variables: a required secret has a default"; exit 1
+          fi
+          grep -q 'required variable' err.txt
+      - name: shellcheck backup.sh
+        run: shellcheck backup.sh
+      - name: every image is pinned to a version
+        run: |
+          ! docker compose --env-file .env.example config --images | grep -E ':latest$|^[^:]+$' | grep -v '^plateandbar-api:'
