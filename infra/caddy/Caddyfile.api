@@ -1,0 +1,51 @@
+# Caddy (Apache-2.0) in front of the Plate & Bar API. Template: no hosting decision is made yet.
+# Caddy obtains and renews the Let's Encrypt certificate itself (ports 80 and 443 must reach it).
+# Validated in CI (caddy validate) on every change to this file.
+#
+# Environment (both have defaults so the file validates as is):
+#   API_HOST      public host name of the API, e.g. api.example.com
+#   API_UPSTREAM  address of the backend as Caddy reaches it, e.g. api:8080 (Compose service) or 127.0.0.1:8080
+#
+# Client IP and rate limits: Caddy's reverse_proxy replaces any X-Forwarded-For sent by the client with the real
+# peer address (its own trusted_proxies is left empty on purpose: nothing sits in front of Caddy). The backend only
+# believes X-Forwarded-For from peers listed in APP_RATELIMIT_TRUSTEDPROXIES, so set that on the API to the address
+# the API sees Caddy connecting from, NOT to anything in this file:
+#   - Caddy and API in one Compose network: that network's subnet, e.g. APP_RATELIMIT_TRUSTEDPROXIES=172.28.0.0/24
+#     (infra/staging/docker-compose.yml pins that subnet).
+#   - Caddy on the VM host, API published on 127.0.0.1:8080: the Docker bridge gateway, usually 172.17.0.1
+#     (check with `docker network inspect bridge`), because the API sees the gateway as the peer.
+#   - If a CDN or another proxy is ever placed in front of Caddy, add its ranges to the same variable.
+# Left empty, every client shares the proxy's rate-limit buckets.
+#
+# Request body: the backend refuses bodies over SYNC_MAX_BODY_BYTES (default 2097152 = 2 MiB) with 400 too_large.
+# The proxy limit below must never be lower than that, or Caddy answers 413 first (the app treats 413 like
+# too_large, but the contract error is better). If you raise SYNC_MAX_BODY_BYTES, raise max_size too.
+{$API_HOST:api.example.com} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		-Server
+	}
+
+	# Only the API is exposed; anything else (actuator, probes of other paths) never reaches the backend.
+	handle /api/* {
+		request_body {
+			max_size 2MiB
+		}
+		reverse_proxy {$API_UPSTREAM:api:8080} {
+			# Take the upstream out of rotation while /health is not 200 (503 = database unreachable).
+			health_uri /api/v1/health
+			health_interval 30s
+			health_timeout 5s
+			health_status 200
+		}
+	}
+	handle {
+		respond "not found" 404
+	}
+}

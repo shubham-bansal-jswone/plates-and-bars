@@ -96,9 +96,22 @@ The plan named Cloudflare Pages; that needs a vendor account and terms, so the w
 | `github-pages` | `npm ci`, `check`, `build`, then `actions/deploy-pages` | Settings > Pages > Source: GitHub Actions; a custom domain (the site is built for the domain root, so the default `user.github.io/repo/` path would break asset links) |
 | `caddy` | Build, then `rsync --delete` of `dist/` to the VM over SSH; Caddy serves it (`infra/caddy/Caddyfile.site`) | variables `SITE_SSH_HOST`, `SITE_SSH_USER`, `SITE_WEB_ROOT`; secrets `SITE_SSH_KEY` (private key of a deploy-only user), `SITE_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); a GitHub environment named `site`, with deployment branches restricted to `main` (Settings > Environments > site) |
 
-Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The workflow's `validate Caddyfile` job runs `caddy validate` with the official Apache-2.0 `caddy:2` image on every PR touching `infra/caddy/`. The Caddyfile sets long-lived immutable caching for `/_astro/*`, `no-cache` for everything else, and security headers.
+Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The workflow's `validate Caddyfile` job runs `caddy validate` with the pinned official Apache-2.0 Caddy image on both Caddyfiles on every PR touching `infra/caddy/` or `apps/site/public/_headers`, and `infra/scripts/check-caddy-headers.sh` fails it if a header in `_headers` is missing from, or differs in, `Caddyfile.site`. Caddy ignores `_headers`, so the CSP and security headers live in both; change them together. The Caddyfile sets long-lived immutable caching for `/_astro/*`, `no-cache` for everything else, and security headers.
 
 Safety rails: deploys run only from `main`, even when started manually; the `caddy` job refuses to run `rsync --delete` unless `SITE_SSH_HOST`, `SITE_SSH_USER` and `SITE_WEB_ROOT` are set and `SITE_WEB_ROOT` is a directory under `/srv`, `/var/www` or `/opt` (for example `/srv/site`; never `/` or a home directory, because `rsync --delete` would remove `~/.ssh/authorized_keys`). Use a dedicated deploy user that can write only that directory.
+
+### API host (`infra/caddy/Caddyfile.api`, #398)
+
+Template for the API's Caddy: HSTS (`max-age=31536000`), `nosniff`, `X-Frame-Options`, `Referrer-Policy`, a deny-all CSP, only `/api/*` proxied (everything else 404), `request_body max_size 2MiB` (2097152 bytes, equal to the backend's default `SYNC_MAX_BODY_BYTES`; a lower proxy limit would answer 413 first, which the app treats like `too_large`; raise both together), and an active health check on `/api/v1/health`. Hostnames are placeholders: `API_HOST` (default `api.example.com`) and `API_UPSTREAM` (default `api:8080`).
+
+`APP_RATELIMIT_TRUSTEDPROXIES` on the API must be the address or network the API sees Caddy connect from (the proxy directly in front of it), not Caddy's `trusted_proxies`:
+
+| Layout | Value |
+| --- | --- |
+| Caddy and API in one Compose network | that network's subnet (staging pins `172.28.0.0/24`) |
+| Caddy on the VM host, API published on `127.0.0.1:8080` | the Docker bridge gateway, usually `172.17.0.1` (`docker network inspect bridge`) |
+
+Caddy's own `trusted_proxies` stays empty, so Caddy overwrites any client-sent `X-Forwarded-For` with the real peer. Add the ranges of any CDN placed in front later.
 
 Open-source note: GitHub Pages is a GitHub service, already used for this repository; if you want it recorded as an exception, say so, otherwise choose `caddy`.
 

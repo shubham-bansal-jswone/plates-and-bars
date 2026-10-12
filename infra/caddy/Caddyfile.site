@@ -1,6 +1,8 @@
 # Caddy (Apache-2.0) serving the static Astro build. Replace example.com.
 # Caddy obtains and renews the Let's Encrypt certificate itself.
 # The deploy workflow rsyncs apps/site/dist into /srv/site.
+# The security headers below mirror apps/site/public/_headers (Cloudflare Pages format, which Caddy ignores).
+# Keep them in step: infra/scripts/check-caddy-headers.sh fails CI when they drift.
 # Validated in CI (caddy validate) on every change to this file.
 example.com {
 	root * /srv/site
@@ -10,7 +12,7 @@ example.com {
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
-		Content-Security-Policy "frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 		Referrer-Policy strict-origin-when-cross-origin
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		Strict-Transport-Security "max-age=31536000"
