@@ -149,15 +149,45 @@ public class SyncRequestValidator {
 
     private static ErrorResponse.Detail detail(com.networknt.schema.Error m) {
         StringBuilder path = new StringBuilder();
-        // The validator reports a JSON pointer such as /changes/food_logs/0/meal; the contract wants a path.
-        for (String part : m.getInstanceLocation().toString().split("/")) {
-            appendSegment(path, part);
+        // The validator reports a JSON pointer such as /changes/food_logs/0/meal; the contract wants a path. Only the
+        // segments named by the contract are kept: the path stops where it enters an open map, whose keys the client
+        // chose (a custom exercise name), so no submitted key is ever echoed (#419).
+        String[] instance = m.getInstanceLocation().toString().split("/");
+        int kept = contractSegments(m.getEvaluationPath().toString());
+        for (int i = 1; i <= kept && i < instance.length; i++) {
+            appendSegment(path, instance[i]);
         }
-        // For additionalProperties and propertyNames the property is the key the client sent: never echo it (#419).
-        if (!"additionalProperties".equals(m.getKeyword()) && !"propertyNames".equals(m.getKeyword())) {
+        // Only `required` names a property of the contract; for other keywords it can be the client's key.
+        if ("required".equals(m.getKeyword())) {
             appendSegment(path, m.getProperty());
         }
         return new ErrorResponse.Detail(path.toString(), m.getKeyword());
+    }
+
+    /**
+     * How many instance segments the evaluation path walks through by name or index: each {@code properties/<name>}
+     * and {@code items} step is one; {@code $ref}, {@code allOf/<n>} and the like are none; it stops at the first
+     * step into an open map ({@code additionalProperties}, {@code patternProperties}, {@code propertyNames}) or any
+     * other keyword.
+     */
+    static int contractSegments(String evaluationPath) {
+        String[] t = evaluationPath.split("/");
+        int n = 0;
+        for (int i = 1; i < t.length; i++) {
+            switch (t[i]) {
+                case "properties", "prefixItems" -> {
+                    n++;
+                    i++; // the property name or item index
+                }
+                case "items" -> n++;
+                case "$ref", "if", "then", "else", "not" -> { }
+                case "allOf", "anyOf", "oneOf", "dependentSchemas" -> i++; // the branch index or property name
+                default -> {
+                    return n;
+                }
+            }
+        }
+        return n;
     }
 
     private static void appendSegment(StringBuilder path, String segment) {

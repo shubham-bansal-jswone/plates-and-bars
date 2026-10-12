@@ -81,6 +81,10 @@ class SyncRequestValidatorDetailsTest {
                         List.of(d("changes.settings[0].reminders[0].on", "type"))),
                 Arguments.of("exclusion key too long", exclusion("{'to':{'%s':null}}".formatted("x".repeat(201))),
                         List.of(d("changes.exclusions[0].to", "propertyNames"))), // the key is never echoed (#419)
+                Arguments.of("a bad value under a long map key", exclusion("{'to':{'%s':5}}".formatted("y".repeat(209))),
+                        List.of(d("changes.exclusions[0].to", "propertyNames"), d("changes.exclusions[0].to", "type"))),
+                Arguments.of("a bad value under a map key", exclusion("{'to':{'My Secret Lift':5}}"),
+                        List.of(d("changes.exclusions[0].to", "type"))), // the key is never echoed (#419)
                 Arguments.of("missing changes", (ObjectNode) SyncFixtures.obj("{'cursor':null}"), List.of(d("changes", "required"))));
     }
 
