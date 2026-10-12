@@ -39,6 +39,7 @@ class SyncRequestValidatorDetailsTest {
         return Req.of(null).add(SyncTable.water_logs, r).build();
     }
 
+    /** The settings fixture with {@code reminders} set to the array under key {@code r} (SyncFixtures.obj takes objects only). */
     private static ObjectNode reminders(String json) {
         ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.settings);
         r.set("reminders", SyncFixtures.obj(json).get("r"));
