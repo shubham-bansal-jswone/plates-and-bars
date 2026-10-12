@@ -61,6 +61,8 @@ const DEFAULT_RETRY_SEC = 60;
 const MAX_PUSH = 500;
 /** Rounds per run that may be spent on a push cut short by the byte budget, without counting against MAX_ROUNDS. */
 const MAX_SPLIT_ROUNDS = 200;
+/** Halvings of the batch per run after a `too_large`: enough to go from 500 records to 1 several times over. */
+const MAX_HALVINGS = 30;
 
 type Guard = (db: StoreDb) => Promise<void>;
 type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean };
@@ -73,6 +75,8 @@ function failFrom(res: Response, error?: { code?: string; details?: { field?: un
     const tooLarge = error.details.some((d) => (d as { issue?: unknown } | null)?.issue === 'too_large');
     return { ...fail('rejected'), fields, ...(tooLarge ? { tooLarge } : {}) };
   }
+  // A proxy in front of the API may refuse a large body with 413 before the server sees it: the same as `too_large`.
+  if (res.status === 413) return { ...fail('rejected'), tooLarge: true };
   if (res.status === 429) return fail('rate_limited', Math.max(1, Number(res.headers.get('Retry-After')) || DEFAULT_RETRY_SEC));
   return res.status >= 500 ? fail('unavailable') : fail('rejected');
 }
@@ -224,6 +228,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let quarantined = 0;
   let asideRounds = 0;
   let splitRounds = 0;
+  let halvings = 0;
   let cap = MAX_PUSH; // records per request; halved when the server says a request was too large
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -243,14 +248,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           continue;
         }
         const bytes = utf8Length(JSON.stringify(record));
+        // The request stops growing at the byte budget or the record cap; the rest goes in the next round.
+        if (sent.size > 0 && (sent.size >= cap || size.with(e.tbl, bytes) > BODY_BUDGET_BYTES)) break;
         if (size.with(e.tbl, bytes) > MAX_BODY_BYTES) {
-          // Too big even alone: no request could carry it. Set it aside (it stays on the device and in the outbox).
+          // The request is empty here, so this record is too big even alone: no request could carry it. Set it aside
+          // (it stays on the device and in the outbox).
           if (await quarantine(d.db, e, `changes.${e.tbl}[0]`, guard)) tooBig++;
           consumed++;
           continue;
         }
-        // The request stops growing at the byte budget or the record cap; the rest goes in the next round.
-        if (sent.size > 0 && (sent.size >= cap || size.with(e.tbl, bytes) > BODY_BUDGET_BYTES)) break;
         size.add(e.tbl, bytes);
         consumed++;
         sent.set(`${e.tbl}:${record.id as string}`, { entry: e, record });
@@ -268,8 +274,10 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         if (out.tooLarge && sent.size > 0) {
           // The 400 names no record. Send half as many; one record alone that is still too large is set aside.
           if (sent.size > 1) {
+            // Bounded by a counter, not only by `cap` shrinking: a request that never gets smaller must still end the run.
+            if (halvings++ >= MAX_HALVINGS) return { ...out.result, conflicts, pulled, skipped, ...(quarantined ? { quarantined } : {}) };
             cap = Math.max(1, Math.floor(sent.size / 2));
-            round--; // each halving lowers `cap`, so this ends after a handful of retries
+            round--;
             continue;
           }
           const only = [...sent.values()][0]!.entry;

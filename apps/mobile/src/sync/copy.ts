@@ -29,7 +29,7 @@ export const SIGN_IN_COPY = {
   failed: 'Sync stopped because of a problem on this device. Your records are safe; try again, and update the app if it keeps happening.',
   retrying: 'We could not reach the server. Your changes are safe on this device and we will try again.',
   conflicts: (n: number) => `${n} ${n === 1 ? 'record was' : 'records were'} changed on another device more recently, so that version was kept.`,
-  quarantined: (n: number) => `The server refused ${n} ${n === 1 ? 'record' : 'records'}, so ${n === 1 ? 'it was' : 'they were'} set aside and everything else kept syncing. ${n === 1 ? 'It stays' : 'They stay'} on this device. Try again later, or stop trying to send ${n === 1 ? 'it' : 'them'}.`,
+  quarantined: (n: number) => `${n} ${n === 1 ? 'record was' : 'records were'} refused by the server or too large to sync, so ${n === 1 ? 'it was' : 'they were'} set aside and everything else kept syncing. ${n === 1 ? 'It stays' : 'They stay'} on this device. Try again later, or stop trying to send ${n === 1 ? 'it' : 'them'}.`,
   retryQuarantined: 'Try the refused records again',
   discardQuarantined: 'Stop sending the refused records',
   confirmStopRefused: (n: number) => `${n === 1 ? 'This record stays' : `These ${n} records stay`} on this device but will never be backed up or reach your other devices. Signing out or deleting your data will remove ${n === 1 ? 'it' : 'them'}. Editing ${n === 1 ? 'it' : 'one of them'} later queues ${n === 1 ? 'it' : 'that one'} again.`,

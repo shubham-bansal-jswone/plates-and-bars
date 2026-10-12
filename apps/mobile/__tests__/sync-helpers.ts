@@ -75,6 +75,8 @@ export function fakeServer(userId: string) {
     rejectIf: null as null | ((table: string, rec: Rec) => string | null),
     /** The request size limit in bytes (the contract's 2 MB); a larger body is refused with 400 `too_large` and no record named. */
     maxBytes: 2_097_152,
+    /** What an over-limit body is answered with: the contract's 400, or 413 as a proxy in front of the API may. */
+    tooLargeStatus: 400 as 400 | 413,
     /** Resolution to apply to every version mismatch. */
     conflictResolution: null as null | 'server_won',
     put(table: string, rec: Rec) {
@@ -94,6 +96,9 @@ export function fakeServer(userId: string) {
       const auth = req.headers.get('Authorization');
       s.calls.push({ path, auth, body });
       const json = (status: number, b: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+      // The size check runs before anything else (contract wire conventions): before forced statuses, auth and holds.
+      if (path === '/sync') s.sizes.push(bytes);
+      if (bytes > s.maxBytes) return json(s.tooLargeStatus, s.tooLargeStatus === 413 ? { code: 'too_large', message: 'x' } : { code: 'invalid_request', message: 'The request is too large.', details: [{ field: '', issue: 'too_large' }] });
       if (s.hold && (!s.holdPath || s.holdPath === path)) await s.hold;
       if (path === '/auth/email/verify') {
         s.accessValid = 'access-verified';
@@ -108,8 +113,6 @@ export function fakeServer(userId: string) {
       const forced = s.forceStatus.shift();
       if (forced) return json(forced.status, { code: forced.status === 503 ? 'unavailable' : 'rate_limited', message: 'x' }, forced.retryAfter ? { 'Retry-After': forced.retryAfter } : {});
       if (auth !== `Bearer ${s.accessValid}`) return json(401, { code: 'token_expired', message: 'x' });
-      s.sizes.push(bytes);
-      if (bytes > s.maxBytes) return json(400, { code: 'invalid_request', message: 'The request is too large.', details: [{ field: '', issue: 'too_large' }] });
       if (s.force400.length) {
         const details = s.force400.shift();
         return json(400, { code: 'invalid_request', message: 'Some fields are invalid.', ...(details ? { details } : {}) });

@@ -79,6 +79,49 @@ describe('size-aware batching', () => {
     expect(syncCalls(server).length).toBe(before + 1);
   });
 
+  it('a record that fits alone is not set aside because of the records before it (1.0 MB then 1.2 MB)', async () => {
+    const { db, server, deps } = await setup();
+    await saveBig(db, date(0), 1_000_000);
+    await saveBig(db, date(1), 1_200_000); // 2.2 MB together, 1.2 MB alone
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok' });
+    expect(await listQuarantined(db)).toEqual([]);
+    expect(accepted(server).size).toBe(2);
+    expect(await pendingCount(db)).toBe(0);
+  });
+
+  it('needs more than 40 requests in one run and still syncs everything (60 records of 800 KB)', async () => {
+    const { db, server, deps } = await setup();
+    for (let i = 0; i < 60; i++) await saveBig(db, date(i), 800_000);
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok' });
+    expect(syncCalls(server).length).toBeGreaterThan(40);
+    expect(accepted(server).size).toBe(60);
+    expect(await pendingCount(db)).toBe(0);
+  });
+
+  it('answers an over-limit body before auth and forced statuses, as the contract says', async () => {
+    const { db, server, deps } = await setup();
+    server.maxBytes = 3_000;
+    server.accessValid = 'other'; // the token is refused and cannot be renewed, but the size check comes first
+    server.refreshOk = false;
+    await saveBig(db, date(0), 5_000);
+    // The big request gets too_large (not 401) and the record is set aside; the next, small request then gets the 401.
+    expect((await syncOnce(deps)).status).toBe('signed_out');
+    expect(await listQuarantined(db)).toHaveLength(1);
+  });
+
+  it('a 413 from a proxy is treated like too_large: halved, then set aside alone', async () => {
+    const { db, server, deps } = await setup();
+    server.tooLargeStatus = 413;
+    server.maxBytes = 3_000;
+    await saveBig(db, date(0), 500);
+    await saveBig(db, date(1), 5_000);
+    await saveBig(db, date(2), 500);
+    await saveBig(db, date(3), 500);
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok', quarantined: 1 });
+    expect([...accepted(server)].sort()).toEqual([date(0), date(2), date(3)]);
+    expect(await listQuarantined(db)).toEqual([expect.objectContaining({ key: date(1) })]);
+  });
+
   it('only oversized records queued: all are set aside, the run ends ok', async () => {
     const { db, deps } = await setup();
     await saveBig(db, date(0), MAX_BODY_BYTES + 1);
