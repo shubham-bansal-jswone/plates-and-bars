@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { loadSets, loadWorkout, saveSet, saveWorkout } from '../src/db/workouts';
+import { applyCantToStoredDay } from '../src/workout/cantApply';
 import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -94,6 +95,51 @@ describe('a workout deleted on another device (#408)', () => {
     expect(result.current.day.workout).not.toBeNull();
     const stored = (await loadWorkout(db, DATE))!;
     expect(stored.deleted_at ?? null).toBeNull();
+    expect(stored.version).toBe(6);
+  });
+
+  it('starting over the deleted session tombstones its sets that were left live', async () => {
+    const { db: old } = await started();
+    const shape = (await loadWorkout(old, DATE))!;
+    const oldSets = await loadSets(old, DATE);
+    const db = await openDb();
+    await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-07T09:00:00Z', updated_at: '2026-10-07T09:00:00Z' });
+    for (const st of oldSets) await saveSet(db, DATE, st); // the deleting device did not tombstone them
+    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const view = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
+    await waitFor(() => expect(view.result.current.day.ready).toBe(true));
+    await act(async () => void (await view.result.current.start('Upper A', {}, null)));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const sets = await loadSets(db, DATE);
+    const oldIds = new Set(oldSets.map((x) => x.id));
+    expect(sets.filter((x) => oldIds.has(x.id)).every((x) => !!x.deleted_at)).toBe(true);
+    const live = sets.filter((x) => !x.deleted_at).length;
+    expect(live).toBe(oldSets.length); // same template, so the same number of new sets
+    await view.rerender({ k: 1 });
+    await waitFor(() => expect(view.result.current.day.exs.flatMap((e) => e.sets).length).toBe(live));
+  });
+
+  it('a rule saved on Targets leaves a deleted workout and its sets alone', async () => {
+    const { db } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    const tomb = { ...w, version: 6, deleted_at: '2026-10-08T09:00:00Z', updated_at: '2026-10-08T09:00:00Z' };
+    await saveWorkout(db, tomb);
+    const before = await loadSets(db, DATE);
+    expect(w.exercises.map((e) => e.name)).toContain('Machine Chest Press'); // the rule below swaps it on a live day
+    await applyCantToStoredDay({ db, date: DATE, now: NOW, draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
+    expect(await loadWorkout(db, DATE)).toEqual(tomb);
+    expect(await loadSets(db, DATE)).toEqual(before);
+  });
+
+  it('a "can\'t do" change on the screen does not bring back a workout deleted since it loaded', async () => {
+    const { db, result } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, version: 6, deleted_at: '2026-10-09T09:59:00Z', updated_at: '2026-10-09T09:59:59Z' });
+    const name = result.current.day.exs[0]!.name;
+    await act(async () => result.current.cant(0, { name, reason: 'dislike', dur: 'today', scope: 'exercise', key: name }, null));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.deleted_at).toBe('2026-10-09T09:59:00Z');
     expect(stored.version).toBe(6);
   });
 });

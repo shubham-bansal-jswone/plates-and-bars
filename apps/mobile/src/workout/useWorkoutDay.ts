@@ -192,6 +192,12 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         commit(d);
         await enqueue(async () => {
+          // Started over a session deleted on another device: its sets go with it, so the new session does not
+          // pick them up (the contract does not promise that the deleting device tombstoned them).
+          if ((await loadWorkout(db, date))?.deleted_at) {
+            const at = stamp(now());
+            for (const s of await loadSets(db, date)) if (!s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
+          }
           await writeWorkout();
           for (let i = 0; i < d.exs.length; i++) await writeSets(i, 'work', Array.from((d.exs[i] as ExState).sets.keys()));
         });
