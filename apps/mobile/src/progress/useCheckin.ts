@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { addDays, habits, mondayOf, nextAdaptive, SPLITS, weeklyCheckin, type AdaptiveState, type LiftRecord, type ProgressDay, type SessionLog, type WeekPlan } from '@plate-and-bar/core';
+import { addDays, addKcal, habits, mondayOf, nextAdaptive, RAPID_LOSS_KCAL, rapidLoss, SPLITS, stalledList, weeklyCheckin, type AdaptiveState, type LiftRecord, type ProgressDay, type SessionLog, type WeekPlan } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs } from '../db/food';
 import { loadLifts, loadSessionLog, loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
@@ -16,6 +16,8 @@ interface Adjustments {
   muted?: Record<string, boolean>;
   declines?: Record<string, number>;
 }
+/** Decline and mute key of the rapid-loss card (prototype type `kcal-up`). */
+const RAPID_TYPE = 'kcal-up';
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 interface Options {
@@ -75,6 +77,12 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
         : null,
     [profile, days, usable, date, weights, lifts, adaptive, A.weekPlan, A.dismissed, A.muted],
   );
+  // The "Weight is dropping fast" card (prototype `calorieCard`): needs the profile, since "Add 150 kcal" changes its targets.
+  const rapid = useMemo(() => {
+    if (!profile || !days || !usable) return null;
+    const r = rapidLoss(weights, date, stalledList(lifts, date).length);
+    return r && !A.muted?.[RAPID_TYPE] && !A.dismissed?.[r.key] ? r : null;
+  }, [profile, days, usable, date, weights, lifts, A.muted, A.dismissed]);
   const habit = useMemo(() => (profile && days ? habits(date, sessions, profile, days) : null), [profile, days, date, sessions]);
 
   // As the prototype does on showing the check-in: remember a ready burn estimate, and that this week's was seen.
@@ -127,6 +135,29 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
       dismiss(checkin.key, (a) => ({ declines: { ...a.declines, checkin: (a.declines?.checkin ?? 0) + 1 } }));
     },
     declines: A.declines?.checkin ?? 0,
+    rapid,
+    rapidDeclines: A.declines?.[RAPID_TYPE] ?? 0,
+    /** "Add 150 kcal": calories and carbs on the profile (core `addKcal`), then the card is dismissed for the week. */
+    addCalories: async () => {
+      if (!profile || !rapid || !usable) return;
+      const t = addKcal({ kcal: profile.targets.kcal, carbs: profile.targets.carbs_g }, RAPID_LOSS_KCAL);
+      try {
+        await setProfile({ ...profile, targets: { ...profile.targets, kcal: t.kcal, carbs_g: t.carbs }, updated_at: stamp(now()) });
+        dismiss(rapid.key);
+        notify(`Calories raised to ${t.kcal.toLocaleString('en-IN')}`);
+      } catch {
+        notify('Couldn’t save that. Try again.');
+      }
+    },
+    /** "Not now" on the rapid-loss card: dismissed for the week, a decline counted. */
+    declineRapid: () => {
+      if (!rapid) return;
+      dismiss(rapid.key, (a) => ({ declines: { ...a.declines, [RAPID_TYPE]: (a.declines?.[RAPID_TYPE] ?? 0) + 1 } }));
+    },
+    stopSuggestingRapid: () => {
+      update((st) => ({ adjustments: { ...st.adjustments, muted: { ...(st.adjustments as Adjustments).muted, [RAPID_TYPE]: true } } }));
+      notify('Got it, no more of these');
+    },
     stopSuggesting: () => {
       update((st) => ({ adjustments: { ...st.adjustments, muted: { ...(st.adjustments as Adjustments).muted, checkin: true } } }));
       notify('Got it, no more of these');

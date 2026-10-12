@@ -1,5 +1,5 @@
 import measuresContent from '../../../../content/measures.json';
-import type { MeasureKey } from '@plate-and-bar/core';
+import { RAPID_LOSS_KCAL, type MeasureKey } from '@plate-and-bar/core';
 import { contentReader, isObj, isStr, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
@@ -78,3 +78,8 @@ export const HABIT_MESSAGE = {
   steady: 'Aim for most days, not perfect days. Consistency over weeks is what counts.',
 } as const;
 export const SETTINGS_UNREADABLE = 'Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.';
+
+// Rapid-loss card (prototype `calorieCard`).
+export const RAPID_TITLE = 'Weight is dropping fast';
+export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number): string =>
+  `Your weekly average fell about ${drop} kg${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;
