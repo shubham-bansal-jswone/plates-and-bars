@@ -4,7 +4,7 @@ import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
 import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { Button, Card, Hint, Press } from '../components/ui';
+import { a11yState, Heading, Button, Card, Hint, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName } from './copy';
@@ -67,8 +67,7 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
       <Press
         accessibilityRole="checkbox"
         accessibilityLabel={`Mark ${label} done`}
-        accessibilityState={{ checked: row.done }}
-        aria-checked={row.done}
+        {...a11yState({ checked: row.done })}
         onPress={onTick}
         style={[styles.tick, { borderColor: c.brand, backgroundColor: row.done ? c.brand : c.surface }]}
       >
@@ -97,9 +96,9 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
 
   return (
     <Card>
-      <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>
+      <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>
         {ex.name}
-      </Text>
+      </Heading>
       <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
         {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
         {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}

@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
+import { Heading, Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
@@ -74,7 +74,7 @@ function WeightSection({ p }: { p: Progress }) {
   const change = trendChange(series);
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Body weight</Text>
+      <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Body weight</Heading>
       <View style={styles.inline}>
         <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={text} onChangeText={setText} />
         <Button label="Save weight" onPress={() => p.saveWeightText(text)} />
@@ -121,7 +121,7 @@ function MeasureSection({ p }: { p: Progress }) {
   const waistChange = trendChange(waist);
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Measurements</Text>
+      <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
       {shown.map((m) => (
         <View key={m.key} style={styles.field}>
           <Label>{`${m.label} (cm)`}</Label>
@@ -131,7 +131,7 @@ function MeasureSection({ p }: { p: Progress }) {
       <Button label="Save for today" onPress={() => p.saveTape(text)} />
       {waist.length >= 2 ? (
         <>
-          <Text accessibilityRole="header" style={[typeScale.label, { color: c.ink }]}>Waist</Text>
+          <Heading level={3} style={[typeScale.label, { color: c.ink }]}>Waist</Heading>
           <TrendChart points={waist} box={WAIST_CHART_BOX} label={`Waist from ${waist[0]?.v} to ${waist[waist.length - 1]?.v} cm`} />
           {waistChange ? <Hint>{waistChange.direction === 'none' ? `No change in waist since ${shortDate(waistChange.since)}.` : `Waist ${waistChange.direction} ${waistChange.amount} cm since ${shortDate(waistChange.since)}.`}</Hint> : null}
         </>
@@ -155,7 +155,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
   const [sleep, setSleep] = useState(p.today?.sleep ? String(p.today.sleep) : '');
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Text>
+      <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Heading>
       <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={steps} onChangeText={setSteps} />
       <Hint>{`steps today, target about ${fmt(stepsTarget(p.notes, p.date))}`}</Hint>
       {p.today?.steps != null && <Hint>{`Source: ${p.today.steps_source === 'device' ? 'phone step sensor' : 'entered by you'}`}</Hint>}

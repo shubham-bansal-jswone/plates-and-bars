@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { repWord, type ExInfo, type LadderCard, type StallCard } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Card } from '../components/ui';
+import { Heading, Button, Card } from '../components/ui';
 import type { ExclusionRecord } from '../db/rules';
 import { useTheme } from '../theme/useTheme';
 import { ruleText } from './rulesCopy';
@@ -14,11 +14,11 @@ interface Btn {
 
 /** A card with a bold title, a line of text and answer buttons (prototype `.adj`). After 3 declines it offers to stop. */
 /** `subject` is the exercise the card is about: buttons repeat per exercise, so each is spoken with it. */
-function AdjCard({ title, subject, children, buttons, declines = 0, onMute }: { title: string; subject: string; children: string; buttons: Btn[]; declines?: number; onMute?: () => void }) {
+function AdjCard({ title, level = 3, subject, children, buttons, declines = 0, onMute }: { title: string; /** 2 when the card is not inside an exercise card. */ level?: 2 | 3; subject: string; children: string; buttons: Btn[]; declines?: number; onMute?: () => void }) {
   const c = useTheme();
   return (
     <Card style={{ backgroundColor: c.tint, gap: 6 }}>
-      <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '700' }}>{title}</Text>
+      <Heading level={level} style={{ color: c.ink, fontWeight: '700' }}>{title}</Heading>
       <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{children}</Text>
       <View style={styles.row}>
         {buttons.map((b) => (
@@ -90,6 +90,7 @@ export function RecheckCard({ rule, onBack, onLater, onKeep }: { rule: Exclusion
   return (
     <AdjCard
       title={`Ready to try ${what} again?`}
+      level={2}
       subject={what ?? rule.key}
       buttons={[
         { label: 'Try it again', primary: true, onPress: onBack },

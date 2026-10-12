@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
-import { Text } from '../components/Text';
-import { Button, ErrorText, Hint, Note } from '../components/ui';
+import { Heading, Button, ErrorText, Hint, Note } from '../components/ui';
 import type { Profile } from '../setup/types';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -39,7 +38,7 @@ export function SummaryCard({ checkin, profile }: { checkin: WeeklyCheckin | nul
   };
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[typeScale.heading, { color: c.ink }]}>{AI_COPY.summaryTitle}</Text>
+      <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{AI_COPY.summaryTitle}</Heading>
       {text ? (
         <View accessibilityLiveRegion="polite" style={styles.live}>
           <Note>{text}</Note>

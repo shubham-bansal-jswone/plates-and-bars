@@ -5,7 +5,7 @@ import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, planForMeal, showAddedSugar, undoFlex, type FoodFacts, type PlanItem } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
+import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
@@ -149,7 +149,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
-          <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" accessibilityState={{ checked: complete }} aria-checked={complete} onPress={() => f.setComplete(!complete)} style={styles.check}>
+          <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" {...a11yState({ checked: complete })} onPress={() => f.setComplete(!complete)} style={styles.check}>
             <View style={[styles.box, { borderColor: c.brand, backgroundColor: complete ? c.brand : 'transparent' }]}>{complete ? <Text style={{ color: c.onBrand, fontWeight: '700' }}>✓</Text> : null}</View>
             <Text style={{ color: c.ink, flex: 1 }}>I’ve logged everything I ate today <Text style={{ color: c.muted }}>(only complete days are used for your real calorie burn)</Text></Text>
           </Press>
@@ -182,7 +182,7 @@ function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAd
   return (
     <View style={styles.gap}>
       <View style={styles.between}>
-        <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>{meal}</Text>
+        <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>{meal}</Heading>
         <Text style={{ color: c.muted }}>{items.length ? `${fmt(kcal)} kcal` : ''}</Text>
       </View>
       {items.map((m) => (

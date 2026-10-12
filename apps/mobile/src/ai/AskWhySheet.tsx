@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Button, ErrorText, Field, Hint, Note, Press } from '../components/ui';
+import { a11yState, Heading, Button, ErrorText, Field, Hint, Note, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useAi } from './AiProvider';
@@ -44,11 +44,11 @@ export function AskWhySheet({ onClose }: { onClose: () => void }) {
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.askTitle}</Text>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.askTitle}</Heading>
           <Hint>{AI_COPY.askHint}</Hint>
           <View accessibilityRole="tablist" style={styles.row}>
             {ASK_CARDS.map((id) => (
-              <Press key={id} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={cardTitle(id)} accessibilityState={{ selected: card === id }} onPress={() => setCard(id)} style={[styles.tab, { backgroundColor: card === id ? c.brand : c.surfaceSoft }]}>
+              <Press key={id} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={cardTitle(id)} {...a11yState({ selected: card === id })} onPress={() => setCard(id)} style={[styles.tab, { backgroundColor: card === id ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: card === id ? c.onBrand : c.ink, ...type.buttonSm }}>{cardTitle(id)}</Text>
               </Press>
             ))}

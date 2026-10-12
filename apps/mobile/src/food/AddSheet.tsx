@@ -3,7 +3,7 @@ import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
+import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
@@ -34,10 +34,10 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Text>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
             {MODES.map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} accessibilityState={{ selected: mode === k }} onPress={() => { setMode(k); setStatus(null); }}
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
@@ -111,7 +111,7 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
     <View style={styles.gap}>
       <View style={styles.row}>
         {getCuisines().map((x) => (
-          <Press key={x.name} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={x.name} accessibilityState={{ selected: x.name === name }} onPress={() => setName(x.name)}
+          <Press key={x.name} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={x.name} {...a11yState({ pressed: x.name === name })} onPress={() => setName(x.name)}
             style={[styles.tab, { borderColor: x.name === name ? c.brand : c.line, backgroundColor: x.name === name ? c.tint : c.surface }]}>
             <Text style={{ color: c.ink, fontWeight: '600' }}>{x.name}</Text>
           </Press>
