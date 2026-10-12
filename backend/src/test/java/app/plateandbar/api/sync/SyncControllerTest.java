@@ -170,7 +170,8 @@ class SyncControllerTest {
                 Arguments.of("missing meta", removeField(ok, "version", SyncTable.water_logs)),
                 // #420: 1e400 parses to Infinity, which passes `maximum` and cannot be compared or stored.
                 Arguments.of("kcal not finite", mutate(ok, "kcal", 1, SyncTable.food_logs).replace("\"kcal\":1", "\"kcal\":1e400")),
-                Arguments.of("kcal negative infinity", mutate(ok, "kcal", 1, SyncTable.food_logs).replace("\"kcal\":1", "\"kcal\":-1e400"))
+                Arguments.of("kcal negative infinity", mutate(ok, "kcal", 1, SyncTable.food_logs).replace("\"kcal\":1", "\"kcal\":-1e400")),
+                Arguments.of("kcal a 401-digit integer", mutate(ok, "kcal", 1, SyncTable.food_logs).replace("\"kcal\":1", "\"kcal\":1" + "0".repeat(400)))
         );
     }
 
