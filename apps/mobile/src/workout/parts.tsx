@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Button, Hint, Press } from '../components/ui';
+import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
@@ -14,8 +14,7 @@ export function Chip({ label, text, pressed, onPress }: { label: string; text?: 
     <Press
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={pressed === undefined ? undefined : { selected: pressed }}
-      aria-pressed={pressed}
+      {...a11yState({ pressed })}
       onPress={onPress}
       hitSlop={{ top: 6, bottom: 6 }}
       style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }]}
@@ -91,9 +90,9 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
 function H({ children }: { children: string }) {
   const c = useTheme();
   return (
-    <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '700', fontSize: 16, marginTop: 10 }}>
+    <Heading level={3} style={{ color: c.ink, fontWeight: '700', fontSize: 16, marginTop: 10 }}>
       {children}
-    </Text>
+    </Heading>
   );
 }
 
@@ -120,9 +119,9 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
     <Modal visible animationType="slide" onRequestClose={onClose} transparent={false}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.sheetBody}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
             {name}
-          </Text>
+          </Heading>
           {card ? (
             <>
               <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>

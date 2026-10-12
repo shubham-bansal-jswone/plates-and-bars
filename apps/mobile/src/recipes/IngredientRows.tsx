@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FlatList, Modal, StyleSheet, View } from 'react-native';
 import { UNIT_GRAMS } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Field, Press } from '../components/ui';
+import { a11yState, Heading, Button, Field, Press } from '../components/ui';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getRawNames } from './content';
@@ -57,7 +57,7 @@ function Picker({ current, onPick, onClose }: { current?: string; onPick: (name:
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={[styles.sheet, { backgroundColor: c.bg }]}>
-        <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>Choose an ingredient</Text>
+        <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>Choose an ingredient</Heading>
         <Field label="Search ingredients" placeholder="Search" value={q} onChangeText={setQ} />
         <FlatList
           data={shown}
@@ -65,7 +65,7 @@ function Picker({ current, onPick, onClose }: { current?: string; onPick: (name:
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={<Text style={{ color: c.muted }}>No ingredient matches.</Text>}
           renderItem={({ item }) => (
-            <Press accessibilityRole="button" accessibilityLabel={item} accessibilityState={{ selected: item === current }} onPress={() => onPick(item)} style={[styles.item, { backgroundColor: item === current ? c.tint : 'transparent' }]}>
+            <Press accessibilityRole="button" accessibilityLabel={item} {...a11yState({ pressed: item === current })} onPress={() => onPick(item)} style={[styles.item, { backgroundColor: item === current ? c.tint : 'transparent' }]}>
               <Text style={{ color: c.ink }}>{item}</Text>
             </Press>
           )}

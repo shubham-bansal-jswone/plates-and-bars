@@ -7,7 +7,7 @@ import type { WorkoutDb } from '../db/workouts';
 import { loadUserFoods } from '../db/food';
 import { getPlanDraft, setPlanDraft } from '../meals/planDraft';
 import { Text } from '../components/Text';
-import { Button, H1, Hint, Page, Press } from '../components/ui';
+import { a11yState, Heading, Button, H1, Hint, Page, Press } from '../components/ui';
 import { fmt } from '../format';
 import { getFoodCatalog } from '../food/catalog';
 import { getMealGrocery, getMealPlanning } from '../meals/content';
@@ -89,7 +89,7 @@ function Plan({ onBack, mine, now = () => new Date() }: Props & { mine: ReturnTy
             const k = `${r.item}|${r.unit}`;
             const on = got[k] === true;
             return (
-              <Press key={k} accessibilityRole="checkbox" accessibilityLabel={`${r.item}, ${r.label}`} accessibilityState={{ checked: on }} aria-checked={on} onPress={() => setGot({ ...got, [k]: !on })} style={styles.row}>
+              <Press key={k} accessibilityRole="checkbox" accessibilityLabel={`${r.item}, ${r.label}`} {...a11yState({ checked: on })} onPress={() => setGot({ ...got, [k]: !on })} style={styles.row}>
                 <View style={[styles.box, { borderColor: c.brand, backgroundColor: on ? c.brand : 'transparent' }]}>{on ? <Text style={{ color: c.onBrand, fontWeight: '700' }}>✓</Text> : null}</View>
                 <Text style={{ color: c.ink, flex: 1 }}>{r.item}</Text>
                 <Text style={{ color: c.ink, fontWeight: '700' }}>{r.label}</Text>
@@ -117,7 +117,7 @@ function Plan({ onBack, mine, now = () => new Date() }: Props & { mine: ReturnTy
           const tot = planDayTotals(plan, i, foods);
           return (
             <View key={i} style={[styles.day, { borderTopColor: c.line }]}>
-              <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>{name}</Text>
+              <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>{name}</Heading>
               {MEAL_ORDER.map((m) => (
                 <View key={m} style={styles.between}>
                   <Text style={{ color: c.ink, flex: 1 }}>

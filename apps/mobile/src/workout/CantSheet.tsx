@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { candidates, cantAfterDuration, cantDefaultScope, cantScopeOptions, type CantDraft, type CantDuration, type Exclusion, type ExclusionReason, type LiftRecord, type Where } from '@plate-and-bar/core';
-import { Text } from '../components/Text';
-import { Button, Choice, Group, Hint, Note } from '../components/ui';
+import { Heading, Button, Choice, Group, Hint, Note } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { listJoin, muscleName } from './copy';
@@ -65,9 +64,9 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
             Can’t do {name}?
-          </Text>
+          </Heading>
           {step === 'why' ? (
             <>
               <Hint>Why not? This decides what the app suggests instead.</Hint>
