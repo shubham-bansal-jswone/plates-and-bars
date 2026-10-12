@@ -144,13 +144,21 @@ public class AiService {
         if (c == null) {
             throw unavailable(); // no response at all, nothing billed: the unit is released
         }
-        // A response was received, so it was billed: record the tokens before any check of the text. From here on a
-        // failure (no text, or a reply that does not parse) is still 503, but the daily unit stays used.
-        quotas.recordTokens(held, c.inputTokens(), c.outputTokens());
-        if (c.text() == null) {
+        // A response was received, so it was billed. From here on ANY failure (recording the tokens, no text, a reply
+        // that does not parse, a parser bug) is still 503 `unavailable` but the daily unit stays used.
+        ObjectNode reply;
+        try {
+            quotas.recordTokens(held, c.inputTokens(), c.outputTokens());
+            if (c.text() == null) {
+                throw new BilledFailure();
+            }
+            reply = call.parser().apply(c.text()).orElseThrow(BilledFailure::new);
+        } catch (BilledFailure e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.warn("AI reply unusable for feature {} ({})", feature.key(), e.getClass().getSimpleName());
             throw new BilledFailure();
         }
-        ObjectNode reply = call.parser().apply(c.text()).orElseThrow(BilledFailure::new);
         cache.put(key, reply);
         return reply;
     }
