@@ -6,8 +6,8 @@ export type SaveResult = 'saved' | 'shared' | 'unavailable';
 
 const PREFIX = 'plate-and-bar-';
 
-/** Native: deletes the files of earlier exports from the cache. Call once at the start of an export, so the files of the
- * current one stay until the next export (the share sheet may still be reading them). No-op on web. */
+/** Native: deletes leftover export files from the cache. Call at app start, at the start of an export, and on sign-out
+ * and delete-everything; never while a share sheet is open. No-op on web. */
 export function clearOldExports(): void {
   if (Platform.OS === 'web') return;
   try {
@@ -19,8 +19,8 @@ export function clearOldExports(): void {
 
 /**
  * Web: downloads the text as a file. Native: writes it to the cache and opens the share sheet (the user picks where it
- * goes); the call returns when the sheet closes, so two files are shared one after the other. The cached copy stays
- * until the next export's `clearOldExports`.
+ * goes); the call returns when the sheet closes, so two files are shared one after the other. The cached copy is
+ * deleted as soon as the sheet closes (`clearOldExports` also sweeps leftovers, e.g. after a crash).
  */
 export async function saveTextFile(name: string, mimeType: string, text: string): Promise<SaveResult> {
   if (Platform.OS === 'web') {
@@ -38,6 +38,14 @@ export async function saveTextFile(name: string, mimeType: string, text: string)
   const file = new File(Paths.cache, name);
   file.create({ overwrite: true });
   file.write(text);
-  await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: name });
+  try {
+    await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: name });
+  } finally {
+    try {
+      file.delete();
+    } catch {
+      // clearOldExports sweeps it later
+    }
+  }
   return 'shared';
 }
