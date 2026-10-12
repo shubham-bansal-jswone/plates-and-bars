@@ -222,7 +222,7 @@ describe('delete everything (#27)', () => {
 
   it('signed in, 204: the server is called first, then every table, the outbox, sync keys and tokens are cleared', async () => {
     const { db, tokens, api, calls } = await signedIn();
-    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(calls).toEqual(['DELETE /me']);
     for (const local of Object.values(SYNC_TABLES)) expect((await db.getFirstAsync<{ n: number }>(`SELECT COUNT(*) AS n FROM ${local}`))?.n).toBe(0);
     expect(await outbox(db)).toBe(0);
@@ -258,7 +258,7 @@ describe('delete everything (#27)', () => {
     const { db, tokens, api, handler, calls } = await signedIn();
     let first = true;
     handler.current = () => (first ? ((first = false), err(401)) : noContent());
-    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(calls).toEqual(['DELETE /me', 'POST /auth/refresh', 'DELETE /me']);
   });
 
@@ -287,7 +287,7 @@ describe('delete everything (#27)', () => {
     expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'local_failed' });
     expect(tokens.current).toBeNull();
     await db.execAsync('ALTER TABLE food_logs_x RENAME TO food_logs');
-    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(calls).toEqual(['DELETE /me']);
     expect(await count(db)).toBe(0);
   });
@@ -298,7 +298,7 @@ describe('delete everything (#27)', () => {
     expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'needs_sign_in' });
     expect(await count(db)).toBe(2);
     expect(await getUserId(db)).toBe(USER);
-    expect(await deleteEverything({ db, api, tokens }, { deviceOnly: true })).toEqual({ kind: 'deleted', server: false });
+    expect(await deleteEverything({ db, api, tokens }, { deviceOnly: true })).toEqual({ kind: 'deleted', server: false, linked: true });
     expect(calls).toEqual([]);
     expect(await count(db)).toBe(0);
   });
@@ -322,7 +322,7 @@ describe('delete everything (#27)', () => {
     // restart: fresh in-memory state, same database
     await db.execAsync('ALTER TABLE food_logs_x RENAME TO food_logs');
     expect(await wipePending(db)).toBe(true);
-    expect(await deleteEverything({ db, api, tokens: memoryTokens() })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens: memoryTokens() })).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(calls).toEqual(['DELETE /me']);
     expect(await wipePending(db)).toBe(false);
     expect(await db.getFirstAsync('SELECT key FROM settings')).toBeNull();
@@ -345,7 +345,7 @@ describe('delete everything (#27)', () => {
       events.push(`clear(marker=${marker !== null},storeIntact=${stillThere})`);
       await real();
     };
-    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(events).toEqual(['clear(marker=true,storeIntact=true)']);
   });
 
@@ -371,7 +371,7 @@ describe('delete everything (#27)', () => {
       tokens.current = { access: 'someone-else', refresh: 'x' };
       return noContent();
     };
-    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(tokens.current).toEqual({ access: 'someone-else', refresh: 'x' });
   });
 
@@ -379,7 +379,7 @@ describe('delete everything (#27)', () => {
     const { db, api } = await signedIn();
     await setKv(db, KEY_SERVER_DELETED, USER);
     const mine = memoryTokens({ access: 'a', refresh: 'r' });
-    expect(await deleteEverything({ db, api, tokens: mine })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens: mine })).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(mine.current).toBeNull();
   });
 
@@ -408,7 +408,7 @@ describe('delete everything (#27)', () => {
     expect(accepted).toBe(false); // waits for the delete
     expect(await getUserId(db)).toBe(USER);
     slow.release();
-    expect(await del).toEqual({ kind: 'deleted', server: true });
+    expect(await del).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(await signIn).toEqual({ kind: 'signed_in', wiped: false });
     expect(await getUserId(db)).toBe(OTHER);
     expect(tokens.current).toEqual({ access: 'access-B', refresh: 'refresh-B' });
@@ -439,7 +439,7 @@ describe('delete everything (#27)', () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(calls).not.toContain('DELETE /me');
     slow.release();
-    expect(await del).toEqual({ kind: 'deleted', server: true });
+    expect(await del).toEqual({ kind: 'deleted', server: true, linked: true });
     await run;
     expect(calls.indexOf('DELETE /me')).toBeGreaterThan(calls.indexOf('POST /auth/refresh'));
   });
@@ -455,7 +455,7 @@ describe('delete everything (#27)', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(calls).not.toContain('GET /me/export');
     slow.release();
-    expect(await del).toEqual({ kind: 'deleted', server: true });
+    expect(await del).toEqual({ kind: 'deleted', server: true, linked: true });
     expect(await exp).toEqual({ kind: 'not_signed_in' });
     expect(calls).not.toContain('GET /me/export');
   });
@@ -470,7 +470,7 @@ describe('delete everything (#27)', () => {
     expect(await count(db)).toBe(2);
     expect(tokens.current).not.toBeNull();
     net.fetch = (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? Promise.resolve(noContent()) : inner(r));
-    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true, linked: true });
   });
 
   it('a stalled token refresh is also given up: unavailable, tokens kept', async () => {
@@ -504,7 +504,7 @@ describe('delete everything (#27)', () => {
     const { db, calls } = await signedIn();
     await db.runAsync("DELETE FROM settings WHERE key = 'sync.user_id'");
     const tokens = memoryTokens();
-    expect(await deleteEverything({ db, api: null, tokens })).toEqual({ kind: 'deleted', server: false });
+    expect(await deleteEverything({ db, api: null, tokens })).toEqual({ kind: 'deleted', server: false, linked: false });
     expect(calls).toEqual([]);
     expect(await count(db)).toBe(0);
   });
