@@ -182,6 +182,29 @@ class AiEndpointsIT extends AiITBase {
     }
 
     @Test
+    void aBodyOverSixteenKilobytesInBytesIs400TooLargeAndNeverReachesTheProvider() throws Exception {
+        String u = newUser();
+        String over = "{\"text\":\"" + "a".repeat(16 * 1024 - 11 + 1) + "\"}"; // 16,385 bytes
+        // 8,200 two-byte characters: under 16,384 characters, over 16,384 bytes.
+        String multibyte = "{\"text\":\"" + "\u00e9".repeat(8200) + "\"}";
+        for (String b : new String[] {over, multibyte, "{\"text\":\"x\"}" + " ".repeat(20000)}) {
+            var res = post(u, DESCRIBE, b);
+            assertThat(res.getStatusCode().value()).isEqualTo(400);
+            assertThat(body(res).path("code").asText()).isEqualTo("invalid_request");
+            assertThat(body(res).path("details").get(0).path("field").asText()).isEmpty();
+            assertThat(body(res).path("details").get(0).path("issue").asText()).isEqualTo("too_large");
+        }
+        verify(provider, never()).complete(any(), any(), any());
+        assertThat(calls(u)).isZero();
+        // Exactly 16,384 bytes is still read and validated normally.
+        reply(MEAL);
+        String exact = "{\"text\":\"" + "a".repeat(16 * 1024 - 11) + "\"}";
+        assertThat(exact.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(16 * 1024);
+        assertThat(post(u, DESCRIBE, exact).getStatusCode().value()).isIn(200, 400); // 400 only for text length (1000)
+        assertThat(body(post(u, DESCRIBE, exact)).path("details").get(0).path("issue").asText()).isNotEqualTo("too_large");
+    }
+
+    @Test
     void aProviderFailureIs503UnavailableAndCostsNothing() throws Exception {
         when(provider.complete(any(), any(), any())).thenThrow(new IllegalStateException("boom with secret rice"));
         String u = newUser();

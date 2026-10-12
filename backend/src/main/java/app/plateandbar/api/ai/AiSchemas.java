@@ -63,8 +63,14 @@ class AiSchemas {
         return List.copyOf(out);
     }
 
+    /** Stands in for a body over 16 KB (16,384 bytes) that was not read; compared by identity. */
+    static final JsonNode TOO_LARGE = com.fasterxml.jackson.databind.node.TextNode.valueOf("too_large");
+
     /** 400 {@code invalid_request} unless the request body fits the named request schema. */
     void requireValid(String schemaName, JsonNode body) {
+        if (body == TOO_LARGE) {
+            throw invalid(List.of(new ErrorResponse.Detail("", "too_large")));
+        }
         List<ErrorResponse.Detail> p = body == null || !body.isObject()
                 ? List.of(new ErrorResponse.Detail("", "type"))
                 : problems(schemaName, body);

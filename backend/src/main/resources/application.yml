@@ -7,6 +7,10 @@ spring:
     password: ${DB_PASSWORD:}
   flyway:
     enabled: true
+  # No endpoint takes multipart; off, so an upload is never spooled to disk or parsed.
+  servlet:
+    multipart:
+      enabled: false
 
 logging:
   level:
