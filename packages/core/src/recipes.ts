@@ -343,7 +343,12 @@ export interface KitchenTestFoodInput extends KitchenTestInput {
   name: string;
   /** Prototype `sname`: katori, plate, piece, glass or bowl. */
   serving_name: string;
+  /** The test's free-text note; optional. Over `NOTE_MAX` characters gives `note-too-long` (#377). */
+  note?: string;
 }
+
+/** Longest kitchen-test note the contract accepts (`KitchenTest.note`); `kitchenTestFood` rejects longer ones (#377). */
+export const NOTE_MAX = 2000;
 
 /** Result of `kitchenTestFood`. */
 export type KitchenTestFoodResult =
@@ -351,6 +356,8 @@ export type KitchenTestFoodResult =
   | { kind: 'no-name' }
   /** The trimmed name is over `FOOD_NAME_MAX` (200), the contract limit (as `customFood`, #150; the prototype saves it). Nothing saved. */
   | { kind: 'name-too-long' }
+  /** The note is over `NOTE_MAX` (2000) characters, the contract limit (#377). Nothing saved. */
+  | { kind: 'note-too-long' }
   /** An ingredient amount, pot, cooked or serving weight below 0 (contract minimums; as `customFood`, #150; the prototype saves it). Nothing saved. */
   | { kind: 'invalid' }
   /** "Add the raw ingredients with their weights." Nothing saved. */
@@ -377,6 +384,7 @@ export function kitchenTestFood(test: KitchenTestFoodInput, raw: readonly RawIng
   const name = test.name.trim();
   if (!name) return { kind: 'no-name' };
   if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
+  if ((test.note ?? '').length > NOTE_MAX) return { kind: 'note-too-long' };
   if (test.ingredients.some((x) => num(x.amount) < 0) || [test.pot_g, test.pot_full_g, test.cooked_g, test.serving_g].some((w) => num(w) < 0)) return { kind: 'invalid' };
   if (!r.total.grams) return { kind: 'no-ingredients' };
   if (!r.ready) return { kind: 'not-ready' };

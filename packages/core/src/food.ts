@@ -452,6 +452,8 @@ export type CustomFoodResult =
   | { kind: 'no-name' }
   /** The trimmed name is longer than `FOOD_NAME_MAX` (200) characters, the contract limit (#150; the prototype logs it). */
   | { kind: 'name-too-long' }
+  /** The trimmed serving unit is longer than `UNIT_MAX` (100) characters, the contract limit (`UserFood.unit`, #377). */
+  | { kind: 'unit-too-long' }
   /** A negative calorie or macro value, or a quantity at or below 0 (#150; the prototype logs it). */
   | { kind: 'invalid' }
   /** No calories and no macros: "Enter calories or at least one macro." */
@@ -462,11 +464,14 @@ export type CustomFoodResult =
 /** Longest food name the contract accepts; `customFood` rejects longer names (#150). */
 export const FOOD_NAME_MAX = 200;
 
+/** Longest serving unit the contract accepts (`UserFood.unit`); `customFood` rejects longer ones (#377). */
+export const UNIT_MAX = 100;
+
 /**
  * The custom-food form. Calories, when 0 or empty, come from the macros (round(p×4 + c×4 + f×9));
  * entered calories and macros are kept unrounded. The saved food has no fibre, sugar or fruit and veg data.
  * A quantity left empty or 0 is 1. A trimmed name longer than 200 characters (the contract limit) gives
- * `name-too-long` (decided on #150). After the name checks, a negative calorie or macro value, or a
+ * `name-too-long` (decided on #150), and a trimmed unit over 100 characters gives `unit-too-long` (#377). After the name checks, a negative calorie or macro value, or a
  * quantity still at or below 0, gives `invalid` (decided on #150; the prototype logs it and follows in
  * the next spec-change batch).
  *
@@ -479,6 +484,7 @@ export function customFood(input: CustomFoodInput): CustomFoodResult {
   if (!k) k = Math.round(p * 4 + c * 4 + f * 9);
   if (!name) return { kind: 'no-name' };
   if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
+  if (input.unit.trim().length > UNIT_MAX) return { kind: 'unit-too-long' };
   const qty = num(input.qty) || 1;
   if (k < 0 || p < 0 || c < 0 || f < 0 || qty <= 0) return { kind: 'invalid' };
   if (!k) return { kind: 'no-kcal' };
