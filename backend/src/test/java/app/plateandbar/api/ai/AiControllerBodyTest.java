@@ -79,4 +79,16 @@ class AiControllerBodyTest {
                 org.mockito.ArgumentMatchers.eq(USER),
                 org.mockito.ArgumentMatchers.argThat(b -> b != null && "rice".equals(b.path("text").asText())));
     }
+
+    @Test
+    void aBodyWithANonFiniteNumberIsPassedOnAsUnparseable() throws Exception {
+        // #420: 1e400 parses to Infinity, which passes `maximum`; the service gets no body and answers 400.
+        when(ai.weeklySummary(any(), any())).thenReturn(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode());
+        mvc.perform(post("/api/v1/ai/weekly-summary")
+                        .header("Authorization", "Bearer " + jwt.issue(USER).value())
+                        .contentType("application/json")
+                        .content("{\"sessions\":4,\"avg_kcal\":1e400}"))
+                .andExpect(status().isOk()); // the mocked service answers; what matters is what it was given
+        org.mockito.Mockito.verify(ai).weeklySummary(org.mockito.ArgumentMatchers.eq(USER), org.mockito.ArgumentMatchers.isNull());
+    }
 }
