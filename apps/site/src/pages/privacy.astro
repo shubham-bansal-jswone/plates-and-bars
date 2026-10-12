@@ -11,13 +11,65 @@ import Base from "../layouts/Base.astro";
   </div>
 
   <h2>Who we are</h2>
-  <p>Plate &amp; Bar is an app that is still in development and not yet released. Contact details will be added here before launch.</p>
+  <p>Plate &amp; Bar is an app that is still in development and not yet released. It is run by [operator name]. Contact: [privacy contact email].</p>
 
-  <h2>Data we expect to handle</h2>
-  <p>Account details (such as email address), your setup answers and health-check answers, body measurements (weight and tape measurements), and the meal and workout information you choose to enter in the app. This is saved on your phone first and synced to our server when you are online.</p>
-  <p>Progress photos, cycle data and lab results stay on your device and are never sent to the server.</p>
+  <h2>What stays on your phone</h2>
+  <p>Progress photos, cycle data and lab results stay on your device and are never uploaded. The app works without an account. Your setup answers, health-check answers, body measurements, meals, workouts and settings are saved on your device first.</p>
 
-  <h2>Purpose, retention, your rights and deletion</h2>
-  <p>To be written with legal review, including notice and consent, your rights as a data principal, grievance redressal, retention. To delete your account and data, see <a href="/delete-account/">how to request deletion</a>.</p>
+  <h2>What we store on our server</h2>
+  <p>Before you sign in: if you ask for an email sign-in code, the server stores your email address, a hashed copy of the code and a record of failed code attempts, which it uses to limit guessing.</p>
+  <p>When you sign in, the server creates your account and your sign-in sessions. If you use Google sign-in, it stores the Google account identifier tied to your email.</p>
+  <p>Syncing your records is separate. The app asks for your consent to store your records on our server, and nothing is uploaded until you give it. After that, the server stores:</p>
+  <ul>
+    <li>profile and targets, and settings;</li>
+    <li>food, water and workout logs, and day notes;</li>
+    <li>weights and body measurements;</li>
+    <li>your own foods, recipes and kitchen tests;</li>
+    <li>exclusions and swaps;</li>
+    <li>your consent record.</li>
+  </ul>
+  <p>The server also keeps a conflict log. If two devices change the same record, it keeps a copy of the version that lost so that nothing is silently lost. These copies stay until you delete your account. If you use AI features, it keeps a daily counter of your AI requests.</p>
+
+  <h2>Who else handles your data</h2>
+  <ul>
+    <li><strong>Google</strong>, only if you choose Google sign-in. Google handles that sign-in under its own terms; our server checks the sign-in token Google issues and keeps your Google identifier and email.</li>
+    <li><strong>Email delivery</strong>: if you sign in with an email code, your email address and the code go through our email provider, [SMTP provider].</li>
+    <li><strong>Hosting</strong>: our server runs at [hosting provider].</li>
+    <li><strong>Backups</strong>: [backup arrangement: where nightly database backups are kept, and whether they are encrypted].</li>
+    <li><strong>AI service</strong>: AI features are off by default and you switch them on yourself; the app works without them. When you use one, the app sends the items below to our server, which passes them to [AI provider]. It never sends your name, email, photos, cycle or lab data.</li>
+  </ul>
+  <p>What each AI feature sends:</p>
+  <ul>
+    <li>Describe a meal: the text you type.</li>
+    <li>Ask why: the card name and the question you type.</li>
+    <li>Weekly summary: sessions this week and sessions planned.</li>
+    <li>Weekly summary: days with food logged, average calories and average protein.</li>
+    <li>Weekly summary: days at the protein target (90% or more).</li>
+    <li>Weekly summary: average weight this week and last week.</li>
+    <li>Weekly summary: the lifts that improved (with the percent gain over their previous best) and the lifts that stalled. Custom exercise names are replaced with "custom exercise".</li>
+    <li>Weekly summary: your calorie and protein targets, your goal and your estimated daily burn.</li>
+  </ul>
+  <p>Our server does not save what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours.</p>
+  <p>The app also fetches shared reference content (foods, exercises, cards and similar) from our server. This content is the same for everyone and contains none of your data.</p>
+
+  <h2>Server logs</h2>
+  <p>Our server logs never contain food, weight, health answers or tokens. They do record your internal account identifier with the time of an account deletion, a data export or an AI request (and, for AI, which feature, the outcome and how long it took).</p>
+
+  <h2>Retention</h2>
+  <ul>
+    <li>Your account and records stay until you delete your account.</li>
+    <li>Backups: [planned policy to confirm: nightly backups kept for 30 days; after you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later].</li>
+    <li>Log retention: [log retention period].</li>
+  </ul>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li><strong>Download your data</strong>: in the app, "Your data" lets you download a copy made on your device, and, when signed in, a copy from our server. The server copy contains your account record, all your synced records and settings, and the conflict log. It does not contain sign-in sessions, one-time codes or AI usage counters.</li>
+    <li><strong>Delete your data</strong>: in the app, "Delete everything" deletes your account and its server data, then clears the device. See <a href="/delete-account/">how to delete your account</a>.</li>
+    <li><strong>AI features</strong> can be switched off at any time in the app.</li>
+  </ul>
+
+  <h2>Rights, grievance redressal and the rest</h2>
+  <p>Your rights as a data principal, the grievance officer and any other legal terms will be written with legal review.</p>
   </div></div>
 </Base>

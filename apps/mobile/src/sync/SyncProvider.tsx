@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, Platform } from 'react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { deleteEverything, exportFromServer, wipePending as readWipePending, type DeleteResult, type ServerExportResult } from '../account/server';
+import { RECENT_EXPORT_MS, clearOldExports } from '../account/saveFile';
 import { AiProvider } from '../ai/AiProvider';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
@@ -134,6 +135,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   // Load account state once, then keep the pending count fresh.
   useEffect(() => {
     let live = true;
+    clearOldExports({ minAgeMs: RECENT_EXPORT_MS });
     (async () => {
       const t = await tokens.load();
       if (!live) return;
@@ -219,6 +221,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       signOut: async (opts) => {
         const blocked = await guardedSignOut(db, tokens, opts);
         if (blocked === 0) {
+          clearOldExports();
           setSignedIn(false);
           if (opts?.discard) {
             setLinked(false);
@@ -230,13 +233,18 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       },
       discardAndSignOut: async () => {
         await discardAll(db, tokens);
+        clearOldExports();
         setSignedIn(false);
         setLinked(false);
         setEpoch((e) => e + 1);
         await refreshPending();
       },
       exportFromServer: () => exportFromServer(db, api, tokens),
-      deleteEverything: async (opts) => afterDelete(await deleteEverything({ db, api, tokens }, opts)),
+      deleteEverything: async (opts) => {
+        const r = await deleteEverything({ db, api, tokens }, opts);
+        clearOldExports();
+        return afterDelete(r);
+      },
     }),
     [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
