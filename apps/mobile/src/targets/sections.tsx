@@ -68,7 +68,8 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   // Tab screens stay mounted, so the numbers are read again each time the tab is shown (prototype rebuilds on show).
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
-  // A sync pull also changes the sets and rules: read again, after the Workout tab's queued writes.
+  // A sync pull also changes the sets and rules: read again, after the Workout tab's queued writes. Exclusions and swaps
+  // saved by the rules section go through its own queue, which is not awaited (read-only here; next focus catches up).
   const dataVersion = useDataVersion();
   useEffect(() => {
     let live = true;

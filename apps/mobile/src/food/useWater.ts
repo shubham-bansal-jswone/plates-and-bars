@@ -58,7 +58,8 @@ export function useWater({ db, date, now, profile, notify, reloadKey = 0 }: Opti
   useEffect(() => {
     let live = true;
     (async () => {
-      // The ticked sets come from the Workout tab's writes, so the read waits for that queue too.
+      // The ticked sets come from the Workout tab's writes, so the read waits for that queue too. Weights saved by the
+      // Progress hook's queue are not awaited: a just-logged weight reaches the target on the next focus or pull.
       await freshRead(
         { queue: dayQueue, writes: dayWrites },
         () => Promise.all([loadWeights(db), loadSets(db, date), loadSessionLog(db)]),

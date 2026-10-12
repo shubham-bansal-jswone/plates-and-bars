@@ -49,7 +49,8 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   useEffect(() => {
     let live = true;
     (async () => {
-      // The workout sets come from the Workout tab's writes, so the read waits for that queue too.
+      // The workout sets come from the Workout tab's writes, so the read waits for that queue too. Food logs and day
+      // notes are saved through their own hooks' queues and are not awaited: a just-saved value can show one focus late.
       await freshRead(
         { queue: dayQueue, writes: dayWrites },
         async () => {
