@@ -85,7 +85,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
     );
   }
 
-  const input: KitchenTestFoodInput = { name: d.name, serving_name: d.sname, ingredients: d.rows, pot_g: d.pot, pot_full_g: d.potFull, cooked_g: d.cooked, serving_g: d.serving };
+  const input: KitchenTestFoodInput = { name: d.name, serving_name: d.sname, note: d.note, ingredients: d.rows, pot_g: d.pot, pot_full_g: d.potFull, cooked_g: d.cooked, serving_g: d.serving };
   const res = kitchenTest(input, getRawIngredients());
   const dateOk = validDate(d.date);
   const save = (use: boolean) => {

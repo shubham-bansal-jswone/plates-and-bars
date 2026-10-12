@@ -187,6 +187,20 @@ describe('Kitchen test screen', () => {
     expect(stored(db, 'kitchen_tests')).toHaveLength(0);
   });
 
+  it('asks to shorten a note over 2000 characters and saves nothing', async () => {
+    const db = memoryDb();
+    await setup(db);
+    await start();
+    await fill();
+    await fireEvent.changeText(screen.getByLabelText('Notes'), 'n'.repeat(2001));
+    await fireEvent.press(screen.getByLabelText('Save test'));
+    expect(await screen.findByText('That note is too long. Shorten it.')).toBeTruthy();
+    expect(stored(db, 'kitchen_tests')).toHaveLength(0);
+    await fireEvent.changeText(screen.getByLabelText('Notes'), 'n'.repeat(2000));
+    await fireEvent.press(screen.getByLabelText('Save test'));
+    await waitFor(() => expect(stored(db, 'kitchen_tests')).toHaveLength(1));
+  });
+
   it('deleting a test is a tombstone and leaves the food it made', async () => {
     const db = memoryDb();
     await setup(db);

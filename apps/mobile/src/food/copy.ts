@@ -5,6 +5,7 @@ export const CUSTOM_MESSAGE: Record<Exclude<CustomFoodResult['kind'], 'ok'>, str
   'no-name': 'Give the food a name.',
   'no-kcal': 'Enter calories or at least one macro.',
   'name-too-long': 'That name is too long. Shorten it.',
+  'unit-too-long': 'That serving unit is too long. Shorten it.',
   invalid: 'Calories, macros and servings can’t be negative, and servings must be more than 0.',
 };
 
