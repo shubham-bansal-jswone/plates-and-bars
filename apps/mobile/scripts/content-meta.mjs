@@ -3,9 +3,10 @@
 //
 //   node scripts/content-meta.mjs           regenerate (run in a FULL-history checkout of main)
 //   node scripts/content-meta.mjs --check   exit 1 if the committed file is stale; updated_at is compared only with full history
+//                                           (a shallow clone checks it is a UTC time no later than HEAD)
 //
 // Never falls back to the build time: on a shallow clone, or for a file with no commit, regeneration fails; --check then
-// verifies the hashes and schema versions only and says that it skipped the dates.
+// verifies the hashes and schema versions, and that each date is well formed and not in the future.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -41,7 +42,18 @@ for (const file of readdirSync(contentDir).filter((f) => f.endsWith('.json')).so
 }
 const text = `${JSON.stringify(meta, null, 2)}\n`;
 if (check) {
-  if (!fullHistory) console.warn('shallow clone: updated_at not checked');
+  if (!fullHistory) {
+    // Dates cannot be recomputed without history, but a bad one can still be caught: it must be a real UTC time in
+    // the generated format and no later than HEAD's commit (#412). A future or malformed date would make the app
+    // reject every server copy of that bundle.
+    const head = Date.parse(git('log', '-1', '--format=%cI', 'HEAD'));
+    const bad = Object.entries(committed).filter(([, m]) => {
+      const t = typeof m?.updated_at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(m.updated_at) ? Date.parse(m.updated_at) : NaN;
+      return !(t <= head) || new Date(t).toISOString().replace('.000', '') !== m.updated_at;
+    });
+    if (bad.length) { console.error(`src/content/bundled.json: bad updated_at for ${bad.map(([n]) => n).join(', ')} (must be a UTC time no later than HEAD)`); process.exit(1); }
+    console.warn('shallow clone: updated_at checked for format and range only');
+  }
   const same = fullHistory
     ? text === readFileSync(outFile, 'utf8')
     : Object.keys({ ...meta, ...committed }).every((n) => meta[n] && committed[n] && meta[n].sha256 === committed[n].sha256 && meta[n].schema_version === committed[n].schema_version);
