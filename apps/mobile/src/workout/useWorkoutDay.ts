@@ -124,10 +124,11 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
   // newer record (another device's session) since the screen loaded (#409).
   const syncLift = async (i: number) => {
-    const ex = ref.current.exs[i];
-    if (!profile || !ex) return;
+    if (!profile || !ref.current.exs[i]) return;
     const lifts = await loadLifts(db);
-    const d = ref.current;
+    const d = ref.current; // read after the await, so a tap made meanwhile is included
+    const ex = d.exs[i];
+    if (!ex) return;
     const { info } = guidance(ex, progressionContext(date, lifts, profile, d.workout, tune), d.workout);
     // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
     const res = updateLift(lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, profile.weight_kg);
