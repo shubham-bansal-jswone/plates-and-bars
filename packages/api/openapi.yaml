@@ -27,10 +27,14 @@ info:
       is empty and whose `issue` is `too_large`. The 2 MB check runs before anything
       else, sign-in included; the 16 KB AI check is the request-validation step of the
       `ai` tag's order of checks.
-    - Record schemas bound every string (`maxLength`), array (`maxItems`) and open
-      object (`maxProperties`) with generous headroom over real use. The app keeps what
-      it stores locally within these bounds, because a record that breaks one fails the
-      whole `/sync` request with 400 `invalid_request`.
+    - Record schemas bound every string (`maxLength`) and array (`maxItems`), and the
+      key count (`maxProperties`) of every object that declares `additionalProperties`,
+      with generous headroom over real use. Only those top-level bounds are covered:
+      nested record objects without `additionalProperties`, and the contents of the
+      core-owned open objects (`Settings.adjustments`, `adaptive`, `learn`, `meal_plan`,
+      `prep` items), are limited only by the request body size. The app keeps what it
+      stores locally within these bounds, because a record that breaks one fails the
+      `/sync` request with 400 `invalid_request` naming that record.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
@@ -415,8 +419,9 @@ paths:
 
         Limits: at most 500 records in total per request and per response page, and a
         request body of at most 2 MB (400 `invalid_request`, issue `too_large`; see the
-        wire conventions). `updated_at` values more than 5 minutes in the future are
-        clamped to server time.
+        wire conventions). A `too_large` rejection names no record, so the client keeps
+        each request under 2 MB, sending fewer records per request when needed.
+        `updated_at` values more than 5 minutes in the future are clamped to server time.
       requestBody:
         required: true
         content:

@@ -179,8 +179,9 @@ export interface paths {
          *
          *     Limits: at most 500 records in total per request and per response page, and a
          *     request body of at most 2 MB (400 `invalid_request`, issue `too_large`; see the
-         *     wire conventions). `updated_at` values more than 5 minutes in the future are
-         *     clamped to server time.
+         *     wire conventions). A `too_large` rejection names no record, so the client keeps
+         *     each request under 2 MB, sending fewer records per request when needed.
+         *     `updated_at` values more than 5 minutes in the future are clamped to server time.
          */
         post: operations["sync"];
         delete?: never;
