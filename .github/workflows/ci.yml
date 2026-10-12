@@ -122,9 +122,10 @@ jobs:
       - run: npx expo export --platform web
 
   # apps/mobile/src/content/bundled.json records each content file's sha256, schema_version and updated_at.
-  # PRs: shallow checkout, so the script compares hashes and schema versions only (a PR cannot know its own
-  # squash-merge date). Push to main: full history, so updated_at is compared too; a red run there means
-  # `node scripts/content-meta.mjs` must be run on main and the result committed.
+  # Shallow checkout everywhere, so the script compares hashes and schema versions only: a PR cannot know its own
+  # squash-merge date, and checking dates on main would turn main red after every content merge. A stale
+  # updated_at only costs one redundant bundle download (refresh compares dates, then hashes); regenerate with
+  # `node scripts/content-meta.mjs` on a full-history checkout of main when convenient.
   content-meta:
     name: content-meta (bundled.json)
     needs: changes
@@ -132,8 +133,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: ${{ github.event_name == 'pull_request' && 1 || 0 }}
       - uses: actions/setup-node@v7
         with:
           node-version: 22

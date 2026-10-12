@@ -35,7 +35,7 @@ Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (
 
 ### Content record check (`content-meta`)
 
-`apps/mobile/src/content/bundled.json` records each content file's sha256, `schema_version` and `updated_at`. The `content-meta (bundled.json)` job runs `node scripts/content-meta.mjs --check` in `apps/mobile` when `content/`, `apps/mobile/src/content/` or the script change. On PRs the checkout is shallow, so the script compares hashes and schema versions only (a PR cannot know its own squash-merge date). On push to `main` the checkout has full history, so `updated_at` is compared as well: a red run there means run `node scripts/content-meta.mjs` on a full-history `main` and commit the result.
+`apps/mobile/src/content/bundled.json` records each content file's sha256, `schema_version` and `updated_at`. The `content-meta (bundled.json)` job runs `node scripts/content-meta.mjs --check` in `apps/mobile` when `content/`, `apps/mobile/src/content/` or the script change. The checkout is always shallow, so the script compares hashes and schema versions only: a PR cannot know its own squash-merge date, and comparing dates on `main` would turn it red after every content merge. A stale `updated_at` only costs one redundant bundle download; regenerate with `node scripts/content-meta.mjs` on a full-history `main` and commit the result when convenient.
 
 `infra/scripts/test-detect-changes.sh` (run by the `changes` job) feeds sample diffs to `detect-changes.sh` in a throwaway repo and fails if a job is enabled or skipped wrongly.
 
