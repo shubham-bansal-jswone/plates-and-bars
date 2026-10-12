@@ -79,7 +79,8 @@ if (used.size === 0) failures.push("openapi.yaml: no operation tags found");
 for (const t of used) if (!declared.includes(t)) failures.push(`openapi.yaml: operation tag ${t} is not declared under tags`);
 // Every string, array and open object reachable from a sync record schema is bounded (maxLength, maxItems,
 // maxProperties), so the server can cap what one account stores (#353). Enums, formats, patterns and consts
-// count as bounds for strings.
+// count as bounds for strings. "Open object" means one that declares `additionalProperties`; objects without
+// it, and the contents of `additionalProperties: true` objects, are not checked (see the wire conventions).
 const schemas = load(spec).components.schemas;
 const seenRefs = new Set();
 let bounded = 0;
