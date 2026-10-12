@@ -57,6 +57,8 @@ export function fakeServer(userId: string) {
   const pending: Record<string, Rec[]> = {};
   const s = {
     calls: [] as Call[],
+    /** Body size in bytes of every request that reached the data checks. */
+    sizes: [] as number[],
     online: true,
     /** Next responses to force for /sync: status, optional Retry-After. */
     forceStatus: [] as { status: number; retryAfter?: string }[],
@@ -71,6 +73,8 @@ export function fakeServer(userId: string) {
     force400: [] as ({ field?: unknown; issue: string }[] | undefined)[],
     /** Answers 400 `invalid_request` naming every pushed record this returns a field for (the request applies nothing). */
     rejectIf: null as null | ((table: string, rec: Rec) => string | null),
+    /** The request size limit in bytes (the contract's 2 MB); a larger body is refused with 400 `too_large` and no record named. */
+    maxBytes: 2_097_152,
     /** Resolution to apply to every version mismatch. */
     conflictResolution: null as null | 'server_won',
     put(table: string, rec: Rec) {
@@ -84,7 +88,9 @@ export function fakeServer(userId: string) {
       if (!s.online) throw new TypeError('network down');
       const req = input as Request;
       const path = new URL(req.url).pathname.replace('/api/v1', '');
-      const body = (await req.clone().json()) as Call['body'];
+      const text = await req.clone().text();
+      const body = JSON.parse(text) as Call['body'];
+      const bytes = new TextEncoder().encode(text).length;
       const auth = req.headers.get('Authorization');
       s.calls.push({ path, auth, body });
       const json = (status: number, b: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', ...headers } });
@@ -102,6 +108,8 @@ export function fakeServer(userId: string) {
       const forced = s.forceStatus.shift();
       if (forced) return json(forced.status, { code: forced.status === 503 ? 'unavailable' : 'rate_limited', message: 'x' }, forced.retryAfter ? { 'Retry-After': forced.retryAfter } : {});
       if (auth !== `Bearer ${s.accessValid}`) return json(401, { code: 'token_expired', message: 'x' });
+      s.sizes.push(bytes);
+      if (bytes > s.maxBytes) return json(400, { code: 'invalid_request', message: 'The request is too large.', details: [{ field: '', issue: 'too_large' }] });
       if (s.force400.length) {
         const details = s.force400.shift();
         return json(400, { code: 'invalid_request', message: 'Some fields are invalid.', ...(details ? { details } : {}) });

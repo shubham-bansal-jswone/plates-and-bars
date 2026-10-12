@@ -3,6 +3,7 @@ import { applyPulled, clearPushed, inTransaction, pendingChanges, type OutboxEnt
 import type { WorkoutDb } from '../db/workouts';
 import type { StoreDb } from '../db/records';
 import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
+import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
 import { quarantine } from './quarantine';
 import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
@@ -56,16 +57,21 @@ const MAX_ROUNDS = 40;
 /** Rounds per run that may be spent setting refused records aside without counting against MAX_ROUNDS (each costs one request). */
 const MAX_ASIDE_ROUNDS = 40;
 const DEFAULT_RETRY_SEC = 60;
+/** Most records queued per request. The byte budget (`sync/batch.ts`) usually cuts a batch shorter. */
+const MAX_PUSH = 500;
+/** Rounds per run that may be spent on a push cut short by the byte budget, without counting against MAX_ROUNDS. */
+const MAX_SPLIT_ROUNDS = 200;
 
 type Guard = (db: StoreDb) => Promise<void>;
-type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[] };
+type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean };
 type Outcome<T> = { ok: true; data: T } | Failure;
 const fail = (status: SyncStatus, retryAfterSec?: number): Failure => ({ ok: false, result: { status, conflicts: 0, ...(retryAfterSec ? { retryAfterSec } : {}) } });
 
-function failFrom(res: Response, error?: { code?: string; details?: { field?: unknown }[] }): Failure {
+function failFrom(res: Response, error?: { code?: string; details?: { field?: unknown; issue?: unknown }[] }): Failure {
   if (res.status === 400 && error?.code === 'invalid_request' && Array.isArray(error.details)) {
     const fields = error.details.flatMap((d) => (typeof d?.field === 'string' ? [d.field] : []));
-    return { ...fail('rejected'), fields };
+    const tooLarge = error.details.some((d) => (d as { issue?: unknown } | null)?.issue === 'too_large');
+    return { ...fail('rejected'), fields, ...(tooLarge ? { tooLarge } : {}) };
   }
   if (res.status === 429) return fail('rate_limited', Math.max(1, Number(res.headers.get('Retry-After')) || DEFAULT_RETRY_SEC));
   return res.status >= 500 ? fail('unavailable') : fail('rejected');
@@ -217,9 +223,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let skipped = 0;
   let quarantined = 0;
   let asideRounds = 0;
+  let splitRounds = 0;
+  let cap = MAX_PUSH; // records per request; halved when the server says a request was too large
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const entries = await pendingChanges(d.db, 500);
+      const entries = await pendingChanges(d.db, MAX_PUSH);
+      const cursor = await getCursor(d.db);
+      const size = new BodySize(cursor);
+      let consumed = 0; // entries handled this round: in the request, set aside as too big alone, or gone
+      let tooBig = 0;
       const sent = new Map<string, { entry: OutboxEntry; record: Doc }>();
       const changes: Record<string, Doc[]> = {};
       const order: Record<string, OutboxEntry[]> = {}; // the entry behind changes[tbl][i], to find what a 400 names
@@ -227,14 +239,50 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         const record = await buildRecord(d.db, userId, e);
         if (!record) {
           await clearPushed(d.db, e);
+          consumed++;
           continue;
         }
+        const bytes = utf8Length(JSON.stringify(record));
+        if (size.with(e.tbl, bytes) > MAX_BODY_BYTES) {
+          // Too big even alone: no request could carry it. Set it aside (it stays on the device and in the outbox).
+          if (await quarantine(d.db, e, `changes.${e.tbl}[0]`, guard)) tooBig++;
+          consumed++;
+          continue;
+        }
+        // The request stops growing at the byte budget or the record cap; the rest goes in the next round.
+        if (sent.size > 0 && (sent.size >= cap || size.with(e.tbl, bytes) > BODY_BUDGET_BYTES)) break;
+        size.add(e.tbl, bytes);
+        consumed++;
         sent.set(`${e.tbl}:${record.id as string}`, { entry: e, record });
         (changes[e.tbl] ??= []).push(record);
         (order[e.tbl] ??= []).push(e);
       }
-      const out = await post(d, { cursor: await getCursor(d.db), changes: changes as Schemas['SyncChanges'] }, guard);
+      quarantined += tooBig;
+      if (sent.size === 0 && tooBig > 0) {
+        // Only records that were too big alone were queued: they are set aside, so the next round sees what is behind them.
+        if (splitRounds++ < MAX_SPLIT_ROUNDS) round--;
+        continue;
+      }
+      const out = await post(d, { cursor, changes: changes as Schemas['SyncChanges'] }, guard);
       if (!out.ok) {
+        if (out.tooLarge && sent.size > 0) {
+          // The 400 names no record. Send half as many; one record alone that is still too large is set aside.
+          if (sent.size > 1) {
+            cap = Math.max(1, Math.floor(sent.size / 2));
+            round--; // each halving lowers `cap`, so this ends after a handful of retries
+            continue;
+          }
+          const only = [...sent.values()][0]!.entry;
+          if (await quarantine(d.db, only, `changes.${only.tbl}[0]`, guard)) {
+            quarantined++;
+            cap = MAX_PUSH; // the culprit is found: the rest may go in full batches again
+            if (asideRounds++ < MAX_ASIDE_ROUNDS) round--;
+            continue;
+          }
+          // The record was edited while the request was in flight: the newer edit is a fresh change, try it.
+          if (asideRounds++ < MAX_ASIDE_ROUNDS) round--;
+          continue;
+        }
         // A 400 names the records at fault (`changes.<table>[<i>]...`): set those aside and send the rest again.
         let aside = 0;
         const seen = new Set<number>(); // several fields can name one record: it is set aside once
@@ -286,7 +334,9 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         await guard(txn);
         await setKv(txn, KEY_CURSOR, res.cursor);
       });
-      if (!res.has_more && entries.length < 500) break;
+      // Done when nothing more is queued: every loaded entry was handled and fewer than a full load came back.
+      if (!res.has_more && consumed === entries.length && entries.length < MAX_PUSH) break;
+      if (consumed < entries.length && splitRounds++ < MAX_SPLIT_ROUNDS) round--; // cut short by the byte budget: progress, bounded
     }
   } catch (e) {
     if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, skipped };
