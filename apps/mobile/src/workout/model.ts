@@ -71,3 +71,32 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
     ramp: rows(x.name, 'ramp'),
   }));
 }
+
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+/** Each field: this device's value where it changed it since `base`, else the stored one. */
+function pick<T extends object>(base: T | undefined, mine: T, theirs: T): T {
+  const out = { ...theirs };
+  for (const k of Object.keys(mine) as (keyof T)[]) if (!base || !same(mine[k], base[k])) out[k] = mine[k];
+  return out;
+}
+
+/**
+ * Today's workout row when the stored copy changed since this screen last loaded or wrote it (`base`): a sync pull or a
+ * rule saved on Targets. A three-way merge by field and by exercise name: the stored list and order are kept, edits made
+ * here win field by field, exercises added here are appended, and exercises removed elsewhere stay removed (#410).
+ */
+export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Workout {
+  const byName = (l: readonly WorkoutExercise[]) => new Map(l.map((e) => [e.name, e]));
+  const b = byName(base.exercises), m = byName(mine.exercises), t = byName(theirs.exercises);
+  const exercises = [
+    ...theirs.exercises.map((e) => {
+      const own = m.get(e.name);
+      return own ? pick(b.get(e.name), own, e) : e;
+    }),
+    ...mine.exercises.filter((e) => !t.has(e.name) && !b.has(e.name)),
+  ];
+  const { exercises: _b, ...baseRest } = base;
+  const { exercises: _m, ...mineRest } = mine;
+  const { exercises: _t, ...theirsRest } = theirs;
+  return { ...pick(baseRest, mineRest, theirsRest), exercises };
+}

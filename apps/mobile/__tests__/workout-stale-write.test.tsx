@@ -224,3 +224,62 @@ describe('a lift record a sync pull stored after the screen loaded (#409)', () =
     expect(notify).toHaveBeenCalledWith(`New personal best on ${name}`);
   });
 });
+
+describe('a workout row changed elsewhere after the screen loaded (#410)', () => {
+  it('a rule saved on Targets keeps its swap when the screen then writes the workout, and the screen reloads', async () => {
+    const { db, result } = await started();
+    expect(result.current.day.exs.map((e) => e.name)).toContain('Machine Chest Press');
+    await applyCantToStoredDay({ db, date: DATE, now: () => new Date(2026, 9, 8, 10, 5, 0), draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
+    const swapped = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    expect(swapped).not.toContain('Machine Chest Press');
+    const kept = result.current.day.exs.find((e) => swapped.includes(e.name))!.name; // on both lists
+    const i = result.current.day.exs.findIndex((e) => e.name === kept);
+    await act(async () => result.current.setForm(i, 'yes')); // the screen still shows the old list
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.exercises.map((e) => e.name)).toEqual(swapped);
+    expect(stored.exercises.find((e) => e.name === kept)?.form).toBe('yes');
+    await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toEqual(swapped));
+  });
+
+  it('two writes queued before the reload both keep the swap, even within the same second', async () => {
+    const { db, result } = await started();
+    await applyCantToStoredDay({ db, date: DATE, now: NOW, draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
+    const swapped = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    const kept = result.current.day.exs.find((e) => swapped.includes(e.name))!.name;
+    const i = result.current.day.exs.findIndex((e) => e.name === kept);
+    await act(async () => {
+      result.current.setForm(i, 'yes');
+      result.current.rampSkip(i);
+    });
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.exercises.map((e) => e.name)).toEqual(swapped);
+    expect(stored.exercises.find((e) => e.name === kept)).toMatchObject({ form: 'yes', skip_ramp: true });
+  });
+
+  it('opened over a stored session (no start here), a rule saved on Targets survives the next write', async () => {
+    const { db } = await started();
+    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(result.current.day.exs.length).toBeGreaterThan(0));
+    await applyCantToStoredDay({ db, date: DATE, now: NOW, draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
+    const swapped = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    const kept = result.current.day.exs.find((e) => swapped.includes(e.name))!.name;
+    await act(async () => result.current.setForm(result.current.day.exs.findIndex((e) => e.name === kept), 'yes'));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual(swapped);
+  });
+
+  it('a sync push that only changed the version is not a change: no merge, no reload', async () => {
+    const { db, result } = await started();
+    await saveWorkout(db, { ...(await loadWorkout(db, DATE))!, version: 9 }); // what patchMeta does after a push
+    const first = (await loadSets(db, DATE))[0]!;
+    await saveSet(db, DATE, { ...first, weight_kg: 77 }); // would show on screen only if the screen reloaded
+    await act(async () => result.current.setForm(0, 'yes'));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    await act(async () => void (await new Promise((r) => setTimeout(r, 50))));
+    expect(result.current.day.exs.flatMap((e) => e.sets).find((r) => r.id === first.id)?.w).toBe('');
+    expect((await loadWorkout(db, DATE))!.version).toBe(9);
+  });
+});
