@@ -56,11 +56,11 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
   it('a workout another device deleted is not brought back by an edit', async () => {
     const { db, result } = await started();
     const w = (await loadWorkout(db, DATE))!;
-    await saveWorkout(db, { ...w, version: 3, deleted_at: '2026-10-08T09:59:00Z', updated_at: '2026-10-08T09:59:59Z' });
+    await saveWorkout(db, { ...w, version: 3, deleted_at: '2026-10-09T09:59:00Z', updated_at: '2026-10-09T09:59:59Z' });
     await act(async () => result.current.setForm(0, 'yes')); // writes the workout row
     await act(async () => void (await dayQueue.current)); // the queued writes finish
     const stored = (await loadWorkout(db, DATE))!;
-    expect(stored.deleted_at).toBe('2026-10-08T09:59:00Z');
+    expect(stored.deleted_at).toBe('2026-10-09T09:59:00Z');
     expect(stored.version).toBe(3);
   });
 });
