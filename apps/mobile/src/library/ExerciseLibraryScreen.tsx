@@ -25,7 +25,7 @@ function Row({ e, onOpen }: { e: LibraryExercise; onOpen: () => void }) {
   const c = useTheme();
   const sub = `${equipmentLabel(e.equipment)} · ${e.primary.map(muscleLabel).join(', ')}`;
   return (
-    <Press accessibilityRole="button" accessibilityLabel={`${e.name}. ${sub}`} onPress={onOpen} style={{ minHeight: 56, justifyContent: 'center', paddingVertical: 8 }}>
+    <Press accessibilityRole="button" onPress={onOpen} style={{ minHeight: 56, justifyContent: 'center', paddingVertical: 8 }}>
       <Text style={[type.bodyStrong, { color: c.ink }]}>{e.name}</Text>
       <Text style={[type.caption, { color: c.body }]}>{sub}</Text>
     </Press>

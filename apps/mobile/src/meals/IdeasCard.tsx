@@ -76,7 +76,7 @@ export function IdeasCard(p: Props) {
 
   return (
     <Card>
-      <Press accessibilityRole="button" accessibilityLabel={`What should I eat next? ${meal} ideas`} accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} style={styles.head}>
+      <Press accessibilityRole="button" accessibilityLabel={`What should I eat next? ${meal} ideas. ${open ? 'Hide' : 'Show'}`} accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} style={styles.head}>
         <View style={styles.fill}>
           <Hint>What should I eat next?</Hint>
           <Text style={[type.bodyStrong, { color: c.ink }]}>{`${meal} ideas`}</Text>

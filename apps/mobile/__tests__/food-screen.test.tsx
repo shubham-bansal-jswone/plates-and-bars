@@ -61,7 +61,7 @@ describe('Food screen', () => {
   describe('flex chips', () => {
     const flexOf = async (db: Db) => (await loadSettings(db))?.flex ?? [];
     const plan = async (label: string) => {
-      if (!screen.queryByLabelText('Plan a bigger day')) await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+      if (!screen.queryByLabelText('Plan a bigger day')) await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas. Show'));
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       await fireEvent.press(screen.getByLabelText(label));
     };
@@ -92,7 +92,7 @@ describe('Food screen', () => {
 
     it('announces whether the chips are open', async () => {
       await setup();
-      await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+      await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas. Show'));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: false });
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: true });
@@ -172,7 +172,7 @@ describe('Food screen', () => {
   });
 
   describe('ideas card', () => {
-    const openCard = async () => fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+    const openCard = async () => fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas. Show'));
 
     it('is closed at first and shows the next meal’s share, three ideas and the diet it filters by', async () => {
       await setup();
@@ -189,7 +189,7 @@ describe('Food screen', () => {
       expect(await screen.findByText('Added to breakfast')).toBeTruthy();
       await waitFor(() => expect(docs(db, 'food_logs').length).toBeGreaterThan(1));
       expect(docs(db, 'food_logs').every((l) => l.meal === 'Breakfast' && l.deleted_at === null)).toBe(true);
-      expect(screen.getByLabelText('What should I eat next? Lunch ideas')).toBeTruthy();
+      expect(screen.getByLabelText('What should I eat next? Lunch ideas. Hide')).toBeTruthy();
     });
 
     it('the diet chips filter the ideas and are saved to settings', async () => {
@@ -255,7 +255,7 @@ describe('Food screen', () => {
         db.rows.set(`food_logs:l${i}`, JSON.stringify({ id: `l${i}`, version: 0, updated_at: nowDay, deleted_at: null, date: DATE, meal: 'Breakfast', name: 'X', qty: 1, kcal, protein_g: 10, carbs_g: 0, fat_g: 0, food_id: null }));
       }
       await setup({ db });
-      await fireEvent.press(screen.getByLabelText('What should I eat next? Lunch ideas'));
+      await fireEvent.press(screen.getByLabelText('What should I eat next? Lunch ideas. Show'));
       expect(screen.getByText(/You’ve reached today’s calories/)).toBeTruthy();
       expect(screen.queryByLabelText('Fasting day')).toBeNull();
     });

@@ -23,6 +23,7 @@ jest.mock('expo-router', () => {
   );
   return { Tabs };
 });
+jest.mock('expo-router/build/react-navigation/bottom-tabs', () => ({ BottomTabBar: () => null }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 24, bottom: 20, left: 0, right: 0 }) }));
 const mockScreens: MockScreen[] = [];
 
@@ -51,6 +52,11 @@ describe('tab bar', () => {
       expect(on.name).not.toMatch(/-outline$/);
       expect(off.name).toBe(`${on.name}-outline`);
     }
+  });
+
+  it('puts the tab bar in a navigation landmark', async () => {
+    await render(mockTabs.mock.calls[0][0].tabBar({}));
+    expect(JSON.stringify(screen.toJSON())).toContain('"role":"navigation"');
   });
 
   it('gives tab buttons the 2px focus ring and keeps their role, state and label', async () => {
