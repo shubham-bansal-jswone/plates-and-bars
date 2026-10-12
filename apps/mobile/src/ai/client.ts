@@ -54,10 +54,9 @@ async function run<T>(d: AiDeps, call: (signal: AbortSignal) => Promise<Reply<T>
     // Signed out (tokens cleared) or another user signed in while the request was out: the answer is not shown.
     if ((await getUserId(d.db)) !== owner || !(await d.tokens.load())) return { kind: 'signed_out' };
     if (reply.response.status === 401 && attempt === 0 && opts.refresh !== false) {
-      // A sync run that got the same 401 refreshes on its own: let it finish and save its rotated pair first (#287), then
-      // the check below sees the changed tokens and this call just retries. What prevents the clash is the ordering: the
-      // lock is requested right after syncIdle() resolves, with no other await in between, so a new run cannot slip in and
-      // start its own refresh. The token-pair compare below only catches a refresh that finished earlier.
+      // A sync run that got the same 401 may be refreshing now. Let it finish its request first so it does not end
+      // 'paused'. This is courtesy, not safety: a rotated pair is saved even while paused and refreshes are single-flight
+      // (#287), so the token-pair compare below sees the run's new pair and this call just retries.
       await syncIdle();
       const out = await withSyncPaused(async () => {
         const now = await d.tokens.load();

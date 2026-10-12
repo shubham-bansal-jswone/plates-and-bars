@@ -85,30 +85,48 @@ async function net<T>(call: () => Promise<T>): Promise<T> {
 }
 
 /** POSTs /sync; on 401 refreshes the tokens once and retries. Tokens are never logged. */
-async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard): Promise<Outcome<Schemas['SyncResponse']>> {
+async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, owner: string): Promise<Outcome<Schemas['SyncResponse']>> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const { data, error, response } = await net(() => d.api.POST('/sync', { body }));
     if (data) return { ok: true, data };
     if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
     if (response.status !== 401) return failFrom(response, error as Parameters<typeof failFrom>[1]);
-    if (attempt === 1 || !(await refresh(d, guard))) return fail('signed_out');
+    if (attempt === 1 || !(await refresh(d, owner))) return fail('signed_out');
   }
   return fail('signed_out');
 }
 
-/** Rotates the token pair. False means the session is over (tokens cleared); transient errors keep the tokens. */
-async function refresh(d: SyncDeps, guard: Guard, signal?: AbortSignal): Promise<boolean> {
+let refreshing: Promise<boolean> | null = null;
+
+/**
+ * Rotates the token pair; single-flight: a call made while one is in flight joins it (a second request with the same
+ * refresh token would be reuse of a rotated token, and the server then revokes the whole session). False means the
+ * session is over (tokens cleared); transient errors keep the tokens. The response is applied whenever it arrives, even
+ * while sync is paused for an account operation, because dropping a rotated pair leaves only a dead refresh token (#287).
+ * The only reason to drop it is that the store belongs to another user now (`owner` is who it belonged to at the start).
+ */
+function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
+  refreshing ??= rotate(d, owner, signal).finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function rotate(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
   const t = await d.tokens.load();
   if (!t) return false;
+  const sameOwner = async () => {
+    if ((await getUserId(d.db)) !== owner) throw new Aborted(); // a wipe and another sign-in happened meanwhile: do not touch their tokens
+  };
   const { data, response } = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh }, signal }));
   if (data) {
-    await guard(d.db); // a wipe or sign-out may have happened while the request was in flight: do not bring the old tokens back
+    await sameOwner();
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
     return true;
   }
   if (response.ok) throw new Error('empty or malformed 2xx body');
   if (response.status === 401) {
-    await guard(d.db);
+    await sameOwner();
     await d.tokens.clear();
   }
   else throw new TransientError(failFrom(response));
@@ -125,12 +143,9 @@ export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
  */
 export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
   const owner = await getUserId(d.db);
-  const guard: Guard = async (db) => {
-    if ((await getUserId(db)) !== owner) throw new Aborted();
-  };
   try {
     // A stalled request is given up after the timeout, so the account lock is never held for long.
-    const r = await withTimeout(d.timeoutMs ?? REQUEST_TIMEOUT_MS, (signal) => refresh(d as SyncDeps, guard, signal));
+    const r = await withTimeout(d.timeoutMs ?? REQUEST_TIMEOUT_MS, (signal) => refresh(d as SyncDeps, owner, signal));
     if (r.timedOut) return 'unavailable';
     return r.value ? 'ok' : 'ended';
   } catch (e) {
@@ -175,8 +190,9 @@ export async function pauseSync(): Promise<void> {
   await running?.catch(() => undefined);
 }
 /**
- * Resolves when no sync run is in flight, without pausing anything. A caller that is about to take the account lock for
- * a token refresh waits here first, so a run's own refresh finishes and saves its rotated pair before the pause (#287).
+ * Resolves when no sync run is in flight, without pausing anything. A caller that is about to take the account lock waits
+ * here first so the run finishes its request instead of ending 'paused'. Correctness does not depend on it: a rotated
+ * pair is saved even while paused and refreshes are single-flight (#287).
  */
 export async function syncIdle(): Promise<void> {
   await running?.catch(() => undefined);
@@ -233,7 +249,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         (changes[e.tbl] ??= []).push(record);
         (order[e.tbl] ??= []).push(e);
       }
-      const out = await post(d, { cursor: await getCursor(d.db), changes: changes as Schemas['SyncChanges'] }, guard);
+      const out = await post(d, { cursor: await getCursor(d.db), changes: changes as Schemas['SyncChanges'] }, guard, userId);
       if (!out.ok) {
         // A 400 names the records at fault (`changes.<table>[<i>]...`): set those aside and send the rest again.
         let aside = 0;
