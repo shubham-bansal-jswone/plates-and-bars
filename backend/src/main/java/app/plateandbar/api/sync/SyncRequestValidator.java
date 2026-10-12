@@ -6,11 +6,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SchemaValidatorsConfig;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SchemaRegistryConfig;
+import com.networknt.schema.SpecificationVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
@@ -46,7 +45,7 @@ public class SyncRequestValidator {
     /** {@code cursor} is null on a first sync. */
     record Parsed(String cursor, List<Incoming> records) {}
 
-    private final JsonSchema requestSchema;
+    private final Schema requestSchema;
     private final Map<SyncTable, Set<String>> fields = new java.util.EnumMap<>(SyncTable.class);
 
     public SyncRequestValidator() {
@@ -61,9 +60,8 @@ public class SyncRequestValidator {
         wrapper.put("$schema", DIALECT);
         wrapper.put("$ref", "#/components/schemas/SyncRequest");
         wrapper.set("components", components);
-        SchemaValidatorsConfig config =
-                SchemaValidatorsConfig.builder().formatAssertionsEnabled(true).build();
-        this.requestSchema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(wrapper, config);
+        this.requestSchema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
+                b -> b.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())).getSchema(wrapper);
         for (SyncTable t : SyncTable.values()) {
             fields.put(t, recordFields(components.path("schemas"), components.path("schemas").path(schemaName(t))));
         }
@@ -82,7 +80,7 @@ public class SyncRequestValidator {
             throw invalid(List.of(new ErrorResponse.Detail("changes", "too_many_records")));
         }
         List<ErrorResponse.Detail> problems = new ArrayList<>();
-        for (ValidationMessage m : requestSchema.validate(body)) {
+        for (com.networknt.schema.Error m : requestSchema.validate(body)) {
             problems.add(detail(m));
         }
         if (!problems.isEmpty()) {
@@ -149,14 +147,14 @@ public class SyncRequestValidator {
         }
     }
 
-    private static ErrorResponse.Detail detail(ValidationMessage m) {
+    private static ErrorResponse.Detail detail(com.networknt.schema.Error m) {
         StringBuilder path = new StringBuilder();
         // The validator reports a JSON pointer such as /changes/food_logs/0/meal; the contract wants a path.
         for (String part : m.getInstanceLocation().toString().split("/")) {
             appendSegment(path, part);
         }
         appendSegment(path, m.getProperty());
-        return new ErrorResponse.Detail(path.toString(), m.getType());
+        return new ErrorResponse.Detail(path.toString(), m.getKeyword());
     }
 
     private static void appendSegment(StringBuilder path, String segment) {
