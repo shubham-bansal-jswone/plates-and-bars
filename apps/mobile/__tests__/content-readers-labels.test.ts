@@ -100,7 +100,7 @@ describe('labels through the content store', () => {
     ['muscle label number', (b) => { b.muscles.abs = 3; }],
     ['muscle label 5000 characters', (b) => { b.muscles.abs = 'x'.repeat(5000); }],
     ['muscle key empty', (b) => { b.muscles[''] = 'x'; }],
-    ['too many muscle keys', (b) => { for (let i = 0; i < 300; i++) b.muscles[`m${i}`] = 'x'; }],
+    ['201 muscle keys with distinct labels (the key limit rejects)', (b) => { for (let i = 0; i < 186; i++) b.muscles[`m${i}`] = `label ${i}`; }],
     ['muscle key 61 characters', (b) => { b.muscles['k'.repeat(61)] = 'x'; }],
     ['joint key 61 characters', (b) => { b.joints['k'.repeat(61)] = 'x'; }],
     ['family key 61 characters', (b) => { b.families['k'.repeat(61)] = 'x'; }],
@@ -179,6 +179,11 @@ describe('labels through the content store', () => {
         expect(reasonText(why({ muscles: [k], sparesJoint: k }))).toBe(`${stored ? 'Targets' : 'Works'} your ${k}, doesn’t load the ${k}`);
       }
     }
+  });
+
+  it('accepts exactly 200 keys with distinct labels', async () => {
+    await launch(edited((b) => { for (let i = 0; i < 185; i++) b.muscles[`m${i}`] = `label ${i}`; }));
+    expect(muscleName('m184')).toBe('label 184');
   });
 
   it('accepts labels of exactly 200 characters and rejects 201', async () => {
