@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { loadSets, loadWorkout, saveSet, saveWorkout } from '../src/db/workouts';
+import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { openDb } from './sync-helpers';
@@ -20,7 +21,7 @@ async function started() {
   await waitFor(() => expect(view.result.current.day.ready).toBe(true));
   await act(async () => void (await view.result.current.start('Upper A', {}, null)));
   await waitFor(async () => expect((await loadSets(db, DATE)).length).toBeGreaterThan(0));
-  await act(async () => void (await new Promise((r) => setTimeout(r, 30)))); // the queued writes finish
+  await act(async () => void (await dayQueue.current)); // the queued writes finish
   return { db, ...view };
 }
 
@@ -35,7 +36,7 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
     await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
     await act(async () => result.current.setForm(0, 'yes')); // writes the workout row
     await waitFor(async () => expect((await loadSets(db, DATE)).find((s) => s.id === first.id)?.weight_kg).toBe(50));
-    await act(async () => void (await new Promise((r) => setTimeout(r, 30))));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
     expect((await loadSets(db, DATE)).find((s) => s.id === first.id)?.version).toBe(4);
     expect((await loadSets(db, DATE)).find((s) => s.id !== first.id)?.version).toBe(0);
     expect((await loadWorkout(db, DATE))?.version).toBe(7);
@@ -46,7 +47,7 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
     const first = (await loadSets(db, DATE))[0]!;
     await saveSet(db, DATE, { ...first, version: 5, deleted_at: '2026-10-08T09:00:00Z', updated_at: '2026-10-08T09:00:00Z' });
     await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
-    await act(async () => void (await new Promise((r) => setTimeout(r, 60))));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
     const stored = (await loadSets(db, DATE)).find((s) => s.id === first.id)!;
     expect(stored.deleted_at).toBe('2026-10-08T09:00:00Z');
     expect(stored.version).toBe(5);
@@ -57,7 +58,7 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
     const w = (await loadWorkout(db, DATE))!;
     await saveWorkout(db, { ...w, version: 3, deleted_at: '2026-10-08T09:59:00Z', updated_at: '2026-10-08T09:59:59Z' });
     await act(async () => result.current.setForm(0, 'yes')); // writes the workout row
-    await act(async () => void (await new Promise((r) => setTimeout(r, 60))));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
     const stored = (await loadWorkout(db, DATE))!;
     expect(stored.deleted_at).toBe('2026-10-08T09:59:00Z');
     expect(stored.version).toBe(3);
