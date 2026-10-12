@@ -349,6 +349,20 @@ describe('Food screen', () => {
     expect(docs(db, 'food_logs')[0]).toMatchObject({ name: beer.name, qty: 1, kcal: beer.per_serving.kcal, food_id: beer.id });
   });
 
+  it('a serving unit over 100 characters blocks only when the food is saved to my foods', async () => {
+    const db = await setup();
+    await open();
+    await fireEvent.press(screen.getByLabelText('Custom'));
+    await fireEvent.changeText(screen.getByLabelText('Food'), 'Canteen thali');
+    await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '500');
+    await fireEvent.changeText(screen.getByLabelText('Serving size'), 'u'.repeat(101));
+    await fireEvent(screen.getByLabelText('Save to my foods for next time'), 'valueChange', false);
+    await fireEvent.press(screen.getByLabelText('Add to breakfast'));
+    await waitFor(() => expect(screen.queryByLabelText('Search foods')).toBeNull());
+    expect(docs(db, 'user_foods')).toHaveLength(0);
+    expect(docs(db, 'food_logs')).toHaveLength(1);
+  });
+
   it('shows core messages for custom food errors, then logs and saves to my foods', async () => {
     const db = await setup();
     await open();
@@ -366,6 +380,10 @@ describe('Food screen', () => {
     await fireEvent.press(screen.getByLabelText('Add to breakfast'));
     expect(await screen.findByText(/name is too long/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Food'), 'Canteen thali');
+    await fireEvent.changeText(screen.getByLabelText('Serving size'), 'u'.repeat(101));
+    await fireEvent.press(screen.getByLabelText('Add to breakfast'));
+    expect(await screen.findByText('That serving size is too long. Shorten it.')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Serving size'), '');
     await fireEvent.changeText(screen.getByLabelText('Protein (g)'), '20');
     await fireEvent.press(screen.getByLabelText('Add to breakfast'));
     await waitFor(() => expect(screen.queryByLabelText('Search foods')).toBeNull());

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { customFood, highProtein, num, quantityFromGrams, searchFoods, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
+import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
-import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL } from './copy';
+import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
 
 import type { UserFood } from './types';
@@ -132,6 +132,8 @@ function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; on
   const submit = () => {
     const r = customFood(f);
     if (r.kind !== 'ok') return say(CUSTOM_MESSAGE[r.kind], true);
+    // Only the saved food carries the unit, so a long unit blocks only when it would be saved.
+    if (save && servingUnitTooLong(f.unit)) return say(UNIT_TOO_LONG, true);
     // A saved food is logged with its id so the log points at it; an unsaved one has no food.
     onAdd({ ...r.log, foodId: save ? onSaveMine(r.food).id : null });
     onClose();
