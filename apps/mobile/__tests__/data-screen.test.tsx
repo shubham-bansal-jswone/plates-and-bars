@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { DataScreen } from '../src/screens/DataScreen';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { DeletionNotice } from '../src/account/DeletionNotice';
+import { DATA_COPY } from '../src/account/copy';
 import { memoryDb } from './helpers';
 
 const mockReplace = jest.fn();
@@ -151,7 +152,6 @@ describe('deletion notice', () => {
     expect(screen.queryByText(/account still exists/)).toBeNull();
   });
   it('the delete confirmation names what the wipe clears', async () => {
-    const { DATA_COPY } = await import('../src/account/copy');
     for (const w of ['consent record', 'day notes', 'lift history', 'kitchen tests', 'exclusions', 'swaps', 'waiting to sync']) expect(DATA_COPY.confirmDevice).toContain(w);
   });
   it('shows nothing without a deletion or without a provider', async () => {
