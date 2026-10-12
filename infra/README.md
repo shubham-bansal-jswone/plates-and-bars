@@ -28,11 +28,17 @@ CI runs exactly these commands from the folder. Match them; do not expect other 
 | --- | --- | --- | --- |
 | `packages/api` | `package.json` | `npm ci`, `npm run check` (lint, generate, stale diff, typecheck), untracked-files check on `client/`; plus `npm audit --audit-level=high --omit=dev` as the separate `npm audit (api)` job | |
 | `packages/core` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/api`, `content/` (drift test), `docs/spec/golden/` or `docs/prototype/` changes |
-| `apps/mobile` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npx expo export --platform web` (catches Metro resolution breaks) | `packages/core` or `packages/api` changes |
+| `apps/mobile` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npx expo export --platform web` (catches Metro resolution breaks) | `packages/core`, `packages/api` or `content/` changes (the app imports the content files) |
 | `tools` | `package.json` | `npm ci`, `npm run lint`, `npm test`, `node validate/cli.mjs` (Node 22; whatever those scripts and validator CLIs cover) | `content/`, `docs/spec/golden/` or `docs/prototype/` changes |
-| `backend` | `build.gradle` or `build.gradle.kts` | `./gradlew build --no-daemon` (JDK 21 Temurin; Docker is available for Testcontainers) | `packages/api/openapi.yaml` changes |
+| `backend` | `build.gradle` or `build.gradle.kts` | `./gradlew build --no-daemon` (JDK 21 Temurin; Docker is available for Testcontainers) | `packages/api/openapi.yaml`, `packages/api/test-vectors/` or any `content/` change (the build bundles every `content/*.json`; `backend/scripts` is inside `backend/`) |
 
 Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (needed by `npm ci` and the npm cache), and the scripts `lint`, `typecheck`, `test` in `package.json`. For `backend`: a committed Gradle wrapper (`gradlew`, executable) and tests wired into `build`. If the lane needs different commands or a Node/JDK version, change them via an Infra issue.
+
+### Content record check (`content-meta`)
+
+`apps/mobile/src/content/bundled.json` records each content file's sha256, `schema_version` and `updated_at`. The `content-meta (bundled.json)` job runs `node scripts/content-meta.mjs --check` in `apps/mobile` when `content/`, `apps/mobile/src/content/` or the script change. The checkout is always shallow, so the script compares hashes and schema versions only: a PR cannot know its own squash-merge date, and comparing dates on `main` would turn it red after every content merge. A stale `updated_at` is normally older than the real merge date. That costs nothing on a device with no stored server copy (refresh compares hashes first). A device holding a server copy dated between the stale date and the merge date keeps that older copy for one launch, then downloads bytes the build already ships. Regenerate with `node scripts/content-meta.mjs` on a full-history `main` and commit the result before each mobile release build. Dates in the future or malformed are not caught yet (#412).
+
+`infra/scripts/test-detect-changes.sh` (run by the `changes` job) feeds sample diffs to `detect-changes.sh` in a throwaway repo and fails if a job is enabled or skipped wrongly.
 
 ### Stale generated client
 
