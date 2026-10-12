@@ -134,6 +134,8 @@ describe('foods and eat-out through the content store', () => {
     ['source url http:', (f) => { f.source.url = 'http://example.org/'; }],
     ['source url very long', (f) => { f.source.url = 'https://e.org/' + 'a'.repeat(3000); }],
     ['serving label over 200 characters', (f) => { f.serving.label = 'x'.repeat(201); }],
+    ['source reference over 200 characters', (f) => { f.source.reference = 'r'.repeat(201); }],
+    ['source name empty', (f) => { f.source.name = ''; }],
     ['source licence empty', (f) => { f.source.licence = ''; }],
     ['source code number', (f) => { f.source.code = 1; }],
     ['source name number', (f) => { f.source.name = 1; }],
