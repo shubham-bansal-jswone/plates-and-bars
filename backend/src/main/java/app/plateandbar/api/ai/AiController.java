@@ -35,7 +35,7 @@ public class AiController {
     private final ClientIpResolver ips;
     private final RateLimitProperties limits;
 
-    /** The most of a body this controller reads: 16 KB. Bigger is treated as an invalid body, never buffered. */
+    /** The most of a body this controller reads: 16 KB (16,384 bytes). Bigger is 400 too_large, never buffered. */
     static final int MAX_BODY_BYTES = 16 * 1024;
 
     AiController(AiQuotaService quotas, AiService ai, ObjectMapper json, RateLimiter limiter, ClientIpResolver ips,
@@ -60,7 +60,7 @@ public class AiController {
         limiter.consume("ai-user", auth.getName(), limits.getAiPerUser());
         // At most 16 KB + 1 byte is read, so a huge body is never held in memory; the rest is not read at all.
         byte[] raw = request.getInputStream().readNBytes(MAX_BODY_BYTES + 1);
-        JsonNode body = null;
+        JsonNode body = AiSchemas.TOO_LARGE; // 400 too_large after the feature switch, in the validation step
         if (raw.length <= MAX_BODY_BYTES) {
             try {
                 body = json.readTree(raw);

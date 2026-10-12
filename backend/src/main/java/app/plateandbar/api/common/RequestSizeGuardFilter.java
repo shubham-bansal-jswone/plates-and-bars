@@ -38,9 +38,16 @@ public class RequestSizeGuardFilter extends OncePerRequestFilter {
         this.json = json;
     }
 
+    /** 400 {@code invalid_request}, detail {@code too_large}: thrown by the counting stream. */
+    public static final class TooLarge extends ApiException {
+        TooLarge() {
+            super(HttpStatus.BAD_REQUEST, "invalid_request", "The request is not valid.",
+                    List.of(new ErrorResponse.Detail("", "too_large")));
+        }
+    }
+
     static ApiException tooLarge() {
-        return new ApiException(HttpStatus.BAD_REQUEST, "invalid_request", "The request is not valid.",
-                List.of(new ErrorResponse.Detail("", "too_large")));
+        return new TooLarge();
     }
 
     @Override

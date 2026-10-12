@@ -2,7 +2,6 @@ package app.plateandbar.api.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -69,7 +68,7 @@ class AiControllerBoundedReadTest {
             }
         };
         c.describeMeal(new TestingAuthenticationToken("u", "x"), req);
-        verify(ai).describeMeal(any(), isNull());
+        verify(ai).describeMeal(any(), org.mockito.ArgumentMatchers.same(AiSchemas.TOO_LARGE));
         // readNBytes may ask for one buffer more than needed, but never an unbounded amount.
         assertThat(body.served.get()).isLessThanOrEqualTo(AiController.MAX_BODY_BYTES + 1 + 16 * 1024);
     }

@@ -67,9 +67,10 @@ public class ApiExceptionHandler {
     })
     ResponseEntity<ErrorResponse> badRequest(Exception e) {
         // A body cut off by the request size guard surfaces wrapped in the message converter's exception.
-        for (Throwable t = e.getCause(); t != null && t != t.getCause(); t = t.getCause()) {
-            if (t instanceof ApiException api) {
-                return api(api);
+        Throwable t = e.getCause();
+        for (int depth = 0; t != null && depth < 8; depth++, t = t.getCause()) {
+            if (t instanceof RequestSizeGuardFilter.TooLarge tooLarge) {
+                return api(tooLarge);
             }
         }
         return respond(HttpStatus.BAD_REQUEST, "invalid_request", "The request is not valid.", null);

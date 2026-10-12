@@ -51,7 +51,7 @@ class AiControllerBodyTest {
                         .contentType("application/json")
                         .content(huge))
                 .andExpect(status().isOk()); // the mocked service answers; what matters is what it was given
-        org.mockito.Mockito.verify(ai).describeMeal(org.mockito.ArgumentMatchers.eq(USER), org.mockito.ArgumentMatchers.isNull());
+        org.mockito.Mockito.verify(ai).describeMeal(org.mockito.ArgumentMatchers.eq(USER), org.mockito.ArgumentMatchers.same(AiSchemas.TOO_LARGE));
         // Just under 16 KB of valid JSON is parsed.
         byte[] fits = ("{\"text\":\"" + "a".repeat(16 * 1024 - 20) + "\"}").getBytes(java.nio.charset.StandardCharsets.UTF_8);
         mvc.perform(post("/api/v1/ai/describe-meal")
