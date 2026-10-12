@@ -152,34 +152,54 @@ class SyncEngineIT extends SyncITBase {
         assertThat(count("SELECT version FROM food_logs WHERE user_id = ? AND id = ?", user, rid)).isEqualTo(1);
     }
 
-    @Test
-    void theConflictLogKeepsOnlyTheNewestEntriesAndNothingOlderThanTheRetention() {
-        String user = newUser();
-        String other = newUser();
-        for (String u : new String[] {user, other}) {
-            // 1,005 recent entries, plus two older than the 90 day retention.
-            jdbc.batchUpdate(
-                    "INSERT INTO sync_conflicts (user_id, table_name, record_id, loser, version, winner_version,"
-                            + " updated_at, record, logged_at) VALUES (?, 'food_logs', ?, 'client', 1, 2, ?, '{}', ?)",
-                    java.util.stream.IntStream.range(0, 1007)
-                            .mapToObj(i -> new Object[] {u, "r-" + i, java.sql.Timestamp.from(START), java.sql.Timestamp.from(
-                                    i < 2 ? START.minus(java.time.Duration.ofDays(120)) : START.minusSeconds(2000 - i))})
-                            .toList());
+    private void seedConflicts(String u, int count, int oldOnes) {
+        for (int i = 0; i < count; i++) {
+            boolean old = i < oldOnes;
+            jdbc.update("INSERT INTO sync_conflicts (user_id, table_name, record_id, loser, version, winner_version,"
+                    + " updated_at, record, logged_at) VALUES (?, 'food_logs', ?, 'client', 1, 2, ?, '{}', ?)",
+                    u, "r-" + i, java.sql.Timestamp.from(START), java.sql.Timestamp.from(
+                            old ? START.minus(java.time.Duration.ofDays(120)) : START.minusSeconds(2000 - i)));
         }
+    }
+
+    private void oneRealConflict(String user) {
         String rid = id();
         ok(user, req(null).add(SyncTable.food_logs, foodLog(rid, 0, NEW, null, "Server version", 100)).build());
-        // A real conflict (client loses) logs one more entry and triggers the pruning.
         ok(user, req(null).add(SyncTable.food_logs, foodLog(rid, 0, MID, null, "Client version", 200)).build());
+    }
+
+    @Test
+    void theConflictLogKeepsOnlyTheNewestEntriesAndOnlyTouchesTheSyncingUser() {
+        String other = newUser();
+        String user = newUser();
+        // The other user's rows are interleaved with the syncing user's: a missing user_id filter would delete them.
+        for (int i = 0; i < 1007; i++) {
+            seedConflicts(other, 1, i < 2 ? 1 : 0);
+            jdbc.update("INSERT INTO sync_conflicts (user_id, table_name, record_id, loser, version, winner_version,"
+                    + " updated_at, record, logged_at) VALUES (?, 'food_logs', ?, 'client', 1, 2, ?, '{}', ?)",
+                    user, "r-" + i, java.sql.Timestamp.from(START), java.sql.Timestamp.from(
+                            i < 2 ? START.minus(java.time.Duration.ofDays(120)) : START.minusSeconds(2000 - i)));
+        }
+        oneRealConflict(user);
 
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isEqualTo(1000);
-        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id = ?", user, rid))
-                .as("the newest entry survives").isEqualTo(1);
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id IN ('r-0', 'r-1')", user))
                 .as("older than the retention").isZero();
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id = 'r-2'", user))
                 .as("the oldest of the recent entries went first").isZero();
-        // Another user's log is never touched.
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id = 'r-1006'", user))
+                .as("the newest seeded entry stays").isEqualTo(1);
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", other)).isEqualTo(1007);
+    }
+
+    @Test
+    void entriesOlderThanTheRetentionGoEvenWhenTheLogIsBelowTheCap() {
+        String user = newUser();
+        seedConflicts(user, 12, 2); // 10 recent, 2 older than 90 days
+        oneRealConflict(user);
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id IN ('r-0', 'r-1')", user))
+                .isZero();
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isEqualTo(11); // 10 + the new one
     }
 
     @Test

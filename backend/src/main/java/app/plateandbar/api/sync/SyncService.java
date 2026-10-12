@@ -43,16 +43,24 @@ import org.springframework.transaction.annotation.Transactional;
 public class SyncService {
 
     static final Duration FUTURE_SLACK = Duration.ofMinutes(5);
-    /** The conflict log keeps at most this many entries per user, none older than the retention (M3). */
-    static final int CONFLICT_LOG_KEEP = 1000;
-
-    static final Duration CONFLICT_LOG_RETENTION = Duration.ofDays(90);
 
     private final SyncRepository repo;
     private final Clock clock;
     private final ObjectMapper json;
 
-    SyncService(SyncRepository repo, Clock clock, ObjectMapper json) {
+    /** The conflict log keeps at most this many entries per user, none older than the retention (M3). */
+    private final int conflictLogKeep;
+
+    private final Duration conflictLogRetention;
+
+    SyncService(
+            SyncRepository repo,
+            Clock clock,
+            ObjectMapper json,
+            @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-max-per-user:1000}") int conflictLogKeep,
+            @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-retention-days:90}") int retentionDays) {
+        this.conflictLogKeep = conflictLogKeep;
+        this.conflictLogRetention = Duration.ofDays(retentionDays);
         this.repo = repo;
         this.clock = clock;
         this.json = json;
@@ -143,7 +151,7 @@ public class SyncService {
             repo.saveSeq(userId, seq);
         }
         if (logged) {
-            repo.pruneConflicts(userId, now.minus(CONFLICT_LOG_RETENTION), CONFLICT_LOG_KEEP);
+            repo.pruneConflicts(userId, now.minus(conflictLogRetention), conflictLogKeep);
         }
 
         // Pull: everything stored before this request's writes, minus the records the device just pushed.
