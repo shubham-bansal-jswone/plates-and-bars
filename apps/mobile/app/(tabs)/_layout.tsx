@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { BottomTabBar } from 'expo-router/build/react-navigation/bottom-tabs';
+import { BottomTabBar } from 'expo-router/tabs';
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Press } from '../../src/components/ui';
@@ -56,11 +56,16 @@ export default function TabsLayout() {
   return (
     <Tabs
       // The tab bar is the page's navigation landmark.
-      tabBar={(props) => (
-        <View role="navigation" aria-label="Sections">
+      tabBar={(props) =>
+        // Web only: on a phone the wrapper would add a screen-reader stop of its own.
+        Platform.OS === 'web' ? (
+          <View role="navigation" aria-label="Sections">
+            <BottomTabBar {...props} />
+          </View>
+        ) : (
           <BottomTabBar {...props} />
-        </View>
-      )}
+        )
+      }
       screenOptions={{
         // Each screen draws its own heading, so the navigator's header would show the title twice.
         headerShown: false,

@@ -1,7 +1,16 @@
 import { render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
+import type { PressableProps } from 'react-native';
 import { Choice, Page } from '../src/components/ui';
 import { ExerciseLibraryScreen } from '../src/library/ExerciseLibraryScreen';
+
+// Pressable folds aria-checked into accessibilityState before the host view, so record what Choice hands to it.
+const mockPressed: PressableProps[] = [];
+jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
+  const React = jest.requireActual('react');
+  const Actual = jest.requireActual('react-native/Libraries/Components/Pressable/Pressable').default;
+  return { __esModule: true, default: (p: PressableProps) => { mockPressed.push(p); return React.createElement(Actual, p); } };
+});
 
 /** Props of every host element in the rendered tree, to find landmarks that are not "accessible" elements. */
 const roles = (node: unknown, out: string[] = []): string[] => {
@@ -20,8 +29,10 @@ describe('radio state', () => {
         <Choice label="Female" selected={false} onPress={() => undefined} />
       </>,
     );
+    const by = (l: string) => mockPressed.filter((p) => p.accessibilityLabel === l).at(-1) as Record<string, unknown>;
+    expect(by('Male')['aria-checked']).toBe(true);
+    expect(by('Female')['aria-checked']).toBe(false);
     expect(screen.getByRole('radio', { name: 'Male' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Female' })).not.toBeChecked();
   });
 
   it('an action Choice is a button, not a radio', async () => {
@@ -47,6 +58,7 @@ describe('exercise library rows', () => {
     await render(<ExerciseLibraryScreen onBack={() => undefined} />);
     const row = screen.getAllByRole('button').find((b) => b.props.accessibilityLabel === undefined);
     expect(row).toBeTruthy();
+    expect(roles(screen.toJSON()).filter((r) => r === 'main')).toHaveLength(1);
     expect(screen.getByRole('button', { name: /Archer Push-ups/ })).toBeTruthy();
   });
 });

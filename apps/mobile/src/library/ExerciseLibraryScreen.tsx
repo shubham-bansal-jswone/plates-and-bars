@@ -51,6 +51,7 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary() }: { onBack:
   if (picked) return <ExerciseDetail exercise={picked} onBack={() => setOpen(null)} />;
   return (
     <FlatList
+      role="main"
       style={{ backgroundColor: c.bg }}
       contentContainerStyle={{ padding: space.lg, width: '100%', maxWidth: 560, alignSelf: 'center', gap: 4 }}
       data={shown}
