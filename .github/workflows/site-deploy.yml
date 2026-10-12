@@ -7,7 +7,7 @@ name: Site deploy
 #                 and a custom domain, because the site is built for the domain root)
 #   caddy         rsync dist/ over SSH to a VM served by Caddy (see infra/caddy/Caddyfile.site)
 # Unset or any other value: every deploy job is skipped. Deploys only run from
-# main, even for manual runs. The `caddyfile` job validates infra/caddy on PRs.
+# main, even for manual runs. The `caddyfile` job validates infra/caddy (both Caddyfiles, and that the site headers match _headers) on PRs.
 # See infra/README.md.
 on:
   push:
@@ -18,6 +18,8 @@ on:
   pull_request:
     paths:
       - 'infra/caddy/**'
+      - 'apps/site/public/_headers'
+      - 'infra/scripts/check-caddy-headers.sh'
       - '.github/workflows/site-deploy.yml'
   workflow_dispatch:
 
@@ -37,8 +39,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      # Official Caddy image (Apache-2.0)
-      - run: docker run --rm -v "$PWD/infra/caddy:/c:ro" caddy:2.11.7 caddy validate --config /c/Caddyfile.site --adapter caddyfile
+      # Official Caddy image (Apache-2.0); a non-zero exit from any file fails the job (set -e is the default shell)
+      - name: caddy validate
+        run: |
+          for f in Caddyfile.site Caddyfile.api; do
+            echo "== $f"
+            docker run --rm -v "$PWD/infra/caddy:/c:ro" caddy:2.11.7 caddy validate --config "/c/$f" --adapter caddyfile
+          done
+      - name: site headers match apps/site/public/_headers
+        run: infra/scripts/check-caddy-headers.sh
 
   build:
     name: build site
