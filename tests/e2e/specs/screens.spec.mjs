@@ -9,15 +9,15 @@ test.beforeEach(async ({ page }) => {
 test('exercise library: search narrows the list and an exercise opens with its notes', async ({ page }) => {
   await label(page, 'Exercise library').click();
   await expect(heading(page, 'Exercise library')).toBeVisible();
-  const rows = page.locator('[role="button"][aria-label*=". "][aria-label*=" · "]');
+  const rows = page.getByRole('button').filter({ hasText: ' · ' });
   await expect(rows.first()).toBeVisible();
   const all = await rows.count();
   await label(page, 'Search exercises').fill('chest press');
   await expect(rows.first()).toContainText(/chest press/i);
   expect(await rows.count()).toBeLessThan(all);
-  const open = await rows.first().getAttribute('aria-label');
+  const name = (await rows.first().innerText()).split('\n')[0];
   await rows.first().click();
-  await expect(heading(page, open.split('. ')[0])).toBeVisible();
+  await expect(heading(page, name)).toBeVisible();
   await expect(page.getByText(/Main muscles: /)).toBeVisible();
   await label(page, 'Back to library').click();
   await expect(heading(page, 'Exercise library')).toBeVisible();

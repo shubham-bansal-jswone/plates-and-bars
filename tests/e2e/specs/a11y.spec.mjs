@@ -1,23 +1,16 @@
-import { htmlHas, triage } from '../support/axe.mjs';
+import { triage } from '../support/axe.mjs';
 import { axeSource, completeSetup, expect, label, openApp, tab, test } from '../support/app.mjs';
 
-// axe-core on the main screens, in light and dark (WCAG 2.0/2.1 A and AA rules, which include colour contrast).
-// Every violation fails the test. A failure caused by a filed bug is listed in KNOWN by rule and element with the issue
-// number (support/axe.mjs), so a new violation, even of the same rule, still fails; when the bug is fixed the entry
-// matches nothing, goes stale and fails the test, so remove it.
-const radio = () => ({ rule: 'aria-required-attr', issue: 366, match: htmlHas('role="radio"') }); // role=radio without aria-checked
-const KNOWN = {
-  setup: [radio()],
-  library: [
-    radio(),
-    { rule: 'label-content-name-mismatch', issue: 367, match: (n) => /aria-label="[^"]+\. [^"]* · /.test(n.html) }, // rows
-  ],
-  food: [{ rule: 'label-content-name-mismatch', issue: 371, match: htmlHas('aria-label="What should I eat next?') }],
-};
+// axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
+// the landmark and heading best-practice rules. Every violation fails the test. A failure caused by a filed bug goes in
+// KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
+// violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test. Empty now.
+const KNOWN = {};
+const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 async function scan(page, name, scheme) {
   await page.evaluate(axeSource);
-  const { violations } = await page.evaluate(() => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }));
+  const { violations } = await page.evaluate((rules) => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, rules: Object.fromEntries(rules.map((r) => [r, { enabled: true }])) }), RULES);
   const { unexpected, stale } = triage(violations, KNOWN[name]);
   expect(stale, `${name} in ${scheme} mode`).toEqual([]);
   expect(unexpected, `${name} in ${scheme} mode`).toEqual([]);
@@ -36,8 +29,7 @@ const screens = {
   },
   food: async (page) => {
     await tab(page, 'Food');
-    // axe's name check reads the card's text; scan only once the card shows its "Show" action (it appears after first render).
-    await expect(page.locator('[aria-label^="What should I eat next?"]')).toContainText('Show');
+    await expect(page.getByText('What should I eat next?', { exact: true })).toBeVisible();
   },
   workout: async (page) => {
     await tab(page, 'Workout');

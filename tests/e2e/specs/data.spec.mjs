@@ -56,20 +56,21 @@ test('delete everything: cancel keeps the data, confirming clears this device an
 
   await label(page, 'Delete everything').click();
   await label(page, 'Yes, delete everything').click();
-  // The wipe removes the profile, so the app lands at the start of setup (with a one-time notice) and stays there after a reload.
+  // The wipe removes the profile, so the app lands at the start of setup with a one-time notice that is true for a device
+  // that never had an account (#368), and stays there after a reload.
+  await expect(page.getByText('Everything deleted. The data on this device is gone.')).toBeVisible();
+  await expect(page.getByText(/Your account still exists/)).toHaveCount(0);
   await expect(label(page, 'I understand and agree to my data being stored as described')).toBeVisible();
   await page.reload({ waitUntil: 'load' });
   await expect(label(page, 'I understand and agree to my data being stored as described')).toBeVisible({ timeout: 40_000 });
 });
 
-// #370: the confirm text lists less than the wipe clears (it also removes consents, day notes, lift stats, kitchen tests,
-// exclusions, swaps and the sync queue). Remove the `test.fail` line when the app names them or says "everything the app stores".
+// The confirm text must name what the wipe clears (consents, day notes, lift stats, kitchen tests, exclusions, swaps, the sync queue) (#370).
 test('delete everything: the confirmation names what the wipe clears', async ({ page }) => {
-  test.fail(true, '#370');
   await completeSetup(page);
   await openData(page);
   await label(page, 'Delete everything').click();
-  const text = await page.getByText(/permanently deletes everything on this device/).innerText();
+  const text = await page.getByText(/This permanently deletes /).innerText();
   expect(text).toMatch(/kitchen tests/i);
   expect(text).toMatch(/consent/i);
   expect(text).toMatch(/lift|workout sets/i);
