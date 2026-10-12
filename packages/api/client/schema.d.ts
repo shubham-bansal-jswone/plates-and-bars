@@ -118,6 +118,11 @@ export interface paths {
          *     conflict log. `conflicts[].resolution` says which side won and `server_record` is
          *     the record as now stored; the device replaces its local copy with it.
          *
+         *     **Conflict log retention.** The log is bounded per user: the server keeps each
+         *     user's newest 1,000 entries and drops entries older than 90 days. Pruning runs when
+         *     a later conflict is logged for that user, so until then an entry can be older than
+         *     90 days. The log is a safety net for recovering a lost edit, not a full history.
+         *
          *     **Retries are idempotent.** A device that loses the response to a successful sync
          *     re-sends the same records with the same, now stale, `version`. A retry is any
          *     pushed record whose content, apart from `version` and `updated_at`, is identical to
@@ -172,8 +177,10 @@ export interface paths {
          *     synced records have no table. The app rebuilds them locally after every pull; see
          *     `Workout` for the prototype's `sessions` store.
          *
-         *     Limits: at most 500 records in total per request and per response page.
-         *     `updated_at` values more than 5 minutes in the future are clamped to server time.
+         *     Limits: at most 500 records in total per request and per response page, and a
+         *     request body of at most 2 MB (400 `invalid_request`, issue `too_large`; see the
+         *     wire conventions). `updated_at` values more than 5 minutes in the future are
+         *     clamped to server time.
          */
         post: operations["sync"];
         delete?: never;
@@ -231,7 +238,9 @@ export interface paths {
          * Download everything the server stores about the signed-in user
          * @description Returns, in one JSON document, every record the server holds for the user: the
          *     account (`user`), every row of every synced table (`profiles` and `settings`
-         *     included) and the server's conflict log. The response is built when requested,
+         *     included) and the server's conflict log as currently kept. The conflict log is
+         *     included but bounded (the newest 1,000 entries, older than 90 days dropped; see
+         *     `POST /sync`), so earlier conflicts may be absent. The response is built when requested,
          *     so it reflects the server state at `exported_at`; changes still queued on a device
          *     are not in it until they sync.
          *
@@ -244,9 +253,12 @@ export interface paths {
          *
          *     **Not included**, because they are credentials or operational data rather than the
          *     user's data: access and refresh tokens, emailed one-time codes, rate-limit counters,
-         *     AI quota counters (`ai_usage`, see the `ai` tag) and server logs (which never hold
-         *     food, weight, health answers or tokens). Progress photos and other device-only data
-         *     never reach the server, so the app exports them on the device.
+         *     AI quota counters (`ai_usage`, see the `ai` tag) and server logs. Server logs record
+         *     opaque user ids with operational events (sign-in, sync, export, deletion, AI calls)
+         *     and are kept for a bounded retention period; they never hold food, weight, health
+         *     answers or tokens. The anonymous monthly AI token total (see the `ai` tag) holds no
+         *     user id, so it is no one's data. Progress photos and other device-only data never
+         *     reach the server, so the app exports them on the device.
          *
          *     **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
          *     `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
@@ -280,8 +292,10 @@ export interface paths {
         post?: never;
         /**
          * Delete the signed-in user's account and all server-side data
-         * @description Permanently deletes the account and everything the server stores for it. There is
-         *     no undo and no grace period. The app asks the user to confirm before calling this.
+         * @description Permanently deletes the account and everything the server stores for it, except an
+         *     anonymous monthly AI token total (month and token count only, no user id) kept to
+         *     enforce the shared AI budget (see the `ai` tag). There is no undo and no grace
+         *     period. The app asks the user to confirm before calling this.
          *
          *     **What is deleted, and when.** Before the server answers 204, in one transaction:
          *     every row of every synced table (tombstones included), the conflict log, the
@@ -290,9 +304,13 @@ export interface paths {
          *     for the account's email address, any pending one-time codes and the wrong-code
          *     records kept for rate limiting (`email_verify_failures`). When the 204 arrives the data is gone from the live
          *     database. Copies in the encrypted nightly backups are not edited; they disappear
-         *     when those backups expire, at most 30 days later (backup retention, #36). Server logs
-         *     hold no user data to delete. If anything fails, the transaction rolls back, the
-         *     server answers 500 and nothing is deleted; the app retries.
+         *     when those backups expire, at most 30 days later (backup retention, #36). Not
+         *     deleted: the anonymous monthly AI token total, which holds no user id, so this
+         *     account's AI spend still counts toward the month's budget; and server logs, which
+         *     record opaque user ids with operational events (never food, weight, health answers
+         *     or tokens) and expire after a bounded retention period. If anything fails, the
+         *     transaction rolls back, the server answers 500 and nothing is deleted; the app
+         *     retries.
          *
          *     **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
          *     `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
@@ -557,7 +575,7 @@ export interface components {
             message: string;
             /** @description Per-field problems, for `invalid_request`. */
             details?: {
-                /** @description JSON path of the offending field. */
+                /** @description JSON path of the offending field; empty when the problem is the whole body (`too_large`). */
                 field: string;
                 issue: string;
             }[];
@@ -793,7 +811,8 @@ export interface components {
              * @description `client_won`: the device's edit was newer and is now stored. `server_won`: the
              *     server's copy was newer and the device's edit was not applied. Either way the
              *     losing copy is kept in the server's conflict log, except for idempotent retries
-             *     (see `POST /sync`), which are not logged.
+             *     (see `POST /sync`), which are not logged. The log is bounded (newest 1,000
+             *     entries, older than 90 days dropped; see `POST /sync`).
              * @enum {string}
              */
             resolution: "client_won" | "server_won";
@@ -855,7 +874,9 @@ export interface components {
             tables: components["schemas"]["ExportTables"];
             /**
              * @description Losing copies the server kept when resolving `/sync` conflicts (see
-             *     `SyncConflict.resolution`), oldest first. Empty when there were none.
+             *     `SyncConflict.resolution`), oldest first. Empty when there were none. Bounded:
+             *     the newest 1,000 entries, with entries older than 90 days dropped when a later
+             *     conflict is logged (see `POST /sync`), so earlier conflicts may be absent.
              */
             conflict_log: components["schemas"]["ConflictLogEntry"][];
         };
@@ -1169,9 +1190,17 @@ export interface components {
              *     - `deload` (boolean): recovery week in range.
              *     - `reentry` (number): re-entry fraction (0.15 or 0.3) when a re-entry period is in range, else 0.
              *     Readers treat a missing key as false (or 0 for `reentry`) and keep unknown keys.
+             *     At most 20 keys; an unknown key's value is a boolean, number, short string or null.
              */
             mods: {
-                [key: string]: unknown;
+                light?: boolean;
+                short?: boolean;
+                /** @enum {string} */
+                where?: "gym" | "dumbbells" | "bodyweight";
+                deload?: boolean;
+                reentry?: number;
+            } & {
+                [key: string]: boolean | number | string | null;
             };
             /** @description Exercises in session order. */
             exercises: components["schemas"]["WorkoutExercise"][];
@@ -1344,7 +1373,7 @@ export interface components {
             /** @description Cooked weight, when `yield_mode` is grams. Prototype: `grams`. */
             cooked_g: number | null;
             /**
-             * @description Oil level chosen in the recipe builder.
+             * @description Oil level chosen in the recipe builder (core writes `low`, `normal` or `rich`).
              * @example normal
              */
             oil: string;
@@ -1609,8 +1638,12 @@ export interface components {
         };
         /**
          * @description `feature_disabled`: the feature is switched off on the server (kill switch, budget
-         *     cap, or not yet launched); show the non-AI fallback. `unavailable`: the AI provider
-         *     failed or timed out; nothing was counted, and the user may try again.
+         *     cap, or not yet launched); show the non-AI fallback. `unavailable`: no usable
+         *     answer; the user may try again. Either the provider failed or timed out before any
+         *     billed reply (the quota unit is released), or the provider's reply could not be
+         *     parsed or failed the output checks (the provider billed it, so the unit is kept).
+         *     The body is the same in both cases and carries no `quota`; the app reads
+         *     `GET /ai/status` for the remaining quota.
          */
         AiUnavailable: {
             headers: {

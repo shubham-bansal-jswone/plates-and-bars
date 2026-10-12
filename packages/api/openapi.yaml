@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.8
+  version: 0.1.9
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -21,6 +21,16 @@ info:
       centimetres (`_cm`), millilitres (`_ml`), minutes (`_min`), kilocalories (`kcal`).
     - Carbohydrate is always total carbohydrate including fibre.
     - Every 4xx and 5xx response uses the shared `Error` schema.
+    - Request bodies are at most 2 MB (2,097,152 bytes) on every endpoint, and at most
+      16 KB (16,384 bytes) on the `POST /ai/*` endpoints. A larger body is refused without
+      being read in full, with 400 `invalid_request` and one `details` entry whose `field`
+      is empty and whose `issue` is `too_large`. The 2 MB check runs before anything
+      else, sign-in included; the 16 KB AI check is the request-validation step of the
+      `ai` tag's order of checks.
+    - Record schemas bound every string (`maxLength`), array (`maxItems`) and open
+      object (`maxProperties`) with generous headroom over real use. The app keeps what
+      it stores locally within these bounds, because a record that breaks one fails the
+      whole `/sync` request with 400 `invalid_request`.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
@@ -99,18 +109,22 @@ tags:
       and the cards Ask why is grounded on. Both are the versions in the deployed build.
 
       **Order of checks.** Access token (401), per-user and per-IP rate limit (429
-      `rate_limited`), feature switch (503 `feature_disabled`), request validation (400),
-      daily quota (429 `quota_exceeded`), then the provider call. A request rejected at
-      any of these steps does not count against the quota.
+      `rate_limited`), feature switch (503 `feature_disabled`), request validation (400,
+      including a body over 16 KB: issue `too_large`), daily quota (429
+      `quota_exceeded`), then the provider call. A request rejected at any of these steps
+      does not count against the quota.
 
       **Daily quota (`ai_usage`).** Each user has one daily allowance shared by all three
       endpoints, by default 10 text calls a day. The limit is server configuration, so the
       app reads `quota.limit` and never hard-codes 10. The day is the UTC calendar day:
-      the count resets at 00:00:00Z (05:30 in India), which `quota.resets_at` gives. A call
-      counts when it returns 200; the server reserves the unit before calling the provider
-      and releases it if the provider fails, so concurrent calls cannot overrun the limit
-      and failed calls cost the user nothing. A cached answer to an identical request
-      still counts. Every 200 carries the quota after the call. When nothing is left the
+      the count resets at 00:00:00Z (05:30 in India), which `quota.resets_at` gives. The
+      server reserves the unit before calling the provider, so concurrent calls cannot
+      overrun the limit. The unit is kept when the call returns 200, and also when the
+      provider returned a reply (which the provider bills) that the server then cannot
+      use: a reply that does not parse or fails the output checks is 503 `unavailable`
+      and still counts. The unit is released only when the provider call itself fails or
+      times out before any billed reply; that 503 `unavailable` costs the user nothing.
+      A cached answer to an identical request still counts. Every 200 carries the quota after the call. When nothing is left the
       server answers 429 `quota_exceeded` with `quota` (remaining 0) and `Retry-After` (the
       seconds until `resets_at`); the app shows the fallback and does not retry before
       then.
@@ -118,7 +132,11 @@ tags:
       `ai_usage` holds only the user id, UTC day, feature, call count and token counts for
       cost tracking; never the text sent or received. It is a quota counter, so it is not
       part of `GET /me/export` (like rate-limit counters), and `DELETE /me` deletes it with
-      the account.
+      the account. Separately, the server keeps one anonymous total per UTC month (the
+      month and its token count only: no user id, day or feature) to enforce the shared
+      monthly AI budget cap. Every call's tokens are added to it, it cannot be linked to
+      any account, and it stays when an account is deleted, so deleting an account does
+      not give its spend back to the budget.
 
       **Rate limit.** On top of the daily quota, at most 5 AI requests per user per minute
       across the three POST endpoints, plus the per-IP limit every endpoint has. Requests
@@ -146,16 +164,16 @@ tags:
       is executed or followed. Describe a meal drops items whose numbers are not finite or
       are out of range. Ask why turns a reply `card_id` that is not in
       `content/cards.json` into null, and rejects an `answer` containing `{` or `}`. A
-      reply that cannot be parsed or fails these checks is 503 `unavailable`, and the
-      reserved quota unit is released.
+      reply that cannot be parsed or fails these checks is 503 `unavailable`; the provider
+      has billed it, so the reserved quota unit is kept (see Daily quota).
 
       **No logging.** Request and response bodies of `/ai/*` (meal text, questions,
       answers, check-in numbers, exercise ids) are never logged, written to the database or
       sent to error reporting, and 400 `details[].issue` never echoes a submitted value.
       The identical-request cache, if used, is per user (never shared across users), in
       memory only, keyed by the user id and a hash of the request, and expires within 24
-      hours. Server logs for these calls hold only the user id, feature, time, status and
-      duration. The provider
+      hours. Server logs for these calls hold only the opaque user id, feature, time,
+      status and duration, and are kept for a bounded retention period. The provider
       receives only the request content and the instructions, never the user id, email or
       any other account data, and is configured not to retain or train on it where the
       provider offers that.
@@ -336,6 +354,11 @@ paths:
         conflict log. `conflicts[].resolution` says which side won and `server_record` is
         the record as now stored; the device replaces its local copy with it.
 
+        **Conflict log retention.** The log is bounded per user: the server keeps each
+        user's newest 1,000 entries and drops entries older than 90 days. Pruning runs when
+        a later conflict is logged for that user, so until then an entry can be older than
+        90 days. The log is a safety net for recovering a lost edit, not a full history.
+
         **Retries are idempotent.** A device that loses the response to a successful sync
         re-sends the same records with the same, now stale, `version`. A retry is any
         pushed record whose content, apart from `version` and `updated_at`, is identical to
@@ -390,8 +413,10 @@ paths:
         synced records have no table. The app rebuilds them locally after every pull; see
         `Workout` for the prototype's `sessions` store.
 
-        Limits: at most 500 records in total per request and per response page.
-        `updated_at` values more than 5 minutes in the future are clamped to server time.
+        Limits: at most 500 records in total per request and per response page, and a
+        request body of at most 2 MB (400 `invalid_request`, issue `too_large`; see the
+        wire conventions). `updated_at` values more than 5 minutes in the future are
+        clamped to server time.
       requestBody:
         required: true
         content:
@@ -647,7 +672,9 @@ paths:
       description: |
         Returns, in one JSON document, every record the server holds for the user: the
         account (`user`), every row of every synced table (`profiles` and `settings`
-        included) and the server's conflict log. The response is built when requested,
+        included) and the server's conflict log as currently kept. The conflict log is
+        included but bounded (the newest 1,000 entries, older than 90 days dropped; see
+        `POST /sync`), so earlier conflicts may be absent. The response is built when requested,
         so it reflects the server state at `exported_at`; changes still queued on a device
         are not in it until they sync.
 
@@ -660,9 +687,12 @@ paths:
 
         **Not included**, because they are credentials or operational data rather than the
         user's data: access and refresh tokens, emailed one-time codes, rate-limit counters,
-        AI quota counters (`ai_usage`, see the `ai` tag) and server logs (which never hold
-        food, weight, health answers or tokens). Progress photos and other device-only data
-        never reach the server, so the app exports them on the device.
+        AI quota counters (`ai_usage`, see the `ai` tag) and server logs. Server logs record
+        opaque user ids with operational events (sign-in, sync, export, deletion, AI calls)
+        and are kept for a bounded retention period; they never hold food, weight, health
+        answers or tokens. The anonymous monthly AI token total (see the `ai` tag) holds no
+        user id, so it is no one's data. Progress photos and other device-only data never
+        reach the server, so the app exports them on the device.
 
         **Headers.** `Cache-Control: no-store`. `Content-Disposition` suggests a file name,
         `plate-and-bar-export-<YYYY-MM-DD>.json` (UTC date of `exported_at`), for browsers.
@@ -808,8 +838,10 @@ paths:
       operationId: deleteMyAccount
       summary: Delete the signed-in user's account and all server-side data
       description: |
-        Permanently deletes the account and everything the server stores for it. There is
-        no undo and no grace period. The app asks the user to confirm before calling this.
+        Permanently deletes the account and everything the server stores for it, except an
+        anonymous monthly AI token total (month and token count only, no user id) kept to
+        enforce the shared AI budget (see the `ai` tag). There is no undo and no grace
+        period. The app asks the user to confirm before calling this.
 
         **What is deleted, and when.** Before the server answers 204, in one transaction:
         every row of every synced table (tombstones included), the conflict log, the
@@ -818,9 +850,13 @@ paths:
         for the account's email address, any pending one-time codes and the wrong-code
         records kept for rate limiting (`email_verify_failures`). When the 204 arrives the data is gone from the live
         database. Copies in the encrypted nightly backups are not edited; they disappear
-        when those backups expire, at most 30 days later (backup retention, #36). Server logs
-        hold no user data to delete. If anything fails, the transaction rolls back, the
-        server answers 500 and nothing is deleted; the app retries.
+        when those backups expire, at most 30 days later (backup retention, #36). Not
+        deleted: the anonymous monthly AI token total, which holds no user id, so this
+        account's AI spend still counts toward the month's budget; and server logs, which
+        record opaque user ids with operational events (never food, weight, health answers
+        or tokens) and expire after a bounded retention period. If anything fails, the
+        transaction rolls back, the server answers 500 and nothing is deleted; the app
+        retries.
 
         **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
         `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
@@ -1400,6 +1436,15 @@ components:
                 details:
                   - field: changes.food_logs[0].kcal
                     issue: must be greater than or equal to 0
+            too_large:
+              summary: Body over the size limit
+              description: The request body is over 2 MB (16 KB on `POST /ai/*`); see the wire conventions.
+              value:
+                code: invalid_request
+                message: The request is not valid.
+                details:
+                  - field: ''
+                    issue: too_large
     Unauthorized:
       description: Missing, invalid or expired credentials.
       content:
@@ -1474,8 +1519,12 @@ components:
     AiUnavailable:
       description: |
         `feature_disabled`: the feature is switched off on the server (kill switch, budget
-        cap, or not yet launched); show the non-AI fallback. `unavailable`: the AI provider
-        failed or timed out; nothing was counted, and the user may try again.
+        cap, or not yet launched); show the non-AI fallback. `unavailable`: no usable
+        answer; the user may try again. Either the provider failed or timed out before any
+        billed reply (the quota unit is released), or the provider's reply could not be
+        parsed or failed the output checks (the provider billed it, so the unit is kept).
+        The body is the same in both cases and carries no `quota`; the app reads
+        `GET /ai/status` for the remaining quota.
       content:
         application/json:
           schema:
@@ -1486,6 +1535,16 @@ components:
                 code: feature_disabled
                 message: This feature isn't available right now. You can enter it yourself instead.
             unavailable:
+              summary: Provider failed or timed out; the quota unit is released
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
+            unavailable_unusable_reply:
+              summary: Billed reply could not be used; the quota unit is kept
+              description: |
+                The provider answered (and billed the call) but the reply did not parse or
+                failed the output checks. Same body as a provider failure; the call still
+                counts against the daily quota, so `GET /ai/status` shows one fewer remaining.
               value:
                 code: unavailable
                 message: Couldn't get an answer just now. Try again.
@@ -1530,7 +1589,7 @@ components:
             properties:
               field:
                 type: string
-                description: JSON path of the offending field.
+                description: JSON path of the offending field; empty when the problem is the whole body (`too_large`).
               issue:
                 type: string
         quota:
@@ -1940,7 +1999,8 @@ components:
             `client_won`: the device's edit was newer and is now stored. `server_won`: the
             server's copy was newer and the device's edit was not applied. Either way the
             losing copy is kept in the server's conflict log, except for idempotent retries
-            (see `POST /sync`), which are not logged.
+            (see `POST /sync`), which are not logged. The log is bounded (newest 1,000
+            entries, older than 90 days dropped; see `POST /sync`).
         server_record:
           $ref: '#/components/schemas/SyncRecord'
 
@@ -2069,7 +2129,9 @@ components:
           type: array
           description: |
             Losing copies the server kept when resolving `/sync` conflicts (see
-            `SyncConflict.resolution`), oldest first. Empty when there were none.
+            `SyncConflict.resolution`), oldest first. Empty when there were none. Bounded:
+            the newest 1,000 entries, with entries older than 90 days dropped when a later
+            conflict is logged (see `POST /sync`), so earlier conflicts may be absent.
           items:
             $ref: '#/components/schemas/ConflictLogEntry'
 
@@ -2526,6 +2588,7 @@ components:
               $ref: '#/components/schemas/Timestamp'
             text_version:
               type: string
+              maxLength: 50
               description: Version of the consent text the user agreed to.
               examples: ['2026-10-07']
 
@@ -2636,9 +2699,11 @@ components:
               $ref: '#/components/schemas/LocalDate'
             template:
               type: [string, 'null']
+              maxLength: 200
               description: Display name, e.g. "Upper A (dumbbells only)" or "Push A + Pull A".
             base:
               type: [string, 'null']
+              maxLength: 200
               description: Plan template the session was built from, e.g. "Upper A".
             where:
               type: [string, 'null']
@@ -2659,9 +2724,30 @@ components:
                 - `deload` (boolean): recovery week in range.
                 - `reentry` (number): re-entry fraction (0.15 or 0.3) when a re-entry period is in range, else 0.
                 Readers treat a missing key as false (or 0 for `reentry`) and keep unknown keys.
-              additionalProperties: true
+                At most 20 keys; an unknown key's value is a boolean, number, short string or null.
+              maxProperties: 20
+              propertyNames:
+                maxLength: 50
+              properties:
+                light:
+                  type: boolean
+                short:
+                  type: boolean
+                where:
+                  type: string
+                  enum: [gym, dumbbells, bodyweight]
+                deload:
+                  type: boolean
+                reentry:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+              additionalProperties:
+                type: [boolean, number, string, 'null']
+                maxLength: 50
             exercises:
               type: array
+              maxItems: 50
               description: Exercises in session order.
               items:
                 $ref: '#/components/schemas/WorkoutExercise'
@@ -2678,6 +2764,7 @@ components:
       properties:
         name:
           type: string
+          maxLength: 200
           description: Exercise name; unique within a workout.
         part:
           type: integer
@@ -2710,6 +2797,7 @@ components:
               description: 'Id of the workout this set belongs to; for natural-key workouts, the UUIDv5 of `workouts:<date>`.'
             exercise:
               type: string
+              maxLength: 200
               description: Matches a `name` in the workout's `exercises`.
             kind:
               type: string
@@ -2761,6 +2849,7 @@ components:
           $ref: '#/components/schemas/LocalDate'
         sets:
           type: array
+          maxItems: 50
           items: { $ref: '#/components/schemas/LiftSet' }
         form:
           type: [string, 'null']
@@ -2777,11 +2866,13 @@ components:
           properties:
             exercise:
               type: string
+              maxLength: 200
             date:
               $ref: '#/components/schemas/LocalDate'
               description: Day of the latest session.
             sets:
               type: array
+              maxItems: 50
               items: { $ref: '#/components/schemas/LiftSet' }
             form:
               type: [string, 'null']
@@ -2882,6 +2973,7 @@ components:
               maxLength: 200
             unit:
               type: string
+              maxLength: 100
               description: Serving label, e.g. "1 katori".
             kcal:
               type: number
@@ -2919,6 +3011,7 @@ components:
       properties:
         ingredient:
           type: string
+          maxLength: 200
           description: 'Raw ingredient name from the shared raw table. Prototype: `ing`.'
           examples: ['Toor dal (dry)']
         amount:
@@ -2941,6 +3034,7 @@ components:
               maxLength: 200
             ingredients:
               type: array
+              maxItems: 100
               items: { $ref: '#/components/schemas/Ingredient' }
             yield_mode:
               type: string
@@ -2956,7 +3050,8 @@ components:
               description: 'Cooked weight, when `yield_mode` is grams. Prototype: `grams`.'
             oil:
               type: string
-              description: Oil level chosen in the recipe builder.
+              maxLength: 20
+              description: Oil level chosen in the recipe builder (core writes `low`, `normal` or `rich`).
               examples: [normal]
 
     KitchenTest:
@@ -2975,8 +3070,10 @@ components:
               $ref: '#/components/schemas/LocalDate'
             note:
               type: string
+              maxLength: 2000
             ingredients:
               type: array
+              maxItems: 100
               items: { $ref: '#/components/schemas/Ingredient' }
             pot_g:
               type: [number, 'null']
@@ -3011,12 +3108,14 @@ components:
           properties:
             name:
               type: string
+              maxLength: 200
               description: Exercise the user was looking at when making the rule.
             scope:
               type: string
               enum: [exercise, family, pattern, joint]
             key:
               type: string
+              maxLength: 200
               description: Exercise name, family, pattern or joint, per `scope`.
             reason:
               type: [string, 'null']
@@ -3031,8 +3130,12 @@ components:
             to:
               type: object
               description: Replacement picked per exercise name; null value means skipped.
+              maxProperties: 500
+              propertyNames:
+                maxLength: 200
               additionalProperties:
                 type: [string, 'null']
+                maxLength: 200
             done:
               type: boolean
               description: The user brought the exercise back; rule no longer active.
@@ -3048,8 +3151,10 @@ components:
           properties:
             from:
               type: string
+              maxLength: 200
             to:
               type: string
+              maxLength: 200
             since:
               $ref: '#/components/schemas/LocalDate'
             bridge_until:
@@ -3065,8 +3170,10 @@ components:
       properties:
         pattern:
           type: string
+          maxLength: 50
         family:
           type: string
+          maxLength: 50
         equipment:
           type: string
           enum: [barbell, dumbbell, machine, cable, bodyweight, other]
@@ -3079,14 +3186,18 @@ components:
           maximum: 3
         primary:
           type: array
+          maxItems: 15
           items: { $ref: '#/components/schemas/Muscle' }
         secondary:
           type: array
+          maxItems: 15
           items: { $ref: '#/components/schemas/Muscle' }
         joints:
           type: array
+          maxItems: 20
           items:
             type: string
+            maxLength: 50
 
     Reminder:
       type: object
@@ -3140,6 +3251,9 @@ components:
             custom_tags:
               type: object
               description: 'Tags for custom exercises, keyed by exercise name. Prototype: `customTags`.'
+              maxProperties: 500
+              propertyNames:
+                maxLength: 200
               additionalProperties: { $ref: '#/components/schemas/ExerciseTags' }
             diet:
               type: string
@@ -3159,6 +3273,9 @@ components:
             exercise_overrides:
               type: object
               description: 'Per-exercise type, step and rep range, keyed by exercise name. Prototype: `ex`.'
+              maxProperties: 500
+              propertyNames:
+                maxLength: 200
               additionalProperties:
                 type: object
                 required: [type, step_kg, rep_low, rep_high]
@@ -3178,6 +3295,7 @@ components:
                     minimum: 1
             flex:
               type: array
+              maxItems: 200
               description: |
                 Calorie moves between days (last 7 days). One "bigger meal" plan adds several
                 entries: the extra kcal on its day and an equal cut on each of the next days.
@@ -3201,6 +3319,9 @@ components:
             returning:
               type: object
               description: Exercises coming back after an exclusion, keyed by name, with the last day of the light period.
+              maxProperties: 500
+              propertyNames:
+                maxLength: 200
               additionalProperties:
                 type: object
                 required: [until]
@@ -3210,6 +3331,9 @@ components:
             ladder_stay:
               type: object
               description: 'Ladder "stay" answers, keyed by exercise name, until a day. Prototype: `ladderStay`.'
+              maxProperties: 500
+              propertyNames:
+                maxLength: 200
               additionalProperties:
                 $ref: '#/components/schemas/LocalDate'
             checkin_seen:
@@ -3220,24 +3344,30 @@ components:
             adjustments:
               type: object
               description: 'Plan adjustment state (declines, muted, dismissed, deload, reentry). Prototype: `adj`. Shape owned by packages/core.'
+              maxProperties: 50
               additionalProperties: true
             adaptive:
               type: object
               description: Real-burn estimate state. Shape owned by packages/core.
+              maxProperties: 50
               additionalProperties: true
             learn:
               type: object
               description: Science-card progress. Shape owned by packages/core.
+              maxProperties: 50
               additionalProperties: true
             meal_plan:
               type: [object, 'null']
               description: 'Saved meal plan. Prototype: `mealPlan`. Shape owned by packages/core.'
+              maxProperties: 50
               additionalProperties: true
             prep:
               type: array
+              maxItems: 100
               description: Meal-prep batches still being eaten. Shape owned by packages/core.
               items:
                 type: object
+                maxProperties: 50
                 additionalProperties: true
             reminders:
               type: array
