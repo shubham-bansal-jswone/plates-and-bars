@@ -2,6 +2,7 @@ import type { Schemas } from '@plate-and-bar/api';
 import type { ExType } from '@plate-and-bar/core';
 import { EQUIPMENT_CODES, getCatalog, type ExerciseCard } from '../workout/catalog';
 import { getLabels, muscleName, TYPE_LABEL } from '../workout/copy';
+import { ownOr } from '../content/own';
 import { perLoad } from '../content/reader';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -13,7 +14,7 @@ export type { ExType };
 export const equipmentLabel = (e: string): string => cap(e);
 export const typeLabel = (t: ExType): string => TYPE_LABEL[t];
 export const muscleLabel = (m: string): string => cap(muscleName(m));
-export const jointLabel = (j: string): string => getLabels().joints[j] ?? j;
+export const jointLabel = (j: string): string => ownOr(getLabels().joints, j);
 
 export interface LibraryExercise {
   name: string;
@@ -47,8 +48,8 @@ export const getLibrary: () => readonly LibraryExercise[] = perLoad(() => {
         primary: t.primary as readonly Muscle[],
         secondary: t.secondary as readonly Muscle[],
         joints: t.joints,
-        movement: L.patterns[t.pattern] ?? t.pattern,
-        family: L.families[t.family] ?? t.family,
+        movement: ownOr(L.patterns, t.pattern),
+        family: ownOr(L.families, t.family),
         repLow: m?.rep_low ?? 0,
         repHigh: m?.rep_high ?? 0,
         card: catalog.cards[name] ?? null,

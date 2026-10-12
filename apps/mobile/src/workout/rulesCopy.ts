@@ -1,6 +1,7 @@
 // Display text for the "can’t do" sheet and the avoid list, from the prototype (REASONS, PATTERN, FAMILY, ruleText).
 import type { Exclusion, ExclusionReason } from '@plate-and-bar/core';
 import { shortDate } from '../format';
+import { ownOr } from '../content/own';
 import { getLabels } from './copy';
 import { jointLabel } from './reasons';
 
@@ -18,9 +19,9 @@ export const DURATIONS: [string, string][] = [
   ['perm', 'Permanently'],
 ];
 
-export const patternName = (k: string): string => getLabels().patterns[k] ?? k;
+export const patternName = (k: string): string => ownOr(getLabels().patterns, k);
 
-export const familyName = (k: string): string => getLabels().families[k] ?? k;
+export const familyName = (k: string): string => ownOr(getLabels().families, k);
 
 /** What a rule leaves out ("All bench press variations"); prototype `ruleText` before the comma. */
 export function ruleWhat(r: Pick<Exclusion, 'scope' | 'key'>): string {

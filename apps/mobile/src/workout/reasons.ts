@@ -1,4 +1,5 @@
 import type { CandidateWhy } from '@plate-and-bar/core';
+import { ownOr } from '../content/own';
 import { getLabels, listJoin, muscleName } from './copy';
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
@@ -19,4 +20,4 @@ export function reasonText(why: CandidateWhy): string {
 }
 
 /** Prototype `JOINT` label. */
-export const jointLabel = (j: string): string => getLabels().joints[j] ?? j;
+export const jointLabel = (j: string): string => ownOr(getLabels().joints, j);
