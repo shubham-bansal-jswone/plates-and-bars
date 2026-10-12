@@ -76,6 +76,8 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - `ai_spend_monthly` (V6): one token total per UTC month, no user id, day or feature, so deleting an account cannot
     refund its spend to the monthly budget. A total that names nobody is not personal data, so `DELETE /me` leaves it
     and the export omits it (`AccountRightsIT` lists it as the one table without an owner column, on purpose).
+    V6 backfills it from `ai_usage` once. Rolling back to an image without V6 and then forward again under-counts: spend
+    recorded in between is only in `ai_usage`, not in the ledger (and is lost from it if accounts were deleted).
   - Limits: `app.rate-limit.ai-per-user` (5 per minute, the three POSTs) and `ai-per-ip` (60 per minute, all four).
   - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`. Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema

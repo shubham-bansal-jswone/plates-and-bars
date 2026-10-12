@@ -231,4 +231,23 @@ class AiQuotaIT extends AiITBase {
         assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-10-01'", Long.class))
                 .isEqualTo(17L);
     }
+
+    @Test
+    void v6BackfillSumsExistingUsagePerUtcMonthAcrossUsers() throws Exception {
+        String a = newUser();
+        String b = newUser();
+        jdbc.update("INSERT INTO ai_usage (user_id, day, feature, calls, input_tokens, output_tokens) VALUES"
+                + " (?, '2026-09-30', 'ask_why', 1, 10, 5), (?, '2026-09-30', 'ask_why', 1, 1, 1),"
+                + " (?, '2026-10-01', 'ask_why', 1, 100, 50), (?, '2026-10-31', 'describe_meal', 1, 200, 100),"
+                + " (?, '2026-10-31', 'ask_why', 1, 7, 3)", a, b, a, a, b);
+        jdbc.update("DELETE FROM ai_spend_monthly");
+        String sql = new String(new org.springframework.core.io.ClassPathResource("db/migration/V6__ai_spend_monthly.sql")
+                .getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        jdbc.update(sql.substring(sql.indexOf("INSERT INTO ai_spend_monthly")).trim().replaceAll(";\\s*$", ""));
+        assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-09-01'", Long.class))
+                .isEqualTo(17L);
+        assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-10-01'", Long.class))
+                .isEqualTo(460L);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_spend_monthly", Integer.class)).isEqualTo(2);
+    }
 }
