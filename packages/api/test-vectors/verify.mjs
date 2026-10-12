@@ -106,6 +106,14 @@ function checkBounds(node, path) {
 }
 for (const [table, prop] of Object.entries(schemas.SyncChanges.properties)) checkBounds(prop.items, `SyncChanges.${table}`);
 if (bounded === 0) failures.push("openapi.yaml: no record fields found for the bounds check");
+// YAML 1.1 readers (SnakeYAML in the backend) read bare y/n/yes/no/on/off (any case) as booleans, so a key or a
+// flow-list item spelled that way turns into true/false on the server (#418). They must be quoted.
+const yaml11Bool = "(?:y|n|yes|no|on|off)";
+for (const [i, line] of spec.split("\n").entries()) {
+  if (new RegExp(`^\\s*(?:- )?${yaml11Bool}\\s*:(?:\\s|$)`, "i").test(line) || new RegExp(`[\\[,]\\s*${yaml11Bool}\\s*(?=[,\\]])`, "i").test(line)) {
+    failures.push(`openapi.yaml:${i + 1}: quote the YAML 1.1 boolean word in: ${line.trim()}`);
+  }
+}
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
