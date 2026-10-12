@@ -382,9 +382,8 @@ describe('Food screen', () => {
     await fireEvent.changeText(screen.getByLabelText('Food'), 'Canteen thali');
     await fireEvent.changeText(screen.getByLabelText('Serving size'), 'u'.repeat(101));
     await fireEvent.press(screen.getByLabelText('Add to breakfast'));
-    expect(await screen.findByText('That serving unit is too long. Shorten it.')).toBeTruthy();
+    expect(await screen.findByText('That serving size is too long. Shorten it.')).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Serving size'), '');
-    await fireEvent.changeText(screen.getByLabelText('Food'), 'Canteen thali');
     await fireEvent.changeText(screen.getByLabelText('Protein (g)'), '20');
     await fireEvent.press(screen.getByLabelText('Add to breakfast'));
     await waitFor(() => expect(screen.queryByLabelText('Search foods')).toBeNull());
