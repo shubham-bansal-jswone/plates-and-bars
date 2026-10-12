@@ -512,3 +512,5 @@ export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea,
  */
 export { buildPlan, planItems, swapPlanMeal, planIsCurrent, planForMeal, planDayTotals, groceryList, groceryAmount, PLAN_DAYS, PLAN_OPTIONS, PLAN_ROTATION } from './mealplan';
 export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from './mealplan';
+
+export { UNIT_MAX, NOTE_MAX, servingUnitTooLong, kitchenNoteTooLong } from './inputLimits';
