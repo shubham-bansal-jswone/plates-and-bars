@@ -133,6 +133,9 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   `user_id, id, version, updated_at, deleted_at, seq, data JSON`, primary key `(user_id, id)`. `data` holds the
   record's other fields, so the engine is generic over tables. Foreign key to `users` with `ON DELETE CASCADE`.
   `sync_state` holds one row per user with the change counter `seq`; `sync_conflicts` is the conflict log.
+  The conflict log is bounded per user: after a sync that logs a conflict, entries older than 90 days and all but the
+  newest 1,000 are deleted (so `GET /me/export`'s `conflict_log` holds at most those). Per-user caps on synced rows and
+  schema `maxLength`/`maxItems` need a contract change and are not enforced yet (#353).
   Deletes are soft (`deleted_at`).
 - **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
   2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before

@@ -153,6 +153,36 @@ class SyncEngineIT extends SyncITBase {
     }
 
     @Test
+    void theConflictLogKeepsOnlyTheNewestEntriesAndNothingOlderThanTheRetention() {
+        String user = newUser();
+        String other = newUser();
+        for (String u : new String[] {user, other}) {
+            // 1,005 recent entries, plus two older than the 90 day retention.
+            jdbc.batchUpdate(
+                    "INSERT INTO sync_conflicts (user_id, table_name, record_id, loser, version, winner_version,"
+                            + " updated_at, record, logged_at) VALUES (?, 'food_logs', ?, 'client', 1, 2, ?, '{}', ?)",
+                    java.util.stream.IntStream.range(0, 1007)
+                            .mapToObj(i -> new Object[] {u, "r-" + i, java.sql.Timestamp.from(START), java.sql.Timestamp.from(
+                                    i < 2 ? START.minus(java.time.Duration.ofDays(120)) : START.minusSeconds(2000 - i))})
+                            .toList());
+        }
+        String rid = id();
+        ok(user, req(null).add(SyncTable.food_logs, foodLog(rid, 0, NEW, null, "Server version", 100)).build());
+        // A real conflict (client loses) logs one more entry and triggers the pruning.
+        ok(user, req(null).add(SyncTable.food_logs, foodLog(rid, 0, MID, null, "Client version", 200)).build());
+
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isEqualTo(1000);
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id = ?", user, rid))
+                .as("the newest entry survives").isEqualTo(1);
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id IN ('r-0', 'r-1')", user))
+                .as("older than the retention").isZero();
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND record_id = 'r-2'", user))
+                .as("the oldest of the recent entries went first").isZero();
+        // Another user's log is never touched.
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", other)).isEqualTo(1007);
+    }
+
+    @Test
     void aTieOnUpdatedAtGoesToTheServer() {
         String user = newUser();
         String rid = id();

@@ -43,6 +43,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class SyncService {
 
     static final Duration FUTURE_SLACK = Duration.ofMinutes(5);
+    /** The conflict log keeps at most this many entries per user, none older than the retention (M3). */
+    static final int CONFLICT_LOG_KEEP = 1000;
+
+    static final Duration CONFLICT_LOG_RETENTION = Duration.ofDays(90);
 
     private final SyncRepository repo;
     private final Clock clock;
@@ -82,6 +86,7 @@ public class SyncService {
 
         Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         long seq = before;
+        boolean logged = false;
         ArrayNode applied = json.createArrayNode();
         ArrayNode conflicts = json.createArrayNode();
         Map<SyncTable, Set<String>> pushed = new EnumMap<>(SyncTable.class);
@@ -125,15 +130,20 @@ public class SyncService {
                     Stored next = new Stored(in.id(), stored.version() + 1, updatedAt, deletedAt, seq, in.data());
                     repo.update(table, userId, next);
                     repo.logConflict(userId, table, "server", next.version(), stored, now);
+                    logged = true;
                     conflicts.add(conflict(table, in, next, "client_won"));
                 } else {
                     repo.logConflict(userId, table, "client", stored.version(), incoming, now);
+                    logged = true;
                     conflicts.add(conflict(table, in, stored, "server_won"));
                 }
             }
         }
         if (seq != before) {
             repo.saveSeq(userId, seq);
+        }
+        if (logged) {
+            repo.pruneConflicts(userId, now.minus(CONFLICT_LOG_RETENTION), CONFLICT_LOG_KEEP);
         }
 
         // Pull: everything stored before this request's writes, minus the records the device just pushed.

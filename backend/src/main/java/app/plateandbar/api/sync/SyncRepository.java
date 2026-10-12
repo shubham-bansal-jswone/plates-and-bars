@@ -144,6 +144,18 @@ class SyncRepository {
                 utc(loggedAt));
     }
 
+    /**
+     * Bounds the user's conflict log: drops entries logged before {@code oldest}, then everything but the newest
+     * {@code keep}. Only this user's rows are touched.
+     */
+    void pruneConflicts(String userId, Instant oldest, int keep) {
+        jdbc.update("DELETE FROM sync_conflicts WHERE user_id = ? AND logged_at < ?", userId, utc(oldest));
+        jdbc.update(
+                "DELETE FROM sync_conflicts WHERE user_id = ? AND id <= ("
+                        + "SELECT id FROM (SELECT id FROM sync_conflicts WHERE user_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?) newest)",
+                userId, userId, keep);
+    }
+
     /** A logged conflict; {@code losing} carries the losing copy's version, updated_at, deleted_at and data. */
     record Conflict(String table, String recordId, String loser, int winnerVersion, Instant loggedAt, Stored losing) {}
 
