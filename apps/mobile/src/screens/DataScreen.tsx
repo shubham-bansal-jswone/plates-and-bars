@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { buildLocalExport } from '../account/exportLocal';
 import { DATA_COPY as t } from '../account/copy';
@@ -126,7 +126,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
-      <Hint>{t.exportHint}</Hint>
+      <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
       {message ? <Note>{message}</Note> : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
       <View style={{ gap: 12 }}>

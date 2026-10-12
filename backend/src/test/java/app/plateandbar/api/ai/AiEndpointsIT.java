@@ -58,6 +58,7 @@ class AiEndpointsIT extends AiITBase {
     void setUp() {
         reset(provider);
         jdbc.update("DELETE FROM ai_usage");
+        jdbc.update("DELETE FROM ai_spend_monthly");
         clock.advance(Duration.between(clock.instant(), START));
     }
 
@@ -88,6 +89,8 @@ class AiEndpointsIT extends AiITBase {
         assertThat(calls(u)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT input_tokens + output_tokens FROM ai_usage WHERE user_id = ?", Long.class, u))
                 .isEqualTo(150);
+        assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-10-01'", Long.class))
+                .isEqualTo(150L);
     }
 
     @Test
@@ -350,8 +353,7 @@ class AiEndpointsIT extends AiITBase {
     @Test
     void aSwitchedOffFeatureIsNotCountedAndTheProviderIsNotCalledAfterTheBudgetIsUsed() throws Exception {
         String u = newUser();
-        jdbc.update("INSERT INTO ai_usage (user_id, day, feature, calls, input_tokens, output_tokens)"
-                + " VALUES (?, '2026-10-01', 'ask_why', 0, 600000, 400000)", u);
+        jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES ('2026-10-01', 1000000)");
         var res = post(u, DESCRIBE, "{\"text\":\"x\"}");
         assertThat(res.getStatusCode().value()).isEqualTo(503);
         assertThat(body(res).path("code").asText()).isEqualTo("feature_disabled");
