@@ -51,7 +51,7 @@ describe('refused records', () => {
     const retryQuarantined = jest.fn(async () => undefined);
     const discardQuarantined = jest.fn(async () => undefined);
     await render(withSync({ signedIn: true, pending: 2, quarantined: 2, retryQuarantined, discardQuarantined }, <SignInScreen />));
-    expect(screen.getByText(/The server refused 2 records/)).toBeTruthy();
+    expect(screen.getByText(/2 records were refused by the server or too large to sync/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Try the refused records again'));
     await waitFor(() => expect(retryQuarantined).toHaveBeenCalled());
     // Stopping asks first, and says what it means; nothing is dropped until the user confirms.
