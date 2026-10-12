@@ -28,7 +28,7 @@ services:
     # No published ports: only the API (same network) and backup.sh (docker compose exec) reach it.
 
   api:
-    # Rollback = start the previous tag: API_TAG=<previous> docker compose up -d api
+    # Rollback = set the previous tag as API_TAG in .env, then `docker compose up -d api` (RUNBOOK.md)
     image: plateandbar-api:${API_TAG:?set API_TAG, e.g. the git sha}
     build:
       context: ../..

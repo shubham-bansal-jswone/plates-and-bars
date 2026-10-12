@@ -18,8 +18,9 @@ Any S3-compatible bucket works: `backup.sh` only needs `BACKUP_S3_*` variables, 
 5. `cd /opt/plateandbar/infra/staging && cp .env.example .env && chmod 600 .env`, then fill every value. `APP_RATELIMIT_TRUSTEDPROXIES` is fixed in `docker-compose.yml` to the pinned Compose subnet `172.28.0.0/24`, which is where Caddy connects from; see `infra/caddy/Caddyfile.api` and `infra/README.md` for why.
 6. First start:
    ```
-   sed -i "s/^API_TAG=.*/API_TAG=$(git rev-parse --short HEAD)/" .env
-   CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" docker compose build api
+   tag="$(git rev-parse --short HEAD)"
+   CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" API_TAG="$tag" docker compose build api
+   sed -i "s/^API_TAG=.*/API_TAG=$tag/" .env   # only after a successful build
    docker compose up -d
    curl -fsS https://$API_HOST/api/v1/health
    ```
@@ -27,7 +28,7 @@ Any S3-compatible bucket works: `backup.sh` only needs `BACKUP_S3_*` variables, 
 
 ## 2. Update and rollback
 
-Update: `git pull`, then repeat the three commands of step 6. Each build tags the image `plateandbar-api:<API_TAG>`, so earlier tags stay on the VM. `API_TAG` lives in `.env`, so any later plain `docker compose up -d` runs the same tag.
+Update: `git pull`, then repeat the commands of step 6. Each build tags the image `plateandbar-api:<API_TAG>`, so earlier tags stay on the VM. `API_TAG` lives in `.env`, so any later plain `docker compose up -d` runs the same tag.
 
 Rollback = previous image tag: `docker image ls plateandbar-api`, set `API_TAG=<previous tag>` in `.env`, then `docker compose up -d api` (no `build`). Flyway migrations are forward-only: if the bad release added a migration, restore the last backup (section 4) as well, or ship a fix forward.
 
@@ -46,11 +47,11 @@ Merge-to-`main` deploys and tagged production releases are not wired up; they ne
 
 Use a scratch database first if you are only checking a backup.
 
-1. Download a dump, from `infra/staging` (the first line loads `.env` into this shell; `lsf bk:<bucket>/<prefix>` in place of `copyto ...` lists objects):
+1. Download a dump, from `infra/staging` (the first line loads `.env` into this shell; `lsf "bk:$BACKUP_S3_BUCKET/$BACKUP_S3_PREFIX"` in place of `copyto ...` lists objects; use the same rclone image tag as `backup.sh`):
    ```
    set -a; . ./.env; set +a
    export RCLONE_CONFIG_BK_TYPE=s3 RCLONE_CONFIG_BK_PROVIDER=Other RCLONE_CONFIG_BK_NO_CHECK_BUCKET=true RCLONE_CONFIG_BK_ENDPOINT="$BACKUP_S3_ENDPOINT" RCLONE_CONFIG_BK_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID" RCLONE_CONFIG_BK_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"
-   docker run --rm -e RCLONE_CONFIG_BK_TYPE -e RCLONE_CONFIG_BK_PROVIDER -e RCLONE_CONFIG_BK_NO_CHECK_BUCKET -e RCLONE_CONFIG_BK_ENDPOINT -e RCLONE_CONFIG_BK_ACCESS_KEY_ID -e RCLONE_CONFIG_BK_SECRET_ACCESS_KEY -v "$PWD:/out" rclone/rclone:1.74.0 copyto "bk:$BACKUP_S3_BUCKET/<prefix>/<file>.sql.gz" /out/restore.sql.gz
+   docker run --rm -e RCLONE_CONFIG_BK_TYPE -e RCLONE_CONFIG_BK_PROVIDER -e RCLONE_CONFIG_BK_NO_CHECK_BUCKET -e RCLONE_CONFIG_BK_ENDPOINT -e RCLONE_CONFIG_BK_ACCESS_KEY_ID -e RCLONE_CONFIG_BK_SECRET_ACCESS_KEY -v "$PWD:/out" rclone/rclone:1.74.0 copyto "bk:$BACKUP_S3_BUCKET/$BACKUP_S3_PREFIX/<file>.sql.gz" /out/restore.sql.gz
    ```
 2. Stop the API so nothing writes: `docker compose stop api`.
 3. Recreate the database and load the dump:

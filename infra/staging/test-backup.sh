@@ -30,6 +30,11 @@ grep -Eq ' rcat bk:plateandbar-backups/staging/plateandbar-[0-9]{8}T[0-9]{6}Z\.s
 grep -q ' moveto .*\.partial bk:.*\.sql\.gz$' "$STUB_LOG" || fail "upload not renamed"
 grep -q ' delete --min-age 30d bk:plateandbar-backups/staging$' "$STUB_LOG" || fail "no 30-day retention delete"
 ! grep -q 'change-me' "$STUB_LOG" || fail "a secret appears on a docker command line"
+for v in TYPE PROVIDER NO_CHECK_BUCKET ENDPOINT ACCESS_KEY_ID SECRET_ACCESS_KEY; do
+  grep -q " -e RCLONE_CONFIG_BK_$v " "$STUB_LOG" || fail "rclone is not given RCLONE_CONFIG_BK_$v"
+done
+grep -q 'RCLONE_CONFIG_BK_NO_CHECK_BUCKET=true' "$tmp/stack/backup.sh" || fail "NO_CHECK_BUCKET is not true"
+grep -q 'mysqldump .*--single-transaction' "$STUB_LOG" || fail "mysqldump without --single-transaction"
 
 : > "$STUB_LOG"
 if STUB_DUMP_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2>&1; then fail "failed dump: backup.sh exited 0"; fi

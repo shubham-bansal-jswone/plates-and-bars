@@ -7,7 +7,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | File | Trigger | What it does |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
-| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, required secrets have no default, `shellcheck backup.sh`, images pinned (not a required check) |
+| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), images pinned (including rclone in `backup.sh`) (not a required check) |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
 | `.github/workflows/site-deploy.yml` | push to `main` touching `apps/site`, manual (deploys); PR touching `infra/caddy/` (validate only) | Builds `apps/site` and deploys it; every job is skipped until repository variable `SITE_DEPLOY_TARGET` is set (see below) |
 | `.github/workflows/android-release.yml` | tag `v*`, manual, PR touching the workflow | `expo prebuild` + Gradle `assembleRelease bundleRelease`; uploads APK and AAB as an artifact (see below) |
