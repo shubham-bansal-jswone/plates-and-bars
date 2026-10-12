@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, Platform } from 'react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { deleteEverything, exportFromServer, wipePending as readWipePending, type DeleteResult, type ServerExportResult } from '../account/server';
-import { clearOldExports } from '../account/saveFile';
+import { RECENT_EXPORT_MS, clearOldExports } from '../account/saveFile';
 import { AiProvider } from '../ai/AiProvider';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
@@ -135,7 +135,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   // Load account state once, then keep the pending count fresh.
   useEffect(() => {
     let live = true;
-    clearOldExports();
+    clearOldExports({ minAgeMs: RECENT_EXPORT_MS });
     (async () => {
       const t = await tokens.load();
       if (!live) return;

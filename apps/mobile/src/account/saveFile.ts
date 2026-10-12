@@ -6,12 +6,21 @@ export type SaveResult = 'saved' | 'shared' | 'unavailable';
 
 const PREFIX = 'plate-and-bar-';
 
-/** Native: deletes leftover export files from the cache. Call at app start, at the start of an export, and on sign-out
- * and delete-everything; never while a share sheet is open. No-op on web. */
-export function clearOldExports(): void {
+/** App start skips files this young: a share target on Android may still be reading a file from the session before. */
+export const RECENT_EXPORT_MS = 10 * 60 * 1000;
+
+/** Native: deletes leftover export files from the cache. Call at app start (with `minAgeMs`), at the start of an
+ * export, and on sign-out and delete-everything (no age limit, for privacy). No-op on web. */
+export function clearOldExports(opts: { minAgeMs?: number; now?: number } = {}): void {
   if (Platform.OS === 'web') return;
+  const now = opts.now ?? Date.now();
   try {
-    for (const f of new Directory(Paths.cache).list()) if (f instanceof File && f.name.startsWith(PREFIX)) f.delete();
+    for (const f of new Directory(Paths.cache).list()) {
+      if (!(f instanceof File) || !f.name.startsWith(PREFIX)) continue;
+      const changed = f.modificationTime;
+      if (opts.minAgeMs && typeof changed === 'number' && now - changed < opts.minAgeMs) continue;
+      f.delete();
+    }
   } catch {
     // the cache is only a courtesy to clean
   }
@@ -20,7 +29,8 @@ export function clearOldExports(): void {
 /**
  * Web: downloads the text as a file. Native: writes it to the cache and opens the share sheet (the user picks where it
  * goes); the call returns when the sheet closes, so two files are shared one after the other. The cached copy is
- * deleted as soon as the sheet closes (`clearOldExports` also sweeps leftovers, e.g. after a crash).
+ * deleted when sharing throws, and on iOS when the sheet closes. On Android the call can resolve before the receiving
+ * app has read the file, so the copy stays until `clearOldExports` (next export, app start, sign-out, delete-everything).
  */
 export async function saveTextFile(name: string, mimeType: string, text: string): Promise<SaveResult> {
   if (Platform.OS === 'web') {
@@ -40,12 +50,18 @@ export async function saveTextFile(name: string, mimeType: string, text: string)
   file.write(text);
   try {
     await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: name });
-  } finally {
-    try {
-      file.delete();
-    } catch {
-      // clearOldExports sweeps it later
-    }
+  } catch (e) {
+    removeQuietly(file);
+    throw e;
   }
+  if (Platform.OS === 'ios') removeQuietly(file);
   return 'shared';
+}
+
+function removeQuietly(file: File): void {
+  try {
+    file.delete();
+  } catch {
+    // clearOldExports sweeps it later
+  }
 }
