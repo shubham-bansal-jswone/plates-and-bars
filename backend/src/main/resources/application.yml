@@ -30,6 +30,9 @@ app:
   sync:
     # Largest accepted POST /sync body in bytes; bigger is 400 invalid_request.
     max-body-bytes: ${SYNC_MAX_BODY_BYTES:2097152}
+    # The conflict log keeps at most this many entries per user and none older than this many days.
+    conflict-log-max-per-user: ${SYNC_CONFLICT_LOG_MAX_PER_USER:1000}
+    conflict-log-retention-days: ${SYNC_CONFLICT_LOG_RETENTION_DAYS:90}
   version: ${APP_VERSION:0.1.0}
   auth:
     # Environment only. No default: the app refuses to start without a key of at least 32 bytes.
