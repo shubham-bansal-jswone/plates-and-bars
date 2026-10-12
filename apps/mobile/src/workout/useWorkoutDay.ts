@@ -27,7 +27,7 @@ import { buildSession } from './buildSession';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
 import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
-import { blankRow, exerciseRecord, exercisesFrom, setRecord, stamp, type ExState, type Row } from './model';
+import { blankRow, exerciseRecord, exercisesFrom, mergeWorkout, setRecord, stamp, type ExState, type Row } from './model';
 import type { Workout } from './types';
 
 export interface Day {
@@ -78,6 +78,10 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   const enqueue = useCallback((write: () => Promise<void>) => enqueueDay(write, () => notify('Couldn’t save that. Try again.')), [notify]);
   /** Start and second session build from stored history; a second tap while one runs is ignored. */
   const building = useRef(false);
+  /** The stored workout row as this screen last loaded or wrote it: a different stored stamp means it changed elsewhere. */
+  const synced = useRef<Workout | null>(null);
+  /** Bumped after a write merged a change made elsewhere, so the screen reloads and shows the merged session. */
+  const [merged, setMerged] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -87,6 +91,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([stored, sets, lifts, sessions]) => {
         // A session deleted on another device shows as no session, so a new one can be started (#408).
         const workout = stored?.deleted_at ? null : stored;
+        synced.current = stored;
         commit({
           ready: true,
           workout,
@@ -99,7 +104,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     return () => {
       live = false;
     };
-  }, [db, date, commit, notify, reloadKey]);
+  }, [db, date, commit, notify, reloadKey, merged]);
 
   // These run inside the day queue, so each re-reads the stored row first: a pull (or a rule saved on Targets) may have stored
   // a newer version since the screen loaded its copy. The stored version is kept, and a row the store has tombstoned stays deleted.
@@ -109,7 +114,14 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     if (!d.workout) return;
     const stored = await loadWorkout(db, date);
     if (!overTombstone && stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
-    await saveWorkout(db, { ...d.workout, version: stored?.version ?? d.workout.version, exercises: d.exs.map(exerciseRecord), updated_at: stamp(now()) });
+    const mine = { ...d.workout, exercises: d.exs.map(exerciseRecord) };
+    // Changed since this screen loaded or wrote it (a pull, or a rule saved on Targets): merge rather than overwrite (#410).
+    const base = synced.current;
+    const elsewhere = !overTombstone && !!base && !!stored && !stored.deleted_at && stored.updated_at !== base.updated_at;
+    const row = { ...(elsewhere ? mergeWorkout(base, mine, stored) : mine), version: stored?.version ?? d.workout.version, updated_at: stamp(now()) };
+    await saveWorkout(db, row);
+    synced.current = row;
+    if (elsewhere) setMerged((n) => n + 1);
   };
   const writeSets = async (i: number, kind: 'work' | 'ramp', indexes: number[]) => {
     const stored = new Map((await loadSets(db, date)).map((s) => [s.id, s]));
@@ -428,7 +440,10 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       });
       d.workout = { ...w, exercises: ch.exercises };
       commit(d);
-      void enqueue(() => persistCant(db, date, w, ch, at));
+      void enqueue(async () => {
+        await persistCant(db, date, w, ch, at);
+        synced.current = await loadWorkout(db, date);
+      });
     }
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };

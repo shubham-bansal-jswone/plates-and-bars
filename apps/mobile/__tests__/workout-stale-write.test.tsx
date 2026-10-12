@@ -224,3 +224,21 @@ describe('a lift record a sync pull stored after the screen loaded (#409)', () =
     expect(notify).toHaveBeenCalledWith(`New personal best on ${name}`);
   });
 });
+
+describe('a workout row changed elsewhere after the screen loaded (#410)', () => {
+  it('a rule saved on Targets keeps its swap when the screen then writes the workout, and the screen reloads', async () => {
+    const { db, result } = await started();
+    expect(result.current.day.exs.map((e) => e.name)).toContain('Machine Chest Press');
+    await applyCantToStoredDay({ db, date: DATE, now: () => new Date(2026, 9, 8, 10, 5, 0), draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
+    const swapped = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    expect(swapped).not.toContain('Machine Chest Press');
+    const kept = result.current.day.exs.find((e) => swapped.includes(e.name))!.name; // on both lists
+    const i = result.current.day.exs.findIndex((e) => e.name === kept);
+    await act(async () => result.current.setForm(i, 'yes')); // the screen still shows the old list
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.exercises.map((e) => e.name)).toEqual(swapped);
+    expect(stored.exercises.find((e) => e.name === kept)?.form).toBe('yes');
+    await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toEqual(swapped));
+  });
+});
