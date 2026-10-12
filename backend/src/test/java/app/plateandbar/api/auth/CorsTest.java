@@ -47,7 +47,7 @@ class CorsTest {
     @Test
     void retryAfterIsExposedAndOnlyGetPostDeleteAreAllowed() throws Exception {
         mvc.perform(get("/api/v1/health").header("Origin", "https://app.example.com"))
-                .andExpect(header().string("Access-Control-Expose-Headers", "Retry-After"));
+                .andExpect(header().string("Access-Control-Expose-Headers", "Retry-After, ETag"));
         for (String method : List.of("GET", "POST", "DELETE")) {
             mvc.perform(options("/api/v1/me")
                             .header("Origin", "https://app.example.com")
@@ -60,6 +60,16 @@ class CorsTest {
                             .header("Access-Control-Request-Method", method))
                     .andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    void contentRefreshCanSendIfNoneMatchAndReadETag() throws Exception {
+        mvc.perform(options("/api/v1/content/manifest")
+                        .header("Origin", "https://app.example.com")
+                        .header("Access-Control-Request-Method", "GET")
+                        .header("Access-Control-Request-Headers", "if-none-match"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.equalToIgnoringCase("if-none-match")));
     }
 
     @Test
