@@ -58,6 +58,8 @@ export function cantChange(
  */
 export async function persistCant(db: WorkoutDb, date: string, base: Workout, ch: CantChange, at: string): Promise<void> {
   const [stored, storedSets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
+  // Deleted on another device after the screen loaded its copy: stays deleted, like writeWorkout.
+  if (stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(base.updated_at)) return;
   const version = new Map(storedSets.map((s) => [s.id, s.version]));
   await saveWorkout(db, { ...base, version: stored?.version ?? base.version, exercises: ch.exercises, updated_at: at });
   for (const s of [...ch.changed, ...ch.removed, ...ch.added]) await saveSet(db, date, { ...s, version: version.get(s.id) ?? s.version });
@@ -65,13 +67,13 @@ export async function persistCant(db: WorkoutDb, date: string, base: Workout, ch
 
 /**
  * A wider rule saved elsewhere (Targets) also applies to today's session if one is already built. Reads today's stored
- * workout inside the day queue, so it lands after any pending Workout-tab write. Does nothing without a workout.
+ * workout inside the day queue, so it lands after any pending Workout-tab write. Does nothing without a live workout.
  */
 export function applyCantToStoredDay(opts: { db: WorkoutDb; date: string; now: () => Date; draft: CantDraft; choice: string | null; exclusions: readonly Exclusion[]; fallbackWhere: Where; onError: () => void }): Promise<unknown> {
   const { db, date, now, draft, choice, exclusions, fallbackWhere } = opts;
   return enqueueDay(async () => {
     const [workout, sets, lifts] = await Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db)]);
-    if (!workout) return;
+    if (!workout || workout.deleted_at) return;
     const at = stamp(now());
     const ch = cantChange(workout, sets, null, draft, choice, workout.where ?? fallbackWhere, exclusions, lifts, date, at);
     if (ch.removed.length === 0 && ch.added.length === 0 && ch.changed.length === 0) return;
