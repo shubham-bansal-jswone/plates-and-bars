@@ -1,0 +1,88 @@
+# Staging stack: API + MySQL + Caddy (HTTPS). Open-source images pinned by version; all have linux/arm64 builds
+# (checked 2026-10-12), so this runs on an Oracle Cloud Always Free ARM (Ampere A1) VM. Run from this directory:
+#   cp .env.example .env   # fill in; never commit .env
+#   CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" docker compose build api   # API_TAG from .env
+#   docker compose up -d
+# Secrets come from the environment (.env on the VM, or exported variables), never from this file.
+# Nothing here deploys anything: see RUNBOOK.md.
+name: plateandbar-staging
+
+services:
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: plateandbar
+      MYSQL_USER: ${DB_USER:-plateandbar}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -uroot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [backend]
+    # No published ports: only the API (same network) and backup.sh (docker compose exec) reach it.
+
+  api:
+    # Rollback = set the previous tag as API_TAG in .env, then `docker compose up -d api` (RUNBOOK.md)
+    image: plateandbar-api:${API_TAG:?set API_TAG, e.g. the git sha}
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        # Required by the Dockerfile, which fails the build when it is empty; compute on a full-history checkout
+        # (backend/README.md). Not `:?` here: that would make every compose command (exec, stop, backup.sh) need it.
+        CONTENT_UPDATED_AT: ${CONTENT_UPDATED_AT:-}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/plateandbar
+      DB_USER: ${DB_USER:-plateandbar}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY (at least 32 bytes)}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM}
+      APP_VERSION: ${API_TAG}
+      # The proxy directly in front of the API is Caddy, which the API sees at an address in this network's subnet.
+      APP_RATELIMIT_TRUSTEDPROXIES: 172.28.0.0/24
+    # No published ports: Caddy reaches api:8080 over the network.
+    networks: [backend]
+
+  caddy:
+    image: caddy:2.11.7
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_HOST: ${API_HOST:?set API_HOST}
+      API_UPSTREAM: api:8080
+    volumes:
+      - ../caddy/Caddyfile.api:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificates: keep, or Let's Encrypt rate limits bite after a rebuild
+      - caddy_config:/config
+    networks: [backend]
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24 # keep in step with APP_RATELIMIT_TRUSTEDPROXIES above
+
+volumes:
+  mysql_data:
+  caddy_data:
+  caddy_config:

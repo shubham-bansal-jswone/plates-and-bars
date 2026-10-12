@@ -1,0 +1,3 @@
+# Secrets and user data never go into git.
+.env
+*.sql.gz
