@@ -66,6 +66,13 @@ public class ApiExceptionHandler {
         MethodArgumentTypeMismatchException.class
     })
     ResponseEntity<ErrorResponse> badRequest(Exception e) {
+        // A body cut off by the request size guard surfaces wrapped in the message converter's exception.
+        Throwable t = e.getCause();
+        for (int depth = 0; t != null && depth < 8; depth++, t = t.getCause()) {
+            if (t instanceof RequestSizeGuardFilter.TooLarge tooLarge) {
+                return api(tooLarge);
+            }
+        }
         return respond(HttpStatus.BAD_REQUEST, "invalid_request", "The request is not valid.", null);
     }
 
