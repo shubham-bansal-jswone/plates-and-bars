@@ -1,4 +1,4 @@
-# Cloudflare Pages format. The Caddy host sets the same headers in infra/caddy/Caddyfile.site.
+# Cloudflare Pages format; Caddy ignores this file. infra/caddy/Caddyfile.site still needs this CSP copied into it.
 # No scripts, external requests or inline styles are used: fonts and CSS are self-hosted files.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
