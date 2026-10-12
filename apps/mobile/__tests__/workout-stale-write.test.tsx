@@ -63,4 +63,19 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
     expect(stored.deleted_at).toBe('2026-10-09T09:59:00Z');
     expect(stored.version).toBe(3);
   });
+
+  it('a session started after an older tombstone was pulled is stored live, on the tombstone\'s version', async () => {
+    const shape = (await loadWorkout((await started()).db, DATE))!;
+    const db = await openDb();
+    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(result.current.day.ready).toBe(true));
+    // Pulled after the screen loaded an empty day; deleted a day before the session starts in any timezone.
+    await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-07T09:00:00Z', updated_at: '2026-10-07T09:00:00Z' });
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.deleted_at ?? null).toBeNull();
+    expect(stored.version).toBe(6);
+  });
 });
