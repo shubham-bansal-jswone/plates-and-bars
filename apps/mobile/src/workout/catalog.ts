@@ -2,7 +2,7 @@ import type { ExerciseCatalog, LadderCatalog } from '@plate-and-bar/core';
 import exercises from '../../../../content/exercises.json';
 import { has, isProtoName } from '../content/own';
 import { contentReader, isArrOf, isNum, isNumIn, isObj, isStr, isText, perLoad } from '../content/reader';
-import { TYPE_LABEL } from './copy';
+import { MUSCLE_CODES, TYPE_LABEL } from './copy';
 
 /** One exercise's how-to card (content/exercises.json `cards`, long keys). */
 export interface ExerciseCard {
@@ -21,8 +21,6 @@ export type Catalog = ExerciseCatalog & Pick<LadderCatalog, 'ladders'> & {
   library: Readonly<Record<string, readonly string[]>>;
 };
 
-/** Contract `Muscle` enum (openapi.yaml). */
-export const MUSCLE_CODES: readonly string[] = ['chest', 'front-delt', 'side-delt', 'rear-delt', 'triceps', 'lats', 'upper-back', 'biceps', 'forearms', 'quads', 'hams', 'glutes', 'calves', 'abs', 'lower-back'];
 /** The app's equipment values (the contract types `ExerciseTags.equipment` as a plain string; its description lists these), in the order the library filter shows them. */
 export const EQUIPMENT_CODES: readonly string[] = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'other'];
 /** Core's `ExType` values (the keys of `TYPE_LABEL`, which is typed by it). */

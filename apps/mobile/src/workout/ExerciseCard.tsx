@@ -7,7 +7,7 @@ import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, 
 import { Button, Card, Hint, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
-import { MUSCLE, RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin } from './copy';
+import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName } from './copy';
 import type { ExState, Row } from './model';
 import { Chip } from './parts';
 
@@ -109,8 +109,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
         <Text style={{ color: c.ink, fontSize: 14 }}>
           {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
           <Text style={{ fontWeight: '700' }}>Works: </Text>
-          {listJoin(tag.primary.map((m) => MUSCLE[m] ?? m))}
-          {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => MUSCLE[m] ?? m))}</Text> : null}
+          {listJoin(tag.primary.map((m) => muscleName(m)))}
+          {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => muscleName(m)))}</Text> : null}
         </Text>
       ) : null}
       <View style={styles.wrap}>

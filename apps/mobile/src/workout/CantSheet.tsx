@@ -5,9 +5,9 @@ import { Text } from '../components/Text';
 import { Button, Choice, Group, Hint, Note } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
-import { MUSCLE, listJoin } from './copy';
+import { listJoin, muscleName } from './copy';
 import { reasonText, jointLabel } from './reasons';
-import { DURATIONS, FAMILY, PATTERN, REASONS } from './rulesCopy';
+import { DURATIONS, familyName, patternName, REASONS } from './rulesCopy';
 
 interface Props {
   /** The exercise the user can't do; null closes the sheet. */
@@ -46,8 +46,8 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
 
   // The scope step's options come from core (the family option carries how many exercises share it); only the words are here.
   const scopes = cantScopeOptions(name, getCatalog().tags).map((o): [NonNullable<CantDraft['scope']>, string, string, string] => {
-    if (o.scope === 'family') return [o.scope, o.key, `All ${FAMILY[o.key] ?? o.key}`, `${o.count} exercises`];
-    if (o.scope === 'pattern') return [o.scope, o.key, `All ${PATTERN[o.key] ?? o.key}`, 'The whole movement type'];
+    if (o.scope === 'family') return [o.scope, o.key, `All ${familyName(o.key)}`, `${o.count} exercises`];
+    if (o.scope === 'pattern') return [o.scope, o.key, `All ${patternName(o.key)}`, 'The whole movement type'];
     if (o.scope === 'joint') return [o.scope, o.key, `Anything that loads the ${jointLabel(o.key)}`, 'Safest choice for pain'];
     return [o.scope, o.key, `Just ${name}`, 'Similar exercises stay in your plan.'];
   });
@@ -124,7 +124,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
               {cands.length === 0 ? <Hint>No good match with these rules. You can skip it instead.</Hint> : null}
               <Choice
                 label="Skip it, no replacement"
-                sub={prim.length ? `Your ${listJoin(prim.map((m) => MUSCLE[m] ?? m))} would get fewer sets each week (now about ${Math.round(setsFor(prim[0] as string))}).` : 'This exercise is removed.'}
+                sub={prim.length ? `Your ${listJoin(prim.map((m) => muscleName(m)))} would get fewer sets each week (now about ${Math.round(setsFor(prim[0] as string))}).` : 'This exercise is removed.'}
                 selected={false} action
                 onPress={() => onPick(draft, null)}
               />
