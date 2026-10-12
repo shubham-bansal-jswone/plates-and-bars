@@ -139,6 +139,20 @@ describe('size-aware batching', () => {
     expect(await pendingCount(db)).toBe(0);
   });
 
+  it('halvings run out: the run ends, nothing is lost, the next run finishes', async () => {
+    const { db, server, deps } = await setup();
+    server.maxBytes = 3_000;
+    let n = 0;
+    for (let k = 0; k < 12; k++) {
+      for (let j = 0; j < 6; j++) await saveBig(db, date(n++), 100);
+      await saveBig(db, date(n++), 5_000); // refused alone
+    }
+    expect((await syncOnce(deps)).status).toBe('rejected'); // bounded: some set aside, the rest still queued
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok' });
+    expect(await pendingCount(db)).toBe(12);
+    expect(await listQuarantined(db)).toHaveLength(12);
+  });
+
   it('only oversized records queued: all are set aside, the run ends ok', async () => {
     const { db, deps } = await setup();
     await saveBig(db, date(0), MAX_BODY_BYTES + 1);
