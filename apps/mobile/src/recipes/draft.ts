@@ -1,6 +1,6 @@
 import { presetIngredients, type OilLevel } from '@plate-and-bar/core';
 import type { Meal } from '../food/types';
-import { rawIngredients, type RecipeContent } from './content';
+import { getRawIngredients, type RecipeContent } from './content';
 import type { DraftRow } from './IngredientRows';
 import type { Recipe } from './types';
 
@@ -28,7 +28,7 @@ const asRows = (rows: readonly { ingredient: string; amount: number | string; un
 
 /** Prototype `rbFromPreset`: the preset's rows at the oil level (core's `presetIngredients`), named "<preset> (home-style)" unless kept. */
 export function fromPreset(d: Draft, p: RecipeContent, oil: OilLevel, keepName: boolean): Draft {
-  return { ...d, preset: p, lib: null, oil, name: keepName ? d.name : `${p.name} (home-style)`, rows: asRows(presetIngredients(p.ingredients, oil, rawIngredients)), ymode: 'katori', katoris: String(p.katoris) };
+  return { ...d, preset: p, lib: null, oil, name: keepName ? d.name : `${p.name} (home-style)`, rows: asRows(presetIngredients(p.ingredients, oil, getRawIngredients())), ymode: 'katori', katoris: String(p.katoris) };
 }
 
 /** Prototype `loadLibrary`. */

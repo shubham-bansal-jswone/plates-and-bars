@@ -9,7 +9,7 @@ import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import type { FoodLog } from '../food/types';
 import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { mealPlanning } from './content';
+import { getMealPlanning } from './content';
 import { DIET_CHIPS, DIET_WORDS, FLEX_HINT, NO_IDEAS, PLATE_GUIDE, PLATE_HINT, PROTEIN_HARD, REACHED } from './copy';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
@@ -54,7 +54,7 @@ export function IdeasCard(p: Props) {
     proteinTarget: p.proteinTarget,
     fatTarget: p.fatTarget,
     age: p.age,
-    planning: mealPlanning,
+    planning: getMealPlanning(),
   });
   const meal = info?.meal;
   const kcal = info?.kcal;
@@ -65,7 +65,7 @@ export function IdeasCard(p: Props) {
   let all: MealIdea<CatalogFood>[] = [];
   if (open && fits && meal !== undefined && kcal !== undefined && protein !== undefined) {
     const target = { meal, kcal, protein_g: protein, fat_g: fat };
-    all = fasting ? combosFast(target, { foods: getFoodCatalog() }) : combos(target, { foods: getFoodCatalog(), planning: mealPlanning, diet });
+    all = fasting ? combosFast(target, { foods: getFoodCatalog() }) : combos(target, { foods: getFoodCatalog(), planning: getMealPlanning(), diet });
   }
   if (!info || !meal) return null;
   const pg = ideasPage(all, page, info);

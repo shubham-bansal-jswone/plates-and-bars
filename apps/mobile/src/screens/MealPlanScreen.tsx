@@ -10,7 +10,7 @@ import { Text } from '../components/Text';
 import { Button, H1, Hint, Page, Press } from '../components/ui';
 import { fmt } from '../format';
 import { getFoodCatalog } from '../food/catalog';
-import { mealGrocery, mealPlanning } from '../meals/content';
+import { getMealGrocery, getMealPlanning } from '../meals/content';
 import { COPIED, COPY_FAILED, GROCERY_NOTE, PLAN_SAVED, planIntro } from '../meals/planCopy';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
@@ -55,7 +55,7 @@ function Plan({ onBack, mine, now = () => new Date() }: Props & { mine: ReturnTy
   const { settings, loadFailed, setMealPlan } = useSettings();
   const today = localDate(now());
   const targets = { kcal: profile?.targets.kcal ?? DEFAULT_KCAL_TARGET, protein: profile?.targets.protein_g ?? DEFAULT_PROTEIN_TARGET, fat: profile?.targets.fat_g ?? DEFAULT_FAT_TARGET, age: profile?.age };
-  const build = (): MealPlan => buildPlan(targets, today, { foods: getFoodCatalog(), planning: mealPlanning, diet: settings.diet });
+  const build = (): MealPlan => buildPlan(targets, today, { foods: getFoodCatalog(), planning: getMealPlanning(), diet: settings.diet });
   const [plan, setPlan] = useState<MealPlan>(() => getPlanDraft() ?? (planIsCurrent(settings.meal_plan, today) && settings.meal_plan ? settings.meal_plan : build()));
   const edit = (next: MealPlan) => {
     setPlanDraft(next);
@@ -79,7 +79,7 @@ function Plan({ onBack, mine, now = () => new Date() }: Props & { mine: ReturnTy
   };
 
   if (grocery) {
-    const list = groceryList(plan, mealGrocery);
+    const list = groceryList(plan, getMealGrocery());
     const copy = () => Clipboard.setStringAsync(list.text).then((ok) => notify(ok ? COPIED : COPY_FAILED), () => notify(COPY_FAILED));
     return (
       <View style={styles.fill}>

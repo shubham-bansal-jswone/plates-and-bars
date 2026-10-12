@@ -5,7 +5,7 @@ import { Text } from '../components/Text';
 import { Button, Field, Press } from '../components/ui';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { rawIngredients } from './content';
+import { getRawNames } from './content';
 
 /** An ingredient row as typed: the amount stays text until core reads it. */
 export interface DraftRow {
@@ -17,7 +17,6 @@ export interface DraftRow {
 export const NEW_ROW: DraftRow = { ingredient: 'Onion', amount: '', unit: 'g' };
 
 const UNITS = Object.keys(UNIT_GRAMS);
-const names = rawIngredients.map((i) => i.name);
 
 /** The ingredient rows of the recipe builder and the kitchen test: pick an ingredient, an amount and a unit (prototype `.rb-row`). */
 export function IngredientRows({ rows, onChange, addLabel = '+ Add ingredient' }: { rows: DraftRow[]; onChange: (rows: DraftRow[]) => void; addLabel?: string }) {
@@ -54,7 +53,7 @@ export function IngredientRows({ rows, onChange, addLabel = '+ Add ingredient' }
 function Picker({ current, onPick, onClose }: { current?: string; onPick: (name: string) => void; onClose: () => void }) {
   const c = useTheme();
   const [q, setQ] = useState('');
-  const shown = names.filter((n) => n.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = getRawNames().filter((n) => n.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={[styles.sheet, { backgroundColor: c.bg }]}>
