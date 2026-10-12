@@ -13,7 +13,7 @@ const axeSource = await readFile(require.resolve("axe-core/axe.min.js"), "utf8")
 const root = fileURLToPath(new URL("../dist/", import.meta.url));
 const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".txt": "text/plain" };
 // Limitation: only the single `/*` block of public/_headers is supported (every header line is applied to every page);
-// add per-path handling before adding a second block. Serving it means a a CSP that breaks a page fails here.
+// add per-path handling before adding a second block. Served with those headers, a CSP that breaks a page fails here.
 const headerLines = (await readFile(join(root, "_headers"), "utf8")).split("\n").map((l) => l.trim());
 const prodHeaders = Object.fromEntries(headerLines.filter((l) => /^[A-Za-z-]+: /.test(l)).map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 2)]));
 const pages = ["/", "/privacy/", "/terms/", "/delete-account/"];
