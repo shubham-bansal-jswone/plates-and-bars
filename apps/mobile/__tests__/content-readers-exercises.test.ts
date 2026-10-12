@@ -1,10 +1,11 @@
+import labels from '../../../content/labels.json';
 import exercises from '../../../content/exercises.json';
 import { BUNDLED } from '../src/content/bundled';
 import { loadContent } from '../src/content/loader';
 import { putStored, type ContentDb } from '../src/content/store';
 import { getEquipment, getLibrary, getMuscles, getTypes } from '../src/library/exercises';
-import { chosenExercises, EQUIPMENT_CODES, getCatalog, MUSCLE_CODES } from '../src/workout/catalog';
-import { MUSCLE, TYPE_LABEL } from '../src/workout/copy';
+import { chosenExercises, EQUIPMENT_CODES, getCatalog } from '../src/workout/catalog';
+import { MUSCLE_CODES, TYPE_LABEL } from '../src/workout/copy';
 import { openDb } from './sync-helpers';
 
 const LATER = '2099-01-01T00:00:00Z';
@@ -234,7 +235,7 @@ describe('exercises through the content store', () => {
   });
 
   it('the contract lists match what the app uses: muscles and equipment, and TYPE_LABEL covers every shipped type', () => {
-    expect([...MUSCLE_CODES].sort()).toEqual(Object.keys(MUSCLE).sort());
+    expect([...MUSCLE_CODES].sort()).toEqual(Object.keys(labels.muscles).sort());
     expect(EQUIPMENT_CODES).toEqual(['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'other']);
     for (const m of Object.values<Obj>(shipped.meta)) expect(Object.keys(TYPE_LABEL)).toContain(m.type);
   });

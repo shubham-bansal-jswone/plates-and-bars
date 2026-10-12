@@ -1,7 +1,7 @@
 import { candidates, type CandidateWhy } from '@plate-and-bar/core';
 import { getCatalog } from '../src/workout/catalog';
 import { reasonText } from '../src/workout/reasons';
-import { FAMILY, PATTERN } from '../src/workout/rulesCopy';
+import { getLabels } from '../src/workout/copy';
 
 const why = (o: Partial<CandidateWhy>): CandidateWhy => ({ muscles: ['chest'], sameMovement: false, sparesJoint: null, easierOnJoints: false, easierToLearn: false, doneBefore: false, ...o });
 
@@ -24,9 +24,9 @@ describe('reasonText (content/labels.json and the prototype’s candidates() tex
 describe('rule labels (content/labels.json)', () => {
   it('has a label for every family and pattern the catalogue uses', () => {
     for (const t of Object.values(getCatalog().tags)) {
-      expect(FAMILY[t.family]).toBeTruthy();
-      expect(PATTERN[t.pattern]).toBeTruthy();
+      expect(getLabels().families[t.family]).toBeTruthy();
+      expect(getLabels().patterns[t.pattern]).toBeTruthy();
     }
-    expect(FAMILY.balance).toBe('balance variations');
+    expect(getLabels().families.balance).toBe('balance variations');
   });
 });

@@ -12,12 +12,12 @@ import type { Settings } from '../settings/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
-import { MUSCLE, listJoin } from '../workout/copy';
+import { listJoin, muscleName } from '../workout/copy';
 import { Chip } from '../workout/parts';
 import type { Workout, WorkoutSet } from '../workout/types';
 
 const name = (m: string) => {
-  const t = MUSCLE[m] ?? m;
+  const t = muscleName(m);
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 const lower = (m: string) => name(m).toLowerCase();

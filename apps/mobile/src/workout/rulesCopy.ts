@@ -1,7 +1,7 @@
 // Display text for the "can’t do" sheet and the avoid list, from the prototype (REASONS, PATTERN, FAMILY, ruleText).
-import labels from '../../../../content/labels.json';
 import type { Exclusion, ExclusionReason } from '@plate-and-bar/core';
 import { shortDate } from '../format';
+import { getLabels } from './copy';
 import { jointLabel } from './reasons';
 
 export const REASONS: [ExclusionReason, string][] = [
@@ -18,13 +18,13 @@ export const DURATIONS: [string, string][] = [
   ['perm', 'Permanently'],
 ];
 
-export const PATTERN: Record<string, string> = labels.patterns;
+export const patternName = (k: string): string => getLabels().patterns[k] ?? k;
 
-export const FAMILY: Record<string, string> = labels.families;
+export const familyName = (k: string): string => getLabels().families[k] ?? k;
 
 /** What a rule leaves out ("All bench press variations"); prototype `ruleText` before the comma. */
 export function ruleWhat(r: Pick<Exclusion, 'scope' | 'key'>): string {
-  return r.scope === 'exercise' ? r.key : r.scope === 'family' ? `All ${FAMILY[r.key] ?? r.key}` : r.scope === 'pattern' ? `All ${PATTERN[r.key] ?? r.key}` : `Anything that loads the ${jointLabel(r.key)}`;
+  return r.scope === 'exercise' ? r.key : r.scope === 'family' ? `All ${familyName(r.key)}` : r.scope === 'pattern' ? `All ${patternName(r.key)}` : `Anything that loads the ${jointLabel(r.key)}`;
 }
 
 const REASON_SHORT: Record<string, string> = { pain: 'pain', equip: 'no equipment', dislike: 'don’t like it', form: 'form confidence' };
