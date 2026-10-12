@@ -7,7 +7,7 @@ import { Heading, Button, Card, Field, H1, Hint, Label, Page } from '../componen
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
-import { CheckinCard } from '../progress/CheckinCard';
+import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
 import { useCheckin } from '../progress/useCheckin';
 import { TrendChart } from '../progress/TrendChart';
 import { useProgress } from '../progress/useProgress';
@@ -48,6 +48,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
           <>
             <H1>Progress</H1>
             <CheckinCard date={p.date} c={ci} />
+            <RapidLossCard c={ci} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} />

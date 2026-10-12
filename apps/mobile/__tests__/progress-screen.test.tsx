@@ -6,7 +6,7 @@ import { saveLog, saveDayNote } from '../src/db/food';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveConsent, saveProfile } from '../src/db/records';
-import { saveWorkout, saveSet } from '../src/db/workouts';
+import { saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { saveMeasurement, saveWeight } from '../src/db/progress';
 import { addDays, targetFromBurn } from '@plate-and-bar/core';
 import { saveSettings } from '../src/db/settings';
@@ -599,5 +599,111 @@ describe('Body-fat wording follows the profile sex, not the content rules (#330)
     expect(screen.getByText('Add waist and neck for a body-fat estimate.')).toBeTruthy();
     expect(screen.getByLabelText('Hips in cm')).toBeTruthy();
     expect(screen.getByLabelText('Chest in cm')).toBeTruthy();
+  });
+});
+
+describe('Rapid-loss card (#258)', () => {
+  const day = (offset: number) => addDays(DATE, -offset);
+  /** Weekly averages `w1` (this week), `w0` and `w2` (the two before): one weigh-in a day for 21 days. */
+  const seedWeights = async (db: Db, w1: number, w0: number, w2: number) => {
+    for (let i = 0; i < 21; i++) await saveWeight(db, weigh(day(i), i < 7 ? w1 : i < 14 ? w0 : w2));
+  };
+  const settingsDoc = (db: Db) => JSON.parse(db.rows.get('user_settings:me')!);
+  const stallLift = () => ({ date: DATE, sets: [{ w: 50, r: 8 }], hist: [100, 100, 100, 100].map((e, i) => ({ date: day(10 - i), e })) });
+
+  it('shows after 2 weeks over 1% a week, with the drop and its action', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 82);
+    await setup({ db });
+    expect(await screen.findByText('Weight is dropping fast')).toBeTruthy();
+    expect(screen.getByText(/Your weekly average fell about 0\.9 kg, faster than 1% of your bodyweight a week for 2 weeks running\./)).toBeTruthy();
+    expect(screen.getByLabelText('Add 150 kcal')).toBeTruthy();
+  });
+
+  it('one fast week alone shows nothing, and exactly 1% is not fast', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 80.9);
+    await setup({ db });
+    await screen.findByText('Weekly check-in');
+    expect(screen.queryByText('Weight is dropping fast')).toBeNull();
+    const db2 = memoryDb();
+    // The week before fell 2%, so the card would show if exactly 1% counted as fast.
+    await seedWeights(db2, 99, 100, 102);
+    await setup({ db: db2 });
+    await screen.findAllByText('Weekly check-in');
+    expect(screen.queryByText('Weight is dropping fast')).toBeNull();
+  });
+
+  it('one fast week with 2 stalled lifts shows the stalled wording', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 80.9);
+    await saveLift(db, 'Bench Press', stallLift() as never);
+    await saveLift(db, 'Squat', stallLift() as never);
+    await setup({ db });
+    expect(await screen.findByText(/fell about 0\.9 kg, and 2 lifts have stalled\./)).toBeTruthy();
+  });
+
+  it('one stalled lift is not enough', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 80.9);
+    await saveLift(db, 'Bench Press', stallLift() as never);
+    await setup({ db });
+    await screen.findByText('Weekly check-in');
+    expect(screen.queryByText('Weight is dropping fast')).toBeNull();
+  });
+
+  it('"Add 150 kcal" raises calories and carbs (150/4 g) on the profile only, dismisses the card and toasts', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 82);
+    await setup({ db });
+    const before = profile().targets;
+    await fireEvent.press(await screen.findByLabelText('Add 150 kcal'));
+    await waitFor(() => expect(JSON.parse(db.rows.get('profiles:me')!).targets).toEqual({ ...before, kcal: before.kcal + 150, carbs_g: before.carbs_g + 38 }));
+    await waitFor(() => expect(screen.queryByText('Weight is dropping fast')).toBeNull());
+    expect(settingsDoc(db).adjustments.dismissed).toMatchObject({ 'kcal:2026-10-05': true });
+    expect(screen.getByText(`Calories raised to ${(before.kcal + 150).toLocaleString('en-IN')}`)).toBeTruthy();
+  });
+
+  it('"Not now" hides it for the week and counts a kcal-up decline', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 82);
+    await setup({ db });
+    // The check-in's own suggestion may also say "Not now"; the rapid-loss card comes after it.
+    await fireEvent.press((await screen.findAllByLabelText('Not now')).at(-1)!);
+    await waitFor(() => expect(settingsDoc(db).adjustments).toMatchObject({ declines: { 'kcal-up': 1 }, dismissed: { 'kcal:2026-10-05': true } }));
+    expect(settingsDoc(db).adjustments.declines.checkin).toBeUndefined();
+    expect(screen.queryByText('Weight is dropping fast')).toBeNull();
+  });
+
+  it('stays hidden when muted or already dismissed, and "Stop suggesting this" mutes it', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 82);
+    const s = defaultSettings('2026-10-01T00:00:00Z');
+    await saveSettings(db, { ...s, adjustments: { declines: { 'kcal-up': 3 } } });
+    await setup({ db });
+    await fireEvent.press(await screen.findByLabelText('Stop suggesting this'));
+    await waitFor(() => expect(settingsDoc(db).adjustments.muted).toEqual({ 'kcal-up': true }));
+    expect(screen.queryByText('Weight is dropping fast')).toBeNull();
+    const db2 = memoryDb();
+    await seedWeights(db2, 80, 80.9, 82);
+    await saveSettings(db2, { ...s, adjustments: { dismissed: { 'kcal:2026-10-05': true } } });
+    await setup({ db: db2 });
+    await screen.findAllByText('Weekly check-in');
+    expect(screen.queryByText('Weight is dropping fast')).toBeNull();
+  });
+
+  it('does not show without a profile, and not when the stored settings cannot be read', async () => {
+    const db = memoryDb();
+    await seedWeights(db, 80, 80.9, 82);
+    await saveSettings(db, defaultSettings('2026-10-01T00:00:00Z'));
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('user_settings')) throw new Error('locked');
+      return read(sql, ...p);
+    };
+    await setup({ db });
+    expect(await screen.findByText(/Couldn’t read your saved settings/)).toBeTruthy();
+    expect(screen.queryByText('Weight is dropping fast')).toBeNull();
+    expect(screen.queryByLabelText('Add 150 kcal')).toBeNull();
   });
 });
