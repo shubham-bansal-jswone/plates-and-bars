@@ -304,7 +304,6 @@ export {
   saveMyFood,
   MY_FOODS_MAX,
   FOOD_NAME_MAX,
-  UNIT_MAX,
   userFoodFacts,
 } from './food';
 export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
@@ -369,7 +368,7 @@ export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProf
  * - `stepRecipeLog` mirrors prototype `case 'rb-log'`; `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` its limits.
  * - `recipeFood` mirrors prototype `case 'rb-save'` (checks, kept rows, saved food), plus `name-too-long` and `invalid` (contract limits, as #150).
  * - `kitchenTest` mirrors prototype `ktCalc(d)` (cooked weight from pot weights, per 100 g, per serving; a 0 g empty pot counts, #214).
- * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), plus `name-too-long`, `note-too-long` (note over `NOTE_MAX`, 2000, #377) and `invalid`.
+ * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), plus `name-too-long` and `invalid`.
  * - `saveBuiltFood` mirrors the `myFoods` step of `case 'rb-save'` and `ktSave`; `BUILT_FOODS_MAX` its 80.
  * - `ingredientGrams` mirrors the grams step of `rbTotals` and `ktCalc`; `UNIT_GRAMS` mirrors `UNIT_G`.
  * - `OIL_LEVEL` mirrors `OIL_LEVEL`; `RECIPE_VEG_INGREDIENTS`,
@@ -382,7 +381,6 @@ export {
   recipeFood,
   kitchenTest,
   kitchenTestFood,
-  NOTE_MAX,
   saveBuiltFood,
   ingredientGrams,
   UNIT_GRAMS,

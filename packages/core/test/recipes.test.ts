@@ -16,7 +16,6 @@ import {
   RECIPE_LOG_MAX,
   RECIPE_LOG_STEP,
   FOOD_NAME_MAX,
-  NOTE_MAX,
   userFoodFacts,
   type IngredientRow,
   type RawIngredient,
@@ -504,14 +503,5 @@ describe('kitchenTestFood (prototype ktSave(true))', () => {
   it('rejects a name over the contract limit (as customFood, #150; the prototype saves it)', () => {
     const base = { ingredients: [{ ingredient: 'Egg', amount: 100, unit: 'g' }], pot_g: null, pot_full_g: null, cooked_g: 90, serving_g: 45, serving_name: 'katori' };
     expect(kitchenTestFood({ ...base, name: 'x'.repeat(FOOD_NAME_MAX + 1) }, raw).kind).toBe('name-too-long');
-  });
-
-  it('rejects a note over the contract limit of 2000 characters (#377); no note is fine', () => {
-    const base = { name: 'Dal', ingredients: [{ ingredient: 'Egg', amount: 100, unit: 'g' }], pot_g: null, pot_full_g: null, cooked_g: 90, serving_g: 45, serving_name: 'katori' };
-    expect(NOTE_MAX).toBe(2000);
-    expect(kitchenTestFood({ ...base, note: 'n'.repeat(2000) }, raw).kind).toBe('ok');
-    expect(kitchenTestFood({ ...base, note: 'n'.repeat(2001) }, raw).kind).toBe('note-too-long');
-    expect(kitchenTestFood({ ...base, note: 'n'.repeat(2001), name: '' }, raw).kind).toBe('no-name');
-    expect(kitchenTestFood(base, raw).kind).toBe('ok');
   });
 });

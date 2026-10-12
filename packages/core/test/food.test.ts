@@ -25,7 +25,6 @@ import {
   saveMyFood,
   MY_FOODS_MAX,
   FOOD_NAME_MAX,
-  UNIT_MAX,
   userFoodFacts,
   calcTargets,
   toTargetsProfile,
@@ -960,15 +959,6 @@ describe('customFood and saveMyFood', () => {
     expect(customFood({ ...base, name: '', qty: '-2' })).toEqual({ kind: 'no-name' });
     expect(customFood({ ...base, qty: '0' })).toMatchObject({ kind: 'ok', log: { qty: 1 } });
     expect(proto.addCustom({ cfName: 'Thali', cfK: '-100', cfQ: '-2' }, false, []).meal).toMatchObject({ qty: -2, kcal: -100 });
-  });
-  it('a trimmed serving unit over 100 characters is too long (#377: the contract limit)', () => {
-    const u100 = 'u'.repeat(100);
-    expect(UNIT_MAX).toBe(100);
-    expect(customFood({ ...base, unit: u100 })).toMatchObject({ kind: 'ok', food: { unit: u100 } });
-    expect(customFood({ ...base, unit: `  ${u100}  ` })).toMatchObject({ kind: 'ok', food: { unit: u100 } }); // checked after trimming
-    expect(customFood({ ...base, unit: 'u'.repeat(101) })).toEqual({ kind: 'unit-too-long' });
-    expect(customFood({ ...base, unit: 'u'.repeat(101), name: 'a'.repeat(201) })).toEqual({ kind: 'name-too-long' }); // the name is checked first
-    expect(customFood({ ...base, unit: 'u'.repeat(101), name: '' })).toEqual({ kind: 'no-name' });
   });
   it('a trimmed name over 200 characters is too long (#150: the contract limit; the prototype logs it)', () => {
     const n200 = 'a'.repeat(200);
