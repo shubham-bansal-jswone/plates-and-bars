@@ -20,7 +20,7 @@ const base: SyncState = {
   signOut: async () => 0,
   discardAndSignOut: async () => undefined,
   exportFromServer: async () => ({ kind: 'not_signed_in' }),
-  deleteEverything: async () => ({ kind: 'deleted', server: false }),
+  deleteEverything: async () => ({ kind: 'deleted', server: false, linked: false }),
 };
 const show = (s: Partial<SyncState>) =>
   render(
@@ -53,10 +53,10 @@ describe('data screen (#27)', () => {
   });
 
   it('delete asks first, states what goes (and the account when signed in), and deletes only on confirm', async () => {
-    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true }));
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true, linked: true }));
     await show({ signedIn: true, deleteEverything });
     await fireEvent.press(screen.getByLabelText('Delete everything'));
-    expect(screen.getByText(/permanently deletes everything on this device/)).toBeTruthy();
+    expect(screen.getByText(/permanently deletes everything the app stores on this device/)).toBeTruthy();
     expect(screen.getByText(/also deletes your account/)).toBeTruthy();
     expect(deleteEverything).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByLabelText('Yes, delete everything'));
@@ -87,7 +87,7 @@ describe('data screen (#27)', () => {
   });
 
   it('linked but signed out: offers sign-in or device-only, never says nothing is on a server, and deletes nothing on sign-in', async () => {
-    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: false }));
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: false, linked: true }));
     await show({ linked: true, deleteEverything });
     expect(screen.getByLabelText('Sign in to download from your account')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Delete everything'));
@@ -104,7 +104,7 @@ describe('data screen (#27)', () => {
   });
 
   it('with the account already deleted and the device wipe pending, only finishing the device is offered, on every visit', async () => {
-    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true }));
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true, linked: true }));
     for (let visit = 0; visit < 2; visit++) {
       const view = await show({ linked: true, wipePending: true, deleteEverything });
       expect(screen.queryByLabelText('Sign in to download from your account')).toBeNull();
@@ -137,13 +137,22 @@ describe('deletion notice', () => {
   );
   it('says what was deleted once, and clears when the screen goes away', async () => {
     const clear = jest.fn();
-    const view = await render(at({ server: true }, clear));
+    const view = await render(at({ server: true, linked: true }, clear));
     expect(screen.getByText(/Everything deleted/)).toBeTruthy();
     expect(clear).not.toHaveBeenCalled();
     await view.unmount();
     expect(clear).toHaveBeenCalled();
-    await render(at({ server: false }));
+    await render(at({ server: false, linked: true }));
     expect(screen.getByText('This device was cleared. Your account still exists.')).toBeTruthy();
+  });
+  it('a device that never signed in gets no account sentence', async () => {
+    await render(at({ server: false, linked: false }));
+    expect(screen.getByText('Everything deleted. The data on this device is gone.')).toBeTruthy();
+    expect(screen.queryByText(/account still exists/)).toBeNull();
+  });
+  it('the delete confirmation names what the wipe clears', async () => {
+    const { DATA_COPY } = await import('../src/account/copy');
+    for (const w of ['consent record', 'day notes', 'lift history', 'kitchen tests', 'exclusions', 'swaps', 'waiting to sync']) expect(DATA_COPY.confirmDevice).toContain(w);
   });
   it('shows nothing without a deletion or without a provider', async () => {
     await render(at(null));

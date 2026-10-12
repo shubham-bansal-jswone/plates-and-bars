@@ -79,10 +79,10 @@ describe('SyncProvider account wiring (#27)', () => {
     const { db } = await mount({ bound: true, withSetup: true });
     await waitFor(() => expect(now().linked).toBe(true));
     await act(async () => {
-      expect(await now().deleteEverything({ deviceOnly: true })).toEqual({ kind: 'deleted', server: false });
+      expect(await now().deleteEverything({ deviceOnly: true })).toEqual({ kind: 'deleted', server: false, linked: true });
     });
     expect(now().linked).toBe(false);
-    expect(now().lastDeletion).toEqual({ server: false });
+    expect(now().lastDeletion).toEqual({ server: false, linked: true });
     expect(await getUserId(db)).toBeNull();
     expect(await screen.findByText('This device was cleared. Your account still exists.')).toBeTruthy();
   });
@@ -92,7 +92,7 @@ describe('SyncProvider account wiring (#27)', () => {
     await waitFor(() => expect(now().signedIn).toBe(true));
     fetchImpl = async () => new Response(null, { status: 204 });
     await act(async () => {
-      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: true });
+      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: true, linked: true });
     });
     expect(tokens.current).toBeNull();
     expect(now().signedIn).toBe(false);
