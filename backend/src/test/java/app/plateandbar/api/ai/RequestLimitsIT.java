@@ -44,8 +44,9 @@ class RequestLimitsIT extends AiITBase {
         var auth = chunked("/api/v1/auth/email/start", null, 3L * 1024 * 1024, "application/json");
         assertThat(auth.statusCode()).isEqualTo(400);
         assertThat(auth.body()).contains("invalid_request").contains("too_large");
-        var ai = chunked("/api/v1/ai/describe-meal", jwt.issue(newUser()).value(), 3L * 1024 * 1024, "application/json");
-        // The AI endpoint stops reading at 16 KB, so the answer is the switch (off) or validation, never a 413.
+        var ai = chunked("/api/v1/ai/describe-meal", jwt.issue(newUser()).value(), 100L * 1024, "application/json");
+        // Over 16 KB but small enough for the server to drain (so the client sees the answer, not a reset): the
+        // AI endpoint stops reading at 16 KB; the answer is the switch (off) or too_large, never a 413.
         assertThat(ai.statusCode()).isIn(400, 503);
         assertThat(ai.body()).contains("\"code\"");
     }
