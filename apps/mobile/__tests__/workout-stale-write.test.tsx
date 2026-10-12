@@ -135,11 +135,27 @@ describe('a workout deleted on another device (#408)', () => {
     const { db, result } = await started();
     const w = (await loadWorkout(db, DATE))!;
     await saveWorkout(db, { ...w, version: 6, deleted_at: '2026-10-09T09:59:00Z', updated_at: '2026-10-09T09:59:59Z' });
+    const before = await loadSets(db, DATE);
     const name = result.current.day.exs[0]!.name;
     await act(async () => result.current.cant(0, { name, reason: 'dislike', dur: 'today', scope: 'exercise', key: name }, null));
     await act(async () => void (await dayQueue.current)); // the queued writes finish
     const stored = (await loadWorkout(db, DATE))!;
     expect(stored.deleted_at).toBe('2026-10-09T09:59:00Z');
+    expect(stored.version).toBe(6);
+    expect(await loadSets(db, DATE)).toEqual(before);
+  });
+
+  it('starting over a tombstone stamped ahead of this device\'s clock still stores the session live', async () => {
+    const shape = (await loadWorkout((await started()).db, DATE))!;
+    const db = await openDb();
+    await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-09T09:59:59Z', updated_at: '2026-10-09T09:59:59Z' });
+    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(result.current.day.ready).toBe(true));
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.deleted_at ?? null).toBeNull();
     expect(stored.version).toBe(6);
   });
 });
