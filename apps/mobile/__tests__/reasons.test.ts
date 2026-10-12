@@ -1,5 +1,5 @@
 import { candidates, type CandidateWhy } from '@plate-and-bar/core';
-import { catalog } from '../src/workout/catalog';
+import { getCatalog } from '../src/workout/catalog';
 import { reasonText } from '../src/workout/reasons';
 import { FAMILY, PATTERN } from '../src/workout/rulesCopy';
 
@@ -16,14 +16,14 @@ describe('reasonText (content/labels.json and the prototype’s candidates() tex
     expect(reasonText(why({ sparesJoint: 'lower-back', easierOnJoints: true }))).toBe('Works your chest, doesn’t load the lower back');
   });
   it('reads core’s real candidates', () => {
-    const [first] = candidates('Barbell Bench Press', { where: 'gym', joint: 'shoulder', pain: true }, [], {}, catalog);
+    const [first] = candidates('Barbell Bench Press', { where: 'gym', joint: 'shoulder', pain: true }, [], {}, getCatalog());
     expect(first && reasonText(first.why)).toBe('Works your chest, same movement, doesn’t load the shoulder');
   });
 });
 
 describe('rule labels (content/labels.json)', () => {
   it('has a label for every family and pattern the catalogue uses', () => {
-    for (const t of Object.values(catalog.tags)) {
+    for (const t of Object.values(getCatalog().tags)) {
       expect(FAMILY[t.family]).toBeTruthy();
       expect(PATTERN[t.pattern]).toBeTruthy();
     }

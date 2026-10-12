@@ -5,7 +5,7 @@ import { Button, Choice, Field, H1, Hint, Label, layout, Press } from '../compon
 import { space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ExerciseDetail } from './ExerciseDetail';
-import { EQUIPMENT, equipmentLabel, filterLibrary, isFiltered, LIBRARY, muscleLabel, MUSCLES, NO_FILTER, typeLabel, TYPES, type LibraryExercise, type LibraryFilter } from './exercises';
+import { equipmentLabel, filterLibrary, getEquipment, getLibrary, getMuscles, getTypes, isFiltered, muscleLabel, NO_FILTER, typeLabel, type LibraryExercise, type LibraryFilter } from './exercises';
 
 function Chips<T extends string>({ title, values, label, value, onChange }: { title: string; values: readonly T[]; label: (v: T) => string; value: T | null; onChange: (v: T | null) => void }) {
   return (
@@ -33,7 +33,7 @@ function Row({ e, onOpen }: { e: LibraryExercise; onOpen: () => void }) {
 }
 
 /** Browse the exercise content: search by name, filter by equipment, main muscle and type, open one for its notes. Works offline; no photos. */
-export function ExerciseLibraryScreen({ onBack, list = LIBRARY }: { onBack: () => void; list?: readonly LibraryExercise[] }) {
+export function ExerciseLibraryScreen({ onBack, list = getLibrary() }: { onBack: () => void; list?: readonly LibraryExercise[] }) {
   const c = useTheme();
   const [f, setF] = useState<LibraryFilter>(NO_FILTER);
   const [open, setOpen] = useState<string | null>(null);
@@ -64,9 +64,9 @@ export function ExerciseLibraryScreen({ onBack, list = LIBRARY }: { onBack: () =
           <Button label="Back" kind="link" onPress={onBack} />
           <H1>Exercise library</H1>
           <Field label="Search exercises" placeholder="Search exercises" value={f.query} onChangeText={(query) => setF({ ...f, query })} autoCorrect={false} />
-          <Chips title="Equipment" values={EQUIPMENT} label={equipmentLabel} value={f.equipment} onChange={(equipment) => setF({ ...f, equipment })} />
-          <Chips title="Muscle" values={MUSCLES} label={muscleLabel} value={f.muscle} onChange={(muscle) => setF({ ...f, muscle })} />
-          <Chips title="Type" values={TYPES} label={typeLabel} value={f.type} onChange={(t) => setF({ ...f, type: t })} />
+          <Chips title="Equipment" values={getEquipment()} label={equipmentLabel} value={f.equipment} onChange={(equipment) => setF({ ...f, equipment })} />
+          <Chips title="Muscle" values={getMuscles()} label={muscleLabel} value={f.muscle} onChange={(muscle) => setF({ ...f, muscle })} />
+          <Chips title="Type" values={getTypes()} label={typeLabel} value={f.type} onChange={(t) => setF({ ...f, type: t })} />
           {isFiltered(f) ? <Button label="Clear filters" kind="ghost" onPress={() => setF(NO_FILTER)} /> : null}
           <Hint>{`${shown.length} of ${list.length} exercises`}</Hint>
         </View>

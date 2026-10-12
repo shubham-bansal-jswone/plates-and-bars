@@ -1,6 +1,6 @@
 import { applyMods, exInfo, suggestBase, type ExerciseOverride, type ExInfo, type LiftRecord, type ProgressionContext, type Suggestion, type WorkoutMods } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
-import { catalog } from './catalog';
+import { getCatalog } from './catalog';
 import type { ExState } from './model';
 import type { Workout } from './types';
 
@@ -18,7 +18,7 @@ export function progressionContext(date: string, lifts: Readonly<Record<string, 
   return {
     date,
     lifts,
-    catalog,
+    catalog: getCatalog(),
     where: workout?.where ?? profile.where,
     profile,
     bodyweight: profile.weight_kg,
@@ -29,7 +29,7 @@ export function progressionContext(date: string, lifts: Readonly<Record<string, 
 
 /** An exercise's type, rep range and step, and its suggestion with today's modifiers applied (prototype `suggestFor`). */
 export function guidance(ex: Pick<ExState, 'name' | 'bridge'>, ctx: GuidanceContext, workout: Workout | null): { info: ExInfo; sug: Suggestion } {
-  const info = exInfo(ex.name, catalog, ctx.overrides?.[ex.name], ctx.where);
+  const info = exInfo(ex.name, getCatalog(), ctx.overrides?.[ex.name], ctx.where);
   const sug = applyMods(suggestBase(ex, ctx), ex, { ...ctx, mods: (workout?.mods ?? {}) as WorkoutMods, bodyweight: ctx.bodyweight });
   return { info, sug };
 }

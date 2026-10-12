@@ -3,7 +3,7 @@ import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { adjOf, answered, muted } from './adjust';
-import { catalog } from './catalog';
+import { getCatalog } from './catalog';
 import { LadderCardView, RecheckCard, StallCardView } from './AdjustCards';
 import type { ExState } from './model';
 import type { useRules } from './useRules';
@@ -40,8 +40,8 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
   const common = (type: string, key: string) => ({ declines: adj.declines[type] ?? 0, onNo: () => dismiss(key, type, true), onMute: () => update((s) => ({ adjustments: muted(s.adjustments, type) })) });
 
   const stall = stallCard(ex, lifts, info, adj);
-  const ladder = ladderCard(ex, lifts, info, { date, exclusions, ladderStay: settings.ladder_stay, adj }, catalog);
-  const side = sidewaysOf(ex.name, exclusions, catalog, where);
+  const ladder = ladderCard(ex, lifts, info, { date, exclusions, ladderStay: settings.ladder_stay, adj }, getCatalog());
+  const side = sidewaysOf(ex.name, exclusions, getCatalog(), where);
   const switchTo = (kind: 'up' | 'down' | 'side', to: string, key: string, msg: string) => {
     // The swap and the dismissal go together: with the settings unreadable, neither is saved.
     if (loadFailed) return void notify(NOT_SAVED);
@@ -93,7 +93,7 @@ export function RecheckCards({ date, lifts, rules, notify }: Props) {
             key={rule.id}
             rule={rule}
             onBack={() => {
-              const back = recheckBack(rule, Object.keys(lifts), catalog.tags, date);
+              const back = recheckBack(rule, Object.keys(lifts), getCatalog().tags, date);
               // `returning` first: if it cannot be saved the rule stays as it is and the card stays.
               if (!update((s) => ({ returning: { ...s.returning, ...back.returning } }))) return;
               rules.putRule(back.rule);

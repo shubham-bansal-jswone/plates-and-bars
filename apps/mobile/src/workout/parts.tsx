@@ -4,7 +4,7 @@ import { Text } from '../components/Text';
 import { Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { catalog } from './catalog';
+import { getCatalog } from './catalog';
 
 /** A toggle chip (prototype `.chip` with `aria-pressed`). */
 /** `label` is the spoken name; `text` (default the label) is what shows. */
@@ -115,7 +115,7 @@ function List({ items, ordered }: { items: string[]; ordered?: boolean }) {
 export function HowToSheet({ name, onClose }: { name: string | null; onClose: () => void }) {
   const c = useTheme();
   if (!name) return null;
-  const card = catalog.cards[name];
+  const card = getCatalog().cards[name];
   return (
     <Modal visible animationType="slide" onRequestClose={onClose} transparent={false}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>

@@ -1,7 +1,7 @@
 import { cantSession, type CantDraft, type Exclusion, type LiftRecord, type NewCantSet, type Where } from '@plate-and-bar/core';
 import { newId } from '../db/records';
 import { loadLifts, loadSets, loadWorkout, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
-import { catalog } from './catalog';
+import { getCatalog } from './catalog';
 import { stamp } from './model';
 import type { Workout, WorkoutSet } from './types';
 import { enqueueDay } from './dayQueue';
@@ -34,7 +34,7 @@ export function cantChange(
   date: string,
   at: string,
 ): CantChange {
-  const res = cantSession(workout.exercises, sets, i, draft, choice, where, exclusions, { lifts, date }, catalog);
+  const res = cantSession(workout.exercises, sets, i, draft, choice, where, exclusions, { lifts, date }, getCatalog());
   const added: WorkoutSet[] = [];
   const all = res.sets.map((s) => {
     if ('id' in s) return s as WorkoutSet;

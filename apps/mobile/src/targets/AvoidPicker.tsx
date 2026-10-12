@@ -2,7 +2,7 @@ import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { Button } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
-import { catalog } from '../workout/catalog';
+import { getCatalog } from '../workout/catalog';
 import { Chip } from '../workout/parts';
 
 /** "Exercise to avoid" (prototype `openAvoidPicker`): the exercise library by group; picking one opens the can't-do sheet. */
@@ -16,7 +16,7 @@ export function AvoidPicker({ visible, onPick, onClose }: { visible: boolean; on
           <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
             Exercise to avoid
           </Text>
-          {Object.entries(catalog.library).map(([group, names]) => (
+          {Object.entries(getCatalog().library).map(([group, names]) => (
             <View key={group} style={styles.group}>
               <Text accessibilityRole="header" style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>
                 {group}
