@@ -7,6 +7,8 @@ import type { Profile } from '../setup/types';
 import type { WaterLog } from './water';
 import { loadWeights } from '../db/progress';
 import { loadWaterLogs, saveWaterLog } from './waterDb';
+import { freshRead } from '../state/freshRead';
+import { dayQueue, dayWrites } from '../workout/dayQueue';
 
 // Keeps the milliseconds: `updated_at` is what orders the day's drinks, so two taps in one second stay in order.
 const stamp = (d: Date): string => d.toISOString();
@@ -17,17 +19,21 @@ interface Options {
   now: () => Date;
   profile: Profile | null;
   notify: (msg: string) => void;
+  /** Changes when sync stored pulled records: the drinks and the target are read again (after queued local writes). */
+  reloadKey?: number;
 }
 
 /**
  * Today's water: each tap shows at once and its write goes through one FIFO queue, like food logs. Undo
  * tombstones the last drink. The target is core's `waterTarget` over the weigh-ins, ticked sets and plan.
  */
-export function useWater({ db, date, now, profile, notify }: Options) {
+export function useWater({ db, date, now, profile, notify, reloadKey = 0 }: Options) {
   const [logs, setLogs] = useState<WaterLog[]>([]);
   const [target, setTarget] = useState<{ ml: number; trained: boolean } | null>(null);
   const logsRef = useRef(logs);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  /** Counts this screen's writes, so a read that overlapped one is redone. */
+  const writes = useRef(0);
 
   // Tab screens stay mounted, so the target is read again each time the tab is shown (a set ticked or a weigh-in
   // added elsewhere changes it), as in src/targets/sections.tsx.
@@ -37,31 +43,37 @@ export function useWater({ db, date, now, profile, notify }: Options) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const l = await loadWaterLogs(db, date);
-      if (!live) return;
-      logsRef.current = l;
-      setLogs(l);
+      await freshRead({ queue, writes }, () => loadWaterLogs(db, date), () => live, (l) => {
+        logsRef.current = l;
+        setLogs(l);
+      });
     })().catch(() => {
       if (live) notify('Couldn’t read your saved water.');
     });
     return () => {
       live = false;
     };
-  }, [db, date, notify]);
+  }, [db, date, notify, reloadKey]);
 
   useEffect(() => {
     let live = true;
     (async () => {
-      const [weighIns, sets, sessions] = await Promise.all([loadWeights(db), loadSets(db, date), loadSessionLog(db)]);
-      if (!live) return;
-      setTarget(
-        waterTarget({
-          date,
-          weighIns,
-          profileWeightKg: profile?.weight_kg,
-          anySetDone: sets.some((s) => s.done && !s.deleted_at),
-          planned: planned(date, { profile, sessions }),
-        }),
+      // The ticked sets come from the Workout tab's writes, so the read waits for that queue too. Weights saved by the
+      // Progress hook's queue are not awaited: a just-logged weight reaches the target on the next focus or pull.
+      await freshRead(
+        { queue: dayQueue, writes: dayWrites },
+        () => Promise.all([loadWeights(db), loadSets(db, date), loadSessionLog(db)]),
+        () => live,
+        ([weighIns, sets, sessions]) =>
+          setTarget(
+            waterTarget({
+              date,
+              weighIns,
+              profileWeightKg: profile?.weight_kg,
+              anySetDone: sets.some((s) => s.done && !s.deleted_at),
+              planned: planned(date, { profile, sessions }),
+            }),
+          ),
       );
     })().catch(() => {
       if (live) notify('Couldn’t read your saved water.');
@@ -69,10 +81,11 @@ export function useWater({ db, date, now, profile, notify }: Options) {
     return () => {
       live = false;
     };
-  }, [db, date, profile, notify, shown]);
+  }, [db, date, profile, notify, shown, reloadKey]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
+      writes.current++;
       queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
     },
     [notify],
