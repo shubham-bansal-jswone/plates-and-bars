@@ -1,8 +1,8 @@
 # Staging stack: API + MySQL + Caddy (HTTPS). Open-source images pinned by version; all have linux/arm64 builds
 # (checked 2026-10-12), so this runs on an Oracle Cloud Always Free ARM (Ampere A1) VM. Run from this directory:
 #   cp .env.example .env   # fill in; never commit .env
-#   CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" API_TAG=<git sha> docker compose build api
-#   API_TAG=<git sha> docker compose up -d
+#   CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" docker compose build api   # API_TAG from .env
+#   docker compose up -d
 # Secrets come from the environment (.env on the VM, or exported variables), never from this file.
 # Nothing here deploys anything: see RUNBOOK.md.
 name: plateandbar-staging
@@ -34,8 +34,9 @@ services:
       context: ../..
       dockerfile: backend/Dockerfile
       args:
-        # Required by the Dockerfile; compute on a full-history checkout (backend/README.md).
-        CONTENT_UPDATED_AT: ${CONTENT_UPDATED_AT:?set CONTENT_UPDATED_AT from backend/scripts/content-updated-at.sh}
+        # Required by the Dockerfile, which fails the build when it is empty; compute on a full-history checkout
+        # (backend/README.md). Not `:?` here: that would make every compose command (exec, stop, backup.sh) need it.
+        CONTENT_UPDATED_AT: ${CONTENT_UPDATED_AT:-}
     restart: unless-stopped
     depends_on:
       mysql:

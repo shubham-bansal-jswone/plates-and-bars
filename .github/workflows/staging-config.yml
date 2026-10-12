@@ -26,12 +26,20 @@ jobs:
         run: docker compose --env-file .env.example config --quiet
       - name: required secrets must have no default
         run: |
-          if env -i PATH="$PATH" docker compose --env-file /dev/null config --quiet 2> err.txt; then
-            echo "::error::compose config passed without any variables: a required secret has a default"; exit 1
-          fi
-          grep -q 'required variable' err.txt
-      - name: shellcheck backup.sh
-        run: shellcheck backup.sh
+          for v in MYSQL_ROOT_PASSWORD DB_PASSWORD JWT_SIGNING_KEY SMTP_HOST SMTP_FROM API_HOST API_TAG; do
+            sed "/^$v=/d" .env.example > one-missing.env
+            if env -i PATH="$PATH" docker compose --env-file one-missing.env config --quiet 2> err.txt; then
+              echo "::error::compose config passed without $v: it must be required (\${$v:?...})"; exit 1
+            fi
+            grep -q "required variable $v" err.txt
+          done
+      - name: shellcheck
+        run: shellcheck backup.sh test-backup.sh
+      - name: backup.sh against a stub docker
+        run: ./test-backup.sh
       - name: every image is pinned to a version
         run: |
-          ! docker compose --env-file .env.example config --images | grep -E ':latest$|^[^:]+$' | grep -v '^plateandbar-api:'
+          if docker compose --env-file .env.example config --images | grep -E ':latest$|^[^:]+$' | grep -v '^plateandbar-api:'; then
+            echo "::error::unpinned image"; exit 1
+          fi
+          grep -Eq '^rclone_image="rclone/rclone:[0-9]+\.[0-9]+\.[0-9]+"$' backup.sh
