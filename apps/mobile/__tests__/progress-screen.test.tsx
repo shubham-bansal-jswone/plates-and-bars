@@ -627,7 +627,8 @@ describe('Rapid-loss card (#258)', () => {
     await screen.findByText('Weekly check-in');
     expect(screen.queryByText('Weight is dropping fast')).toBeNull();
     const db2 = memoryDb();
-    await seedWeights(db2, 99, 100, 100);
+    // The week before fell 2%, so the card would show if exactly 1% counted as fast.
+    await seedWeights(db2, 99, 100, 102);
     await setup({ db: db2 });
     await screen.findAllByText('Weekly check-in');
     expect(screen.queryByText('Weight is dropping fast')).toBeNull();
@@ -663,7 +664,7 @@ describe('Rapid-loss card (#258)', () => {
     expect(screen.getByText(`Calories raised to ${(before.kcal + 150).toLocaleString('en-IN')}`)).toBeTruthy();
   });
 
-  it('"Not now" hides it for the week and counts a kcal-up decline; the third offers to stop', async () => {
+  it('"Not now" hides it for the week and counts a kcal-up decline', async () => {
     const db = memoryDb();
     await seedWeights(db, 80, 80.9, 82);
     await setup({ db });
