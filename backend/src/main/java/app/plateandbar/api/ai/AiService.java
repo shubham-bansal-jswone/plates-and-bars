@@ -109,6 +109,8 @@ public class AiService {
             ObjectNode reply;
             try {
                 reply = answer(userId, feature, call, held);
+            } catch (BilledFailure e) {
+                throw e; // the provider answered and was billed: the unit stays used
             } catch (RuntimeException e) {
                 quotas.release(held);
                 throw e;
@@ -139,16 +141,25 @@ public class AiService {
             log.warn("AI provider failed for feature {} ({})", feature.key(), e.getClass().getSimpleName());
             throw unavailable();
         }
-        if (c == null || c.text() == null) {
-            throw unavailable();
+        if (c == null) {
+            throw unavailable(); // no response at all, nothing billed: the unit is released
         }
-        // Billed from here on. If the reply does not parse, the contract still releases the daily unit (503), but
-        // these tokens stay recorded and count against the monthly budget. Whether a billed failure should keep the
-        // unit is a contract question (#353), not decided here.
+        // A response was received, so it was billed: record the tokens before any check of the text. From here on a
+        // failure (no text, or a reply that does not parse) is still 503, but the daily unit stays used.
         quotas.recordTokens(held, c.inputTokens(), c.outputTokens());
-        ObjectNode reply = call.parser().apply(c.text()).orElseThrow(AiService::unavailable);
+        if (c.text() == null) {
+            throw new BilledFailure();
+        }
+        ObjectNode reply = call.parser().apply(c.text()).orElseThrow(BilledFailure::new);
         cache.put(key, reply);
         return reply;
+    }
+
+    /** 503 {@code unavailable} after the provider's billed response could not be used; keeps the quota unit. */
+    private static final class BilledFailure extends ApiException {
+        BilledFailure() {
+            super(HttpStatus.SERVICE_UNAVAILABLE, "unavailable", "Couldn't get an answer just now. Try again.");
+        }
     }
 
     static ApiException unavailable() {

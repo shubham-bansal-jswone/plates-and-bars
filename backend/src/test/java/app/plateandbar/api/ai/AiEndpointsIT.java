@@ -165,7 +165,7 @@ class AiEndpointsIT extends AiITBase {
     }
 
     @Test
-    void badRepliesAre503UnavailableAndTheUnitIsReleased() throws Exception {
+    void aBilledReplyThatCannotBeUsedIs503ButKeepsTheUnitAndItsTokens() throws Exception {
         String u = newUser();
         List<String> bad = new ArrayList<>(List.of("not json", "[]", "{}", "{\"items\":\"x\"}",
                 "{\"items\":[{\"name\":\"" + "n".repeat(101) + "\",\"qty\":\"\",\"kcal\":1,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1}]}"));
@@ -174,16 +174,29 @@ class AiEndpointsIT extends AiITBase {
             many.append(i == 0 ? "" : ",").append("{\"name\":\"a\",\"qty\":\"\",\"kcal\":1,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1}");
         }
         bad.add(many.append("]}").toString());
+        int n = 0;
         for (String r : bad) {
             reply(r);
             var res = post(u, DESCRIBE, "{\"text\":\"x\"}");
             assertThat(res.getStatusCode().value()).as(r.substring(0, Math.min(30, r.length()))).isEqualTo(503);
             assertThat(body(res).path("code").asText()).isEqualTo("unavailable");
-            assertThat(calls(u)).isZero();
+            // The provider answered and was billed: the unit stays used (security review M1).
+            assertThat(calls(u)).isEqualTo(++n);
         }
-        // The contract releases the unit, but the provider billed these calls: their tokens stay recorded, so they
-        // count against the global monthly budget (security review M1; per-user cap needs a contract decision, #353).
         assertThat(tokens(u)).isEqualTo(150L * bad.size());
+    }
+
+    @Test
+    void aBilledResponseWithNoTextKeepsTheUnitButNoResponseAtAllReleasesIt() {
+        String u = newUser();
+        when(provider.complete(any(), any(), any())).thenReturn(new AiProvider.Completion(null, 100, 50));
+        assertThat(post(u, DESCRIBE, "{\"text\":\"x\"}").getStatusCode().value()).isEqualTo(503);
+        assertThat(calls(u)).isEqualTo(1);
+        assertThat(tokens(u)).isEqualTo(150L);
+        when(provider.complete(any(), any(), any())).thenReturn(null);
+        assertThat(post(u, DESCRIBE, "{\"text\":\"y\"}").getStatusCode().value()).isEqualTo(503);
+        assertThat(calls(u)).as("nothing came back, nothing billed").isEqualTo(1);
+        assertThat(tokens(u)).isEqualTo(150L);
     }
 
     @Test
@@ -254,7 +267,7 @@ class AiEndpointsIT extends AiITBase {
             reply(r);
             assertThat(post(u, ASK, "{\"card_id\":\"protein\",\"question\":\"why?\"}").getStatusCode().value()).as(r).isEqualTo(503);
         }
-        assertThat(calls(u)).isZero();
+        assertThat(calls(u)).as("billed replies keep their units").isEqualTo(5);
     }
 
     @Test
