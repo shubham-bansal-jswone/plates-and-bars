@@ -106,6 +106,20 @@ function checkBounds(node, path) {
 }
 for (const [table, prop] of Object.entries(schemas.SyncChanges.properties)) checkBounds(prop.items, `SyncChanges.${table}`);
 if (bounded === 0) failures.push("openapi.yaml: no record fields found for the bounds check");
+// YAML 1.1 readers (SnakeYAML under the backend's Jackson YAMLMapper) read bare y/n/yes/no/on/off (any case) as
+// booleans and a leading-zero integer such as 010 as octal. Jackson keeps mapping keys as text but converts values,
+// including flow and block list items, so `required: [..., on]` became `true` on the server (#418). Quote them all.
+const word = "(?:y|n|yes|no|on|off)";
+const end = "\\s*(?:#.*)?$";
+const yaml11 = [
+  new RegExp(`^\\s*(?:- )?${word}\\s*:(?:\\s|$)`, "i"), // mapping key
+  new RegExp(`[\\[,]\\s*${word}\\s*(?=[,\\]])`, "i"), // flow list item (octal not checked here: prose has 2,097,152)
+  new RegExp(`^\\s*-\\s+(?:${word}|0[0-9]+)${end}`, "i"), // block list item
+  new RegExp(`^\\s*[\\w$'"-]+:\\s+(?:${word}|0[0-9]+)${end}`, "i"), // plain mapping value
+];
+for (const [i, line] of spec.split("\n").entries()) {
+  if (yaml11.some((re) => re.test(line))) failures.push(`openapi.yaml:${i + 1}: quote the YAML 1.1 boolean or octal in: ${line.trim()}`);
+}
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
