@@ -39,6 +39,12 @@ class SyncRequestValidatorDetailsTest {
         return Req.of(null).add(SyncTable.water_logs, r).build();
     }
 
+    private static ObjectNode exclusion(String json) {
+        ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.exclusions);
+        r.setAll(SyncFixtures.obj(json));
+        return Req.of(null).add(SyncTable.exclusions, r).build();
+    }
+
     private static ErrorResponse.Detail d(String field, String issue) {
         return new ErrorResponse.Detail(field, issue);
     }
@@ -58,8 +64,10 @@ class SyncRequestValidatorDetailsTest {
                     r.put("qty", "one");
                 }), List.of(d("changes.food_logs[0].qty", "type"), d("changes.food_logs[0].kcal", "required"))),
                 Arguments.of("unknown table", (ObjectNode) Req.of(null).build().set("changes",
-                        SyncFixtures.obj("{'meals':[]}")), List.of(d("changes.meals", "additionalProperties"))),
+                        SyncFixtures.obj("{'meals':[]}")), List.of(d("changes", "additionalProperties")) /* the key is never echoed (#419) */),
                 Arguments.of("cursor type", (ObjectNode) Req.of(null).build().put("cursor", 5), List.of(d("cursor", "type"))),
+                Arguments.of("exclusion key too long", exclusion("{'to':{'%s':null}}".formatted("x".repeat(201))),
+                        List.of(d("changes.exclusions[0].to", "propertyNames"))), // the key is never echoed (#419)
                 Arguments.of("missing changes", (ObjectNode) SyncFixtures.obj("{'cursor':null}"), List.of(d("changes", "required"))));
     }
 

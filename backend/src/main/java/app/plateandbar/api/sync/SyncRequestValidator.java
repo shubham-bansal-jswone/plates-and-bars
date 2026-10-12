@@ -153,7 +153,10 @@ public class SyncRequestValidator {
         for (String part : m.getInstanceLocation().toString().split("/")) {
             appendSegment(path, part);
         }
-        appendSegment(path, m.getProperty());
+        // For additionalProperties and propertyNames the property is the key the client sent: never echo it (#419).
+        if (!"additionalProperties".equals(m.getKeyword()) && !"propertyNames".equals(m.getKeyword())) {
+            appendSegment(path, m.getProperty());
+        }
         return new ErrorResponse.Detail(path.toString(), m.getKeyword());
     }
 
