@@ -1,12 +1,12 @@
 import { StyleSheet, View } from 'react-native';
-import { CARDIO_WEEK_MIN, round1 } from '@plate-and-bar/core';
+import { CARDIO_WEEK_MIN, RAPID_LOSS_KCAL, round1 } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Card, Hint } from '../components/ui';
 import { fmt, shortDate } from '../format';
 import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { BURN_HOW, BURN_TITLE, CHECKIN_NEEDS_SETUP, CHECKIN_TITLE, HABIT_MESSAGE, KEEP_TARGETS, NOT_NOW, SETTINGS_UNREADABLE, STOP_SUGGESTING, WEIGHT_WEEK_NONE } from './copy';
+import { BURN_HOW, BURN_TITLE, CHECKIN_NEEDS_SETUP, CHECKIN_TITLE, HABIT_MESSAGE, KEEP_TARGETS, NOT_NOW, RAPID_BODY, RAPID_TITLE, SETTINGS_UNREADABLE, STOP_SUGGESTING, WEIGHT_WEEK_NONE } from './copy';
 import type { useCheckin } from './useCheckin';
 
 type Checkin = ReturnType<typeof useCheckin>;
@@ -18,6 +18,22 @@ function Stat({ big, small, label }: { big: string; small?: string; label: strin
     <Card style={styles.stat} accessible accessibilityLabel={`${big}${small ?? ''} ${label}`}>
       <Text style={[typeScale.title, { color: c.ink }]}>{big}{small ? <Text style={{ color: c.muted, fontSize: 13 }}>{small}</Text> : null}</Text>
       <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
+    </Card>
+  );
+}
+
+/** "Weight is dropping fast": offers adding 150 kcal to the targets. Nothing shows when muted, dismissed, or settings are unreadable. */
+export function RapidLossCard({ c: ci }: { c: Checkin }) {
+  const t = useTheme();
+  const r = ci.rapid;
+  if (!r || ci.settingsFailed) return null;
+  return (
+    <Card style={styles.gap}>
+      <Text style={{ color: t.ink, fontWeight: '700' }}>{RAPID_TITLE}</Text>
+      <Text style={{ color: t.ink }}>{RAPID_BODY(round1(r.drop), r.twoWeeks, r.stalls)}</Text>
+      <Button label={`Add ${RAPID_LOSS_KCAL} kcal`} onPress={() => void ci.addCalories()} />
+      <Button label={NOT_NOW} kind="ghost" onPress={ci.declineRapid} />
+      {ci.rapidDeclines >= 3 ? <Button label={STOP_SUGGESTING} kind="ghost" onPress={ci.stopSuggestingRapid} /> : null}
     </Card>
   );
 }
