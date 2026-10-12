@@ -8,6 +8,7 @@ export const CUSTOM_MESSAGE: Record<Exclude<CustomFoodResult['kind'], 'ok'>, str
   invalid: 'Calories, macros and servings can’t be negative, and servings must be more than 0.',
 };
 
+export const UNIT_TOO_LONG = 'That serving size is too long. Shorten it.';
 export const GRAMS_HINT = 'Grams are the weight in the brackets on the serving (the dry or ingredient weight, such as “50 g raw”), not the cooked weight.';
 export const TOO_SMALL = 'That amount is too small to log. Enter more grams or use servings.';
 export const notInGrams = (name: string, unit: string): string => `${name} is measured in ${unit}, not grams. Use servings.`;

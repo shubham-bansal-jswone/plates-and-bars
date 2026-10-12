@@ -16,6 +16,7 @@ export const LOAD_FAILED = 'Couldn’t read your saved kitchen tests.';
 export const listIntro = (n: number): string =>
   `Weigh dishes as you cook to build your own food data: real home portions, oil included. ${n ? `${n} dish${n > 1 ? 'es' : ''} tested.` : 'Start with dal, roti, rice, sabzi, poha, idli and dosa.'}`;
 
+export const NOTE_TOO_LONG = 'That note is too long. Shorten it.';
 export const problem = (r: Exclude<KitchenTestFoodResult, { kind: 'ok' | 'no-serving' }>): string =>
   ({
     'no-name': 'Name the dish.',

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { kitchenTest, kitchenTestFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
+import { kitchenNoteTooLong, kitchenTest, kitchenTestFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BAD_DATE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, problem } from '../kitchen/copy';
+import { BAD_DATE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
 import { getRawIngredients } from '../recipes/content';
@@ -91,6 +91,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
   const save = (use: boolean) => {
     const r = kitchenTestFood(input, getRawIngredients());
     if (r.kind !== 'ok' && r.kind !== 'no-serving') return notify(problem(r));
+    if (kitchenNoteTooLong(d.note)) return notify(NOTE_TOO_LONG);
     if (!dateOk) return notify(BAD_DATE);
     if (use && r.kind === 'ok') {
       store.save(d, r.name, r.food);
