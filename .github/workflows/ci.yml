@@ -28,6 +28,7 @@ jobs:
       run_backend: ${{ steps.d.outputs.run_backend }}
       run_tools: ${{ steps.d.outputs.run_tools }}
       run_site: ${{ steps.d.outputs.run_site }}
+      run_e2e: ${{ steps.d.outputs.run_e2e }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -190,3 +191,51 @@ jobs:
         working-directory: .
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm run a11y
+
+  e2e:
+    name: e2e (web, Playwright)
+    needs: changes
+    if: needs.changes.outputs.run_e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            apps/mobile/package-lock.json
+            tests/e2e/package-lock.json
+      - name: Build the web app
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: 1 # Expo CLI sends telemetry otherwise
+        run: |
+          npm ci
+          npx expo export --platform web
+      - name: Install test dependencies
+        working-directory: tests/e2e
+        run: npm ci
+      # Playwright (Apache-2.0) drives open-source Chromium (BSD-3-Clause) installed with @puppeteer/browsers
+      # (Apache-2.0), as in the site job. Playwright's own browser download (Microsoft CDN builds) is not used.
+      - name: Install Chromium
+        working-directory: tests/e2e
+        run: |
+          out="$(npx --no-install @puppeteer/browsers install chromium@latest --path "$RUNNER_TEMP/browsers")"
+          echo "$out"
+          echo "CHROME_PATH=${out##* }" >> "$GITHUB_ENV"
+      - name: Chromium is available
+        run: '"$CHROME_PATH" --version'
+      # Same sandbox note as the site job: keep the Chromium sandbox on and relax the runner's AppArmor rule.
+      - name: Allow Chromium sandbox (unprivileged user namespaces)
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Playwright tests
+        working-directory: tests/e2e
+        run: npx playwright test
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-traces
+          path: tests/e2e/test-results/
+          retention-days: 7
