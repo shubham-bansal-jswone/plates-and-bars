@@ -18,8 +18,9 @@
 # Left empty, every client shares the proxy's rate-limit buckets.
 #
 # Request body: the backend refuses bodies over SYNC_MAX_BODY_BYTES (default 2097152 = 2 MiB) with 400 too_large.
-# The proxy limit below must never be lower than that, or Caddy answers 413 first (the app treats 413 like
-# too_large, but the contract error is better). If you raise SYNC_MAX_BODY_BYTES, raise max_size too.
+# The proxy limit below (4 MiB) sits above that so the backend's contract error is what clients see; Caddy's own
+# 413 only stops bodies far past any valid request (the app treats 413 like too_large anyway). If you raise
+# SYNC_MAX_BODY_BYTES, keep max_size above it.
 {$API_HOST:api.example.com} {
 	encode zstd gzip
 
@@ -35,7 +36,7 @@
 	# Only the API is exposed; anything else (actuator, probes of other paths) never reaches the backend.
 	handle /api/* {
 		request_body {
-			max_size 2MiB
+			max_size 4MiB
 		}
 		reverse_proxy {$API_UPSTREAM:api:8080} {
 			# Take the upstream out of rotation while /health is not 200 (503 = database unreachable).
