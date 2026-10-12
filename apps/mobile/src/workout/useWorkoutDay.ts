@@ -59,6 +59,7 @@ interface Options {
 }
 
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
+const unversioned = ({ version: _v, ...w }: Workout): string => JSON.stringify(w);
 
 /**
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
@@ -116,12 +117,15 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     if (!overTombstone && stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
     const mine = { ...d.workout, exercises: d.exs.map(exerciseRecord) };
     // Changed since this screen loaded or wrote it (a pull, or a rule saved on Targets): merge rather than overwrite (#410).
+    // Compared by content, not by the stamp (whole seconds); a sync push only patches `version`.
     const base = synced.current;
-    const elsewhere = !overTombstone && !!base && !!stored && !stored.deleted_at && stored.updated_at !== base.updated_at;
+    const elsewhere = !overTombstone && !!base && !!stored && !stored.deleted_at && unversioned(stored) !== unversioned(base);
     const row = { ...(elsewhere ? mergeWorkout(base, mine, stored) : mine), version: stored?.version ?? d.workout.version, updated_at: stamp(now()) };
     await saveWorkout(db, row);
-    synced.current = row;
+    // After a merge the base stays as it was until the reload: the screen still shows its old list, so a write queued
+    // before the reload has to merge again rather than write that list back.
     if (elsewhere) setMerged((n) => n + 1);
+    else synced.current = row;
   };
   const writeSets = async (i: number, kind: 'work' | 'ramp', indexes: number[]) => {
     const stored = new Map((await loadSets(db, date)).map((s) => [s.id, s]));
@@ -440,10 +444,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       });
       d.workout = { ...w, exercises: ch.exercises };
       commit(d);
-      void enqueue(async () => {
-        await persistCant(db, date, w, ch, at);
-        synced.current = await loadWorkout(db, date);
-      });
+      void enqueue(() => persistCant(db, date, w, ch, at));
     }
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };

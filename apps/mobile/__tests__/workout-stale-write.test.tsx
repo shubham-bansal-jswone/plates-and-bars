@@ -241,4 +241,20 @@ describe('a workout row changed elsewhere after the screen loaded (#410)', () =>
     expect(stored.exercises.find((e) => e.name === kept)?.form).toBe('yes');
     await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toEqual(swapped));
   });
+
+  it('two writes queued before the reload both keep the swap, even within the same second', async () => {
+    const { db, result } = await started();
+    await applyCantToStoredDay({ db, date: DATE, now: NOW, draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
+    const swapped = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    const kept = result.current.day.exs.find((e) => swapped.includes(e.name))!.name;
+    const i = result.current.day.exs.findIndex((e) => e.name === kept);
+    await act(async () => {
+      result.current.setForm(i, 'yes');
+      result.current.rampSkip(i);
+    });
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.exercises.map((e) => e.name)).toEqual(swapped);
+    expect(stored.exercises.find((e) => e.name === kept)).toMatchObject({ form: 'yes', skip_ramp: true });
+  });
 });
