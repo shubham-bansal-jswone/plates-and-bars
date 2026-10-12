@@ -17,4 +17,4 @@ Server copies of the `content/*.json` bundles are fetched and stored by `refresh
 
 A bundle `name` is the file name without `.json` (it must exist in `bundled.json`). `loadContent` already drops copies whose `schema_version` this build does not support.
 
-A bundle that another area still reads from the shipped import (raw-ingredients until recipes migrate) is read from the shipped import by every reader until all of them move together.
+A bundle that another area still reads from the shipped import is read from the shipped import by every reader until all of them move together. (raw-ingredients and recipes moved together: `src/recipes/content.ts`.)
