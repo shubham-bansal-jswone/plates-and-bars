@@ -25,7 +25,7 @@ export interface SyncState {
   /** The server already deleted this account and only this device's wipe is left (kept across restarts): never offer to sign in to delete. */
   wipePending: boolean;
   /** Set by a finished deletion, above the remount it causes, so the next screen can say so once. */
-  lastDeletion: { server: boolean } | null;
+  lastDeletion: { server: boolean; linked: boolean } | null;
   clearLastDeletion(): void;
   /** Unsynced local changes (0 when everything is pushed). */
   pending: number;
@@ -76,7 +76,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const [signedIn, setSignedIn] = useState(false);
   const [linked, setLinked] = useState(false);
   const [wipePending, setWipePending] = useState(false);
-  const [lastDeletion, setLastDeletion] = useState<{ server: boolean } | null>(null);
+  const [lastDeletion, setLastDeletion] = useState<{ server: boolean; linked: boolean } | null>(null);
   const [pending, setPending] = useState(0);
   const [quarantined, setQuarantined] = useState(0);
   const [syncing, setSyncing] = useState(false);
@@ -95,7 +95,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         setSignedIn(false);
         setLinked(false);
         setWipePending(false);
-        setLastDeletion({ server: r.server });
+        setLastDeletion({ server: r.server, linked: r.linked });
         setEpoch((e) => e + 1);
         setPending(await pendingCount(db));
       } else if (r.kind === 'local_failed') {

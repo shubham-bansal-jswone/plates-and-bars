@@ -63,8 +63,8 @@ export async function exportFromServer(db: Db, api: ApiClient | null, tokens: To
 }
 
 export type DeleteResult =
-  /** Everything is gone: the account (`server` true) and this device's store. `server` false: this device only. */
-  | { kind: 'deleted'; server: boolean }
+  /** Everything is gone: the account (`server` true) and this device's store. `server` false: this device only. `linked`: the device belonged to an account (false: it never signed in). */
+  | { kind: 'deleted'; server: boolean; linked: boolean }
   /** Nothing was deleted: no connection, the server failed (5xx), or it refused. Local data is untouched. */
   | { kind: 'offline' | 'unavailable' }
   | { kind: 'rate_limited'; retryAfterSec: number }
@@ -154,6 +154,6 @@ export async function deleteEverything(d: { db: Db; api: ApiClient | null; token
     } catch (e) {
       return e instanceof OwnerChanged ? { kind: 'owner_changed', server } : { kind: 'local_failed' };
     }
-    return { kind: 'deleted', server };
+    return { kind: 'deleted', server, linked: userId !== null };
   });
 }

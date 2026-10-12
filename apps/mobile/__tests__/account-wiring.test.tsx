@@ -79,12 +79,24 @@ describe('SyncProvider account wiring (#27)', () => {
     const { db } = await mount({ bound: true, withSetup: true });
     await waitFor(() => expect(now().linked).toBe(true));
     await act(async () => {
-      expect(await now().deleteEverything({ deviceOnly: true })).toEqual({ kind: 'deleted', server: false });
+      expect(await now().deleteEverything({ deviceOnly: true })).toEqual({ kind: 'deleted', server: false, linked: true });
     });
     expect(now().linked).toBe(false);
-    expect(now().lastDeletion).toEqual({ server: false });
+    expect(now().lastDeletion).toEqual({ server: false, linked: true });
     expect(await getUserId(db)).toBeNull();
     expect(await screen.findByText('This device was cleared. Your account still exists.')).toBeTruthy();
+  });
+
+  it('a never-signed-in store is wiped as unlinked and the notice has no account sentence', async () => {
+    const { db } = await mount({ withSetup: true });
+    await waitFor(() => expect(now().configured).toBe(true));
+    await act(async () => {
+      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: false, linked: false });
+    });
+    expect(now().lastDeletion).toEqual({ server: false, linked: false });
+    expect(await getUserId(db)).toBeNull();
+    expect(await screen.findByText('Everything deleted. The data on this device is gone.')).toBeTruthy();
+    expect(screen.queryByText(/account still exists/)).toBeNull();
   });
 
   it('a signed-in delete says everything was deleted', async () => {
@@ -92,7 +104,7 @@ describe('SyncProvider account wiring (#27)', () => {
     await waitFor(() => expect(now().signedIn).toBe(true));
     fetchImpl = async () => new Response(null, { status: 204 });
     await act(async () => {
-      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: true });
+      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: true, linked: true });
     });
     expect(tokens.current).toBeNull();
     expect(now().signedIn).toBe(false);
