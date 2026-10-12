@@ -8,11 +8,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.networknt.schema.ValidationMessage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -26,7 +24,7 @@ class SyncContractIT extends SyncITBase {
     static final String NEW = "2026-10-08T11:30:00Z";
 
     private void assertConforms(String schema, JsonNode value) {
-        Set<ValidationMessage> problems = ContractSchemas.validate(schema, value);
+        List<com.networknt.schema.Error> problems = ContractSchemas.validate(schema, value);
         assertThat(problems).as(schema + " " + value).isEmpty();
     }
 

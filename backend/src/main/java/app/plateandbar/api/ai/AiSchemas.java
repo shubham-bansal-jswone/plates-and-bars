@@ -6,11 +6,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SchemaValidatorsConfig;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SchemaRegistryConfig;
+import com.networknt.schema.SpecificationVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedHashSet;
@@ -24,8 +23,9 @@ import org.springframework.stereotype.Component;
 class AiSchemas {
 
     private final JsonNode components;
-    private final SchemaValidatorsConfig config =
-            SchemaValidatorsConfig.builder().formatAssertionsEnabled(true).build();
+    private final SchemaRegistry registry =
+            SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
+                    b -> b.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build()));
 
     AiSchemas() {
         try (InputStream in = AiSchemas.class.getResourceAsStream("/openapi.yaml")) {
@@ -35,30 +35,30 @@ class AiSchemas {
         }
     }
 
-    private final java.util.Map<String, JsonSchema> cache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, Schema> cache = new java.util.concurrent.ConcurrentHashMap<>();
 
-    private JsonSchema schema(String name) {
+    private Schema schema(String name) {
         return cache.computeIfAbsent(name, n -> {
             ObjectNode wrapper = new ObjectMapper().createObjectNode();
             wrapper.put("$schema", "https://json-schema.org/draft/2020-12/schema");
             wrapper.put("$ref", "#/components/schemas/" + n);
             wrapper.set("components", components);
-            return JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(wrapper, config);
+            return registry.getSchema(wrapper);
         });
     }
 
     /** Problems as (field, keyword) pairs; never the submitted value. Empty when valid. */
     List<ErrorResponse.Detail> problems(String schemaName, JsonNode body) {
         Set<ErrorResponse.Detail> out = new LinkedHashSet<>();
-        for (ValidationMessage m : schema(schemaName).validate(body)) {
+        for (com.networknt.schema.Error m : schema(schemaName).validate(body)) {
             StringBuilder path = new StringBuilder();
             for (String part : m.getInstanceLocation().toString().split("/")) {
                 append(path, part);
             }
-            if (!"additionalProperties".equals(m.getType())) {
+            if (!"additionalProperties".equals(m.getKeyword())) {
                 append(path, m.getProperty()); // for additionalProperties it is the submitted key: never echo it
             }
-            out.add(new ErrorResponse.Detail(path.toString(), m.getType()));
+            out.add(new ErrorResponse.Detail(path.toString(), m.getKeyword()));
         }
         return List.copyOf(out);
     }
