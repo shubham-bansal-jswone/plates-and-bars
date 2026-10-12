@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import TabsLayout from '../app/(tabs)/_layout';
 
 interface MockScreen {
@@ -23,6 +23,7 @@ jest.mock('expo-router', () => {
   );
   return { Tabs };
 });
+jest.mock('expo-router/tabs', () => ({ BottomTabBar: () => null }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 24, bottom: 20, left: 0, right: 0 }) }));
 const mockScreens: MockScreen[] = [];
 
@@ -50,6 +51,22 @@ describe('tab bar', () => {
       expect(on.size).toBe(24);
       expect(on.name).not.toMatch(/-outline$/);
       expect(off.name).toBe(`${on.name}-outline`);
+    }
+  });
+
+  it('puts the tab bar in a navigation landmark', async () => {
+    const bar = mockTabs.mock.calls[0][0].tabBar;
+    const os = Platform.OS;
+    try {
+      Platform.OS = 'web';
+      await render(bar({}));
+      expect(JSON.stringify(screen.toJSON())).toContain('"role":"navigation"');
+      await screen.unmount();
+      Platform.OS = 'android';
+      await render(bar({}));
+      expect(JSON.stringify(screen.toJSON())).not.toContain('navigation');
+    } finally {
+      Platform.OS = os;
     }
   });
 
