@@ -1,6 +1,6 @@
-import raw from '../../../../content/raw-ingredients.json';
 import { chosenEatout, chosenFoods } from '../food/catalog';
-import { perLoad, type FoodSource } from '../content/reader';
+import { perLoad } from '../content/reader';
+import { chosenRaw } from '../recipes/content';
 
 export interface SourceInfo {
   code: string;
@@ -10,11 +10,8 @@ export interface SourceInfo {
   reference?: string | null;
 }
 
-// Foods and eat-out sources come from the same accepted-or-rejected bundles the catalog uses (never a separate check).
-// raw-ingredients: recipes still read the shipped copy, so About lists the shipped sources too until #328 moves both to one
-// validated reader; they then stay consistent.
-const rawSrc = (raw as unknown as { ingredients: { source: Src }[] }).ingredients.map((i) => i.source);
-type Src = FoodSource;
+// Foods, eat-out and raw-ingredients sources come from the same accepted-or-rejected bundles the catalog and the recipe
+// builder use (never a separate check).
 
 /** One entry per distinct source (code and name), since one code can be recorded under more than one name. */
 // A few raw-ingredient rows add "; values match USDA <item>" to the source name; that is a per-row note, not another source.
@@ -23,10 +20,10 @@ export const sourceKey = (s: { code: string; name: string }): string => `${s.cod
 
 /** Food data sources, names and licences exactly as recorded on the content rows (ADR 002 and 005). Resolved at first use after the content load. */
 export const getFoodSources = perLoad(() => {
-  const fromContent: Src[] = [
+  const fromContent = [
     ...chosenFoods().foods.map((f) => f.source),
     ...chosenEatout().cuisines.flatMap((c) => c.dishes.map((d) => d.source)),
-    ...rawSrc,
+    ...chosenRaw().ingredients.map((i) => i.source),
   ];
   return [...new Map(fromContent.map((s) => [sourceKey(s), { code: s.code, name: baseName(s.name), licence: s.licence, url: s.url, reference: s.reference }])).values()] as readonly SourceInfo[];
 });

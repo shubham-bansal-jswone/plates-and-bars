@@ -9,7 +9,7 @@ import { fmt, shortDate } from '../format';
 import { BAD_DATE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, problem } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
-import { rawIngredients } from '../recipes/content';
+import { getRawIngredients } from '../recipes/content';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { localDate } from '../setup/logic';
 import { useTheme } from '../theme/useTheme';
@@ -62,7 +62,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           <Hint>{listIntro(store.tests.length)}</Hint>
           {store.tests.map((t) => {
             const ps = (() => {
-              const r = kitchenTest(t, rawIngredients);
+              const r = kitchenTest(t, getRawIngredients());
               return r.ready ? r.perServing : null;
             })();
             return (
@@ -86,10 +86,10 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
   }
 
   const input: KitchenTestFoodInput = { name: d.name, serving_name: d.sname, ingredients: d.rows, pot_g: d.pot, pot_full_g: d.potFull, cooked_g: d.cooked, serving_g: d.serving };
-  const res = kitchenTest(input, rawIngredients);
+  const res = kitchenTest(input, getRawIngredients());
   const dateOk = validDate(d.date);
   const save = (use: boolean) => {
-    const r = kitchenTestFood(input, rawIngredients);
+    const r = kitchenTestFood(input, getRawIngredients());
     if (r.kind !== 'ok' && r.kind !== 'no-serving') return notify(problem(r));
     if (!dateOk) return notify(BAD_DATE);
     if (use && r.kind === 'ok') {
