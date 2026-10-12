@@ -34,6 +34,8 @@ npx expo export --platform web   # production web bundle; proves Metro resolves 
 
 ## Notes
 
+- Content bundles: screens read `content/*.json` through lazy, shape-checked getters; see `src/content/README.md`.
+
 - The local database opens on Android, iOS and web (expo-sqlite's wasm build on web, same migrations). It needs a cross-origin isolated page; see "Run it in a browser".
 - Token storage on web is the documented no-op: expo-secure-store has no web backend, so `saveTokens` stores nothing and `loadTokens` returns null (web sign-in will use in-memory tokens plus the refresh flow when auth lands). Profile and consent are in SQLite, not in tokens.
 - "Skip for now" leaves setup for this session; Targets then shows "Start setup". The next launch opens setup again while no profile exists.

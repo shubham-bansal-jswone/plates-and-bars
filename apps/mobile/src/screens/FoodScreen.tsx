@@ -9,7 +9,7 @@ import { Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../compone
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { catalogFoods, type CatalogFood } from '../food/catalog';
+import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
@@ -58,7 +58,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
   const target = kcalTarget(f.date, { flex: settings.flex }, profile);
-  const facts: FoodFacts[] = [...catalogFoods, ...f.mineFacts];
+  const facts: FoodFacts[] = [...getFoodCatalog(), ...f.mineFacts];
   const t = logTotals(f.logs, facts);
   const left = target - t.kcal;
   const complete = f.note?.complete === true;
@@ -84,7 +84,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     for (const [n, q] of items) {
       // My foods first, as the prototype's foodByName does.
       const mineFood = f.mine.map((u, i) => ({ ...f.mineFacts[i]!, id: u.id }) as CatalogFood).find((x) => x.name.toLowerCase() === n.toLowerCase());
-      const food = mineFood ?? catalogFoods.find((x) => x.name.toLowerCase() === n.toLowerCase());
+      const food = mineFood ?? getFoodCatalog().find((x) => x.name.toLowerCase() === n.toLowerCase());
       if (food) f.add(meal, logOf(food, q));
     }
     notify(`Logged your planned ${meal.toLowerCase()}`);
