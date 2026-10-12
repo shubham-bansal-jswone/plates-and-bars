@@ -248,9 +248,4 @@ describe('About sources follow the same decision as the catalog', () => {
     expect(isCatalogFood({ ...f, source: { ...f.source, code: 'ifct' } })).toBe(false);
     expect(isCatalogFood({ ...f, source: { ...f.source, url: 'https://fdc.nal.usda.gov/' } })).toBe(true);
   });
-
-  it('raw-ingredients sources stay the shipped ones, as recipes still read the shipped copy', async () => {
-    await launch({ 'raw-ingredients': { schema_version: 1, ingredients: [{ source: src }] } });
-    expect(getFoodSources().map(sourceKey)).not.toContain('kitchen_test|Server source');
-  });
 });

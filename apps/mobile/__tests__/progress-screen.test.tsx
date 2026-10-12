@@ -13,6 +13,11 @@ import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
+import measuresShipped from '../../../content/measures.json';
+import { BUNDLED } from '../src/content/bundled';
+import { loadContent } from '../src/content/loader';
+import { putStored } from '../src/content/store';
+import { openDb } from './sync-helpers';
 
 const mockPush = jest.fn();
 const mockFocus = { n: 0 };
@@ -565,5 +570,34 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText('Weekly check-in')).toBeTruthy();
     expect(screen.queryByLabelText('Not now')).toBeNull();
     expect(screen.queryByLabelText('Update my targets')).toBeNull();
+  });
+});
+
+describe('Body-fat wording follows the profile sex, not the content rules (#330)', () => {
+  // A stored copy with hips 'always' and a male-only rule on chest: no part has a female rule, and one has a male rule.
+  async function launchWithRules() {
+    const copy = JSON.parse(JSON.stringify(measuresShipped));
+    copy.measures[5].show = 'always';
+    copy.measures[2].show = { sex: 'male', or_entered_that_day: false };
+    const cdb = await openDb();
+    await putStored(cdb, { name: 'measures', sha256: 'x', schema_version: BUNDLED['measures']!.schema_version, updated_at: '2099-01-01T00:00:00Z', body: JSON.stringify(copy) });
+    await loadContent(cdb);
+  }
+  afterEach(async () => { await loadContent(await openDb()); });
+
+  it('female: the hint names hips even though no part has a female rule; hips and the male-only chest follow the content', async () => {
+    await launchWithRules();
+    await setup({ sex: 'female' });
+    expect(screen.getByText('Add waist and neck and hips for a body-fat estimate.')).toBeTruthy();
+    expect(screen.getByLabelText('Hips in cm')).toBeTruthy();
+    expect(screen.queryByLabelText('Chest in cm')).toBeNull();
+  });
+
+  it('male: the hint does not name hips even though a part has a male rule; hips always shows', async () => {
+    await launchWithRules();
+    await setup({ sex: 'male' });
+    expect(screen.getByText('Add waist and neck for a body-fat estimate.')).toBeTruthy();
+    expect(screen.getByLabelText('Hips in cm')).toBeTruthy();
+    expect(screen.getByLabelText('Chest in cm')).toBeTruthy();
   });
 });

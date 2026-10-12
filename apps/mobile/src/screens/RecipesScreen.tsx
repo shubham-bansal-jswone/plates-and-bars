@@ -7,7 +7,7 @@ import { Button, ErrorText, Field, Hint, H1, Label, Page, Press } from '../compo
 import { fmt } from '../format';
 import type { WorkoutDb } from '../db/workouts';
 import { MEALS, type Meal } from '../food/types';
-import { katoriG, library, presets, rawIngredients } from '../recipes/content';
+import { getKatoriG, getLibrary, getPresets, getRawIngredients } from '../recipes/content';
 import { CookMode } from '../recipes/CookMode';
 import { LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT } from '../recipes/copy';
 import { blankDraft, fromLibrary, fromPreset, fromRecipe, type Draft } from '../recipes/draft';
@@ -58,9 +58,9 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
   if (!store.ready) return <Page><Hint>Loading…</Hint></Page>;
 
   const yieldFields = { yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams };
-  const t = recipeTotals({ ingredients: d.rows, ...yieldFields }, rawIngredients, katoriG);
+  const t = recipeTotals({ ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
   const save = (log: boolean) => {
-    const r = recipeFood({ name: d.name, ingredients: d.rows, ...yieldFields }, rawIngredients, katoriG);
+    const r = recipeFood({ name: d.name, ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
     if (r.kind !== 'ok') return notify(problem(r));
     store.save({ result: r, yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams, oil: d.oil, editing: d.editing, log: log ? { meal: d.meal, qty: d.log } : null });
     if (log) return leave(onBack);
@@ -82,13 +82,13 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
         <View style={styles.gap}>
           <Label>{RB_INTRO}</Label>
           <View style={styles.wrap}>
-            {presets.map((p) => <Chip key={p.name} label={p.name} pressed={d.preset === p} onPress={() => setD(fromPreset(d, p, d.oil, !!d.editing && !!d.name))} />)}
+            {getPresets().map((p) => <Chip key={p.name} label={p.name} pressed={d.preset === p} onPress={() => setD(fromPreset(d, p, d.oil, !!d.editing && !!d.name))} />)}
             <Chip label="Blank" onPress={() => setD(blankDraft(meal))} />
           </View>
         </View>
         <View style={styles.gap}>
           <Label>Recipe library</Label>
-          <View style={styles.wrap}>{library.map((l) => <Chip key={l.name} label={l.name} pressed={d.lib === l} onPress={() => setD(fromLibrary(d, l))} />)}</View>
+          <View style={styles.wrap}>{getLibrary().map((l) => <Chip key={l.name} label={l.name} pressed={d.lib === l} onPress={() => setD(fromLibrary(d, l))} />)}</View>
           {d.lib ? <Hint>{`${d.lib.tags}, about ${d.lib.time_min} min, cost: ${d.lib.cost?.toLowerCase()}`}</Hint> : null}
         </View>
         {d.preset ? (
@@ -131,7 +131,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
           <Hint>{`Whole pot: ${fmt(t.total.kcal)} kcal, ${fmt(t.total.protein_g)} g protein, ${fmt(t.total.carbs_g)} g carbs, ${fmt(t.total.fat_g)} g fat.`}</Hint>
           {t.perKatori ? (
             <>
-              <Text style={{ color: c.ink, fontWeight: '700' }}>{`Per katori (about ${katoriG} g cooked): ${fmt(t.perKatori.kcal)} kcal, ${fmt(t.perKatori.protein_g)} g protein, ${fmt(t.perKatori.carbs_g)} g carbs, ${fmt(t.perKatori.fat_g)} g fat`}</Text>
+              <Text style={{ color: c.ink, fontWeight: '700' }}>{`Per katori (about ${getKatoriG()} g cooked): ${fmt(t.perKatori.kcal)} kcal, ${fmt(t.perKatori.protein_g)} g protein, ${fmt(t.perKatori.carbs_g)} g carbs, ${fmt(t.perKatori.fat_g)} g fat`}</Text>
               <Hint>{`Makes about ${r1(t.katoris)} katoris.`}</Hint>
             </>
           ) : (

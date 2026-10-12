@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { presetIngredients, recipeTotals } from '@plate-and-bar/core';
 import { RecipesScreen } from '../src/screens/RecipesScreen';
 import { fmt } from '../src/format';
-import { katoriG, library, presets, rawIngredients } from '../src/recipes/content';
+import { getKatoriG, getLibrary, getPresets, getRawIngredients } from '../src/recipes/content';
 import { stepMinutes } from '../src/recipes/CookMode';
 import { loadRecipes } from '../src/db/recipes';
 import { loadUserFoods } from '../src/db/food';
@@ -24,15 +24,15 @@ const food = (name: string, extra: Record<string, unknown> = {}) => ({ id: `f-${
 describe('Recipes screen: builder', () => {
   it('shows the whole pot and per-katori values core computes for a starting point at an oil level', async () => {
     await setup();
-    const dal = presets.find((p) => p.name === 'Dal')!;
+    const dal = getPresets().find((p) => p.name === 'Dal')!;
     await fireEvent.press(screen.getByLabelText('Dal'));
-    const t = recipeTotals({ ingredients: presetIngredients(dal.ingredients, 'normal', rawIngredients), yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, rawIngredients, katoriG);
+    const t = recipeTotals({ ingredients: presetIngredients(dal.ingredients, 'normal', getRawIngredients()), yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
     expect(screen.getByText(new RegExp(`^Whole pot: ${fmt(t.total.kcal)} kcal`))).toBeTruthy();
     expect(screen.getByText(new RegExp(`^Per katori \\(about 150 g cooked\\): ${fmt(t.perKatori!.kcal)} kcal`))).toBeTruthy();
     expect(screen.getByDisplayValue('Dal (home-style)')).toBeTruthy();
     // A richer oil level changes the fatty rows and the numbers.
     await fireEvent.press(screen.getByLabelText('Rich'));
-    const rich = recipeTotals({ ingredients: presetIngredients(dal.ingredients, 'rich', rawIngredients), yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, rawIngredients, katoriG);
+    const rich = recipeTotals({ ingredients: presetIngredients(dal.ingredients, 'rich', getRawIngredients()), yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
     expect(rich.total.kcal).toBeGreaterThan(t.total.kcal);
     expect(screen.getByText(new RegExp(`^Whole pot: ${fmt(rich.total.kcal)} kcal`))).toBeTruthy();
     expect(screen.getByDisplayValue('Dal (home-style)')).toBeTruthy();
@@ -195,8 +195,8 @@ describe('Recipes screen: library and cooking mode', () => {
 
   it('has the nine library recipes; one shows its tags, time and steps', async () => {
     await setup();
-    expect(library).toHaveLength(9);
-    const l = library[0]!;
+    expect(getLibrary()).toHaveLength(9);
+    const l = getLibrary()[0]!;
     await fireEvent.press(screen.getByLabelText(l.name));
     expect(screen.getByText(`${l.tags}, about ${l.time_min} min, cost: ${l.cost!.toLowerCase()}`)).toBeTruthy();
     expect(screen.getByText(`1. ${l.steps![0]}`)).toBeTruthy();
@@ -204,7 +204,7 @@ describe('Recipes screen: library and cooking mode', () => {
 
   it('cooking mode steps through, runs a timer for a step that gives minutes, and ends with Done', async () => {
     await setup();
-    const l = library.find((x) => x.name === 'Soya chunk pulao')!;
+    const l = getLibrary().find((x) => x.name === 'Soya chunk pulao')!;
     await fireEvent.press(screen.getByLabelText(l.name));
     await fireEvent.press(screen.getByLabelText('Cooking mode'));
     expect(screen.getByText(`Step 1 of ${l.steps!.length}`)).toBeTruthy();

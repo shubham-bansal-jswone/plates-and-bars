@@ -212,6 +212,12 @@ describe('exercises through the content store', () => {
     ['card easier_version 5000 characters', (b) => { b.cards[NEW].easier_version = 'x'.repeat(5000); }],
     ['card harder_version whitespace', (b) => { b.cards[NEW].harder_version = ' '; }],
     ['card where_to_feel whitespace', (b) => { b.cards[NEW].where_to_feel = ' '; }],
+    ['exercise name with a trailing space (a second Goblet Squat)', (b) => { b.tags[`${FIRST} `] = clone(b.tags[FIRST]); b.meta[`${FIRST} `] = clone(b.meta[FIRST]); b.cards[`${FIRST} `] = clone(b.cards[FIRST]); }],
+    ['exercise name with a leading space', (b) => { b.tags[` ${NEW}`] = b.tags[NEW]; b.meta[` ${NEW}`] = b.meta[NEW]; delete b.tags[NEW]; delete b.meta[NEW]; delete b.cards[NEW]; b.library.Chest.pop(); }],
+    ['pattern with a trailing space', (b) => { b.tags[NEW].pattern = 'squat '; }],
+    ['joint with a leading space', (b) => { b.tags[NEW].joints = [' knee']; }],
+    ['away target with no card (card check on away targets)', (b) => { b.tags[NEW].equipment = 'bodyweight'; delete b.cards[NEW]; b.library.Chest.pop(); b.away_map.dumbbells_bodyweight[AWAY_KEY][1] = NEW; }],
+    ['away column 0 target with no card', (b) => { b.tags[NEW].equipment = 'dumbbell'; delete b.cards[NEW]; b.library.Chest.pop(); b.away_map.dumbbells_bodyweight[AWAY_KEY][0] = NEW; }],
     ['exercise name whitespace only', (b) => { b.tags[' '] = b.tags[NEW]; b.meta[' '] = b.meta[NEW]; }],
     ...['toString', 'constructor', 'hasOwnProperty', 'valueOf', '__proto__'].flatMap((p): [string, (b: Obj) => void][] => [
       [`pattern ${p}`, (b) => { b.tags[NEW].pattern = p; }],

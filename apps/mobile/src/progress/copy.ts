@@ -1,5 +1,6 @@
 import measuresContent from '../../../../content/measures.json';
 import type { MeasureKey } from '@plate-and-bar/core';
+import { contentReader, isObj, isStr, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
 export interface MeasureDef {
@@ -9,11 +10,43 @@ export interface MeasureDef {
   show: 'always' | { sex: string; or_entered_that_day: boolean };
 }
 
-export const MEASURES: readonly MeasureDef[] = measuresContent.measures.map((m) => ({
-  key: `${m.key}_cm` as MeasureKey,
-  label: m.label,
-  show: m.show as MeasureDef['show'],
-}));
+/** The six tape parts core reads and the contract `Measurement` stores (without `_cm`). */
+type Part = MeasureKey extends `${infer K}_cm` ? K : never;
+const MEASURE_KEYS = ['waist', 'neck', 'chest', 'arm', 'thigh', 'hips'] as const satisfies readonly Part[];
+// Compile-time: every core MeasureKey is listed, so a rename or an added part fails to compile here.
+const _allParts: Exclude<Part, (typeof MEASURE_KEYS)[number]> extends never ? true : never = true;
+void _allParts;
+const KEYS: readonly string[] = MEASURE_KEYS;
+const isShow = (v: unknown): boolean =>
+  v === 'always' || (isObj(v) && (v.sex === 'male' || v.sex === 'female') && typeof v.or_entered_that_day === 'boolean');
+/** The one rule a part may carry besides `always`: hips for women, or when entered that day (as the shipped copy has it). */
+const isHipsRule = (v: unknown): boolean => isObj(v) && v.sex === 'female' && v.or_entered_that_day === true;
+interface MeasuresBundle { unit: string; measures: { key: string; label: string; show: MeasureDef['show'] }[] }
+
+/**
+ * A stored measures copy must be in cm, with only known parts (each once, a label of 1 to 200 characters, a show rule the
+ * screen understands) and every part the shipped copy has: body-fat and the waist chart read waist, neck and hips by key.
+ */
+const isMeasures = (v: unknown): v is MeasuresBundle => {
+  if (!isObj(v) || v.unit !== 'cm' || !Array.isArray(v.measures)) return false;
+  const seen = new Set<string>();
+  for (const m of v.measures) {
+    if (!isObj(m) || !isStr(m.key) || !KEYS.includes(m.key) || seen.has(m.key) || !isStr(m.label) || m.label.trim().length === 0 || m.label.length > 200 || !isShow(m.show)) return false;
+    // Body fat and the waist chart read waist and neck, and hips is only for women: a copy must not change those rules.
+    if ((m.key === 'waist' || m.key === 'neck') && m.show !== 'always') return false;
+    if (m.key === 'hips' && m.show !== 'always' && !isHipsRule(m.show)) return false;
+    seen.add(m.key);
+  }
+  return KEYS.every((k) => seen.has(k));
+};
+
+/** The single accept or reject decision for the measures bundle. */
+export const chosenMeasures = contentReader('measures', measuresContent as unknown as MeasuresBundle, isMeasures);
+
+/** The tape parts, in content order. Call it where it is used, not at module level. */
+export const getMeasures: () => readonly MeasureDef[] = perLoad(() =>
+  chosenMeasures().measures.map((m) => ({ key: `${m.key}_cm` as MeasureKey, label: m.label, show: m.show })),
+);
 
 // Messages from the prototype's Progress screen.
 export const WEIGHT_HINT = 'Weigh in each morning before eating. Day-to-day swings of a kilo are normal; the weekly direction is what counts.';

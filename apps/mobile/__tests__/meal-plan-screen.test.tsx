@@ -7,7 +7,7 @@ import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { getFoodCatalog } from '../src/food/catalog';
-import { mealGrocery, mealPlanning } from '../src/meals/content';
+import { getMealGrocery, getMealPlanning } from '../src/meals/content';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
@@ -29,7 +29,7 @@ const profile = () =>
 type Db = ReturnType<typeof memoryDb>;
 const expected = (diet: 'any' | 'egg' | 'veg' = 'any'): MealPlan => {
   const t = profile().targets;
-  return buildPlan({ kcal: t.kcal, protein: t.protein_g, fat: t.fat_g, age: 30 }, DATE, { foods: getFoodCatalog(), planning: mealPlanning, diet });
+  return buildPlan({ kcal: t.kcal, protein: t.protein_g, fat: t.fat_g, age: 30 }, DATE, { foods: getFoodCatalog(), planning: getMealPlanning(), diet });
 };
 async function setup(onBack = jest.fn(), db: Db = memoryDb()) {
   await saveProfile(db, profile());
@@ -156,7 +156,7 @@ describe('Meal plan screen', () => {
   it('the grocery list shows core’s rows, ticks items and copies the text', async () => {
     await setup();
     await fireEvent.press(screen.getByLabelText('Grocery list'));
-    const list = groceryList(expected(), mealGrocery);
+    const list = groceryList(expected(), getMealGrocery());
     const r = list.rows[0]!;
     const row = screen.getByLabelText(`${r.item}, ${r.label}`);
     expect(row.props.accessibilityState).toMatchObject({ checked: false });

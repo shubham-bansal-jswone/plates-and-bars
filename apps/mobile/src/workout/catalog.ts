@@ -39,8 +39,10 @@ const LIST_MAX = 100;
 const LIBRARY_GROUP_MAX = 1000;
 const REPS_MAX = 200;
 const trimmed = (max: number) => (v: unknown): v is string => isText(max)(v) && v.trim() !== '';
-const name = trimmed(NAME_MAX);
-const key = trimmed(KEY_MAX);
+/** Names and keys are compared exactly, so 'Goblet Squat ' must not become a second exercise: no leading or trailing whitespace. */
+const exact = (max: number) => (v: unknown): v is string => trimmed(max)(v) && v === v.trim();
+const name = exact(NAME_MAX);
+const key = exact(KEY_MAX);
 const line = trimmed(LINE_MAX);
 /** An exercise name or a pattern, family, joint, ladder or group key: trimmed text, never an Object.prototype name. */
 const safeName = (v: unknown): v is string => name(v) && !isProtoName(v);
@@ -80,8 +82,8 @@ function isShape(v: unknown): v is Catalog {
   const names = Object.keys(tags);
   if (!names.every(safeName) || names.length !== Object.keys(meta).length || !names.every((n) => has(meta, n))) return false;
   if (!Object.keys(cards).every(safeName)) return false;
-  const used = new Set<string>(); // everything a ladder, away entry or library group names needs a card, as the spec has it
-  const need = (n: string): boolean => { used.add(n); return has(cards, n); };
+  // Everything a ladder, away entry or library group names needs a card, as the spec has it.
+  const need = (n: string): boolean => has(cards, n);
   const seen = new Set<string>();
   // Ladders: an exercise sits on one step of one ladder (core's `ladderOf` returns the first ladder holding a name).
   const isLadder = (l: unknown): boolean =>
@@ -94,7 +96,7 @@ function isShape(v: unknown): v is Catalog {
   if (!isObj(v.away_map) || !allValues(v.away_map.dumbbells_bodyweight, (p) => Array.isArray(p) && p.length === 2 && column(p[0], ['dumbbell', 'bodyweight']) && column(p[1], ['bodyweight']))) return false;
   if (!Object.keys(v.away_map.dumbbells_bodyweight as object).every((n) => known(n) && need(n))) return false;
   if (!allValues(v.library, (g) => Array.isArray(g) && g.length > 0 && g.length <= LIBRARY_GROUP_MAX && g.every((n) => known(n) && need(n))) || !Object.keys(v.library as object).every(safeKey)) return false;
-  return [...used].every((n) => has(cards, n));
+  return true;
 }
 
 const shipped = exercises as unknown as Catalog;
