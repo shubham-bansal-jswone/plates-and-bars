@@ -37,13 +37,13 @@ describe('measures through the content store', () => {
     const db = await openDb();
     await loadContent(db);
     const before = getMeasures();
-    await store(db, edit((b) => { b.measures[0].label = 'Waist edited'; b.measures[5].show = 'always'; b.measures.reverse(); }));
+    await store(db, edit((b) => { b.measures[0].label = 'Waist edited'; b.measures[2].show = 'always'; b.measures.reverse(); }));
     expect(getMeasures()).toBe(before);
     expect(labels()).toEqual(shippedLabels);
     await loadContent(db);
     expect(labels()).toContain('Waist edited');
     expect(getMeasures()[0]!.key).toBe('hips_cm');
-    expect(getMeasures()[0]!.show).toBe('always');
+    expect(getMeasures().find((m) => m.key === 'chest_cm')!.show).toBe('always');
     expect(chosenMeasures().measures[0]!.key).toBe('hips');
   });
 
@@ -70,6 +70,15 @@ describe('measures through the content store', () => {
     ['show missing', (b) => { delete b.measures[0].show; }],
     ['show unknown string', (b) => { b.measures[0].show = 'sometimes'; }],
     ['show null', (b) => { b.measures[0].show = null; }],
+    ['hips male rule with or_entered false', (b) => { b.measures[5].show = { sex: 'male', or_entered_that_day: false }; }],
+    ['hips male rule with or_entered true', (b) => { b.measures[5].show = { sex: 'male', or_entered_that_day: true }; }],
+    ['hips female rule with or_entered false', (b) => { b.measures[5].show.or_entered_that_day = false; }],
+    ['waist female-only', (b) => { b.measures[0].show = { sex: 'female', or_entered_that_day: true }; }],
+    ['neck female-only', (b) => { b.measures[1].show = { sex: 'female', or_entered_that_day: false }; }],
+    ['an extra calf row with all six parts kept', (b) => { b.measures.push({ key: 'calf', label: 'Calf', show: 'always' }); }],
+    ['a second waist row with all six parts kept', (b) => { b.measures.push({ key: 'waist', label: 'Waist again', show: 'always' }); }],
+    ['label of spaces only', (b) => { b.measures[0].label = '   '; }],
+    ['label of a tab and newline only', (b) => { b.measures[0].label = '\t\n'; }],
     ['show sex unknown', (b) => { b.measures[5].show.sex = 'other'; }],
     ['show sex missing', (b) => { delete b.measures[5].show.sex; }],
     ['show or_entered_that_day string', (b) => { b.measures[5].show.or_entered_that_day = 'yes'; }],
@@ -81,9 +90,10 @@ describe('measures through the content store', () => {
     expect(chosenMeasures()).toBe(measures);
   });
 
-  it('accepts a copy with the same parts and a valid male rule (control for the rejections)', async () => {
-    await launch(edit((b) => { b.measures[5].show.sex = 'male'; b.measures[0].label = 'x'.repeat(200); }));
-    expect(getMeasures()[5]!.show).toEqual({ sex: 'male', or_entered_that_day: true });
+  it('accepts a copy with a valid male rule on chest and hips always shown (control for the rejections)', async () => {
+    await launch(edit((b) => { b.measures[2].show = { sex: 'male', or_entered_that_day: false }; b.measures[5].show = 'always'; b.measures[0].label = 'x'.repeat(200); }));
+    expect(getMeasures()[2]!.show).toEqual({ sex: 'male', or_entered_that_day: false });
+    expect(getMeasures()[5]!.show).toBe('always');
     expect(labels()[0]).toHaveLength(200);
   });
 

@@ -115,7 +115,7 @@ function MeasureSection({ p }: { p: Progress }) {
   // content/measures.json: a part with a rule shows for that sex, or when entered that day.
   const hasRule = (m: (typeof MEASURES)[number]) => m.show !== 'always' && m.show.sex === profile?.sex;
   const shown = MEASURES.filter((m) => m.show === 'always' || hasRule(m) || (m.show.or_entered_that_day && !!mine?.[m.key]));
-  const female = MEASURES.some(hasRule);
+  const female = profile?.sex === 'female';
   const bf = navyBodyFat(profile, p.tapes, p.date);
   const waist = waistSeries(p.tapes, p.date);
   const waistChange = trendChange(waist);
