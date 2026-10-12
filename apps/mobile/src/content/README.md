@@ -18,3 +18,7 @@ Server copies of the `content/*.json` bundles are fetched and stored by `refresh
 A bundle `name` is the file name without `.json` (it must exist in `bundled.json`). `loadContent` already drops copies whose `schema_version` this build does not support.
 
 A bundle that another area still reads from the shipped import (raw-ingredients until recipes migrate) is read from the shipped import by every reader until all of them move together.
+
+## Exercises (`src/workout/catalog.ts`)
+
+The exercises bundle is read through `chosenExercises` / `getCatalog`. A stored copy is rejected whole unless it keeps what the shipped copy fixes: every shipped exercise with its `meta.type` and `tags.equipment`, the shipped order of tags, every away entry, and every shipped ladder pinned BY POSITION (each shipped step keeps its names first and in order; steps, names after them and new ladders may be appended). So prepending an easier step to a shipped ladder, or reordering ladders or steps, rejects the copy. This is intended for v1 (conservative: a ladder position is what stored step-up and step-down history means); relax it only with a migration plan.
