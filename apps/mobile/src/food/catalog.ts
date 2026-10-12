@@ -1,7 +1,7 @@
 import type { FoodFacts, GramsFood, SearchableFood } from '@plate-and-bar/core';
 import eatout from '../../../../content/eatout.json';
 import foods from '../../../../content/foods.json';
-import { contentReader, isArrOf, isNumIn, isObj, isStr, isStrOrNull, isText, isUuid, perLoad } from '../content/reader';
+import { contentReader, isArrOf, isFoodSource, type FoodSource, isNumIn, isObj, isStr, isStrOrNull, isText, isUuid, perLoad } from '../content/reader';
 
 /** A bundled food (content/foods.json `Food`), reduced to what the screen reads. */
 export interface CatalogFood extends SearchableFood, GramsFood, FoodFacts {
@@ -17,9 +17,6 @@ export interface Cuisine {
   dishes: CatalogFood[];
 }
 
-/** A food source as recorded on a row (contract `FoodSource`); About lists these. */
-export interface FoodSource { code: string; name: string; licence: string; url: string | null; reference?: string | null }
-
 // Bounds: the contract's (`Food`, `Nutrients`, `Serving`, `FoodLog.name` maxLength 200) plus generous upper limits for
 // values the contract leaves open (shipped maxima: kcal 700, macros 85 g, serving 150 g, fruit and veg 2).
 const KCAL_MAX = 5000;
@@ -30,13 +27,10 @@ const NAME_MAX = 200;
 
 const num = isNumIn(0, G_MAX);
 const numOrNull = (v: unknown): v is number | null => v === null || num(v);
-const isSource = (v: unknown): v is FoodSource =>
-  isObj(v) && isText(NAME_MAX)(v.code) && isText(1000)(v.name) && isText(NAME_MAX)(v.licence) && isStrOrNull(v.url) && (v.reference === undefined || isStrOrNull(v.reference));
-
 /** Shape and bounds of one food row: the whole `Food` the contract requires, as far as the app and core read or sync it. */
 export function isCatalogFood(v: unknown): v is CatalogFood & { source: FoodSource } {
   if (!isObj(v) || !isUuid(v.id) || !isText(NAME_MAX)(v.name) || !(v.name_hi === undefined || isStrOrNull(v.name_hi))) return false;
-  if (!isArrOf(v.aliases, isStr) || !isSource(v.source) || !isStr(v.updated_at)) return false;
+  if (!isArrOf(v.aliases, isStr) || !isFoodSource(v.source) || !isStr(v.updated_at)) return false;
   const s = v.serving;
   const p = v.per_serving;
   return (

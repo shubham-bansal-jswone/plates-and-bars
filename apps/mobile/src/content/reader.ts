@@ -10,6 +10,18 @@ export const isText = (max: number) => (v: unknown): v is string => isStr(v) && 
 /** A finite number within [min, max]. */
 export const isNumIn = (min: number, max: number) => (v: unknown): v is number => isNum(v) && v >= min && v <= max;
 export const isUuid = (v: unknown): v is string => isStr(v) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+/** Source codes the contract allows (openapi `FoodSource.code`, ADR 005). */
+export const FOOD_SOURCE_CODES: readonly string[] = ['usda_fdc', 'fssai', 'own_recipe', 'kitchen_test', 'label_typical', 'own_estimate'];
+
+/** A food source as recorded on a row (contract `FoodSource`); About lists these. */
+export interface FoodSource { code: string; name: string; licence: string; url: string | null; reference?: string | null }
+
+/** Contract `FoodSource`: code from the allowed list, text bounded, url null or https only (About opens it). Shared by every bundle that carries a `source`. */
+export const isFoodSource = (v: unknown): v is FoodSource =>
+  isObj(v) && isStr(v.code) && FOOD_SOURCE_CODES.includes(v.code) && isText(1000)(v.name) && isText(200)(v.licence) &&
+  (v.url === null || (isStr(v.url) && v.url.length <= 2000 && /^https:\/\/[^\s]+$/.test(v.url))) &&
+  (v.reference === undefined || (v.reference === null || (isStr(v.reference) && v.reference.length <= 200)));
+
 export const isArrOf = <T>(v: unknown, ok: (x: unknown) => x is T): v is T[] => Array.isArray(v) && v.every(ok);
 
 /** Computes on first call after each `loadContent` and returns the same value until the next one. */

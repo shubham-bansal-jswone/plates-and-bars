@@ -1,6 +1,6 @@
 import raw from '../../../../content/raw-ingredients.json';
-import { chosenEatout, chosenFoods, type FoodSource } from '../food/catalog';
-import { perLoad } from '../content/reader';
+import { chosenEatout, chosenFoods } from '../food/catalog';
+import { perLoad, type FoodSource } from '../content/reader';
 
 export interface SourceInfo {
   code: string;

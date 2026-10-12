@@ -129,6 +129,11 @@ describe('foods and eat-out through the content store', () => {
     ['aliases missing', (f) => { delete f.aliases; }],
     ['source missing', (f) => { delete f.source; }],
     ['source licence missing', (f) => { delete f.source.licence; }],
+    ['source code not in the contract list (ifct)', (f) => { f.source.code = 'ifct'; }],
+    ['source url javascript:', (f) => { f.source.url = 'javascript:alert(1)'; }],
+    ['source url http:', (f) => { f.source.url = 'http://example.org/'; }],
+    ['source url very long', (f) => { f.source.url = 'https://e.org/' + 'a'.repeat(3000); }],
+    ['serving label over 200 characters', (f) => { f.serving.label = 'x'.repeat(201); }],
     ['source licence empty', (f) => { f.source.licence = ''; }],
     ['source code number', (f) => { f.source.code = 1; }],
     ['source name number', (f) => { f.source.name = 1; }],
@@ -195,13 +200,25 @@ describe('foods and eat-out through the content store', () => {
   });
 });
 
+describe('generation timing', () => {
+  it('a getter called while loadContent is still loading does not keep the half-loaded copy', async () => {
+    const db = await openDb();
+    await store(db, 'foods', foodsWith(() => undefined));
+    let during: string[] = [];
+    const slow = { ...db, getAllAsync: async <T,>(sql: string, ...p: (string | number)[]) => { const rows = await db.getAllAsync<T>(sql, ...p); during = getFoodCatalog().map((f) => f.name); return rows; } };
+    await loadContent(slow);
+    expect(during).not.toContain('Server-only test food'); // read mid-load: still the shipped copy
+    expect(names()).toContain('Server-only test food'); // after the load the stored copy is chosen, not the cached mid-load value
+  });
+});
+
 describe('About sources follow the same decision as the catalog', () => {
-  const src = { code: 'server_src', name: 'Server source', licence: 'CC0', url: null, reference: null };
+  const src = { code: 'kitchen_test', name: 'Server source', licence: 'CC0', url: null, reference: null };
 
   it('a copy valid for the catalog gives the About its sources', async () => {
     await launch({ foods: foodsWith((b) => { b.foods[b.foods.length - 1].source = src; }) });
     expect(names()).toContain('Server-only test food');
-    expect(getFoodSources().map(sourceKey)).toContain('server_src|Server source');
+    expect(getFoodSources().map(sourceKey)).toContain('kitchen_test|Server source');
   });
 
   it('a copy with valid sources but a bad kcal is rejected by both (shipped sources stay)', async () => {
@@ -210,7 +227,7 @@ describe('About sources follow the same decision as the catalog', () => {
     await launch({ foods: foodsWith((b) => { b.foods[b.foods.length - 1].source = src; b.foods[0].per_serving.kcal = 'x'; }) });
     expect(getFoodCatalog()).toHaveLength(shippedCount);
     expect(getFoodSources().map(sourceKey)).toEqual(shippedKeys);
-    expect(getFoodSources().map(sourceKey)).not.toContain('server_src|Server source');
+    expect(getFoodSources().map(sourceKey)).not.toContain('kitchen_test|Server source');
   });
 
   it('a row with no source is rejected by both, not accepted by the catalog alone', async () => {
@@ -220,11 +237,18 @@ describe('About sources follow the same decision as the catalog', () => {
 
   it('an eatout copy valid for the catalog gives the About its dish sources', async () => {
     await launch({ eatout: eatoutWith((b) => { b.cuisines[0].dishes[0].source = src; }) });
-    expect(getFoodSources().map(sourceKey)).toContain('server_src|Server source');
+    expect(getFoodSources().map(sourceKey)).toContain('kitchen_test|Server source');
+  });
+
+  it('source codes are checked against the contract list', () => {
+    const f = newFood();
+    for (const code of ['usda_fdc', 'fssai', 'own_recipe', 'kitchen_test', 'label_typical', 'own_estimate']) expect(isCatalogFood({ ...f, source: { ...f.source, code } })).toBe(true);
+    expect(isCatalogFood({ ...f, source: { ...f.source, code: 'ifct' } })).toBe(false);
+    expect(isCatalogFood({ ...f, source: { ...f.source, url: 'https://fdc.nal.usda.gov/' } })).toBe(true);
   });
 
   it('raw-ingredients sources stay the shipped ones, as recipes still read the shipped copy', async () => {
     await launch({ 'raw-ingredients': { schema_version: 1, ingredients: [{ source: src }] } });
-    expect(getFoodSources().map(sourceKey)).not.toContain('server_src|Server source');
+    expect(getFoodSources().map(sourceKey)).not.toContain('kitchen_test|Server source');
   });
 });
