@@ -11,13 +11,48 @@ import Base from "../layouts/Base.astro";
   </div>
 
   <h2>Who we are</h2>
-  <p>Plate &amp; Bar is an app that is still in development and not yet released. Contact details will be added here before launch.</p>
+  <p>Plate &amp; Bar is an app that is still in development and not yet released. It is run by [operator name]. Contact: [privacy contact email].</p>
 
-  <h2>Data we expect to handle</h2>
-  <p>Account details (such as email address), your setup answers and health-check answers, body measurements (weight and tape measurements), and the meal and workout information you choose to enter in the app. This is saved on your phone first and synced to our server when you are online.</p>
-  <p>Progress photos, cycle data and lab results stay on your device and are never sent to the server.</p>
+  <h2>What stays on your phone</h2>
+  <p>Progress photos, cycle data and lab results stay on your device and are never uploaded. The app works without an account. Your setup answers, health-check answers, body measurements, meals, workouts and settings are saved on your device first.</p>
 
-  <h2>Purpose, retention, your rights and deletion</h2>
-  <p>To be written with legal review, including notice and consent, your rights as a data principal, grievance redressal, retention. To delete your account and data, see <a href="/delete-account/">how to request deletion</a>.</p>
+  <h2>What we store on our server</h2>
+  <p>Only if you sign in and agree. The app asks for your consent to store your records on our server before it syncs anything; without that consent nothing is uploaded. When you agree, the server stores:</p>
+  <ul>
+    <li>your account: your email address and, if you use Google sign-in, the Google account identifier tied to it, plus the sign-in sessions of your devices;</li>
+    <li>the records you sync: profile and targets, food, water and workout logs, weights, body measurements, your own foods and recipes, notes, exclusions, swaps, settings and your consent record;</li>
+    <li>a conflict log. If two devices change the same record, the server keeps a copy of the version that lost so that nothing is silently lost. These copies stay until you delete your account;</li>
+    <li>a daily counter of AI requests, if you use AI features.</li>
+  </ul>
+
+  <h2>Who else handles your data</h2>
+  <ul>
+    <li><strong>Google</strong>, only if you choose Google sign-in. Google handles that sign-in under its own terms; our server checks the sign-in token Google issues and keeps your Google identifier and email.</li>
+    <li><strong>Email delivery</strong>: if you sign in with an email code, your email address and the code go through our email provider, [SMTP provider].</li>
+    <li><strong>Hosting</strong>: our server runs at [hosting provider].</li>
+    <li><strong>Backups</strong>: [backup host] holds encrypted nightly copies of the database.</li>
+    <li><strong>AI service</strong>: AI features are off by default and you switch them on yourself; the app works without them. When you use one, the app sends only the following to our server, which passes it to [AI provider]. Describe a meal: the text you type. Ask why: the card name and the question you type. Weekly summary: this week's sessions, days logged, average calories, protein and weight, the names of lifts that improved or stalled, your calorie and protein targets, your goal and your estimated burn. Never your name, email, photos, cycle or lab data. Our server does not save what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours.</li>
+  </ul>
+  <p>The app also fetches shared reference content (foods, exercises, cards and similar) from our server. This content is the same for everyone and contains none of your data.</p>
+
+  <h2>Server logs</h2>
+  <p>Our server logs never contain food, weight, health answers or tokens. They do record your internal account identifier with the time of an account deletion, a data export or an AI request (and, for AI, which feature, the outcome and how long it took).</p>
+
+  <h2>Retention</h2>
+  <ul>
+    <li>Your account and records stay until you delete your account.</li>
+    <li>Nightly backups are kept for 30 days. After you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later.</li>
+    <li>Log retention: [log retention period].</li>
+  </ul>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li><strong>Download your data</strong>: in the app, "Your data" lets you download a copy made on your device, and, when signed in, a copy of everything the server holds for your account.</li>
+    <li><strong>Delete your data</strong>: in the app, "Delete everything" deletes your account and its server data, then clears the device. See <a href="/delete-account/">how to delete your account</a>.</li>
+    <li><strong>AI features</strong> can be switched off at any time in the app.</li>
+  </ul>
+
+  <h2>Rights, grievance redressal and the rest</h2>
+  <p>Your rights as a data principal, the grievance officer and any other legal terms will be written with legal review.</p>
   </div></div>
 </Base>

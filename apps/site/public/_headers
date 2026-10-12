@@ -1,0 +1,8 @@
+# Cloudflare Pages format. The Caddy host sets the same headers in infra/caddy/Caddyfile.site.
+# No scripts, external requests or inline styles are used: fonts and CSS are self-hosted files.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()

@@ -12,6 +12,9 @@ const require = createRequire(import.meta.url);
 const axeSource = await readFile(require.resolve("axe-core/axe.min.js"), "utf8");
 const root = fileURLToPath(new URL("../dist/", import.meta.url));
 const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".txt": "text/plain" };
+// Serve the same headers as production (public/_headers) so a CSP that breaks a page fails here.
+const headerLines = (await readFile(join(root, "_headers"), "utf8")).split("\n").map((l) => l.trim());
+const prodHeaders = Object.fromEntries(headerLines.filter((l) => /^[A-Za-z-]+: /.test(l)).map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 2)]));
 const pages = ["/", "/privacy/", "/terms/", "/delete-account/"];
 const viewports = [{ width: 1280, height: 800 }, { width: 360, height: 740 }, { width: 320, height: 640 }];
 
@@ -32,7 +35,7 @@ const server = createServer(async (req, res) => {
   if (p.endsWith("/")) p += "index.html";
   try {
     const body = await readFile(join(root, p));
-    res.writeHead(200, { "content-type": types[extname(p)] ?? "application/octet-stream" }).end(body);
+    res.writeHead(200, { ...prodHeaders, "content-type": types[extname(p)] ?? "application/octet-stream" }).end(body);
   } catch {
     res.writeHead(404).end("not found");
   }
@@ -48,6 +51,10 @@ for (const scheme of ["light", "dark"]) {
       const page = await browser.newPage();
       await page.setViewport(viewport);
       await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
+      await page.evaluateOnNewDocument(() => {
+        globalThis.__csp = [];
+        document.addEventListener("securitypolicyviolation", (e) => globalThis.__csp.push(`${e.violatedDirective} ${e.blockedURI}`));
+      });
       await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: "load" });
       await page.evaluate(axeSource);
       const result = await page.evaluate(() => globalThis.axe.run());
@@ -62,6 +69,10 @@ for (const scheme of ["light", "dark"]) {
       for (const n of emptyVars) {
         violations++;
         console.log(`[${scheme} ${viewport.width}px ${path}] custom property ${n} resolves empty`);
+      }
+      for (const v of await page.evaluate(() => globalThis.__csp)) {
+        violations++;
+        console.log(`[${scheme} ${viewport.width}px ${path}] CSP violation: ${v}`);
       }
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       if (overflow) {

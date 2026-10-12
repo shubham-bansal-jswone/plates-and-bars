@@ -10,22 +10,32 @@ import Base from "../layouts/Base.astro";
     <p>This is a placeholder and is not legally reviewed. It must not be relied on until this notice is removed.</p>
   </div>
 
-  <h2>How to request deletion</h2>
-  <p>Plate &amp; Bar is still in development, and the app and server do not yet have a delete-account feature. For now, you can ask us to delete your account and the data stored on our server by email.</p>
+  <h2>Delete in the app</h2>
+  <p>This is the way to delete your account.</p>
   <ol>
-    <li>Email <strong>privacy@&lt;domain TBD&gt;</strong> from the address you signed up with, with the subject "Delete my account".</li>
-    <li>We confirm it is you by checking that the request comes from your sign-up email address. If needed, we reply to that address to confirm before deleting.</li>
-    <li>We then delete your account. Draft target: within 30 days of the confirmed request.</li>
+    <li>Open the app, go to "Your data" and choose "Delete everything".</li>
+    <li>If this device is linked to an account and you are signed out, sign in first. Deleting only the device would leave your account and its server data in place.</li>
+    <li>Confirm. The app deletes your account and everything the server stores for it, signs you out and clears the data on this device. It needs a connection.</li>
   </ol>
-  <p>You can also ask us, by the same email, to delete specific data without deleting your account.</p>
-  <!-- TODO: replace the placeholder address once a domain and mailbox are decided. -->
-  <!-- TODO: when the in-app "delete everything" action (#27), the contract change (#191) and the backend DELETE /me (#192) ship, describe them here and keep the email route as a fallback. -->
+  <p>Before you delete, "Your data" can also download a copy of your data.</p>
 
   <h2>What gets deleted</h2>
-  <p>Your account details, setup and health-check answers, body measurements, and the meal and workout information synced to our server.</p>
-  <p>Progress photos, cycle data and lab results are never sent to our server. They stay on your phone, so the copy on your phone remains until you uninstall the app or clear its data. Once the in-app "delete everything" action is available, you will be able to wipe it from within the app.</p>
+  <ul>
+    <li>On our server, immediately and with no undo: your account, your email and Google sign-in identities, all sessions, all synced records, the conflict log copies and your AI usage counters.</li>
+    <li>On the device you delete from: all local data, including progress photos, cycle data and lab results, which were never on our server.</li>
+    <li>Other devices where you were signed in are signed out the next time they contact the server. Data already on them stays on them until you clear it there.</li>
+  </ul>
 
-  <h2>When</h2>
-  <p>Our draft target is 30 days from the confirmed request. Any data we must keep by law, and backup retention, will be stated here after legal review.</p>
+  <h2>What is kept, and for how long</h2>
+  <p>Encrypted nightly backups are not edited. Your data disappears from them when they expire, at most 30 days after deletion. Server logs hold no food, weight or health answers; the identifier-only lines are covered in the <a href="/privacy/">privacy policy</a>.</p>
+
+  <h2>If you cannot use the app</h2>
+  <p>For example, if you lost the device or uninstalled the app. This is a manual request handled by a person, not an automatic process, and we do not delete anything on the strength of the sender address alone.</p>
+  <ol>
+    <li>Email [privacy contact email] with the subject "Delete my account" from the email address of the account.</li>
+    <li>We send a one-time code to that address.</li>
+    <li>Reply with the code. Only then do we delete the account, and we confirm when it is done. Draft target: within 30 days of the confirmed request.</li>
+  </ol>
+  <p>If you can still sign in to the app, in-app deletion is faster and immediate.</p>
   </div></div>
 </Base>
