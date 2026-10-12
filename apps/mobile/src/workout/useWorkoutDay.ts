@@ -84,15 +84,17 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     (async () => {
       // The result is applied inside freshRead, in the same step as its counter check: a session being built
       // (start, addSecond) resumes from an await and must not land between the check and the commit.
-      await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([workout, sets, lifts, sessions]) =>
+      await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([stored, sets, lifts, sessions]) => {
+        // A session deleted on another device shows as no session, so a new one can be started (#408).
+        const workout = stored?.deleted_at ? null : stored;
         commit({
           ready: true,
           workout,
           exs: workout ? exercisesFrom(workout, sets) : [],
           lifts,
           sessions,
-        }),
-      );
+        });
+      });
     })().catch(() => notify('Couldn’t read your saved workout.'));
     return () => {
       live = false;

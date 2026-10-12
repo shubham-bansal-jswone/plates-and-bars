@@ -79,3 +79,21 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
     expect(stored.version).toBe(6);
   });
 });
+
+describe('a workout deleted on another device (#408)', () => {
+  it('loads as no session today, and a new session can be started over it', async () => {
+    const shape = (await loadWorkout((await started()).db, DATE))!;
+    const db = await openDb();
+    await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-07T09:00:00Z', updated_at: '2026-10-07T09:00:00Z' });
+    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(result.current.day.ready).toBe(true));
+    expect(result.current.day.workout).toBeNull();
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    expect(result.current.day.workout).not.toBeNull();
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.deleted_at ?? null).toBeNull();
+    expect(stored.version).toBe(6);
+  });
+});
