@@ -151,6 +151,7 @@ class SyncRepository {
      * and never another user's.
      */
     void pruneConflicts(String userId, Instant oldest, int keep) {
+        // The first prune of a user with a huge pre-existing log reads all their ids into memory; bounded by the cap after that.
         LocalDateTime cutoff = utc(oldest);
         List<Long> drop = new java.util.ArrayList<>();
         int[] position = {0};

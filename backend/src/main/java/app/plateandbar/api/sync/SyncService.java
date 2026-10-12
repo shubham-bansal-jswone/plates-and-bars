@@ -59,6 +59,11 @@ public class SyncService {
             ObjectMapper json,
             @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-max-per-user:1000}") int conflictLogKeep,
             @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-retention-days:90}") int retentionDays) {
+        if (conflictLogKeep < 1 || retentionDays < 1) {
+            // 0 would delete the whole log, including the copy just written.
+            throw new IllegalArgumentException(
+                    "app.sync.conflict-log-max-per-user and app.sync.conflict-log-retention-days must both be at least 1");
+        }
         this.conflictLogKeep = conflictLogKeep;
         this.conflictLogRetention = Duration.ofDays(retentionDays);
         this.repo = repo;
