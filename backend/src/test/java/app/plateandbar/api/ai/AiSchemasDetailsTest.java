@@ -28,6 +28,8 @@ class AiSchemasDetailsTest {
                 Arguments.of("DescribeMealRequest", "{\"text\":5}", List.of(d("text", "type"))),
                 Arguments.of("DescribeMealRequest", "{\"text\":\"oats\",\"secret\":\"x\"}", List.of(d("", "additionalProperties")) /* the key is never echoed */),
                 Arguments.of("AskWhyRequest", "{\"card_id\":1}", List.of(d("card_id", "type"), d("question", "required"))),
+                // 2.x: `$` no longer matches before a final newline (1.5.9 accepted this; stricter and correct).
+                Arguments.of("AskWhyRequest", "{\"card_id\":\"protein\\n\",\"question\":\"why?\"}", List.of(d("card_id", "pattern"))),
                 Arguments.of("DescribeMealRequest", "{\"text\":\"oats\"}", List.of()));
     }
 
