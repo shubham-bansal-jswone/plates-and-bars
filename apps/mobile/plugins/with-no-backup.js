@@ -4,7 +4,7 @@
 // files, shared preferences and external storage. Security review M6.
 const fs = require('fs');
 const path = require('path');
-const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins');
+const { withAndroidManifest, withDangerousMod } = require('expo/config-plugins');
 
 const DOMAINS = ['root', 'file', 'database', 'sharedpref', 'external'];
 const excludes = (indent) => DOMAINS.map((d) => `${indent}<exclude domain="${d}" path="." />`).join('\n');
