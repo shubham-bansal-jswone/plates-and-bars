@@ -28,6 +28,7 @@ jobs:
       run_backend: ${{ steps.d.outputs.run_backend }}
       run_tools: ${{ steps.d.outputs.run_tools }}
       run_site: ${{ steps.d.outputs.run_site }}
+      run_content_meta: ${{ steps.d.outputs.run_content_meta }}
       run_e2e: ${{ steps.d.outputs.run_e2e }}
     steps:
       - uses: actions/checkout@v7
@@ -38,6 +39,8 @@ jobs:
           # HEAD is the merge commit on PRs; HEAD^1 is the current base tip
           BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || '' }}
         run: infra/scripts/detect-changes.sh "$BASE"
+      - name: detect-changes.sh sample diffs
+        run: infra/scripts/test-detect-changes.sh
 
   api:
     name: api (lint, types, stale client)
@@ -117,6 +120,25 @@ jobs:
       - run: npm test
       # Metro resolution (for example of packages/core) is not covered by Jest
       - run: npx expo export --platform web
+
+  # apps/mobile/src/content/bundled.json records each content file's sha256, schema_version and updated_at.
+  # PRs: shallow checkout, so the script compares hashes and schema versions only (a PR cannot know its own
+  # squash-merge date). Push to main: full history, so updated_at is compared too; a red run there means
+  # `node scripts/content-meta.mjs` must be run on main and the result committed.
+  content-meta:
+    name: content-meta (bundled.json)
+    needs: changes
+    if: needs.changes.outputs.run_content_meta == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && 1 || 0 }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/content-meta.mjs --check
+        working-directory: apps/mobile
 
   tools:
     name: tools (lint, tests, validate)
