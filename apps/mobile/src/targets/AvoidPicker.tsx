@@ -1,6 +1,5 @@
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from '../components/Text';
-import { Button } from '../components/ui';
+import { Heading, Button } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
 import { Chip } from '../workout/parts';
@@ -13,14 +12,14 @@ export function AvoidPicker({ visible, onPick, onClose }: { visible: boolean; on
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
             Exercise to avoid
-          </Text>
+          </Heading>
           {Object.entries(getCatalog().library).map(([group, names]) => (
             <View key={group} style={styles.group}>
-              <Text accessibilityRole="header" style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>
+              <Heading level={3} style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>
                 {group}
-              </Text>
+              </Heading>
               <View style={styles.chips}>
                 {names.map((n) => (
                   <Chip key={n} label={n} onPress={() => onPick(n)} />

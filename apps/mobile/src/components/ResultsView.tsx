@@ -5,7 +5,7 @@ import { buildResults, clearanceNote } from '../setup/results';
 import type { Profile } from '../setup/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { Button, Card, H1, Hint, Label, Note } from './ui';
+import { Heading, Button, Card, H1, Hint, Label, Note } from './ui';
 
 /**
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
@@ -51,9 +51,9 @@ export function ResultsView({ profile, onCleared }: { profile: Profile; onCleare
       <Hint>{v.pace}</Hint>
       {clear ? (
         <View style={[styles.card, { borderColor: c.danger, backgroundColor: c.surface }]}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
             {clear.title}
-          </Text>
+          </Heading>
           <Text style={{ color: c.ink, lineHeight: 20 }}>{clear.body}</Text>
           {onCleared ? <Button label="My doctor has cleared me" onPress={onCleared} /> : null}
         </View>

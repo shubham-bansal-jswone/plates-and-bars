@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { combos, combosFast, ideasPage, IDEAS_KCAL_LEFT_MIN, nextMealInfo, type MealDiet, type MealIdea, type NextMeal } from '@plate-and-bar/core';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Text } from '../components/Text';
-import { Button, Card, Choice, Hint, Note, Press } from '../components/ui';
+import { a11yState, Button, Card, Choice, Hint, Note, Press } from '../components/ui';
 import { fmt } from '../format';
 import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import type { FoodLog } from '../food/types';
@@ -76,7 +76,7 @@ export function IdeasCard(p: Props) {
 
   return (
     <Card>
-      <Press accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} onPress={() => setOpen(!open)} style={styles.head}>
+      <Press accessibilityRole="button" {...a11yState({ expanded: open })} onPress={() => setOpen(!open)} style={styles.head}>
         <View style={styles.fill}>
           <Hint>What should I eat next?</Hint>
           <Text style={[type.bodyStrong, { color: c.ink }]}>{`${meal} ideas`}</Text>
@@ -140,7 +140,7 @@ export function IdeasCard(p: Props) {
 function FastChip({ on, onPress }: { on: boolean; onPress: () => void }) {
   const c = useTheme();
   return (
-    <Press accessibilityRole="checkbox" accessibilityLabel="Fasting day" accessibilityState={{ checked: on }} aria-checked={on} onPress={onPress} hitSlop={{ top: 6, bottom: 6 }} style={[styles.chip, { backgroundColor: on ? c.brand : c.surfaceSoft }]}>
+    <Press accessibilityRole="checkbox" accessibilityLabel="Fasting day" {...a11yState({ checked: on })} onPress={onPress} hitSlop={{ top: 6, bottom: 6 }} style={[styles.chip, { backgroundColor: on ? c.brand : c.surfaceSoft }]}>
       <Text style={[type.buttonSm, { color: on ? c.onBrand : c.ink }]}>Fasting day</Text>
     </Press>
   );

@@ -66,6 +66,14 @@ describe('re-check card for a timed rule that ended', () => {
     expect(screen.getByText(/You’ll start at about 55% of your old weight for 2 weeks, then build back up\./)).toBeTruthy();
   });
 
+  it('sits above the day title, as in the prototype, at level 2 while the day title is level 1', async () => {
+    await openSession((db) => saveExclusion(db, ended()));
+    await screen.findByText('Ready to try Pec Deck Fly again?');
+    const heads = screen.getAllByRole('header');
+    expect(heads.map((h) => h.props['aria-level'])).toEqual([2, 1]);
+    expect(heads.map((h) => (h.children as unknown[]).join(''))).toEqual(['Ready to try Pec Deck Fly again?', 'Push B day']);
+  });
+
   it('does not show before the check-again day', async () => {
     await openSession((db) => saveExclusion(db, ended({ until: '2026-10-09' })));
     await screen.findByText('Push B day');

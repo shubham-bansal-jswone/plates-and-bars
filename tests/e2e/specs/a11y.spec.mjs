@@ -5,13 +5,15 @@ import { axeSource, completeSetup, expect, label, openApp, tab, test } from '../
 // the landmark and heading best-practice rules. Every violation fails the test. A failure caused by a filed bug goes in
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
-// #382: every header is <h1 role=heading> without aria-level, so no screen has a level-one heading. The scan runs the rule
-// with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
-const noH1 = { rule: 'page-has-heading-one', issue: 382, match: (n) => n.html.startsWith('<html') };
-const KNOWN = Object.fromEntries(['consent', 'setup', 'food', 'workout', 'progress', 'targets', 'data', 'library', 'about', 'recipes'].map((n) => [n, [noH1]]));
+// The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
+const KNOWN = Object.fromEntries(['consent', 'setup', 'food', 'workout', 'progress', 'targets', 'data', 'library', 'about', 'recipes'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
+// Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
+const levelOnes = (page) => page.evaluate(() => [...document.querySelectorAll('[role=heading][aria-level="1"], h1:not([role])')].filter((h) => !h.closest('[aria-hidden="true"]')).map((h) => h.textContent));
+
 async function scan(page, name, scheme) {
+  expect(await levelOnes(page), `${name} in ${scheme} mode: level-one headings`).toHaveLength(1);
   await page.evaluate(axeSource);
   const { violations } = await page.evaluate((rules) => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, rules: Object.fromEntries(rules.map((r) => [r, { enabled: true }])), checks: { 'page-has-heading-one': { options: { passForModal: false } } } }), RULES);
   const { unexpected, stale } = triage(violations, KNOWN[name]);
@@ -37,6 +39,7 @@ const screens = {
   workout: async (page) => {
     await tab(page, 'Workout');
     await expect(page.locator('[aria-label^="Start "]').first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /day$/ })).toBeVisible();
   },
   progress: async (page) => {
     await tab(page, 'Progress');

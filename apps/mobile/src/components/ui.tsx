@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type ViewProps } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Input } from './Input';
@@ -15,13 +15,47 @@ export function Page({ children }: { children: ReactNode }) {
   );
 }
 
-export function H1({ children }: { children: ReactNode }) {
-  const c = useTheme();
+/** Heading levels: the screen title is 1, section and card titles are 2, titles inside a section are 3. */
+export type HeadingLevel = 1 | 2 | 3;
+
+/**
+ * A heading at an explicit level. react-native-web renders `accessibilityRole="header"` as `<h1 role="heading">` and an
+ * explicit role without `aria-level` counts as level 2, so the level is always passed (#382). Native ignores it.
+ */
+export function Heading({ level, style, children }: { level: HeadingLevel; style?: TextProps['style']; children: ReactNode }) {
   return (
-    <Text accessibilityRole="header" style={[styles.h1, { color: c.ink }]}>
+    <Text accessibilityRole="header" aria-level={level} style={style}>
       {children}
     </Text>
   );
+}
+
+/** The screen title style. Level 1 is the screen title, exactly one per screen; 2 only for a second title-sized heading below it. */
+export function H1({ children, level = 1 }: { children: ReactNode; level?: 1 | 2 }) {
+  const c = useTheme();
+  return (
+    <Heading level={level} style={[styles.h1, { color: c.ink }]}>
+      {children}
+    </Heading>
+  );
+}
+
+/**
+ * The accessibility state of a control, once. `accessibilityState` is what native reads; react-native-web ignores it and
+ * only emits the `aria-*` props, so every stateful control spreads this (#381). `pressed` is a toggle button
+ * (`aria-pressed`, spoken on native as selected).
+ */
+export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?: boolean; busy?: boolean; pressed?: boolean }) {
+  const defined = Object.entries(s).filter(([, v]) => v !== undefined);
+  const { pressed, ...native } = Object.fromEntries(defined) as typeof s;
+  return {
+    accessibilityState: defined.length ? { ...native, ...(pressed === undefined ? null : { selected: pressed }) } : undefined,
+    'aria-selected': s.selected,
+    'aria-checked': s.checked,
+    'aria-expanded': s.expanded,
+    'aria-busy': s.busy,
+    'aria-pressed': s.pressed,
+  };
 }
 
 export function Hint({ children }: { children: ReactNode }) {
@@ -117,7 +151,7 @@ export function Button({
       surface={surface}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel ?? label}
-      accessibilityState={expanded === undefined && !busy ? undefined : { expanded, busy }}
+      {...a11yState({ expanded, busy: busy || undefined })}
       onPress={onPress}
       style={({ pressed }) => [
         kind === 'link' ? styles.link : styles.btn,
@@ -152,9 +186,8 @@ export function Choice({
     <Press
       accessibilityRole={action ? 'button' : 'radio'}
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
-      accessibilityState={action ? undefined : { selected, checked: selected }}
-      // react-native-web drops accessibilityState.checked; a radio must announce its state (WCAG 4.1.2).
-      aria-checked={action ? undefined : selected}
+      // A radio must announce its state on web too (WCAG 4.1.2).
+      {...a11yState(action ? {} : { checked: selected })}
       onPress={onPress}
       hitSlop={chip ? { top: 6, bottom: 6 } : undefined}
       style={[

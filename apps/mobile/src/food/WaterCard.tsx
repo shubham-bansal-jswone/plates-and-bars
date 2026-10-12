@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { older, WATER_ML_PER_KG, WATER_TRAINING_ML } from '@plate-and-bar/core';
-import { Button, Hint, Press } from '../components/ui';
+import { Heading, Button, Hint, Press } from '../components/ui';
 import { Text } from '../components/Text';
 import type { Profile } from '../setup/types';
 import { radius } from '../theme/tokens';
@@ -25,7 +25,7 @@ export function WaterCard({ ml, count, target, sizes, profile, onAdd, onUndo }: 
   const pct = target.ml > 0 ? (ml / target.ml) * 100 : 0;
   return (
     <View style={styles.card}>
-      <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>Water today</Text>
+      <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>Water today</Heading>
       <Text accessibilityLabel={`${litres(ml)} of about ${litres(target.ml)} litres`} style={{ color: c.ink, fontWeight: '700' }}>{`${litres(ml)} of about ${litres(target.ml)} L`}</Text>
       <View style={styles.wrap}>
         <Button label="+ Glass" a11yLabel={`Add a glass, ${sizes.glass_ml} millilitres`} kind="ghost" onPress={() => onAdd(sizes.glass_ml)} />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Vibration, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Button, Hint } from '../components/ui';
+import { Heading, Button, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 
@@ -59,7 +59,7 @@ export function CookMode({ name, steps, onClose, onDone }: { name: string; steps
       <View style={[styles.fill, { backgroundColor: c.bg }]}>
         <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.head}>
-            <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22, flex: 1 }}>{name || 'Cooking'}</Text>
+            <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22, flex: 1 }}>{name || 'Cooking'}</Heading>
             <Button label="×" a11yLabel="Close" kind="link" onPress={onClose} />
           </View>
           <Hint>{`Step ${i + 1} of ${steps.length}`}</Hint>

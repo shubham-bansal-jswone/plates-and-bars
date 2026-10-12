@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { CARDIO_WEEK_MIN, round1 } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Card, Hint } from '../components/ui';
+import { Heading, Button, Card, Hint } from '../components/ui';
 import { fmt, shortDate } from '../format';
 import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
@@ -30,13 +30,13 @@ export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
   const h = ci.habit;
   if (!profile) return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Text>
+      <Heading level={2} style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Heading>
       <Hint>{CHECKIN_NEEDS_SETUP}</Hint>
     </View>
   );
   if (ci.settingsFailed) return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Text>
+      <Heading level={2} style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Heading>
       <Hint>{SETTINGS_UNREADABLE}</Hint>
     </View>
   );
@@ -51,7 +51,7 @@ export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
   const s = k.suggestion;
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Text>
+      <Heading level={2} style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Heading>
       <Hint>{`The 7 days up to ${shortDate(date)}`}</Hint>
       <View style={styles.grid}>
         <Stat big={String(k.sessions)} small={` / ${k.plannedN}`} label="sessions" />

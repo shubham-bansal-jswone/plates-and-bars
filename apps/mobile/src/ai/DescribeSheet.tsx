@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { customFood } from '@plate-and-bar/core';
-import { Text } from '../components/Text';
-import { Button, Card, ErrorText, Field, Hint, Label } from '../components/ui';
+import { Heading, Button, Card, ErrorText, Field, Hint, Label } from '../components/ui';
 import { CUSTOM_MESSAGE } from '../food/copy';
 import type { NewLog } from '../food/useFoodDay';
 import { useTheme } from '../theme/useTheme';
@@ -69,7 +68,7 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.describeTitle(meal)}</Text>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.describeTitle(meal)}</Heading>
           {rows ? (
             <>
               <View accessibilityLiveRegion="polite"><Hint>{AI_COPY.reviewHint}</Hint></View>
