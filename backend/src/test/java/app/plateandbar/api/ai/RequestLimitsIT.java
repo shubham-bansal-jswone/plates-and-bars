@@ -92,6 +92,8 @@ class RequestLimitsIT extends AiITBase {
     void aBodyOfExactlyTwoMegabytesIsNotTooLarge() throws Exception {
         var res = declared("POST", "/api/v1/auth/email/start", jsonOfSize(2 * 1024 * 1024));
         assertThat(res.body()).doesNotContain("too_large");
+        assertThat(res.statusCode()).isEqualTo(400);
+        assertThat(json.readTree(res.body()).path("details").get(0).path("field").asText()).isEqualTo("email");
         var sync = declared("POST", "/api/v1/sync", jsonOfSize(2 * 1024 * 1024));
         assertThat(sync.statusCode()).isEqualTo(401);
     }
