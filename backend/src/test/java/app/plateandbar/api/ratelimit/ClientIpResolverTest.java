@@ -78,4 +78,29 @@ class ClientIpResolverTest {
         assertThatThrownBy(() -> new ClientIpResolver(List.of("proxy.internal"))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ClientIpResolver(List.of("10.0.0.0/40"))).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void warnsOnceWhenAPrivatePeerSendsForwardedForAndNothingIsTrusted() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ClientIpResolver.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            ClientIpResolver r = new ClientIpResolver(List.of());
+            r.resolve(req("203.0.113.9", "198.51.100.1")); // public peer: a client talking to us directly
+            r.resolve(req("127.0.0.1")); // local dev, no proxy header
+            assertThat(appender.list).isEmpty();
+            assertThat(r.resolve(req("172.18.0.2", "198.51.100.1"))).isEqualTo("172.18.0.2"); // behaviour unchanged
+            r.resolve(req("10.0.0.5", "198.51.100.2"));
+            assertThat(appender.list).hasSize(1);
+            assertThat(appender.list.get(0).getFormattedMessage())
+                    .contains("APP_RATELIMIT_TRUSTEDPROXIES").doesNotContain("172.18").doesNotContain("198.51");
+            // A configured list means the operator already decided: no warning.
+            appender.list.clear();
+            new ClientIpResolver(List.of("10.0.0.0/8")).resolve(req("192.168.1.1", "198.51.100.1"));
+            assertThat(appender.list).isEmpty();
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
 }
