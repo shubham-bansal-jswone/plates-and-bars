@@ -37,8 +37,9 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const p = useProgress({ db, now, notify, reloadKey: useDataVersion() });
-  const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify });
+  const dataVersion = useDataVersion();
+  const p = useProgress({ db, now, notify, reloadKey: dataVersion });
+  const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
   const ready = status === 'ready' && p.ready;
   return (

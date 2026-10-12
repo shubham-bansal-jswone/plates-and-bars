@@ -3,6 +3,8 @@ import { useFocusEffect } from 'expo-router';
 import { addDays, habits, mondayOf, nextAdaptive, SPLITS, weeklyCheckin, type AdaptiveState, type LiftRecord, type ProgressDay, type SessionLog, type WeekPlan } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs } from '../db/food';
 import { loadLifts, loadSessionLog, loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
+import { freshRead } from '../state/freshRead';
+import { dayQueue, dayWrites } from '../workout/dayQueue';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import type { Weight } from './types';
@@ -24,13 +26,15 @@ interface Options {
   weights: readonly Weight[];
   now: () => Date;
   notify: (msg: string) => void;
+  /** Changes when sync stored pulled records: the days are read again (after queued workout writes). */
+  reloadKey?: number;
 }
 
 /**
  * Weekly check-in, real burn and habits for the week ending on `date`: the last 21 days are read from SQLite and
  * every number comes from core. The suggested actions only change local settings and targets.
  */
-export function useCheckin({ db, date, weights, now, notify }: Options) {
+export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Options) {
   const { profile, setProfile } = useProfile();
   const { settings, update, ready: settingsReady, loadFailed } = useSettings();
   // Settings feed the suggestion and are written back, so nothing runs until the stored record has loaded.
@@ -45,26 +49,35 @@ export function useCheckin({ db, date, weights, now, notify }: Options) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const keys = Array.from({ length: DAYS }, (_, i) => addDays(date, i - DAYS + 1));
-      const read = await Promise.all(
-        keys.map(async (d): Promise<ProgressDay> => {
-          const [logs, note, workout, sets] = await Promise.all([loadLogs(db, d), loadDayNote(db, d), loadWorkout(db, d), loadSets(db, d)]);
-          const w = workout && !workout.deleted_at ? workout : null;
-          return { date: d, logs, complete: note?.complete, steps: note?.steps, sleep: note?.sleep, cardioMin: w?.cardio_min, trained: !!w && sets.some((s) => s.kind === 'work' && s.done && !s.deleted_at) };
-        }),
+      // The workout sets come from the Workout tab's writes, so the read waits for that queue too.
+      await freshRead(
+        { queue: dayQueue, writes: dayWrites },
+        async () => {
+          const keys = Array.from({ length: DAYS }, (_, i) => addDays(date, i - DAYS + 1));
+          const read = await Promise.all(
+            keys.map(async (d): Promise<ProgressDay> => {
+              const [logs, note, workout, sets] = await Promise.all([loadLogs(db, d), loadDayNote(db, d), loadWorkout(db, d), loadSets(db, d)]);
+              const w = workout && !workout.deleted_at ? workout : null;
+              return { date: d, logs, complete: note?.complete, steps: note?.steps, sleep: note?.sleep, cardioMin: w?.cardio_min, trained: !!w && sets.some((s) => s.kind === 'work' && s.done && !s.deleted_at) };
+            }),
+          );
+          const [l, s] = await Promise.all([loadLifts(db), loadSessionLog(db)]);
+          return { read, l, s };
+        },
+        () => live,
+        ({ read, l, s }) => {
+          setDays(read);
+          setLifts(l);
+          setSessions(s);
+        },
       );
-      const [l, s] = await Promise.all([loadLifts(db), loadSessionLog(db)]);
-      if (!live) return;
-      setDays(read);
-      setLifts(l);
-      setSessions(s);
     })().catch(() => {
       if (live) notify('Couldn’t read your saved progress.');
     });
     return () => {
       live = false;
     };
-  }, [db, date, shown, notify]);
+  }, [db, date, shown, notify, reloadKey]);
 
   const A = settings.adjustments as Adjustments;
   const adaptive = settings.adaptive as AdaptiveState;

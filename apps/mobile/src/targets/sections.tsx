@@ -14,6 +14,9 @@ import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
 import { listJoin, muscleName } from '../workout/copy';
 import { Chip } from '../workout/parts';
+import { dayQueue, dayWrites } from '../workout/dayQueue';
+import { freshRead } from '../state/freshRead';
+import { useDataVersion } from '../sync/useDataVersion';
 import type { Workout, WorkoutSet } from '../workout/types';
 
 const name = (m: string) => {
@@ -65,18 +68,25 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   // Tab screens stay mounted, so the numbers are read again each time the tab is shown (prototype rebuilds on show).
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
+  // A sync pull also changes the sets and rules: read again, after the Workout tab's queued writes.
+  const dataVersion = useDataVersion();
   useEffect(() => {
     let live = true;
     (async () => {
-      const [days, lifts, exclusions, swaps] = await Promise.all([loadDays(db, today), loadLifts(db), loadExclusions(db), loadSwaps(db)]);
-      if (!live) return;
-      const planned = plannedCoverage({ date: today, profile, weekPlan: adjustments.weekPlan as WeekPlan | undefined, exclusions, swaps, lifts }, getCatalog());
-      setRows({ planned: coverageRows(planned), done: coverageRows(doneCoverage(today, days, getCatalog().tags)) });
+      await freshRead(
+        { queue: dayQueue, writes: dayWrites },
+        () => Promise.all([loadDays(db, today), loadLifts(db), loadExclusions(db), loadSwaps(db)]),
+        () => live,
+        ([days, lifts, exclusions, swaps]) => {
+          const planned = plannedCoverage({ date: today, profile, weekPlan: adjustments.weekPlan as WeekPlan | undefined, exclusions, swaps, lifts }, getCatalog());
+          setRows({ planned: coverageRows(planned), done: coverageRows(doneCoverage(today, days, getCatalog().tags)) });
+        },
+      );
     })().catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
-  }, [db, profile, adjustments, today, shown]);
+  }, [db, profile, adjustments, today, shown, dataVersion]);
   return (
     <View style={styles.gap}>
       {failed ? <Hint>Couldn’t read your coverage.</Hint> : null}
