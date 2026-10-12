@@ -35,6 +35,7 @@ const screens = {
   workout: async (page) => {
     await tab(page, 'Workout');
     await expect(page.locator('[aria-label^="Start "]').first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /day$/ })).toBeVisible();
   },
   progress: async (page) => {
     await tab(page, 'Progress');
