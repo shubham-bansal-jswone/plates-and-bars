@@ -69,7 +69,7 @@ class CorsTest {
                         .header("Access-Control-Request-Method", "GET")
                         .header("Access-Control-Request-Headers", "if-none-match"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("If-None-Match")));
+                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.equalToIgnoringCase("if-none-match")));
     }
 
     @Test
