@@ -1,27 +1,26 @@
+import { htmlHas, triage } from '../support/axe.mjs';
 import { axeSource, completeSetup, expect, label, openApp, tab, test } from '../support/app.mjs';
 
 // axe-core on the main screens, in light and dark (WCAG 2.0/2.1 A and AA rules, which include colour contrast).
-// Every violation fails the test. A rule that fails because of a filed bug is listed in KNOWN with the issue number, so
-// the test still guards everything else on that screen; once the bug is fixed the stale entry fails the test, so remove it.
+// Every violation fails the test. A failure caused by a filed bug is listed in KNOWN by rule and element with the issue
+// number (support/axe.mjs), so a new violation, even of the same rule, still fails; when the bug is fixed the entry
+// matches nothing, goes stale and fails the test, so remove it.
+const radio = () => ({ rule: 'aria-required-attr', issue: 366, match: htmlHas('role="radio"') }); // role=radio without aria-checked
 const KNOWN = {
-  setup: ['aria-required-attr'], // #366: role=radio without aria-checked
-  library: ['aria-required-attr', 'label-content-name-mismatch'], // #366, #367
-};
-// Real defects that axe reports only some of the time (its name check is heuristic): ignored, present or not.
-const FLAKY = {
-  food: ['label-content-name-mismatch'], // #371: "What should I eat next?" card name omits "Show"
+  setup: [radio()],
+  library: [
+    radio(),
+    { rule: 'label-content-name-mismatch', issue: 367, match: (n) => /aria-label="[^"]+\. [^"]* · /.test(n.html) }, // rows
+  ],
+  food: [{ rule: 'label-content-name-mismatch', issue: 371, match: htmlHas('aria-label="What should I eat next?') }],
 };
 
 async function scan(page, name, scheme) {
   await page.evaluate(axeSource);
   const { violations } = await page.evaluate(() => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }));
-  const known = KNOWN[`${name}/${scheme}`] ?? KNOWN[name] ?? [];
-  const flaky = FLAKY[name] ?? [];
-  const found = violations.filter((v) => !known.includes(v.id) && !flaky.includes(v.id));
-  const stale = known.filter((id) => !violations.some((v) => v.id === id));
-  expect(stale, `${name}: the known failure no longer happens, remove it from KNOWN`).toEqual([]);
-  const summary = found.map((v) => `${v.id} (${v.impact}): ${v.help}\n${v.nodes.slice(0, 5).map((n) => `    ${n.target.join(' ')}  ${n.failureSummary?.split('\n')[1] ?? ''}`).join('\n')}`);
-  expect(summary, `${name} in ${scheme} mode`).toEqual([]);
+  const { unexpected, stale } = triage(violations, KNOWN[name]);
+  expect(stale, `${name} in ${scheme} mode`).toEqual([]);
+  expect(unexpected, `${name} in ${scheme} mode`).toEqual([]);
 }
 
 const screens = {
@@ -35,7 +34,11 @@ const screens = {
     await label(page, 'Continue').click();
     await expect(label(page, 'Male')).toBeVisible();
   },
-  food: async (page) => tab(page, 'Food'),
+  food: async (page) => {
+    await tab(page, 'Food');
+    // axe's name check reads the card's text; scan only once the card shows its "Show" action (it appears after first render).
+    await expect(page.locator('[aria-label^="What should I eat next?"]')).toContainText('Show');
+  },
   workout: async (page) => {
     await tab(page, 'Workout');
     await expect(page.locator('[aria-label^="Start "]').first()).toBeVisible();

@@ -197,6 +197,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.run_e2e == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -208,6 +209,8 @@ jobs:
             tests/e2e/package-lock.json
       - name: Build the web app
         working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: 1 # Expo CLI sends telemetry otherwise
         run: |
           npm ci
           npx expo export --platform web

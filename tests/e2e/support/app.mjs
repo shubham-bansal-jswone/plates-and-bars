@@ -13,27 +13,30 @@ export const label = (page, text) => page.locator(`[aria-label=${JSON.stringify(
 
 /**
  * Every test gets a fresh browser context (empty origin storage, so a fresh database) with only localhost reachable:
- * any other request is aborted and recorded in `blocked`, so a test fails if the app starts calling out.
+ * any other request is aborted and recorded, and every test fails at teardown if there was one.
  * AI and sync stay off because nothing is signed in and no server is configured.
  */
 export const test = base.extend({
-  blocked: async ({}, use) => use([]),
-  page: async ({ page, baseURL, blocked }, use) => {
+  page: async ({ page, context, baseURL }, use) => {
     const host = new URL(baseURL).host;
-    await page.route(
+    const blocked = [];
+    // On the context, so requests from workers are caught too.
+    await context.route(
       (url) => url.host !== host && url.protocol.startsWith('http'),
       (route) => {
         blocked.push(route.request().url());
         return route.abort();
       },
     );
-    // The app's day, next-meal card and planned session depend on the clock: pin it (a Monday morning) so runs do not vary.
-    await page.clock.setFixedTime(new Date(2026, 9, 12, 9, 0, 0));
+    // The app's day, next-meal card and planned session depend on the clock: pin it (a Monday morning in India) so runs do not vary.
+    await page.clock.setFixedTime(new Date('2026-10-12T09:00:00+05:30'));
     await page.addInitScript(trackDbWrites);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await use(page);
     expect(errors, 'uncaught page errors').toEqual([]);
+    // Checked for every test: an app that calls out and swallows the failure must not pass.
+    expect(blocked, 'requests to anything but localhost').toEqual([]);
   },
 });
 export { expect };
@@ -112,18 +115,23 @@ export const trackDbWrites = () => {
 export async function saved(page, action) {
   const before = await page.evaluate(() => window.__db.writes);
   await action();
-  await page.waitForFunction(
-    (before) =>
-      new Promise((resolve) => {
-        let quiet = 0;
-        const tick = () => {
-          const { writes, pending } = window.__db;
-          quiet = writes > before && pending.size === 0 ? quiet + 1 : 0;
-          if (quiet >= 5) resolve(true);
-          else requestAnimationFrame(tick);
-        };
-        tick();
-      }),
-    before,
-  );
+  await page
+    .waitForFunction(
+      (before) =>
+        new Promise((resolve) => {
+          let quiet = 0;
+          const tick = () => {
+            const { writes, pending } = window.__db;
+            quiet = writes > before && pending.size === 0 ? quiet + 1 : 0;
+            if (quiet >= 5) resolve(true);
+            else requestAnimationFrame(tick);
+          };
+          tick();
+        }),
+      before,
+      { timeout: 15_000 },
+    )
+    .catch(() => {
+      throw new Error('saved(): no SQLite write was sent and answered within 15 s after the action');
+    });
 }

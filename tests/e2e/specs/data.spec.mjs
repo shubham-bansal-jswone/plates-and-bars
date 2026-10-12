@@ -61,3 +61,16 @@ test('delete everything: cancel keeps the data, confirming clears this device an
   await page.reload({ waitUntil: 'load' });
   await expect(label(page, 'I understand and agree to my data being stored as described')).toBeVisible({ timeout: 40_000 });
 });
+
+// #370: the confirm text lists less than the wipe clears (it also removes consents, day notes, lift stats, kitchen tests,
+// exclusions, swaps and the sync queue). Remove the `test.fail` line when the app names them or says "everything the app stores".
+test('delete everything: the confirmation names what the wipe clears', async ({ page }) => {
+  test.fail(true, '#370');
+  await completeSetup(page);
+  await openData(page);
+  await label(page, 'Delete everything').click();
+  const text = await page.getByText(/permanently deletes everything on this device/).innerText();
+  expect(text).toMatch(/kitchen tests/i);
+  expect(text).toMatch(/consent/i);
+  expect(text).toMatch(/lift|workout sets/i);
+});
