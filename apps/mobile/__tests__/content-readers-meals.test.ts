@@ -1,4 +1,5 @@
 import planning from '../../../content/meal-planning.json';
+import eatout from '../../../content/eatout.json';
 import foods from '../../../content/foods.json';
 import { BUNDLED } from '../src/content/bundled';
 import { loadContent } from '../src/content/loader';
@@ -23,7 +24,9 @@ async function launch(stored: Record<string, unknown> = {}): Promise<void> {
   await loadContent(db);
 }
 const planWith = (mutate: (b: Obj) => void): Obj => { const b = clone(shipped); mutate(b); return b; };
-const edited = (): Obj => planWith((b) => { b.meal_weights.Lunch = 0.4; });
+/** A valid edit: Lunch 0.4 and Dinner 0.25 keep the weights summing to 1. */
+const bump = (b: Obj): void => { b.meal_weights.Lunch = 0.4; b.meal_weights.Dinner = 0.25; };
+const edited = (): Obj => planWith(bump);
 const isShipped = () => {
   expect(getMealPlanning().meal_weights).toEqual(shipped.meal_weights);
   expect(getMealGrocery()).toEqual(shipped.grocery);
@@ -54,30 +57,65 @@ describe('meal planning through the content store', () => {
   });
 
   it('planning, grocery and the decision agree on an accepted copy', async () => {
-    await launch({ 'meal-planning': planWith((b) => { b.meal_weights.Lunch = 0.4; b.grocery[0].items[0].amount = 31; }) });
+    await launch({ 'meal-planning': planWith((b) => { bump(b); b.grocery[0].items[0].amount = 31; }) });
     isEdited();
     expect(getMealGrocery()[0]!.items[0]!.amount).toBe(31);
     expect(getMealGrocery()).toBe(chosenPlanning().grocery);
   });
 
-  it('accepts additions (a new role and grocery entry for a food in the catalog, a new cap)', async () => {
+  it('accepts additions (a new cap for a food in the catalog)', async () => {
     const food = shippedFoods.foods[0].name as string;
-    const extra = shipped.roles.every((r: Obj) => r.food !== food) ? food : null;
-    // the first food may already have a role; add a cap for a food in the catalog instead
-    const b = planWith((x) => { x.max_portions[extra ?? food] = 3; x.meal_weights.Lunch = 0.4; });
-    await launch({ 'meal-planning': b });
+    await launch({ 'meal-planning': planWith((b) => { bump(b); b.max_portions[food] = 3; }) });
     isEdited();
     expect(getMealPlanning().max_portions[food]).toBe(3);
   });
 
-  it('accepts bounds at the edge', async () => {
-    await launch({ 'meal-planning': planWith((b) => { b.meal_weights.Lunch = 1; b.protein_weights.Lunch = 0; b.grocery[0].items[0].amount = 10000; b.roles[0].food = shipped.roles[0].food; }) });
-    expect(getMealPlanning().meal_weights.Lunch).toBe(1);
+  it('accepts bounds at the edge: tiny positive weights summing to 1, amount 10000, min equal to max', async () => {
+    await launch({ 'meal-planning': planWith((b) => {
+      b.meal_weights = { Breakfast: 0.0001, Lunch: 0.0001, Snacks: 0.0001, Dinner: 0.9997 };
+      b.protein_weights.Lunch = 0.3; b.grocery[0].items[0].amount = 10000;
+      b.min_portions['Egg, whole'] = b.max_portions['Egg, whole'];
+    }) });
+    expect(getMealPlanning().meal_weights.Dinner).toBe(0.9997);
     expect(getMealGrocery()[0]!.items[0]!.amount).toBe(10000);
+    expect(getMealPlanning().min_portions['Egg, whole']).toBe(3);
+  });
+
+  it.each(['g', 'ml', 'pcs', 'scoops', 'slices'])('accepts unit %s', async (unit) => {
+    await launch({ 'meal-planning': planWith((b) => { bump(b); b.grocery[0].items[0].unit = unit; }) });
+    expect(getMealGrocery()[0]!.items[0]!.unit).toBe(unit);
+  });
+
+  it('accepted copies never give NaN or a weight sum other than 1', async () => {
+    await launch({ 'meal-planning': edited() });
+    const p = getMealPlanning();
+    for (const w of [p.meal_weights, p.protein_weights]) {
+      const vals = Object.values(w);
+      expect(vals.every((x) => Number.isFinite(x) && x > 0)).toBe(true);
+      expect(vals.reduce((a, x) => a + x, 0)).toBeCloseTo(1, 9);
+    }
   });
 
   const cases: [string, (b: Obj) => void][] = [
     ['missing meal weight', (b) => { delete b.meal_weights.Dinner; }],
+    ['meal weight zero (others sum to 1)', (b) => { b.meal_weights = { Breakfast: 0, Lunch: 0.4, Snacks: 0.2, Dinner: 0.4 }; }],
+    ['all meal weights one', (b) => { b.meal_weights = { Breakfast: 1, Lunch: 1, Snacks: 1, Dinner: 1 }; }],
+    ['meal weights sum above 1', (b) => { b.meal_weights.Lunch = 0.36; b.meal_weights.Dinner = 0.3; }],
+    ['meal weights sum below 1', (b) => { b.meal_weights.Lunch = 0.3; b.meal_weights.Dinner = 0.3; }],
+    ['protein weight zero (others sum to 1)', (b) => { b.protein_weights = { Breakfast: 0, Lunch: 0.4, Snacks: 0.2, Dinner: 0.4 }; }],
+    ['all protein weights one', (b) => { b.protein_weights = { Breakfast: 1, Lunch: 1, Snacks: 1, Dinner: 1 }; }],
+    ['protein weights sum off by 0.01', (b) => { b.protein_weights.Lunch = 0.31; }],
+    ['meal weights in another key order', (b) => { b.meal_weights = { Lunch: 0.4, Breakfast: 0.25, Snacks: 0.1, Dinner: 0.25 }; }],
+    ['meal weights with an extra meal', (b) => { b.meal_weights.Brunch = 0; }],
+    ['max_portions empty', (b) => { b.max_portions = {}; }],
+    ['min_portions empty', (b) => { b.min_portions = {}; }],
+    ['grocery unit kg', (b) => { b.grocery[0].items[0].unit = 'kg'; }],
+    ['grocery unit tbsp (a recipe unit, not a grocery one)', (b) => { b.grocery[0].items[0].unit = 'tbsp'; }],
+    ['grocery unit uppercase', (b) => { b.grocery[0].items[0].unit = 'G'; }],
+    ['duplicate role food', (b) => { b.roles.push({ ...b.roles[0] }); }],
+    ['duplicate role food differing in case and spaces', (b) => { b.roles.push({ ...b.roles[0], food: ' ' + b.roles[0].food.toUpperCase() }); }],
+    ['duplicate grocery food', (b) => { b.grocery.push(clone(b.grocery[0])); }],
+    ['whitespace-only grocery item', (b) => { b.grocery[0].items[0].item = '   '; }],
     ['negative meal weight', (b) => { b.meal_weights.Lunch = -0.1; }],
     ['meal weight over 1', (b) => { b.meal_weights.Lunch = 1.5; }],
     ['string meal weight', (b) => { b.meal_weights.Lunch = '0.3'; }],
@@ -121,7 +159,7 @@ describe('meal planning through the content store', () => {
     ['grocery unit number', (b) => { b.grocery[0].items[0].unit = 1; }],
   ];
   it.each(cases)('%s rejects the whole copy (every reader falls back together)', async (_n, mutate) => {
-    await launch({ 'meal-planning': planWith((b) => { b.meal_weights.Lunch = 0.4; mutate(b); }) });
+    await launch({ 'meal-planning': planWith((b) => { bump(b); mutate(b); }) });
     isShipped();
   });
 
@@ -131,6 +169,13 @@ describe('meal planning through the content store', () => {
   });
 
   describe('foods named by the plan', () => {
+    it('an eat-out dish counts as a known food, as in the content spec', async () => {
+      const dish = eatout.cuisines[0]!.dishes[0]!.name;
+      await launch({ 'meal-planning': planWith((b) => { bump(b); b.max_portions[dish] = 2; }) });
+      isEdited();
+      expect(getMealPlanning().max_portions[dish]).toBe(2);
+    });
+
     it('a removed shipped role, grocery entry or cap rejects the copy', async () => {
       for (const mutate of [
         (b: Obj) => { b.roles.splice(0, 1); },
@@ -139,7 +184,7 @@ describe('meal planning through the content store', () => {
         (b: Obj) => { delete b.min_portions['Whey protein']; },
         (b: Obj) => { b.roles[0].food = 'Renamed food'; },
       ]) {
-        await launch({ 'meal-planning': planWith((b) => { b.meal_weights.Lunch = 0.4; mutate(b); }) });
+        await launch({ 'meal-planning': planWith((b) => { bump(b); mutate(b); }) });
         isShipped();
       }
     });
@@ -150,14 +195,14 @@ describe('meal planning through the content store', () => {
       ['a max portion', (b: Obj) => { b.max_portions['Not in the catalog'] = 2; }],
       ['a min portion', (b: Obj) => { b.min_portions['Not in the catalog'] = 1; }],
     ])('a food absent from the chosen foods in %s rejects the whole planning copy', async (_n, mutate) => {
-      await launch({ 'meal-planning': planWith((b) => { b.meal_weights.Lunch = 0.4; mutate(b); }) });
+      await launch({ 'meal-planning': planWith((b) => { bump(b); mutate(b); }) });
       isShipped();
     });
 
     it('the same new food is accepted when the chosen foods bundle has it, and rejected when that bundle was rejected', async () => {
       const newFood = { ...clone(shippedFoods.foods[0]), id: UUID, name: 'Server-only test food' };
       const withFood = (): Obj => { const f = clone(shippedFoods); f.foods.push(newFood); return f; };
-      const plan = planWith((b) => { b.meal_weights.Lunch = 0.4; b.roles.push({ food: 'Server-only test food', role: 'p', diet: 'v' }); });
+      const plan = planWith((b) => { bump(b); b.roles.push({ food: 'Server-only test food', role: 'p', diet: 'v' }); });
       await launch({ foods: withFood(), 'meal-planning': plan });
       expect(getFoodCatalog().map((f) => f.name)).toContain('Server-only test food');
       isEdited();
@@ -171,8 +216,17 @@ describe('meal planning through the content store', () => {
     });
   });
 
-  it('a decision that throws is not a crash: planning stays usable from the shipped copy', async () => {
-    await launch({ 'meal-planning': { meal_weights: null } });
-    expect(getMealPlanning().roles.length).toBe(shipped.roles.length);
+  it('a stored value that makes the validator throw (a getter-throwing object) is a rejection, not a crash', async () => {
+    const db = await openDb();
+    await store(db, 'meal-planning', edited());
+    await loadContent(db);
+    const bad = edited();
+    Object.defineProperty(bad, 'roles', { enumerable: true, get() { throw new Error('boom'); } });
+    const real = JSON.parse;
+    const spy = jest.spyOn(JSON, 'parse').mockImplementation((t, r) => (typeof t === 'string' && t.includes('"meal_weights"') ? bad : real(t, r)));
+    await loadContent(db);
+    expect(() => chosenPlanning()).not.toThrow();
+    spy.mockRestore();
+    isShipped();
   });
 });
