@@ -9,6 +9,14 @@ import { getCuisines } from '../src/food/catalog';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
 
+// Pressable folds aria-expanded into accessibilityState before the host view, so record what the card hands to it.
+const mockPressed: Record<string, unknown>[] = [];
+jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
+  const React = jest.requireActual('react');
+  const Actual = jest.requireActual('react-native/Libraries/Components/Pressable/Pressable').default;
+  return { __esModule: true, default: (p: Record<string, unknown>) => { mockPressed.push(p); return React.createElement(Actual, p); } };
+});
+
 const mockFocus = { n: 0 };
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -61,7 +69,7 @@ describe('Food screen', () => {
   describe('flex chips', () => {
     const flexOf = async (db: Db) => (await loadSettings(db))?.flex ?? [];
     const plan = async (label: string) => {
-      if (!screen.queryByLabelText('Plan a bigger day')) await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+      if (!screen.queryByLabelText('Plan a bigger day')) await fireEvent.press(screen.getByRole('button', { name: /What should I eat next\? Breakfast ideas/ }));
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       await fireEvent.press(screen.getByLabelText(label));
     };
@@ -90,9 +98,22 @@ describe('Food screen', () => {
       await waitFor(async () => expect(await flexOf(db)).toEqual([]));
     });
 
+    it('the ideas card is named by its visible text (no custom label) and exposes expanded', async () => {
+      await setup();
+      const card = screen.getByRole('button', { name: /What should I eat next\? Breakfast ideas/ });
+      expect(card.props.accessibilityLabel).toBeUndefined();
+      // The card is the only unlabelled expandable pressable.
+      const handed = () => mockPressed.filter((p) => (p.accessibilityState as { expanded?: boolean } | undefined)?.expanded !== undefined && p.accessibilityLabel === undefined).at(-1);
+      expect(handed()?.['aria-expanded']).toBe(false);
+      expect(card.props.accessibilityState).toMatchObject({ expanded: false });
+      await fireEvent.press(card);
+      expect(handed()?.['aria-expanded']).toBe(true);
+      expect(screen.getByRole('button', { name: /What should I eat next\? Breakfast ideas/ }).props.accessibilityState).toMatchObject({ expanded: true });
+    });
+
     it('announces whether the chips are open', async () => {
       await setup();
-      await fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+      await fireEvent.press(screen.getByRole('button', { name: /What should I eat next\? Breakfast ideas/ }));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: false });
       await fireEvent.press(screen.getByLabelText('Plan a bigger day'));
       expect(screen.getByLabelText('Plan a bigger day').props.accessibilityState).toMatchObject({ expanded: true });
@@ -172,7 +193,7 @@ describe('Food screen', () => {
   });
 
   describe('ideas card', () => {
-    const openCard = async () => fireEvent.press(screen.getByLabelText('What should I eat next? Breakfast ideas'));
+    const openCard = async () => fireEvent.press(screen.getByRole('button', { name: /What should I eat next\? Breakfast ideas/ }));
 
     it('is closed at first and shows the next meal’s share, three ideas and the diet it filters by', async () => {
       await setup();
@@ -189,7 +210,7 @@ describe('Food screen', () => {
       expect(await screen.findByText('Added to breakfast')).toBeTruthy();
       await waitFor(() => expect(docs(db, 'food_logs').length).toBeGreaterThan(1));
       expect(docs(db, 'food_logs').every((l) => l.meal === 'Breakfast' && l.deleted_at === null)).toBe(true);
-      expect(screen.getByLabelText('What should I eat next? Lunch ideas')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /What should I eat next\? Lunch ideas/ })).toBeTruthy();
     });
 
     it('the diet chips filter the ideas and are saved to settings', async () => {
@@ -255,7 +276,7 @@ describe('Food screen', () => {
         db.rows.set(`food_logs:l${i}`, JSON.stringify({ id: `l${i}`, version: 0, updated_at: nowDay, deleted_at: null, date: DATE, meal: 'Breakfast', name: 'X', qty: 1, kcal, protein_g: 10, carbs_g: 0, fat_g: 0, food_id: null }));
       }
       await setup({ db });
-      await fireEvent.press(screen.getByLabelText('What should I eat next? Lunch ideas'));
+      await fireEvent.press(screen.getByRole('button', { name: /What should I eat next\? Lunch ideas/ }));
       expect(screen.getByText(/You’ve reached today’s calories/)).toBeTruthy();
       expect(screen.queryByLabelText('Fasting day')).toBeNull();
     });

@@ -63,7 +63,7 @@ describe('exercise library screen', () => {
   it('opens a detail with tags and notes, and goes back', async () => {
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
     await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'barbell bench press');
-    await fireEvent.press(screen.getByLabelText(/^Barbell Bench Press\./));
+    await fireEvent.press(screen.getByText('Barbell Bench Press'));
     expect(screen.getByText('Barbell Bench Press')).toBeTruthy();
     expect(screen.getByText('Equipment: ', { exact: false })).toBeTruthy();
     expect(screen.getByText('Where you should feel it')).toBeTruthy();
@@ -96,7 +96,7 @@ describe('exercise library screen', () => {
       return { remove: () => undefined };
     });
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
-    await fireEvent.press(screen.getByLabelText(/^Barbell Bench Press\./));
+    await fireEvent.press(screen.getByText('Barbell Bench Press'));
     expect(screen.getByLabelText('Back to library')).toBeTruthy();
     await act(async () => { handler(); });
     expect(screen.getByLabelText('Search exercises')).toBeTruthy();
