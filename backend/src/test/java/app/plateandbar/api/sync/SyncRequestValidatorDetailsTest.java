@@ -39,6 +39,12 @@ class SyncRequestValidatorDetailsTest {
         return Req.of(null).add(SyncTable.water_logs, r).build();
     }
 
+    private static ObjectNode reminders(String json) {
+        ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.settings);
+        r.set("reminders", SyncFixtures.obj(json).get("r"));
+        return Req.of(null).add(SyncTable.settings, r).build();
+    }
+
     private static ErrorResponse.Detail d(String field, String issue) {
         return new ErrorResponse.Detail(field, issue);
     }
@@ -60,6 +66,12 @@ class SyncRequestValidatorDetailsTest {
                 Arguments.of("unknown table", (ObjectNode) Req.of(null).build().set("changes",
                         SyncFixtures.obj("{'meals':[]}")), List.of(d("changes.meals", "additionalProperties"))),
                 Arguments.of("cursor type", (ObjectNode) Req.of(null).build().put("cursor", 5), List.of(d("cursor", "type"))),
+                // #418: the contract's `on` key used to be read as the boolean true, so every reminder was refused.
+                Arguments.of("a reminder", reminders("{'r':[{'kind':'workout','time':'07:00','days':[1,3,5],'on':false}]}"), null),
+                Arguments.of("a reminder without on", reminders("{'r':[{'kind':'workout','time':'07:00','days':[1]}]}"),
+                        List.of(d("changes.settings[0].reminders[0].on", "required"))),
+                Arguments.of("a reminder with on not a boolean", reminders("{'r':[{'kind':'water','time':'07:00','days':[1],'on':'yes'}]}"),
+                        List.of(d("changes.settings[0].reminders[0].on", "type"))),
                 Arguments.of("missing changes", (ObjectNode) SyncFixtures.obj("{'cursor':null}"), List.of(d("changes", "required"))));
     }
 
