@@ -8,12 +8,26 @@ import { chosenExercises, EQUIPMENT_CODES, getCatalog } from '../src/workout/cat
 import { MUSCLE_CODES, TYPE_LABEL } from '../src/workout/copy';
 import { openDb } from './sync-helpers';
 
+// A spy on the validator the catalog hands to `contentReader`: counts every run of it, by bundle name.
+const mockRuns: string[] = [];
+jest.mock('../src/content/reader', () => {
+  const actual = jest.requireActual('../src/content/reader');
+  return { ...actual, contentReader: (n: string, shipped: unknown, valid: (v: unknown) => boolean) => actual.contentReader(n, shipped, (x: unknown) => { mockRuns.push(n); return valid(x); }) };
+});
+
 const LATER = '2099-01-01T00:00:00Z';
 type Obj = Record<string, any>;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const shipped = exercises as unknown as Obj;
 const FIRST = Object.keys(shipped.tags)[0]!;
 const NEW = 'Server-only test exercise';
+const names = (eq: string) => Object.keys(shipped.tags).filter((n) => shipped.tags[n].equipment === eq);
+const BODYWEIGHT = names('bodyweight')[0]!;
+const BARBELL = names('barbell')[0]!;
+const DUMBBELL = names('dumbbell')[0]!;
+const AWAY_KEY = Object.keys(shipped.away_map.dumbbells_bodyweight)[0]!;
+const onLadder = new Set<string>(Object.values<Obj>(shipped.ladders).flatMap((l) => l.steps.flat()));
+const [UNLADDERED, UNLADDERED2] = Object.keys(shipped.tags).filter((n) => !onLadder.has(n)) as [string, string];
 
 async function store(db: ContentDb, name: string, value: unknown): Promise<void> {
   await putStored(db, { name, sha256: 'x', schema_version: BUNDLED[name]!.schema_version, updated_at: LATER, body: JSON.stringify(value) });
@@ -82,7 +96,7 @@ describe('exercises through the content store', () => {
   it('a valid copy with a ladder step, a away-map entry and a library entry on a new exercise is used', async () => {
     await launch(withNew((b) => {
       b.ladders.squat.steps.push([NEW]);
-      b.away_map.dumbbells_bodyweight[NEW] = [FIRST, null];
+      b.away_map.dumbbells_bodyweight[NEW] = [BODYWEIGHT, null];
     }));
     expect(getCatalog().ladders.squat!.steps.at(-1)).toEqual([NEW]);
   });
@@ -173,6 +187,72 @@ describe('exercises through the content store', () => {
     ['library group empty', (b) => { b.library.Chest = []; }],
     ['library group not a list', (b) => { b.library.Chest = 'x'; }],
     ['library lists an unknown exercise', (b) => { b.library.Chest.push('Not an exercise'); }],
+    ['meta key renamed so tags and meta differ (same size)', (b) => { b.meta['Other name'] = b.meta[NEW]; delete b.meta[NEW]; }],
+    ['family empty', (b) => { b.tags[NEW].family = ''; }],
+    ['family 61 characters', (b) => { b.tags[NEW].family = 'f'.repeat(61); }],
+    ['family whitespace only', (b) => { b.tags[NEW].family = '  '; }],
+    ['101 joints', (b) => { b.tags[NEW].joints = Array.from({ length: 101 }, (_, i) => `j${i}`); }],
+    ['101 secondary muscles', (b) => { b.tags[NEW].secondary = Array.from({ length: 101 }, () => 'chest'); }],
+    ['101 setup lines', (b) => { b.cards[NEW].setup = Array.from({ length: 101 }, () => 'x'); }],
+    ['rep_high fractional', (b) => { b.meta[NEW].rep_high = 10.5; }],
+    ['meta unknown field', (b) => { b.meta[NEW].tempo = '3-1-1'; }],
+    ['card unknown field', (b) => { b.cards[NEW].video = 'x'; }],
+    ['card misplaced_feel missing', (b) => { delete b.cards[NEW].misplaced_feel; }],
+    ['card misplaced_feel empty', (b) => { b.cards[NEW].misplaced_feel = []; }],
+    ['card misplaced_feel with empty texts', (b) => { b.cards[NEW].misplaced_feel = [['', '']]; }],
+    ['card misplaced_feel with 5000-character text', (b) => { b.cards[NEW].misplaced_feel = [['a', 'x'.repeat(5000)]]; }],
+    ['card setup empty', (b) => { b.cards[NEW].setup = []; }],
+    ['card key_cues empty', (b) => { b.cards[NEW].key_cues = []; }],
+    ['card common_mistakes empty', (b) => { b.cards[NEW].common_mistakes = []; }],
+    ['card common_mistakes empty line', (b) => { b.cards[NEW].common_mistakes = ['']; }],
+    ['card common_mistakes whitespace line', (b) => { b.cards[NEW].common_mistakes = ['  ']; }],
+    ['card common_mistakes 5000 characters', (b) => { b.cards[NEW].common_mistakes = ['x'.repeat(5000)]; }],
+    ['card breathing empty', (b) => { b.cards[NEW].breathing = ''; }],
+    ['card breathing 5000 characters', (b) => { b.cards[NEW].breathing = 'x'.repeat(5000); }],
+    ['card easier_version 5000 characters', (b) => { b.cards[NEW].easier_version = 'x'.repeat(5000); }],
+    ['card harder_version whitespace', (b) => { b.cards[NEW].harder_version = ' '; }],
+    ['card where_to_feel whitespace', (b) => { b.cards[NEW].where_to_feel = ' '; }],
+    ['exercise name whitespace only', (b) => { b.tags[' '] = b.tags[NEW]; b.meta[' '] = b.meta[NEW]; }],
+    ...['toString', 'constructor', 'hasOwnProperty', 'valueOf', '__proto__'].flatMap((p): [string, (b: Obj) => void][] => [
+      [`pattern ${p}`, (b) => { b.tags[NEW].pattern = p; }],
+      [`family ${p}`, (b) => { b.tags[NEW].family = p; }],
+      [`joint ${p}`, (b) => { b.tags[NEW].joints = [p]; }],
+      [`ladder step with ${p}`, (b) => { b.ladders.squat.steps.push([p]); }],
+      [`library group named ${p}`, (b) => { Object.defineProperty(b.library, p, { value: [FIRST], enumerable: true, writable: true, configurable: true }); }],
+      [`ladder named ${p}`, (b) => { Object.defineProperty(b.ladders, p, { value: { label: 'x', steps: [[NEW]] }, enumerable: true, writable: true, configurable: true }); }],
+    ]),
+    ['exercise named toString', (b) => { b.tags.toString = b.tags[NEW]; b.meta.toString = b.meta[NEW]; }],
+    ['exercise named constructor', (b) => { b.tags.constructor = b.tags[NEW]; b.meta.constructor = b.meta[NEW]; }],
+    ['exercise named __proto__ (an own key from JSON.parse)', (b) => {
+      Object.defineProperty(b.tags, '__proto__', { value: b.tags[NEW], enumerable: true, writable: true, configurable: true });
+      Object.defineProperty(b.meta, '__proto__', { value: b.meta[NEW], enumerable: true, writable: true, configurable: true });
+    }],
+    ['card keyed by an Object.prototype name', (b) => { b.cards.valueOf = clone(b.cards[NEW]); }],
+    ['an exercise on two ladders', (b) => { b.ladders.extra = { label: 'Extra', steps: [[shipped.ladders.squat.steps[0][0]]] }; }],
+    ['an exercise twice in one ladder', (b) => { b.ladders.squat.steps.push([shipped.ladders.squat.steps[0][0]]); }],
+    ['a new exercise twice in one step', (b) => { b.ladders.squat.steps.push([NEW, NEW]); }],
+    ['a shipped ladder missing', (b) => { delete b.ladders.squat; }],
+    ['shipped ladders reordered', (b) => { const e = Object.entries(b.ladders); e.reverse(); b.ladders = Object.fromEntries(e); }],
+    ['a shipped ladder with its steps reversed', (b) => { b.ladders.squat.steps.reverse(); }],
+    ['a shipped step with a name removed', (b) => { b.ladders.squat.steps[2] = [shipped.ladders.squat.steps[2][1]]; }],
+    ['a shipped step with its names reordered', (b) => { b.ladders.squat.steps[2] = [...shipped.ladders.squat.steps[2]].reverse(); }],
+    ['a shipped step with a new name before the shipped ones', (b) => { b.ladders.squat.steps[0] = [NEW, ...shipped.ladders.squat.steps[0]]; }],
+    ['a shipped ladder with the last step removed', (b) => { b.ladders.squat.steps.pop(); }],
+    ['shipped exercises reordered in tags (focusPick breaks ties by it)', (b) => { const t = b.tags; const first = Object.keys(t)[0]!; const v = t[first]; delete t[first]; t[first] = v; }],
+    ['a shipped exercise changed to type assisted', (b) => { b.meta[FIRST].type = 'assisted'; }],
+    ['a shipped exercise changed to type time', (b) => { b.meta[FIRST].type = 'time'; }],
+    ['a shipped exercise changed to type bodyweight', (b) => { b.meta[FIRST].type = 'bodyweight'; }],
+    ['a shipped exercise changed to an equipment', (b) => { b.tags[BARBELL].equipment = 'bodyweight'; }],
+    ['a shipped exercise changed to equipment other', (b) => { b.tags[BODYWEIGHT].equipment = 'other'; }],
+    ['dumbbells column to a barbell exercise', (b) => { b.away_map.dumbbells_bodyweight[AWAY_KEY][0] = BARBELL; }],
+    ['dumbbells column to a machine exercise', (b) => { b.away_map.dumbbells_bodyweight[AWAY_KEY][0] = Object.keys(shipped.tags).find((n) => shipped.tags[n].equipment === 'machine'); }],
+    ['bodyweight column to a dumbbell exercise', (b) => { b.away_map.dumbbells_bodyweight[AWAY_KEY][1] = DUMBBELL; }],
+    ['bodyweight column to a barbell exercise', (b) => { b.away_map.dumbbells_bodyweight[AWAY_KEY][1] = BARBELL; }],
+    ['a shipped away entry removed', (b) => { delete b.away_map.dumbbells_bodyweight[AWAY_KEY]; }],
+    ['library group with 1001 names', (b) => { b.library.Chest = Array.from({ length: 1001 }, () => FIRST); }],
+    ['an exercise a library group lists has no card', (b) => { delete b.cards[NEW]; }],
+    ['an exercise an away entry lists has no card', (b) => { delete b.cards[NEW]; b.library.Chest.pop(); b.away_map.dumbbells_bodyweight[NEW] = [null, null]; }],
+    ['an exercise a ladder lists has no card', (b) => { delete b.cards[NEW]; b.library.Chest.pop(); b.ladders.squat.steps.push([NEW]); }],
     ['library group name 5000 characters', (b) => { b.library['x'.repeat(5000)] = [FIRST]; }],
   ];
 
@@ -207,9 +287,30 @@ describe('exercises through the content store', () => {
     }
   });
 
+  it('accepts an exercise no ladder, away entry or library group uses without a card, and a changed rep range and difficulty on a shipped one', async () => {
+    await launch(withNew((b) => { delete b.cards[NEW]; b.library.Chest.pop(); b.meta[FIRST].rep_low = 1; b.tags[FIRST].difficulty = 3; }));
+    expect(tagNames()).toContain(NEW);
+  });
+
+  it('accepts appended ladder steps, a new ladder, a name added after the shipped ones in a step, and away entries to allowed columns', async () => {
+    await launch(withNew((b) => {
+      b.ladders.squat.steps[0].push(NEW);
+      b.ladders.squat.steps.push([UNLADDERED]);
+      b.ladders.fresh = { label: 'Fresh', steps: [[UNLADDERED2]] };
+      b.away_map.dumbbells_bodyweight[NEW] = [DUMBBELL, BODYWEIGHT];
+    }));
+    expect(getCatalog().ladders.squat!.steps.at(-1)).toEqual([UNLADDERED]);
+    expect(getCatalog().ladders.squat!.steps[0]).toEqual([...shipped.ladders.squat.steps[0], NEW]);
+  });
+
+  it('accepts a 100-item list and a 1000-name library group', async () => {
+    await launch(withNew((b) => { b.tags[NEW].joints = Array.from({ length: 100 }, (_, i) => `j${i}`); b.library.Chest = Array.from({ length: 1000 }, () => FIRST); }));
+    expect(tagNames()).toContain(NEW);
+  });
+
   it('accepts a card with only the required fields and names of exactly 200 characters', async () => {
     const long = 'n'.repeat(200);
-    await launch(withNew((b) => { b.tags[long] = b.tags[NEW]; b.meta[long] = b.meta[NEW]; delete b.cards[NEW].misplaced_feel; delete b.cards[NEW].harder_version; }));
+    await launch(withNew((b) => { b.tags[long] = b.tags[NEW]; b.meta[long] = b.meta[NEW]; delete b.cards[NEW].harder_version; delete b.cards[NEW].breathing; }));
     expect(tagNames()).toContain(long);
     await launch(withNew((b) => { b.tags['n'.repeat(201)] = b.tags[NEW]; b.meta['n'.repeat(201)] = b.meta[NEW]; }));
     expect(tagNames()).not.toContain('n'.repeat(201));
@@ -227,11 +328,26 @@ describe('exercises through the content store', () => {
     expect(tagNames()).toContain(`T${Object.keys(TYPE_LABEL).length - 1}`);
   });
 
-  it('a validator spy proves one validation per load is enough: getters never revalidate', async () => {
+  it('the validator runs once per load however often every getter is called, and again only after the next load', async () => {
     await launch(withNew());
+    const runs = () => mockRuns.filter((n) => n === 'exercises').length;
+    const base = runs();
     const a = getCatalog();
-    for (let i = 0; i < 5; i++) { getCatalog(); getLibrary(); getEquipment(); getMuscles(); getTypes(); }
+    const lib = getLibrary();
+    const eq = getEquipment();
+    const mu = getMuscles();
+    const ty = getTypes();
+    for (let i = 0; i < 5; i++) { getCatalog(); getLibrary(); getEquipment(); getMuscles(); getTypes(); chosenExercises(); }
+    expect(runs() - base).toBe(1);
     expect(getCatalog()).toBe(a);
+    expect(getLibrary()).toBe(lib);
+    expect(getEquipment()).toBe(eq);
+    expect(getMuscles()).toBe(mu);
+    expect(getTypes()).toBe(ty);
+    await launch(withNew());
+    getCatalog(); getLibrary(); getEquipment();
+    expect(runs() - base).toBe(2);
+    expect(getEquipment()).not.toBe(eq);
   });
 
   it('the contract lists match what the app uses: muscles and equipment, and TYPE_LABEL covers every shipped type', () => {
