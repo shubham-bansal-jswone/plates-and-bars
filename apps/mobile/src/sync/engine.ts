@@ -95,30 +95,66 @@ async function net<T>(call: () => Promise<T>): Promise<T> {
 }
 
 /** POSTs /sync; on 401 refreshes the tokens once and retries. Tokens are never logged. */
-async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard): Promise<Outcome<Schemas['SyncResponse']>> {
+async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, owner: string): Promise<Outcome<Schemas['SyncResponse']>> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const { data, error, response } = await net(() => d.api.POST('/sync', { body }));
     if (data) return { ok: true, data };
     if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
     if (response.status !== 401) return failFrom(response, error as Parameters<typeof failFrom>[1]);
-    if (attempt === 1 || !(await refresh(d, guard))) return fail('signed_out');
+    if (attempt === 1 || !(await refresh(d, owner))) return fail('signed_out');
+    // The rotated pair is saved even when paused, but a paused run must not go on to push: the user may have chosen to discard.
+    await guard(d.db);
   }
   return fail('signed_out');
 }
 
-/** Rotates the token pair. False means the session is over (tokens cleared); transient errors keep the tokens. */
-async function refresh(d: SyncDeps, guard: Guard, signal?: AbortSignal): Promise<boolean> {
+let refreshing: { promise: Promise<boolean>; token: string; owner: string | null } | null = null;
+
+/**
+ * Rotates the token pair; single-flight: a call made while one is in flight for the same refresh token and owner joins it
+ * (a second request with the same token would be reuse of a rotated token, and the server then revokes the whole
+ * session). A joiner waits for the shared answer but gives up on its own `signal`; the leader's `signal` aborts the
+ * request for everyone. False means the session is over (tokens cleared); transient errors keep the tokens. The response
+ * is applied whenever it arrives, even while sync is paused for an account operation, because dropping a rotated pair
+ * leaves only a dead refresh token (#287). The only reason to drop it is that the store belongs to another user now
+ * (`owner` is who it belonged to at the start).
+ */
+async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
   const t = await d.tokens.load();
   if (!t) return false;
+  const inflight = refreshing;
+  if (inflight && inflight.token === t.refresh && inflight.owner === owner) return raceAbort(inflight.promise, signal);
+  const promise = rotate(d, owner, t, signal);
+  if (inflight) return promise; // another token or owner is in flight: do not share, do not replace
+  const entry = { promise: promise.finally(() => void (refreshing === entry && (refreshing = null))), token: t.refresh, owner };
+  refreshing = entry;
+  return entry.promise;
+}
+
+/** Rejects when `signal` aborts before `p` settles (the shared request itself keeps going for its leader). */
+function raceAbort<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return p;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new NetworkError());
+    if (signal.aborted) return onAbort();
+    signal.addEventListener('abort', onAbort, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
+async function rotate(d: SyncDeps, owner: string | null, t: { refresh: string }, signal?: AbortSignal): Promise<boolean> {
+  const sameOwner = async () => {
+    if ((await getUserId(d.db)) !== owner) throw new Aborted(); // a wipe and another sign-in happened meanwhile: do not touch their tokens
+  };
   const { data, response } = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh }, signal }));
   if (data) {
-    await guard(d.db); // a wipe or sign-out may have happened while the request was in flight: do not bring the old tokens back
+    await sameOwner();
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
     return true;
   }
   if (response.ok) throw new Error('empty or malformed 2xx body');
   if (response.status === 401) {
-    await guard(d.db);
+    await sameOwner();
     await d.tokens.clear();
   }
   else throw new TransientError(failFrom(response));
@@ -135,12 +171,9 @@ export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
  */
 export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
   const owner = await getUserId(d.db);
-  const guard: Guard = async (db) => {
-    if ((await getUserId(db)) !== owner) throw new Aborted();
-  };
   try {
     // A stalled request is given up after the timeout, so the account lock is never held for long.
-    const r = await withTimeout(d.timeoutMs ?? REQUEST_TIMEOUT_MS, (signal) => refresh(d as SyncDeps, guard, signal));
+    const r = await withTimeout(d.timeoutMs ?? REQUEST_TIMEOUT_MS, (signal) => refresh(d as SyncDeps, owner, signal));
     if (r.timedOut) return 'unavailable';
     return r.value ? 'ok' : 'ended';
   } catch (e) {
@@ -185,8 +218,9 @@ export async function pauseSync(): Promise<void> {
   await running?.catch(() => undefined);
 }
 /**
- * Resolves when no sync run is in flight, without pausing anything. A caller that is about to take the account lock for
- * a token refresh waits here first, so a run's own refresh finishes and saves its rotated pair before the pause (#287).
+ * Resolves when no sync run is in flight, without pausing anything. A caller that is about to take the account lock waits
+ * here first so the run finishes its request instead of ending 'paused'. Correctness does not depend on it: a rotated
+ * pair is saved even while paused and refreshes are single-flight (#287).
  */
 export async function syncIdle(): Promise<void> {
   await running?.catch(() => undefined);
@@ -269,7 +303,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         if (splitRounds++ < MAX_SPLIT_ROUNDS) round--;
         continue;
       }
-      const out = await post(d, { cursor, changes: changes as Schemas['SyncChanges'] }, guard);
+      const out = await post(d, { cursor, changes: changes as Schemas['SyncChanges'] }, guard, userId);
       if (!out.ok) {
         if (out.tooLarge && sent.size > 0) {
           // The 400 names no record. Send half as many; one record alone that is still too large is set aside.

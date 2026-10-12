@@ -122,6 +122,23 @@ describe('size-aware batching', () => {
     expect(await listQuarantined(db)).toEqual([expect.objectContaining({ key: date(1) })]);
   });
 
+  it('a token refresh held in flight at the first batch: one refresh, and every later batch carries the new token', async () => {
+    const { db, server, deps } = await setup();
+    for (let i = 0; i < 4; i++) await saveBig(db, date(i), 800_000); // one record per request
+    server.accessValid = 'expired'; // the first request is answered 401, so the run refreshes
+    let release = () => {};
+    server.hold = new Promise<void>((r) => (release = r));
+    server.holdPath = '/auth/refresh';
+    const run = syncOnce(deps);
+    await new Promise((r) => setTimeout(r, 30)); // the refresh is in flight
+    release();
+    expect(await run).toMatchObject({ status: 'ok' });
+    expect(server.refreshes).toBe(1);
+    expect(accepted(server).size).toBe(4);
+    expect(syncCalls(server).length).toBeGreaterThanOrEqual(5); // the 401, then one request per record
+    expect(await pendingCount(db)).toBe(0);
+  });
+
   it('only oversized records queued: all are set aside, the run ends ok', async () => {
     const { db, deps } = await setup();
     await saveBig(db, date(0), MAX_BODY_BYTES + 1);
