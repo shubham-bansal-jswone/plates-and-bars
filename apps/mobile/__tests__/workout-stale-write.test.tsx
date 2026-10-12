@@ -257,4 +257,29 @@ describe('a workout row changed elsewhere after the screen loaded (#410)', () =>
     expect(stored.exercises.map((e) => e.name)).toEqual(swapped);
     expect(stored.exercises.find((e) => e.name === kept)).toMatchObject({ form: 'yes', skip_ramp: true });
   });
+
+  it('opened over a stored session (no start here), a rule saved on Targets survives the next write', async () => {
+    const { db } = await started();
+    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(result.current.day.exs.length).toBeGreaterThan(0));
+    await applyCantToStoredDay({ db, date: DATE, now: NOW, draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
+    const swapped = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    const kept = result.current.day.exs.find((e) => swapped.includes(e.name))!.name;
+    await act(async () => result.current.setForm(result.current.day.exs.findIndex((e) => e.name === kept), 'yes'));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual(swapped);
+  });
+
+  it('a sync push that only changed the version is not a change: no merge, no reload', async () => {
+    const { db, result } = await started();
+    await saveWorkout(db, { ...(await loadWorkout(db, DATE))!, version: 9 }); // what patchMeta does after a push
+    const first = (await loadSets(db, DATE))[0]!;
+    await saveSet(db, DATE, { ...first, weight_kg: 77 }); // would show on screen only if the screen reloaded
+    await act(async () => result.current.setForm(0, 'yes'));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    await act(async () => void (await new Promise((r) => setTimeout(r, 50))));
+    expect(result.current.day.exs.flatMap((e) => e.sets).find((r) => r.id === first.id)?.w).toBe('');
+    expect((await loadWorkout(db, DATE))!.version).toBe(9);
+  });
 });
