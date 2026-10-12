@@ -9,7 +9,7 @@ import { getPlanDraft, setPlanDraft } from '../meals/planDraft';
 import { Text } from '../components/Text';
 import { Button, H1, Hint, Page, Press } from '../components/ui';
 import { fmt } from '../format';
-import { catalogFoods } from '../food/catalog';
+import { getFoodCatalog } from '../food/catalog';
 import { mealGrocery, mealPlanning } from '../meals/content';
 import { COPIED, COPY_FAILED, GROCERY_NOTE, PLAN_SAVED, planIntro } from '../meals/planCopy';
 import { localDate } from '../setup/logic';
@@ -49,13 +49,13 @@ export function MealPlanScreen(p: Props) {
 }
 
 function Plan({ onBack, mine, now = () => new Date() }: Props & { mine: ReturnType<typeof userFoodFacts>[] }) {
-  const foods = [...mine, ...catalogFoods];
+  const foods = [...mine, ...getFoodCatalog()];
   const c = useTheme();
   const { profile } = useProfile();
   const { settings, loadFailed, setMealPlan } = useSettings();
   const today = localDate(now());
   const targets = { kcal: profile?.targets.kcal ?? DEFAULT_KCAL_TARGET, protein: profile?.targets.protein_g ?? DEFAULT_PROTEIN_TARGET, fat: profile?.targets.fat_g ?? DEFAULT_FAT_TARGET, age: profile?.age };
-  const build = (): MealPlan => buildPlan(targets, today, { foods: catalogFoods, planning: mealPlanning, diet: settings.diet });
+  const build = (): MealPlan => buildPlan(targets, today, { foods: getFoodCatalog(), planning: mealPlanning, diet: settings.diet });
   const [plan, setPlan] = useState<MealPlan>(() => getPlanDraft() ?? (planIsCurrent(settings.meal_plan, today) && settings.meal_plan ? settings.meal_plan : build()));
   const edit = (next: MealPlan) => {
     setPlanDraft(next);

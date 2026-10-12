@@ -6,7 +6,7 @@ import { fmt } from '../format';
 import { Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { catalogFoods, cuisines, type CatalogFood } from './catalog';
+import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
 import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
 
@@ -77,7 +77,7 @@ function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; m
   const [grams, setGrams] = useState('');
   // My foods first, then the bundled list, as prototype `allFoods()`.
   const own: CatalogFood[] = mineFacts.map((f, i) => ({ ...f, id: mine[i]?.id ?? null }));
-  const list = searchFoods(q, [...own, ...catalogFoods]);
+  const list = searchFoods(q, [...own, ...getFoodCatalog()]);
   const pick = (f: CatalogFood) => {
     const r = quantityFromGrams(f, grams);
     if (r.kind === 'not-in-grams') return say(notInGrams(f.name, f.serving.label), true);
@@ -105,12 +105,12 @@ function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; m
 
 function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
   const c = useTheme();
-  const [name, setName] = useState(cuisines[0]?.name ?? '');
-  const cu = cuisines.find((x) => x.name === name);
+  const [name, setName] = useState(getCuisines()[0]?.name ?? '');
+  const cu = getCuisines().find((x) => x.name === name);
   return (
     <View style={styles.gap}>
       <View style={styles.row}>
-        {cuisines.map((x) => (
+        {getCuisines().map((x) => (
           <Press key={x.name} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={x.name} accessibilityState={{ selected: x.name === name }} onPress={() => setName(x.name)}
             style={[styles.tab, { borderColor: x.name === name ? c.brand : c.line, backgroundColor: x.name === name ? c.tint : c.surface }]}>
             <Text style={{ color: c.ink, fontWeight: '600' }}>{x.name}</Text>

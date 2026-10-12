@@ -5,7 +5,7 @@ import { loadSettings, saveSettings } from '../src/db/settings';
 import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET } from '@plate-and-bar/core';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { cuisines } from '../src/food/catalog';
+import { getCuisines } from '../src/food/catalog';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
 
@@ -321,7 +321,7 @@ describe('Food screen', () => {
     await fireEvent.press(screen.getByLabelText('Eating out'));
     expect(screen.getByText('Smart picks')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Drinks'));
-    const beer = cuisines.find((c) => c.name === 'Drinks')!.dishes[0]!;
+    const beer = getCuisines().find((c) => c.name === 'Drinks')!.dishes[0]!;
     await fireEvent.press(screen.getByLabelText(new RegExp(`^Add ${beer.name.replace(/[()]/g, '\\$&')}`)));
     await screen.findByText(`Added ${beer.name}`);
     await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(1));
