@@ -9,6 +9,14 @@ import { getCuisines } from '../src/food/catalog';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
 
+// Pressable folds aria-expanded into accessibilityState before the host view, so record what the card hands to it.
+const mockPressed: Record<string, unknown>[] = [];
+jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
+  const React = jest.requireActual('react');
+  const Actual = jest.requireActual('react-native/Libraries/Components/Pressable/Pressable').default;
+  return { __esModule: true, default: (p: Record<string, unknown>) => { mockPressed.push(p); return React.createElement(Actual, p); } };
+});
+
 const mockFocus = { n: 0 };
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -94,8 +102,12 @@ describe('Food screen', () => {
       await setup();
       const card = screen.getByRole('button', { name: /What should I eat next\? Breakfast ideas/ });
       expect(card.props.accessibilityLabel).toBeUndefined();
+      // The card is the only unlabelled expandable pressable.
+      const handed = () => mockPressed.filter((p) => (p.accessibilityState as { expanded?: boolean } | undefined)?.expanded !== undefined && p.accessibilityLabel === undefined).at(-1);
+      expect(handed()?.['aria-expanded']).toBe(false);
       expect(card.props.accessibilityState).toMatchObject({ expanded: false });
       await fireEvent.press(card);
+      expect(handed()?.['aria-expanded']).toBe(true);
       expect(screen.getByRole('button', { name: /What should I eat next\? Breakfast ideas/ }).props.accessibilityState).toMatchObject({ expanded: true });
     });
 
