@@ -169,11 +169,32 @@ describe('meal planning through the content store', () => {
   });
 
   describe('foods named by the plan', () => {
-    it('an eat-out dish counts as a known food, as in the content spec', async () => {
+    it('a plan naming only an eat-out dish is rejected (known foods are the foods bundle)', async () => {
       const dish = eatout.cuisines[0]!.dishes[0]!.name;
+      expect(foods.foods.map((f) => f.name)).not.toContain(dish);
       await launch({ 'meal-planning': planWith((b) => { bump(b); b.max_portions[dish] = 2; }) });
+      isShipped();
+    });
+
+    it.each([
+      ['upper case', (n: string) => n.toUpperCase()],
+      ['leading space', (n: string) => ' ' + n],
+    ])('a %s variant of a role or grocery food is a duplicate even when the foods copy has that name', async (_n, variant) => {
+      const role0 = shipped.roles[0].food as string;
+      const groc0 = shipped.grocery[0].food as string;
+      const foodsCopy = (): Obj => {
+        const f = clone(shippedFoods);
+        f.foods.push({ ...clone(shippedFoods.foods[0]), id: UUID, name: variant(role0) });
+        f.foods.push({ ...clone(shippedFoods.foods[0]), id: '11111111-2222-4333-8444-555555555556', name: variant(groc0) });
+        return f;
+      };
+      // control: the variants are known foods and the plan is otherwise valid, so only the duplicate check can reject
+      await launch({ foods: foodsCopy(), 'meal-planning': planWith((b) => { bump(b); b.max_portions[variant(role0)] = 2; }) });
       isEdited();
-      expect(getMealPlanning().max_portions[dish]).toBe(2);
+      await launch({ foods: foodsCopy(), 'meal-planning': planWith((b) => { bump(b); b.roles.push({ ...b.roles[0], food: variant(role0) }); }) });
+      isShipped();
+      await launch({ foods: foodsCopy(), 'meal-planning': planWith((b) => { bump(b); b.grocery.push({ ...clone(b.grocery[0]), food: variant(groc0) }); }) });
+      isShipped();
     });
 
     it('a removed shipped role, grocery entry or cap rejects the copy', async () => {
@@ -224,9 +245,12 @@ describe('meal planning through the content store', () => {
     Object.defineProperty(bad, 'roles', { enumerable: true, get() { throw new Error('boom'); } });
     const real = JSON.parse;
     const spy = jest.spyOn(JSON, 'parse').mockImplementation((t, r) => (typeof t === 'string' && t.includes('"meal_weights"') ? bad : real(t, r)));
-    await loadContent(db);
-    expect(() => chosenPlanning()).not.toThrow();
-    spy.mockRestore();
-    isShipped();
+    try {
+      await loadContent(db);
+      expect(() => chosenPlanning()).not.toThrow();
+      isShipped();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

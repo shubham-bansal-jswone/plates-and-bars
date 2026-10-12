@@ -1,7 +1,7 @@
 import type { GroceryEntry, MealPlanningContent } from '@plate-and-bar/core';
 import planning from '../../../../content/meal-planning.json';
 import { contentReader, isArrOf, isNumIn, isObj, isText, perLoad } from '../content/reader';
-import { chosenEatout, chosenFoods } from '../food/catalog';
+import { chosenFoods } from '../food/catalog';
 
 const NAME_MAX = 200;
 const MEALS = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'] as const;
@@ -51,8 +51,8 @@ const isPlanning = (v: unknown): v is Planning => {
   const have = sections(p);
   if (!noDup(have[0]!) || !noDup(have[1]!)) return false;
   if (!shippedSections.every((names, i) => names.every((n) => have[i]!.includes(n)))) return false;
-  // Known foods as the content spec counts them: the foods bundle plus eat-out dishes.
-  const catalog = new Set([...chosenFoods().foods.map((f) => f.name), ...chosenEatout().cuisines.flatMap((c) => c.dishes.map((d) => d.name))]);
+  // Known foods: the foods bundle only, as every caller of the tools validator passes (eat-out dishes do not count).
+  const catalog = new Set(chosenFoods().foods.map((f) => f.name));
   return have.every((names) => names.every((n) => catalog.has(n)));
 };
 
