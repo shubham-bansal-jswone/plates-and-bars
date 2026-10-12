@@ -60,7 +60,7 @@ describe('raw ingredients and recipes through the content store', () => {
     expect(rawNames()).not.toContain('Server-only test ingredient');
     await loadContent(db);
     expect(rawNames()).toContain('Server-only test ingredient');
-    expect(getRawNames()).toContain('Server-only test ingredient');
+    expect(getRawNames()).not.toContain('Server-only test ingredient'); // the picker offers shipped names only
     expect(getRawIngredients()).toHaveLength(rawCount + 1);
     expect(getRawIngredients()[0]!.per_100g.kcal).toBe(shippedRaw.ingredients[0].per_100g.kcal + 1);
     expect(libNames()).toContain('Server-only test recipe');
@@ -88,6 +88,24 @@ describe('raw ingredients and recipes through the content store', () => {
     ['huge fibre', (r) => { r.per_100g.fibre_g = 1e9; }],
     ['string fibre', (r) => { r.per_100g.fibre_g = 'x'; }],
     ['fibre missing', (r) => { delete r.per_100g.fibre_g; }],
+    ['fibre null (the content tool requires a number)', (r) => { r.per_100g.fibre_g = null; }],
+    ['fibre above carbs', (r) => { r.per_100g.carbs_g = 10; r.per_100g.fibre_g = 11; r.per_100g.protein_g = 0; r.per_100g.fat_g = 0; r.per_100g.kcal = 40; }],
+    ['macros above 100 g', (r) => { r.per_100g.protein_g = 60; r.per_100g.carbs_g = 60; r.per_100g.fat_g = 0; r.per_100g.fibre_g = 0; r.per_100g.kcal = 480; }],
+    ['kcal far from the macros (40 kcal for 100 g carbs)', (r) => { r.per_100g.protein_g = 0; r.per_100g.carbs_g = 100; r.per_100g.fat_g = 0; r.per_100g.fibre_g = 0; r.per_100g.kcal = 40; }],
+    ['name_hi missing', (r) => { delete r.name_hi; }],
+    ['name_hi blank', (r) => { r.name_hi = '  '; }],
+    ['blank name', (r) => { r.name = '   '; }],
+    ['alias blank', (r) => { r.aliases = ['']; }],
+    ['alias is another row name', (r) => { r.aliases = ['Onion']; }],
+    ['same name as another row after trim and lowercase', (r) => { r.name = ' onion '; }],
+    ['same id as another row', (r) => { r.id = shippedRaw.ingredients[0].id; }],
+    ['needs_dietitian_review missing', (r) => { delete r.needs_dietitian_review; }],
+    ['needs_dietitian_review a string', (r) => { r.needs_dietitian_review = 'true'; }],
+    ['updated_at not a UTC timestamp', (r) => { r.updated_at = 'yesterday'; }],
+    ['source url missing', (r) => { delete r.source.url; }],
+    ['source reference missing', (r) => { delete r.source.reference; }],
+    ['source reference blank', (r) => { r.source.reference = ' '; }],
+    ['source url blank', (r) => { r.source.url = ' '; }],
     ['id not a uuid', (r) => { r.id = 'not-a-uuid'; }],
     ['id missing', (r) => { delete r.id; }],
     ['id null', (r) => { r.id = null; }],
@@ -135,8 +153,8 @@ describe('raw ingredients and recipes through the content store', () => {
     expect(getRawIngredients()).toHaveLength(rawCount);
   });
 
-  it('raw: accepts null fibre, no name_hi and a 200 character name', async () => {
-    await launch({ 'raw-ingredients': rawWith((b) => { const r = b.ingredients[b.ingredients.length - 1]; r.per_100g.fibre_g = null; delete r.name_hi; r.name = 'x'.repeat(200); }) });
+  it('raw: accepts a null name_hi, a hindi name and a 200 character name', async () => {
+    await launch({ 'raw-ingredients': rawWith((b) => { const r = b.ingredients[b.ingredients.length - 1]; r.name_hi = null; r.name = 'x'.repeat(200); }) });
     expect(rawNames()).toContain('x'.repeat(200));
   });
 
@@ -165,6 +183,11 @@ describe('raw ingredients and recipes through the content store', () => {
     ['katoris huge', (r) => { r.katoris = 1e6; }],
     ['katoris string', (r) => { r.katoris = '4'; }],
     ['katoris missing', (r) => { delete r.katoris; }],
+    ['needs_dietitian_review missing', (r) => { delete r.needs_dietitian_review; }],
+    ['updated_at not a UTC timestamp', (r) => { r.updated_at = 'yesterday'; }],
+    ['blank name', (r) => { r.name = '  '; }],
+    ['same ingredient twice', (r) => { r.ingredients.push({ ...r.ingredients[0] }); }],
+    ['source reference missing', (r) => { delete r.source.reference; }],
     ['source missing', (r) => { delete r.source; }],
     ['source code not in the contract list', (r) => { r.source.code = 'ifct'; }],
     ['source url http:', (r) => { r.source.url = 'http://example.org/'; }],
@@ -192,6 +215,62 @@ describe('raw ingredients and recipes through the content store', () => {
     expect(presetNames()).not.toContain('Server-only test recipe');
     expect(getLibrary()).toHaveLength(shippedRecipes.library.length);
     expect(getKatoriG()).toBe(shippedRecipes.katori_g);
+  });
+
+  const libraryOnly: [string, (r: Obj) => void][] = [
+    ['time_min missing (shows "about undefined min")', (r) => { delete r.time_min; }],
+    ['cost missing (shows "cost: undefined")', (r) => { delete r.cost; }],
+    ['tags missing (shows "undefined, about ...")', (r) => { delete r.tags; }],
+    ['steps missing', (r) => { delete r.steps; }],
+    ['steps an empty list', (r) => { r.steps = []; }],
+    ['steps with a blank step', (r) => { r.steps = ['a', '  ']; }],
+    ['cost not Low, Medium or High', (r) => { r.cost = 'Pricey'; }],
+    ['cost lower case', (r) => { r.cost = 'low'; }],
+    ['tags blank', (r) => { r.tags = '  '; }],
+  ];
+  it.each(libraryOnly)('library: a recipe with %s rejects the whole copy', async (_n, mutate) => {
+    await launch({ recipes: recipesWith((b) => mutate(b.library[b.library.length - 1])) });
+    expect(libNames()).not.toContain('Server-only test recipe');
+    expect(getLibrary()).toHaveLength(shippedRecipes.library.length);
+    for (const l of getLibrary()) { expect(l.time_min).toBeGreaterThan(0); expect(['Low', 'Medium', 'High']).toContain(l.cost); expect(l.tags).toBeTruthy(); expect(l.steps!.length).toBeGreaterThan(0); }
+  });
+
+  it.each([['Low'], ['Medium'], ['High']])('library: cost %s is accepted', async (cost) => {
+    await launch({ recipes: recipesWith((b) => { b.library[b.library.length - 1].cost = cost; }) });
+    expect(libNames()).toContain('Server-only test recipe');
+  });
+
+  it('a library row in the shape of a preset is rejected', async () => {
+    await launch({ recipes: recipesWith((b) => { b.library[b.library.length - 1] = newRecipe('preset', { kind: 'library' }); }) });
+    expect(libNames()).not.toContain('Server-only test recipe');
+  });
+
+  it('duplicate names are rejected in raw, presets and library (trim, lower case)', async () => {
+    await launch({ 'raw-ingredients': rawWith((b) => { b.ingredients[b.ingredients.length - 1].name = 'Onion'; }) });
+    expect(rawNames().filter((n) => n === 'Onion')).toHaveLength(1);
+    expect(getRawIngredients()).toHaveLength(rawCount);
+    await launch({ recipes: recipesWith((b) => { b.presets[b.presets.length - 1].name = 'Dal'; }) });
+    expect(presetNames().filter((n) => n === 'Dal')).toHaveLength(1);
+    expect(getPresets()).toHaveLength(shippedRecipes.presets.length);
+    await launch({ recipes: recipesWith((b) => { b.library[b.library.length - 1].name = ` ${shippedRecipes.library[0].name.toUpperCase()} `; }) });
+    expect(getLibrary()).toHaveLength(shippedRecipes.library.length);
+    await launch({ recipes: recipesWith((b) => { b.library[b.library.length - 1].id = shippedRecipes.library[0].id; }) });
+    expect(getLibrary()).toHaveLength(shippedRecipes.library.length);
+  });
+
+  it('a preset name is capped so name + " (home-style)" fits 200 characters', async () => {
+    await launch({ recipes: recipesWith((b) => { b.presets[b.presets.length - 1].name = 'x'.repeat(188); }) });
+    expect(getPresets()).toHaveLength(shippedRecipes.presets.length);
+    await launch({ recipes: recipesWith((b) => { b.presets[b.presets.length - 1].name = 'x'.repeat(187); }) });
+    expect(presetNames()).toContain('x'.repeat(187));
+    expect(`${'x'.repeat(187)} (home-style)`).toHaveLength(200);
+  });
+
+  it('the picker offers only shipped ingredient names, even when a valid copy adds one', async () => {
+    await launch({ 'raw-ingredients': rawWith(() => undefined) });
+    expect(rawNames()).toContain('Server-only test ingredient'); // chosen and validated, used by core for totals
+    expect(getRawNames()).toEqual(shippedRaw.ingredients.map((i: Obj) => i.name));
+    expect(getRawNames()).not.toContain('Server-only test ingredient');
   });
 
   it.each(recipeCases.filter(([n]) => !/time_min|cost|tags|steps|wrong kind/.test(n)))('presets: a recipe with %s rejects the whole copy', async (_n, mutate) => {
@@ -273,5 +352,60 @@ describe('About sources follow the same raw-ingredients decision as the builder'
     const keys = await shippedKeys();
     await launch({ recipes: recipesWith((b) => { b.library[b.library.length - 1].source = SRC; }) });
     expect(getFoodSources().map(sourceKey)).toEqual(keys);
+  });
+});
+
+describe('memo: one validator run per bundle per load', () => {
+  type Mods = { loadContent: (db: ContentDb) => Promise<void>; content: typeof import('../src/recipes/content'); sources: typeof import('../src/about/sources'); calls: Record<string, number> };
+  function isolated(): Mods {
+    const calls: Record<string, number> = {};
+    let mods!: Omit<Mods, 'calls'>;
+    jest.isolateModules(() => {
+      jest.doMock('../src/content/reader', () => {
+        const actual = jest.requireActual('../src/content/reader');
+        return { ...actual, contentReader: (name: string, shipped: unknown, valid: (v: unknown) => boolean) => actual.contentReader(name, shipped, (v: unknown) => { calls[name] = (calls[name] ?? 0) + 1; return valid(v); }) };
+      });
+      mods = {
+        loadContent: jest.requireActual('../src/content/loader').loadContent,
+        content: jest.requireActual('../src/recipes/content'),
+        sources: jest.requireActual('../src/about/sources'),
+      };
+    });
+    jest.dontMock('../src/content/reader');
+    return { ...mods, calls };
+  }
+
+  it('every reader of raw-ingredients and recipes shares one validator run per load, and a new load runs it again', async () => {
+    const m = isolated();
+    const db = await openDb();
+    await store(db, 'raw-ingredients', rawWith(() => undefined));
+    await store(db, 'recipes', recipesWith(() => undefined));
+    await m.loadContent(db);
+    for (let k = 0; k < 3; k++) {
+      m.content.getRawIngredients(); m.content.getRawNames(); m.sources.getFoodSources();
+      m.content.getKatoriG(); m.content.getPresets(); m.content.getLibrary();
+      m.content.chosenRaw(); m.content.chosenRecipes();
+    }
+    expect(m.calls['raw-ingredients']).toBe(1);
+    expect(m.calls['recipes']).toBe(1);
+    expect(m.content.getRawIngredients()).toBe(m.content.chosenRaw().ingredients);
+    await m.loadContent(db);
+    m.content.getRawIngredients(); m.content.getLibrary(); m.sources.getFoodSources();
+    expect(m.calls['raw-ingredients']).toBe(2);
+    expect(m.calls['recipes']).toBe(2);
+  });
+
+  it('a stored copy written mid-session is not read until the next load', async () => {
+    const m = isolated();
+    const db = await openDb();
+    await m.loadContent(db);
+    expect(m.content.getRawIngredients()).toHaveLength(rawCount);
+    await store(db, 'raw-ingredients', rawWith(() => undefined));
+    await store(db, 'recipes', recipesWith(() => undefined));
+    expect(m.content.getRawIngredients()).toHaveLength(rawCount);
+    expect(m.content.getLibrary()).toHaveLength(shippedRecipes.library.length);
+    await m.loadContent(db);
+    expect(m.content.getRawIngredients()).toHaveLength(rawCount + 1);
+    expect(m.content.getLibrary()).toHaveLength(shippedRecipes.library.length + 1);
   });
 });
