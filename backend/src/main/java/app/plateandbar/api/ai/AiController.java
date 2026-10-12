@@ -1,5 +1,6 @@
 package app.plateandbar.api.ai;
 
+import app.plateandbar.api.common.FiniteNumbers;
 import app.plateandbar.api.ratelimit.ClientIpResolver;
 import app.plateandbar.api.ratelimit.RateLimitProperties;
 import app.plateandbar.api.ratelimit.RateLimiter;
@@ -64,6 +65,9 @@ public class AiController {
         if (raw.length <= MAX_BODY_BYTES) {
             try {
                 body = json.readTree(raw);
+                if (!FiniteNumbers.all(body)) {
+                    body = null; // a number too large for a double (#420): answered as unparseable
+                }
             } catch (Exception e) {
                 body = null; // reported as a 400 by the service's validation, without the body
             }

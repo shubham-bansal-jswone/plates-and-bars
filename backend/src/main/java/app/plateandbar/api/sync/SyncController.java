@@ -2,6 +2,7 @@ package app.plateandbar.api.sync;
 
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
+import app.plateandbar.api.common.FiniteNumbers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -54,6 +55,9 @@ public class SyncController {
         JsonNode body;
         try {
             body = json.readTree(raw);
+            if (!FiniteNumbers.all(body)) {
+                body = null; // a number too large for a double (#420): answered as unparseable
+            }
         } catch (JsonProcessingException e) {
             body = null; // the validator answers 400; the parser's message may quote the body
         }
