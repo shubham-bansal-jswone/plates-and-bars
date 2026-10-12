@@ -144,6 +144,36 @@ class SyncRepository {
                 utc(loggedAt));
     }
 
+    /**
+     * Bounds the user's conflict log: drops entries logged before {@code oldest}, then everything but the newest
+     * {@code keep}. The ids are read first (a plain consistent read through the user's index, FORCE INDEX so the scan
+     * stays inside this user's range) and then deleted by primary key, so the delete locks only the rows it removes
+     * and never another user's.
+     */
+    void pruneConflicts(String userId, Instant oldest, int keep) {
+        // The first prune of a user with a huge pre-existing log reads all their ids into memory; bounded by the cap after that.
+        LocalDateTime cutoff = utc(oldest);
+        List<Long> drop = new java.util.ArrayList<>();
+        int[] position = {0};
+        jdbc.query(
+                "SELECT id, logged_at FROM sync_conflicts FORCE INDEX (ix_sync_conflicts_user_record)"
+                        + " WHERE user_id = ? ORDER BY id DESC",
+                rs -> {
+                    boolean tooOld = rs.getObject("logged_at", LocalDateTime.class).isBefore(cutoff);
+                    if (position[0]++ >= keep || tooOld) {
+                        drop.add(rs.getLong("id"));
+                    }
+                },
+                userId);
+        for (int i = 0; i < drop.size(); i += 500) {
+            List<Long> chunk = drop.subList(i, Math.min(drop.size(), i + 500));
+            jdbc.update(
+                    "DELETE FROM sync_conflicts WHERE user_id = ? AND id IN ("
+                            + String.join(",", java.util.Collections.nCopies(chunk.size(), "?")) + ")",
+                    java.util.stream.Stream.concat(java.util.stream.Stream.of((Object) userId), chunk.stream()).toArray());
+        }
+    }
+
     /** A logged conflict; {@code losing} carries the losing copy's version, updated_at, deleted_at and data. */
     record Conflict(String table, String recordId, String loser, int winnerVersion, Instant loggedAt, Stored losing) {}
 
