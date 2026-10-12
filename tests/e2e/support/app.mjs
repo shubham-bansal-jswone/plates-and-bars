@@ -1,0 +1,129 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { expect, test as base } from '@playwright/test';
+
+const require = createRequire(import.meta.url);
+export const axeSource = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+
+/**
+ * Locator for the visible element with an exact accessibility label (aria-label), the selector the whole suite uses.
+ * Visible only: screens lower in the navigation stack stay mounted (hidden), so labels like "Back" can repeat.
+ */
+export const label = (page, text) => page.locator(`[aria-label=${JSON.stringify(text)}] >> visible=true`);
+
+/**
+ * Every test gets a fresh browser context (empty origin storage, so a fresh database) with only localhost reachable:
+ * any other request is aborted and recorded in `blocked`, so a test fails if the app starts calling out.
+ * AI and sync stay off because nothing is signed in and no server is configured.
+ */
+export const test = base.extend({
+  blocked: async ({}, use) => use([]),
+  page: async ({ page, baseURL, blocked }, use) => {
+    const host = new URL(baseURL).host;
+    await page.route(
+      (url) => url.host !== host && url.protocol.startsWith('http'),
+      (route) => {
+        blocked.push(route.request().url());
+        return route.abort();
+      },
+    );
+    // The app's day, next-meal card and planned session depend on the clock: pin it (a Monday morning) so runs do not vary.
+    await page.clock.setFixedTime(new Date(2026, 9, 12, 9, 0, 0));
+    await page.addInitScript(trackDbWrites);
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await use(page);
+    expect(errors, 'uncaught page errors').toEqual([]);
+  },
+});
+export { expect };
+
+/** Opens the app. The app redirects to /setup while loading, which Chrome reports as an aborted first navigation. */
+export async function openApp(page, path = '/') {
+  await page.goto(path, { waitUntil: 'domcontentloaded' }).catch(() => {});
+}
+
+/** Runs the whole setup flow (the same answers as apps/mobile/scripts/web-reload.mjs) and lands on Targets. */
+export async function completeSetup(page) {
+  await openApp(page);
+  await expect(label(page, 'Continue')).toBeVisible({ timeout: 40_000 });
+  await label(page, 'I understand and agree to my data being stored as described').click();
+  await label(page, 'Continue').click();
+  await label(page, 'Male').click();
+  await label(page, 'Age').fill('30');
+  await label(page, 'Use cm').click();
+  await label(page, 'Height in cm').fill('165');
+  await label(page, 'Weight in kg').fill('82');
+  await label(page, 'Continue').click();
+  await label(page, 'Mostly sitting. Desk job, little walking (under ~5,000 steps)').click();
+  await label(page, 'Continue').click();
+  await label(page, '6').click();
+  await label(page, 'At a gym. Machines, cables, barbells and dumbbells').click();
+  await label(page, 'Some experience. 6 months to 2 years of regular training').click();
+  await label(page, '60 min').click();
+  await label(page, 'Continue').click();
+  await label(page, 'Lose fat. Steady fat loss while keeping muscle').click();
+  for (const no of await page.locator('[role="radiogroup"] [aria-label="No"]').all()) await no.click();
+  await label(page, 'See my targets').click();
+  await label(page, 'Use these targets').click();
+  await expect(label(page, 'Redo setup')).toBeVisible(); // only Targets has it
+  await expect(label(page, '1,990 kcal')).toBeVisible();
+}
+
+/** Switches to a bottom tab (Food, Workout, Progress, Targets). */
+export const tab = (page, name) => label(page, name).click();
+
+/** Reloads the page and goes to the given tab (a no-op when the route came back to it), so the caller can assert on it. */
+export async function reloadTo(page, tabName) {
+  await page.reload({ waitUntil: 'load' });
+  await expect(label(page, tabName)).toBeVisible({ timeout: 40_000 });
+  await tab(page, tabName);
+}
+
+/**
+ * expo-sqlite on web runs SQLite in a Worker. This init script counts the write statements sent to it and tracks its
+ * unanswered async requests, so a test can tell when an edit has been written (see `saved`).
+ */
+export const trackDbWrites = () => {
+  const state = { writes: 0, pending: new Set() };
+  window.__db = state;
+  const Native = window.Worker;
+  window.Worker = class extends Native {
+    constructor(...args) {
+      super(...args);
+      this.addEventListener('message', (e) => {
+        const d = e.data;
+        if (d && d.id !== undefined) state.pending.delete(d.id);
+      });
+    }
+    postMessage(m, ...rest) {
+      if (m && m.isSync === false) state.pending.add(m.id);
+      if (m && m.type === 'prepare' && /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(m.data.source)) state.writes++;
+      return super.postMessage(m, ...rest);
+    }
+  };
+};
+
+/**
+ * Runs `action` (an edit in the UI) and resolves once a write statement was sent and every request to it is answered,
+ * and has stayed that way for a few frames (queued writes issue the next statement right after the last answer).
+ * Call it before a reload, so the reload reads back what the user saw. Event based; there is no fixed delay.
+ */
+export async function saved(page, action) {
+  const before = await page.evaluate(() => window.__db.writes);
+  await action();
+  await page.waitForFunction(
+    (before) =>
+      new Promise((resolve) => {
+        let quiet = 0;
+        const tick = () => {
+          const { writes, pending } = window.__db;
+          quiet = writes > before && pending.size === 0 ? quiet + 1 : 0;
+          if (quiet >= 5) resolve(true);
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      }),
+    before,
+  );
+}

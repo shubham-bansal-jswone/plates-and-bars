@@ -69,6 +69,8 @@ The `site` job installs open-source Chromium (BSD-3-Clause) with `@puppeteer/bro
 
 `chromium@latest` floats on purpose: puppeteer-core's `PUPPETEER_REVISIONS` lists only Chrome, Chrome Headless Shell and Firefox, not a Chromium build ID, so there is nothing to pin to. The a11y step also runs `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` so the Chromium sandbox stays on (no `--no-sandbox`). If a runner image drops or renames that sysctl, a red `site` job is the intended signal; fix it rather than disabling the sandbox.
 
+The `e2e` job (`tests/e2e`, #344) builds `apps/mobile` for web and runs Playwright (`@playwright/test`, Apache-2.0) against it with the same open-source Chromium install and AppArmor sysctl step as `site`; Playwright's own browser download is never run, the Chromium path is passed as `executablePath` (`CHROME_PATH`). axe-core is MPL-2.0 (already used by `site`). It runs when `tests/e2e`, `apps/mobile`, `packages/core`, `packages/api` or `content` change (`detect-changes.sh`). Add `e2e (web, Playwright)` to the required checks if wanted.
+
 Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions/*` majors (ignored, so a human re-checks the licence). Container images are pinned by exact version tag (`caddy:2.11.7` in `site-deploy.yml`); bump it by hand when a new Caddy release is wanted. gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
 
 ### setup-gradle licence decision (checked 2026-10-08)
