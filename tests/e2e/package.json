@@ -1,0 +1,18 @@
+{
+  "name": "plate-and-bar-e2e",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "install:chromium": "node scripts/install-chromium.mjs",
+    "test": "playwright test"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@puppeteer/browsers": "^3.2.3",
+    "axe-core": "^4.14.0"
+  }
+}

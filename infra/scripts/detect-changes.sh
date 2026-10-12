@@ -45,3 +45,5 @@ if has_npm apps/mobile && want apps/mobile/ packages/core/ packages/api/; then e
 if has_gradle backend && want backend/ packages/api/openapi.yaml; then emit backend true; else emit backend false; fi
 if has_npm tools && want tools/ content/ docs/spec/golden/ docs/prototype/; then emit tools true; else emit tools false; fi
 if has_npm apps/site && want apps/site/; then emit site true; else emit site false; fi
+# the web end-to-end tests run the exported app; they need the app's inputs and their own folder
+if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/; then emit e2e true; else emit e2e false; fi
