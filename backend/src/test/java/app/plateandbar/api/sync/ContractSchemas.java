@@ -4,15 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SchemaValidatorsConfig;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SchemaRegistryConfig;
+import com.networknt.schema.SpecificationVersion;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
+import java.util.List;
 
 /** Validates JSON against the named schemas of the real contract, {@code packages/api/openapi.yaml}. */
 public final class ContractSchemas {
@@ -35,15 +34,15 @@ public final class ContractSchemas {
     }
 
     /** Validation problems for {@code value} against {@code components.schemas.<name>}; empty when it conforms. */
-    public static Set<ValidationMessage> validate(String name, JsonNode value) {
+    public static List<com.networknt.schema.Error> validate(String name, JsonNode value) {
         ObjectNode wrapper = new ObjectMapper().createObjectNode();
         wrapper.put("$schema", "https://json-schema.org/draft/2020-12/schema");
         wrapper.put("$ref", "#/components/schemas/" + name);
         wrapper.set("components", COMPONENTS);
-        SchemaValidatorsConfig config =
-                SchemaValidatorsConfig.builder().formatAssertionsEnabled(true).build();
-        JsonSchema s = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(wrapper, config);
-        return s.validate(value);
+        return SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
+                        b -> b.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build()))
+                .getSchema(wrapper)
+                .validate(value);
     }
 
     static String schemaNameOf(SyncTable t) {
