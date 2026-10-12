@@ -232,7 +232,14 @@ The client IP is the socket peer. `X-Forwarded-For` is ignored unless the peer i
 `app.rate-limit.trusted-proxies` (env `APP_RATELIMIT_TRUSTEDPROXIES`, comma-separated IPs or CIDR ranges, empty by
 default). For a trusted peer the header is read from the right and the first hop that is not itself a trusted
 proxy is the client; a malformed header, or a hop that is not a plain IP literal (a hostname, or an address
-with a port such as `1.2.3.4:80`), falls back to the proxy's address. Hostnames are never resolved. Staging sits behind a reverse proxy (Caddy, #36), so `trusted-proxies` must be set there. Behind a reverse proxy set the list to the proxy's
+with a port such as `1.2.3.4:80`), falls back to the proxy's address. Hostnames are never resolved. Staging sits behind a reverse proxy (Caddy, #36), so `trusted-proxies` must be set there.
+
+Deploy checklist: in the Compose file (or any deployment behind Caddy) set `APP_RATELIMIT_TRUSTEDPROXIES` on the API
+service to the proxy's address or its Docker network range (for example `APP_RATELIMIT_TRUSTEDPROXIES=172.18.0.0/16`),
+matching Caddy's `trusted_proxies`. If it is left empty behind a proxy, one script could use up the 30-per-minute
+`/auth/*` bucket for every user. The app logs one ERROR line (no address, no header value) the first time it sees a
+private or loopback peer sending `X-Forwarded-For` with the list empty; local development, where nothing sends that
+header, is unaffected. Behind a reverse proxy set the list to the proxy's
 address, otherwise every request shares the proxy's bucket. IPv6 clients are keyed by their /64. The in-memory
 buckets are per process: run one instance, or move them to a shared store before scaling out.
 

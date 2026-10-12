@@ -38,7 +38,10 @@ public class ClientIpResolver {
         }
     }
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ClientIpResolver.class);
+
     private final List<Cidr> trusted = new ArrayList<>();
+    private final java.util.concurrent.atomic.AtomicBoolean warned = new java.util.concurrent.atomic.AtomicBoolean();
 
     public ClientIpResolver(List<String> trustedProxies) {
         for (String entry : trustedProxies) {
@@ -53,6 +56,7 @@ public class ClientIpResolver {
             return peer == null ? "unknown" : peer;
         }
         if (!isTrusted(peerAddr)) {
+            warnIfBehindAnUnlistedProxy(peerAddr, request);
             return key(peerAddr);
         }
         List<String> hops = new ArrayList<>();
@@ -72,6 +76,24 @@ public class ClientIpResolver {
             }
         }
         return key(peerAddr);
+    }
+
+    /**
+     * A private or loopback peer that sends X-Forwarded-For is almost certainly a reverse proxy that was not listed in
+     * {@code app.rate-limit.trusted-proxies}: every client then shares that peer's rate-limit buckets, so one caller
+     * could lock everybody out of sign-in. Logged once per process; it never logs an address or any header value.
+     */
+    private void warnIfBehindAnUnlistedProxy(InetAddress peer, HttpServletRequest request) {
+        if (!trusted.isEmpty() || request.getHeader("X-Forwarded-For") == null) {
+            return;
+        }
+        boolean internal = peer.isLoopbackAddress() || peer.isSiteLocalAddress() || peer.isLinkLocalAddress()
+                || (peer.getAddress().length == 16 && (peer.getAddress()[0] & 0xFE) == 0xFC); // fc00::/7
+        if (internal && warned.compareAndSet(false, true)) {
+            log.error("Requests arrive from a private address with X-Forwarded-For but app.rate-limit.trusted-proxies"
+                    + " (env APP_RATELIMIT_TRUSTEDPROXIES) is empty: all clients share one rate-limit bucket."
+                    + " Set it to the reverse proxy's address or CIDR range.");
+        }
     }
 
     private boolean isTrusted(InetAddress addr) {
