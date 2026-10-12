@@ -92,29 +92,47 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
     if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
     if (response.status !== 401) return failFrom(response, error as Parameters<typeof failFrom>[1]);
     if (attempt === 1 || !(await refresh(d, owner))) return fail('signed_out');
+    // The rotated pair is saved even when paused, but a paused run must not go on to push: the user may have chosen to discard.
+    await guard(d.db);
   }
   return fail('signed_out');
 }
 
-let refreshing: Promise<boolean> | null = null;
+let refreshing: { promise: Promise<boolean>; token: string; owner: string | null } | null = null;
 
 /**
- * Rotates the token pair; single-flight: a call made while one is in flight joins it (a second request with the same
- * refresh token would be reuse of a rotated token, and the server then revokes the whole session). False means the
- * session is over (tokens cleared); transient errors keep the tokens. The response is applied whenever it arrives, even
- * while sync is paused for an account operation, because dropping a rotated pair leaves only a dead refresh token (#287).
- * The only reason to drop it is that the store belongs to another user now (`owner` is who it belonged to at the start).
+ * Rotates the token pair; single-flight: a call made while one is in flight for the same refresh token and owner joins it
+ * (a second request with the same token would be reuse of a rotated token, and the server then revokes the whole
+ * session). A joiner waits for the shared answer but gives up on its own `signal`; the leader's `signal` aborts the
+ * request for everyone. False means the session is over (tokens cleared); transient errors keep the tokens. The response
+ * is applied whenever it arrives, even while sync is paused for an account operation, because dropping a rotated pair
+ * leaves only a dead refresh token (#287). The only reason to drop it is that the store belongs to another user now
+ * (`owner` is who it belonged to at the start).
  */
-function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
-  refreshing ??= rotate(d, owner, signal).finally(() => {
-    refreshing = null;
-  });
-  return refreshing;
-}
-
-async function rotate(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
+async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
   const t = await d.tokens.load();
   if (!t) return false;
+  const inflight = refreshing;
+  if (inflight && inflight.token === t.refresh && inflight.owner === owner) return raceAbort(inflight.promise, signal);
+  const promise = rotate(d, owner, t, signal);
+  if (inflight) return promise; // another token or owner is in flight: do not share, do not replace
+  const entry = { promise: promise.finally(() => void (refreshing === entry && (refreshing = null))), token: t.refresh, owner };
+  refreshing = entry;
+  return entry.promise;
+}
+
+/** Rejects when `signal` aborts before `p` settles (the shared request itself keeps going for its leader). */
+function raceAbort<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return p;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new NetworkError());
+    if (signal.aborted) return onAbort();
+    signal.addEventListener('abort', onAbort, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
+async function rotate(d: SyncDeps, owner: string | null, t: { refresh: string }, signal?: AbortSignal): Promise<boolean> {
   const sameOwner = async () => {
     if ((await getUserId(d.db)) !== owner) throw new Aborted(); // a wipe and another sign-in happened meanwhile: do not touch their tokens
   };

@@ -70,13 +70,32 @@ describe('a rotated refresh pair is never dropped (#287)', () => {
     expect(tokens.current?.refresh).toBe('refresh-3');
   });
 
-  it('sign-out that waits for the run still clears the tokens last', async () => {
-    const { db, tokens, slow, run } = await runWithHeldRefresh();
+  it('Discard and sign out mid-refresh: the pair is saved but the run does not push again', async () => {
+    const { db, server, tokens, slow, run } = await runWithHeldRefresh();
     const out = signOut(db, tokens, { discard: true });
     slow.release();
     await out;
-    await run;
+    expect((await run).status).toBe('paused');
+    expect(server.calls.map((c) => c.path)).toEqual(['/sync', '/auth/refresh']); // no second /sync with the discarded change
+    expect(server.pushed()).toHaveLength(1);
+    expect(server.get('weights', server.pushed()[0]?.id ?? '')).toBeUndefined();
     expect(tokens.current).toBeNull();
+  });
+
+  it('plain sign-out (store stays bound, nothing queued) mid-refresh: the late pair does not bring the session back', async () => {
+    const s = await setup();
+    s.server.accessValid = 'newer';
+    const slow = gate();
+    s.server.hold = slow.p;
+    s.server.holdPath = '/auth/refresh';
+    const run = syncOnce(s.deps);
+    await settle();
+    expect(s.server.calls.map((c) => c.path)).toEqual(['/sync', '/auth/refresh']);
+    const out = signOut(s.db, s.tokens);
+    slow.release();
+    expect(await out).toBe(0);
+    await run;
+    expect(s.tokens.current).toBeNull();
   });
 
   it('is dropped when the store changed owner while the request was out', async () => {
@@ -142,5 +161,38 @@ describe('refreshes are single-flight', () => {
     slow.release();
     expect(await Promise.all([a, b])).toEqual(['ended', 'ended']);
     expect(tokens.current).toBeNull();
+  });
+
+  it('a joiner gives up on its own timeout while the leader goes on and saves the pair', async () => {
+    const { server, tokens, deps, slow, run } = await runWithHeldRefresh();
+    const started = Date.now();
+    expect(await refreshSession({ ...deps, timeoutMs: 50 })).toBe('unavailable');
+    expect(Date.now() - started).toBeLessThan(500);
+    slow.release();
+    await run;
+    expect(server.refreshes).toBe(1);
+    expect(tokens.current).toEqual({ access: 'access-2', refresh: 'refresh-2' });
+  });
+
+  it('does not join a refresh for a different refresh token', async () => {
+    const { server, tokens, deps, slow, run } = await runWithHeldRefresh();
+    tokens.current = { access: 'x', refresh: 'refresh-other' };
+    const other = refreshSession(deps);
+    await settle();
+    slow.release();
+    await other;
+    await run;
+    expect(server.calls.filter((c) => c.path === '/auth/refresh').map((c) => c.body.refresh_token).sort()).toEqual(['refresh-1', 'refresh-other']);
+  });
+
+  it('does not join a refresh started for another owner', async () => {
+    const { db, server, deps, slow, run } = await runWithHeldRefresh();
+    await setKv(db, KEY_USER, OTHER);
+    const other = refreshSession(deps);
+    await settle();
+    slow.release();
+    await other;
+    await run;
+    expect(server.calls.filter((c) => c.path === '/auth/refresh')).toHaveLength(2);
   });
 });
