@@ -1,6 +1,6 @@
 # Plate & Bar site
 
-Astro static site (TypeScript strict) for Cloudflare Pages. Pages: landing, `/privacy` and `/terms` (both drafts pending lawyer review under India's DPDP Act 2023). The account deletion and attributions pages come later.
+Astro static site (TypeScript strict) for Cloudflare Pages. Pages: landing, `/privacy` and `/terms` (both drafts pending lawyer review under India's DPDP Act 2023). `/delete-account` describes in-app deletion and a code-verified email fallback. The attributions page comes later.
 
 Fonts: Roboto 300 (display) and Inter 400/500/700 (body), self-hosted through `@fontsource/roboto` and `@fontsource/inter` (both SIL OFL 1.1 per their package metadata), latin subset, `font-display: swap`, system font stack as fallback; no external requests. Theme: tokens in `src/styles/global.css` follow `docs/design/DESIGN.md` (light on `:root`, dark via `prefers-color-scheme`).
 
@@ -12,7 +12,8 @@ Fonts: Roboto 300 (display) and Inter 400/500/700 (body), self-hosted through `@
 | `npm run dev` | Dev server on localhost:4321 |
 | `npm run check` | `astro check` type and template checks |
 | `npm run build` | Static build into `dist/` |
-| `npm run a11y` | Build, serve `dist/` locally, run axe-core in headless Chrome on every page (light and dark, 1280px, 360px and 320px, plus horizontal-scroll and empty-custom-property checks). Needs a local Chrome or Chromium; set `CHROME_PATH` if it is not in a standard location. |
+| `npm run placeholders` | Lists `[bracket]` placeholders still in the pages (facts waiting on an owner decision). Never fails; the list must be empty before launch. |
+| `npm run a11y` | Build, serve `dist/` locally with the headers from `public/_headers` (a CSP violation fails the run), run axe-core in headless Chrome on every page (light and dark, 1280px, 360px and 320px, plus horizontal-scroll and empty-custom-property checks). Needs a local Chrome or Chromium; set `CHROME_PATH` if it is not in a standard location. |
 
 ## Deploy to Cloudflare Pages
 

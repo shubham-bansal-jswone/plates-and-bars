@@ -95,7 +95,11 @@ public class AiQuotaService {
         usage.removeCall(r.userId(), r.day(), r.feature());
     }
 
-    /** Adds the provider's token counts to the reserved row (counts only, for the monthly budget). */
+    /**
+     * Adds the provider's token counts to the reserved row and the anonymised monthly ledger (counts only, for the
+     * monthly budget). One transaction, so the two never disagree.
+     */
+    @Transactional
     public void recordTokens(Reservation r, int inputTokens, int outputTokens) {
         usage.addTokens(r.userId(), r.day(), r.feature(), inputTokens, outputTokens);
     }

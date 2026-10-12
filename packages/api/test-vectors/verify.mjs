@@ -2,6 +2,7 @@
 // and test-vectors/content-hash.json against node:crypto's SHA-256.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { load } from "js-yaml";
 
 const vectors = JSON.parse(readFileSync(new URL("./sync-ids.json", import.meta.url), "utf8"));
 
@@ -76,6 +77,35 @@ if (new Set(declared).size !== declared.length) failures.push("openapi.yaml: a t
 const used = new Set([...spec.matchAll(/^ {6}tags: \[([^\]]*)\]$/gm)].flatMap((m) => m[1].split(",").map((t) => t.trim())));
 if (used.size === 0) failures.push("openapi.yaml: no operation tags found");
 for (const t of used) if (!declared.includes(t)) failures.push(`openapi.yaml: operation tag ${t} is not declared under tags`);
+// Every string, array and open object reachable from a sync record schema is bounded (maxLength, maxItems,
+// maxProperties), so the server can cap what one account stores (#353). Enums, formats, patterns and consts
+// count as bounds for strings. "Open object" means one that declares `additionalProperties`; objects without
+// it, and the contents of `additionalProperties: true` objects, are not checked (see the wire conventions).
+const schemas = load(spec).components.schemas;
+const seenRefs = new Set();
+let bounded = 0;
+function checkBounds(node, path) {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) return node.forEach((n, i) => checkBounds(n, `${path}[${i}]`));
+  if (typeof node.$ref === "string") {
+    const name = node.$ref.split("/").pop();
+    if (!seenRefs.has(name)) {
+      seenRefs.add(name);
+      checkBounds(schemas[name], name);
+    }
+  }
+  const types = [].concat(node.type ?? []);
+  const isString = types.includes("string") && !node.enum && !node.format && !node.pattern && node.const === undefined;
+  const isArray = types.includes("array");
+  const isOpen = types.includes("object") && node.additionalProperties !== undefined && node.additionalProperties !== false;
+  if (isString && node.maxLength == null) failures.push(`openapi.yaml: unbounded string at ${path}`);
+  if (isArray && node.maxItems == null) failures.push(`openapi.yaml: unbounded array at ${path}`);
+  if (isOpen && node.maxProperties == null) failures.push(`openapi.yaml: unbounded object at ${path}`);
+  if (isString || isArray || isOpen) bounded++;
+  for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") checkBounds(v, `${path}.${k}`);
+}
+for (const [table, prop] of Object.entries(schemas.SyncChanges.properties)) checkBounds(prop.items, `SyncChanges.${table}`);
+if (bounded === 0) failures.push("openapi.yaml: no record fields found for the bounds check");
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
@@ -83,3 +113,4 @@ if (failures.length) {
 console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and openapi.yaml example ids verified`);
 console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);
 console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
+console.log(`openapi.yaml: ${bounded} record strings, arrays and open objects, all bounded`);
