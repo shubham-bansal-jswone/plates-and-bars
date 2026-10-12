@@ -23,8 +23,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * default 2 MB), so no endpoint can buffer an unbounded body even if a future handler forgets to bound its own
  * read. A declared {@code Content-Length} over the limit is refused before anything is read; a body with no
  * length (chunked) is cut off by a counting stream the moment it passes the limit. Both answer 400
- * {@code invalid_request} with detail {@code too_large}. Runs before security, so an oversized body from an
- * unauthenticated caller is never read either.
+ * {@code invalid_request} with detail {@code too_large}. Runs before security, CORS and rate limiting, so an oversized body gets this 400 before any 401 or 429, and an
+ * unauthenticated caller's oversized body is never read.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)

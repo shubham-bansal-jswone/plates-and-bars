@@ -211,7 +211,7 @@ cd backend
 | `PORT` | `8080` | HTTP port |
 | `APP_VERSION` | `0.1.0` | Value returned as `version` by `/health` |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
-| `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint (a global guard filter, 400 `invalid_request` detail `too_large`), and the `POST /sync` cap. `/ai/*` bodies are read up to 16 KB and treated as invalid beyond that |
+| `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint, including `/auth/*` (a guard filter, 400 `invalid_request` detail `too_large`; a chunked body is cut off once it passes the limit), and the `POST /sync` cap. The guard runs before security, CORS and rate limiting, so a body declared over the limit gets 400 `too_large` even before a 401 or 429. Multipart is disabled (no endpoint takes it). `/ai/*` bodies are read up to 16 KB and treated as invalid beyond that |
 | `SMTP_HOST` | none, required outside the dev profile | SMTP server host |
 | `SMTP_PORT` | `587` | SMTP port |
 | `SMTP_USER`, `SMTP_PASSWORD` | empty | SMTP credentials; leave `SMTP_USER` empty for no authentication |

@@ -27,7 +27,7 @@ class AiControllerBoundedReadTest {
 
         @Override
         public int read() {
-            if (served.incrementAndGet() > 8L * 1024 * 1024 * 1024) {
+            if (served.incrementAndGet() > 4L * 1024 * 1024) {
                 throw new AssertionError("read far past any sane limit");
             }
             return 'a';
@@ -35,7 +35,7 @@ class AiControllerBoundedReadTest {
 
         @Override
         public int read(byte[] b, int off, int len) {
-            if (served.addAndGet(len) > 8L * 1024 * 1024 * 1024) {
+            if (served.addAndGet(len) > 4L * 1024 * 1024) {
                 throw new AssertionError("read far past any sane limit");
             }
             java.util.Arrays.fill(b, off, off + len, (byte) 'a');

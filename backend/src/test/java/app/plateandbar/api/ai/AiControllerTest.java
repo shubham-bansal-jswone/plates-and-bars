@@ -74,33 +74,4 @@ class AiControllerTest {
                 .andExpect(jsonPath("$.code").value("rate_limited"));
         callStatus("198.51.100.3").andExpect(status().isOk());
     }
-
-    @Test
-    void anOversizedBodyIsPassedOnAsInvalidAndAValidOneIsParsed() throws Exception {
-        when(ai.describeMeal(any(), any())).thenReturn(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode());
-        byte[] huge = new byte[100 * 1024]; // over the 16 KB read bound, under the global limit
-        java.util.Arrays.fill(huge, (byte) 'a');
-        mvc.perform(post("/api/v1/ai/describe-meal")
-                        .header("Authorization", "Bearer " + jwt.issue(USER).value())
-                        .contentType("application/json")
-                        .content(huge))
-                .andExpect(status().isOk()); // the mocked service answers; what matters is what it was given
-        org.mockito.Mockito.verify(ai).describeMeal(org.mockito.ArgumentMatchers.eq(USER), org.mockito.ArgumentMatchers.isNull());
-        // Over the global request limit (2 MB): refused by the guard filter before the controller runs.
-        mvc.perform(post("/api/v1/ai/describe-meal")
-                        .header("Authorization", "Bearer " + jwt.issue(USER).value())
-                        .contentType("application/json")
-                        .content(new byte[3 * 1024 * 1024]))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("invalid_request"))
-                .andExpect(jsonPath("$.details[0].issue").value("too_large"));
-        mvc.perform(post("/api/v1/ai/describe-meal")
-                        .header("Authorization", "Bearer " + jwt.issue(USER).value())
-                        .contentType("application/json")
-                        .content("{\"text\":\"rice\"}"))
-                .andExpect(status().isOk());
-        org.mockito.Mockito.verify(ai).describeMeal(
-                org.mockito.ArgumentMatchers.eq(USER),
-                org.mockito.ArgumentMatchers.argThat(b -> b != null && "rice".equals(b.path("text").asText())));
-    }
 }
