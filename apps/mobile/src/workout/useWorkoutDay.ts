@@ -99,14 +99,24 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     };
   }, [db, date, commit, notify, reloadKey]);
 
+  // These run inside the day queue, so each re-reads the stored row first: a pull (or a rule saved on Targets) may have stored
+  // a newer version since the screen loaded its copy. The stored version is kept, and a row the store has tombstoned stays deleted.
   const writeWorkout = async () => {
     const d = ref.current;
-    if (d.workout) await saveWorkout(db, { ...d.workout, exercises: d.exs.map(exerciseRecord), updated_at: stamp(now()) });
+    if (!d.workout) return;
+    const stored = await loadWorkout(db, date);
+    if (stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
+    await saveWorkout(db, { ...d.workout, version: stored?.version ?? d.workout.version, exercises: d.exs.map(exerciseRecord), updated_at: stamp(now()) });
   };
   const writeSets = async (i: number, kind: 'work' | 'ramp', indexes: number[]) => {
+    const stored = new Map((await loadSets(db, date)).map((s) => [s.id, s]));
     for (const j of indexes) {
       const ex = ref.current.exs[i];
-      if (ex && (kind === 'work' ? ex.sets : ex.ramp)[j]) await saveSet(db, date, setRecord(ex, kind, j, now()));
+      if (!ex || !(kind === 'work' ? ex.sets : ex.ramp)[j]) continue;
+      const rec = setRecord(ex, kind, j, now());
+      const was = stored.get(rec.id);
+      if (was?.deleted_at) continue;
+      await saveSet(db, date, { ...rec, version: was?.version ?? rec.version });
     }
   };
 
