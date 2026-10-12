@@ -124,23 +124,27 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   };
 
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
+  // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
+  // newer record (another device's session) since the screen loaded (#409).
   const syncLift = async (i: number) => {
-    const d = ref.current;
+    if (!profile || !ref.current.exs[i]) return;
+    const lifts = await loadLifts(db);
+    const d = ref.current; // read after the await, so a tap made meanwhile is included
     const ex = d.exs[i];
-    if (!profile || !ex) return;
-    const { info } = guidance(ex, progressionContext(date, d.lifts, profile, d.workout, tune), d.workout);
+    if (!ex) return;
+    const { info } = guidance(ex, progressionContext(date, lifts, profile, d.workout, tune), d.workout);
     // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
-    const res = updateLift(d.lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, profile.weight_kg);
+    const res = updateLift(lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, profile.weight_kg);
     if (!res) return;
     if (res.record === null) {
       // No ticked sets left and no earlier session: the lift's record is deleted (a tombstone in lift_stats).
-      const { [ex.name]: _gone, ...rest } = ref.current.lifts;
+      const { [ex.name]: _gone, ...rest } = lifts;
       ref.current = { ...ref.current, lifts: rest };
       setDay(ref.current);
       await deleteLift(db, ex.name, stamp(now()));
       return;
     }
-    ref.current = { ...ref.current, lifts: { ...ref.current.lifts, [ex.name]: res.record } };
+    ref.current = { ...ref.current, lifts: { ...lifts, [ex.name]: res.record } };
     setDay(ref.current);
     await saveLift(db, ex.name, res.record);
     if (res.toast) notify(`New personal best on ${ex.name}`);
