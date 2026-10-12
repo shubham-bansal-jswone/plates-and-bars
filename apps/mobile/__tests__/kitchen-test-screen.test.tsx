@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { kitchenTest } from '@plate-and-bar/core';
 import { KitchenTestScreen } from '../src/screens/KitchenTestScreen';
 import { fmt } from '../src/format';
-import { rawIngredients } from '../src/recipes/content';
+import { getRawIngredients } from '../src/recipes/content';
 import { loadKitchenTests } from '../src/db/kitchenTests';
 import { loadUserFoods } from '../src/db/food';
 import { pendingWrites } from '../src/db/pendingWrites';
@@ -32,7 +32,7 @@ const fill = async (serving = '250') => {
   if (serving) await fireEvent.changeText(screen.getByLabelText('One serving (g)'), serving);
 };
 const rows = [{ ingredient: 'Toor dal (dry)', amount: 150, unit: 'g' }];
-const core = (serving: number | null) => kitchenTest({ ingredients: rows, pot_g: 500, pot_full_g: 1500, cooked_g: null, serving_g: serving }, rawIngredients);
+const core = (serving: number | null) => kitchenTest({ ingredients: rows, pot_g: 500, pot_full_g: 1500, cooked_g: null, serving_g: serving }, getRawIngredients());
 
 describe('Kitchen test screen', () => {
   it('shows the cooked weight, per 100 g and per serving that core computes from the pot weights', async () => {
