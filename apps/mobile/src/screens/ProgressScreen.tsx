@@ -6,7 +6,7 @@ import { Text } from '../components/Text';
 import { Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, MEASURES, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
+import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
 import { CheckinCard } from '../progress/CheckinCard';
 import { useCheckin } from '../progress/useCheckin';
 import { TrendChart } from '../progress/TrendChart';
@@ -109,6 +109,7 @@ function WeightSection({ p }: { p: Progress }) {
 function MeasureSection({ p }: { p: Progress }) {
   const c = useTheme();
   const { profile } = useProfile();
+  const MEASURES = getMeasures();
   const mine = p.tapes.find((m) => m.date === p.date && !m.deleted_at);
   const [text, setText] = useState<Partial<Record<MeasureKey, string>>>(() => Object.fromEntries(MEASURES.map((m) => [m.key, mine?.[m.key] ? r1(mine[m.key] as number) : ''])));
   // content/measures.json: a part with a rule shows for that sex, or when entered that day.

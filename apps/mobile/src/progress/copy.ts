@@ -1,5 +1,6 @@
 import measuresContent from '../../../../content/measures.json';
 import type { MeasureKey } from '@plate-and-bar/core';
+import { contentReader, isObj, isStr, isText, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
 export interface MeasureDef {
@@ -9,11 +10,33 @@ export interface MeasureDef {
   show: 'always' | { sex: string; or_entered_that_day: boolean };
 }
 
-export const MEASURES: readonly MeasureDef[] = measuresContent.measures.map((m) => ({
-  key: `${m.key}_cm` as MeasureKey,
-  label: m.label,
-  show: m.show as MeasureDef['show'],
-}));
+/** The six tape parts core reads and the contract `Measurement` stores (without `_cm`). */
+const MEASURE_KEYS: readonly string[] = ['waist', 'neck', 'chest', 'arm', 'thigh', 'hips'];
+const isShow = (v: unknown): boolean =>
+  v === 'always' || (isObj(v) && (v.sex === 'male' || v.sex === 'female') && typeof v.or_entered_that_day === 'boolean');
+interface MeasuresBundle { unit: string; measures: { key: string; label: string; show: MeasureDef['show'] }[] }
+
+/**
+ * A stored measures copy must be in cm, with only known parts (each once, a label of 1 to 200 characters, a show rule the
+ * screen understands) and every part the shipped copy has: body-fat and the waist chart read waist, neck and hips by key.
+ */
+const isMeasures = (v: unknown): v is MeasuresBundle => {
+  if (!isObj(v) || v.unit !== 'cm' || !Array.isArray(v.measures)) return false;
+  const seen = new Set<string>();
+  for (const m of v.measures) {
+    if (!isObj(m) || !isStr(m.key) || !MEASURE_KEYS.includes(m.key) || seen.has(m.key) || !isText(200)(m.label) || !isShow(m.show)) return false;
+    seen.add(m.key);
+  }
+  return MEASURE_KEYS.every((k) => seen.has(k));
+};
+
+/** The single accept or reject decision for the measures bundle. */
+export const chosenMeasures = contentReader('measures', measuresContent as unknown as MeasuresBundle, isMeasures);
+
+/** The tape parts, in content order. Call it where it is used, not at module level. */
+export const getMeasures: () => readonly MeasureDef[] = perLoad(() =>
+  chosenMeasures().measures.map((m) => ({ key: `${m.key}_cm` as MeasureKey, label: m.label, show: m.show })),
+);
 
 // Messages from the prototype's Progress screen.
 export const WEIGHT_HINT = 'Weigh in each morning before eating. Day-to-day swings of a kilo are normal; the weekly direction is what counts.';
