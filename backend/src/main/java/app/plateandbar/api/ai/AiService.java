@@ -142,6 +142,9 @@ public class AiService {
         if (c == null || c.text() == null) {
             throw unavailable();
         }
+        // Billed from here on. If the reply does not parse, the contract still releases the daily unit (503), but
+        // these tokens stay recorded and count against the monthly budget. Whether a billed failure should keep the
+        // unit is a contract question (#353), not decided here.
         quotas.recordTokens(held, c.inputTokens(), c.outputTokens());
         ObjectNode reply = call.parser().apply(c.text()).orElseThrow(AiService::unavailable);
         cache.put(key, reply);

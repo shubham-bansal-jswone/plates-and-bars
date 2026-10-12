@@ -65,6 +65,11 @@ class AiEndpointsIT extends AiITBase {
         when(provider.complete(any(), any(), any())).thenReturn(new AiProvider.Completion(text, 100, 50));
     }
 
+    private long tokens(String user) {
+        return jdbc.queryForObject(
+                "SELECT COALESCE(SUM(input_tokens + output_tokens), 0) FROM ai_usage WHERE user_id = ?", Long.class, user);
+    }
+
     private JsonNode body(ResponseEntity<String> r) throws Exception {
         return json.readTree(r.getBody());
     }
@@ -176,6 +181,9 @@ class AiEndpointsIT extends AiITBase {
             assertThat(body(res).path("code").asText()).isEqualTo("unavailable");
             assertThat(calls(u)).isZero();
         }
+        // The contract releases the unit, but the provider billed these calls: their tokens stay recorded, so they
+        // count against the global monthly budget (security review M1; per-user cap needs a contract decision, #353).
+        assertThat(tokens(u)).isEqualTo(150L * bad.size());
     }
 
     @Test
@@ -186,6 +194,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getStatusCode().value()).isEqualTo(503);
         assertThat(res.getBody()).contains("\"unavailable\"").doesNotContain("boom").doesNotContain("rice");
         assertThat(calls(u)).isZero();
+        assertThat(tokens(u)).as("the provider never answered, so nothing was billed").isZero();
         reset(provider);
         reply(MEAL);
         assertThat(post(u, DESCRIBE, "{\"text\":\"rice\"}").getStatusCode().value()).isEqualTo(200);

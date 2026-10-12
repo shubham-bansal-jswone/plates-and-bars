@@ -77,7 +77,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`. Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
     (400, details name the field and keyword, never the value or a submitted key; trailing JSON and duplicate keys are 400), quota reserve (429 `quota_exceeded`), provider.
-    The unit is released and the answer is 503 `unavailable` when the provider throws or its reply fails the check.
+    The unit is released and the answer is 503 `unavailable` when the provider throws or its reply fails the check. A reply that fails the check was still billed: its tokens stay recorded and count against the monthly budget even though the unit is released (the contract says so; a stricter rule is a contract question, #353).
   - While `StubAiProvider` is the active provider (`AiProvider.isStub()`), every feature is off whatever the flags say:
     `/ai/status` reports false and the endpoints answer 503 `feature_disabled`, so canned text never reaches users.
     A real provider bean replaces the stub and turns that off.
