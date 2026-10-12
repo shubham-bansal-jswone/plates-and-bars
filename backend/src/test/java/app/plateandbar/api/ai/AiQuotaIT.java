@@ -51,6 +51,7 @@ class AiQuotaIT extends AiITBase {
     void resetClock() {
         clock.advance(Duration.between(clock.instant(), START));
         jdbc.update("DELETE FROM ai_usage");
+        jdbc.update("DELETE FROM ai_spend_monthly");
     }
 
     @Test
@@ -67,8 +68,7 @@ class AiQuotaIT extends AiITBase {
     @Test
     void reachingTheMonthlyBudgetTurnsEverythingOffUntilTheMonthEnds() {
         String u = newUser();
-        jdbc.update("INSERT INTO ai_usage (user_id, day, feature, calls, input_tokens, output_tokens)"
-                + " VALUES (?, '2026-10-01', 'ask_why', 1, 600, 400)", u);
+        jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES ('2026-10-01', 1000)");
         assertThat(quotas.isOn(AiFeature.ASK_WHY)).isFalse();
         assertThat(quotas.isOn(AiFeature.DESCRIBE_MEAL)).isFalse();
         clock.advance(Duration.ofDays(24)); // 2026-11-01
@@ -194,12 +194,41 @@ class AiQuotaIT extends AiITBase {
     @Test
     void budgetMonthIsUtcAndStatusReadsItOnce() {
         String u = newUser();
-        jdbc.update("INSERT INTO ai_usage (user_id, day, feature, calls, input_tokens, output_tokens)"
-                + " VALUES (?, '2026-10-31', 'ask_why', 0, 600, 400)", u);
+        jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES ('2026-10-01', 1000)");
         clock.advance(Duration.ofDays(23).plusHours(11)); // 2026-10-31T23:00Z: still October in UTC
         assertThat(quotas.features().values()).containsOnly(false, false, false).hasSize(3);
         assertThat(quotas.features().get(AiFeature.ASK_WHY)).isFalse();
         clock.advance(Duration.ofHours(1)); // November 1 00:00Z
         assertThat(quotas.features().get(AiFeature.ASK_WHY)).isTrue();
+    }
+
+    @Test
+    void spendSurvivesDeletingTheAccountThatMadeIt() {
+        String u = newUser();
+        var held = quotas.reserve(u, AiFeature.ASK_WHY);
+        quotas.recordTokens(held, 700, 300); // the whole budget of 1000
+        assertThat(quotas.isOn(AiFeature.ASK_WHY)).isFalse();
+
+        HttpHeaders h = new HttpHeaders();
+        h.setBearerAuth(jwt.issue(u).value());
+        assertThat(http.exchange("/api/v1/me", HttpMethod.DELETE, new HttpEntity<>(h), String.class)
+                .getStatusCode().value()).isEqualTo(204);
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_usage WHERE user_id = ?", Integer.class, u)).isZero();
+        assertThat(quotas.isOn(AiFeature.ASK_WHY)).as("the deleted account's tokens still count").isFalse();
+        // A new account gets a fresh daily quota but not a fresh budget.
+        assertThat(quotas.features().values()).containsOnly(false);
+    }
+
+    @Test
+    void theLedgerHoldsNoUserIdAndAddsUpPerMonth() {
+        var held = quotas.reserve(newUser(), AiFeature.ASK_WHY);
+        quotas.recordTokens(held, 10, 5);
+        quotas.recordTokens(held, 1, 1);
+        assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.columns"
+                + " WHERE table_schema = DATABASE() AND table_name = 'ai_spend_monthly'", String.class))
+                .containsExactlyInAnyOrder("month", "tokens");
+        assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-10-01'", Long.class))
+                .isEqualTo(17L);
     }
 }

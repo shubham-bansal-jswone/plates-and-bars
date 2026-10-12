@@ -73,7 +73,9 @@ class AccountRightsIT extends SyncITBase {
         List<Owner> owners = new ArrayList<>();
         for (String t : jdbc.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()"
-                        + " AND table_type = 'BASE TABLE' AND table_name NOT IN ('flyway_schema_history', 'users')",
+                        + " AND table_type = 'BASE TABLE' AND table_name NOT IN ('flyway_schema_history', 'users',"
+                        // Anonymised monthly AI spend: no user id, so not personal data and kept on purpose (#348).
+                        + " 'ai_spend_monthly')",
                 String.class)) {
             List<String> cols = jdbc.queryForList(
                     "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?",
