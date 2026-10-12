@@ -8,13 +8,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,7 +35,8 @@ public class AiController {
     private final ClientIpResolver ips;
     private final RateLimitProperties limits;
 
-    private static final int MAX_BODY_CHARS = 16 * 1024;
+    /** The most of a body this controller reads: 16 KB (16,384 bytes). Bigger is 400 too_large, never buffered. */
+    static final int MAX_BODY_BYTES = 16 * 1024;
 
     AiController(AiQuotaService quotas, AiService ai, ObjectMapper json, RateLimiter limiter, ClientIpResolver ips,
             RateLimitProperties limits) {
@@ -54,11 +55,13 @@ public class AiController {
 
     /** Order: token (filter), per-IP and per-user limits, then the service (switch, validation, quota, provider). */
     private ResponseEntity<ObjectNode> post(
-            Authentication auth, HttpServletRequest request, String raw, AiCall call) {
+            Authentication auth, HttpServletRequest request, AiCall call) throws IOException {
         limiter.consume("ai-ip", ips.resolve(request), limits.getAiPerIp());
         limiter.consume("ai-user", auth.getName(), limits.getAiPerUser());
-        JsonNode body = null;
-        if (raw != null && raw.length() <= MAX_BODY_CHARS) {
+        // At most 16 KB + 1 byte is read, so a huge body is never held in memory; the rest is not read at all.
+        byte[] raw = request.getInputStream().readNBytes(MAX_BODY_BYTES + 1);
+        JsonNode body = AiSchemas.TOO_LARGE; // 400 too_large after the feature switch, in the validation step
+        if (raw.length <= MAX_BODY_BYTES) {
             try {
                 body = json.readTree(raw);
             } catch (Exception e) {
@@ -73,18 +76,18 @@ public class AiController {
     }
 
     @PostMapping(path = "/describe-meal", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ObjectNode> describeMeal(Authentication a, HttpServletRequest r, @RequestBody String raw) {
-        return post(a, r, raw, ai::describeMeal);
+    public ResponseEntity<ObjectNode> describeMeal(Authentication a, HttpServletRequest r) throws IOException {
+        return post(a, r, ai::describeMeal);
     }
 
     @PostMapping(path = "/ask-why", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ObjectNode> askWhy(Authentication a, HttpServletRequest r, @RequestBody String raw) {
-        return post(a, r, raw, ai::askWhy);
+    public ResponseEntity<ObjectNode> askWhy(Authentication a, HttpServletRequest r) throws IOException {
+        return post(a, r, ai::askWhy);
     }
 
     @PostMapping(path = "/weekly-summary", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ObjectNode> weeklySummary(Authentication a, HttpServletRequest r, @RequestBody String raw) {
-        return post(a, r, raw, ai::weeklySummary);
+    public ResponseEntity<ObjectNode> weeklySummary(Authentication a, HttpServletRequest r) throws IOException {
+        return post(a, r, ai::weeklySummary);
     }
 
     /** Only the per-IP limit applies here; it is not part of the 5-per-minute AI limit. */

@@ -58,11 +58,17 @@ class AiEndpointsIT extends AiITBase {
     void setUp() {
         reset(provider);
         jdbc.update("DELETE FROM ai_usage");
+        jdbc.update("DELETE FROM ai_spend_monthly");
         clock.advance(Duration.between(clock.instant(), START));
     }
 
     private void reply(String text) {
         when(provider.complete(any(), any(), any())).thenReturn(new AiProvider.Completion(text, 100, 50));
+    }
+
+    private long tokens(String user) {
+        return jdbc.queryForObject(
+                "SELECT COALESCE(SUM(input_tokens + output_tokens), 0) FROM ai_usage WHERE user_id = ?", Long.class, user);
     }
 
     private JsonNode body(ResponseEntity<String> r) throws Exception {
@@ -83,6 +89,8 @@ class AiEndpointsIT extends AiITBase {
         assertThat(calls(u)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT input_tokens + output_tokens FROM ai_usage WHERE user_id = ?", Long.class, u))
                 .isEqualTo(150);
+        assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-10-01'", Long.class))
+                .isEqualTo(150L);
     }
 
     @Test
@@ -160,7 +168,7 @@ class AiEndpointsIT extends AiITBase {
     }
 
     @Test
-    void badRepliesAre503UnavailableAndTheUnitIsReleased() throws Exception {
+    void aBilledReplyThatCannotBeUsedIs503ButKeepsTheUnitAndItsTokens() throws Exception {
         String u = newUser();
         List<String> bad = new ArrayList<>(List.of("not json", "[]", "{}", "{\"items\":\"x\"}",
                 "{\"items\":[{\"name\":\"" + "n".repeat(101) + "\",\"qty\":\"\",\"kcal\":1,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1}]}"));
@@ -169,13 +177,52 @@ class AiEndpointsIT extends AiITBase {
             many.append(i == 0 ? "" : ",").append("{\"name\":\"a\",\"qty\":\"\",\"kcal\":1,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1}");
         }
         bad.add(many.append("]}").toString());
+        int n = 0;
         for (String r : bad) {
             reply(r);
             var res = post(u, DESCRIBE, "{\"text\":\"x\"}");
             assertThat(res.getStatusCode().value()).as(r.substring(0, Math.min(30, r.length()))).isEqualTo(503);
             assertThat(body(res).path("code").asText()).isEqualTo("unavailable");
-            assertThat(calls(u)).isZero();
+            // The provider answered and was billed: the unit stays used (security review M1).
+            assertThat(calls(u)).isEqualTo(++n);
         }
+        assertThat(tokens(u)).isEqualTo(150L * bad.size());
+    }
+
+    @Test
+    void aBilledResponseWithNoTextKeepsTheUnitButNoResponseAtAllReleasesIt() {
+        String u = newUser();
+        when(provider.complete(any(), any(), any())).thenReturn(new AiProvider.Completion(null, 100, 50));
+        assertThat(post(u, DESCRIBE, "{\"text\":\"x\"}").getStatusCode().value()).isEqualTo(503);
+        assertThat(calls(u)).isEqualTo(1);
+        assertThat(tokens(u)).isEqualTo(150L);
+        when(provider.complete(any(), any(), any())).thenReturn(null);
+        assertThat(post(u, DESCRIBE, "{\"text\":\"y\"}").getStatusCode().value()).isEqualTo(503);
+        assertThat(calls(u)).as("nothing came back, nothing billed").isEqualTo(1);
+        assertThat(tokens(u)).isEqualTo(150L);
+    }
+
+    @Test
+    void aBodyOverSixteenKilobytesInBytesIs400TooLargeAndNeverReachesTheProvider() throws Exception {
+        String u = newUser();
+        String over = "{\"text\":\"" + "a".repeat(16 * 1024 - 11 + 1) + "\"}"; // 16,385 bytes
+        // 8,200 two-byte characters: under 16,384 characters, over 16,384 bytes.
+        String multibyte = "{\"text\":\"" + "\u00e9".repeat(8200) + "\"}";
+        for (String b : new String[] {over, multibyte, "{\"text\":\"x\"}" + " ".repeat(20000)}) {
+            var res = post(u, DESCRIBE, b);
+            assertThat(res.getStatusCode().value()).isEqualTo(400);
+            assertThat(body(res).path("code").asText()).isEqualTo("invalid_request");
+            assertThat(body(res).path("details").get(0).path("field").asText()).isEmpty();
+            assertThat(body(res).path("details").get(0).path("issue").asText()).isEqualTo("too_large");
+        }
+        verify(provider, never()).complete(any(), any(), any());
+        assertThat(calls(u)).isZero();
+        // Exactly 16,384 bytes is still read and validated normally.
+        reply(MEAL);
+        String exact = "{\"text\":\"" + "a".repeat(16 * 1024 - 11) + "\"}";
+        assertThat(exact.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(16 * 1024);
+        assertThat(post(u, DESCRIBE, exact).getStatusCode().value()).isIn(200, 400); // 400 only for text length (1000)
+        assertThat(body(post(u, DESCRIBE, exact)).path("details").get(0).path("issue").asText()).isNotEqualTo("too_large");
     }
 
     @Test
@@ -186,6 +233,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getStatusCode().value()).isEqualTo(503);
         assertThat(res.getBody()).contains("\"unavailable\"").doesNotContain("boom").doesNotContain("rice");
         assertThat(calls(u)).isZero();
+        assertThat(tokens(u)).as("the provider never answered, so nothing was billed").isZero();
         reset(provider);
         reply(MEAL);
         assertThat(post(u, DESCRIBE, "{\"text\":\"rice\"}").getStatusCode().value()).isEqualTo(200);
@@ -245,7 +293,7 @@ class AiEndpointsIT extends AiITBase {
             reply(r);
             assertThat(post(u, ASK, "{\"card_id\":\"protein\",\"question\":\"why?\"}").getStatusCode().value()).as(r).isEqualTo(503);
         }
-        assertThat(calls(u)).isZero();
+        assertThat(calls(u)).as("billed replies keep their units").isEqualTo(5);
     }
 
     @Test
@@ -328,8 +376,7 @@ class AiEndpointsIT extends AiITBase {
     @Test
     void aSwitchedOffFeatureIsNotCountedAndTheProviderIsNotCalledAfterTheBudgetIsUsed() throws Exception {
         String u = newUser();
-        jdbc.update("INSERT INTO ai_usage (user_id, day, feature, calls, input_tokens, output_tokens)"
-                + " VALUES (?, '2026-10-01', 'ask_why', 0, 600000, 400000)", u);
+        jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES ('2026-10-01', 1000000)");
         var res = post(u, DESCRIBE, "{\"text\":\"x\"}");
         assertThat(res.getStatusCode().value()).isEqualTo(503);
         assertThat(body(res).path("code").asText()).isEqualTo("feature_disabled");

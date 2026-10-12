@@ -10,6 +10,8 @@ import { fakeServer, memoryTokens, openDb } from './sync-helpers';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 jest.mock('expo-sqlite', () => ({ useSQLiteContext: () => null }));
+const mockClear = jest.fn();
+jest.mock('../src/account/saveFile', () => ({ RECENT_EXPORT_MS: 600000, clearOldExports: (...a: unknown[]) => mockClear(...a) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), back: jest.fn(), canGoBack: () => true }) }));
 
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
@@ -48,6 +50,8 @@ async function mount(opts: { bound?: boolean; tokens?: boolean; marker?: boolean
   return { db, server, tokens };
 }
 
+beforeEach(() => mockClear.mockClear());
+
 describe('SyncProvider account wiring (#27)', () => {
   it('linked comes from the stored user id on load, with or without tokens', async () => {
     await mount({ bound: true });
@@ -75,12 +79,24 @@ describe('SyncProvider account wiring (#27)', () => {
     const { db } = await mount({ bound: true, withSetup: true });
     await waitFor(() => expect(now().linked).toBe(true));
     await act(async () => {
-      expect(await now().deleteEverything({ deviceOnly: true })).toEqual({ kind: 'deleted', server: false });
+      expect(await now().deleteEverything({ deviceOnly: true })).toEqual({ kind: 'deleted', server: false, linked: true });
     });
     expect(now().linked).toBe(false);
-    expect(now().lastDeletion).toEqual({ server: false });
+    expect(now().lastDeletion).toEqual({ server: false, linked: true });
     expect(await getUserId(db)).toBeNull();
     expect(await screen.findByText('This device was cleared. Your account still exists.')).toBeTruthy();
+  });
+
+  it('a never-signed-in store is wiped as unlinked and the notice has no account sentence', async () => {
+    const { db } = await mount({ withSetup: true });
+    await waitFor(() => expect(now().configured).toBe(true));
+    await act(async () => {
+      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: false, linked: false });
+    });
+    expect(now().lastDeletion).toEqual({ server: false, linked: false });
+    expect(await getUserId(db)).toBeNull();
+    expect(await screen.findByText('Everything deleted. The data on this device is gone.')).toBeTruthy();
+    expect(screen.queryByText(/account still exists/)).toBeNull();
   });
 
   it('a signed-in delete says everything was deleted', async () => {
@@ -88,7 +104,7 @@ describe('SyncProvider account wiring (#27)', () => {
     await waitFor(() => expect(now().signedIn).toBe(true));
     fetchImpl = async () => new Response(null, { status: 204 });
     await act(async () => {
-      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: true });
+      expect(await now().deleteEverything()).toEqual({ kind: 'deleted', server: true, linked: true });
     });
     expect(tokens.current).toBeNull();
     expect(now().signedIn).toBe(false);
@@ -170,5 +186,39 @@ describe('SyncProvider account wiring (#27)', () => {
     expect(await getUserId(db)).toBe(USER); // still not wiped
     await act(async () => release());
     await waitFor(() => expect(now().wipePending).toBe(false));
+  });
+
+  describe('cached export cleanup (L10)', () => {
+    it('runs at app start, skipping recent files', async () => {
+      await mount();
+      expect(mockClear).toHaveBeenCalledWith({ minAgeMs: 600000 });
+    });
+
+    it('runs on sign-out, unconditionally', async () => {
+      await mount({ bound: true, tokens: true });
+      await waitFor(() => expect(now().signedIn).toBe(true));
+      mockClear.mockClear();
+      await act(async () => void (await now().signOut()));
+      expect(mockClear).toHaveBeenCalledTimes(1);
+      expect(mockClear).toHaveBeenCalledWith();
+    });
+
+    it('runs on discard and sign out, unconditionally', async () => {
+      await mount({ bound: true, tokens: true });
+      await waitFor(() => expect(now().linked).toBe(true));
+      mockClear.mockClear();
+      await act(async () => now().discardAndSignOut());
+      expect(mockClear).toHaveBeenCalledTimes(1);
+      expect(mockClear).toHaveBeenCalledWith();
+    });
+
+    it('runs on delete everything, unconditionally', async () => {
+      await mount({ bound: true });
+      await waitFor(() => expect(now().linked).toBe(true));
+      mockClear.mockClear();
+      await act(async () => void (await now().deleteEverything({ deviceOnly: true })));
+      expect(mockClear).toHaveBeenCalledTimes(1);
+      expect(mockClear).toHaveBeenCalledWith();
+    });
   });
 });

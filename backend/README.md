@@ -24,9 +24,9 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   code or the address. Neither sender logs the code or address; a failed send is logged by exception class only.
 - SMTP supports STARTTLS on submission ports such as 587. Implicit TLS (port 465) is out of scope for now.
 - CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
-  `Authorization`, `Content-Type` and `Accept` request headers, `Retry-After` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
+  `Authorization`, `Content-Type`, `Accept` and `If-None-Match` request headers, `Retry-After` and `ETag` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   Empty means every cross-origin call is refused.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`.
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`.
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
@@ -62,7 +62,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - `GET /ai/status`: which features are on and the user's daily quota (`no-store`; only the per-IP limit applies).
   - Every feature is off by default. A feature is on only while its flag is set (`AI_DESCRIBE_MEAL_ENABLED`,
     `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
-    by the tokens recorded in `ai_usage` for the UTC month (0, the default, keeps everything off). The budget is a soft
+    by the tokens recorded in `ai_spend_monthly` for the UTC month (0, the default, keeps everything off). The budget is a soft
     cap: it is read before each call, so calls already with the provider when it is reached can overshoot slightly.
     The flags and the budget are environment variables read at start: flipping one means restarting the container
     with the new value (no rebuild or redeploy of the image); requests already with the provider finish first only
@@ -73,11 +73,16 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     releases it if the call fails. At the limit: 429 `quota_exceeded` with `quota` and `Retry-After` until 00:00Z.
   - `ai_usage` (V5): user id, UTC day, feature, call count, token counts. No text, ever. Cascades on user delete;
     not part of the export.
+  - `ai_spend_monthly` (V6): one token total per UTC month, no user id, day or feature, so deleting an account cannot
+    refund its spend to the monthly budget. A total that names nobody is not personal data, so `DELETE /me` leaves it
+    and the export omits it (`AccountRightsIT` lists it as the one table without an owner column, on purpose).
+    V6 backfills it from `ai_usage` once. Rolling back to an image without V6 and then forward again under-counts: spend
+    recorded in between is only in `ai_usage`, not in the ledger (and is lost from it if accounts were deleted).
   - Limits: `app.rate-limit.ai-per-user` (5 per minute, the three POSTs) and `ai-per-ip` (60 per minute, all four).
   - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`. Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
     (400, details name the field and keyword, never the value or a submitted key; trailing JSON and duplicate keys are 400), quota reserve (429 `quota_exceeded`), provider.
-    The unit is released and the answer is 503 `unavailable` when the provider throws or its reply fails the check.
+    The answer is 503 `unavailable` when the provider call fails or times out (no billed response): the unit is released. If the provider answered, it was billed: its tokens are recorded (they also stay in the monthly spend ledger after the account is deleted) and, if the reply has no text or fails the check, the answer is still 503 but the unit stays used. The AI error text in the contract is being updated to match.
   - While `StubAiProvider` is the active provider (`AiProvider.isStub()`), every feature is off whatever the flags say:
     `/ai/status` reports false and the endpoints answer 503 `feature_disabled`, so canned text never reaches users.
     A real provider bean replaces the stub and turns that off.
@@ -133,6 +138,12 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   `user_id, id, version, updated_at, deleted_at, seq, data JSON`, primary key `(user_id, id)`. `data` holds the
   record's other fields, so the engine is generic over tables. Foreign key to `users` with `ON DELETE CASCADE`.
   `sync_state` holds one row per user with the change counter `seq`; `sync_conflicts` is the conflict log.
+  The conflict log is bounded per user (`SYNC_CONFLICT_LOG_MAX_PER_USER`, default 1000; `SYNC_CONFLICT_LOG_RETENTION_DAYS`,
+  default 90; both must be at least 1 or the app refuses to start). Pruning happens only when a later sync logs a
+  conflict: then entries older than the retention and all but the newest ones are deleted. An account that stops
+  conflicting is not pruned, and its expired entries stay until then. So `GET /me/export`'s `conflict_log` holds at most
+  the cap. Per-user caps on synced rows and
+  schema `maxLength`/`maxItems` need a contract change and are not enforced yet (#353).
   Deletes are soft (`deleted_at`).
 - **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
   2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before
@@ -211,7 +222,7 @@ cd backend
 | `PORT` | `8080` | HTTP port |
 | `APP_VERSION` | `0.1.0` | Value returned as `version` by `/health` |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
-| `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted `POST /sync` body |
+| `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint, including `/auth/*` (a guard filter, 400 `invalid_request` detail `too_large`; a chunked body is cut off once it passes the limit), and the `POST /sync` cap. The guard runs before security, CORS and rate limiting, so a body declared over the limit gets 400 `too_large` even before a 401 or 429. Multipart is disabled (no endpoint takes it). `/ai/*` bodies are read up to 16,384 bytes (bytes, not characters); a longer one is 400 `invalid_request` with issue `too_large`, field empty, in the validation step (after the feature switch) |
 | `SMTP_HOST` | none, required outside the dev profile | SMTP server host |
 | `SMTP_PORT` | `587` | SMTP port |
 | `SMTP_USER`, `SMTP_PASSWORD` | empty | SMTP credentials; leave `SMTP_USER` empty for no authentication |
@@ -232,8 +243,18 @@ The client IP is the socket peer. `X-Forwarded-For` is ignored unless the peer i
 `app.rate-limit.trusted-proxies` (env `APP_RATELIMIT_TRUSTEDPROXIES`, comma-separated IPs or CIDR ranges, empty by
 default). For a trusted peer the header is read from the right and the first hop that is not itself a trusted
 proxy is the client; a malformed header, or a hop that is not a plain IP literal (a hostname, or an address
-with a port such as `1.2.3.4:80`), falls back to the proxy's address. Hostnames are never resolved. Staging sits behind a reverse proxy (Caddy, #36), so `trusted-proxies` must be set there. Behind a reverse proxy set the list to the proxy's
-address, otherwise every request shares the proxy's bucket. IPv6 clients are keyed by their /64. The in-memory
+with a port such as `1.2.3.4:80`), falls back to the proxy's address. Hostnames are never resolved. Staging sits behind a reverse proxy (Caddy, #36), so `trusted-proxies` must be set there.
+
+Deploy checklist: set `APP_RATELIMIT_TRUSTEDPROXIES` on the API service to the address or network of the proxy that
+connects directly to the API, that is Caddy's own address or the Docker network range it connects from (for example
+`APP_RATELIMIT_TRUSTEDPROXIES=172.18.0.0/16`). It is not Caddy's `trusted_proxies` setting, which lists the proxies in
+front of Caddy. If a CDN or another proxy ever sits in front of Caddy, its ranges must be added to
+`APP_RATELIMIT_TRUSTEDPROXIES` too, because the resolver stops at the first address that is not trusted (there is no CDN
+today). If it is left empty behind a proxy, every client shares the proxy's buckets; the worst effect is the
+10-per-hour `/auth/email/start` cap, which one script could use up so nobody can request a sign-in code. The app logs one
+ERROR line (no address, no header value) the first time it sees a private or loopback peer sending `X-Forwarded-For`
+with the list empty, once per resolver instance (a singleton, so once per process). Local development, where nothing
+sends that header, is unaffected. IPv6 clients are keyed by their /64. The in-memory
 buckets are per process: run one instance, or move them to a shared store before scaling out.
 
 Secrets come from the environment only. Logs must never contain food, weight, health answers or tokens.

@@ -1,7 +1,10 @@
+import { Platform } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { DataScreen } from '../src/screens/DataScreen';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { DeletionNotice } from '../src/account/DeletionNotice';
+import { SYNC_TABLES, type SyncTableName } from '../src/db/outbox';
+import { DATA_COPY } from '../src/account/copy';
 import { memoryDb } from './helpers';
 
 const mockReplace = jest.fn();
@@ -19,7 +22,7 @@ const base: SyncState = {
   signOut: async () => 0,
   discardAndSignOut: async () => undefined,
   exportFromServer: async () => ({ kind: 'not_signed_in' }),
-  deleteEverything: async () => ({ kind: 'deleted', server: false }),
+  deleteEverything: async () => ({ kind: 'deleted', server: false, linked: false }),
 };
 const show = (s: Partial<SyncState>) =>
   render(
@@ -52,10 +55,10 @@ describe('data screen (#27)', () => {
   });
 
   it('delete asks first, states what goes (and the account when signed in), and deletes only on confirm', async () => {
-    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true }));
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true, linked: true }));
     await show({ signedIn: true, deleteEverything });
     await fireEvent.press(screen.getByLabelText('Delete everything'));
-    expect(screen.getByText(/permanently deletes everything on this device/)).toBeTruthy();
+    expect(screen.getByText(/permanently deletes what you entered and your logs on this device/)).toBeTruthy();
     expect(screen.getByText(/also deletes your account/)).toBeTruthy();
     expect(deleteEverything).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByLabelText('Yes, delete everything'));
@@ -86,7 +89,7 @@ describe('data screen (#27)', () => {
   });
 
   it('linked but signed out: offers sign-in or device-only, never says nothing is on a server, and deletes nothing on sign-in', async () => {
-    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: false }));
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: false, linked: true }));
     await show({ linked: true, deleteEverything });
     expect(screen.getByLabelText('Sign in to download from your account')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Delete everything'));
@@ -103,7 +106,7 @@ describe('data screen (#27)', () => {
   });
 
   it('with the account already deleted and the device wipe pending, only finishing the device is offered, on every visit', async () => {
-    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true }));
+    const deleteEverything = jest.fn(async () => ({ kind: 'deleted' as const, server: true, linked: true }));
     for (let visit = 0; visit < 2; visit++) {
       const view = await show({ linked: true, wipePending: true, deleteEverything });
       expect(screen.queryByLabelText('Sign in to download from your account')).toBeNull();
@@ -136,18 +139,64 @@ describe('deletion notice', () => {
   );
   it('says what was deleted once, and clears when the screen goes away', async () => {
     const clear = jest.fn();
-    const view = await render(at({ server: true }, clear));
+    const view = await render(at({ server: true, linked: true }, clear));
     expect(screen.getByText(/Everything deleted/)).toBeTruthy();
     expect(clear).not.toHaveBeenCalled();
     await view.unmount();
     expect(clear).toHaveBeenCalled();
-    await render(at({ server: false }));
+    await render(at({ server: false, linked: true }));
     expect(screen.getByText('This device was cleared. Your account still exists.')).toBeTruthy();
+  });
+  it('a device that never signed in gets no account sentence', async () => {
+    await render(at({ server: false, linked: false }));
+    expect(screen.getByText('Everything deleted. The data on this device is gone.')).toBeTruthy();
+    expect(screen.queryByText(/account still exists/)).toBeNull();
+  });
+  it('the delete confirmation names every table the wipe clears', () => {
+    // One phrase per sync table; a new table in SYNC_TABLES fails the type check here and the test below.
+    const named: Record<SyncTableName, string> = {
+      profiles: 'profile and targets',
+      consents: 'consent record',
+      food_logs: 'food',
+      water_logs: 'water',
+      day_notes: 'day notes',
+      workouts: 'workout logs',
+      workout_sets: 'sets',
+      lift_stats: 'lift history',
+      weights: 'weights',
+      measurements: 'measurements',
+      user_foods: 'your own foods',
+      recipes: 'recipes',
+      kitchen_tests: 'kitchen tests',
+      exclusions: 'exclusions',
+      swaps: 'swaps',
+      settings: 'settings',
+    };
+    expect(Object.keys(named).sort()).toEqual(Object.keys(SYNC_TABLES).sort());
+    for (const phrase of Object.values(named)) expect(DATA_COPY.confirmDevice).toContain(phrase);
+    expect(DATA_COPY.confirmDevice).toContain('waiting to sync');
   });
   it('shows nothing without a deletion or without a provider', async () => {
     await render(at(null));
     expect(screen.queryByText(/deleted|cleared/)).toBeNull();
     await render(<DeletionNotice />);
     expect(screen.queryByText(/deleted|cleared/)).toBeNull();
+  });
+
+  it('the reinstall sentence shows on Android only', async () => {
+    const original = Platform.OS;
+    const android = 'Android does not back up this app, so if you reinstall or move to a new phone, download a copy first.';
+    try {
+      Platform.OS = 'android';
+      const a = await show({});
+      expect(screen.getByText(new RegExp(`stay on this device\\. ${android}$`))).toBeTruthy();
+      a.unmount();
+      Platform.OS = 'ios';
+      await show({});
+      expect(screen.getByText(/stay on this device\.$/)).toBeTruthy();
+      expect(screen.queryByText(/Android does not back up/)).toBeNull();
+    } finally {
+      Platform.OS = original;
+    }
   });
 });

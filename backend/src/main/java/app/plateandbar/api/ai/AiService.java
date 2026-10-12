@@ -109,6 +109,8 @@ public class AiService {
             ObjectNode reply;
             try {
                 reply = answer(userId, feature, call, held);
+            } catch (BilledFailure e) {
+                throw e; // the provider answered and was billed: the unit stays used
             } catch (RuntimeException e) {
                 quotas.release(held);
                 throw e;
@@ -139,13 +141,33 @@ public class AiService {
             log.warn("AI provider failed for feature {} ({})", feature.key(), e.getClass().getSimpleName());
             throw unavailable();
         }
-        if (c == null || c.text() == null) {
-            throw unavailable();
+        if (c == null) {
+            throw unavailable(); // no response at all, nothing billed: the unit is released
         }
-        quotas.recordTokens(held, c.inputTokens(), c.outputTokens());
-        ObjectNode reply = call.parser().apply(c.text()).orElseThrow(AiService::unavailable);
+        // A response was received, so it was billed. From here on ANY failure (recording the tokens, no text, a reply
+        // that does not parse, a parser bug) is still 503 `unavailable` but the daily unit stays used.
+        ObjectNode reply;
+        try {
+            quotas.recordTokens(held, c.inputTokens(), c.outputTokens());
+            if (c.text() == null) {
+                throw new BilledFailure();
+            }
+            reply = call.parser().apply(c.text()).orElseThrow(BilledFailure::new);
+        } catch (BilledFailure e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.warn("AI reply unusable for feature {} ({})", feature.key(), e.getClass().getSimpleName());
+            throw new BilledFailure();
+        }
         cache.put(key, reply);
         return reply;
+    }
+
+    /** 503 {@code unavailable} after the provider's billed response could not be used; keeps the quota unit. */
+    private static final class BilledFailure extends ApiException {
+        BilledFailure() {
+            super(HttpStatus.SERVICE_UNAVAILABLE, "unavailable", "Couldn't get an answer just now. Try again.");
+        }
     }
 
     static ApiException unavailable() {

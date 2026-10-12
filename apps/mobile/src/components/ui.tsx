@@ -10,7 +10,7 @@ export function Page({ children }: { children: ReactNode }) {
   const c = useTheme();
   return (
     <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <View style={styles.column}>{children}</View>
+      <View role="main" style={styles.column}>{children}</View>
     </ScrollView>
   );
 }
@@ -153,6 +153,8 @@ export function Choice({
       accessibilityRole={action ? 'button' : 'radio'}
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       accessibilityState={action ? undefined : { selected, checked: selected }}
+      // react-native-web drops accessibilityState.checked; a radio must announce its state (WCAG 4.1.2).
+      aria-checked={action ? undefined : selected}
       onPress={onPress}
       hitSlop={chip ? { top: 6, bottom: 6 } : undefined}
       style={[
