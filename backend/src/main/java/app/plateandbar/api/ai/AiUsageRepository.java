@@ -46,12 +46,20 @@ class AiUsageRepository {
                 "UPDATE ai_usage SET input_tokens = input_tokens + ?, output_tokens = output_tokens + ?"
                         + " WHERE user_id = ? AND day = ? AND feature = ?",
                 Math.max(0, in), Math.max(0, out), userId, day, feature.key());
+        // The anonymised ledger the budget cap reads. No user id: it outlives the account.
+        jdbc.update(
+                "INSERT INTO ai_spend_monthly (month, tokens) VALUES (?, ?) ON DUPLICATE KEY UPDATE tokens = tokens + ?",
+                day.withDayOfMonth(1), Math.max(0, (long) in) + Math.max(0, (long) out),
+                Math.max(0, (long) in) + Math.max(0, (long) out));
     }
 
-    /** Input plus output tokens recorded by every user from {@code from} (inclusive) to {@code to} (exclusive). */
+    /**
+     * Input plus output tokens billed in the months from {@code from} (inclusive) to {@code to} (exclusive), from the
+     * anonymised ledger, so deleting an account does not give its spend back.
+     */
     long tokensBetween(LocalDate from, LocalDate to) {
         Long n = jdbc.queryForObject(
-                "SELECT COALESCE(SUM(input_tokens + output_tokens), 0) FROM ai_usage WHERE day >= ? AND day < ?",
+                "SELECT COALESCE(SUM(tokens), 0) FROM ai_spend_monthly WHERE month >= ? AND month < ?",
                 Long.class, from, to);
         return n == null ? 0 : n;
     }
