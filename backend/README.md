@@ -234,13 +234,14 @@ default). For a trusted peer the header is read from the right and the first hop
 proxy is the client; a malformed header, or a hop that is not a plain IP literal (a hostname, or an address
 with a port such as `1.2.3.4:80`), falls back to the proxy's address. Hostnames are never resolved. Staging sits behind a reverse proxy (Caddy, #36), so `trusted-proxies` must be set there.
 
-Deploy checklist: in the Compose file (or any deployment behind Caddy) set `APP_RATELIMIT_TRUSTEDPROXIES` on the API
-service to the proxy's address or its Docker network range (for example `APP_RATELIMIT_TRUSTEDPROXIES=172.18.0.0/16`),
-matching Caddy's `trusted_proxies`. If it is left empty behind a proxy, one script could use up the 30-per-minute
-`/auth/*` bucket for every user. The app logs one ERROR line (no address, no header value) the first time it sees a
-private or loopback peer sending `X-Forwarded-For` with the list empty; local development, where nothing sends that
-header, is unaffected. Behind a reverse proxy set the list to the proxy's
-address, otherwise every request shares the proxy's bucket. IPv6 clients are keyed by their /64. The in-memory
+Deploy checklist: set `APP_RATELIMIT_TRUSTEDPROXIES` on the API service to the address or network of the proxy that
+connects directly to the API, that is Caddy's own address or the Docker network range it connects from (for example
+`APP_RATELIMIT_TRUSTEDPROXIES=172.18.0.0/16`). It is not Caddy's `trusted_proxies` setting, which lists the proxies in
+front of Caddy. If it is left empty behind a proxy, every client shares the proxy's buckets; the worst effect is the
+10-per-hour `/auth/email/start` cap, which one script could use up so nobody can request a sign-in code. The app logs one
+ERROR line (no address, no header value) the first time it sees a private or loopback peer sending `X-Forwarded-For`
+with the list empty, once per resolver instance (a singleton, so once per process). Local development, where nothing
+sends that header, is unaffected. IPv6 clients are keyed by their /64. The in-memory
 buckets are per process: run one instance, or move them to a shared store before scaling out.
 
 Secrets come from the environment only. Logs must never contain food, weight, health answers or tokens.
