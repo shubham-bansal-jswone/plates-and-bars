@@ -15,7 +15,7 @@ export function DeletionNotice() {
   if (!shown) return null;
   return (
     <View style={{ padding: 16 }} accessibilityLiveRegion="polite">
-      <Note>{shown.server ? t.noticeAll : t.noticeDevice}</Note>
+      <Note>{shown.server ? t.noticeAll : shown.linked ? t.noticeDevice : t.noticeLocal}</Note>
     </View>
   );
 }

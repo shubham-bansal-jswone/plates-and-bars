@@ -48,7 +48,24 @@ public class SyncService {
     private final Clock clock;
     private final ObjectMapper json;
 
-    SyncService(SyncRepository repo, Clock clock, ObjectMapper json) {
+    /** The conflict log keeps at most this many entries per user, none older than the retention (M3). */
+    private final int conflictLogKeep;
+
+    private final Duration conflictLogRetention;
+
+    SyncService(
+            SyncRepository repo,
+            Clock clock,
+            ObjectMapper json,
+            @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-max-per-user:1000}") int conflictLogKeep,
+            @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-retention-days:90}") int retentionDays) {
+        if (conflictLogKeep < 1 || retentionDays < 1) {
+            // 0 would delete the whole log, including the copy just written.
+            throw new IllegalArgumentException(
+                    "app.sync.conflict-log-max-per-user and app.sync.conflict-log-retention-days must both be at least 1");
+        }
+        this.conflictLogKeep = conflictLogKeep;
+        this.conflictLogRetention = Duration.ofDays(retentionDays);
         this.repo = repo;
         this.clock = clock;
         this.json = json;
@@ -82,6 +99,7 @@ public class SyncService {
 
         Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         long seq = before;
+        boolean logged = false;
         ArrayNode applied = json.createArrayNode();
         ArrayNode conflicts = json.createArrayNode();
         Map<SyncTable, Set<String>> pushed = new EnumMap<>(SyncTable.class);
@@ -125,15 +143,20 @@ public class SyncService {
                     Stored next = new Stored(in.id(), stored.version() + 1, updatedAt, deletedAt, seq, in.data());
                     repo.update(table, userId, next);
                     repo.logConflict(userId, table, "server", next.version(), stored, now);
+                    logged = true;
                     conflicts.add(conflict(table, in, next, "client_won"));
                 } else {
                     repo.logConflict(userId, table, "client", stored.version(), incoming, now);
+                    logged = true;
                     conflicts.add(conflict(table, in, stored, "server_won"));
                 }
             }
         }
         if (seq != before) {
             repo.saveSeq(userId, seq);
+        }
+        if (logged) {
+            repo.pruneConflicts(userId, now.minus(conflictLogRetention), conflictLogKeep);
         }
 
         // Pull: everything stored before this request's writes, minus the records the device just pushed.

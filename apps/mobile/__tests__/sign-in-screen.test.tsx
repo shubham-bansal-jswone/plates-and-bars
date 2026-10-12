@@ -22,7 +22,7 @@ const base: SyncState = {
   signOut: async () => 0,
   discardAndSignOut: async () => undefined,
   exportFromServer: async () => ({ kind: 'not_signed_in' }),
-  deleteEverything: async () => ({ kind: 'deleted', server: false }),
+  deleteEverything: async () => ({ kind: 'deleted', server: false, linked: false }),
 };
 const pdb = memoryDb();
 const withSync = (s: Partial<SyncState>, ui: React.ReactElement) => (
