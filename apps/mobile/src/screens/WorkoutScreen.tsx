@@ -11,7 +11,7 @@ import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
-import { catalog } from '../workout/catalog';
+import { getCatalog } from '../workout/catalog';
 import { CHECKIN, MUSCLE, REASON_TEXT, listJoin, modsNoteText } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
@@ -45,7 +45,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const startRest = useCallback((name: string, label: string) => {
     if (restOff) return;
-    const total = restFor(name, catalog.tags);
+    const total = restFor(name, getCatalog().tags);
     const t = Date.now();
     setRest({ id: t, end: t + total * 1000, total, label });
   }, [restOff]);
@@ -78,7 +78,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       <SessionView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name) => setCantName({ i, name })} />
     );
   const where = day.workout?.where ?? profile.where;
-  const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, catalog);
+  const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
   return (
     <View style={styles.fill}>
       {body}
@@ -123,7 +123,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
     ? buildSession({ template: startT, date, profile, where: profile.where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps })
     : null;
   const names = built ? built.exercises.map((e) => e.name) : [];
-  const prim = [...new Set(names.flatMap((n) => catalog.tags[n]?.primary ?? []))];
+  const prim = [...new Set(names.flatMap((n) => getCatalog().tags[n]?.primary ?? []))];
   const eachSets = built && built.exercises.length && built.exercises.every((e) => e.sets === built.exercises[0]?.sets) ? built.exercises[0]?.sets : null;
   const others = (planList(profile) as readonly string[]).filter((k) => k !== plan);
 
@@ -145,19 +145,19 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
           {names.map((n, i) => (
             <Text key={n} accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15 }}>
               {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
-              <Text style={{ color: c.muted }}> {listJoin((catalog.tags[n]?.primary ?? []).map((m) => MUSCLE[m] ?? m))}</Text>
-              {isFocus(n, focus, catalog.tags) ? <Text style={{ color: c.link, fontWeight: '700' }}> Focus</Text> : null}
+              <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => MUSCLE[m] ?? m))}</Text>
+              {isFocus(n, focus, getCatalog().tags) ? <Text style={{ color: c.link, fontWeight: '700' }}> Focus</Text> : null}
             </Text>
           ))}
           <Hint>
             {names.length} exercises{eachSets ? `, ${eachSets} sets each${beginnerRamp(profile, date) ? ' for your first 2 weeks' : ''}` : ''}
-            {names.some((n) => isFocus(n, focus, catalog.tags)) ? ', plus 1 on focus muscles' : ''}
+            {names.some((n) => isFocus(n, focus, getCatalog().tags)) ? ', plus 1 on focus muscles' : ''}
             {profile.minutes ? `, sized to your ${profile.minutes}-minute sessions` : ''}.
             {built.left.length ? ` ${listJoin(built.left)} rotate in on other ${startT} days.` : ''}
           </Hint>
           {built.lost.map((n) => (
             <Hint key={n}>
-              {n} is left out with no replacement{catalog.tags[n] ? `, so your ${listJoin(catalog.tags[n].primary.map((m) => MUSCLE[m] ?? m))} get fewer sets each week` : ''}.
+              {n} is left out with no replacement{getCatalog().tags[n] ? `, so your ${listJoin(getCatalog().tags[n]!.primary.map((m) => MUSCLE[m] ?? m))} get fewer sets each week` : ''}.
             </Hint>
           ))}
 
@@ -246,7 +246,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1>Second session</H1> : null}
-            <ExerciseCard ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, catalog.tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
+            <ExerciseCard ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
           </View>
         );
       })}

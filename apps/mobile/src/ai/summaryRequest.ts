@@ -1,10 +1,10 @@
 import type { Goal, WeeklyCheckin } from '@plate-and-bar/core';
 import type { Schemas } from '@plate-and-bar/api';
-import { catalog } from '../workout/catalog';
+import { getCatalog } from '../workout/catalog';
 
 /** The fixed label the contract asks for in place of any exercise that is not in the catalogue (never a user-typed name). */
 export const CUSTOM_EXERCISE = 'custom exercise';
-const exerciseId = (name: string): string => (Object.prototype.hasOwnProperty.call(catalog.tags, name) ? name : CUSTOM_EXERCISE);
+const exerciseId = (name: string): string => (Object.prototype.hasOwnProperty.call(getCatalog().tags, name) ? name : CUSTOM_EXERCISE);
 const positive = (n: number | null): number | null => (n !== null && n > 0 ? n : null);
 
 /**

@@ -1,8 +1,9 @@
 import type { Schemas } from '@plate-and-bar/api';
 import type { ExType } from '@plate-and-bar/core';
 import labels from '../../../../content/labels.json';
-import { catalog, type ExerciseCard } from '../workout/catalog';
+import { EQUIPMENT_CODES, getCatalog, type ExerciseCard } from '../workout/catalog';
 import { MUSCLE, TYPE_LABEL } from '../workout/copy';
+import { perLoad } from '../content/reader';
 
 type Labels = Record<string, string>;
 const L = labels as unknown as { joints: Labels; families: Labels; patterns: Labels };
@@ -32,33 +33,36 @@ export interface LibraryExercise {
   card: ExerciseCard | null;
 }
 
-/** Every exercise in the content, A to Z. Built once. */
-export const LIBRARY: readonly LibraryExercise[] = Object.keys(catalog.tags)
-  .sort((a, b) => a.localeCompare(b))
-  .map((name) => {
-    const t = catalog.tags[name]!;
-    const m = catalog.meta[name];
-    return {
-      name,
-      equipment: t.equipment,
-      type: (m?.type as ExType | undefined) ?? 'other',
-      difficulty: t.difficulty,
-      primary: t.primary as readonly Muscle[],
-      secondary: t.secondary as readonly Muscle[],
-      joints: t.joints,
-      movement: L.patterns[t.pattern] ?? t.pattern,
-      family: L.families[t.family] ?? t.family,
-      repLow: m?.rep_low ?? 0,
-      repHigh: m?.rep_high ?? 0,
-      card: catalog.cards[name] ?? null,
-    };
-  });
+/** Every exercise in the content, A to Z. Built once per content load; call it where it is used, not at module level. */
+export const getLibrary: () => readonly LibraryExercise[] = perLoad(() => {
+  const catalog = getCatalog();
+  return Object.keys(catalog.tags)
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => {
+      const t = catalog.tags[name]!;
+      const m = catalog.meta[name];
+      return {
+        name,
+        equipment: t.equipment,
+        type: (m?.type as ExType | undefined) ?? 'other',
+        difficulty: t.difficulty,
+        primary: t.primary as readonly Muscle[],
+        secondary: t.secondary as readonly Muscle[],
+        joints: t.joints,
+        movement: L.patterns[t.pattern] ?? t.pattern,
+        family: L.families[t.family] ?? t.family,
+        repLow: m?.rep_low ?? 0,
+        repHigh: m?.rep_high ?? 0,
+        card: catalog.cards[name] ?? null,
+      };
+    });
+});
 
 /** Chip lists come from the data, in a fixed display order, so a chip never matches nothing. */
 const used = <T extends string>(order: readonly T[], seen: Set<string>): T[] => order.filter((v) => seen.has(v));
-export const EQUIPMENT: readonly string[] = used(['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'other'], new Set(LIBRARY.map((e) => e.equipment)));
-export const MUSCLES: readonly Muscle[] = used(Object.keys(MUSCLE) as Muscle[], new Set<string>(LIBRARY.flatMap((e) => e.primary)));
-export const TYPES: readonly ExType[] = used(Object.keys(TYPE_LABEL) as ExType[], new Set(LIBRARY.map((e) => e.type)));
+export const getEquipment: () => readonly string[] = perLoad(() => used(EQUIPMENT_CODES, new Set(getLibrary().map((e) => e.equipment))));
+export const getMuscles: () => readonly Muscle[] = perLoad(() => used(Object.keys(MUSCLE) as Muscle[], new Set<string>(getLibrary().flatMap((e) => e.primary))));
+export const getTypes: () => readonly ExType[] = perLoad(() => used(Object.keys(TYPE_LABEL) as ExType[], new Set(getLibrary().map((e) => e.type))));
 
 export interface LibraryFilter {
   query: string;

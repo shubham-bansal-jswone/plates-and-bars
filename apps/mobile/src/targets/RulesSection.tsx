@@ -10,7 +10,7 @@ import { shortDate } from '../format';
 import type { Profile } from '../setup/types';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useTheme } from '../theme/useTheme';
-import { catalog } from '../workout/catalog';
+import { getCatalog } from '../workout/catalog';
 import { applyCantToStoredDay } from '../workout/cantApply';
 import { CantSheet } from '../workout/CantSheet';
 import { ruleText } from '../workout/rulesCopy';
@@ -42,7 +42,7 @@ export function RulesSection({ db, today, now, notify, profile, weekPlan }: { db
   }, [db, picking]);
   const active = activeRules(rules.exclusions) as ExclusionRecord[];
   const canAdd = rules.ready && !rules.loadFailed;
-  const planned = () => plannedCoverage({ date: today, profile, weekPlan, exclusions: rules.exclusions, swaps: rules.swaps, lifts }, catalog);
+  const planned = () => plannedCoverage({ date: today, profile, weekPlan, exclusions: rules.exclusions, swaps: rules.swaps, lifts }, getCatalog());
   const save = (draft: CantDraft, choice: string | null) => {
     const before = rules.exclusions;
     setCant(null);
