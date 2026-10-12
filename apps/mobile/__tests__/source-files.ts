@@ -9,7 +9,11 @@ const path = require('path') as { join(...p: string[]): string };
 const walk = (dir: string): string[] =>
   fs.readdirSync(dir).flatMap((f) => (fs.statSync(path.join(dir, f)).isDirectory() ? walk(path.join(dir, f)) : /\.tsx?$/.test(f) ? [path.join(dir, f)] : []));
 
-/** Source files under `src/` and `app/` (not `components/ui.tsx`) whose text matches `pattern`. Jest runs with the app folder as cwd. */
+const withoutComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/** The two helpers that own the raw props are the only code allowed to set them. */
+const withoutHelpers = (s: string) => s.replace(/export function (Heading|a11yState)\([\s\S]*?\n}\n/g, '');
+
+/** Source files under `src/` and `app/` whose code (comments and the `Heading` and `a11yState` functions removed) matches `pattern`. Jest runs with the app folder as cwd. */
 export function sourcesMatching(pattern: RegExp): string[] {
-  return [...walk(path.join(process.cwd(), 'src')), ...walk(path.join(process.cwd(), 'app'))].filter((f) => !f.endsWith('components/ui.tsx') && pattern.test(fs.readFileSync(f, 'utf8')));
+  return [...walk(path.join(process.cwd(), 'src')), ...walk(path.join(process.cwd(), 'app'))].filter((f) => pattern.test(withoutHelpers(withoutComments(fs.readFileSync(f, 'utf8')))));
 }

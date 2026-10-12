@@ -52,7 +52,6 @@ export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?:
     accessibilityState: defined.length ? { ...native, ...(pressed === undefined ? null : { selected: pressed }) } : undefined,
     'aria-selected': s.selected,
     'aria-checked': s.checked,
-    
     'aria-expanded': s.expanded,
     'aria-busy': s.busy,
     'aria-pressed': s.pressed,

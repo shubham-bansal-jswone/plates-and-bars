@@ -78,19 +78,21 @@ describe('screen outlines', () => {
     expectOutline(levels());
   });
 
-  it('Food has one level-one heading, with meals at level 2', async () => {
+  it('Food has one level-one heading, with the meals at level 2', async () => {
     const db = memoryDb();
     await saveProfile(db, profile());
     await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
     await screen.findByRole('header', { name: 'Food' });
     expectOutline(levels());
-    expect(levels().length).toBeGreaterThan(1);
+    const meals = screen.getAllByRole('header', { name: /^(Breakfast|Lunch|Dinner|Snacks?)$/ });
+    expect(meals.length).toBeGreaterThan(0);
+    meals.forEach((m) => expect(m.props['aria-level']).toBe(2));
   });
 });
 
 describe('no heading without a level', () => {
-  it('only Heading in ui.tsx sets accessibilityRole="header"', () => {
-    const bad = sourcesMatching(/accessibilityRole=["{\'"]+header/);
+  it('only Heading sets accessibilityRole="header" or role="heading", as a prop or in a spread object', () => {
+    const bad = sourcesMatching(/(accessibilityRole|role)\s*[=:]\s*\{?\s*["'`](header|heading)["'`]/);
     expect(bad).toEqual([]);
   });
 });

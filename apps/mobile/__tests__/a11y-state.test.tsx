@@ -55,8 +55,8 @@ describe('primitives hand aria state to the web', () => {
 });
 
 describe('no accessibilityState without its aria twin', () => {
-  it('only the a11yState helper in ui.tsx sets accessibilityState', () => {
-    const bad = sourcesMatching(/accessibilityState=/);
+  it('only the a11yState helper mentions accessibilityState, as a prop or in a spread object', () => {
+    const bad = sourcesMatching(/accessibilityState/);
     expect(bad).toEqual([]);
   });
 });

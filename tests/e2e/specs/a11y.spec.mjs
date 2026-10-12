@@ -9,7 +9,11 @@ import { axeSource, completeSetup, expect, label, openApp, tab, test } from '../
 const KNOWN = Object.fromEntries(['consent', 'setup', 'food', 'workout', 'progress', 'targets', 'data', 'library', 'about', 'recipes'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
+// Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
+const levelOnes = (page) => page.evaluate(() => [...document.querySelectorAll('[role=heading][aria-level="1"], h1:not([role])')].filter((h) => !h.closest('[aria-hidden="true"]')).map((h) => h.textContent));
+
 async function scan(page, name, scheme) {
+  expect(await levelOnes(page), `${name} in ${scheme} mode: level-one headings`).toHaveLength(1);
   await page.evaluate(axeSource);
   const { violations } = await page.evaluate((rules) => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, rules: Object.fromEntries(rules.map((r) => [r, { enabled: true }])), checks: { 'page-has-heading-one': { options: { passForModal: false } } } }), RULES);
   const { unexpected, stale } = triage(violations, KNOWN[name]);
