@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import { loadSets, loadWorkout, saveSet, saveWorkout } from '../src/db/workouts';
+import { deleteLift, loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -77,5 +77,70 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
     const stored = (await loadWorkout(db, DATE))!;
     expect(stored.deleted_at ?? null).toBeNull();
     expect(stored.version).toBe(6);
+  });
+});
+
+describe('a lift record a sync pull stored after the screen loaded (#409)', () => {
+  it('is the base for the next tick, not the screen\'s older copy', async () => {
+    const { db, result } = await started();
+    const name = result.current.day.exs[0]!.name;
+    // Another device's session on this lift, pulled after the screen loaded its lifts.
+    await saveLift(db, name, { date: '2026-10-05', sets: [{ w: 40, r: 8, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-10-05', e: 99 }] });
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '8'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadLifts(db))[name]!;
+    expect(stored.date).toBe(DATE);
+    expect(stored.prev?.date).toBe('2026-10-05');
+    expect(stored.n).toBe(4);
+    expect(stored.first).toBe('2026-09-01');
+    expect(stored.hist?.map((h) => h.date)).toEqual(['2026-10-05', DATE]);
+    expect(result.current.day.lifts[name]).toEqual(stored);
+  });
+
+  it('a lift deleted on another device starts a fresh record on the next tick', async () => {
+    const { db, result } = await started();
+    const name = result.current.day.exs[0]!.name;
+    await saveLift(db, name, { date: '2026-10-05', sets: [{ w: 40, r: 8, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-10-05', e: 99 }] });
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '8'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current));
+    await deleteLift(db, name, '2026-10-08T09:00:00Z'); // the pull: deleted elsewhere
+    await act(async () => result.current.editSet(0, 'work', 1, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 1, 'r', '8'));
+    await act(async () => result.current.tick(0, 1));
+    await act(async () => void (await dayQueue.current));
+    const stored = (await loadLifts(db))[name]!;
+    expect(stored.n).toBe(1);
+    expect(stored.prev).toBeNull();
+    expect(stored.hist?.map((h) => h.date)).toEqual([DATE]);
+  });
+
+  it('no personal-best toast when the pulled history holds a better score', async () => {
+    notify.mockClear();
+    const { db, result } = await started();
+    const name = result.current.day.exs[0]!.name;
+    await saveLift(db, name, { date: '2026-10-05', sets: [{ w: 400, r: 20, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-10-05', e: 9999 }] });
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '8'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current));
+    expect(notify).not.toHaveBeenCalledWith(`New personal best on ${name}`);
+  });
+
+  it('a personal-best toast when today beats the pulled history', async () => {
+    notify.mockClear();
+    const { db, result } = await started();
+    const name = result.current.day.exs[0]!.name;
+    await saveLift(db, name, { date: '2026-10-05', sets: [{ w: 10, r: 5, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-09-28', e: 1 }, { date: '2026-10-05', e: 1 }] });
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '8'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current));
+    expect(notify).toHaveBeenCalledWith(`New personal best on ${name}`);
   });
 });
