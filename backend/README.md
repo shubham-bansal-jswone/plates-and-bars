@@ -242,7 +242,9 @@ with a port such as `1.2.3.4:80`), falls back to the proxy's address. Hostnames 
 Deploy checklist: set `APP_RATELIMIT_TRUSTEDPROXIES` on the API service to the address or network of the proxy that
 connects directly to the API, that is Caddy's own address or the Docker network range it connects from (for example
 `APP_RATELIMIT_TRUSTEDPROXIES=172.18.0.0/16`). It is not Caddy's `trusted_proxies` setting, which lists the proxies in
-front of Caddy. If it is left empty behind a proxy, every client shares the proxy's buckets; the worst effect is the
+front of Caddy. If a CDN or another proxy ever sits in front of Caddy, its ranges must be added to
+`APP_RATELIMIT_TRUSTEDPROXIES` too, because the resolver stops at the first address that is not trusted (there is no CDN
+today). If it is left empty behind a proxy, every client shares the proxy's buckets; the worst effect is the
 10-per-hour `/auth/email/start` cap, which one script could use up so nobody can request a sign-in code. The app logs one
 ERROR line (no address, no header value) the first time it sees a private or loopback peer sending `X-Forwarded-For`
 with the list empty, once per resolver instance (a singleton, so once per process). Local development, where nothing
