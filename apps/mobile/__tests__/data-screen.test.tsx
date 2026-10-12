@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { DataScreen } from '../src/screens/DataScreen';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
@@ -149,5 +150,22 @@ describe('deletion notice', () => {
     expect(screen.queryByText(/deleted|cleared/)).toBeNull();
     await render(<DeletionNotice />);
     expect(screen.queryByText(/deleted|cleared/)).toBeNull();
+  });
+
+  it('the reinstall sentence shows on Android only', async () => {
+    const original = Platform.OS;
+    const android = 'Android does not back up this app, so if you reinstall or move to a new phone, download a copy first.';
+    try {
+      Platform.OS = 'android';
+      const a = await show({});
+      expect(screen.getByText(new RegExp(`stay on this device\\. ${android}$`))).toBeTruthy();
+      a.unmount();
+      Platform.OS = 'ios';
+      await show({});
+      expect(screen.getByText(/stay on this device\.$/)).toBeTruthy();
+      expect(screen.queryByText(/Android does not back up/)).toBeNull();
+    } finally {
+      Platform.OS = original;
+    }
   });
 });

@@ -5,6 +5,7 @@ export const DATA_COPY = {
   exportDevice: 'Download my data',
   exportServer: 'Download from my account',
   exportHint: 'The download works without a connection: it is made from what is on this device. Progress photos, cycle and lab data stay on this device.',
+  exportHintAndroid: 'Android does not back up this app, so if you reinstall or move to a new phone, download a copy first.',
   signInToExport: 'Sign in to download from your account',
   exportLinkedHint: 'This device is linked to an account but you are signed out. Sign in to download what the server holds for it.',
   exportServerHint: 'You are signed in, so you can also download what our server holds for your account. That needs a connection.',
