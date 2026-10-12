@@ -4,13 +4,16 @@ import { axeSource, completeSetup, expect, label, openApp, tab, test } from '../
 // axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
 // the landmark and heading best-practice rules. Every violation fails the test. A failure caused by a filed bug goes in
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
-// violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test. Empty now.
-const KNOWN = {};
+// violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
+// #382: every header is <h1 role=heading> without aria-level, so no screen has a level-one heading. The scan runs the rule
+// with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
+const noH1 = { rule: 'page-has-heading-one', issue: 382, match: (n) => n.html.startsWith('<html') };
+const KNOWN = Object.fromEntries(['consent', 'setup', 'food', 'workout', 'progress', 'targets', 'data', 'library', 'about', 'recipes'].map((n) => [n, [noH1]]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 async function scan(page, name, scheme) {
   await page.evaluate(axeSource);
-  const { violations } = await page.evaluate((rules) => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, rules: Object.fromEntries(rules.map((r) => [r, { enabled: true }])) }), RULES);
+  const { violations } = await page.evaluate((rules) => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, rules: Object.fromEntries(rules.map((r) => [r, { enabled: true }])), checks: { 'page-has-heading-one': { options: { passForModal: false } } } }), RULES);
   const { unexpected, stale } = triage(violations, KNOWN[name]);
   expect(stale, `${name} in ${scheme} mode`).toEqual([]);
   expect(unexpected, `${name} in ${scheme} mode`).toEqual([]);
