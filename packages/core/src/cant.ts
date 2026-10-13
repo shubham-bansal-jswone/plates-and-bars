@@ -72,9 +72,9 @@ const live = (s: CantSet): boolean => !s.deleted_at;
  * had, at least 3 (3 with no history).
  *
  * Mirrors prototype `newExercise(name)` (`lastFor` with `S.lifts` and `S.date` passed in) and the
- * `nx.part = ex.part` line of `replaceAt`.
+ * `nx.part = ex.part` line of `replaceAt`. Also used for an exercise added from the library (prototype `exPick`).
  */
-function newExercise(name: string, c: CantLifts, part: 1 | 2): { ex: CantExercise; sets: NewCantSet[] } {
+export function newExercise(name: string, c: CantLifts, part: 1 | 2): { ex: CantExercise; sets: NewCantSet[] } {
   const last = lastFor(name, c.lifts, c.date);
   const n = last ? Math.max(3, last.sets.length) : 3;
   return {

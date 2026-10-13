@@ -60,11 +60,12 @@ export interface ProtoLadders {
   candidates(name: string, o: Record<string, unknown>): { name: string; score: number; why: string }[];
   applyCant(choice: string | null): void;
   exAction(a: string, b: { dataset: Record<string, string> }): void;
+  newExercise(name: string): { name: string; sets: unknown[] };
 }
 
 /**
  * Runs the prototype's ladder, re-check and "can't do" functions (`ladderOf`, `nextStep`, `prevStep`,
- * `sidewaysOf`, `estimateFor`, `ladderCard`, `recheckCards`, `candidates`, `applyCant`, `exAction`) sliced out of
+ * `sidewaysOf`, `estimateFor`, `ladderCard`, `recheckCards`, `candidates`, `applyCant`, `exAction`, `newExercise`) sliced out of
  * the HTML against a fake `S`, with `TAGS`, `AWAY` and `LADDERS` from golden/exercises.json and
  * `EX_META` passed in. UI calls are stubbed (`whyLink`, `saveSettings`, `saveDay`, `render`, `toast`,
  * `sheet.close`, `shortDate`); `newId` counts up. `homeWhere` and `whereNow` are the prototype's own
@@ -114,7 +115,7 @@ export function loadLadders(meta: MetaTable): ProtoLadders {
     sliceBlock(src, 'function sidewaysOf(name){', '}'),
     sliceBlock(src, 'function recheckCards(){', '}'),
     sliceBlock(src, 'function exAction(a, b){', '}'),
-    'return { S, CX, ladderOf, nextStep, prevStep, sidewaysOf, estimateFor, ladderCard, recheckCards, candidates, applyCant, exAction };',
+    'return { S, CX, ladderOf, nextStep, prevStep, sidewaysOf, estimateFor, ladderCard, recheckCards, candidates, applyCant, exAction, newExercise };',
   ].join('\n');
   return new Function('TAGS', 'AWAY', 'LADDERS', 'EX_META', code)(g.tags, g.awayMap_dumbbells_bodyweight, g.ladders, meta) as ProtoLadders;
 }
