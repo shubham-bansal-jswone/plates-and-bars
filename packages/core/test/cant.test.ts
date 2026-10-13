@@ -3,6 +3,7 @@ import {
   addDays,
   candidates,
   cantSession,
+  newExercise,
   replaceAt,
   type CantDraft,
   type CantDuration,
@@ -132,6 +133,29 @@ describe('replaceAt', () => {
   it('returns the workout unchanged for an index past the end', () => {
     const got = replaceAt(session, sets, 9, 'X', noLifts);
     expect(got).toEqual({ exercises: session, sets, changed: [], removed: [] });
+  });
+});
+
+describe('newExercise (an exercise added from the library)', () => {
+  const rec = (date: string, n: number, prev: LiftRecord | null = null): LiftRecord => ({ date, sets: Array.from({ length: n }, () => ({ w: 10, r: 8 })), prev });
+
+  it('is a plain exercise in the part asked for, with blank work sets numbered from 0', () => {
+    const got = newExercise('Goblet Squat', { lifts: {}, date: DATE }, 2);
+    expect(got.ex).toEqual({ name: 'Goblet Squat', part: 2, bridge: false, form: null, found_kg: null, skip_ramp: false });
+    expect(got.sets).toEqual([0, 1, 2].map((i) => ({ exercise: 'Goblet Squat', kind: 'work', set_index: i, weight_kg: null, reps: null, done: false, rate: null, t: null })));
+  });
+
+  it('has as many sets as the prototype\'s newExercise, over random histories', () => {
+    const p = proto;
+    const r = rng(431);
+    for (let k = 0; k < 200; k++) {
+      const n = 1 + Math.floor(r() * 7);
+      const today = r() < 0.4;
+      const lifts: Record<string, LiftRecord> = r() < 0.2 ? {} : { X: today ? rec(DATE, n, r() < 0.5 ? rec('2026-10-01', 1 + Math.floor(r() * 6)) : null) : rec('2026-10-01', n) };
+      p.S.date = DATE;
+      p.S.lifts = JSON.parse(JSON.stringify(lifts));
+      expect(newExercise('X', { lifts, date: DATE }, 1).sets).toHaveLength(p.newExercise('X').sets.length);
+    }
   });
 });
 
