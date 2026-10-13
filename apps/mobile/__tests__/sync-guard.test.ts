@@ -2,7 +2,7 @@
 import { pendingCount } from '../src/db/outbox';
 import { syncOnce } from '../src/sync/engine';
 import { makeApi, verifyEmailCode } from '../src/sync/auth';
-import { acceptTokenPair, signOut } from '../src/sync/guard';
+import { acceptTokenPair, signOut, withPhotosSettled } from '../src/sync/guard';
 import { getUserId, setKv, KEY_USER } from '../src/sync/store';
 import { saveWeightDoc } from './sync-fixtures';
 import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
@@ -152,6 +152,34 @@ describe('sign-out and account switch guard (#31)', () => {
     expect(await acceptTokenPair(logging, tokens, pair(USER_A))).toEqual({ kind: 'signed_in', wiped: false });
     expect(mockVault.told).toEqual([false, false, 'marker cleared', true]);
     expect(await marker()).toBeNull();
+  });
+
+  it('a photo write holds the account lock from settling the owed wipe until it is written', async () => {
+    const db = await openDb();
+    const tokens = memoryTokens();
+    const events: string[] = [];
+    let finish = () => {};
+    const write = withPhotosSettled(db, async () => {
+      events.push('write started');
+      await new Promise<void>((r) => (finish = r));
+      events.push('write done');
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    const other = acceptTokenPair(db, tokens, pair(USER_A)).then(() => events.push('account operation'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual(['write started']); // the account operation (and any wipe in it) waits
+    finish();
+    await Promise.all([write, other]);
+    expect(events).toEqual(['write started', 'write done', 'account operation']);
+  });
+
+  it('a failure reading the wipe marker is announced too', async () => {
+    const db = await openDb();
+    const broken = Object.assign(Object.create(db), {
+      getFirstAsync: (sql: string, ...a: unknown[]) => (a.includes('device.photos_wipe_pending') ? Promise.reject(new Error('read')) : db.getFirstAsync(sql, ...(a as never[]))),
+    });
+    await expect(acceptTokenPair(broken, memoryTokens(), pair(USER_A))).rejects.toThrow('read');
+    expect(mockVault.told).toEqual([false]);
   });
 
   it('sign-out is blocked while changes are unsynced; discarding wipes them and the outbox', async () => {

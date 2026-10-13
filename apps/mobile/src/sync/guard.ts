@@ -65,8 +65,8 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
  * an account operation use `completePhotoWipe`.
  */
 async function finishPhotoWipe(db: Db): Promise<void> {
-  if (!(await getKv(db, KEY_PHOTOS_WIPE))) return;
   try {
+    if (!(await getKv(db, KEY_PHOTOS_WIPE))) return;
     await wipePhotos();
     await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_PHOTOS_WIPE);
   } catch (e) {
@@ -77,8 +77,15 @@ async function finishPhotoWipe(db: Db): Promise<void> {
   announceWipe(true);
 }
 
-/** `finishPhotoWipe` under the account lock: at launch, and before the photos screen reads or writes the vault. */
+/** `finishPhotoWipe` under the account lock: at launch, and before the photos screen reads the vault. */
 export const completePhotoWipe = (db: Db): Promise<void> => withSyncPaused(() => finishPhotoWipe(db));
+
+/** Runs a photo write with no wipe owed and the account lock held throughout, so no wipe can land between the two. */
+export const withPhotosSettled = <T>(db: Db, write: () => Promise<T>): Promise<T> =>
+  withSyncPaused(async () => {
+    await finishPhotoWipe(db);
+    return write();
+  });
 
 export type SignInOutcome =
   /** Tokens saved; the store belongs to this user. `wiped` when a previous user's empty store was cleared first. */

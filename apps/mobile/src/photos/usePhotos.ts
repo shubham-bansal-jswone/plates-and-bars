@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { daysBetween } from '@plate-and-bar/core';
 import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
-import { completePhotoWipe } from '../sync/guard';
+import { completePhotoWipe, withPhotosSettled } from '../sync/guard';
 import { PHOTOS_GRID, PHOTOS_STALE_DAYS } from './copy';
 import { POSES, deletePhoto, getPhoto, onPhotosWiped, photoDates, putPhoto, type Pose } from './vault';
 
@@ -44,11 +44,12 @@ const firstPose = async (date: string) => {
   }
   return null;
 };
-/** Finishes an owed vault wipe; a database that cannot run one counts as a failure, so photos are never shown unchecked. */
-async function settleWipe(db: StoreDb): Promise<void> {
+/** The database as one that can run an owed vault wipe; one that cannot counts as a failure, so photos are never unchecked. */
+function wipeable(db: StoreDb): StoreDb & PullDb {
   if (typeof (db as Partial<PullDb>).withExclusiveTransactionAsync !== 'function') throw new Error('no transactions');
-  await completePhotoWipe(db as StoreDb & PullDb);
+  return db as StoreDb & PullDb;
 }
+const settleWipe = (db: StoreDb) => completePhotoWipe(wipeable(db));
 const EMPTY = { ready: false, failed: false, dates: [] as string[], thumbs: [] as Thumb[], today: { front: null, side: null, back: null } as Record<Pose, string | null> };
 
 /** Progress photos for the Progress tab (prototype `renderPhotos`). An owed vault wipe is finished before anything is read. */
@@ -112,16 +113,17 @@ export function usePhotos({ db, date }: { db: StoreDb; date: string }): Photos {
   );
   const save = useCallback(
     async (pose: Pose, jpegBase64: string) => {
-      await settleWipe(db); // never write while a wipe is owed: it would delete the new photo later
-      await putPhoto(date, pose, jpegBase64);
+      // Never write while a wipe is owed, and hold the account lock until written, so no wipe lands in between.
+      await withPhotosSettled(wipeable(db), () => putPhoto(date, pose, jpegBase64));
       reload();
     },
     [db, date, reload],
   );
   const remove = useCallback(
     async (d: string) => {
-      await settleWipe(db);
-      for (const p of POSES) await deletePhoto(d, p);
+      await withPhotosSettled(wipeable(db), async () => {
+        for (const p of POSES) await deletePhoto(d, p);
+      });
       reload();
     },
     [db, reload],

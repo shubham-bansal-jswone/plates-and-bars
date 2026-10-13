@@ -33,7 +33,13 @@ jest.mock('../src/photos/vault', () => ({
   },
 }));
 const mockWipe = jest.fn(async () => void mockVault.calls.push('wipe'));
-jest.mock('../src/sync/guard', () => ({ completePhotoWipe: () => mockWipe() }));
+jest.mock('../src/sync/guard', () => ({
+  completePhotoWipe: () => mockWipe(),
+  withPhotosSettled: async (_db: unknown, write: () => Promise<unknown>) => {
+    await mockWipe();
+    return write();
+  },
+}));
 const mockCapture = jest.fn();
 jest.mock('../src/photos/capture', () => {
   const actual = jest.requireActual('../src/photos/capture');
