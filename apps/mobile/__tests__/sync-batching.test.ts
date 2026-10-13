@@ -139,6 +139,20 @@ describe('size-aware batching', () => {
     expect(await pendingCount(db)).toBe(0);
   });
 
+  it('a refused token refresh in a later round keeps the counts of what already synced (#401)', async () => {
+    const { db, server, deps } = await setup();
+    for (let i = 0; i < 4; i++) await saveBig(db, date(i), 600_000); // two requests: the body budget fits two per request
+    let requests = 0;
+    server.rejectIf = () => {
+      if (++requests === 2) server.accessValid = 'rotated-elsewhere'; // after the first request the token stops working
+      return null;
+    };
+    server.refreshFailStatus = 403; // and the refresh is refused (not a sign-out)
+    const r = await syncOnce(deps);
+    expect(r.status).toBe('rejected');
+    expect(r.pushed).toBe(2);
+  });
+
   it('halvings run out: the run ends, nothing is lost, the next run finishes', async () => {
     const { db, server, deps } = await setup();
     server.maxBytes = 3_000;
@@ -147,7 +161,10 @@ describe('size-aware batching', () => {
       for (let j = 0; j < 6; j++) await saveBig(db, date(n++), 100);
       await saveBig(db, date(n++), 5_000); // refused alone
     }
-    expect((await syncOnce(deps)).status).toBe('rejected'); // bounded: some set aside, the rest still queued
+    const first = await syncOnce(deps);
+    expect(first.status).toBe('rejected'); // bounded: some set aside, the rest still queued
+    expect(first.pushed).toBeGreaterThan(0); // #401: the counts survive the halvings return
+    expect(first.quarantined).toBeGreaterThan(0);
     expect(await syncOnce(deps)).toMatchObject({ status: 'ok' });
     expect(await pendingCount(db)).toBe(12);
     expect(await listQuarantined(db)).toHaveLength(12);

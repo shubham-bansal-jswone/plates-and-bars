@@ -69,6 +69,8 @@ export function fakeServer(userId: string) {
     accessValid: 'access-1',
     refreshes: 0,
     refreshOk: true,
+    /** When set, /auth/refresh answers this status (a 4xx other than 401 is a refused refresh, not a sign-out). */
+    refreshFailStatus: null as number | null,
     /** The next /sync answers 400 `invalid_request` with these `details` (the field paths exactly as given; none when undefined). */
     force400: [] as ({ field?: unknown; issue: string }[] | undefined)[],
     /** Answers 400 `invalid_request` naming every pushed record this returns a field for (the request applies nothing). */
@@ -106,6 +108,7 @@ export function fakeServer(userId: string) {
       }
       if (path === '/auth/refresh') {
         if (!s.refreshOk) return json(401, { code: 'unauthorized', message: 'x' });
+        if (s.refreshFailStatus) return json(s.refreshFailStatus, { code: 'invalid_request', message: 'x' });
         s.refreshes++;
         s.accessValid = `access-${s.refreshes + 1}`;
         return json(200, { token_type: 'Bearer', access_token: s.accessValid, access_token_expires_at: '2026-10-09T00:00:00Z', refresh_token: `refresh-${s.refreshes + 1}`, refresh_token_expires_at: '2027-01-01T00:00:00Z', user: { id: userId, email: null, created_at: '2026-10-01T00:00:00Z' }, new_user: false });

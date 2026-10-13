@@ -37,6 +37,8 @@ export interface SyncResult {
   conflicts: number;
   /** Pulled records stored this run. */
   pulled?: number;
+  /** Pushed records the server applied this run. */
+  pushed?: number;
   /** Pulled records skipped because a field was invalid. */
   skipped?: number;
   /** Records the server refused (400) this run and that were set aside so the rest could sync. */
@@ -258,6 +260,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   };
   let conflicts = 0;
   let pulled = 0;
+  let pushed = 0;
   let skipped = 0;
   let quarantined = 0;
   let asideRounds = 0;
@@ -309,7 +312,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           // The 400 names no record. Send half as many; one record alone that is still too large is set aside.
           if (sent.size > 1) {
             // Bounded by a counter, not only by `cap` shrinking: a request that never gets smaller must still end the run.
-            if (halvings++ >= MAX_HALVINGS) return { ...out.result, conflicts, pulled, skipped, ...(quarantined ? { quarantined } : {}) };
+            if (halvings++ >= MAX_HALVINGS) return { ...out.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
             cap = Math.max(1, Math.floor(sent.size / 2));
             round--;
             continue;
@@ -340,9 +343,10 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           if (asideRounds++ < MAX_ASIDE_ROUNDS) round--; // setting records aside is progress, not a round of syncing (bounded)
           continue;
         }
-        return { ...out.result, conflicts, pulled, skipped, ...(quarantined ? { quarantined } : {}) };
+        return { ...out.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
       }
       const res = out.data;
+      pushed += res.applied.length;
       for (const a of res.applied) {
         const s = sent.get(`${a.table}:${a.id}`);
         if (s) await settle(d.db, s.entry, guard, (txn) => patchMeta(txn, s.entry.tbl, s.entry.key, { version: a.version }));
@@ -381,13 +385,13 @@ async function run(d: SyncDeps): Promise<SyncResult> {
       if (consumed < entries.length && splitRounds++ < MAX_SPLIT_ROUNDS) round--; // cut short by the byte budget: progress, bounded
     }
   } catch (e) {
-    if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, skipped };
+    if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
     if (e instanceof Aborted) return { status: 'paused', conflicts, pulled, skipped };
     if (e instanceof NetworkError) return { status: 'offline', conflicts, pulled, skipped };
     // Anything else is a bug or a local failure, not the network: report it as an error state (class name only).
     return { status: 'error', conflicts, pulled, skipped, errorName: e instanceof Error ? e.constructor.name : 'Unknown' };
   }
-  return { status: 'ok', conflicts, pulled, skipped, ...(quarantined ? { quarantined } : {}) };
+  return { status: 'ok', conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
 }
 
 async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, guard: Guard): Promise<{ stored: number; skipped: number }> {
