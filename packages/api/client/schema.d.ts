@@ -462,6 +462,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/suggest-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suggest tags for an exercise the user typed
+         * @description Classifies a custom exercise name: movement pattern, equipment, difficulty, main and
+         *     secondary muscles and joints. Mirrors the prototype's `suggestTags()`. The app shows
+         *     the suggestion on the tag sheet for the user to confirm and correct (suggest and
+         *     confirm); nothing is stored by this call. `primary` can be empty when the model could
+         *     not place the exercise; the app then shows the manual fallback.
+         *
+         *     Counts against the shared daily quota like the other AI calls. The server may answer
+         *     with any strings for `pattern` and `joints` (within the schema limits, see the `ai`
+         *     tag); the app keeps only the ones it knows and uses `h-press` for an unknown pattern.
+         *
+         *     Non-AI fallback: the user picks the muscles by hand (the tag sheet without a
+         *     suggestion). See the `ai` tag for quota, kill-switch, rate-limit and no-logging rules.
+         *     Switched on by the optional `features.suggest_tags` flag in `GET /ai/status`; a server
+         *     that does not send it has the feature off.
+         */
+        post: operations["suggestTags"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/weekly-summary": {
         parameters: {
             query?: never;
@@ -479,7 +512,7 @@ export interface paths {
          *     only these numbers and invent none.
          *
          *     The request is numeric facts only, plus the goal and catalogue exercise ids for the
-         *     improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+         *     improved and stalled lifts; no user-typed text reaches the provider in this call. Lifts are
          *     identified by their `content/exercises.json` id, and every custom exercise is sent
          *     as the fixed label `custom exercise`, never by its user-typed name. The server
          *     sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
@@ -952,6 +985,8 @@ export interface components {
                 describe_meal: boolean;
                 ask_why: boolean;
                 weekly_summary: boolean;
+                /** @description Custom exercise tag suggestion. Optional, so a server that does not send it has the feature off. */
+                suggest_tags?: boolean;
             };
             quota: components["schemas"]["AiQuota"];
         };
@@ -992,6 +1027,25 @@ export interface components {
             answer: string;
             /** @description The card the answer is based on, or null when the cards don't cover the question. */
             card_id: string | null;
+            quota: components["schemas"]["AiQuota"];
+        };
+        SuggestTagsRequest: {
+            /**
+             * @description The exercise name as the user typed it, trimmed by the app (the app's name limit,
+             *     200 characters). Must contain a non-space character. This is the one place a
+             *     custom exercise's typed name leaves the device, and only when the user has turned
+             *     AI on; Weekly summary still sends `custom exercise` instead.
+             */
+            name: string;
+        };
+        SuggestTagsResponse: {
+            pattern: string;
+            /** @enum {string} */
+            equipment: "barbell" | "dumbbell" | "machine" | "cable" | "bodyweight";
+            difficulty: number;
+            primary: components["schemas"]["Muscle"][];
+            secondary: components["schemas"]["Muscle"][];
+            joints: string[];
             quota: components["schemas"]["AiQuota"];
         };
         /**
@@ -1046,7 +1100,7 @@ export interface components {
         /**
          * @description A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
          *     `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
-         *     app never sends a custom exercise's user-typed name; the server sends any value
+         *     app never sends a custom exercise's user-typed name in this call (only Suggest tags does); the server sends any value
          *     that is not a catalogue id to the provider as `custom exercise`.
          * @example Goblet Squat
          * @example custom exercise
@@ -2022,6 +2076,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AskWhyResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    suggestTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestTagsRequest"];
+            };
+        };
+        responses: {
+            /** @description The suggested tags and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestTagsResponse"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

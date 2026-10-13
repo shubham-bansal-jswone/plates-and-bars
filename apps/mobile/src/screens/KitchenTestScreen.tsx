@@ -9,7 +9,7 @@ import { fmt, shortDate } from '../format';
 import { BAD_DATE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
-import { getRawIngredients } from '../recipes/content';
+import { getRawIngredients, getShippedRawNames } from '../recipes/content';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { localDate } from '../setup/logic';
 import { useTheme } from '../theme/useTheme';
@@ -128,7 +128,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
         </View>
         <View style={styles.gap}>
           <Label>Raw ingredients</Label>
-          <IngredientRows rows={d.rows} onChange={(rows) => set({ rows })} />
+          <IngredientRows names={getShippedRawNames} rows={d.rows} onChange={(rows) => set({ rows })} />
         </View>
         <View style={styles.gap}>
           <View style={styles.wrap}>
