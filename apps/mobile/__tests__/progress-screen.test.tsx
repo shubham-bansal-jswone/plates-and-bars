@@ -143,6 +143,16 @@ describe('Progress screen', () => {
     expect(screen.queryByText(/^Source:/)).toBeNull();
   });
 
+  it('a stored 0 steps shows as 0 and stays 0 when saved (#303)', async () => {
+    const db = memoryDb();
+    await saveDayNote(db, { id: null, version: 1, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: null, steps: 0, sleep: 7, fast: false });
+    await setup({ db });
+    expect(screen.getByLabelText('Steps today').props.value).toBe('0');
+    expect(screen.getByText('Source: entered by you')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: 0, steps_source: 'manual', sleep: 7 })]));
+  });
+
   it('a manual entry overrides a device source', async () => {
     const db = memoryDb();
     await saveDayNote(db, { id: null, version: 1, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: null, steps: 4000, steps_source: 'device', sleep: null, fast: false });
