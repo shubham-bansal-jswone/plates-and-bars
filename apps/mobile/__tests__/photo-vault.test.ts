@@ -4,9 +4,13 @@
 type MockBuf = { subarray(a: number, b?: number): MockBuf; length: number; toString(e: string): string };
 const mockFiles = new Map<string, Uint8Array>();
 const mockSecure = new Map<string, string>();
+const mockFail = { dirDelete: false, secureGet: false };
 
 jest.mock('expo-secure-store', () => ({
-  getItemAsync: async (k: string) => mockSecure.get(k) ?? null,
+  getItemAsync: async (k: string) => {
+    if (mockFail.secureGet) throw new Error('keystore');
+    return mockSecure.get(k) ?? null;
+  },
   setItemAsync: async (k: string, v: string) => void mockSecure.set(k, v),
   deleteItemAsync: async (k: string) => void mockSecure.delete(k),
 }));
@@ -24,6 +28,7 @@ jest.mock('expo-file-system', () => {
       mockDirs.add(this.path);
     }
     delete() {
+      if (mockFail.dirDelete) throw new Error('busy');
       for (const p of [...mockFiles.keys()]) if (p.startsWith(`${this.path}/`)) mockFiles.delete(p);
       mockDirs.delete(this.path);
     }
@@ -45,6 +50,10 @@ jest.mock('expo-file-system', () => {
     }
     write(b: Uint8Array) {
       mockFiles.set(this.path, b);
+    }
+    moveSync(dest: { path: string }) {
+      mockFiles.set(dest.path, mockFiles.get(this.path) as Uint8Array);
+      mockFiles.delete(this.path);
     }
     async bytes() {
       return mockFiles.get(this.path) as Uint8Array;
@@ -122,6 +131,8 @@ function load(os: 'android' | 'web'): Vault {
 beforeEach(() => {
   mockFiles.clear();
   mockSecure.clear();
+  mockFail.dirDelete = false;
+  mockFail.secureGet = false;
 });
 
 describe('photo vault on Android', () => {
@@ -178,6 +189,50 @@ describe('photo vault on Android', () => {
     expect(await v.photoDates()).toEqual([]);
     await v.putPhoto('2026-10-02', 'front', JPEG);
     expect(mockSecure.get('pb.photo_key')).not.toBe(oldKey);
+  });
+});
+
+describe('photo vault failures and races (review on #430)', () => {
+  it('a wipe deletes the key before the files, so a failed folder delete leaves nothing readable', async () => {
+    const v = load('android');
+    await v.putPhoto('2026-10-01', 'front', JPEG);
+    mockFail.dirDelete = true;
+    await expect(v.wipePhotos()).rejects.toThrow('busy');
+    expect(mockSecure.has('pb.photo_key')).toBe(false);
+    mockFail.dirDelete = false;
+    expect(await load('android').getPhoto('2026-10-01', 'front')).toBeNull();
+  });
+
+  it('a lost key is replaced only after the unreadable files are removed', async () => {
+    await load('android').putPhoto('2026-10-01', 'front', JPEG);
+    mockSecure.clear(); // the key is gone, the files are not
+    const v = load('android');
+    await v.putPhoto('2026-10-08', 'front', JPEG);
+    expect(await v.photoDates()).toEqual(['2026-10-08']);
+    expect(await v.getPhoto('2026-10-08', 'front')).toBe(JPEG);
+  });
+
+  it('a wipe started while a put is running leaves no file behind', async () => {
+    const v = load('android');
+    const put = v.putPhoto('2026-10-01', 'front', JPEG);
+    const wipe = v.wipePhotos();
+    await Promise.all([put, wipe]);
+    expect(mockFiles.size).toBe(0);
+    expect(await v.photoDates()).toEqual([]);
+  });
+
+  it('a key store failure is thrown, not shown as a missing photo', async () => {
+    await load('android').putPhoto('2026-10-01', 'front', JPEG);
+    const v = load('android');
+    mockFail.secureGet = true;
+    await expect(v.getPhoto('2026-10-01', 'front')).rejects.toThrow('keystore');
+  });
+
+  it('a retake leaves no temporary file', async () => {
+    const v = load('android');
+    await v.putPhoto('2026-10-01', 'front', JPEG);
+    await v.putPhoto('2026-10-01', 'front', btoa('again'));
+    expect([...mockFiles.keys()]).toEqual(['doc/photos/2026-10-01_front.bin']);
   });
 });
 
