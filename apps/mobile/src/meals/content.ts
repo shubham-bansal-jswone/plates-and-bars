@@ -1,6 +1,6 @@
 import type { GroceryEntry, MealPlanningContent } from '@plate-and-bar/core';
 import planning from '../../../../content/meal-planning.json';
-import { contentReader, isArrOf, isNumIn, isObj, isText, perLoad } from '../content/reader';
+import { contentReader, isArrOf, isNumIn, isObj, isTrimmedText, perLoad } from '../content/reader';
 import { chosenFoods } from '../food/catalog';
 
 const NAME_MAX = 200;
@@ -19,7 +19,7 @@ const AMOUNT_MAX = 10000;
 interface Planning extends MealPlanningContent { grocery: GroceryEntry[] }
 const shipped = planning as unknown as Planning;
 
-const text = (max: number) => (v: unknown): v is string => isText(max)(v) && v.trim() !== '';
+const text = isTrimmedText;
 const norm = (s: string): string => s.trim().toLowerCase();
 /** Exactly the four meals in order, each > 0, summing to 1 (the content spec's rule; a zero or a bad sum gives NaN or double-counted targets). */
 const isWeights = (v: unknown): boolean =>

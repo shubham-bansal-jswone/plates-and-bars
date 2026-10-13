@@ -1,7 +1,7 @@
 import type { IngredientRow, RawIngredient } from '@plate-and-bar/core';
 import recipes from '../../../../content/recipes.json';
 import raw from '../../../../content/raw-ingredients.json';
-import { contentReader, isArrOf, isBool, isFoodSource, isNumIn, isObj, isStr, isText, isUuid, perLoad, type FoodSource } from '../content/reader';
+import { contentReader, isArrOf, isBool, isFoodSource, isNumIn, isObj, isStr, isTrimmedText, isUuid, perLoad, type FoodSource } from '../content/reader';
 
 /** A bundled recipe (content/recipes.json `library` or `presets`), reduced to what the screens read. */
 export interface RecipeContent {
@@ -34,7 +34,7 @@ interface RawBundle { ingredients: RawRow[] }
 interface RecipesBundle { katori_g: number; presets: RecipeRow[]; library: RecipeRow[] }
 
 const normName = (s: string): string => s.trim().toLowerCase();
-const nonBlank = (max: number) => (v: unknown): v is string => isText(max)(v) && v.trim() !== '';
+const nonBlank = isTrimmedText;
 /** Names must be unique after trim and lowercase, as `tools/validate/recipes.mjs` requires (the chips and picker key on them). */
 const uniqueBy = (rows: readonly { name: string; id: string }[], key: (r: { name: string; id: string }) => string): boolean => new Set(rows.map(key)).size === rows.length;
 const uniqueNames = (rows: readonly { name: string; id: string }[]): boolean => uniqueBy(rows, (r) => normName(r.name)) && uniqueBy(rows, (r) => r.id);
