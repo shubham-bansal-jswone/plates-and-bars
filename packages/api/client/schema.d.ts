@@ -85,6 +85,15 @@ export interface paths {
          *     (see `TokenPair.refresh_token`). Presenting an already-rotated refresh token is treated
          *     as theft: the whole session (every token descended from the same sign-in) is
          *     revoked and the user must sign in again.
+         *
+         *     **Lost response.** There is one exception, so that a response that never reached the
+         *     device does not sign the user out. If the token was rotated less than 60 seconds ago
+         *     and the token it was exchanged for has not been used yet, the server treats the call
+         *     as a retry: it revokes that unused token, keeps the session, and answers 200 with a
+         *     new pair (a replacement, not a copy of the first response; the server stores only
+         *     hashes). A device that did not get the response of a refresh should retry with the
+         *     token it still holds. After 60 seconds, or once the newer token has been used, reuse
+         *     is theft as above.
          */
         post: operations["refreshTokens"];
         delete?: never;
@@ -627,7 +636,8 @@ export interface components {
              *     Lifetime 90 days, extended on rotation: every `/auth/refresh` returns a new
              *     refresh token valid for 90 days from that refresh, so a device that opens the
              *     app at least once every 90 days stays signed in. Presenting an already-rotated
-             *     token revokes the whole session.
+             *     token revokes the whole session, except for a retry within 60 seconds of the
+             *     rotation while the newer token is unused (see `/auth/refresh`).
              */
             refresh_token: string;
             /** @description When `refresh_token` expires, 90 days after it was issued. */
