@@ -29,13 +29,30 @@ function fileName(date: string, pose: Pose): string {
 
 const folder = () => new Directory(Paths.document, 'photos');
 
-function deleteFolder(): void {
-  const dir = folder();
+function deleteDir(make: () => Directory): void {
+  const dir = make();
   try {
     if (dir.exists) dir.delete();
   } catch (e) {
-    if (folder().exists) throw e; // gone meanwhile is fine
+    if (make().exists) throw e; // gone meanwhile is fine
   }
+}
+const deleteFolder = () => deleteDir(folder);
+/** Where expo-image-picker and expo-image-manipulator leave their working copies (plaintext, possibly with EXIF). */
+const CAPTURE_CACHES = ['ImagePicker', 'ImageManipulator'];
+
+const wipeListeners = new Set<(ok: boolean) => void>();
+/**
+ * Called after every owed wipe (guard.ts `finishPhotoWipe`) with whether it fully succeeded, marker cleared included,
+ * so a screen showing photos drops them at once. Returns the unsubscribe.
+ */
+export function onPhotosWiped(listener: (ok: boolean) => void): () => void {
+  wipeListeners.add(listener);
+  return () => void wipeListeners.delete(listener);
+}
+/** Tells the listeners an owed wipe ended. Only guard.ts calls this, after the wipe marker is cleared (or not). */
+export function announceWipe(ok: boolean): void {
+  wipeListeners.forEach((f) => f(ok));
 }
 
 let key: AESEncryptionKey | null = null;
@@ -116,5 +133,6 @@ export function wipePhotos(): Promise<void> {
     key = null;
     await SecureStore.deleteItemAsync(KEY);
     deleteFolder();
+    for (const name of CAPTURE_CACHES) deleteDir(() => new Directory(Paths.cache, name));
   });
 }

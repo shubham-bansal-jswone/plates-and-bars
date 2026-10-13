@@ -16,6 +16,7 @@ import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { SummaryCard } from '../ai/SummaryCard';
+import { PhotosSection } from '../photos/PhotosSection';
 
 interface Props {
   db: WorkoutDb;
@@ -53,6 +54,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} />
+            <PhotosSection db={db} date={p.date} weights={p.weights} tapes={p.tapes} notify={notify} />
             <StepsSleepSection p={p} />
           </>
         ) : (
