@@ -17,3 +17,6 @@ export const problem = (r: Exclude<RecipeFoodResult, { kind: 'ok' }>): string =>
     'no-ingredients': 'Add at least one ingredient with an amount.',
     'no-yield': 'Add how many katoris it made, or the cooked weight.',
   })[r.kind];
+
+export const UNKNOWN_ROW = 'not in the ingredient table, not counted';
+export const unknownBlock = (names: readonly string[]): string => `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} ${UNKNOWN_ROW}. Pick another ingredient or remove the row to save.`;

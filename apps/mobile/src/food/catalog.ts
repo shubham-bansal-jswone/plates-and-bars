@@ -1,7 +1,7 @@
 import type { FoodFacts, GramsFood, SearchableFood } from '@plate-and-bar/core';
 import eatout from '../../../../content/eatout.json';
 import foods from '../../../../content/foods.json';
-import { contentReader, isArrOf, isFoodSource, type FoodSource, isNumIn, isObj, isStr, isStrOrNull, isText, isUuid, perLoad } from '../content/reader';
+import { contentReader, isArrOf, isFoodSource, type FoodSource, isNumIn, isObj, isStr, isTrimmedText, isUuid, perLoad } from '../content/reader';
 
 /** A bundled food (content/foods.json `Food`), reduced to what the screen reads. */
 export interface CatalogFood extends SearchableFood, GramsFood, FoodFacts {
@@ -29,12 +29,12 @@ const num = isNumIn(0, G_MAX);
 const numOrNull = (v: unknown): v is number | null => v === null || num(v);
 /** Shape and bounds of one food row: the whole `Food` the contract requires, as far as the app and core read or sync it. */
 export function isCatalogFood(v: unknown): v is CatalogFood & { source: FoodSource } {
-  if (!isObj(v) || !isUuid(v.id) || !isText(NAME_MAX)(v.name) || !(v.name_hi === undefined || isStrOrNull(v.name_hi))) return false;
-  if (!isArrOf(v.aliases, isStr) || !isFoodSource(v.source) || !isStr(v.updated_at)) return false;
+  if (!isObj(v) || !isUuid(v.id) || !isTrimmedText(NAME_MAX)(v.name) || !(v.name_hi === undefined || v.name_hi === null || isTrimmedText(NAME_MAX)(v.name_hi))) return false;
+  if (!isArrOf(v.aliases, isTrimmedText(Infinity)) || !isFoodSource(v.source) || !isStr(v.updated_at)) return false;
   const s = v.serving;
   const p = v.per_serving;
   return (
-    isObj(s) && isStr(s.label) && s.label.length <= NAME_MAX && (s.grams === null || (isNumIn(0, SERVING_G_MAX)(s.grams) && s.grams > 0)) &&
+    isObj(s) && isTrimmedText(NAME_MAX)(s.label) && (s.grams === null || (isNumIn(0, SERVING_G_MAX)(s.grams) && s.grams > 0)) &&
     isObj(p) && isNumIn(0, KCAL_MAX)(p.kcal) && num(p.protein_g) && num(p.carbs_g) && num(p.fat_g) && numOrNull(p.fibre_g) && numOrNull(p.added_sugar_g) &&
     isNumIn(0, FV_MAX)(v.fruit_veg_servings)
   );
@@ -42,7 +42,7 @@ export function isCatalogFood(v: unknown): v is CatalogFood & { source: FoodSour
 
 type Row = CatalogFood & { source: FoodSource };
 interface Cuis { name: string; tips: string[]; dishes: Row[] }
-const isCuisine = (v: unknown): v is Cuis => isObj(v) && isText(NAME_MAX)(v.name) && isArrOf(v.tips, isStr) && isArrOf(v.dishes, isCatalogFood) && v.dishes.length > 0;
+const isCuisine = (v: unknown): v is Cuis => isObj(v) && isTrimmedText(NAME_MAX)(v.name) && isArrOf(v.tips, isTrimmedText(Infinity)) && isArrOf(v.dishes, isCatalogFood) && v.dishes.length > 0;
 
 interface FoodsBundle { foods: Row[] }
 interface EatoutBundle { cuisines: Cuis[] }
