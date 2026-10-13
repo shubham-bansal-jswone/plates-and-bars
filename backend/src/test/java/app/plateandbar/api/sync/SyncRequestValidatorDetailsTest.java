@@ -39,6 +39,12 @@ class SyncRequestValidatorDetailsTest {
         return Req.of(null).add(SyncTable.water_logs, r).build();
     }
 
+    private static ObjectNode settings(String json) {
+        ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.settings);
+        r.setAll(SyncFixtures.obj(json));
+        return Req.of(null).add(SyncTable.settings, r).build();
+    }
+
     private static ObjectNode exclusion(String json) {
         ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.exclusions);
         r.setAll(SyncFixtures.obj(json));
@@ -85,6 +91,8 @@ class SyncRequestValidatorDetailsTest {
                         List.of(d("changes.exclusions[0].to", "propertyNames"), d("changes.exclusions[0].to", "type"))),
                 Arguments.of("a bad value under a map key", exclusion("{'to':{'My Secret Lift':5}}"),
                         List.of(d("changes.exclusions[0].to", "type"))), // the key is never echoed (#419)
+                Arguments.of("a missing field inside a map value", settings("{'exercise_overrides':{'My Secret Lift':{}}}"),
+                        List.of(d("changes.settings[0].exercise_overrides", "required"))),
                 Arguments.of("missing changes", (ObjectNode) SyncFixtures.obj("{'cursor':null}"), List.of(d("changes", "required"))));
     }
 

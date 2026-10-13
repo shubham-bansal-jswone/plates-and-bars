@@ -157,8 +157,9 @@ public class SyncRequestValidator {
         for (int i = 1; i <= kept && i < instance.length; i++) {
             appendSegment(path, instance[i]);
         }
-        // Only `required` names a property of the contract; for other keywords it can be the client's key.
-        if ("required".equals(m.getKeyword())) {
+        // Only `required` names a property of the contract (for other keywords it can be the client's key), and only
+        // when the path was not cut at an open map: inside a map value the missing field has no contract path.
+        if ("required".equals(m.getKeyword()) && kept >= instance.length - 1) {
             appendSegment(path, m.getProperty());
         }
         return new ErrorResponse.Detail(path.toString(), m.getKeyword());
@@ -168,7 +169,7 @@ public class SyncRequestValidator {
      * How many instance segments the evaluation path walks through by name or index: each {@code properties/<name>}
      * and {@code items} step is one; {@code $ref}, {@code allOf/<n>} and the like are none; it stops at the first
      * step into an open map ({@code additionalProperties}, {@code patternProperties}, {@code propertyNames}) or any
-     * other keyword.
+     * other keyword. {@code prefixItems/<n>} counts as one, like {@code items}.
      */
     static int contractSegments(String evaluationPath) {
         String[] t = evaluationPath.split("/");
