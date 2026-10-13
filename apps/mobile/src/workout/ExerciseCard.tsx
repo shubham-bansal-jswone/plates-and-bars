@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
@@ -28,6 +28,8 @@ export interface Actions {
   cant(): void;
   addSet(): void;
   removeSet(): void;
+  /** Take this exercise out of today's session. */
+  remove(): void;
 }
 
 interface Props {
@@ -81,6 +83,7 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
 export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) {
+  const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   const c = useTheme();
   const nl = noLoad(info.type);
   const rw = repWord(info.type);
@@ -196,6 +199,11 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
       <View style={styles.setRow}>
         <Chip label={`Add a set to ${ex.name}`} text="Add set" onPress={act.addSet} />
         {ex.sets.length > 1 ? <Chip label={`Remove the last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
+        <Chip
+          label={armed ? `Tap again to remove ${ex.name} from today` : `Remove ${ex.name} from today`}
+          text={armed ? 'Tap again to remove' : 'Remove exercise'}
+          onPress={() => (armed ? act.remove() : setArmed(true))}
+        />
       </View>
     </Card>
   );

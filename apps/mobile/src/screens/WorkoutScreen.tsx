@@ -14,6 +14,7 @@ import { buildSession } from '../workout/buildSession';
 import { getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
+import { AddExerciseSheet } from '../workout/AddExerciseSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards } from '../workout/ExerciseCards';
 import { CantSheet } from '../workout/CantSheet';
@@ -206,6 +207,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
   const c = useTheme();
   const { date, day } = w;
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const wk = day.workout as Workout;
   const ctx = progressionContext(date, day.lifts, profile, wk, tune);
   let done = 0;
@@ -244,6 +246,10 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
           cant: () => onCant(i, ex.name),
           addSet: () => w.addSet(i),
           removeSet: () => w.removeSet(i),
+          remove: () => {
+            w.removeExercise(i);
+            notify(`${ex.name} removed`);
+          },
         };
         return (
           <View key={ex.name} style={{ gap: 8 }}>
@@ -252,6 +258,17 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
           </View>
         );
       })}
+      <Button label="Add exercise" kind="ghost" onPress={() => setAdding(true)} />
+      {adding ? (
+        <AddExerciseSheet
+          inSession={day.exs.map((e) => e.name)}
+          onClose={() => setAdding(false)}
+          onPick={(n) => {
+            setAdding(false);
+            if (w.addExercise(n)) notify(`${n} added`);
+          }}
+        />
+      ) : null}
       <Hint>Tap the tick with a field empty to use the suggested number. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
       {choices ? (
         <Card>

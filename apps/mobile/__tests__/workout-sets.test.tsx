@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import { loadLifts, loadSets } from '../src/db/workouts';
+import { loadLifts, loadSets, loadWorkout, saveLift } from '../src/db/workouts';
 import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -144,3 +144,75 @@ describe('queued writes find their exercise by name (#439)', () => {
     expect((await loadLifts(db))['Dumbbell Bench Press']).toBeUndefined();
   });
 });
+
+describe('add and remove exercises (#147)', () => {
+  it('Add exercise appends a library exercise with 3 blank sets in the last exercise\'s part; a name in the session is refused', async () => {
+    const { db, result } = await started();
+    const before = result.current.day.exs.map((e) => e.name);
+    let ok = false;
+    await act(async () => void (ok = result.current.addExercise('Goblet Squat')));
+    await settle();
+    expect(ok).toBe(true);
+    const added = result.current.day.exs[result.current.day.exs.length - 1]!;
+    expect(added).toMatchObject({ name: 'Goblet Squat', part: 1, form: null, ramp: [] });
+    expect(added.sets).toHaveLength(3);
+    expect(added.sets.every((r) => r.w === '' && r.r === '' && !r.done)).toBe(true);
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual([...before, 'Goblet Squat']);
+    expect(await live(db, 'Goblet Squat')).toHaveLength(3);
+    let again = true;
+    await act(async () => void (again = result.current.addExercise(before[0]!)));
+    expect(again).toBe(false);
+    expect(result.current.day.exs).toHaveLength(before.length + 1);
+  });
+
+  it('an added exercise gets as many sets as its last session', async () => {
+    const { db } = await started();
+    await saveLift(db, 'Goblet Squat', { date: '2026-10-01', sets: Array.from({ length: 5 }, () => ({ w: 20, r: 10 })), prev: null });
+    const { result: fresh } = await (async () => {
+      const opts = { db, profile, now: NOW, focus: [], notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+      const v = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+      await waitFor(() => expect(v.result.current.day.ready).toBe(true));
+      return v;
+    })();
+    await act(async () => void fresh.current.addExercise('Goblet Squat'));
+    expect(fresh.current.day.exs.find((e) => e.name === 'Goblet Squat')!.sets).toHaveLength(5);
+  });
+
+  it('after a second session is added, an added exercise joins it (part 2)', async () => {
+    const { result } = await started();
+    await act(async () => void (await result.current.addSecond('Lower A')));
+    await settle();
+    expect(result.current.day.exs.some((e) => e.part === 2)).toBe(true);
+    await act(async () => void result.current.addExercise('Plank (seconds)'));
+    expect(result.current.day.exs.find((e) => e.name === 'Plank (seconds)')?.part).toBe(2);
+  });
+
+  it('Remove exercise tombstones its rows, drops it from the workout and recomputes its lift', async () => {
+    const { db, result } = await started();
+    const name = result.current.day.exs[0]!.name;
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '40'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '10'));
+    await act(async () => result.current.tick(0, 0));
+    await settle();
+    expect((await loadLifts(db))[name]).toBeTruthy();
+    await act(async () => result.current.removeExercise(0));
+    await settle();
+    expect(result.current.day.exs.map((e) => e.name)).not.toContain(name);
+    expect(await live(db, name)).toHaveLength(0);
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).not.toContain(name);
+    expect((await loadLifts(db))[name]).toBeUndefined(); // its only session was this one
+  });
+
+  it('removing the last exercise deletes today\'s workout so a new session can start', async () => {
+    const { db, result } = await started();
+    for (let k = result.current.day.exs.length; k > 0; k--) await act(async () => result.current.removeExercise(0));
+    await settle();
+    expect(result.current.day.workout).toBeNull();
+    expect((await loadWorkout(db, DATE))!.deleted_at).toBeTruthy();
+    await act(async () => void (await result.current.start('Lower A', {}, null)));
+    await settle();
+    expect((await loadWorkout(db, DATE))!.deleted_at ?? null).toBeNull();
+    expect(result.current.day.exs.length).toBeGreaterThan(0);
+  });
+});
+
