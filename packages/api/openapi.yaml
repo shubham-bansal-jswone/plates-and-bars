@@ -173,7 +173,10 @@ tags:
       repairs a reply the way the prototype's `suggestTags()` does instead of failing it:
       it drops muscles that are not in `Muscle`, keeps the first 3 of `primary` and of
       `secondary`, uses `machine` for an equipment that is not in the enum, 2 for a
-      difficulty outside 1 to 3 and `h-press` for a `pattern` it does not know. When no
+      difficulty outside 1 to 3. It passes `pattern` and `joints` through as the model
+      gave them, cut to the schema limits (a `pattern` over 50 characters is dropped to an
+      empty string; `joints` keeps at most 20 items and drops any over 50 characters); the
+      app keeps only the patterns and joints it knows and uses `h-press` otherwise. When no
       main muscle is left it answers 200 with `primary` empty (the quota unit is kept, the
       provider billed it) and the app shows the manual tag sheet. It is 503 `unavailable`
       only when the reply does not parse.
@@ -1123,7 +1126,8 @@ paths:
         not place the exercise; the app then shows the manual fallback.
 
         Counts against the shared daily quota like the other AI calls. The server may answer
-        with any strings for `pattern` and `joints`; the app keeps only the ones it knows.
+        with any strings for `pattern` and `joints` (within the schema limits, see the `ai`
+        tag); the app keeps only the ones it knows and uses `h-press` for an unknown pattern.
 
         Non-AI fallback: the user picks the muscles by hand (the tag sheet without a
         suggestion). See the `ai` tag for quota, kill-switch, rate-limit and no-logging rules.

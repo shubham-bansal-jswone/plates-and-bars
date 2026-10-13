@@ -471,7 +471,8 @@ export interface paths {
          *     not place the exercise; the app then shows the manual fallback.
          *
          *     Counts against the shared daily quota like the other AI calls. The server may answer
-         *     with any strings for `pattern` and `joints`; the app keeps only the ones it knows.
+         *     with any strings for `pattern` and `joints` (within the schema limits, see the `ai`
+         *     tag); the app keeps only the ones it knows and uses `h-press` for an unknown pattern.
          *
          *     Non-AI fallback: the user picks the muscles by hand (the tag sheet without a
          *     suggestion). See the `ai` tag for quota, kill-switch, rate-limit and no-logging rules.
