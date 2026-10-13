@@ -88,12 +88,17 @@ export interface paths {
          *
          *     **Lost response.** There is one exception, so that a response that never reached the
          *     device does not sign the user out. If the token was rotated less than 60 seconds ago
-         *     and the token it was exchanged for has not been used yet, the server treats the call
-         *     as a retry: it revokes that unused token, keeps the session, and answers 200 with a
-         *     new pair (a replacement, not a copy of the first response; the server stores only
-         *     hashes). A device that did not get the response of a refresh should retry with the
-         *     token it still holds. After 60 seconds, or once the newer token has been used, reuse
-         *     is theft as above.
+         *     and the token it was exchanged for has never been presented to this endpoint (using
+         *     its access token does not count), the server treats the call as a retry: it replaces
+         *     that token, keeps the session, and answers 200 with a new pair (a replacement, not a
+         *     copy of the first response; the server stores only hashes). A device that did not get
+         *     the response of a refresh should retry with the token it still holds.
+         *
+         *     The 60 seconds are counted from the first rotation of the token and are never
+         *     extended by a retry. The replaced token is dead, and presenting it counts as reuse:
+         *     the whole session is revoked. So if someone else used the window, the device's next
+         *     refresh ends the session. After 60 seconds, or once the newer token has been
+         *     presented, reuse is theft as above.
          */
         post: operations["refreshTokens"];
         delete?: never;
@@ -670,7 +675,7 @@ export interface components {
              *     refresh token valid for 90 days from that refresh, so a device that opens the
              *     app at least once every 90 days stays signed in. Presenting an already-rotated
              *     token revokes the whole session, except for a retry within 60 seconds of the
-             *     rotation while the newer token is unused (see `/auth/refresh`).
+             *     rotation while the newer token has never been presented (see `/auth/refresh`).
              */
             refresh_token: string;
             /** @description When `refresh_token` expires, 90 days after it was issued. */
