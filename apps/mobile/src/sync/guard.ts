@@ -5,6 +5,7 @@ import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
 import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { wipePhotos } from '../photos/vault';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
 // another user's token and never dropped without an explicit choice.
@@ -35,7 +36,7 @@ export async function withSyncPaused<T>(f: () => Promise<T>): Promise<T> {
  * sync bookkeeping. Other device-only flags in `settings` stay, except that a forced wipe also removes the pending-wipe
  * marker (`device.server_deleted`), since what it stands for is done. Unless `force`, it counts the unsynced changes in the same
  * transaction and wipes nothing when there are any; the count is returned (0 means wiped).
- * TODO(#251, photo vault): the encrypted progress-photo vault must be wiped here too once it exists (ADR 004).
+ * The progress-photo vault (files and key) is wiped right after, whenever the store was (ADR 004, #251).
  */
 /** Thrown by `wipeLocalStore` when `expectUser` no longer owns the store: someone else signed in meanwhile, nothing was wiped. */
 export class OwnerChanged extends Error {}
@@ -52,6 +53,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     pending = 0;
   });
+  if (pending === 0) await wipePhotos();
   return pending;
 }
 

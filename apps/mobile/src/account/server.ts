@@ -149,7 +149,6 @@ export async function deleteEverything(d: { db: Db; api: ApiClient | null; token
     }
     try {
       // The marker and the tokens are already handled, so nothing is cleared after the wipe: a new sign-in's tokens must stay.
-      // TODO(#251): the photo vault is wiped inside wipeLocalStore once it exists.
       await wipeLocalStore(db, { force: true, expectUser: userId });
     } catch (e) {
       return e instanceof OwnerChanged ? { kind: 'owner_changed', server } : { kind: 'local_failed' };
