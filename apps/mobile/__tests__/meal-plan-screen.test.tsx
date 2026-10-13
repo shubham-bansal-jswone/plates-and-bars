@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
+import { plannedLogged, toastMs } from '../src/food/copy';
 import { buildPlan, groceryList, type MealPlan } from '@plate-and-bar/core';
 import { setPlanDraft } from '../src/meals/planDraft';
 import { MealPlanScreen } from '../src/screens/MealPlanScreen';
@@ -182,6 +183,45 @@ describe('Food tab with a saved plan', () => {
     expect(await screen.findByText('Logged your planned breakfast')).toBeTruthy();
     expect(screen.queryByText(/^From your plan/)).toBeNull();
     await waitFor(() => expect([...db.rows.keys()].filter((k) => k.startsWith('food_logs:'))).toHaveLength(2));
+  });
+});
+
+describe('Logging a planned meal with foods no longer in the catalog (#334)', () => {
+  const withPlan = async (items: [string, number][]) => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const plan: MealPlan = { start: DATE, opts: { Breakfast: [items] }, days: [{ Breakfast: { k: 0 } }] };
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), meal_plan: plan });
+    await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    await fireEvent.press(await screen.findByLabelText('Log your planned breakfast'));
+    return db;
+  };
+  const logged = (db: ReturnType<typeof memoryDb>) => [...db.rows.keys()].filter((k) => k.startsWith('food_logs:'));
+
+  it('logs what it can and names what it skipped', async () => {
+    const db = await withPlan([['Idli', 3], ['Dragonfruit smoothie', 1], ['Egg, whole', 2]]);
+    expect(await screen.findByText('Logged your planned breakfast, except Dragonfruit smoothie, which isn’t in the food list any more')).toBeTruthy();
+    await waitFor(() => expect(logged(db)).toHaveLength(2));
+  });
+
+  it('says nothing was logged when no item is known', async () => {
+    const db = await withPlan([['Dragonfruit smoothie', 1], ['Moon cake', 2]]);
+    expect(await screen.findByText('Couldn’t log your planned breakfast: Dragonfruit smoothie and Moon cake aren’t in the food list any more')).toBeTruthy();
+    expect(logged(db)).toHaveLength(0);
+  });
+});
+
+describe('plannedLogged (#334)', () => {
+  it('words one, three and repeated skipped names, and a full skip', () => {
+    expect(plannedLogged('Lunch', [], 3)).toBe('Logged your planned lunch');
+    expect(plannedLogged('Lunch', ['Moon cake'], 0)).toBe('Couldn’t log your planned lunch: Moon cake isn’t in the food list any more');
+    expect(plannedLogged('Lunch', ['A', 'B', 'C'], 1)).toBe('Logged your planned lunch, except A, B and C, which aren’t in the food list any more');
+    expect(plannedLogged('Lunch', ['A', 'a', 'B'], 1)).toBe('Logged your planned lunch, except A and B, which aren’t in the food list any more');
+  });
+
+  it('a long toast stays longer', () => {
+    expect(toastMs('Saved')).toBe(2200);
+    expect(toastMs('x'.repeat(100))).toBe(6000);
   });
 });
 
