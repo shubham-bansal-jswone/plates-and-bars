@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { applyFit, fitSuggestions, presetIngredients, recipeTotals, stepMinutes } from '@plate-and-bar/core';
+import { applyFit, FIT_SOYA_G, fitSuggestions, presetIngredients, recipeTotals, stepMinutes } from '@plate-and-bar/core';
 import { RecipesScreen } from '../src/screens/RecipesScreen';
 import { fmt } from '../src/format';
+import { fitLine } from '../src/recipes/copy';
 import { getKatoriG, getLibrary, getPresets, getRawIngredients } from '../src/recipes/content';
 import { loadRecipes } from '../src/db/recipes';
 import { loadUserFoods } from '../src/db/food';
@@ -238,7 +239,6 @@ describe('Recipes screen: library and cooking mode', () => {
 
 describe('Recipes screen: make it fit', () => {
   const oilLine = /^Use half the oil or ghee: about −\d+ kcal per katori$/;
-  const soyaLine = /^Add 50 g soya chunks: about \+\d+ g protein per katori$/;
 
   it('suggests what core says for Dal with rich ghee, and Apply changes the rows and the numbers', async () => {
     await setup();
@@ -251,8 +251,10 @@ describe('Recipes screen: make it fit', () => {
     const want = fitSuggestions({ ingredients: rows, yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
     expect(want.map((s) => s.kind)).toEqual(['fit-oil', 'fit-soya']);
     expect(screen.getByText('Make it fit')).toBeTruthy();
-    expect(screen.getByText(oilLine)).toBeTruthy();
-    expect(screen.getByText(soyaLine)).toBeTruthy();
+    // The exact text, from core's numbers: the shown values must be core's, not just any digits.
+    expect(screen.getByText(fitLine(want[0]!))).toBeTruthy();
+    expect(screen.getByText(fitLine(want[1]!))).toBeTruthy();
+    expect(fitLine(want[1]!)).toBe(`Add ${FIT_SOYA_G} g soya chunks: about +${fmt(want[1]!.kind === 'fit-soya' ? want[1]!.protein_added_g : 0)} g protein per katori`);
 
     const before = recipeTotals({ ingredients: rows, yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
     const gheeAt = rows.findIndex((r) => r.ingredient === 'Ghee');
@@ -264,10 +266,26 @@ describe('Recipes screen: make it fit', () => {
     expect(screen.getByText(new RegExp(`^Whole pot: ${fmt(after.total.kcal)} kcal`))).toBeTruthy();
     expect(screen.queryByText(oilLine)).toBeNull();
 
-    await fireEvent.press(screen.getByLabelText(/^Apply: Add 50 g soya chunks/));
+    await fireEvent.press(screen.getByLabelText(/^Apply: Add \d+ g soya chunks/));
     expect(screen.getByLabelText(`Ingredient ${halved.length + 1}: Soya chunks. Tap to change`)).toBeTruthy();
-    expect(screen.getByDisplayValue('50')).toBeTruthy();
+    expect(screen.getByDisplayValue(String(FIT_SOYA_G))).toBeTruthy();
     expect(screen.queryByText('Make it fit')).toBeNull();
+  });
+
+  it('halves every oil, ghee, butter and cream row, not only ghee', async () => {
+    await setup();
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Rich'));
+    await fireEvent.press(screen.getByLabelText('+ Add ingredient'));
+    const n = getPresets().find((p) => p.name === 'Dal')!.ingredients.length + 1;
+    await fireEvent.press(screen.getByLabelText(new RegExp(`^Ingredient ${n}: `)));
+    await fireEvent.changeText(screen.getByLabelText('Search ingredients'), 'oil');
+    await fireEvent.press(screen.getByLabelText('Oil'));
+    await fireEvent.changeText(screen.getByLabelText(`Amount for ingredient ${n}`), '41');
+    await fireEvent.press(screen.getByLabelText(/^Apply: Use half the oil or ghee/));
+    expect(screen.getByLabelText(`Ingredient ${n}: Oil. Tap to change`)).toBeTruthy();
+    expect(screen.getByDisplayValue('21')).toBeTruthy();
+    expect(screen.getByDisplayValue('15')).toBeTruthy();
   });
 
   it('shows nothing for a recipe that already fits', async () => {

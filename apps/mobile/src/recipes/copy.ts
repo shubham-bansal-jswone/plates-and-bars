@@ -1,5 +1,5 @@
 // Copy from the prototype's recipeBody(), recipeAction() and cookSheet().
-import type { FitSuggestion, RecipeFoodResult } from '@plate-and-bar/core';
+import { FIT_SOYA_G, type FitSuggestion, type RecipeFoodResult } from '@plate-and-bar/core';
 import { fmt } from '../format';
 
 export const RB_INTRO = 'Start from a typical home-style recipe';
@@ -22,4 +22,4 @@ export const problem = (r: Exclude<RecipeFoodResult, { kind: 'ok' }>): string =>
 export const FIT_LABEL = 'Make it fit';
 /** The suggestion line, from the prototype's `fitSuggestions()`. */
 export const fitLine = (s: FitSuggestion): string =>
-  s.kind === 'fit-oil' ? `Use half the oil or ghee: about −${fmt(s.kcal_saved)} kcal per katori` : `Add 50 g soya chunks: about +${fmt(s.protein_added_g)} g protein per katori`;
+  s.kind === 'fit-oil' ? `Use half the oil or ghee: about −${fmt(s.kcal_saved)} kcal per katori` : `Add ${FIT_SOYA_G} g soya chunks: about +${fmt(s.protein_added_g)} g protein per katori`;
