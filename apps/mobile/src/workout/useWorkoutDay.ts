@@ -358,7 +358,52 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       () => writeWorkout(),
     );
 
-  const rampAdd = (i: number) => change(i, (ex) => void ex.ramp.push(blankRow()), () => writeSets(i, 'ramp', [(ref.current.exs[i]?.ramp.length ?? 1) - 1]));
+  /** Index of the row with `id` when the queued write runs: a second quick tap must not make the first row's write miss. */
+  const indexOf = (i: number, kind: 'work' | 'ramp', id: string) => {
+    const ex = ref.current.exs[i];
+    return ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
+  };
+  const writeRow = (i: number, kind: 'work' | 'ramp', id: string) => {
+    const j = indexOf(i, kind, id);
+    return j >= 0 ? writeSets(i, kind, [j]) : Promise.resolve();
+  };
+
+  const rampAdd = (i: number) => {
+    const row = blankRow();
+    change(i, (ex) => void ex.ramp.push(row), () => writeRow(i, 'ramp', row.id));
+  };
+
+  /** Adds a working set at the last set's weight, reps empty (prototype `addset`). */
+  const addSet = (i: number) => {
+    const row = blankRow();
+    change(
+      i,
+      (ex) => void ex.sets.push({ ...row, w: ex.sets[ex.sets.length - 1]?.w ?? '' }),
+      () => writeRow(i, 'work', row.id),
+    );
+  };
+
+  /** Removes the last working set when there is more than one (prototype `rmset`): its stored row becomes a tombstone. */
+  const removeSet = (i: number) => {
+    let gone: Row | undefined;
+    change(
+      i,
+      (ex) => {
+        if (ex.sets.length <= 1) return false;
+        gone = ex.sets.pop();
+        notify('Set removed'); // announced: the button may disappear with it (one set left)
+      },
+      async () => {
+        if (!gone) return;
+        const stored = (await loadSets(db, date)).find((s) => s.id === gone?.id);
+        if (stored && !stored.deleted_at) {
+          const at = stamp(now());
+          await saveSet(db, date, { ...stored, updated_at: at, deleted_at: at });
+        }
+        if (gone.done) await syncLift(i); // a ticked set counted toward the lift record
+      },
+    );
+  };
 
   const rampTick = (i: number, j: number) => {
     const d0 = ref.current;
@@ -449,5 +494,5 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, start, addSecond };
+  return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, start, addSecond };
 }
