@@ -6,6 +6,16 @@ import {
   saveBuiltFood,
   kitchenTest,
   kitchenTestFood,
+  fitSuggestions,
+  applyFit,
+  kitchenTable,
+  kitchenCompare,
+  stepMinutes,
+  SOYA_INGREDIENT,
+  FIT_SOYA_G,
+  FIT_SOYA_PROTEIN_G,
+  FIT_OIL_MIN_SAVE_KCAL,
+  FIT_PROTEIN_MIN_G,
   ingredientGrams,
   UNIT_GRAMS,
   OIL_LEVEL,
@@ -21,6 +31,7 @@ import {
   type RawIngredient,
   type OilLevel,
   type UserFoodFields,
+  type FitSuggestion,
 } from '../src/index';
 import rawContent from '../../../content/raw-ingredients.json';
 import recipesContent from '../../../content/recipes.json';
@@ -503,5 +514,148 @@ describe('kitchenTestFood (prototype ktSave(true))', () => {
   it('rejects a name over the contract limit (as customFood, #150; the prototype saves it)', () => {
     const base = { ingredients: [{ ingredient: 'Egg', amount: 100, unit: 'g' }], pot_g: null, pot_full_g: null, cooked_g: 90, serving_g: 45, serving_name: 'katori' };
     expect(kitchenTestFood({ ...base, name: 'x'.repeat(FOOD_NAME_MAX + 1) }, raw).kind).toBe('name-too-long');
+  });
+});
+
+const KATORIS = ['', '0', '1', '1.5', '2', '4', '6'];
+const FIT_ROWS: ProtoRow[][] = [
+  [],
+  [{ ing: 'Toor dal (dry)', amt: '150', unit: 'g' }, { ing: 'Ghee', amt: '15', unit: 'g' }],
+  [{ ing: 'Toor dal (dry)', amt: '150', unit: 'g' }, { ing: 'Oil', amt: '1', unit: 'tbsp' }, { ing: 'Onion', amt: '60', unit: 'g' }],
+  [{ ing: 'Rice (raw)', amt: '100', unit: 'g' }, { ing: 'Oil', amt: '0', unit: 'g' }, { ing: 'Butter', amt: '', unit: 'g' }],
+  [{ ing: 'Egg', amt: '200', unit: 'g' }, { ing: 'Oil', amt: '40', unit: 'g' }],
+  [{ ing: 'Soya chunks', amt: '30', unit: 'g' }, { ing: 'Oil', amt: '30', unit: 'g' }],
+  [{ ing: 'Chicken breast (raw)', amt: '500', unit: 'g' }, { ing: 'Oil', amt: '2', unit: 'tbsp' }, { ing: 'Fresh cream', amt: '30', unit: 'g' }],
+  [{ ing: 'Paneer', amt: '300', unit: 'g' }, { ing: 'Ghee', amt: '20', unit: 'g' }],
+  [{ ing: 'Potato', amt: '300', unit: 'g' }, { ing: 'Sugar', amt: '1', unit: 'tsp' }],
+];
+
+describe('fitSuggestions and applyFit (prototype fitSuggestions, fit-oil, fit-soya)', () => {
+  const fmtIn = (n: number): string => Math.round(n).toLocaleString('en-IN');
+  const label = (s: FitSuggestion): string =>
+    s.kind === 'fit-oil' ? `Use half the oil or ghee: about −${fmtIn(s.kcal_saved)} kcal per katori` : `Add 50 g soya chunks: about +${fmtIn(s.protein_added_g)} g protein per katori`;
+
+  it('constants are the prototype numbers', () => {
+    expect([SOYA_INGREDIENT, FIT_SOYA_G, FIT_SOYA_PROTEIN_G, FIT_OIL_MIN_SAVE_KCAL, FIT_PROTEIN_MIN_G]).toEqual(['Soya chunks', 50, 26, 25, 12]);
+    expect(raw.some((i) => i.name === SOYA_INGREDIENT)).toBe(true);
+  });
+
+  it('matches the prototype suggestions, labels and applied rows over every row set and yield', () => {
+    let oil = 0, soya = 0;
+    for (const rows of FIT_ROWS) {
+      for (const katoris of KATORIS) {
+        const rb = { rows, ymode: 'katori', katoris, grams: '' };
+        const recipe = { ingredients: rows.map(toRow), yield_mode: 'katori' as const, katoris, cooked_g: null };
+        const want = proto.fitSuggestions(rb);
+        const got = fitSuggestions(recipe, raw, katoriG);
+        expect(got.map((s) => [s.kind, label(s)])).toEqual(want);
+        for (const [act] of want) {
+          if (act === 'fit-oil') oil++; else soya++;
+          expect(applyFit(act as FitSuggestion['kind'], recipe.ingredients, raw)).toEqual(proto.fitApply(act, rb).map(toRow));
+        }
+      }
+    }
+    expect(oil).toBeGreaterThan(5);
+    expect(soya).toBeGreaterThan(5);
+  });
+
+  it('also matches in grams mode and with random recipes', () => {
+    const rand = rng(5195);
+    for (let i = 0; i < RUNS; i++) {
+      const rb = { rows: randomRows(rand), ymode: rand() < 0.5 ? 'katori' : 'grams', katoris: YIELDS[Math.floor(rand() * YIELDS.length)]!, grams: GRAMS[Math.floor(rand() * GRAMS.length)]! };
+      const recipe = { ingredients: rb.rows.map(toRow), yield_mode: rb.ymode as 'katori' | 'grams', katoris: rb.katoris, cooked_g: rb.grams };
+      const want = proto.fitSuggestions(rb);
+      expect(fitSuggestions(recipe, raw, katoriG).map((s) => [s.kind, label(s)])).toEqual(want);
+      for (const [act] of want) expect(applyFit(act as FitSuggestion['kind'], recipe.ingredients, raw)).toEqual(proto.fitApply(act, rb).map(toRow));
+    }
+  });
+
+  it('worked example: 2 tbsp oil in 2 katoris saves 30 / 2 x 9 / 2 = 67.5 kcal; soya adds 13 g protein', () => {
+    const recipe = { ingredients: [{ ingredient: 'Rice (raw)', amount: 100, unit: 'g' }, { ingredient: 'Oil', amount: 2, unit: 'tbsp' }], yield_mode: 'katori' as const, katoris: 2, cooked_g: null };
+    expect(fitSuggestions(recipe, raw, katoriG)).toEqual([{ kind: 'fit-oil', kcal_saved: 67.5 }, { kind: 'fit-soya', protein_added_g: 13 }]);
+    expect(applyFit('fit-oil', recipe.ingredients, raw)).toEqual([{ ingredient: 'Rice (raw)', amount: 100, unit: 'g' }, { ingredient: 'Oil', amount: '1', unit: 'tbsp' }]);
+    expect(applyFit('fit-soya', recipe.ingredients, raw).at(-1)).toEqual({ ingredient: 'Soya chunks', amount: '50', unit: 'g' });
+  });
+
+  it('gives nothing without a yield, and under 25 kcal of oil saved no oil suggestion', () => {
+    const rows: IngredientRow[] = [{ ingredient: 'Oil', amount: 100, unit: 'g' }];
+    expect(fitSuggestions({ ingredients: rows, yield_mode: 'katori', katoris: 0, cooked_g: null }, raw, katoriG)).toEqual([]);
+    // 10 g oil, 4 katoris: 5 x 9 / 4 = 11.25 kcal
+    expect(fitSuggestions({ ingredients: [{ ingredient: 'Oil', amount: 10, unit: 'g' }, { ingredient: 'Egg', amount: 50, unit: 'g' }], yield_mode: 'katori', katoris: 4, cooked_g: null }, raw, katoriG)).toEqual([]);
+  });
+
+  it('does not change the rows it was given', () => {
+    const rows: IngredientRow[] = [{ ingredient: 'Oil', amount: 40, unit: 'g' }];
+    applyFit('fit-oil', rows, raw);
+    applyFit('fit-soya', rows, raw);
+    expect(rows).toEqual([{ ingredient: 'Oil', amount: 40, unit: 'g' }]);
+  });
+});
+
+describe('kitchenTable (prototype ktExport)', () => {
+  it(`matches the prototype's copied text over random lists of tests`, () => {
+    const rand = rng(6195);
+    for (let i = 0; i < 300; i++) {
+      const n = Math.floor(rand() * 4);
+      const tests = Array.from({ length: n }, (_, k) => ({ ...randomTest(rand, `Dish ${k}`), date: `2026-10-${String(10 + k).padStart(2, '0')}`, note: k % 2 ? 'Mom’s, pressure cooker' : '' }));
+      const got = kitchenTable(tests.map((d) => ({ ...testInput(d), date: d.date, note: d.note })), raw);
+      expect(got).toBe(proto.ktExport(tests));
+    }
+  });
+
+  it('worked example: one dal line', () => {
+    const t = { name: 'Dal', date: '2026-10-12', note: 'Home', serving_name: 'katori', ingredients: [{ ingredient: 'Toor dal (dry)', amount: 200, unit: 'g' }, { ingredient: 'Ghee', amount: 1, unit: 'tbsp' }, { ingredient: 'Onion', amount: 0, unit: 'g' }], pot_g: null, pot_full_g: null, cooked_g: 1000, serving_g: 200 };
+    const lines = kitchenTable([t], raw).split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe('dish\tdate\tnotes\tcooked_g\tserving\tserving_g\tkcal_per_serving\tprotein_g\tcarbs_g\tfat_g\tfibre_g\toil_g_per_serving\tingredients');
+    expect(lines[1]!.split('\t').slice(0, 6)).toEqual(['Dal', '2026-10-12', 'Home', '1000', 'katori', '200']);
+    expect(lines[1]!.split('\t')[12]).toBe('Toor dal (dry) 200g; Ghee 1tbsp');
+  });
+
+  it('a test that is not ready gives zeros and an empty serving weight; no tests give only the header', () => {
+    const t = { name: 'X', date: '2026-10-12', note: '', serving_name: 'plate', ingredients: [], pot_g: null, pot_full_g: null, cooked_g: null, serving_g: null };
+    expect(kitchenTable([t], raw).split('\n')[1]).toBe('X\t2026-10-12\t\t0\tplate\t\t0\t0\t0\t0\t0\t0\t');
+    expect(kitchenTable([], raw).split('\n')).toHaveLength(1);
+  });
+});
+
+describe('kitchenCompare (prototype ktResultHtml cmp)', () => {
+  const serving = { kcal: 250.4, protein_g: 0, carbs_g: 0, fat_g: 0, fibre_g: 0, oil_g: 0, grams: 150 };
+  const foods = [
+    { name: 'Dal (my own)', unit: '1 katori', kcal: 400 },
+    { name: 'Dal', unit: '1 katori (150 g)', kcal: 180 },
+    { name: 'Dal', unit: 'second', kcal: 1 },
+  ];
+
+  it('finds the first food of that name, ignoring case, and gives the difference', () => {
+    expect(kitchenCompare('dAL', serving, foods)).toEqual({ food: foods[1], diff_kcal: 250.4 - 180 });
+    expect(kitchenCompare('Dal (my own)', serving, foods)!.diff_kcal).toBeCloseTo(-149.6, 9);
+  });
+
+  it('is null without a serving or a matching name; the name is not trimmed', () => {
+    expect(kitchenCompare('Dal', null, foods)).toBeNull();
+    expect(kitchenCompare('Rajma', serving, foods)).toBeNull();
+    expect(kitchenCompare(' Dal', serving, foods)).toBeNull();
+    expect(kitchenCompare('', serving, foods)).toBeNull();
+  });
+});
+
+describe('stepMinutes (prototype cookSheet)', () => {
+  it('reads the first number before "min", as the prototype regex does, for every library step', () => {
+    for (const r of recipesContent.library) {
+      for (const s of r.steps) {
+        const m = /(\d+)\s*min/.exec(s);
+        expect(stepMinutes(s)).toBe(m ? Number(m[1]) : null);
+      }
+    }
+  });
+
+  it('cases', () => {
+    expect(stepMinutes('Add rice and 2 cups water, cover and cook for 12 min on low.')).toBe(12);
+    expect(stepMinutes('Rest 5min, then 10 min more')).toBe(5);
+    expect(stepMinutes('Soak for 4–6 hours; drain well.')).toBeNull();
+    expect(stepMinutes('Cook for 1 minute')).toBe(1);
+    expect(stepMinutes('Min 5')).toBeNull();
+    expect(stepMinutes('')).toBeNull();
   });
 });

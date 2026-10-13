@@ -393,6 +393,16 @@ export {
   RECIPE_LOG_MIN,
   RECIPE_LOG_MAX,
   RECIPE_LOG_STEP,
+  SOYA_INGREDIENT,
+  FIT_SOYA_G,
+  FIT_SOYA_PROTEIN_G,
+  FIT_OIL_MIN_SAVE_KCAL,
+  FIT_PROTEIN_MIN_G,
+  fitSuggestions,
+  applyFit,
+  kitchenTable,
+  kitchenCompare,
+  stepMinutes,
 } from './recipes';
 export type {
   RawIngredient,
@@ -412,6 +422,10 @@ export type {
   KitchenTestResult,
   KitchenTestFoodInput,
   KitchenTestFoodResult,
+  FitSuggestion,
+  KitchenTestRecord,
+  KitchenCompareFood,
+  KitchenComparison,
 } from './recipes';
 
 /**
