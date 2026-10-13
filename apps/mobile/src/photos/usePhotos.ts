@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { daysBetween } from '@plate-and-bar/core';
 import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
@@ -57,16 +57,20 @@ export function usePhotos({ db, date }: { db: StoreDb; date: string }): Photos {
   const [state, setState] = useState<typeof EMPTY>(EMPTY);
   const [sel, setSel] = useState<{ a: string | null; b: string | null; pose: Pose; mode: CompareMode }>({ a: null, b: null, pose: 'front', mode: 'side' });
   const [pair, setPair] = useState<{ key: string; a: string | null; b: string | null } | null>(null);
+  // Bumped the moment a wipe happens: a read that started before it never puts the old photos back on screen.
+  const generation = useRef(0);
 
   useEffect(() => {
     let live = true;
+    const gen = generation.current;
+    const current = () => live && gen === generation.current;
     (async () => {
       await settleWipe(db);
       const dates = await photoDates();
       const thumbs = await Promise.all(dates.slice().reverse().slice(0, PHOTOS_GRID).map(async (d) => ({ date: d, src: uri(await firstPose(d)) })));
       const today = Object.fromEntries(await Promise.all(POSES.map(async (p) => [p, uri(await getPhoto(date, p))] as const))) as Record<Pose, string | null>;
-      if (live) setState({ ready: true, failed: false, dates, thumbs, today });
-    })().catch(() => live && setState((s) => ({ ...s, ready: true, failed: true })));
+      if (current()) setState({ ready: true, failed: false, dates, thumbs, today });
+    })().catch(() => current() && setState((s) => ({ ...s, ready: true, failed: true })));
     return () => {
       live = false;
     };
@@ -82,23 +86,29 @@ export function usePhotos({ db, date }: { db: StoreDb; date: string }): Photos {
   useEffect(() => {
     if (!pairKey || !a || !b) return;
     let live = true;
+    const gen = generation.current;
+    const current = () => live && gen === generation.current;
     (async () => {
       const [pa, pb] = await Promise.all([getPhoto(a, sel.pose), getPhoto(b, sel.pose)]);
-      if (live) setPair({ key: pairKey, a: uri(pa), b: uri(pb) });
-    })().catch(() => live && setPair({ key: pairKey, a: null, b: null }));
+      if (current()) setPair({ key: pairKey, a: uri(pa), b: uri(pb) });
+    })().catch(() => current() && setPair({ key: pairKey, a: null, b: null }));
     return () => {
       live = false;
     };
   }, [pairKey, a, b, sel.pose]);
 
   const reload = useCallback(() => setLoad((n) => n + 1), []);
-  // A wipe anywhere (account switch, discard, delete everything) drops what is on screen at once, then reads again.
+  // A wipe anywhere (account switch, discard, delete everything) drops what is on screen at once. After a successful
+  // one the vault is read again; after a failed one the retry shows (reading again would just retry the wipe in a loop).
   useEffect(
     () =>
-      onPhotosWiped(() => {
-        setState(EMPTY);
+      onPhotosWiped((ok) => {
+        generation.current++;
         setPair(null);
-        setLoad((n) => n + 1);
+        if (ok) {
+          setState(EMPTY);
+          setLoad((n) => n + 1);
+        } else setState({ ...EMPTY, ready: true, failed: true });
       }),
     [],
   );

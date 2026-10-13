@@ -41,9 +41,9 @@ const deleteFolder = () => deleteDir(folder);
 /** Where expo-image-picker and expo-image-manipulator leave their working copies (plaintext, possibly with EXIF). */
 const CAPTURE_CACHES = ['ImagePicker', 'ImageManipulator'];
 
-const wipeListeners = new Set<() => void>();
-/** Called after every wipe, so a screen showing photos drops them at once. Returns the unsubscribe. */
-export function onPhotosWiped(listener: () => void): () => void {
+const wipeListeners = new Set<(ok: boolean) => void>();
+/** Called after every wipe with whether it succeeded, so a screen showing photos drops them at once. Returns the unsubscribe. */
+export function onPhotosWiped(listener: (ok: boolean) => void): () => void {
   wipeListeners.add(listener);
   return () => void wipeListeners.delete(listener);
 }
@@ -120,14 +120,18 @@ export function photoDates(): Promise<string[]> {
  * whatever is left after a failure is unreadable. Callers keep a pending marker until this resolves (see guard.ts).
  */
 export function wipePhotos(): Promise<void> {
-  return lock
-    .run(async () => {
-      memory.clear();
-      if (!native) return;
-      key = null;
-      await SecureStore.deleteItemAsync(KEY);
-      deleteFolder();
-      for (const name of CAPTURE_CACHES) deleteDir(() => new Directory(Paths.cache, name));
-    })
-    .finally(() => wipeListeners.forEach((f) => f()));
+  const run = lock.run(async () => {
+    memory.clear();
+    if (!native) return;
+    key = null;
+    await SecureStore.deleteItemAsync(KEY);
+    deleteFolder();
+    for (const name of CAPTURE_CACHES) deleteDir(() => new Directory(Paths.cache, name));
+  });
+  const tell = (ok: boolean) => wipeListeners.forEach((f) => f(ok));
+  run.then(
+    () => tell(true),
+    () => tell(false),
+  );
+  return run;
 }

@@ -4,7 +4,7 @@ import { PhotosSection } from '../src/photos/PhotosSection';
 
 // The Progress photos section (#429) against an in-memory vault, with capture stubbed (no camera in tests).
 const mockStore = new Map<string, string>();
-const mockVault = { persistent: true, failDates: false, failDelete: false, calls: [] as string[], wiped: new Set<() => void>() };
+const mockVault = { persistent: true, failDates: false, failDelete: false, calls: [] as string[], wiped: new Set<(ok: boolean) => void>(), gate: null as Promise<void> | null, gates: [] as Promise<void>[] };
 jest.mock('../src/photos/vault', () => ({
   POSES: ['front', 'side', 'back'],
   get persistent() {
@@ -19,14 +19,17 @@ jest.mock('../src/photos/vault', () => ({
     if (mockVault.failDelete) throw new Error('disk');
     mockStore.delete(`${d}|${p}`);
   },
-  onPhotosWiped: (f: () => void) => {
+  onPhotosWiped: (f: (ok: boolean) => void) => {
     mockVault.wiped.add(f);
     return () => mockVault.wiped.delete(f);
   },
   photoDates: async () => {
     mockVault.calls.push('dates');
+    const snapshot = [...new Set([...mockStore.keys()].map((k) => k.split('|')[0]))].sort();
+    const gate = mockVault.gates.shift() ?? mockVault.gate;
+    if (gate) await gate;
     if (mockVault.failDates) throw new Error('vault');
-    return [...new Set([...mockStore.keys()].map((k) => k.split('|')[0]))].sort();
+    return snapshot;
   },
 }));
 const mockWipe = jest.fn(async () => void mockVault.calls.push('wipe'));
@@ -54,6 +57,8 @@ beforeEach(() => {
   mockVault.failDates = false;
   mockVault.failDelete = false;
   mockVault.wiped.clear();
+  mockVault.gate = null;
+  mockVault.gates = [];
   mockVault.calls = [];
   mockWipe.mockClear();
   mockCapture.mockReset();
@@ -166,9 +171,75 @@ describe('progress photos, review on #431', () => {
     await show();
     expect(await screen.findByLabelText('Check-in 1 Oct')).toBeTruthy();
     mockStore.clear();
-    await act(async () => mockVault.wiped.forEach((f) => f()));
-    await waitFor(() => expect(screen.queryByLabelText('Check-in 1 Oct')).toBeNull());
+    let open = () => {};
+    mockVault.gate = new Promise((r) => (open = r)); // the reload after the wipe has not finished yet
+    await act(async () => mockVault.wiped.forEach((f) => f(true)));
+    expect(screen.queryByLabelText('Check-in 1 Oct')).toBeNull(); // gone before the reload finishes
+    mockVault.gate = null;
+    await act(async () => open());
     expect(await screen.findByText(/No photos yet/)).toBeTruthy();
+  });
+
+  it('a read that started before a wipe never puts the old photos back', async () => {
+    mockStore.set('2026-10-01|front', 'eA==');
+    let openOld = () => {};
+    let openNew = () => {};
+    mockVault.gates = [new Promise((r) => (openOld = r)), new Promise((r) => (openNew = r))];
+    await show(); // the first read has taken the old dates and is waiting
+    mockStore.clear();
+    // The old read finishes in the same tick as the wipe, before React has re-run the effect.
+    await act(async () => {
+      mockVault.wiped.forEach((f) => f(true));
+      openOld();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.queryByText('1 Oct')).toBeNull();
+    await act(async () => openNew());
+    expect(await screen.findByText(/No photos yet/)).toBeTruthy();
+  });
+
+  it('a wipe that keeps failing shows the retry and does not loop', async () => {
+    mockStore.set('2026-10-01|front', 'eA==');
+    await show();
+    await screen.findByLabelText('Check-in 1 Oct');
+    // From now on every owed wipe fails, and (as the real vault does) tells the listeners it failed.
+    mockWipe.mockImplementation(async () => {
+      mockVault.calls.push('wipe');
+      mockVault.wiped.forEach((f) => f(false));
+      throw new Error('disk');
+    });
+    mockVault.calls = [];
+    await act(async () => mockVault.wiped.forEach((f) => f(false)));
+    expect(screen.queryByLabelText('Check-in 1 Oct')).toBeNull();
+    expect(await screen.findByText('Couldn’t open your photos on this device. Try again.')).toBeTruthy();
+    await act(async () => new Promise((r) => setTimeout(r, 50)));
+    expect(mockVault.calls.filter((c) => c === 'wipe')).toHaveLength(0);
+    await fireEvent.press(screen.getByLabelText('Try again'));
+    await act(async () => new Promise((r) => setTimeout(r, 50)));
+    expect(mockVault.calls.filter((c) => c === 'wipe')).toHaveLength(1);
+    expect(screen.getByText('Couldn’t open your photos on this device. Try again.')).toBeTruthy();
+    mockWipe.mockImplementation(async () => void mockVault.calls.push('wipe'));
+  });
+
+  it('a delete first finishes an owed wipe; if that fails nothing is deleted', async () => {
+    mockStore.set('2026-10-01|front', 'eA==');
+    const notify = await show();
+    mockWipe.mockRejectedValueOnce(new Error('disk'));
+    await fireEvent.press(await screen.findByLabelText('Delete the 1 Oct check-in'));
+    await fireEvent.press(await screen.findByLabelText('Tap again to delete the 1 Oct check-in'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Couldn’t delete that check-in. Try again.'));
+    expect(mockStore.size).toBe(1);
+  });
+
+  it('a second tap while the picker is opening does not open another', async () => {
+    let done: (v: string | null) => void = () => {};
+    mockCapture.mockImplementation(() => new Promise((r) => (done = r)));
+    await show();
+    await fireEvent.press(await screen.findByLabelText('New photo check-in'));
+    await fireEvent.press(await screen.findByLabelText('Choose front'));
+    await fireEvent.press(screen.getByLabelText('Choose side'));
+    expect(mockCapture).toHaveBeenCalledTimes(1);
+    await act(async () => done(null));
   });
 
   it('a save first finishes an owed wipe; if that fails nothing is saved and the user is told', async () => {

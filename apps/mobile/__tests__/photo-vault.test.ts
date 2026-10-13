@@ -276,7 +276,7 @@ describe('photo vault wipe extras (#431)', () => {
     mockFail.dirDelete = true;
     await v.putPhoto('2026-10-01', 'front', JPEG);
     await expect(v.wipePhotos()).rejects.toThrow('busy');
-    expect(heard).toHaveBeenCalledTimes(2);
+    expect(heard.mock.calls).toEqual([[true], [false]]);
     off();
     mockFail.dirDelete = false;
     await v.wipePhotos();
