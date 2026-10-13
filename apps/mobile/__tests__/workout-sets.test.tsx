@@ -276,5 +276,19 @@ describe('add and remove exercises (#147)', () => {
     await act(async () => void (ok = result.current.removeExercise('Not an exercise')));
     expect(ok).toBe(false);
   });
+
+  it('a can\'t-do on the screen after an exercise was added elsewhere keeps it (#444)', async () => {
+    const { db, result } = await started();
+    const first = result.current.day.exs[0]!.name;
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, exercises: [...w.exercises, { name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], updated_at: '2026-10-08T09:30:00Z' });
+    await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur: 'today', scope: 'exercise', key: first }, 'Dumbbell Bench Press'));
+    await settle();
+    const names = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    expect(names).toContain('Plank (seconds)');
+    expect(names).toContain('Dumbbell Bench Press');
+    expect(names).not.toContain(first);
+    await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toContain('Plank (seconds)'));
+  });
 });
 

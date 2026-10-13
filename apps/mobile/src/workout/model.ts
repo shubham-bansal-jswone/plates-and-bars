@@ -101,3 +101,6 @@ export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Wor
   const { exercises: _t, ...theirsRest } = theirs;
   return { ...pick(baseRest, mineRest, theirsRest), exercises };
 }
+
+/** A workout row as text without its `version`: a sync push patches only the version, so it does not count as a change. */
+export const unversioned = ({ version: _v, ...w }: Workout): string => JSON.stringify(w);

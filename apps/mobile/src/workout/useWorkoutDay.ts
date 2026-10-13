@@ -28,7 +28,7 @@ import { buildSession } from './buildSession';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
 import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
-import { blankRow, exerciseRecord, exercisesFrom, mergeWorkout, setRecord, stamp, type ExState, type Row } from './model';
+import { blankRow, exerciseRecord, exercisesFrom, mergeWorkout, setRecord, stamp, unversioned, type ExState, type Row } from './model';
 import type { Workout } from './types';
 
 export interface Day {
@@ -60,7 +60,6 @@ interface Options {
 }
 
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
-const unversioned = ({ version: _v, ...w }: Workout): string => JSON.stringify(w);
 
 /**
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
@@ -572,7 +571,10 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       });
       d.workout = { ...w, exercises: ch.exercises };
       commit(d);
-      void enqueue(() => persistCant(db, date, w, ch, at));
+      void enqueue(async () => {
+        // Through the same merge as writeWorkout (#444): a row changed elsewhere keeps what it gained there.
+        if (await persistCant(db, date, w, ch, at, synced.current)) setMerged((n) => n + 1);
+      });
     }
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
