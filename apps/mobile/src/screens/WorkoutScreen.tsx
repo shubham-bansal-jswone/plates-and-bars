@@ -293,7 +293,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
             const name = tagging;
             setTagging(null);
             if (!addCustomTags(name, tags)) return notify('Couldn’t save that exercise. Try again.');
-            if (w.addExercise(name)) notify(`${name} added`);
+            notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
           }}
         />
       ) : null}

@@ -51,14 +51,16 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
       await queue.current; // local edits still being written land first, so a reload never reads around them
       const s = await loadSettings(db);
       if (!live) return;
+      // Always set, also to none: after a wipe the store is empty and the previous user's custom exercises must go (#448).
+      setCustomTags(s?.custom_tags ?? {}); // before the render that reads the catalog
       if (s) {
         ref.current = s;
-        setCustomTags(s.custom_tags); // before the render that reads the catalog
         setState(s);
       }
       setReady(true);
     })().catch(() => {
       if (!live) return;
+      setCustomTags({}); // the record could not be read: no custom exercises rather than someone else's
       blocked.current = true;
       setLoadFailed(true);
       setReady(true);

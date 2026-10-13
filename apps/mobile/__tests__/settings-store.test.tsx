@@ -68,6 +68,17 @@ describe('settings store', () => {
       expect(getCatalog().tags['Pulled Lift']).toEqual(tag);
     });
 
+    it('a provider on an empty store (after a wipe) clears the previous user\'s custom exercises', async () => {
+      const a = memoryDb();
+      await saveSettings(a, { ...defaultSettings('2026-10-08T10:00:00Z'), custom_tags: { 'A Lift': tag } });
+      const first = await renderHook(() => useSettings(), { wrapper: wrap(a) });
+      await waitFor(() => expect(first.result.current.ready).toBe(true));
+      expect(getCatalog().tags['A Lift']).toEqual(tag);
+      const second = await renderHook(() => useSettings(), { wrapper: wrap(memoryDb()) });
+      await waitFor(() => expect(second.result.current.ready).toBe(true));
+      expect(getCatalog().tags['A Lift']).toBeUndefined();
+    });
+
     it('addCustomTags saves and applies at once; at the contract limit a new name is refused, a known one replaced', async () => {
       const db = memoryDb();
       const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });

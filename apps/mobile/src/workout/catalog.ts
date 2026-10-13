@@ -147,7 +147,7 @@ export function setCustomTags(raw: unknown): void {
   const next: Record<string, ExerciseTag> = {};
   if (isObj(raw)) {
     for (const [name, t] of Object.entries(raw)) {
-      if (has(raw, name) && !isProtoName(name) && trimmed(NAME_MAX)(name) && isTag(t)) next[name] = t as ExerciseTag;
+      if (has(raw, name) && !isProtoName(name) && trimmed(NAME_MAX)(name) && name === name.trim() && isTag(t)) next[name] = t as ExerciseTag;
     }
   }
   customTags = next;

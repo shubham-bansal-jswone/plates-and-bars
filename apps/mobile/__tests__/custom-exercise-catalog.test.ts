@@ -17,7 +17,7 @@ describe('custom exercise tags in the catalog (#312)', () => {
     expect(c.tags['Barbell Bench Press']).toBeTruthy();
   });
 
-  it('skips entries that break the tag rule, a prototype name and an overlong name', () => {
+  it('skips entries that break the tag rule, a prototype name, an overlong or padded name', () => {
     const builtIn = new Set(Object.keys(getCatalog().tags));
     setCustomTags({
       Good: tag(),
@@ -26,6 +26,7 @@ describe('custom exercise tags in the catalog (#312)', () => {
       'Bad equipment': tag({ equipment: 'rocket' }),
       constructor: tag(),
       [`${'x'.repeat(201)}`]: tag(),
+      ' Padded ': tag(),
       Junk: 'not a tag',
     });
     expect(Object.keys(getCatalog().tags).filter((n) => !builtIn.has(n))).toEqual(['Good']);
