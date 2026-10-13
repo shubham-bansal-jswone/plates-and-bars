@@ -2,7 +2,7 @@
 import { pendingCount } from '../src/db/outbox';
 import { syncOnce } from '../src/sync/engine';
 import { makeApi, verifyEmailCode } from '../src/sync/auth';
-import { acceptTokenPair, signOut } from '../src/sync/guard';
+import { acceptTokenPair, signOut, withPhotosSettled } from '../src/sync/guard';
 import { getUserId, setKv, KEY_USER } from '../src/sync/store';
 import { saveWeightDoc } from './sync-fixtures';
 import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
@@ -10,8 +10,9 @@ import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 // The photo vault is wiped whenever the store is (ADR 004, #251); its own behaviour is in photo-vault.test.ts.
-const mockVault = { wipes: 0, failNext: false };
+const mockVault = { wipes: 0, failNext: false, told: [] as boolean[] };
 jest.mock('../src/photos/vault', () => ({
+  announceWipe: (ok: boolean) => void mockVault.told.push(ok),
   wipePhotos: async () => {
     if (mockVault.failNext) {
       mockVault.failNext = false;
@@ -23,6 +24,7 @@ jest.mock('../src/photos/vault', () => ({
 beforeEach(() => {
   mockVault.wipes = 0;
   mockVault.failNext = false;
+  mockVault.told = [];
 });
 
 const USER_A = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
@@ -122,6 +124,62 @@ describe('sign-out and account switch guard (#31)', () => {
     expect(mockVault.wipes).toBe(1);
     expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.photos_wipe_pending'")).toBeNull();
     expect(await getUserId(db)).toBe(USER_B);
+  });
+
+  it('success is announced only after the marker is cleared; a failed wipe or marker delete announces failure', async () => {
+    const db = await openDb();
+    const tokens = memoryTokens();
+    const marker = () => db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.photos_wipe_pending'");
+    await setKv(db, 'device.photos_wipe_pending', '1');
+    mockVault.failNext = true;
+    await expect(acceptTokenPair(db, tokens, pair(USER_A))).rejects.toThrow('disk');
+    expect(mockVault.told).toEqual([false]);
+    // The wipe works but clearing the marker fails: still a failure, never a success (a screen would reload and loop).
+    const failing = Object.assign(Object.create(db), {
+      runAsync: (sql: string, ...a: unknown[]) => (/DELETE FROM settings/.test(sql) && a[0] === 'device.photos_wipe_pending' ? Promise.reject(new Error('full')) : db.runAsync(sql, ...(a as never[]))),
+    });
+    await expect(acceptTokenPair(failing, tokens, pair(USER_A))).rejects.toThrow('full');
+    expect(mockVault.told).toEqual([false, false]);
+    expect(await marker()).not.toBeNull();
+    // Both steps work: the marker is cleared first, and only then is success announced.
+    const logging = Object.assign(Object.create(db), {
+      runAsync: async (sql: string, ...a: unknown[]) => {
+        const r = await db.runAsync(sql, ...(a as never[]));
+        if (/DELETE FROM settings/.test(sql) && a[0] === 'device.photos_wipe_pending') mockVault.told.push('marker cleared' as never);
+        return r;
+      },
+    });
+    expect(await acceptTokenPair(logging, tokens, pair(USER_A))).toEqual({ kind: 'signed_in', wiped: false });
+    expect(mockVault.told).toEqual([false, false, 'marker cleared', true]);
+    expect(await marker()).toBeNull();
+  });
+
+  it('a photo write holds the account lock from settling the owed wipe until it is written', async () => {
+    const db = await openDb();
+    const tokens = memoryTokens();
+    const events: string[] = [];
+    let finish = () => {};
+    const write = withPhotosSettled(db, async () => {
+      events.push('write started');
+      await new Promise<void>((r) => (finish = r));
+      events.push('write done');
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    const other = acceptTokenPair(db, tokens, pair(USER_A)).then(() => events.push('account operation'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual(['write started']); // the account operation (and any wipe in it) waits
+    finish();
+    await Promise.all([write, other]);
+    expect(events).toEqual(['write started', 'write done', 'account operation']);
+  });
+
+  it('a failure reading the wipe marker is announced too', async () => {
+    const db = await openDb();
+    const broken = Object.assign(Object.create(db), {
+      getFirstAsync: (sql: string, ...a: unknown[]) => (a.includes('device.photos_wipe_pending') ? Promise.reject(new Error('read')) : db.getFirstAsync(sql, ...(a as never[]))),
+    });
+    await expect(acceptTokenPair(broken, memoryTokens(), pair(USER_A))).rejects.toThrow('read');
+    expect(mockVault.told).toEqual([false]);
   });
 
   it('sign-out is blocked while changes are unsynced; discarding wipes them and the outbox', async () => {

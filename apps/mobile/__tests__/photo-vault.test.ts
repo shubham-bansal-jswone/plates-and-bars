@@ -71,7 +71,7 @@ jest.mock('expo-file-system', () => {
       mockFiles.delete(this.path);
     }
   }
-  return { Directory, File, Paths: { document: 'doc' } };
+  return { Directory, File, Paths: { document: 'doc', cache: 'cache' } };
 });
 
 jest.mock('expo-crypto', () => {
@@ -255,6 +255,31 @@ describe('photo vault failures and races (review on #430)', () => {
     mockFail.dirGone = true;
     await expect(v.wipePhotos()).resolves.toBeUndefined();
     expect(mockSecure.has('pb.photo_key')).toBe(false);
+  });
+});
+
+describe('photo vault wipe extras (#431)', () => {
+  it('a wipe also clears the picker and manipulator working copies in the cache, and leaves other cache files', async () => {
+    const v = load('android');
+    mockFiles.set('cache/ImagePicker/raw.jpg', new Uint8Array([1]));
+    mockFiles.set('cache/ImageManipulator/out.jpg', new Uint8Array([2]));
+    mockFiles.set('cache/plate-and-bar-export.json', new Uint8Array([3]));
+    await v.wipePhotos();
+    expect([...mockFiles.keys()]).toEqual(['cache/plate-and-bar-export.json']);
+  });
+
+  it('a wipe itself tells no one; announceWipe tells every listener until it unsubscribes', async () => {
+    const v = load('android');
+    const heard = jest.fn();
+    const off = v.onPhotosWiped(heard);
+    await v.wipePhotos();
+    expect(heard).not.toHaveBeenCalled(); // guard.ts announces, after the wipe marker is cleared
+    v.announceWipe(true);
+    v.announceWipe(false);
+    expect(heard.mock.calls).toEqual([[true], [false]]);
+    off();
+    v.announceWipe(true);
+    expect(heard).toHaveBeenCalledTimes(2);
   });
 });
 

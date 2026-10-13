@@ -5,7 +5,7 @@ import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
 import { KEY_PHOTOS_WIPE, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
-import { wipePhotos } from '../photos/vault';
+import { announceWipe, wipePhotos } from '../photos/vault';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
 // another user's token and never dropped without an explicit choice.
@@ -65,13 +65,27 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
  * an account operation use `completePhotoWipe`.
  */
 async function finishPhotoWipe(db: Db): Promise<void> {
-  if (!(await getKv(db, KEY_PHOTOS_WIPE))) return;
-  await wipePhotos();
-  await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_PHOTOS_WIPE);
+  try {
+    if (!(await getKv(db, KEY_PHOTOS_WIPE))) return;
+    await wipePhotos();
+    await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_PHOTOS_WIPE);
+  } catch (e) {
+    announceWipe(false);
+    throw e;
+  }
+  // Success is told only once the marker is gone, so a screen that reloads on it finds nothing owed (no wipe loop).
+  announceWipe(true);
 }
 
-/** `finishPhotoWipe` under the account lock: at launch, and before the photos screen reads or writes the vault. */
+/** `finishPhotoWipe` under the account lock: at launch, and before the photos screen reads the vault. */
 export const completePhotoWipe = (db: Db): Promise<void> => withSyncPaused(() => finishPhotoWipe(db));
+
+/** Runs a photo write with no wipe owed and the account lock held throughout, so no wipe can land between the two. */
+export const withPhotosSettled = <T>(db: Db, write: () => Promise<T>): Promise<T> =>
+  withSyncPaused(async () => {
+    await finishPhotoWipe(db);
+    return write();
+  });
 
 export type SignInOutcome =
   /** Tokens saved; the store belongs to this user. `wiped` when a previous user's empty store was cleared first. */
