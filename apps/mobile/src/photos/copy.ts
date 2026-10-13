@@ -8,6 +8,7 @@ export const PHOTOS_STALE = (days: number): string => `Last photos were ${days} 
 export const PHOTOS_NEW = (today: boolean): string => (today ? 'Add to today’s photos' : 'New photo check-in');
 export const PHOTOS_MISSING_POSE = (pose: string): string => `One of these dates has no ${pose} photo.`;
 export const PHOTOS_DELETED = 'Check-in deleted';
+export const PHOTOS_DELETE_FAILED = 'Couldn’t delete that check-in. Try again.';
 export const PHOTOS_SAVE_FAILED = 'Couldn’t save that photo. Try another one.';
 export const PHOTOS_CAMERA_OFF = 'Camera access is off. Allow it in Settings, or choose a photo instead.';
 export const PHOTOS_UNAVAILABLE = 'Couldn’t open your photos on this device. Try again.';

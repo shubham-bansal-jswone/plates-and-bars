@@ -1,18 +1,28 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { fitWithin } from '../src/photos/capture';
 import { PhotosSection } from '../src/photos/PhotosSection';
 
 // The Progress photos section (#429) against an in-memory vault, with capture stubbed (no camera in tests).
 const mockStore = new Map<string, string>();
-const mockVault = { persistent: true, failDates: false, calls: [] as string[] };
+const mockVault = { persistent: true, failDates: false, failDelete: false, calls: [] as string[], wiped: new Set<() => void>() };
 jest.mock('../src/photos/vault', () => ({
   POSES: ['front', 'side', 'back'],
   get persistent() {
     return mockVault.persistent;
   },
-  putPhoto: async (d: string, p: string, b: string) => void mockStore.set(`${d}|${p}`, b),
+  putPhoto: async (d: string, p: string, b: string) => {
+    mockVault.calls.push('put');
+    mockStore.set(`${d}|${p}`, b);
+  },
   getPhoto: async (d: string, p: string) => mockStore.get(`${d}|${p}`) ?? null,
-  deletePhoto: async (d: string, p: string) => void mockStore.delete(`${d}|${p}`),
+  deletePhoto: async (d: string, p: string) => {
+    if (mockVault.failDelete) throw new Error('disk');
+    mockStore.delete(`${d}|${p}`);
+  },
+  onPhotosWiped: (f: () => void) => {
+    mockVault.wiped.add(f);
+    return () => mockVault.wiped.delete(f);
+  },
   photoDates: async () => {
     mockVault.calls.push('dates');
     if (mockVault.failDates) throw new Error('vault');
@@ -28,7 +38,7 @@ jest.mock('../src/photos/capture', () => {
 });
 
 const TODAY = '2026-10-12';
-const db = {} as never; // a test double without transactions: the owed-wipe step is skipped
+const db = { withExclusiveTransactionAsync: async () => undefined }; // the owed-wipe step itself is mocked above
 const weights = ['2026-09-17', '2026-09-19', '2026-09-21'].map((date) => ({ date, weight_kg: 82 })).concat({ date: '2026-10-12', weight_kg: 80 });
 const tapes = [{ date: '2026-09-20', waist_cm: 90 }];
 
@@ -42,6 +52,8 @@ beforeEach(() => {
   mockStore.clear();
   mockVault.persistent = true;
   mockVault.failDates = false;
+  mockVault.failDelete = false;
+  mockVault.wiped.clear();
   mockVault.calls = [];
   mockWipe.mockClear();
   mockCapture.mockReset();
@@ -145,6 +157,79 @@ describe('progress photos (#429)', () => {
     expect(mockVault.calls).not.toContain('dates'); // the vault was not read
     await fireEvent.press(screen.getByLabelText('Try again'));
     expect(await screen.findByLabelText('New photo check-in')).toBeTruthy();
+  });
+});
+
+describe('progress photos, review on #431', () => {
+  it('a wipe elsewhere (account switch, discard, delete everything) drops the photos on screen at once', async () => {
+    mockStore.set('2026-10-01|front', 'eA==');
+    await show();
+    expect(await screen.findByLabelText('Check-in 1 Oct')).toBeTruthy();
+    mockStore.clear();
+    await act(async () => mockVault.wiped.forEach((f) => f()));
+    await waitFor(() => expect(screen.queryByLabelText('Check-in 1 Oct')).toBeNull());
+    expect(await screen.findByText(/No photos yet/)).toBeTruthy();
+  });
+
+  it('a save first finishes an owed wipe; if that fails nothing is saved and the user is told', async () => {
+    mockCapture.mockResolvedValue('anGh');
+    const notify = await show();
+    await fireEvent.press(await screen.findByLabelText('New photo check-in'));
+    mockVault.calls = [];
+    await fireEvent.press(await screen.findByLabelText('Choose front'));
+    await waitFor(() => expect(mockVault.calls).toContain('put'));
+    expect(mockVault.calls.indexOf('wipe')).toBeLessThan(mockVault.calls.indexOf('put'));
+    mockStore.clear();
+    mockWipe.mockRejectedValueOnce(new Error('disk'));
+    await fireEvent.press(await screen.findByLabelText('Choose another front'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Couldn’t save that photo. Try another one.'));
+    expect(mockStore.size).toBe(0);
+  });
+
+  it('a delete that fails says so', async () => {
+    mockStore.set('2026-10-01|front', 'eA==');
+    const notify = await show();
+    mockVault.failDelete = true;
+    await fireEvent.press(await screen.findByLabelText('Delete the 1 Oct check-in'));
+    await fireEvent.press(await screen.findByLabelText('Tap again to delete the 1 Oct check-in'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Couldn’t delete that check-in. Try again.'));
+  });
+
+  it('the grid shows the 12 newest check-ins, newest first', async () => {
+    for (let d = 1; d <= 13; d++) mockStore.set(`2026-09-${String(d).padStart(2, '0')}|front`, 'eA==');
+    await show();
+    await screen.findByLabelText('Check-in 13 Sept');
+    const order = screen.getAllByLabelText(/^Check-in /).map((e) => e.props.accessibilityLabel);
+    expect(order).toHaveLength(12);
+    expect(order[0]).toBe('Check-in 13 Sept');
+    expect(order[11]).toBe('Check-in 2 Sept');
+  });
+
+  it('a thumbnail is the front photo, else the side, else the back', async () => {
+    mockStore.set('2026-10-01|side', 'c2lkZQ==');
+    mockStore.set('2026-10-01|back', 'YmFjaw==');
+    mockStore.set('2026-10-02|back', 'b25seWJhY2s=');
+    mockStore.set('2026-10-02|front', 'ZnJvbnQ=');
+    await show();
+    expect((await screen.findByLabelText('Check-in 1 Oct')).props.source.uri).toContain('c2lkZQ==');
+    expect(screen.getByLabelText('Check-in 2 Oct').props.source.uri).toContain('ZnJvbnQ=');
+  });
+
+  it('the nudge starts at exactly 14 days', async () => {
+    mockStore.set('2026-09-28|front', 'eA==');
+    await show();
+    expect(await screen.findByText('Last photos were 14 days ago. Time for a new check-in.')).toBeTruthy();
+    mockStore.clear();
+    mockStore.set('2026-09-29|front', 'eA==');
+    await show();
+    await screen.findByLabelText('Check-in 29 Sept');
+    expect(screen.queryByText(/Last photos were 13 days ago/)).toBeNull();
+  });
+
+  it('a database that cannot run the owed wipe shows nothing (fails closed)', async () => {
+    await show({ db: {} });
+    expect(await screen.findByText('Couldn’t open your photos on this device. Try again.')).toBeTruthy();
+    expect(mockVault.calls).not.toContain('dates');
   });
 });
 

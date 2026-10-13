@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Image, Modal, PanResponder, Platform, ScrollView, StyleSheet, View, type ImageStyle } from 'react-native';
 import { measureAt, round1, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -14,6 +14,7 @@ import {
   CHECKIN_TITLE,
   PHOTOS_CAMERA_OFF,
   PHOTOS_DELETED,
+  PHOTOS_DELETE_FAILED,
   PHOTOS_EMPTY,
   PHOTOS_HINT_DEVICE,
   PHOTOS_HINT_WEB,
@@ -52,8 +53,12 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
   const del = async (d: string) => {
     if (armed !== d) return setArmed(d);
     setArmed(null);
-    await ph.remove(d);
-    notify(PHOTOS_DELETED);
+    try {
+      await ph.remove(d);
+      notify(PHOTOS_DELETED);
+    } catch {
+      notify(PHOTOS_DELETE_FAILED);
+    }
   };
 
   return (
@@ -183,8 +188,10 @@ function Slider({ before, after, pose }: { before: string; after: string; pose: 
           <Image source={{ uri: after }} style={[styles.after as ImageStyle, { width }]} />
         </View>
         <View pointerEvents="none" style={[styles.handle, { left: `${pct}%`, backgroundColor: c.onBrand }]} />
-        <Text style={[styles.tag, styles.tagL]}>Before</Text>
-        <Text style={[styles.tag, styles.tagR]}>After</Text>
+        <View pointerEvents="none" style={styles.fill}>
+          <Text style={[styles.tag, styles.tagL]}>Before</Text>
+          <Text style={[styles.tag, styles.tagR]}>After</Text>
+        </View>
       </View>
       <View style={styles.chips}>
         <Chip label="Show more of before" text="◀" onPress={() => step(10)} />
@@ -198,7 +205,10 @@ function Slider({ before, after, pose }: { before: string; after: string; pose: 
 function CheckinSheet({ ph, notify, onClose }: { ph: Photos; notify: (msg: string) => void; onClose: () => void }) {
   const c = useTheme();
   const [busy, setBusy] = useState<Pose | null>(null);
+  const running = useRef(false); // a second tap before the first picker opens must not open another
   const add = async (pose: Pose, source: 'camera' | 'library') => {
+    if (running.current) return;
+    running.current = true;
     setBusy(pose);
     try {
       const jpeg = await capturePhoto(source);
@@ -206,6 +216,7 @@ function CheckinSheet({ ph, notify, onClose }: { ph: Photos; notify: (msg: strin
     } catch (e) {
       notify(e instanceof CameraDenied ? PHOTOS_CAMERA_OFF : PHOTOS_SAVE_FAILED);
     } finally {
+      running.current = false;
       setBusy(null);
     }
   };
@@ -229,9 +240,9 @@ function CheckinSheet({ ph, notify, onClose }: { ph: Photos; notify: (msg: strin
                 )}
                 <Text style={{ color: c.body, ...typeScale.caption, textAlign: 'center' }}>{label}</Text>
                 {Platform.OS !== 'web' ? (
-                  <Chip label={have ? `Retake ${label.toLowerCase()}` : `Take ${label.toLowerCase()}`} text={have ? 'Retake' : 'Take'} onPress={() => busy === null && void add(p, 'camera')} />
+                  <Chip label={have ? `Retake ${label.toLowerCase()}` : `Take ${label.toLowerCase()}`} text={have ? 'Retake' : 'Take'} onPress={() => void add(p, 'camera')} />
                 ) : null}
-                <Chip label={have ? `Choose another ${label.toLowerCase()}` : `Choose ${label.toLowerCase()}`} text={have ? 'Replace' : 'Choose'} onPress={() => busy === null && void add(p, 'library')} />
+                <Chip label={have ? `Choose another ${label.toLowerCase()}` : `Choose ${label.toLowerCase()}`} text={have ? 'Replace' : 'Choose'} onPress={() => void add(p, 'library')} />
               </View>
             );
           })}

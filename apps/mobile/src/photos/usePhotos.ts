@@ -4,7 +4,7 @@ import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { completePhotoWipe } from '../sync/guard';
 import { PHOTOS_GRID, PHOTOS_STALE_DAYS } from './copy';
-import { POSES, deletePhoto, getPhoto, photoDates, putPhoto, type Pose } from './vault';
+import { POSES, deletePhoto, getPhoto, onPhotosWiped, photoDates, putPhoto, type Pose } from './vault';
 
 export type CompareMode = 'side' | 'slider';
 export interface Thumb {
@@ -44,26 +44,24 @@ const firstPose = async (date: string) => {
   }
   return null;
 };
-/** The app database can run the owed photo wipe; test doubles without transactions skip it. */
-const canWipe = (db: StoreDb): db is StoreDb & PullDb => typeof (db as Partial<PullDb>).withExclusiveTransactionAsync === 'function';
+/** Finishes an owed vault wipe; a database that cannot run one counts as a failure, so photos are never shown unchecked. */
+async function settleWipe(db: StoreDb): Promise<void> {
+  if (typeof (db as Partial<PullDb>).withExclusiveTransactionAsync !== 'function') throw new Error('no transactions');
+  await completePhotoWipe(db as StoreDb & PullDb);
+}
+const EMPTY = { ready: false, failed: false, dates: [] as string[], thumbs: [] as Thumb[], today: { front: null, side: null, back: null } as Record<Pose, string | null> };
 
 /** Progress photos for the Progress tab (prototype `renderPhotos`). An owed vault wipe is finished before anything is read. */
 export function usePhotos({ db, date }: { db: StoreDb; date: string }): Photos {
   const [load, setLoad] = useState(0);
-  const [state, setState] = useState<{ ready: boolean; failed: boolean; dates: string[]; thumbs: Thumb[]; today: Record<Pose, string | null> }>({
-    ready: false,
-    failed: false,
-    dates: [],
-    thumbs: [],
-    today: { front: null, side: null, back: null },
-  });
+  const [state, setState] = useState<typeof EMPTY>(EMPTY);
   const [sel, setSel] = useState<{ a: string | null; b: string | null; pose: Pose; mode: CompareMode }>({ a: null, b: null, pose: 'front', mode: 'side' });
   const [pair, setPair] = useState<{ key: string; a: string | null; b: string | null } | null>(null);
 
   useEffect(() => {
     let live = true;
     (async () => {
-      if (canWipe(db)) await completePhotoWipe(db);
+      await settleWipe(db);
       const dates = await photoDates();
       const thumbs = await Promise.all(dates.slice().reverse().slice(0, PHOTOS_GRID).map(async (d) => ({ date: d, src: uri(await firstPose(d)) })));
       const today = Object.fromEntries(await Promise.all(POSES.map(async (p) => [p, uri(await getPhoto(date, p))] as const))) as Record<Pose, string | null>;
@@ -94,19 +92,31 @@ export function usePhotos({ db, date }: { db: StoreDb; date: string }): Photos {
   }, [pairKey, a, b, sel.pose]);
 
   const reload = useCallback(() => setLoad((n) => n + 1), []);
+  // A wipe anywhere (account switch, discard, delete everything) drops what is on screen at once, then reads again.
+  useEffect(
+    () =>
+      onPhotosWiped(() => {
+        setState(EMPTY);
+        setPair(null);
+        setLoad((n) => n + 1);
+      }),
+    [],
+  );
   const save = useCallback(
     async (pose: Pose, jpegBase64: string) => {
+      await settleWipe(db); // never write while a wipe is owed: it would delete the new photo later
       await putPhoto(date, pose, jpegBase64);
       reload();
     },
-    [date, reload],
+    [db, date, reload],
   );
   const remove = useCallback(
     async (d: string) => {
+      await settleWipe(db);
       for (const p of POSES) await deletePhoto(d, p);
       reload();
     },
-    [reload],
+    [db, reload],
   );
 
   const since = last ? daysBetween(last, date) : 0;
