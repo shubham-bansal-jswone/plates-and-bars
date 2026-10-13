@@ -395,7 +395,7 @@ class AuthFlowIT {
     }
 
     @Test
-    void parallelRefreshesWithTheSameTokenYieldOneWinnerAndRevokeTheFamily() throws Exception {
+    void parallelRefreshesWithTheSameTokenBothAnswerButOnlyOneNewTokenSurvives() throws Exception {
         Map pair = signInByEmail(uniq("r6"));
         var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
         var gate = new java.util.concurrent.CountDownLatch(1);
@@ -408,18 +408,53 @@ class AuthFlowIT {
                 }));
             }
             gate.countDown();
-            List<ResponseEntity<Map>> results = new ArrayList<>();
+            List<Map> bodies = new ArrayList<>();
             for (var c : calls) {
-                results.add(c.get(30, java.util.concurrent.TimeUnit.SECONDS));
+                var r = c.get(30, java.util.concurrent.TimeUnit.SECONDS);
+                assertThat(r.getStatusCode().value()).isEqualTo(200);
+                bodies.add(r.getBody());
             }
-            assertThat(results.stream().map(r -> r.getStatusCode().value()).sorted().toList())
-                    .containsExactly(200, 401);
-            Map winner = results.stream().filter(r -> r.getStatusCode().value() == 200).findFirst().get().getBody();
-            // The loser looked like reuse, so the winner's token is dead too.
-            assertThat(refresh(winner.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+            // The second to commit treated the first as a lost response and revoked its token: one survives.
+            long live = bodies.stream()
+                    .filter(b -> refresh(b.get("refresh_token")).getStatusCode().value() == 200)
+                    .count();
+            assertThat(live).isEqualTo(1);
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    void retryAfterALostResponseWithinTheGraceKeepsTheSession() {
+        Map first = signInByEmail(uniq("g1"));
+        Map lost = refresh(first.get("refresh_token")).getBody(); // the response the device never saw
+        clock.advance(Duration.ofSeconds(59));
+        ResponseEntity<Map> retry = refresh(first.get("refresh_token"));
+        assertThat(retry.getStatusCode().value()).isEqualTo(200);
+        Map second = retry.getBody();
+        assertThat(second.get("refresh_token")).isNotIn(first.get("refresh_token"), lost.get("refresh_token"));
+        assertThat(user(second).get("id")).isEqualTo(user(first).get("id"));
+        // The token of the lost response is dead, the new one works and continues the session.
+        assertThat(refresh(lost.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+        assertThat(refresh(second.get("refresh_token")).getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void retryAfterTheGraceWindowIsReuseAndRevokesTheFamily() {
+        Map first = signInByEmail(uniq("g2"));
+        Map lost = refresh(first.get("refresh_token")).getBody();
+        clock.advance(Duration.ofSeconds(60));
+        assertThat(refresh(first.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+        assertThat(refresh(lost.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    void retryAfterTheNewerTokenWasUsedIsReuseEvenInsideTheWindow() {
+        Map first = signInByEmail(uniq("g3"));
+        Map second = refresh(first.get("refresh_token")).getBody();
+        Map third = refresh(second.get("refresh_token")).getBody(); // the newer token was used
+        assertThat(refresh(first.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+        assertThat(refresh(third.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
     }
 
     @Test
@@ -428,6 +463,7 @@ class AuthFlowIT {
         Map deviceA = signInByEmail(email);
         Map deviceB = signInByEmail(email);
         refresh(deviceA.get("refresh_token"));
+        clock.advance(Duration.ofSeconds(61)); // past the lost-response grace
         assertThat(refresh(deviceA.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
         assertThat(refresh(deviceB.get("refresh_token")).getStatusCode().value()).isEqualTo(200);
     }
@@ -486,6 +522,7 @@ class AuthFlowIT {
         Map pair = signInByEmail(email);
         String code = mail.lastCode;
         Map rotated = refresh(pair.get("refresh_token")).getBody();
+        clock.advance(Duration.ofSeconds(61)); // past the lost-response grace
         refresh(pair.get("refresh_token")); // reuse path
         verify(email, "999999"); // wrong-code path
         post("/google", Map.of("id_token", "g-" + sub));

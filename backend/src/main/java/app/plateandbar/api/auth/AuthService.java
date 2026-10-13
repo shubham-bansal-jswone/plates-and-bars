@@ -35,6 +35,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class AuthService {
 
     static final Duration REFRESH_TTL = Duration.ofDays(90);
+    /** A rotated token retried within this time, with its replacement unused, is a lost response, not theft (#399). */
+    static final Duration REFRESH_RETRY_GRACE = Duration.ofSeconds(60);
     static final Duration CODE_TTL = Duration.ofMinutes(10);
     static final int RESEND_AFTER_SECONDS = 60;
     static final int MAX_CODE_ATTEMPTS = 5;
@@ -88,7 +90,7 @@ public class AuthService {
         GoogleIdTokenVerifier.GoogleIdentity id = google.verify(idToken);
         return inTxRetryingOnRace(() -> {
             Resolved r = resolveUser("google", id.subject(), id.email());
-            return issue(r.user(), newFamily(), r.isNew());
+            return issue(r.user(), newFamily(), r.isNew(), null);
         });
     }
 
@@ -145,7 +147,7 @@ public class AuthService {
             }
             codes.markUsed(email, now);
             Resolved r = resolveUser("email", email, email);
-            return issue(r.user(), newFamily(), r.isNew());
+            return issue(r.user(), newFamily(), r.isNew(), null);
         });
         if (pair == null) {
             throw ApiException.invalidCode();
@@ -184,10 +186,21 @@ public class AuthService {
                 return null;
             }
             var row = found.get();
+            boolean retry = false;
             if (row.rotatedAt() != null) {
-                // Reuse of a rotated token: treat as theft and end the whole session.
-                refreshTokens.revokeFamily(row.familyId(), now);
-                return null;
+                var replacements = refreshTokens.findReplacementsForUpdate(row.id());
+                retry = row.revokedAt() == null
+                        && now.isBefore(row.rotatedAt().plus(REFRESH_RETRY_GRACE))
+                        && now.isBefore(row.expiresAt())
+                        && replacements.stream().noneMatch(r -> r.rotatedAt() != null);
+                if (!retry) {
+                    // Reuse of a rotated token: treat as theft and end the whole session.
+                    refreshTokens.revokeFamily(row.familyId(), now);
+                    return null;
+                }
+                // The replacement was never used, so the response carrying it was probably lost. Kill it
+                // and issue one fresh pair.
+                replacements.forEach(r -> refreshTokens.revoke(r.id(), now));
             }
             if (row.revokedAt() != null || !now.isBefore(row.expiresAt())) {
                 return null;
@@ -196,8 +209,10 @@ public class AuthService {
             if (user.isEmpty()) {
                 return null;
             }
-            refreshTokens.markRotated(row.id(), now);
-            return issue(user.get(), row.familyId(), false);
+            if (!retry) {
+                refreshTokens.markRotated(row.id(), now);
+            }
+            return issue(user.get(), row.familyId(), false, row.id());
         });
         if (pair == null) {
             throw ApiException.sessionEnded();
@@ -222,14 +237,14 @@ public class AuthService {
         return new Resolved(created, true);
     }
 
-    private TokenPair issue(User user, String familyId, boolean isNew) {
+    private TokenPair issue(User user, String familyId, boolean isNew, String replacesId) {
         Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
         JwtService.AccessToken access = jwt.issue(user.id());
         byte[] raw = new byte[32];
         RANDOM.nextBytes(raw);
         String refresh = "rt_" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
         Instant refreshExpires = now.plus(REFRESH_TTL);
-        refreshTokens.insert(user.id(), familyId, sha256Hex(refresh), refreshExpires, now);
+        refreshTokens.insert(user.id(), familyId, sha256Hex(refresh), refreshExpires, now, replacesId);
         return new TokenPair(
                 "Bearer",
                 access.value(),
