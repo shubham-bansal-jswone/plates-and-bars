@@ -65,7 +65,7 @@ export interface ProtoLadders {
 
 /**
  * Runs the prototype's ladder, re-check and "can't do" functions (`ladderOf`, `nextStep`, `prevStep`,
- * `sidewaysOf`, `estimateFor`, `ladderCard`, `recheckCards`, `candidates`, `applyCant`, `exAction`) sliced out of
+ * `sidewaysOf`, `estimateFor`, `ladderCard`, `recheckCards`, `candidates`, `applyCant`, `exAction`, `newExercise`) sliced out of
  * the HTML against a fake `S`, with `TAGS`, `AWAY` and `LADDERS` from golden/exercises.json and
  * `EX_META` passed in. UI calls are stubbed (`whyLink`, `saveSettings`, `saveDay`, `render`, `toast`,
  * `sheet.close`, `shortDate`); `newId` counts up. `homeWhere` and `whereNow` are the prototype's own
