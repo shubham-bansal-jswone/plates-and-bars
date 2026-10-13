@@ -4,7 +4,8 @@
 type MockBuf = { subarray(a: number, b?: number): MockBuf; length: number; toString(e: string): string };
 const mockFiles = new Map<string, Uint8Array>();
 const mockSecure = new Map<string, string>();
-const mockFail = { dirDelete: false, secureGet: false };
+const mockFail = { dirDelete: false, dirGone: false, secureGet: false };
+const mockWrites: string[] = [];
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: async (k: string) => {
@@ -28,6 +29,12 @@ jest.mock('expo-file-system', () => {
       mockDirs.add(this.path);
     }
     delete() {
+      if (mockFail.dirGone) {
+        // another delete got there first: the folder vanished and this call fails
+        for (const p of [...mockFiles.keys()]) if (p.startsWith(`${this.path}/`)) mockFiles.delete(p);
+        mockDirs.delete(this.path);
+        throw new Error('not found');
+      }
       if (mockFail.dirDelete) throw new Error('busy');
       for (const p of [...mockFiles.keys()]) if (p.startsWith(`${this.path}/`)) mockFiles.delete(p);
       mockDirs.delete(this.path);
@@ -49,9 +56,11 @@ jest.mock('expo-file-system', () => {
       mockFiles.set(this.path, new Uint8Array());
     }
     write(b: Uint8Array) {
+      mockWrites.push(this.path);
       mockFiles.set(this.path, b);
     }
-    moveSync(dest: { path: string }) {
+    moveSync(dest: { path: string; exists: boolean }, o?: { overwrite?: boolean }) {
+      if (dest.exists && !o?.overwrite) throw new Error('DestinationAlreadyExistsException'); // as on Android
       mockFiles.set(dest.path, mockFiles.get(this.path) as Uint8Array);
       mockFiles.delete(this.path);
     }
@@ -98,7 +107,8 @@ jest.mock('expo-crypto', () => {
   return {
     AESEncryptionKey,
     AESSealedData,
-    aesEncryptAsync: async (pt: string, key: AESEncryptionKey, o: { additionalData: string }) => {
+    aesEncryptAsync: async (pt: string, key: AESEncryptionKey, o: { additionalData: string; nonce?: { length: number } }) => {
+      if (o.nonce?.length !== 12) throw new Error('nonce length must be set to 12'); // not left to the provider's default
       const iv = c.randomBytes(12);
       const ci = c.createCipheriv('aes-256-gcm', key.b, iv);
       ci.setAAD(B.from(o.additionalData, 'base64'));
@@ -132,7 +142,9 @@ beforeEach(() => {
   mockFiles.clear();
   mockSecure.clear();
   mockFail.dirDelete = false;
+  mockFail.dirGone = false;
   mockFail.secureGet = false;
+  mockWrites.length = 0;
 });
 
 describe('photo vault on Android', () => {
@@ -228,11 +240,21 @@ describe('photo vault failures and races (review on #430)', () => {
     await expect(v.getPhoto('2026-10-01', 'front')).rejects.toThrow('keystore');
   });
 
-  it('a retake leaves no temporary file', async () => {
+  it('a retake is written beside the old photo, then moved over it, and leaves no temporary file', async () => {
     const v = load('android');
     await v.putPhoto('2026-10-01', 'front', JPEG);
     await v.putPhoto('2026-10-01', 'front', btoa('again'));
+    expect(mockWrites).toEqual(['doc/photos/2026-10-01_front.bin.tmp', 'doc/photos/2026-10-01_front.bin.tmp']);
     expect([...mockFiles.keys()]).toEqual(['doc/photos/2026-10-01_front.bin']);
+    expect(await v.getPhoto('2026-10-01', 'front')).toBe(btoa('again'));
+  });
+
+  it('a wipe whose folder vanished meanwhile still succeeds', async () => {
+    const v = load('android');
+    await v.putPhoto('2026-10-01', 'front', JPEG);
+    mockFail.dirGone = true;
+    await expect(v.wipePhotos()).resolves.toBeUndefined();
+    expect(mockSecure.has('pb.photo_key')).toBe(false);
   });
 });
 

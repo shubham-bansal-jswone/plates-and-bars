@@ -61,7 +61,7 @@ export function putPhoto(date: string, pose: Pose, jpegBase64: string): Promise<
     const sealed = await aesEncryptAsync(jpegBase64, await vaultKey(), { nonce: { length: 12 }, additionalData: btoa(name) });
     const dir = folder();
     dir.create({ intermediates: true, idempotent: true });
-    // Written beside the old photo and moved over it, so a crash during a retake keeps the old one.
+    // Written beside the old photo first, so a failed encrypt or write keeps the old one (the move itself replaces it).
     const tmp = new File(dir, `${name}.tmp`);
     tmp.write(await sealed.combined());
     tmp.moveSync(new File(dir, name), { overwrite: true });
