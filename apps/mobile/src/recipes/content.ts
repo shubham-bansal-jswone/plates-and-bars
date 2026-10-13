@@ -117,8 +117,17 @@ export const getLibrary: () => RecipeContent[] = perLoad(() => chosenRecipes().l
 /** content/raw-ingredients.json `ingredients` (prototype `RAW`, `RAW_FIB`, `FATTY`). */
 export const getRawIngredients: () => RawIngredient[] = perLoad(() => chosenRaw().ingredients);
 /**
- * The ingredient names the picker offers: the SHIPPED names only, whichever raw copy is chosen. A saved recipe or kitchen
- * test then never names an ingredient a later copy might drop or reject (core skips a row it cannot find, which would change
- * the saved numbers). Server-added raw rows are validated but not offered until a stored-ingredient snapshot exists.
+ * The ingredient names the picker offers: every name in the CHOSEN raw table, so a server-added ingredient can be picked.
+ * A saved recipe or kitchen test keeps only the name, so a later copy that drops it leaves a row core cannot find (core skips
+ * it): `unknownIngredients` finds those rows, the screens mark them "not counted" and block saving while one is present.
+ * Recipe content rows (presets, library) still use shipped names only, so content never depends on an added ingredient.
  */
-export const getRawNames = (): readonly string[] => shippedNames;
+export const getRawNames: () => readonly string[] = perLoad(() => getRawIngredients().map((i) => i.name));
+/** The shipped ingredient names, whatever raw copy is chosen: the kitchen-test picker offers only these (a saved test keeps just the name and has no not-counted guard). */
+export const getShippedRawNames = (): readonly string[] => shippedNames;
+const knownNames = perLoad(() => new Set(getRawNames()));
+/** The distinct ingredient names in `rows` that the chosen raw table lacks (own lookup in a Set, so no prototype names match). */
+export const unknownIngredients = (rows: readonly { ingredient: string }[]): string[] => {
+  const known = knownNames();
+  return [...new Set(rows.map((r) => r.ingredient).filter((n) => !known.has(n)))];
+};

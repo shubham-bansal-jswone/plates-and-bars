@@ -4,7 +4,7 @@ import { getFoodSources, sourceKey } from '../src/about/sources';
 import { BUNDLED } from '../src/content/bundled';
 import { loadContent } from '../src/content/loader';
 import { putStored, type ContentDb } from '../src/content/store';
-import { chosenRaw, chosenRecipes, getKatoriG, getLibrary, getPresets, getRawIngredients, getRawNames } from '../src/recipes/content';
+import { chosenRaw, chosenRecipes, getKatoriG, getLibrary, getPresets, getRawIngredients, getRawNames, unknownIngredients } from '../src/recipes/content';
 import { openDb } from './sync-helpers';
 
 const LATER = '2099-01-01T00:00:00Z';
@@ -60,7 +60,7 @@ describe('raw ingredients and recipes through the content store', () => {
     expect(rawNames()).not.toContain('Server-only test ingredient');
     await loadContent(db);
     expect(rawNames()).toContain('Server-only test ingredient');
-    expect(getRawNames()).not.toContain('Server-only test ingredient'); // the picker offers shipped names only
+    expect(getRawNames()).toContain('Server-only test ingredient'); // the picker offers the chosen table
     expect(getRawIngredients()).toHaveLength(rawCount + 1);
     expect(getRawIngredients()[0]!.per_100g.kcal).toBe(shippedRaw.ingredients[0].per_100g.kcal + 1);
     expect(libNames()).toContain('Server-only test recipe');
@@ -295,11 +295,13 @@ describe('raw ingredients and recipes through the content store', () => {
     expect(`${'x'.repeat(187)} (home-style)`).toHaveLength(200);
   });
 
-  it('the picker offers only shipped ingredient names, even when a valid copy adds one', async () => {
+  it('the picker offers the chosen table, so a valid copy adds a name; rows naming a missing ingredient are found', async () => {
     await launch({ 'raw-ingredients': rawWith(() => undefined) });
-    expect(rawNames()).toContain('Server-only test ingredient'); // chosen and validated, used by core for totals
+    expect(getRawNames()).toEqual([...shippedRaw.ingredients.map((i: Obj) => i.name), 'Server-only test ingredient']);
+    expect(unknownIngredients([{ ingredient: 'Server-only test ingredient' }, { ingredient: 'Onion' }])).toEqual([]);
+    await launch();
     expect(getRawNames()).toEqual(shippedRaw.ingredients.map((i: Obj) => i.name));
-    expect(getRawNames()).not.toContain('Server-only test ingredient');
+    expect(unknownIngredients([{ ingredient: 'Server-only test ingredient' }, { ingredient: 'Onion' }, { ingredient: 'Server-only test ingredient' }, { ingredient: '__proto__' }, { ingredient: 'toString' }])).toEqual(['Server-only test ingredient', '__proto__', 'toString']);
   });
 
   it.each(recipeCases.filter(([n]) => !/time_min|cost|tags|steps|wrong kind/.test(n)))('presets: a recipe with %s rejects the whole copy', async (_n, mutate) => {
