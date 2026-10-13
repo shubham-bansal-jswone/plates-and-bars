@@ -291,6 +291,20 @@ describe('add and remove exercises (#147)', () => {
     await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toContain('Plank (seconds)'));
   });
 
+  it('a can\'t-do pick that another device added meanwhile keeps its sets, not doubled (#446)', async () => {
+    const { db, result } = await started();
+    const first = result.current.day.exs[0]!.name;
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, exercises: [...w.exercises, { name: 'Dumbbell Bench Press', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], updated_at: '2026-10-08T09:30:00Z' });
+    const mine = (await loadSets(db, DATE))[0]!;
+    const theirs = [0, 1, 2].map((k) => ({ ...mine, id: `other-${k}`, exercise: 'Dumbbell Bench Press', kind: 'work' as const, set_index: k, version: 1, deleted_at: null }));
+    for (const r of theirs) await saveSet(db, DATE, r);
+    await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur: 'today', scope: 'exercise', key: first }, 'Dumbbell Bench Press'));
+    await settle();
+    expect((await live(db, 'Dumbbell Bench Press')).map((s) => s.id).sort()).toEqual(['other-0', 'other-1', 'other-2']);
+    await waitFor(() => expect(result.current.day.exs.find((e) => e.name === 'Dumbbell Bench Press')?.sets).toHaveLength(3));
+  });
+
   it('two can\'t-do swaps in a row: the second replaces the first in place (#445 review)', async () => {
     const { db, result } = await started();
     const first = result.current.day.exs[0]!.name;
