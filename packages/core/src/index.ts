@@ -137,9 +137,10 @@ export type { RecheckBack, CantDuration, CantDraft, CantRule, CantReplacement, C
 /**
  * The "can't do" answer applied to today's workout (#265), over contract `Workout.exercises` and `WorkoutSet`s.
  * - `replaceAt` mirrors the `replaceAt(idx, pick)` step of prototype `applyCant(choice)` (the pick's sets as prototype `newExercise(name)`).
+ * - `newExercise` mirrors prototype `newExercise(name)`: a library exercise added to the session.
  * - `cantSession` mirrors the workout steps of prototype `applyCant(choice)`: the tapped exercise, then `widerRuleReplacements`.
  */
-export { replaceAt, cantSession } from './cant';
+export { replaceAt, cantSession, newExercise } from './cant';
 export type { CantExercise, CantSet, NewCantSet, CantResult, CantLifts } from './cant';
 
 /**
