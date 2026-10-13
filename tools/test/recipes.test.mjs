@@ -123,6 +123,14 @@ test('recipes: unknown ingredient, bad amount, missing steps, bad cost, duplicat
   assert.ok(rec((c) => { c.presets[0].steps = ['x']; }).some((e) => e.includes('unknown field "steps"')));
 });
 
+test('planning: an eat-out dish is not a known food (#342)', () => {
+  const dish = load('eatout.json').cuisines.flatMap((c) => c.dishes).map((d) => d.name).find((n) => !foodNames().has(n));
+  assert.ok(dish);
+  assert.ok(plan((c) => { c.roles[0].food = dish; }).some((e) => e.includes(`roles/${dish}: not a food in foods.json`)));
+  assert.ok(plan((c) => { c.max_portions[dish] = 1; }).some((e) => e.includes(`max_portions.${dish}: not a food in foods.json`)));
+  assert.ok(plan((c) => { c.grocery[0].food = dish; }).some((e) => e.includes(`grocery/${dish}: not a food in foods.json`)));
+});
+
 test('planning: weights must sum to 1, caps need a known food, min may not exceed max, bad grocery rows fail', () => {
   assert.ok(plan((c) => { c.meal_weights.Lunch = 0.5; }).some((e) => e.includes('must sum to 1')));
   assert.ok(plan((c) => { delete c.protein_weights.Snacks; }).some((e) => e.includes('protein_weights must have exactly')));
