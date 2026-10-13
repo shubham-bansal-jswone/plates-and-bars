@@ -76,6 +76,10 @@ export interface ProtoRecipes {
   fitSuggestions(rb: Partial<ProtoRB>): [string, string][];
   /** The `fit-oil` or `fit-soya` case of `food3Action` with `RB` set to `rb`; returns `RB.rows`. */
   fitApply(act: string, rb: Partial<ProtoRB>): ProtoRow[];
+  /** The `cmp` line of `ktResultHtml(d)` with `myFoods` in settings and `foods` as the built-in `FOODS`; '' when there is none. */
+  ktCompare(d: ProtoKitchenTest, myFoods: { name: string; unit?: string; kcal: number }[], foods: [string, string, number][]): string;
+  /** The regex of `cookSheet` applied to a step: the minutes text, or null. */
+  cookMinutes(step: string): string | null;
   /** `ktExport()` on `tests`: the text it copies. */
   ktExport(tests: (ProtoKitchenTest & { date: string; note: string })[]): string;
   /** `ktSave(use)` on `d`, no photo; returns the toast and settings after. */
@@ -125,6 +129,12 @@ export function loadRecipes(): ProtoRecipes {
     sliceBlock(src, 'async function ktSave(use){', '}'),
     sliceBlock(src, 'function fitSuggestions(){', '}'),
     sliceBlock(src, 'function ktExport(){', '}'),
+    sliceBlock(src, 'function ktResultHtml(d){', '}'),
+    sliceLine(src, 'function foodByName('),
+    sliceLine(src, 'function allFoods('),
+    'let FOODS = [];',
+    // cookSheet's own match, cut from its source line.
+    `const cookMinutes = s => { const m = ${sliceLine(src, '  const st = RB.steps').split('s.match(')[1]!.split(');')[0]}.exec(s); return m ? m[1] : null; };`,
     'const esc = s => String(s ?? ""); // the labels hold no markup characters',
     'let CLIP = ""; const navigator = { clipboard:{ writeText: t => { CLIP = t; } } };',
     'function fitApply(a){ switch(a){',
@@ -140,6 +150,8 @@ export function loadRecipes(): ProtoRecipes {
     '    recipeAction(a, { dataset }); return { toast:TOAST, RB:JSON.parse(JSON.stringify(RB)), settings:S.settings, meal:MEAL }; },',
     '  fitSuggestions(rb){ setRB(rb); const h = fitSuggestions(); return [...h.matchAll(/<div class="upg"><span>([^<]*)<\\/span><button class="ghost sm" data-act="([^"]+)">/g)].map(m => [m[2], m[1]]); },',
     '  fitApply(a, rb){ setRB(rb); fitApply(a); return JSON.parse(JSON.stringify(RB.rows)); },',
+    '  ktCompare(d, mine, foods){ S.settings = { myFoods: JSON.parse(JSON.stringify(mine)), recipes:[], kitchen:[] }; FOODS = foods; const h = ktResultHtml(d); const m = /<p class="hint">(The app’s current value[^<]*)<\\/p>/.exec(h); return m ? m[1] : ""; },',
+    '  cookMinutes,',
     '  ktExport(tests){ S.settings = { myFoods:[], recipes:[], kitchen: JSON.parse(JSON.stringify(tests)) }; CLIP = ""; ktExport(); return CLIP; },',
     '  ktCalc,',
     '  ktSave(d, use, myFoods){ S.settings = { myFoods: JSON.parse(JSON.stringify(myFoods)), recipes:[], kitchen:[] }; KT.d = JSON.parse(JSON.stringify(d)); KT.photo = null; TOAST = "";',
