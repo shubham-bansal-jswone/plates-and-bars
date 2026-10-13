@@ -26,6 +26,7 @@ export const SIGN_IN_COPY = {
   consentNeeded: 'To sync, agree that Plate & Bar stores your records on its server. Progress photos, cycle logs and lab reports are never uploaded.',
   agree: 'Agree and sync',
   rejected: 'The server refused the last sync. Update the app, or try again later.',
+  rejectedAfterProgress: 'Some changes synced, but the server refused the rest. They are safe on this device; we will try again later. Update the app if it keeps happening.',
   failed: 'Sync stopped because of a problem on this device. Your records are safe; try again, and update the app if it keeps happening.',
   retrying: 'We could not reach the server. Your changes are safe on this device and we will try again.',
   conflicts: (n: number) => `${n} ${n === 1 ? 'record was' : 'records were'} changed on another device more recently, so that version was kept.`,

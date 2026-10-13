@@ -157,6 +157,12 @@ describe('sign-in screen extras', () => {
     await waitFor(() => expect(holdSchedule).toHaveBeenLastCalledWith(false));
   });
 
+  it('a refusal after some records synced or were set aside does not say to update the app (#401)', async () => {
+    await render(withSync({ signedIn: true, last: { status: 'rejected', conflicts: 0, pushed: 40, quarantined: 1 } }, <SignInScreen />));
+    expect(screen.getByText(/Some changes synced, but the server refused the rest/)).toBeTruthy();
+    expect(screen.queryByText(/server refused the last sync/)).toBeNull();
+  });
+
   it('shows a message for a refused sync and for a local error', async () => {
     await render(withSync({ signedIn: true, last: { status: 'rejected', conflicts: 0 } }, <SignInScreen />));
     expect(screen.getByText(/server refused the last sync/)).toBeTruthy();
