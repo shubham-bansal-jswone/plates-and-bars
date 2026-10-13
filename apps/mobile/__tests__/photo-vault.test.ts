@@ -268,18 +268,17 @@ describe('photo vault wipe extras (#431)', () => {
     expect([...mockFiles.keys()]).toEqual(['cache/plate-and-bar-export.json']);
   });
 
-  it('listeners hear about every wipe, a failed one included', async () => {
+  it('a wipe itself tells no one; announceWipe tells every listener until it unsubscribes', async () => {
     const v = load('android');
     const heard = jest.fn();
     const off = v.onPhotosWiped(heard);
     await v.wipePhotos();
-    mockFail.dirDelete = true;
-    await v.putPhoto('2026-10-01', 'front', JPEG);
-    await expect(v.wipePhotos()).rejects.toThrow('busy');
+    expect(heard).not.toHaveBeenCalled(); // guard.ts announces, after the wipe marker is cleared
+    v.announceWipe(true);
+    v.announceWipe(false);
     expect(heard.mock.calls).toEqual([[true], [false]]);
     off();
-    mockFail.dirDelete = false;
-    await v.wipePhotos();
+    v.announceWipe(true);
     expect(heard).toHaveBeenCalledTimes(2);
   });
 });

@@ -42,10 +42,17 @@ const deleteFolder = () => deleteDir(folder);
 const CAPTURE_CACHES = ['ImagePicker', 'ImageManipulator'];
 
 const wipeListeners = new Set<(ok: boolean) => void>();
-/** Called after every wipe with whether it succeeded, so a screen showing photos drops them at once. Returns the unsubscribe. */
+/**
+ * Called after every owed wipe (guard.ts `finishPhotoWipe`) with whether it fully succeeded, marker cleared included,
+ * so a screen showing photos drops them at once. Returns the unsubscribe.
+ */
 export function onPhotosWiped(listener: (ok: boolean) => void): () => void {
   wipeListeners.add(listener);
   return () => void wipeListeners.delete(listener);
+}
+/** Tells the listeners an owed wipe ended. Only guard.ts calls this, after the wipe marker is cleared (or not). */
+export function announceWipe(ok: boolean): void {
+  wipeListeners.forEach((f) => f(ok));
 }
 
 let key: AESEncryptionKey | null = null;
@@ -120,7 +127,7 @@ export function photoDates(): Promise<string[]> {
  * whatever is left after a failure is unreadable. Callers keep a pending marker until this resolves (see guard.ts).
  */
 export function wipePhotos(): Promise<void> {
-  const run = lock.run(async () => {
+  return lock.run(async () => {
     memory.clear();
     if (!native) return;
     key = null;
@@ -128,10 +135,4 @@ export function wipePhotos(): Promise<void> {
     deleteFolder();
     for (const name of CAPTURE_CACHES) deleteDir(() => new Directory(Paths.cache, name));
   });
-  const tell = (ok: boolean) => wipeListeners.forEach((f) => f(ok));
-  run.then(
-    () => tell(true),
-    () => tell(false),
-  );
-  return run;
 }

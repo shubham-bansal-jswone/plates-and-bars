@@ -85,13 +85,11 @@ export function usePhotos({ db, date }: { db: StoreDb; date: string }): Photos {
   const pairKey = dates.length >= 2 && a && b ? `${a}|${b}|${sel.pose}|${load}` : null;
   useEffect(() => {
     if (!pairKey || !a || !b) return;
-    let live = true;
-    const gen = generation.current;
-    const current = () => live && gen === generation.current;
+    let live = true; // a wipe changes pairKey (it reloads), so an older pair is never returned
     (async () => {
       const [pa, pb] = await Promise.all([getPhoto(a, sel.pose), getPhoto(b, sel.pose)]);
-      if (current()) setPair({ key: pairKey, a: uri(pa), b: uri(pb) });
-    })().catch(() => current() && setPair({ key: pairKey, a: null, b: null }));
+      if (live) setPair({ key: pairKey, a: uri(pa), b: uri(pb) });
+    })().catch(() => live && setPair({ key: pairKey, a: null, b: null }));
     return () => {
       live = false;
     };

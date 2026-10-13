@@ -231,6 +231,15 @@ describe('progress photos, review on #431', () => {
     expect(mockStore.size).toBe(1);
   });
 
+  it('a wipe closes an open check-in sheet so it never reappears for the next user', async () => {
+    await show();
+    await fireEvent.press(await screen.findByLabelText('New photo check-in'));
+    expect(await screen.findByLabelText('Choose front')).toBeTruthy();
+    await act(async () => mockVault.wiped.forEach((f) => f(true)));
+    await screen.findByLabelText('New photo check-in');
+    expect(screen.queryByLabelText('Choose front')).toBeNull();
+  });
+
   it('a second tap while the picker is opening does not open another', async () => {
     let done: (v: string | null) => void = () => {};
     mockCapture.mockImplementation(() => new Promise((r) => (done = r)));

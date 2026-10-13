@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Modal, PanResponder, Platform, ScrollView, StyleSheet, View, type ImageStyle } from 'react-native';
 import { measureAt, round1, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -28,7 +28,7 @@ import {
   POSE_LABEL,
 } from './copy';
 import { usePhotos, type Photos } from './usePhotos';
-import { POSES, persistent, type Pose } from './vault';
+import { POSES, onPhotosWiped, persistent, type Pose } from './vault';
 import type { StoreDb } from '../db/records';
 
 interface Props {
@@ -45,6 +45,15 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
   const ph = usePhotos({ db, date });
   const [sheet, setSheet] = useState(false);
   const [armed, setArmed] = useState<string | null>(null);
+  // A wipe closes the sheet and forgets a half-done delete: neither may reappear in front of the next user.
+  useEffect(
+    () =>
+      onPhotosWiped(() => {
+        setSheet(false);
+        setArmed(null);
+      }),
+    [],
+  );
   const caption = (d: string) => {
     const w = weeklyAvg(weights, d);
     const waist = measureAt(tapes, 'waist_cm', d);
