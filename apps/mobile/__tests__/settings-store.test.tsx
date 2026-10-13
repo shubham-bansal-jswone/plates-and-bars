@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
-import { CUSTOM_TAGS_MAX, SettingsProvider, useSettings } from '../src/state/SettingsProvider';
+import { CUSTOM_EXERCISES_MAX } from '@plate-and-bar/core';
+import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { getCatalog, setCustomTags } from '../src/workout/catalog';
 import { memoryDb } from './helpers';
 
@@ -87,7 +88,7 @@ describe('settings store', () => {
       await act(async () => void (ok = result.current.addCustomTags('Mine', tag)));
       expect(ok).toBe(true);
       expect(getCatalog().tags.Mine).toEqual(tag);
-      const full = Object.fromEntries(Array.from({ length: CUSTOM_TAGS_MAX }, (_, i) => [`E${i}`, tag]));
+      const full = Object.fromEntries(Array.from({ length: CUSTOM_EXERCISES_MAX }, (_, i) => [`E${i}`, tag]));
       await act(async () => void result.current.update({ custom_tags: full }));
       await act(async () => void (ok = result.current.addCustomTags('One too many', tag)));
       expect(ok).toBe(false);

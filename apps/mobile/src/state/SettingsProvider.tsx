@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../db/settings';
 import type { StoreDb } from '../db/records';
-import type { ExerciseTag, FlexEntry, MealPlan } from '@plate-and-bar/core';
+import { CUSTOM_EXERCISES_MAX, type ExerciseTag, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 import { setCustomTags } from '../workout/catalog';
 
@@ -28,8 +28,6 @@ interface SettingsState {
 }
 
 const Ctx = createContext<SettingsState | null>(null);
-/** Most custom exercises the contract accepts (`Settings.custom_tags` maxProperties). */
-export const CUSTOM_TAGS_MAX = 500;
 const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /**
@@ -98,7 +96,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
     (name: string, tags: ExerciseTag) => {
       const have = ref.current.custom_tags;
       // The contract keeps at most 500 custom exercises; replacing one already there is always fine.
-      if (!Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_TAGS_MAX) return false;
+      if (!Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_EXERCISES_MAX) return false;
       return change((s) => ({ custom_tags: { ...s.custom_tags, [name]: tags } }));
     },
     [change],
