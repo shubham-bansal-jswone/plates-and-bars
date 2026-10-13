@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { num, type UserFoodFields } from '@plate-and-bar/core';
+import { num, type KitchenCompareFood, type UserFoodFields } from '@plate-and-bar/core';
 import { trackWrite } from '../db/pendingWrites';
+import { loadUserFoods } from '../db/food';
 import { loadKitchenTests, saveKitchenTest } from '../db/kitchenTests';
 import type { WorkoutDb } from '../db/workouts';
 import { saveFood } from '../recipes/useRecipes';
@@ -34,10 +35,16 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [tests, setTests] = useState<KitchenTest[]>([]);
+  // My foods, for "the app's current value" next to a weighed dish; a read that fails leaves the comparison out.
+  const [mine, setMine] = useState<KitchenCompareFood[]>([]);
   const queue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let live = true;
+    loadUserFoods(db).then(
+      (f) => live && setMine(f.map(({ name, unit, kcal }) => ({ name, unit, kcal }))),
+      () => undefined,
+    );
     loadKitchenTests(db).then(
       (t) => {
         if (!live) return;
@@ -61,6 +68,7 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
         .then(async () => {
           await write();
           setTests(await loadKitchenTests(db));
+          setMine((await loadUserFoods(db)).map(({ name, unit, kcal }) => ({ name, unit, kcal })));
         })
         .catch(() => notify(SAVE_FAILED));
       trackWrite(queue.current);
@@ -111,5 +119,5 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
   );
 
   const idle = useCallback(() => queue.current, []);
-  return { ready, failed, tests, save, remove, idle };
+  return { ready, failed, tests, mine, save, remove, idle };
 }

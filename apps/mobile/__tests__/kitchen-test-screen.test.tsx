@@ -1,13 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { kitchenTest } from '@plate-and-bar/core';
+import * as Clipboard from 'expo-clipboard';
+import { kitchenTable, kitchenTest } from '@plate-and-bar/core';
 import { KitchenTestScreen } from '../src/screens/KitchenTestScreen';
 import { fmt } from '../src/format';
+import { getFoodCatalog } from '../src/food/catalog';
 import { getRawIngredients } from '../src/recipes/content';
 import { loadKitchenTests } from '../src/db/kitchenTests';
 import { loadUserFoods } from '../src/db/food';
 import { pendingWrites } from '../src/db/pendingWrites';
 import { memoryDb } from './helpers';
 
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
@@ -227,5 +230,95 @@ describe('Kitchen test screen', () => {
     expect(screen.getByText(/1 Oct, \d+ kcal per piece \(50 g\), Mom’s/)).toBeTruthy();
     expect(screen.queryByText('Bad')).toBeNull();
     expect(screen.queryByText('Gone')).toBeNull();
+  });
+});
+
+describe('Kitchen test screen: comparison with the app value', () => {
+  const line = (food: string, unit: string, kcal: number, diff: number) =>
+    `The app’s current value for ${food} (${unit}) is ${fmt(kcal)} kcal; your dish is ${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))} kcal per serving.`;
+  const perServing = () => {
+    const r = core(250);
+    if (!r.ready || !r.perServing) throw new Error('core not ready');
+    return r.perServing.kcal;
+  };
+
+  it('compares the serving with the built-in food of that name, as core does', async () => {
+    await setup();
+    await start();
+    await fill();
+    const dal = getFoodCatalog().find((f) => f.name === 'Dal')!;
+    expect(screen.getByText(line('Dal', dal.serving.label, dal.per_serving.kcal, perServing() - dal.per_serving.kcal))).toBeTruthy();
+  });
+
+  it('looks in my foods first, ignoring case, and says minus when the dish has less', async () => {
+    const db = memoryDb();
+    db.rows.set('user_foods:mine', JSON.stringify({ id: 'mine', version: 1, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, name: 'DAL', unit: '1 bowl', kcal: 900, protein_g: 1, carbs_g: 1, fat_g: 1, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' }));
+    await setup(db);
+    await start();
+    await fill();
+    expect(await screen.findByText(line('DAL', '1 bowl', 900, perServing() - 900))).toBeTruthy();
+  });
+
+  it('shows nothing for a dish with no food of that name, or without a serving', async () => {
+    await setup();
+    await start();
+    await fill();
+    await fireEvent.changeText(screen.getByLabelText('Dish'), 'Grandma’s special');
+    expect(screen.queryByText(/The app’s current value/)).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Dish'), 'Dal');
+    expect(screen.getByText(/The app’s current value for Dal/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('One serving (g)'), '');
+    expect(screen.queryByText(/The app’s current value/)).toBeNull();
+  });
+});
+
+describe('Kitchen test screen: copy all as a table', () => {
+  const save = async (name: string, cooked: string) => {
+    await start();
+    await fireEvent.changeText(screen.getByLabelText('Dish'), name);
+    await fireEvent.changeText(screen.getByLabelText('Amount for ingredient 1'), '100');
+    await fireEvent.changeText(screen.getByLabelText('Or cooked weight directly (g)'), cooked);
+    await fireEvent.changeText(screen.getByLabelText('One serving (g)'), '100');
+    await fireEvent.press(screen.getByLabelText('Save test'));
+    await screen.findByRole('header', { name: 'Kitchen tests' });
+  };
+  const open = async () => {
+    const db = memoryDb();
+    let minute = 0;
+    await render(<KitchenTestScreen db={db} onBack={jest.fn()} now={() => new Date(2026, 9, 8, 10, minute++, 0)} />);
+    await screen.findByRole('header', { name: 'Kitchen tests' });
+  };
+  beforeEach(() => jest.mocked(Clipboard.setStringAsync).mockReset().mockResolvedValue(true));
+
+  it('has no button until a test is saved', async () => {
+    await setup();
+    expect(screen.queryByLabelText('Copy all as a table')).toBeNull();
+  });
+
+  it('copies core’s table, oldest test first, and says so', async () => {
+    await open();
+    await save('Dal', '300');
+    await save('Rice', '250');
+    await fireEvent.press(screen.getByLabelText('Copy all as a table'));
+    const mk = (name: string, cooked: number) => ({ name, date: '2026-10-08', note: '', serving_name: 'katori', ingredients: [{ ingredient: 'Toor dal (dry)', amount: 100, unit: 'g' }], pot_g: null, pot_full_g: null, cooked_g: cooked, serving_g: 100 });
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(kitchenTable([mk('Dal', 300), mk('Rice', 250)], getRawIngredients()));
+    expect(await screen.findByText('Copied. Paste into a spreadsheet.')).toBeTruthy();
+  });
+
+  it('says so when the clipboard refuses', async () => {
+    await open();
+    await save('Dal', '300');
+    jest.mocked(Clipboard.setStringAsync).mockResolvedValue(false);
+    await fireEvent.press(screen.getByLabelText('Copy all as a table'));
+    expect(await screen.findByText('Couldn’t copy on this device')).toBeTruthy();
+    expect(screen.queryByText('Copied. Paste into a spreadsheet.')).toBeNull();
+  });
+
+  it('says so when the clipboard throws', async () => {
+    await open();
+    await save('Dal', '300');
+    jest.mocked(Clipboard.setStringAsync).mockRejectedValue(new Error('no'));
+    await fireEvent.press(screen.getByLabelText('Copy all as a table'));
+    expect(await screen.findByText('Couldn’t copy on this device')).toBeTruthy();
   });
 });
