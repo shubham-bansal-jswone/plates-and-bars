@@ -453,6 +453,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   };
 
   const rampRated = (i: number, j: number, value: Rate | null) => {
+    let rows: string[] = [];
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
@@ -464,9 +465,10 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         const r = rampRate(ex.ramp, j, value, info);
         ex.found = r.found;
         if (r.addSet) ex.ramp.push(blankRow());
+        rows = ids(ex.ramp); // the rows this action touched, fixed now (not whatever is there when the write runs)
       },
       async (name) => {
-        await writeSets(name, 'ramp', ids(exNamed(name)?.ramp ?? []));
+        await writeSets(name, 'ramp', rows);
         await writeWorkout();
       },
     );
