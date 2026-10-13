@@ -391,6 +391,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       (ex) => {
         if (ex.sets.length <= 1) return false;
         gone = ex.sets.pop();
+        notify('Set removed'); // announced: the button may disappear with it (one set left)
       },
       async () => {
         if (!gone) return;

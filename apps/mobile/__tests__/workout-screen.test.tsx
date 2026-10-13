@@ -166,6 +166,7 @@ describe('Workout tab: logging sets', () => {
     for (let k = n + 1; k > 1; k--) await press('Remove the last set of Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(1));
     expect(screen.queryByLabelText('Remove the last set of Barbell Bench Press')).toBeNull();
+    expect(screen.getByText('Set removed')).toBeTruthy();
   });
 
   it('shows core’s suggestion, target and warm-up line', async () => {
