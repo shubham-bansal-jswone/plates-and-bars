@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRaw, validateRecipes, validatePlanning } from '../validate/recipes.mjs';
 import { extractRecipeData, importAll, serialize, idFor, SOURCE_OVERRIDE } from '../recipes-import/import.mjs';
@@ -123,12 +125,28 @@ test('recipes: unknown ingredient, bad amount, missing steps, bad cost, duplicat
   assert.ok(rec((c) => { c.presets[0].steps = ['x']; }).some((e) => e.includes('unknown field "steps"')));
 });
 
-test('planning: an eat-out dish is not a known food (#342)', () => {
+test('planning: the validator rejects a name that is not in the food names it is given, such as an eat-out dish (#342)', () => {
   const dish = load('eatout.json').cuisines.flatMap((c) => c.dishes).map((d) => d.name).find((n) => !foodNames().has(n));
   assert.ok(dish);
   assert.ok(plan((c) => { c.roles[0].food = dish; }).some((e) => e.includes(`roles/${dish}: not a food in foods.json`)));
   assert.ok(plan((c) => { c.max_portions[dish] = 1; }).some((e) => e.includes(`max_portions.${dish}: not a food in foods.json`)));
   assert.ok(plan((c) => { c.grocery[0].food = dish; }).some((e) => e.includes(`grocery/${dish}: not a food in foods.json`)));
+});
+
+test('recipes CLI: known planning foods are foods.json names only, so an eat-out dish fails (#342)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'recipes-cli-'));
+  try {
+    for (const f of ['raw-ingredients.json', 'recipes.json', 'foods.json', 'eatout.json']) copyFileSync(`${repo}/content/${f}`, `${dir}/${f}`);
+    const dish = load('eatout.json').cuisines.flatMap((c) => c.dishes).map((d) => d.name).find((n) => !foodNames().has(n));
+    const planning = load('meal-planning.json');
+    planning.roles[0].food = dish;
+    writeFileSync(`${dir}/meal-planning.json`, JSON.stringify(planning));
+    const r = spawnSync(process.execPath, [`${repo}/tools/validate/recipes-cli.mjs`, dir], { encoding: 'utf8' });
+    assert.equal(r.status, 1);
+    assert.ok(r.stderr.includes(`meal-planning.json: roles/${dish}: not a food in foods.json`), r.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('planning: weights must sum to 1, caps need a known food, min may not exceed max, bad grocery rows fail', () => {
