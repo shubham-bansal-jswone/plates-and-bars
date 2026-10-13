@@ -1,12 +1,14 @@
+import { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Heading, Hint } from '../components/ui';
+import { Button, Field, Heading, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { Chip } from './parts';
 
 /** "Add exercise" (prototype `openExerciseSheet`): the exercise library by group, without the exercises already in the session. */
-export function AddExerciseSheet({ inSession, onPick, onClose }: { inSession: readonly string[]; onPick: (name: string) => void; onClose: () => void }) {
+export function AddExerciseSheet({ inSession, onPick, onCustom, onClose }: { inSession: readonly string[]; onPick: (name: string) => void; /** A typed name (prototype `exCustom`). */ onCustom: (name: string) => void; onClose: () => void }) {
   const c = useTheme();
+  const [typed, setTyped] = useState('');
   const have = new Set(inSession);
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -16,6 +18,12 @@ export function AddExerciseSheet({ inSession, onPick, onClose }: { inSession: re
             Add exercise
           </Heading>
           <Hint>It goes at the end of today’s session.</Hint>
+          <View style={styles.own}>
+            <View style={{ flex: 1 }}>
+              <Field label="Your own exercise" placeholder="Or type your own" value={typed} onChangeText={setTyped} />
+            </View>
+            <Button label="Add" a11yLabel="Add the exercise you typed" kind="ghost" onPress={() => onCustom(typed)} />
+          </View>
           {Object.entries(getCatalog().library).map(([group, names]) => {
             const left = names.filter((n) => !have.has(n));
             return left.length ? (
@@ -43,4 +51,5 @@ const styles = StyleSheet.create({
   body: { gap: 12 },
   group: { gap: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  own: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
 });
