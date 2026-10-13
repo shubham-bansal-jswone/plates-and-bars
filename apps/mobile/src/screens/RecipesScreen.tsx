@@ -7,9 +7,9 @@ import { Button, ErrorText, Field, Hint, H1, Label, Page, Press } from '../compo
 import { fmt } from '../format';
 import type { WorkoutDb } from '../db/workouts';
 import { MEALS, type Meal } from '../food/types';
-import { getKatoriG, getLibrary, getPresets, getRawIngredients } from '../recipes/content';
+import { getKatoriG, getLibrary, getPresets, getRawIngredients, unknownIngredients } from '../recipes/content';
 import { CookMode } from '../recipes/CookMode';
-import { LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT } from '../recipes/copy';
+import { LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT, unknownBlock } from '../recipes/copy';
 import { blankDraft, fromLibrary, fromPreset, fromRecipe, type Draft } from '../recipes/draft';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { useRecipes } from '../recipes/useRecipes';
@@ -60,6 +60,8 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
   const yieldFields = { yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams };
   const t = recipeTotals({ ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
   const save = (log: boolean) => {
+    const unknown = unknownIngredients(d.rows);
+    if (unknown.length) return notify(unknownBlock(unknown));
     const r = recipeFood({ name: d.name, ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
     if (r.kind !== 'ok') return notify(problem(r));
     store.save({ result: r, yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams, oil: d.oil, editing: d.editing, log: log ? { meal: d.meal, qty: d.log } : null });

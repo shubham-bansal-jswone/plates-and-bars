@@ -145,6 +145,26 @@ describe('Recipes screen: builder', () => {
     expect(screen.queryByLabelText('Broken')).toBeNull();
   });
 
+  it('marks a saved row whose ingredient the table lacks as not counted and blocks saving until it is changed', async () => {
+    const db = memoryDb();
+    const rec = { id: 'r1', version: 1, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, name: 'Old one', ingredients: [{ ingredient: 'Onion', amount: 50, unit: 'g' }, { ingredient: 'Gone ingredient', amount: 80, unit: 'g' }], yield_mode: 'katori', katoris: 2, cooked_g: null, oil: 'low' };
+    db.rows.set('recipes:r1', JSON.stringify(rec));
+    await setup(db);
+    await fireEvent.press(screen.getByLabelText('Old one'));
+    expect(screen.getByText('Gone ingredient: not in the ingredient table, not counted')).toBeTruthy();
+    expect(screen.getByLabelText('Ingredient 2: Gone ingredient, not in the ingredient table, not counted. Tap to change')).toBeTruthy();
+    expect(screen.queryByText('Onion: not in the ingredient table, not counted')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Save only'));
+    expect(await screen.findByText('Gone ingredient is not in the ingredient table, not counted. Pick another ingredient or remove the row to save.')).toBeTruthy();
+    expect(stored(db, 'recipes')).toEqual([rec]);
+    expect(stored(db, 'user_foods')).toHaveLength(0);
+    // Removing the row clears the mark and saving works.
+    await fireEvent.press(screen.getByLabelText('Remove ingredient 2'));
+    expect(screen.queryByText('Gone ingredient: not in the ingredient table, not counted')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Save only'));
+    await waitFor(() => expect(stored(db, 'user_foods')).toHaveLength(1));
+  });
+
   it('opens the kitchen tests', async () => {
     const onKitchen = jest.fn();
     await setup(memoryDb(), jest.fn(), onKitchen);
