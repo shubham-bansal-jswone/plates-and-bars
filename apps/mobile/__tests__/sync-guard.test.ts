@@ -9,6 +9,21 @@ import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
+// The photo vault is wiped whenever the store is (ADR 004, #251); its own behaviour is in photo-vault.test.ts.
+const mockVault = { wipes: 0, failNext: false };
+jest.mock('../src/photos/vault', () => ({
+  wipePhotos: async () => {
+    if (mockVault.failNext) {
+      mockVault.failNext = false;
+      throw new Error('disk');
+    }
+    mockVault.wipes++;
+  },
+}));
+beforeEach(() => {
+  mockVault.wipes = 0;
+  mockVault.failNext = false;
+});
 
 const USER_A = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const USER_B = '0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f';
@@ -58,6 +73,7 @@ describe('sign-out and account switch guard (#31)', () => {
     expect((await syncOnce({ db, api, tokens })).status).toBe('signed_out');
     expect(server.calls).toHaveLength(callsBefore);
     expect(server.get('weights', id)).toBeUndefined();
+    expect(mockVault.wipes).toBe(0); // refused: A's photos stay with A's store
   });
 
   it('signing in as the previous user again pushes the queue', async () => {
@@ -86,6 +102,26 @@ describe('sign-out and account switch guard (#31)', () => {
     expect(await getUserId(db)).toBe(USER_B);
     expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.flag'")).not.toBeNull();
     expect(tokens.current?.access).toBe(`access-of-${USER_B}`);
+    expect(mockVault.wipes).toBe(1);
+  });
+
+  it('a photo wipe that fails after the store wipe stays owed and is done before the next sign-in binds anyone', async () => {
+    const db = await openDb();
+    const tokens = memoryTokens();
+    await setKv(db, KEY_USER, USER_A);
+    await db.runAsync('DELETE FROM sync_outbox');
+    mockVault.failNext = true;
+    await expect(acceptTokenPair(db, tokens, pair(USER_B))).rejects.toThrow('disk');
+    // The store is wiped and unbound, B holds no tokens, and A's photos are still owed a wipe.
+    expect(await getUserId(db)).toBeNull();
+    expect(tokens.current).toBeNull();
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.photos_wipe_pending'")).not.toBeNull();
+    expect(mockVault.wipes).toBe(0);
+    // Nothing is bound now, so B's next sign-in is not an account switch: the owed wipe still happens first.
+    expect(await acceptTokenPair(db, tokens, pair(USER_B))).toEqual({ kind: 'signed_in', wiped: false });
+    expect(mockVault.wipes).toBe(1);
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.photos_wipe_pending'")).toBeNull();
+    expect(await getUserId(db)).toBe(USER_B);
   });
 
   it('sign-out is blocked while changes are unsynced; discarding wipes them and the outbox', async () => {
@@ -96,7 +132,9 @@ describe('sign-out and account switch guard (#31)', () => {
     await saveWeightDoc(db, w('2026-10-09'));
     expect(await signOut(db, tokens)).toBe(2);
     expect(tokens.current).not.toBeNull();
+    expect(mockVault.wipes).toBe(0);
     expect(await signOut(db, tokens, { discard: true })).toBe(0);
+    expect(mockVault.wipes).toBe(1);
     expect(tokens.current).toBeNull();
     expect(await pendingCount(db)).toBe(0);
     expect(await db.getFirstAsync('SELECT key FROM weights')).toBeNull();
@@ -110,5 +148,6 @@ describe('sign-out and account switch guard (#31)', () => {
     expect(await signOut(db, tokens)).toBe(0);
     expect(tokens.current).toBeNull();
     expect(await getUserId(db)).toBe(USER_A);
+    expect(mockVault.wipes).toBe(0);
   });
 });

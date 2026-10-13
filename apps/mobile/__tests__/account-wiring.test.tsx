@@ -4,7 +4,7 @@ import { createClient } from '@plate-and-bar/api';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider, useSync, type SyncState } from '../src/sync/SyncProvider';
-import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from '../src/sync/store';
+import { KEY_PHOTOS_WIPE, KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from '../src/sync/store';
 import { fakeServer, memoryTokens, openDb } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -12,6 +12,8 @@ jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 jest.mock('expo-sqlite', () => ({ useSQLiteContext: () => null }));
 const mockClear = jest.fn();
 jest.mock('../src/account/saveFile', () => ({ RECENT_EXPORT_MS: 600000, clearOldExports: (...a: unknown[]) => mockClear(...a) }));
+const mockVault = { wipes: 0 };
+jest.mock('../src/photos/vault', () => ({ wipePhotos: async () => void mockVault.wipes++ }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), back: jest.fn(), canGoBack: () => true }) }));
 
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
@@ -50,9 +52,31 @@ async function mount(opts: { bound?: boolean; tokens?: boolean; marker?: boolean
   return { db, server, tokens };
 }
 
-beforeEach(() => mockClear.mockClear());
+beforeEach(() => {
+  mockClear.mockClear();
+  mockVault.wipes = 0;
+});
 
 describe('SyncProvider account wiring (#27)', () => {
+  it('on launch an owed photo wipe (it failed or the app was closed) is finished (#251)', async () => {
+    const db = await openDb();
+    await setKv(db, KEY_PHOTOS_WIPE, '1');
+    const tokens = memoryTokens(null);
+    await render(
+      <SyncProvider db={db} tokens={tokens} api={createClient(API, async () => null)}>
+        <Probe />
+      </SyncProvider>,
+    );
+    await waitFor(() => expect(mockVault.wipes).toBe(1));
+    await waitFor(async () => expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.photos_wipe_pending'")).toBeNull());
+  });
+
+  it('on launch with no owed photo wipe the vault is left alone', async () => {
+    await mount({ bound: true });
+    await waitFor(() => expect(now().linked).toBe(true));
+    expect(mockVault.wipes).toBe(0);
+  });
+
   it('linked comes from the stored user id on load, with or without tokens', async () => {
     await mount({ bound: true });
     await waitFor(() => expect(now().linked).toBe(true));
