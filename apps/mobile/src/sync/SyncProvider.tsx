@@ -7,7 +7,7 @@ import { AiProvider } from '../ai/AiProvider';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
 import { syncOnce, type SyncDb, type SyncResult } from './engine';
-import { discardAll, signOut as guardedSignOut } from './guard';
+import { completePhotoWipe, discardAll, signOut as guardedSignOut } from './guard';
 import { discardQuarantined, quarantineCount, retryQuarantined } from './quarantine';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
@@ -147,6 +147,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         setWipePending(true);
         if (live) await afterDelete(await deleteEverything({ db, api, tokens }));
       }
+      await completePhotoWipe(db).catch(() => undefined); // still owed after a failure: retried at sign-in and on the photos screen
       await refreshPending();
     })().catch(() => undefined);
     return () => {

@@ -4,6 +4,8 @@ import type { StoreDb } from '../db/records';
 export const KEY_USER = 'sync.user_id';
 /** Device-only (not `sync.`, so sign-out and sync wipes keep it): the account of this user id was deleted on the server and the device wipe is still to do. Removed by the forced wipe. */
 export const KEY_SERVER_DELETED = 'device.server_deleted';
+/** Set in the same transaction as a store wipe and cleared once the photo vault is wiped too (#251). */
+export const KEY_PHOTOS_WIPE = 'device.photos_wipe_pending';
 export const KEY_CURSOR = 'sync.cursor';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 

@@ -3,8 +3,9 @@ import { SYNC_TABLES, inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from './store';
+import { KEY_PHOTOS_WIPE, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { wipePhotos } from '../photos/vault';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
 // another user's token and never dropped without an explicit choice.
@@ -35,7 +36,8 @@ export async function withSyncPaused<T>(f: () => Promise<T>): Promise<T> {
  * sync bookkeeping. Other device-only flags in `settings` stay, except that a forced wipe also removes the pending-wipe
  * marker (`device.server_deleted`), since what it stands for is done. Unless `force`, it counts the unsynced changes in the same
  * transaction and wipes nothing when there are any; the count is returned (0 means wiped).
- * TODO(#251, photo vault): the encrypted progress-photo vault must be wiped here too once it exists (ADR 004).
+ * The progress-photo vault (files and key) is wiped right after, whenever the store was (ADR 004, #251). A marker written
+ * in the same transaction keeps that wipe owed if it fails or the app dies first; `finishPhotoWipe` pays it.
  */
 /** Thrown by `wipeLocalStore` when `expectUser` no longer owns the store: someone else signed in meanwhile, nothing was wiped. */
 export class OwnerChanged extends Error {}
@@ -50,10 +52,26 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     await txn.runAsync('DELETE FROM sync_outbox');
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
+    await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", KEY_PHOTOS_WIPE);
     pending = 0;
   });
+  if (pending === 0) await finishPhotoWipe(db);
   return pending;
 }
+
+/**
+ * Wipes the photo vault if a store wipe left that owed (its marker is set). Runs after every store wipe and before a
+ * sign-in binds a user, so photos never outlive the store they belonged to. Callers hold the account lock; from outside
+ * an account operation use `completePhotoWipe`.
+ */
+async function finishPhotoWipe(db: Db): Promise<void> {
+  if (!(await getKv(db, KEY_PHOTOS_WIPE))) return;
+  await wipePhotos();
+  await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_PHOTOS_WIPE);
+}
+
+/** `finishPhotoWipe` under the account lock: at launch, and before the photos screen reads or writes the vault. */
+export const completePhotoWipe = (db: Db): Promise<void> => withSyncPaused(() => finishPhotoWipe(db));
 
 export type SignInOutcome =
   /** Tokens saved; the store belongs to this user. `wiped` when a previous user's empty store was cleared first. */
@@ -69,6 +87,7 @@ export type SignInOutcome =
  */
 export async function acceptTokenPair(db: Db, tokens: TokenStore, pair: Pick<Schemas['TokenPair'], 'access_token' | 'refresh_token' | 'user'>): Promise<SignInOutcome> {
   return withSyncPaused(async () => {
+    await finishPhotoWipe(db); // a wipe that did not finish before is completed before anyone is bound
     const bound = await getUserId(db);
     let wiped = false;
     if (bound && bound !== pair.user.id) {
