@@ -1,9 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { presetIngredients, recipeTotals } from '@plate-and-bar/core';
+import { applyFit, fitSuggestions, presetIngredients, recipeTotals, stepMinutes } from '@plate-and-bar/core';
 import { RecipesScreen } from '../src/screens/RecipesScreen';
 import { fmt } from '../src/format';
 import { getKatoriG, getLibrary, getPresets, getRawIngredients } from '../src/recipes/content';
-import { stepMinutes } from '../src/recipes/CookMode';
 import { loadRecipes } from '../src/db/recipes';
 import { loadUserFoods } from '../src/db/food';
 import { memoryDb } from './helpers';
@@ -234,5 +233,54 @@ describe('Recipes screen: library and cooking mode', () => {
     await fireEvent.press(screen.getByLabelText('Start 3-minute timer'));
     await act(async () => void jest.advanceTimersByTime(181000));
     expect(screen.getByText('Timer done')).toBeTruthy();
+  });
+});
+
+describe('Recipes screen: make it fit', () => {
+  const oilLine = /^Use half the oil or ghee: about −\d+ kcal per katori$/;
+  const soyaLine = /^Add 50 g soya chunks: about \+\d+ g protein per katori$/;
+
+  it('suggests what core says for Dal with rich ghee, and Apply changes the rows and the numbers', async () => {
+    await setup();
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    // Normal ghee saves too little to suggest; the soya line shows (a vegetarian recipe under 12 g protein a katori).
+    expect(screen.queryByText(oilLine)).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Rich'));
+    const dal = getPresets().find((p) => p.name === 'Dal')!;
+    const rows = presetIngredients(dal.ingredients, 'rich', getRawIngredients()).map((r) => ({ ...r, amount: String(r.amount) }));
+    const want = fitSuggestions({ ingredients: rows, yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
+    expect(want.map((s) => s.kind)).toEqual(['fit-oil', 'fit-soya']);
+    expect(screen.getByText('Make it fit')).toBeTruthy();
+    expect(screen.getByText(oilLine)).toBeTruthy();
+    expect(screen.getByText(soyaLine)).toBeTruthy();
+
+    const before = recipeTotals({ ingredients: rows, yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
+    const gheeAt = rows.findIndex((r) => r.ingredient === 'Ghee');
+    await fireEvent.press(screen.getByLabelText(/^Apply: Use half the oil or ghee/));
+    expect(screen.getByDisplayValue(String(Math.round(Number(rows[gheeAt]!.amount) / 2)))).toBeTruthy();
+    const halved = applyFit('fit-oil', rows, getRawIngredients());
+    const after = recipeTotals({ ingredients: halved, yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
+    expect(after.total.kcal).toBeLessThan(before.total.kcal);
+    expect(screen.getByText(new RegExp(`^Whole pot: ${fmt(after.total.kcal)} kcal`))).toBeTruthy();
+    expect(screen.queryByText(oilLine)).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText(/^Apply: Add 50 g soya chunks/));
+    expect(screen.getByLabelText(`Ingredient ${halved.length + 1}: Soya chunks. Tap to change`)).toBeTruthy();
+    expect(screen.getByDisplayValue('50')).toBeTruthy();
+    expect(screen.queryByText('Make it fit')).toBeNull();
+  });
+
+  it('shows nothing for a recipe that already fits', async () => {
+    await setup();
+    await fireEvent.press(screen.getByLabelText('Egg bhurji'));
+    expect(screen.queryByText('Make it fit')).toBeNull();
+  });
+
+  it('shows nothing until the recipe has a yield', async () => {
+    await setup();
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Rich'));
+    await fireEvent.changeText(screen.getByLabelText('Number of katoris'), '0');
+    expect(screen.queryByText('Make it fit')).toBeNull();
   });
 });
