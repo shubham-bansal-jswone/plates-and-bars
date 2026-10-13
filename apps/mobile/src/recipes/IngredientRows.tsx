@@ -20,7 +20,7 @@ export const NEW_ROW: DraftRow = { ingredient: 'Onion', amount: '', unit: 'g' };
 const UNITS = Object.keys(UNIT_GRAMS);
 
 /** The ingredient rows of the recipe builder and the kitchen test: pick an ingredient, an amount and a unit (prototype `.rb-row`). */
-export function IngredientRows({ rows, onChange, addLabel = '+ Add ingredient' }: { rows: DraftRow[]; onChange: (rows: DraftRow[]) => void; addLabel?: string }) {
+export function IngredientRows({ rows, onChange, addLabel = '+ Add ingredient', names = getRawNames }: { rows: DraftRow[]; onChange: (rows: DraftRow[]) => void; addLabel?: string; /** The names the picker offers (default: the chosen raw table). */ names?: () => readonly string[] }) {
   const c = useTheme();
   const [picking, setPicking] = useState<number | null>(null);
   const set = (k: number, patch: Partial<DraftRow>) => onChange(rows.map((r, i) => (i === k ? { ...r, ...patch } : r)));
@@ -50,15 +50,15 @@ export function IngredientRows({ rows, onChange, addLabel = '+ Add ingredient' }
         </View>
       ))}
       <View style={styles.start}><Button label={addLabel} kind="ghost" onPress={() => onChange([...rows, NEW_ROW])} /></View>
-      {picking !== null ? <Picker current={rows[picking]?.ingredient} onPick={(n) => { set(picking, { ingredient: n }); setPicking(null); }} onClose={() => setPicking(null)} /> : null}
+      {picking !== null ? <Picker names={names} current={rows[picking]?.ingredient} onPick={(n) => { set(picking, { ingredient: n }); setPicking(null); }} onClose={() => setPicking(null)} /> : null}
     </View>
   );
 }
 
-function Picker({ current, onPick, onClose }: { current?: string; onPick: (name: string) => void; onClose: () => void }) {
+function Picker({ names, current, onPick, onClose }: { names: () => readonly string[]; current?: string; onPick: (name: string) => void; onClose: () => void }) {
   const c = useTheme();
   const [q, setQ] = useState('');
-  const shown = getRawNames().filter((n) => n.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = names().filter((n) => n.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={[styles.sheet, { backgroundColor: c.bg }]}>

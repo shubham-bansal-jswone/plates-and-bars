@@ -158,6 +158,10 @@ describe('Recipes screen: builder', () => {
     expect(await screen.findByText('Gone ingredient is not in the ingredient table, not counted. Pick another ingredient or remove the row to save.')).toBeTruthy();
     expect(stored(db, 'recipes')).toEqual([rec]);
     expect(stored(db, 'user_foods')).toHaveLength(0);
+    await fireEvent.press(screen.getByLabelText(/^Save and add to /));
+    expect(await screen.findByText(/Gone ingredient is not in the ingredient table/)).toBeTruthy();
+    expect(stored(db, 'recipes')).toEqual([rec]);
+    expect(stored(db, 'food_logs')).toHaveLength(0);
     // Removing the row clears the mark and saving works.
     await fireEvent.press(screen.getByLabelText('Remove ingredient 2'));
     expect(screen.queryByText('Gone ingredient: not in the ingredient table, not counted')).toBeNull();

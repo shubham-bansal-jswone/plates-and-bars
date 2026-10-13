@@ -123,6 +123,8 @@ export const getRawIngredients: () => RawIngredient[] = perLoad(() => chosenRaw(
  * Recipe content rows (presets, library) still use shipped names only, so content never depends on an added ingredient.
  */
 export const getRawNames: () => readonly string[] = perLoad(() => getRawIngredients().map((i) => i.name));
+/** The shipped ingredient names, whatever raw copy is chosen: the kitchen-test picker offers only these (a saved test keeps just the name and has no not-counted guard). */
+export const getShippedRawNames = (): readonly string[] => shippedNames;
 const knownNames = perLoad(() => new Set(getRawNames()));
 /** The distinct ingredient names in `rows` that the chosen raw table lacks (own lookup in a Set, so no prototype names match). */
 export const unknownIngredients = (rows: readonly { ingredient: string }[]): string[] => {
