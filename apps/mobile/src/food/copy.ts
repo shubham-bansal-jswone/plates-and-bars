@@ -16,11 +16,15 @@ export const EATOUT_HINT = 'Rough restaurant estimates; portions and oil vary a 
 export const SOURCE_HINT = 'Values are calculated from USDA public-domain ingredient data using standard home recipes (carbs include fibre, as on food labels); paneer, curd and milk follow FSSAI composition standards. Packaged foods (whey, Greek yogurt, makhana) use typical label values; check your pack.';
 
 const andList = (names: readonly string[]): string => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+/** How long a Food toast stays: 2.2 s, longer for a long message (about 60 ms a character) so it can be read. */
+export const toastMs = (msg: string): number => Math.max(2200, msg.length * 60);
 /** Toast after "Log it" on a planned meal (prototype: `Logged your planned …`), naming plan items no longer in the catalog (#334). */
 export function plannedLogged(meal: string, skipped: readonly string[], logged: number): string {
   const m = meal.toLowerCase();
+  const seen = new Set<string>();
+  skipped = skipped.filter((n) => !seen.has(n.toLowerCase()) && !!seen.add(n.toLowerCase())); // a repeated name is named once
   if (!skipped.length) return `Logged your planned ${m}`;
   const verb = skipped.length === 1 ? 'isn’t' : 'aren’t';
-  if (!logged) return `Couldn’t log your planned ${m}: ${andList(skipped)} ${verb} in your foods any more`;
-  return `Logged your planned ${m}, except ${andList(skipped)}, which ${verb} in your foods any more`;
+  if (!logged) return `Couldn’t log your planned ${m}: ${andList(skipped)} ${verb} in the food list any more`;
+  return `Logged your planned ${m}, except ${andList(skipped)}, which ${verb} in the food list any more`;
 }

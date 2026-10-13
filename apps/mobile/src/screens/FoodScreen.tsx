@@ -9,7 +9,7 @@ import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Pres
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { plannedLogged } from '../food/copy';
+import { plannedLogged, toastMs } from '../food/copy';
 import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
@@ -48,7 +48,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const notify = useCallback((msg: string) => {
     setToast(msg);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 2200);
+    timer.current = setTimeout(() => setToast(null), toastMs(msg));
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const dataVersion = useDataVersion();
