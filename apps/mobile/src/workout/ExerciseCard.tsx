@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
@@ -84,6 +84,11 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
 export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) {
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 4000); // a stray tap much later must not remove it
+    return () => clearTimeout(t);
+  }, [armed]);
   const c = useTheme();
   const nl = noLoad(info.type);
   const rw = repWord(info.type);

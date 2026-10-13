@@ -247,8 +247,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
           addSet: () => w.addSet(i),
           removeSet: () => w.removeSet(i),
           remove: () => {
-            w.removeExercise(i);
-            notify(`${ex.name} removed`);
+            if (w.removeExercise(ex.name)) notify(`${ex.name} removed`);
           },
         };
         return (

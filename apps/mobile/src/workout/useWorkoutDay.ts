@@ -443,27 +443,38 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
    * Removes exercise `i` from today's session (prototype `delex`). Its stored set rows become tombstones and its lift record
    * is recomputed without them. Removing the last one deletes today's workout, so a new session can be started (#413).
    */
-  const removeExercise = (i: number) => {
+  const removeExercise = (name: string) => {
     const d = clone(ref.current);
-    const gone = d.exs[i];
-    if (!gone || !d.workout) return;
-    d.exs = d.exs.filter((_, k) => k !== i);
+    const gone = d.exs.find((e) => e.name === name);
+    if (!gone || !d.workout) return false;
+    d.exs = d.exs.filter((e) => e.name !== name);
     const last = d.exs.length === 0;
     if (last) d.workout = null;
     commit(d);
     void enqueue(async () => {
       const at = stamp(now());
-      const mine = new Set([...gone.sets, ...gone.ramp].map((r) => r.id));
-      for (const s of await loadSets(db, date)) if (mine.has(s.id) && !s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
+      // Every stored row of the exercise, also ones a pull stored that this screen never loaded.
+      for (const s of await loadSets(db, date)) if (s.exercise === name && !s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
       if (last) {
         const stored = await loadWorkout(db, date);
         if (stored && !stored.deleted_at) {
-          await saveWorkout(db, { ...stored, updated_at: at, deleted_at: at });
-          synced.current = null;
+          // Exercises another device added since this screen loaded are not this removal's to delete: keep them.
+          const base = synced.current;
+          const elsewhere = stored.exercises.filter((e) => e.name !== name && !base?.exercises.some((b) => b.name === e.name));
+          if (elsewhere.length) {
+            const row = { ...stored, exercises: elsewhere, updated_at: at };
+            await saveWorkout(db, row);
+            synced.current = row;
+            setMerged((n) => n + 1); // show them
+          } else {
+            await saveWorkout(db, { ...stored, updated_at: at, deleted_at: at });
+            synced.current = null;
+          }
         }
       } else await writeWorkout();
       if (gone.sets.some((s) => s.done)) await syncLift(gone.name, gone);
     });
+    return true;
   };
 
   const rampTick = (i: number, j: number) => {

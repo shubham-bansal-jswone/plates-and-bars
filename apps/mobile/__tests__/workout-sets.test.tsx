@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import { loadLifts, loadSets, loadWorkout, saveLift } from '../src/db/workouts';
+import { loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -195,7 +195,7 @@ describe('add and remove exercises (#147)', () => {
     await act(async () => result.current.tick(0, 0));
     await settle();
     expect((await loadLifts(db))[name]).toBeTruthy();
-    await act(async () => result.current.removeExercise(0));
+    await act(async () => void result.current.removeExercise(name));
     await settle();
     expect(result.current.day.exs.map((e) => e.name)).not.toContain(name);
     expect(await live(db, name)).toHaveLength(0);
@@ -205,7 +205,7 @@ describe('add and remove exercises (#147)', () => {
 
   it('removing the last exercise deletes today\'s workout so a new session can start', async () => {
     const { db, result } = await started();
-    for (let k = result.current.day.exs.length; k > 0; k--) await act(async () => result.current.removeExercise(0));
+    for (const e of [...result.current.day.exs]) await act(async () => void result.current.removeExercise(e.name));
     await settle();
     expect(result.current.day.workout).toBeNull();
     expect((await loadWorkout(db, DATE))!.deleted_at).toBeTruthy();
@@ -214,5 +214,43 @@ describe('add and remove exercises (#147)', () => {
     expect((await loadWorkout(db, DATE))!.deleted_at ?? null).toBeNull();
     expect(result.current.day.exs.length).toBeGreaterThan(0);
   });
-});
 
+  it('a removal after the stored workout changed elsewhere does not bring the exercise back (#410 merge)', async () => {
+    const { db, result } = await started();
+    const name = result.current.day.exs[1]!.name;
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, cardio_min: 20, updated_at: '2026-10-08T09:30:00Z' }); // a pull changed the row
+    await act(async () => void result.current.removeExercise(name));
+    await settle();
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.exercises.map((e) => e.name)).not.toContain(name);
+    expect(stored.cardio_min).toBe(20);
+  });
+
+  it('Remove tombstones the exercise\'s rows a pull stored that the screen never loaded', async () => {
+    const { db, result } = await started();
+    const name = result.current.day.exs[0]!.name;
+    const any = (await live(db, name))[0]!;
+    await saveSet(db, DATE, { ...any, id: 'pulled-row', set_index: 9 });
+    await act(async () => void result.current.removeExercise(name));
+    await settle();
+    expect(await live(db, name)).toHaveLength(0);
+  });
+
+  it('removing the last exercise keeps exercises another device added meanwhile', async () => {
+    const { db, result } = await started();
+    const all = [...result.current.day.exs];
+    for (const e of all.slice(0, -1)) await act(async () => void result.current.removeExercise(e.name));
+    await settle();
+    // Now another device adds an exercise, then this device removes what it sees as the last one.
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, exercises: [...w.exercises, { name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], updated_at: '2026-10-08T09:30:00Z' });
+    expect(result.current.day.exs).toHaveLength(1);
+    await act(async () => void result.current.removeExercise(all[all.length - 1]!.name));
+    await settle();
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.deleted_at ?? null).toBeNull();
+    expect(stored.exercises.map((e) => e.name)).toEqual(['Plank (seconds)']);
+    await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toEqual(['Plank (seconds)']));
+  });
+});

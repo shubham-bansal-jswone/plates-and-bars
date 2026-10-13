@@ -37,4 +37,12 @@ describe('mergeWorkout (#410)', () => {
     const mine = row([ex('Bench', { form: 'yes' }), ex('Row'), ex('Curl')]);
     expect(mergeWorkout(base, mine, theirs).exercises[0]?.form).toBe('yes');
   });
+
+  it('an exercise removed on this device stays removed; one added elsewhere is kept', () => {
+    const theirs = row([ex('Bench'), ex('Row'), ex('Curl'), ex('Squat')], { cardio_min: 20 });
+    const mine = row([ex('Bench'), ex('Curl')]); // Row removed here
+    const out = mergeWorkout(base, mine, theirs);
+    expect(out.exercises.map((e) => e.name)).toEqual(['Bench', 'Curl', 'Squat']);
+    expect(out.cardio_min).toBe(20);
+  });
 });

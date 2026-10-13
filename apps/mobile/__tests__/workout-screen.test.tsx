@@ -314,6 +314,16 @@ describe('Workout tab: personal best', () => {
   beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
   afterEach(() => jest.useRealTimers());
 
+  it('an armed Remove exercise disarms after 4 seconds (#443)', async () => {
+    await setup({ lifts: { 'Barbell Bench Press': 60 } });
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await press('Remove Barbell Bench Press from today');
+    expect(screen.getByLabelText('Tap again to remove Barbell Bench Press from today')).toBeTruthy();
+    await act(async () => void jest.advanceTimersByTime(4100));
+    expect(screen.getByLabelText('Remove Barbell Bench Press from today')).toBeTruthy();
+  });
+
   it('toasts a personal best once a day and records pb_toast_date', async () => {
     const lifts = { 'Barbell Bench Press': 60 };
     const db = await setup({ lifts, hist: { 'Barbell Bench Press': [80, 90] } });
