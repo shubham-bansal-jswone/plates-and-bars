@@ -1,4 +1,4 @@
-import { EXERCISE_NAME_MAX, exerciseNameTooLong, kitchenNoteTooLong, NOTE_MAX, servingUnitTooLong, UNIT_MAX } from '../src';
+import { CUSTOM_EXERCISES_MAX, EXERCISE_NAME_MAX, exerciseNameTooLong, kitchenNoteTooLong, NOTE_MAX, servingUnitTooLong, UNIT_MAX } from '../src';
 
 describe('input length limits (contract 0.1.9, #377)', () => {
   it('serving unit: 100 characters is fine, 101 is too long, checked after trimming', () => {
@@ -28,5 +28,9 @@ describe('input length limits (contract 0.1.9, #377)', () => {
     expect(exerciseNameTooLong('x'.repeat(200))).toBe(false);
     expect(exerciseNameTooLong(`  ${'x'.repeat(200)}  `)).toBe(false);
     expect(exerciseNameTooLong('x'.repeat(201))).toBe(true);
+  });
+
+  it('custom exercises: at most 500, the contract bound (#312)', () => {
+    expect(CUSTOM_EXERCISES_MAX).toBe(500);
   });
 });
