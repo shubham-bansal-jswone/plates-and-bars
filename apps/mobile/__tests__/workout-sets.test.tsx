@@ -107,3 +107,22 @@ describe('add and remove sets (#147)', () => {
     expect(ids.every((id) => stored.has(id))).toBe(true);
   });
 });
+
+describe('queued writes find their exercise by name (#439)', () => {
+  it('a tick queued before a can\'t-do removes the exercise above it lands on the right exercise and lift', async () => {
+    const { db, result } = await started();
+    const [first, second] = result.current.day.exs.map((e) => e.name);
+    await act(async () => result.current.editSet(1, 'work', 0, 'w', '30'));
+    await act(async () => result.current.editSet(1, 'work', 0, 'r', '10'));
+    await settle();
+    await act(async () => {
+      result.current.tick(1, 0); // queued for the second exercise
+      result.current.cant(0, { name: first!, reason: 'dislike', dur: 'today', scope: 'exercise', key: first! }, null); // removes the first
+    });
+    await settle();
+    const done = (await loadSets(db, DATE)).filter((s) => s.done && !s.deleted_at);
+    expect(done.map((s) => s.exercise)).toEqual([second]);
+    const lifts = await loadLifts(db);
+    expect(lifts[second!]?.sets).toHaveLength(1);
+  });
+});
