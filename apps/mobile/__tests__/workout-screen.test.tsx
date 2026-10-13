@@ -169,6 +169,19 @@ describe('Workout tab: logging sets', () => {
     expect(screen.getByText('Set removed')).toBeTruthy();
   });
 
+  it('Add exercise lists the library without today\'s exercises and adds the pick; Remove takes a second tap (#147)', async () => {
+    const db = await started();
+    await press('Add exercise');
+    expect(screen.queryByLabelText('Add Barbell Bench Press')).toBeNull(); // already in the session
+    await press('Add Goblet Squat');
+    expect(await screen.findByText('Goblet Squat added')).toBeTruthy();
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toContain('Goblet Squat'));
+    await press('Remove Goblet Squat from today');
+    expect(screen.getByLabelText('Tap again to remove Goblet Squat from today')).toBeTruthy();
+    await press('Tap again to remove Goblet Squat from today');
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).not.toContain('Goblet Squat'));
+  });
+
   it('shows core’s suggestion, target and warm-up line', async () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.
@@ -300,6 +313,16 @@ describe('Workout tab: first-time ramp', () => {
 describe('Workout tab: personal best', () => {
   beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
   afterEach(() => jest.useRealTimers());
+
+  it('an armed Remove exercise disarms after 4 seconds (#443)', async () => {
+    await setup({ lifts: { 'Barbell Bench Press': 60 } });
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await press('Remove Barbell Bench Press from today');
+    expect(screen.getByLabelText('Tap again to remove Barbell Bench Press from today')).toBeTruthy();
+    await act(async () => void jest.advanceTimersByTime(4100));
+    expect(screen.getByLabelText('Remove Barbell Bench Press from today')).toBeTruthy();
+  });
 
   it('toasts a personal best once a day and records pb_toast_date', async () => {
     const lifts = { 'Barbell Bench Press': 60 };

@@ -8,6 +8,7 @@ import {
   setTarget,
   tickFill,
   updateLift,
+  newExercise,
   mergeSecondSession,
   templateName,
   type CantDraft,
@@ -146,11 +147,12 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
   // newer record (another device's session) since the screen loaded (#409).
-  const syncLift = async (name: string) => {
-    if (!profile || !exNamed(name)) return;
+  // `removed`: an exercise taken out of the session, recomputed as if it had no sets left.
+  const syncLift = async (name: string, removed?: ExState) => {
+    if (!profile || !(removed ?? exNamed(name))) return;
     const lifts = await loadLifts(db);
     const d = ref.current; // read after the await, so a tap made meanwhile is included
-    const ex = exNamed(name);
+    const ex = removed ? { ...removed, sets: [], form: null } : exNamed(name);
     if (!ex) return;
     const { info } = guidance(ex, progressionContext(date, lifts, profile, d.workout, tune), d.workout);
     // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
@@ -221,7 +223,14 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         await enqueue(async () => {
           // Started over a session deleted on another device: its sets go with it, so the new session does not
           // pick them up (the contract does not promise that the deleting device tombstoned them).
-          const overTombstone = !!(await loadWorkout(db, date))?.deleted_at;
+          const stored = await loadWorkout(db, date);
+          if (stored && !stored.deleted_at) {
+            // A live session is already stored (pulled from another device, or kept after a removal) that this screen
+            // has not shown yet: never overwrite it; read it again so it shows instead.
+            setMerged((n) => n + 1);
+            return;
+          }
+          const overTombstone = !!stored?.deleted_at;
           if (overTombstone) {
             const at = stamp(now());
             for (const s of await loadSets(db, date)) if (!s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
@@ -416,6 +425,65 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     );
   };
 
+  /**
+   * Adds a library exercise to today's session (prototype `exPick`): as many blank work sets as its last session, at least 3
+   * (core `newExercise`). It joins the last exercise's part, so it shows with the session it was added to. A name already in
+   * the session is refused: the contract keeps names unique within a workout.
+   */
+  const addExercise = (name: string) => {
+    const d = clone(ref.current);
+    if (!d.workout || d.exs.some((e) => e.name === name)) return false;
+    const part = d.exs[d.exs.length - 1]?.part ?? 1;
+    const built = newExercise(name, { lifts: d.lifts, date }, part);
+    const ex: ExState = { name, part, bridge: false, form: null, found: null, skipRamp: false, sets: built.sets.map(() => blankRow()), ramp: [] };
+    d.exs = [...d.exs, ex];
+    if (!d.workout.template) d.workout = { ...d.workout, template: 'Session' };
+    commit(d);
+    void enqueue(async () => {
+      await writeWorkout();
+      await writeSets(name, 'work', ids(ex.sets));
+    });
+    return true;
+  };
+
+  /**
+   * Removes the exercise named `name` from today's session (prototype `delex`); false when it is not in the session. Its stored set rows become tombstones and its lift record
+   * is recomputed without them. Removing the last one deletes today's workout, so a new session can be started (#413).
+   */
+  const removeExercise = (name: string) => {
+    const d = clone(ref.current);
+    const gone = d.exs.find((e) => e.name === name);
+    if (!gone || !d.workout) return false;
+    d.exs = d.exs.filter((e) => e.name !== name);
+    const last = d.exs.length === 0;
+    if (last) d.workout = null;
+    commit(d);
+    void enqueue(async () => {
+      const at = stamp(now());
+      // Every stored row of the exercise, also ones a pull stored that this screen never loaded.
+      for (const s of await loadSets(db, date)) if (s.exercise === name && !s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
+      if (last) {
+        const stored = await loadWorkout(db, date);
+        if (stored && !stored.deleted_at) {
+          // Exercises another device added since this screen loaded are not this removal's to delete: keep them.
+          const base = synced.current;
+          const elsewhere = stored.exercises.filter((e) => e.name !== name && !base?.exercises.some((b) => b.name === e.name));
+          if (elsewhere.length) {
+            const row = { ...stored, exercises: elsewhere, updated_at: at };
+            await saveWorkout(db, row);
+            synced.current = row;
+            setMerged((n) => n + 1); // show them
+          } else {
+            await saveWorkout(db, { ...stored, updated_at: at, deleted_at: at });
+            synced.current = null;
+          }
+        }
+      } else await writeWorkout();
+      if (gone.sets.some((s) => s.done)) await syncLift(gone.name, gone);
+    });
+    return true;
+  };
+
   const rampTick = (i: number, j: number) => {
     const d0 = ref.current;
     const ex0 = d0.exs[i];
@@ -509,5 +577,5 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, start, addSecond };
+  return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
 }

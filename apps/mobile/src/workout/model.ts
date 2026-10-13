@@ -83,15 +83,16 @@ function pick<T extends object>(base: T | undefined, mine: T, theirs: T): T {
 /**
  * Today's workout row when the stored copy changed since this screen last loaded or wrote it (`base`): a sync pull or a
  * rule saved on Targets. A three-way merge by field and by exercise name: the stored list and order are kept, edits made
- * here win field by field, exercises added here are appended, and exercises removed elsewhere stay removed (#410).
+ * here win field by field, exercises added here are appended, and exercises removed on either side stay removed (#410).
  */
 export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Workout {
   const byName = (l: readonly WorkoutExercise[]) => new Map(l.map((e) => [e.name, e]));
   const b = byName(base.exercises), m = byName(mine.exercises), t = byName(theirs.exercises);
   const exercises = [
-    ...theirs.exercises.map((e) => {
+    ...theirs.exercises.flatMap((e) => {
       const own = m.get(e.name);
-      return own ? pick(b.get(e.name), own, e) : e;
+      if (own) return [pick(b.get(e.name), own, e)];
+      return b.has(e.name) ? [] : [e]; // in the base but not here: removed on this device, so it stays removed
     }),
     ...mine.exercises.filter((e) => !t.has(e.name) && !b.has(e.name)),
   ];
