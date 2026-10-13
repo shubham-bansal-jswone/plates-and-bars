@@ -80,6 +80,16 @@ describe('settings store', () => {
       expect(getCatalog().tags['A Lift']).toBeUndefined();
     });
 
+    it('a store that cannot be read leaves no custom exercises from the previous user', async () => {
+      setCustomTags({ 'A Lift': tag });
+      const db = memoryDb();
+      db.rows.set('user_settings:me', '{not json');
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      expect(result.current.loadFailed).toBe(true);
+      expect(getCatalog().tags['A Lift']).toBeUndefined();
+    });
+
     it('addCustomTags saves and applies at once; at the contract limit a new name is refused, a known one replaced', async () => {
       const db = memoryDb();
       const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
