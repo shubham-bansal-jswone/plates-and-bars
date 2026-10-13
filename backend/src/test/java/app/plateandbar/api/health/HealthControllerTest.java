@@ -1,8 +1,8 @@
 package app.plateandbar.api.health;
 
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,8 +31,8 @@ class HealthControllerTest {
     }
 
     @Test
-    void appDoesNotEmitHstsEvenWhenAClientClaimsHttps() throws Exception {
-        // HSTS is the proxy's job (infra/caddy/Caddyfile.api); a spoofed X-Forwarded-Proto must not change that.
+    void appEmitsNoHstsItself() throws Exception {
+        // HSTS is the proxy's job (infra/caddy/Caddyfile.api); the app sends none. The property test above is the spoofing guard.
         mvc.perform(get("/api/v1/health").header("X-Forwarded-Proto", "https").header("X-Forwarded-For", "203.0.113.9"))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Strict-Transport-Security"))
