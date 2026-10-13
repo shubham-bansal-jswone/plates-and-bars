@@ -155,8 +155,8 @@ function MeasureSection({ p }: { p: Progress }) {
 
 function StepsSleepSection({ p }: { p: Progress }) {
   const c = useTheme();
-  const [steps, setSteps] = useState(p.today?.steps ? String(p.today.steps) : '');
-  const [sleep, setSleep] = useState(p.today?.sleep ? String(p.today.sleep) : '');
+  const [steps, setSteps] = useState(p.today?.steps != null ? String(p.today.steps) : ''); // 0 is a real count (#303)
+  const [sleep, setSleep] = useState(p.today?.sleep != null ? String(p.today.sleep) : ''); // 0 h is valid (contract 0-24)
   return (
     <View style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Heading>
