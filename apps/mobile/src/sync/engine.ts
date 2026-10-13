@@ -385,7 +385,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
       if (consumed < entries.length && splitRounds++ < MAX_SPLIT_ROUNDS) round--; // cut short by the byte budget: progress, bounded
     }
   } catch (e) {
-    if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, skipped };
+    if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
     if (e instanceof Aborted) return { status: 'paused', conflicts, pulled, skipped };
     if (e instanceof NetworkError) return { status: 'offline', conflicts, pulled, skipped };
     // Anything else is a bug or a local failure, not the network: report it as an error state (class name only).
