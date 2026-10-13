@@ -122,8 +122,9 @@ jobs:
       - run: npx expo export --platform web
 
   # apps/mobile/src/content/bundled.json records each content file's sha256, schema_version and updated_at.
-  # Shallow checkout everywhere, so the script compares hashes and schema versions only: a PR cannot know its own
-  # squash-merge date, and checking dates on main would turn main red after every content merge. A stale
+  # Shallow checkout everywhere, so the script compares hashes and schema versions exactly and only sanity-checks each
+  # date (UTC format, not later than HEAD; #412): a PR cannot know its own squash-merge date, and comparing exact dates
+  # on main would turn main red after every content merge. A stale
   # (older) updated_at is harmless apart from one redundant download on some devices; see infra/README.md.
   # Regenerate with `node scripts/content-meta.mjs` on a full-history checkout of main before each mobile release.
   content-meta:
