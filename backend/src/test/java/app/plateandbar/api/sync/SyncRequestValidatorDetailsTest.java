@@ -39,6 +39,18 @@ class SyncRequestValidatorDetailsTest {
         return Req.of(null).add(SyncTable.water_logs, r).build();
     }
 
+    private static ObjectNode settings(String json) {
+        ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.settings);
+        r.setAll(SyncFixtures.obj(json));
+        return Req.of(null).add(SyncTable.settings, r).build();
+    }
+
+    private static ObjectNode exclusion(String json) {
+        ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.exclusions);
+        r.setAll(SyncFixtures.obj(json));
+        return Req.of(null).add(SyncTable.exclusions, r).build();
+    }
+
     /** The settings fixture with {@code reminders} set to the array under key {@code r} (SyncFixtures.obj takes objects only). */
     private static ObjectNode reminders(String json) {
         ObjectNode r = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.settings);
@@ -65,7 +77,7 @@ class SyncRequestValidatorDetailsTest {
                     r.put("qty", "one");
                 }), List.of(d("changes.food_logs[0].qty", "type"), d("changes.food_logs[0].kcal", "required"))),
                 Arguments.of("unknown table", (ObjectNode) Req.of(null).build().set("changes",
-                        SyncFixtures.obj("{'meals':[]}")), List.of(d("changes.meals", "additionalProperties"))),
+                        SyncFixtures.obj("{'meals':[]}")), List.of(d("changes", "additionalProperties")) /* the key is never echoed (#419) */),
                 Arguments.of("cursor type", (ObjectNode) Req.of(null).build().put("cursor", 5), List.of(d("cursor", "type"))),
                 // #418: the contract's `on` key used to be read as the boolean true, so every reminder was refused.
                 Arguments.of("a reminder", reminders("{'r':[{'kind':'workout','time':'07:00','days':[1,3,5],'on':false}]}"), null),
@@ -73,6 +85,14 @@ class SyncRequestValidatorDetailsTest {
                         List.of(d("changes.settings[0].reminders[0].on", "required"))),
                 Arguments.of("a reminder with on not a boolean", reminders("{'r':[{'kind':'water','time':'07:00','days':[1],'on':'yes'}]}"),
                         List.of(d("changes.settings[0].reminders[0].on", "type"))),
+                Arguments.of("exclusion key too long", exclusion("{'to':{'%s':null}}".formatted("x".repeat(201))),
+                        List.of(d("changes.exclusions[0].to", "propertyNames"))), // the key is never echoed (#419)
+                Arguments.of("a bad value under a long map key", exclusion("{'to':{'%s':5}}".formatted("y".repeat(209))),
+                        List.of(d("changes.exclusions[0].to", "propertyNames"), d("changes.exclusions[0].to", "type"))),
+                Arguments.of("a bad value under a map key", exclusion("{'to':{'My Secret Lift':5}}"),
+                        List.of(d("changes.exclusions[0].to", "type"))), // the key is never echoed (#419)
+                Arguments.of("a missing field inside a map value", settings("{'exercise_overrides':{'My Secret Lift':{}}}"),
+                        List.of(d("changes.settings[0].exercise_overrides", "required"))),
                 Arguments.of("missing changes", (ObjectNode) SyncFixtures.obj("{'cursor':null}"), List.of(d("changes", "required"))));
     }
 
