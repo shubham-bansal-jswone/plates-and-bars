@@ -127,11 +127,15 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     if (elsewhere) setMerged((n) => n + 1);
     else synced.current = row;
   };
-  const writeSets = async (i: number, kind: 'work' | 'ramp', indexes: number[]) => {
+  /** Today's exercise by name when a queued write runs: a can't-do swap or an added exercise may have moved it (#439). */
+  const exNamed = (name: string) => ref.current.exs.find((e) => e.name === name);
+  /** Writes the rows with these ids of exercise `name`, looked up when the write runs; gone rows are skipped. */
+  const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[]) => {
     const stored = new Map((await loadSets(db, date)).map((s) => [s.id, s]));
-    for (const j of indexes) {
-      const ex = ref.current.exs[i];
-      if (!ex || !(kind === 'work' ? ex.sets : ex.ramp)[j]) continue;
+    for (const id of ids) {
+      const ex = exNamed(name);
+      const j = ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
+      if (!ex || j < 0) continue;
       const rec = setRecord(ex, kind, j, now());
       const was = stored.get(rec.id);
       if (was?.deleted_at) continue;
@@ -142,11 +146,11 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
   // newer record (another device's session) since the screen loaded (#409).
-  const syncLift = async (i: number) => {
-    if (!profile || !ref.current.exs[i]) return;
+  const syncLift = async (name: string) => {
+    if (!profile || !exNamed(name)) return;
     const lifts = await loadLifts(db);
     const d = ref.current; // read after the await, so a tap made meanwhile is included
-    const ex = d.exs[i];
+    const ex = exNamed(name);
     if (!ex) return;
     const { info } = guidance(ex, progressionContext(date, lifts, profile, d.workout, tune), d.workout);
     // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
@@ -166,14 +170,16 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     if (res.toast) notify(`New personal best on ${ex.name}`);
   };
 
-  /** Applies `fn` to a copy of today's exercise `i` and shows it at once; `persist` is queued. */
-  const change = (i: number, fn: (ex: ExState, d: Day) => boolean | void, persist: () => Promise<void>) => {
+  /** Applies `fn` to a copy of today's exercise `i` and shows it at once; `persist` is queued and gets the exercise's name. */
+  const change = (i: number, fn: (ex: ExState, d: Day) => boolean | void, persist: (name: string) => Promise<void>) => {
     const d = clone(ref.current);
     const ex = d.exs[i];
     if (!ex || fn(ex, d) === false) return;
     commit(d);
-    void enqueue(persist);
+    const { name } = ex;
+    void enqueue(() => persist(name));
   };
+  const ids = (rows: readonly Row[]) => rows.map((r) => r.id);
 
   const start = useCallback(
     async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice']) => {
@@ -221,7 +227,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
             for (const s of await loadSets(db, date)) if (!s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
           }
           await writeWorkout(overTombstone);
-          for (let i = 0; i < d.exs.length; i++) await writeSets(i, 'work', Array.from((d.exs[i] as ExState).sets.keys()));
+          for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets));
         });
       } finally {
         building.current = false;
@@ -262,7 +268,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         notify(`${template} added to today`);
         await enqueue(async () => {
           await writeWorkout();
-          for (let k = 0; k < added.length; k++) await writeSets(first + k, 'work', Array.from((added[k] as ExState).sets.keys()));
+          for (const ex of added) await writeSets(ex.name, 'work', ids(ex.sets));
         });
       } finally {
         building.current = false;
@@ -272,14 +278,19 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     [db, profile, date, focus, exclusions, swaps, commit, enqueue, notify],
   );
 
-  const editSet = (i: number, kind: 'work' | 'ramp', j: number, field: 'w' | 'r', value: string) =>
+  const editSet = (i: number, kind: 'work' | 'ramp', j: number, field: 'w' | 'r', value: string) => {
+    let id = '';
     change(
       i,
       (ex) => {
-        ((kind === 'work' ? ex.sets : ex.ramp)[j] as Record<'w' | 'r', string>)[field] = value;
+        const row = (kind === 'work' ? ex.sets : ex.ramp)[j];
+        if (!row) return false;
+        (row as Record<'w' | 'r', string>)[field] = value;
+        id = row.id;
       },
-      () => writeSets(i, kind, [j]),
+      (name) => writeSets(name, kind, [id]),
     );
+  };
 
   const tick = (i: number, j: number) => {
     const d0 = ref.current;
@@ -287,11 +298,13 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     if (!profile || !d0.workout || !ex0) return;
     const ctx = progressionContext(date, d0.lifts, profile, d0.workout, tune);
     const { info, sug } = guidance(ex0, ctx, d0.workout);
+    let id = '';
     change(
       i,
       (ex, d) => {
         const s = ex.sets[j];
         if (!s) return false;
+        id = s.id;
         if (s.done) {
           s.done = false;
           s.rate = null;
@@ -313,25 +326,30 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         if (nj >= 0) startRest(ex.name, `Next: set ${nj + 1} of ${ex.name}`);
         else if (nx) startRest(ex.name, `Next: ${nx.name}`);
       },
-      async () => {
-        await writeSets(i, 'work', [j]);
+      async (name) => {
+        await writeSets(name, 'work', [id]);
         await writeWorkout();
-        await syncLift(i);
+        await syncLift(name);
       },
     );
   };
 
-  const rate = (i: number, j: number, value: Rate | null) =>
+  const rate = (i: number, j: number, value: Rate | null) => {
+    let id = '';
     change(
       i,
       (ex) => {
-        (ex.sets[j] as { rate: Rate | null }).rate = value;
+        const s = ex.sets[j];
+        if (!s) return false;
+        s.rate = value;
+        id = s.id;
       },
-      async () => {
-        await writeSets(i, 'work', [j]);
-        await syncLift(i);
+      async (name) => {
+        await writeSets(name, 'work', [id]);
+        await syncLift(name);
       },
     );
+  };
 
   const setForm = (i: number, form: 'yes' | 'no' | null) =>
     change(
@@ -339,13 +357,16 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       (ex) => {
         ex.form = form;
       },
-      async () => {
+      async (name) => {
         await writeWorkout();
-        await syncLift(i);
+        await syncLift(name);
       },
     );
 
-  const rampStart = (i: number) => change(i, (ex) => void (ex.ramp = [blankRow()]), () => writeSets(i, 'ramp', [0]));
+  const rampStart = (i: number) => {
+    const row = blankRow();
+    change(i, (ex) => void (ex.ramp = [row]), (name) => writeSets(name, 'ramp', [row.id]));
+  };
 
   const rampSkip = (i: number) =>
     change(
@@ -358,19 +379,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       () => writeWorkout(),
     );
 
-  /** Index of the row with `id` when the queued write runs: a second quick tap must not make the first row's write miss. */
-  const indexOf = (i: number, kind: 'work' | 'ramp', id: string) => {
-    const ex = ref.current.exs[i];
-    return ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
-  };
-  const writeRow = (i: number, kind: 'work' | 'ramp', id: string) => {
-    const j = indexOf(i, kind, id);
-    return j >= 0 ? writeSets(i, kind, [j]) : Promise.resolve();
-  };
-
   const rampAdd = (i: number) => {
     const row = blankRow();
-    change(i, (ex) => void ex.ramp.push(row), () => writeRow(i, 'ramp', row.id));
+    change(i, (ex) => void ex.ramp.push(row), (name) => writeSets(name, 'ramp', [row.id]));
   };
 
   /** Adds a working set at the last set's weight, reps empty (prototype `addset`). */
@@ -379,7 +390,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     change(
       i,
       (ex) => void ex.sets.push({ ...row, w: ex.sets[ex.sets.length - 1]?.w ?? '' }),
-      () => writeRow(i, 'work', row.id),
+      (name) => writeSets(name, 'work', [row.id]),
     );
   };
 
@@ -393,14 +404,14 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         gone = ex.sets.pop();
         notify('Set removed'); // announced: the button may disappear with it (one set left)
       },
-      async () => {
+      async (name) => {
         if (!gone) return;
         const stored = (await loadSets(db, date)).find((s) => s.id === gone?.id);
         if (stored && !stored.deleted_at) {
           const at = stamp(now());
           await saveSet(db, date, { ...stored, updated_at: at, deleted_at: at });
         }
-        if (gone.done) await syncLift(i); // a ticked set counted toward the lift record
+        if (gone.done) await syncLift(name); // a ticked set counted toward the lift record
       },
     );
   };
@@ -410,11 +421,13 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
     const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout, tune), d0.workout);
+    let id = '';
     change(
       i,
       (ex) => {
         const s = ex.ramp[j];
         if (!s) return false;
+        id = s.id;
         if (s.done) {
           s.done = false;
           s.rate = null;
@@ -432,14 +445,15 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         s.done = true;
         s.t = stamp(now());
       },
-      async () => {
-        await writeSets(i, 'ramp', [j]);
+      async (name) => {
+        await writeSets(name, 'ramp', [id]);
         await writeWorkout();
       },
     );
   };
 
   const rampRated = (i: number, j: number, value: Rate | null) => {
+    let rows: string[] = [];
     const d0 = ref.current;
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
@@ -451,9 +465,10 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         const r = rampRate(ex.ramp, j, value, info);
         ex.found = r.found;
         if (r.addSet) ex.ramp.push(blankRow());
+        rows = ids(ex.ramp); // the rows this action touched, fixed now (not whatever is there when the write runs)
       },
-      async () => {
-        await writeSets(i, 'ramp', Array.from((ref.current.exs[i]?.ramp ?? []).keys()));
+      async (name) => {
+        await writeSets(name, 'ramp', rows);
         await writeWorkout();
       },
     );
