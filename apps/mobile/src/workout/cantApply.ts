@@ -56,19 +56,20 @@ export function cantChange(
  * Writes a change. Runs inside the day queue: it re-reads the stored workout and sets, so a version a sync pull stored
  * in the meantime is kept (a stale in-memory copy never writes its old version back). With `synced` (the row the screen
  * last loaded or wrote), a stored row that changed since is merged rather than overwritten, as in writeWorkout (#444):
- * the change's exercise list is this device's edit, the rest comes from the stored row. Returns true when it merged.
+ * the change's exercise list is this device's edit, the rest comes from the stored row. Returns what happened: the row it
+ * wrote as is (the screen's new base), or `stale` when it merged or found the workout deleted (the screen should reload).
  */
-export async function persistCant(db: WorkoutDb, date: string, base: Workout, ch: CantChange, at: string, synced?: Workout | null): Promise<boolean> {
+export async function persistCant(db: WorkoutDb, date: string, base: Workout, ch: CantChange, at: string, synced?: Workout | null): Promise<Workout | 'stale'> {
   const [stored, storedSets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
   // Deleted on another device after the screen loaded its copy: stays deleted, like writeWorkout.
-  if (stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(base.updated_at)) return false;
+  if (stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(base.updated_at)) return 'stale';
   const version = new Map(storedSets.map((s) => [s.id, s.version]));
   const mine = { ...base, exercises: ch.exercises };
   const elsewhere = !!synced && !!stored && !stored.deleted_at && unversioned(stored) !== unversioned(synced);
-  const row = elsewhere ? mergeWorkout(synced, mine, stored) : mine;
-  await saveWorkout(db, { ...row, version: stored?.version ?? base.version, updated_at: at });
+  const row = { ...(elsewhere ? mergeWorkout(synced, mine, stored) : mine), version: stored?.version ?? base.version, updated_at: at };
+  await saveWorkout(db, row);
   for (const s of [...ch.changed, ...ch.removed, ...ch.added]) await saveSet(db, date, { ...s, version: version.get(s.id) ?? s.version });
-  return elsewhere;
+  return elsewhere ? 'stale' : row;
 }
 
 /**

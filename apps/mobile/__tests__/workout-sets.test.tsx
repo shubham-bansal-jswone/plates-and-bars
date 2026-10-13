@@ -290,5 +290,17 @@ describe('add and remove exercises (#147)', () => {
     expect(names).not.toContain(first);
     await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toContain('Plank (seconds)'));
   });
+
+  it('two can\'t-do swaps in a row: the second replaces the first in place (#445 review)', async () => {
+    const { db, result } = await started();
+    const first = result.current.day.exs[0]!.name;
+    const rest = result.current.day.exs.slice(1).map((e) => e.name);
+    await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur: 'today', scope: 'exercise', key: first }, 'Dumbbell Bench Press'));
+    await settle();
+    await act(async () => result.current.cant(0, { name: 'Dumbbell Bench Press', reason: 'dislike', dur: 'today', scope: 'exercise', key: 'Dumbbell Bench Press' }, 'Push-ups'));
+    await settle();
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual(['Push-ups', ...rest]);
+    expect(result.current.day.exs.map((e) => e.name)).toEqual(['Push-ups', ...rest]);
+  });
 });
 

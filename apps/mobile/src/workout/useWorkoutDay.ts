@@ -573,7 +573,11 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       commit(d);
       void enqueue(async () => {
         // Through the same merge as writeWorkout (#444): a row changed elsewhere keeps what it gained there.
-        if (await persistCant(db, date, w, ch, at, synced.current)) setMerged((n) => n + 1);
+        const out = await persistCant(db, date, w, ch, at, synced.current);
+        // Written as is: that row is the new base (a second swap must not see the first as added elsewhere). Merged or
+        // deleted elsewhere: read the day again.
+        if (out === 'stale') setMerged((n) => n + 1);
+        else synced.current = out;
       });
     }
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
