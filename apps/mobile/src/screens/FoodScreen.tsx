@@ -9,7 +9,7 @@ import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Pres
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { plannedLogged, toastMs } from '../food/copy';
+import { PLAN_ITEM_GONE, plannedLogged, toastMs } from '../food/copy';
 import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
@@ -82,12 +82,14 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     if (!blocked()) setFlex(undoFlex(settings.flex, id, { profile }));
   };
 
+  /** A plan item's food by name: My foods first, as the prototype's foodByName does; undefined when it is gone. */
+  const findFood = (n: string): CatalogFood | undefined =>
+    f.mine.map((u, i) => ({ ...f.mineFacts[i]!, id: u.id }) as CatalogFood).find((x) => x.name.toLowerCase() === n.toLowerCase()) ??
+    getFoodCatalog().find((x) => x.name.toLowerCase() === n.toLowerCase());
   const logPlanned = (meal: Meal, items: PlanItem[]) => {
     const skipped: string[] = [];
     for (const [n, q] of items) {
-      // My foods first, as the prototype's foodByName does.
-      const mineFood = f.mine.map((u, i) => ({ ...f.mineFacts[i]!, id: u.id }) as CatalogFood).find((x) => x.name.toLowerCase() === n.toLowerCase());
-      const food = mineFood ?? getFoodCatalog().find((x) => x.name.toLowerCase() === n.toLowerCase());
+      const food = findFood(n);
       if (food) f.add(meal, logOf(food, q));
       else skipped.push(n); // a plan item holds no nutrition of its own, so one gone from the catalog cannot be logged
     }
@@ -150,7 +152,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         />
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
           <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" {...a11yState({ checked: complete })} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -180,7 +182,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   );
 }
 
-function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAdd, onDescribe, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; onRemove: (id: string) => void; onAdd: () => void; onDescribe?: () => void; onRecipes: () => void }) {
+function MealSection({ meal, items, facts, planned, onLogPlanned, known, onRemove, onAdd, onDescribe, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; known: (name: string) => boolean; onRemove: (id: string) => void; onAdd: () => void; onDescribe?: () => void; onRecipes: () => void }) {
   const c = useTheme();
   const kcal = logTotals(items, facts).kcal;
   return (
@@ -201,8 +203,9 @@ function MealSection({ meal, items, facts, planned, onLogPlanned, onRemove, onAd
       ))}
       {!items.length && planned?.length ? (
         <View style={[styles.between, styles.item]}>
-          <Text style={{ color: c.ink, flex: 1 }}>{`From your plan: ${planned.map(([n, q]) => `${n}${q !== 1 ? ` ×${r1(q)}` : ''}`).join(' + ')}`}</Text>
-          <Button label="Log it" a11yLabel={`Log your planned ${meal.toLowerCase()}`} kind="ghost" onPress={() => onLogPlanned(meal, planned)} />
+          {/* An item gone from the food list cannot be logged: say so here, and offer Log it only when something can be (#434). */}
+          <Text style={{ color: c.ink, flex: 1 }}>{`From your plan: ${planned.map(([n, q]) => `${n}${q !== 1 ? ` ×${r1(q)}` : ''}${known(n) ? '' : ` ${PLAN_ITEM_GONE}`}`).join(' + ')}`}</Text>
+          {planned.some(([n]) => known(n)) ? <Button label="Log it" a11yLabel={`Log your planned ${meal.toLowerCase()}`} kind="ghost" onPress={() => onLogPlanned(meal, planned)} /> : null}
         </View>
       ) : null}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />

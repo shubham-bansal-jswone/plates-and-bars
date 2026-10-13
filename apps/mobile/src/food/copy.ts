@@ -16,6 +16,8 @@ export const EATOUT_HINT = 'Rough restaurant estimates; portions and oil vary a 
 export const SOURCE_HINT = 'Values are calculated from USDA public-domain ingredient data using standard home recipes (carbs include fibre, as on food labels); paneer, curd and milk follow FSSAI composition standards. Packaged foods (whey, Greek yogurt, makhana) use typical label values; check your pack.';
 
 const andList = (names: readonly string[]): string => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+/** After a planned item that is no longer in the food list (#434). */
+export const PLAN_ITEM_GONE = '(no longer in the food list)';
 /** How long a Food toast stays: 2.2 s, longer for a long message (about 60 ms a character) so it can be read. */
 export const toastMs = (msg: string): number => Math.max(2200, msg.length * 60);
 /** Toast after "Log it" on a planned meal (prototype: `Logged your planned …`), naming plan items no longer in the catalog (#334). */

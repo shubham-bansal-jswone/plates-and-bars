@@ -187,26 +187,37 @@ describe('Food tab with a saved plan', () => {
 });
 
 describe('Logging a planned meal with foods no longer in the catalog (#334)', () => {
-  const withPlan = async (items: [string, number][]) => {
+  const withPlan = async (items: [string, number][], mine?: string) => {
     const db = memoryDb();
+    if (mine) db.rows.set(`user_foods:f-mine`, JSON.stringify({ id: 'f-mine', version: 1, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, name: mine, unit: '1 bowl', kcal: 250, protein_g: 12, carbs_g: 30, fat_g: 8, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' }));
     await saveProfile(db, profile());
     const plan: MealPlan = { start: DATE, opts: { Breakfast: [items] }, days: [{ Breakfast: { k: 0 } }] };
     await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), meal_plan: plan });
     await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
-    await fireEvent.press(await screen.findByLabelText('Log your planned breakfast'));
     return db;
   };
   const logged = (db: ReturnType<typeof memoryDb>) => [...db.rows.keys()].filter((k) => k.startsWith('food_logs:'));
 
-  it('logs what it can and names what it skipped', async () => {
+  it('marks the missing item on the plan line, logs what it can and names what it skipped (#434)', async () => {
     const db = await withPlan([['Idli', 3], ['Dragonfruit smoothie', 1], ['Egg, whole', 2]]);
+    expect(await screen.findByText('From your plan: Idli ×3 + Dragonfruit smoothie (no longer in the food list) + Egg, whole ×2')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Log your planned breakfast'));
     expect(await screen.findByText('Logged your planned breakfast, except Dragonfruit smoothie, which isn’t in the food list any more')).toBeTruthy();
     await waitFor(() => expect(logged(db)).toHaveLength(2));
   });
 
-  it('says nothing was logged when no item is known', async () => {
+  it('a plan item that is one of My foods is not marked and is logged (#434)', async () => {
+    const db = await withPlan([['Mum’s dal', 1], ['Idli', 2]], 'Mum’s dal');
+    expect(await screen.findByText('From your plan: Mum’s dal + Idli ×2')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Log your planned breakfast'));
+    expect(await screen.findByText('Logged your planned breakfast')).toBeTruthy();
+    await waitFor(() => expect(logged(db)).toHaveLength(2));
+  });
+
+  it('when no item is known, both are marked and there is nothing to log (#434)', async () => {
     const db = await withPlan([['Dragonfruit smoothie', 1], ['Moon cake', 2]]);
-    expect(await screen.findByText('Couldn’t log your planned breakfast: Dragonfruit smoothie and Moon cake aren’t in the food list any more')).toBeTruthy();
+    expect(await screen.findByText('From your plan: Dragonfruit smoothie (no longer in the food list) + Moon cake ×2 (no longer in the food list)')).toBeTruthy();
+    expect(screen.queryByLabelText('Log your planned breakfast')).toBeNull();
     expect(logged(db)).toHaveLength(0);
   });
 });
