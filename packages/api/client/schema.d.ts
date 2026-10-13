@@ -502,7 +502,7 @@ export interface paths {
          *     only these numbers and invent none.
          *
          *     The request is numeric facts only, plus the goal and catalogue exercise ids for the
-         *     improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+         *     improved and stalled lifts; no user-typed text reaches the provider in this call. Lifts are
          *     identified by their `content/exercises.json` id, and every custom exercise is sent
          *     as the fixed label `custom exercise`, never by its user-typed name. The server
          *     sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
@@ -1019,7 +1019,12 @@ export interface components {
             quota: components["schemas"]["AiQuota"];
         };
         SuggestTagsRequest: {
-            /** @description The exercise name as the user typed it (the app's name limit, 200 characters). */
+            /**
+             * @description The exercise name as the user typed it, trimmed by the app (the app's name limit,
+             *     200 characters). Must contain a non-space character. This is the one place a
+             *     custom exercise's typed name leaves the device, and only when the user has turned
+             *     AI on; Weekly summary still sends `custom exercise` instead.
+             */
             name: string;
         };
         SuggestTagsResponse: {
@@ -1084,7 +1089,7 @@ export interface components {
         /**
          * @description A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
          *     `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
-         *     app never sends a custom exercise's user-typed name; the server sends any value
+         *     app never sends a custom exercise's user-typed name in this call (only Suggest tags does); the server sends any value
          *     that is not a catalogue id to the provider as `custom exercise`.
          * @example Goblet Squat
          * @example custom exercise

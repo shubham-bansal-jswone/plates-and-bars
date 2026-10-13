@@ -161,7 +161,7 @@ tags:
       timeout is 503 `unavailable` instead: a one-off, so the app shows "Couldn't get an
       answer, try again" and the fallback.
 
-      **Prompt injection and output checks.** User text (`text`, `question`) goes into the
+      **Prompt injection and output checks.** User text (`text`, `question`, `name`) goes into the
       prompt as delimited data, never as instructions, and the instructions tell the model
       to treat it only as data. The model's reply is parsed as data and checked against the
       response schema (types, `maxLength`, `maximum`) before it is returned; nothing in it
@@ -169,10 +169,17 @@ tags:
       are out of range. Ask why turns a reply `card_id` that is not in
       `content/cards.json` into null, and rejects an `answer` containing `{` or `}`. A
       reply that cannot be parsed or fails these checks is 503 `unavailable`; the provider
-      has billed it, so the reserved quota unit is kept (see Daily quota).
+      has billed it, so the reserved quota unit is kept (see Daily quota). Suggest tags
+      repairs a reply the way the prototype's `suggestTags()` does instead of failing it:
+      it drops muscles that are not in `Muscle`, keeps the first 3 of `primary` and of
+      `secondary`, uses `machine` for an equipment that is not in the enum, 2 for a
+      difficulty outside 1 to 3 and `h-press` for a `pattern` it does not know. When no
+      main muscle is left it answers 200 with `primary` empty (the quota unit is kept, the
+      provider billed it) and the app shows the manual tag sheet. It is 503 `unavailable`
+      only when the reply does not parse.
 
       **No logging.** Request and response bodies of `/ai/*` (meal text, questions,
-      answers, check-in numbers, exercise ids) are never logged, written to the database or
+      answers, check-in numbers, exercise ids, exercise names) are never logged, written to the database or
       sent to error reporting, and 400 `details[].issue` never echoes a submitted value.
       The identical-request cache, if used, is per user (never shared across users), in
       memory only, keyed by the user id and a hash of the request, and expires within 24
@@ -934,6 +941,7 @@ paths:
                       describe_meal: false
                       ask_why: false
                       weekly_summary: false
+                      suggest_tags: false
                     quota:
                       limit: 10
                       remaining: 10
@@ -1177,7 +1185,7 @@ paths:
         only these numbers and invent none.
 
         The request is numeric facts only, plus the goal and catalogue exercise ids for the
-        improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+        improved and stalled lifts; no user-typed text reaches the provider in this call. Lifts are
         identified by their `content/exercises.json` id, and every custom exercise is sent
         as the fixed label `custom exercise`, never by its user-typed name. The server
         sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
@@ -2430,7 +2438,12 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: The exercise name as the user typed it (the app's name limit, 200 characters).
+          pattern: '\S'
+          description: |
+            The exercise name as the user typed it, trimmed by the app (the app's name limit,
+            200 characters). Must contain a non-space character. This is the one place a
+            custom exercise's typed name leaves the device, and only when the user has turned
+            AI on; Weekly summary still sends `custom exercise` instead.
 
     SuggestTagsResponse:
       type: object
@@ -2580,7 +2593,7 @@ components:
       description: |
         A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
         `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
-        app never sends a custom exercise's user-typed name; the server sends any value
+        app never sends a custom exercise's user-typed name in this call (only Suggest tags does); the server sends any value
         that is not a catalogue id to the provider as `custom exercise`.
       examples: [Goblet Squat, custom exercise]
 
