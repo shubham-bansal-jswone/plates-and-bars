@@ -253,4 +253,28 @@ describe('add and remove exercises (#147)', () => {
     expect(stored.exercises.map((e) => e.name)).toEqual(['Plank (seconds)']);
     await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toEqual(['Plank (seconds)']));
   });
+
+  it('Start never overwrites a live session stored meanwhile; it shows it instead', async () => {
+    const { db, result } = await started();
+    const all = [...result.current.day.exs];
+    for (const e of all.slice(0, -1)) await act(async () => void result.current.removeExercise(e.name));
+    await settle();
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, exercises: [...w.exercises, { name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], updated_at: '2026-10-08T09:30:00Z' });
+    await act(async () => {
+      void result.current.removeExercise(all[all.length - 1]!.name); // the screen now shows no session
+      void result.current.start('Lower A', {}, null); // and Start is tapped before the kept row is read again
+    });
+    await settle();
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual(['Plank (seconds)']);
+    await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toEqual(['Plank (seconds)']));
+  });
+
+  it('removing an exercise that is not in the session does nothing and says so', async () => {
+    const { result } = await started();
+    let ok = true;
+    await act(async () => void (ok = result.current.removeExercise('Not an exercise')));
+    expect(ok).toBe(false);
+  });
 });
+

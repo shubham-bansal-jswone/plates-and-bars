@@ -223,7 +223,14 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
         await enqueue(async () => {
           // Started over a session deleted on another device: its sets go with it, so the new session does not
           // pick them up (the contract does not promise that the deleting device tombstoned them).
-          const overTombstone = !!(await loadWorkout(db, date))?.deleted_at;
+          const stored = await loadWorkout(db, date);
+          if (stored && !stored.deleted_at) {
+            // A live session is already stored (pulled from another device, or kept after a removal) that this screen
+            // has not shown yet: never overwrite it; read it again so it shows instead.
+            setMerged((n) => n + 1);
+            return;
+          }
+          const overTombstone = !!stored?.deleted_at;
           if (overTombstone) {
             const at = stamp(now());
             for (const s of await loadSets(db, date)) if (!s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
@@ -440,7 +447,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   };
 
   /**
-   * Removes exercise `i` from today's session (prototype `delex`). Its stored set rows become tombstones and its lift record
+   * Removes the exercise named `name` from today's session (prototype `delex`); false when it is not in the session. Its stored set rows become tombstones and its lift record
    * is recomputed without them. Removing the last one deletes today's workout, so a new session can be started (#413).
    */
   const removeExercise = (name: string) => {
