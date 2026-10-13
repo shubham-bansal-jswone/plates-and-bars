@@ -26,6 +26,8 @@ export interface Actions {
   howTo(): void;
   /** Open the "Can't do" sheet for this exercise. */
   cant(): void;
+  addSet(): void;
+  removeSet(): void;
 }
 
 interface Props {
@@ -191,11 +193,16 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
         )
       ) : null}
       {allDone && !nl && ex.form ? <Button label={`Change form answer for ${ex.name}`} kind="link" onPress={() => act.form(null)} /> : null}
+      <View style={styles.setRow}>
+        <Chip label={`Add a set to ${ex.name}`} text="Add set" onPress={act.addSet} />
+        {ex.sets.length > 1 ? <Chip label={`Remove the last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
+      </View>
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
+  setRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   guide: { borderRadius: radius.md, borderWidth: 1, padding: 10, gap: 6 },
   set: { flexDirection: 'row', alignItems: 'center', gap: 8 },
