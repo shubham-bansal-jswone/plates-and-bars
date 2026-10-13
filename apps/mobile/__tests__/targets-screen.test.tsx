@@ -100,6 +100,20 @@ describe('TargetsScreen', () => {
       expect(mockPush).toHaveBeenLastCalledWith('/kitchen-test');
     });
 
+    it('reads the count again each time the tab is shown', async () => {
+      const db = memoryDb();
+      await saveProfile(db, goldenProfile());
+      const ui = () => withProfile(db, <TargetsScreen db={db} />);
+      const { rerender } = await render(ui());
+      expect(await screen.findByText(/Start with dal, roti/)).toBeTruthy();
+      db.rows.set('kitchen_tests:a', stored('Dal', 'a'));
+      // still mounted, nothing changed on screen
+      expect(screen.getByText(/Start with dal, roti/)).toBeTruthy();
+      mockFocus.n++;
+      await rerender(ui());
+      expect(await screen.findByText(/1 dish tested\.$/)).toBeTruthy();
+    });
+
     it('suggests where to start when none is saved', async () => {
       const db = memoryDb();
       await saveProfile(db, goldenProfile());

@@ -264,6 +264,30 @@ describe('Kitchen test screen: comparison with the app value', () => {
     expect(await screen.findByText(line('DAL', '1 bowl', 900, perServing() - 900))).toBeTruthy();
   });
 
+  it('reads my foods again after "Save and use for my logging": the next test of that dish compares with the saved values', async () => {
+    const db = memoryDb();
+    await setup(db);
+    await start();
+    await fill();
+    await fireEvent.press(screen.getByLabelText('Save and use for my logging'));
+    await waitFor(async () => expect((await loadUserFoods(db)).some((f) => f.origin === 'kitchen_test')).toBe(true));
+    await screen.findByRole('header', { name: 'Kitchen tests' });
+    await start();
+    await fill();
+    const saved = (await loadUserFoods(db)).find((f) => f.origin === 'kitchen_test')!;
+    expect(saved.kcal).not.toBe(getFoodCatalog().find((f) => f.name === 'Dal')!.per_serving.kcal);
+    expect(await screen.findByText(line('Dal', saved.unit, saved.kcal, perServing() - saved.kcal))).toBeTruthy();
+  });
+
+  it('reads a blank unit of my food as "1 serving", as the prototype does', async () => {
+    const db = memoryDb();
+    db.rows.set('user_foods:mine', JSON.stringify({ id: 'mine', version: 1, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, name: 'Dal', unit: '', kcal: 300, protein_g: 1, carbs_g: 1, fat_g: 1, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' }));
+    await setup(db);
+    await start();
+    await fill();
+    expect(await screen.findByText(line('Dal', '1 serving', 300, perServing() - 300))).toBeTruthy();
+  });
+
   it('shows nothing for a dish with no food of that name, or without a serving', async () => {
     await setup();
     await start();

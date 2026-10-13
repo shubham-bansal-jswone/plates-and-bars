@@ -93,12 +93,6 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
           </>
         ) : null}
         <AiSection />
-        {/* Prototype `ktListHtml`: the kitchen tests section of Targets; the list itself is on its own screen. */}
-        <View style={{ gap: 8, marginTop: 16 }}>
-          <Label>Kitchen tests</Label>
-          {kitchen !== null ? <Hint>{listIntro(kitchen)}</Hint> : null}
-          <Button label="Kitchen tests" kind="ghost" onPress={() => router.push('/kitchen-test' as never)} />
-        </View>
         {ready ? (
           <View style={{ gap: 8, marginTop: 16 }}>
             <Label>Workout</Label>
@@ -117,6 +111,12 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
           </View>
         ) : null}
+        {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Workout as there; the list itself is on its own screen. */}
+        <View style={{ gap: 8, marginTop: 16 }}>
+          <Label>Kitchen tests</Label>
+          {kitchen !== null ? <Hint>{listIntro(kitchen)}</Hint> : null}
+          <Button label="Kitchen tests" kind="ghost" onPress={() => router.push('/kitchen-test' as never)} />
+        </View>
       </Page>
       <ToastBar message={toast} />
     </View>
