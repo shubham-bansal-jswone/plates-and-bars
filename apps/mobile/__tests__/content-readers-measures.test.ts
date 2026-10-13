@@ -65,6 +65,8 @@ describe('measures through the content store', () => {
     ['empty label', (b) => { b.measures[0].label = ''; }],
     ['label 5000 characters', (b) => { b.measures[0].label = 'x'.repeat(5000); }],
     ['label 201 characters', (b) => { b.measures[0].label = 'x'.repeat(201); }],
+    ['label of spaces', (b) => { b.measures[0].label = '   '; }],
+    ['label of zero-width spaces', (b) => { b.measures[0].label = '\u200B\u200B'; }],
     ['label number', (b) => { b.measures[0].label = 5; }],
     ['label missing', (b) => { delete b.measures[0].label; }],
     ['show missing', (b) => { delete b.measures[0].show; }],

@@ -121,6 +121,13 @@ describe('foods and eat-out through the content store', () => {
     ['empty name', (f) => { f.name = ''; }],
     ['5000 character name', (f) => { f.name = 'x'.repeat(5000); }],
     ['name number', (f) => { f.name = 5; }],
+    ['name of spaces', (f) => { f.name = '   '; }],
+    ['name of zero-width spaces', (f) => { f.name = '\u200B\u200B'; }],
+    ['name_hi of spaces', (f) => { f.name_hi = '  '; }],
+    ['blank alias', (f) => { f.aliases = ['a', ' ']; }],
+    ['blank serving label', (f) => { f.serving.label = '\t'; }],
+    ['source name of spaces', (f) => { f.source.name = '  '; }],
+    ['source licence of zero-width spaces', (f) => { f.source.licence = '\u200B'; }],
     ['negative fruit_veg_servings', (f) => { f.fruit_veg_servings = -3; }],
     ['huge fruit_veg_servings', (f) => { f.fruit_veg_servings = 1e6; }],
     ['missing fruit_veg_servings', (f) => { delete f.fruit_veg_servings; }],
@@ -170,6 +177,8 @@ describe('foods and eat-out through the content store', () => {
     ['tips missing', (b) => { delete b.cuisines[0].tips; }],
     ['tips with a number', (b) => { b.cuisines[0].tips = ['a', 2]; }],
     ['empty cuisine name', (b) => { b.cuisines[0].name = ''; }],
+    ['cuisine name of spaces', (b) => { b.cuisines[0].name = '  '; }],
+    ['blank tip', (b) => { b.cuisines[0].tips = ['a', '  ']; }],
     ['null bundle', () => undefined],
   ];
   it.each(cuisineCases)('eatout: %s rejects the copy', async (n, mutate) => {
@@ -199,6 +208,8 @@ describe('foods and eat-out through the content store', () => {
     expect(isCatalogFood(f)).toBe(true);
     expect(isCatalogFood({ ...f, name: 'x'.repeat(200) })).toBe(true);
     expect(isCatalogFood({ ...f, name: 'x'.repeat(201) })).toBe(false);
+    expect(isCatalogFood({ ...f, name: ' a ' })).toBe(true);
+    expect(isCatalogFood({ ...f, name: ' \u200B\uFEFF\u2060 ' })).toBe(false);
   });
 });
 
