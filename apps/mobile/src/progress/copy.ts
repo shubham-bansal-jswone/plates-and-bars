@@ -1,6 +1,6 @@
 import measuresContent from '../../../../content/measures.json';
 import { RAPID_LOSS_KCAL, type MeasureKey } from '@plate-and-bar/core';
-import { contentReader, isObj, isStr, perLoad } from '../content/reader';
+import { contentReader, isObj, isStr, isTrimmedText, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
 export interface MeasureDef {
@@ -31,7 +31,7 @@ const isMeasures = (v: unknown): v is MeasuresBundle => {
   if (!isObj(v) || v.unit !== 'cm' || !Array.isArray(v.measures)) return false;
   const seen = new Set<string>();
   for (const m of v.measures) {
-    if (!isObj(m) || !isStr(m.key) || !KEYS.includes(m.key) || seen.has(m.key) || !isStr(m.label) || m.label.trim().length === 0 || m.label.length > 200 || !isShow(m.show)) return false;
+    if (!isObj(m) || !isStr(m.key) || !KEYS.includes(m.key) || seen.has(m.key) || !isTrimmedText(200)(m.label) || !isShow(m.show)) return false;
     // Body fat and the waist chart read waist and neck, and hips is only for women: a copy must not change those rules.
     if ((m.key === 'waist' || m.key === 'neck') && m.show !== 'always') return false;
     if (m.key === 'hips' && m.show !== 'always' && !isHipsRule(m.show)) return false;

@@ -8,6 +8,10 @@ export const isNumOrNull = (v: unknown): v is number | null => v === null || isN
 export const isStrOrNull = (v: unknown): v is string | null => v === null || isStr(v);
 /** A string of 1 to `max` characters. */
 export const isText = (max: number) => (v: unknown): v is string => isStr(v) && v.length >= 1 && v.length <= max;
+/** Whitespace and zero-width characters (U+200B to U+200D, U+2060, U+FEFF), which `trim()` leaves alone. */
+const BLANK_RUN = /^[\s\u200B-\u200D\u2060\uFEFF]*$/;
+/** A string of 1 to `max` characters with something visible in it: spaces, tabs and zero-width characters alone are rejected (as `nonEmpty` in `tools/validate/*`, and stricter for zero-width). */
+export const isTrimmedText = (max: number) => (v: unknown): v is string => isText(max)(v) && !BLANK_RUN.test(v);
 /** A finite number within [min, max]. */
 export const isNumIn = (min: number, max: number) => (v: unknown): v is number => isNum(v) && v >= min && v <= max;
 export const isUuid = (v: unknown): v is string => isStr(v) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -19,7 +23,7 @@ export interface FoodSource { code: string; name: string; licence: string; url: 
 
 /** Contract `FoodSource`: code from the allowed list, text bounded, url null or https only (About opens it). Shared by every bundle that carries a `source`. */
 export const isFoodSource = (v: unknown): v is FoodSource =>
-  isObj(v) && isStr(v.code) && FOOD_SOURCE_CODES.includes(v.code) && isText(1000)(v.name) && isText(200)(v.licence) &&
+  isObj(v) && isStr(v.code) && FOOD_SOURCE_CODES.includes(v.code) && isTrimmedText(1000)(v.name) && isTrimmedText(200)(v.licence) &&
   (v.url === null || (isStr(v.url) && v.url.length <= 2000 && /^https:\/\/[^\s]+$/.test(v.url))) &&
   (v.reference === undefined || (v.reference === null || (isStr(v.reference) && v.reference.length <= 200)));
 
