@@ -157,6 +157,17 @@ describe('Workout tab: logging sets', () => {
     return db;
   }
 
+  it('Add set adds a set row; Remove last set shows only with more than one set (#147)', async () => {
+    await started();
+    const sets = () => screen.queryAllByLabelText(/^Barbell Bench Press set \d+ kg$/).length;
+    const n = sets();
+    await press('Add a set to Barbell Bench Press');
+    await waitFor(() => expect(sets()).toBe(n + 1));
+    for (let k = n + 1; k > 1; k--) await press('Remove the last set of Barbell Bench Press');
+    await waitFor(() => expect(sets()).toBe(1));
+    expect(screen.queryByLabelText('Remove the last set of Barbell Bench Press')).toBeNull();
+  });
+
   it('shows core’s suggestion, target and warm-up line', async () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.

@@ -242,6 +242,8 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
           rampRate: (j, v) => w.rampRated(i, j, v),
           howTo: () => onHowTo(ex.name),
           cant: () => onCant(i, ex.name),
+          addSet: () => w.addSet(i),
+          removeSet: () => w.removeSet(i),
         };
         return (
           <View key={ex.name} style={{ gap: 8 }}>
