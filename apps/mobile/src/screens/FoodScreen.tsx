@@ -9,6 +9,7 @@ import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Pres
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
+import { plannedLogged } from '../food/copy';
 import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
@@ -82,13 +83,15 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   };
 
   const logPlanned = (meal: Meal, items: PlanItem[]) => {
+    const skipped: string[] = [];
     for (const [n, q] of items) {
       // My foods first, as the prototype's foodByName does.
       const mineFood = f.mine.map((u, i) => ({ ...f.mineFacts[i]!, id: u.id }) as CatalogFood).find((x) => x.name.toLowerCase() === n.toLowerCase());
       const food = mineFood ?? getFoodCatalog().find((x) => x.name.toLowerCase() === n.toLowerCase());
       if (food) f.add(meal, logOf(food, q));
+      else skipped.push(n); // a plan item holds no nutrition of its own, so one gone from the catalog cannot be logged
     }
-    notify(`Logged your planned ${meal.toLowerCase()}`);
+    notify(plannedLogged(meal, skipped, items.length - skipped.length));
   };
 
   return (

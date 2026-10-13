@@ -185,6 +185,31 @@ describe('Food tab with a saved plan', () => {
   });
 });
 
+describe('Logging a planned meal with foods no longer in the catalog (#334)', () => {
+  const withPlan = async (items: [string, number][]) => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const plan: MealPlan = { start: DATE, opts: { Breakfast: [items] }, days: [{ Breakfast: { k: 0 } }] };
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), meal_plan: plan });
+    await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    await fireEvent.press(await screen.findByLabelText('Log your planned breakfast'));
+    return db;
+  };
+  const logged = (db: ReturnType<typeof memoryDb>) => [...db.rows.keys()].filter((k) => k.startsWith('food_logs:'));
+
+  it('logs what it can and names what it skipped', async () => {
+    const db = await withPlan([['Idli', 3], ['Dragonfruit smoothie', 1], ['Egg, whole', 2]]);
+    expect(await screen.findByText('Logged your planned breakfast, except Dragonfruit smoothie, which isn’t in your foods any more')).toBeTruthy();
+    await waitFor(() => expect(logged(db)).toHaveLength(2));
+  });
+
+  it('says nothing was logged when no item is known', async () => {
+    const db = await withPlan([['Dragonfruit smoothie', 1], ['Moon cake', 2]]);
+    expect(await screen.findByText('Couldn’t log your planned breakfast: Dragonfruit smoothie and Moon cake aren’t in your foods any more')).toBeTruthy();
+    expect(logged(db)).toHaveLength(0);
+  });
+});
+
 describe('A malformed saved plan', () => {
   it('reads as none, so Food and the plan screen do not crash', async () => {
     const db = memoryDb();

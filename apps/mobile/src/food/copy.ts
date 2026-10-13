@@ -14,3 +14,13 @@ export const TOO_SMALL = 'That amount is too small to log. Enter more grams or u
 export const notInGrams = (name: string, unit: string): string => `${name} is measured in ${unit}, not grams. Use servings.`;
 export const EATOUT_HINT = 'Rough restaurant estimates; portions and oil vary a lot.';
 export const SOURCE_HINT = 'Values are calculated from USDA public-domain ingredient data using standard home recipes (carbs include fibre, as on food labels); paneer, curd and milk follow FSSAI composition standards. Packaged foods (whey, Greek yogurt, makhana) use typical label values; check your pack.';
+
+const andList = (names: readonly string[]): string => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+/** Toast after "Log it" on a planned meal (prototype: `Logged your planned …`), naming plan items no longer in the catalog (#334). */
+export function plannedLogged(meal: string, skipped: readonly string[], logged: number): string {
+  const m = meal.toLowerCase();
+  if (!skipped.length) return `Logged your planned ${m}`;
+  const verb = skipped.length === 1 ? 'isn’t' : 'aren’t';
+  if (!logged) return `Couldn’t log your planned ${m}: ${andList(skipped)} ${verb} in your foods any more`;
+  return `Logged your planned ${m}, except ${andList(skipped)}, which ${verb} in your foods any more`;
+}
