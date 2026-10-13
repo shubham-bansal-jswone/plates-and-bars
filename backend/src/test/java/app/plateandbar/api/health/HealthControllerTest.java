@@ -1,5 +1,7 @@
 package app.plateandbar.api.health;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -7,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import app.plateandbar.api.support.WebMvcAuthSlice;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -20,6 +23,21 @@ class HealthControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean JdbcTemplate jdbc;
+    @Value("${server.forward-headers-strategy}") String forwardHeadersStrategy;
+
+    @Test
+    void forwardedHeadersAreNotTrustedByTheContainer() {
+        assertEquals("none", forwardHeadersStrategy);
+    }
+
+    @Test
+    void appDoesNotEmitHstsEvenWhenAClientClaimsHttps() throws Exception {
+        // HSTS is the proxy's job (infra/caddy/Caddyfile.api); a spoofed X-Forwarded-Proto must not change that.
+        mvc.perform(get("/api/v1/health").header("X-Forwarded-Proto", "https").header("X-Forwarded-For", "203.0.113.9"))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("Strict-Transport-Security"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+    }
 
     @Test
     void healthIsPublicAndMatchesContract() throws Exception {
