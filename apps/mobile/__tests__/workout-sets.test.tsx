@@ -302,5 +302,16 @@ describe('add and remove exercises (#147)', () => {
     expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual(['Push-ups', ...rest]);
     expect(result.current.day.exs.map((e) => e.name)).toEqual(['Push-ups', ...rest]);
   });
+
+  it('a can\'t-do after the workout was deleted elsewhere keeps it deleted and the screen reloads to no session', async () => {
+    const { db, result } = await started();
+    const first = result.current.day.exs[0]!.name;
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, version: 4, deleted_at: '2026-10-09T09:59:00Z', updated_at: '2026-10-09T09:59:59Z' });
+    await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur: 'today', scope: 'exercise', key: first }, 'Dumbbell Bench Press'));
+    await settle();
+    expect((await loadWorkout(db, DATE))!.deleted_at).toBe('2026-10-09T09:59:00Z');
+    await waitFor(() => expect(result.current.day.workout).toBeNull());
+  });
 });
 

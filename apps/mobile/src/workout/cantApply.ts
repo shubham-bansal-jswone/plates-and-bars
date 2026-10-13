@@ -66,6 +66,8 @@ export async function persistCant(db: WorkoutDb, date: string, base: Workout, ch
   const version = new Map(storedSets.map((s) => [s.id, s.version]));
   const mine = { ...base, exercises: ch.exercises };
   const elsewhere = !!synced && !!stored && !stored.deleted_at && unversioned(stored) !== unversioned(synced);
+  // After a merge the replacement keeps the merge's order (stored list first, this device's new exercises appended), so it
+  // can end up last rather than in the swapped exercise's place. Nothing is lost or brought back; only the order differs.
   const row = { ...(elsewhere ? mergeWorkout(synced, mine, stored) : mine), version: stored?.version ?? base.version, updated_at: at };
   await saveWorkout(db, row);
   for (const s of [...ch.changed, ...ch.removed, ...ch.added]) await saveSet(db, date, { ...s, version: version.get(s.id) ?? s.version });
