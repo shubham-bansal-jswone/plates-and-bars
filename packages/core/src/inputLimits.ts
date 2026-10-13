@@ -24,3 +24,6 @@ export const EXERCISE_NAME_MAX = 200;
 export function exerciseNameTooLong(name: string): boolean {
   return name.trim().length > EXERCISE_NAME_MAX;
 }
+
+/** Most custom exercises the contract keeps (`Settings.custom_tags` maxProperties): a new one past this is refused (#312). */
+export const CUSTOM_EXERCISES_MAX = 500;
