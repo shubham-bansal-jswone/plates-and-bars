@@ -1,4 +1,4 @@
-import { kitchenNoteTooLong, NOTE_MAX, servingUnitTooLong, UNIT_MAX } from '../src';
+import { EXERCISE_NAME_MAX, exerciseNameTooLong, kitchenNoteTooLong, NOTE_MAX, servingUnitTooLong, UNIT_MAX } from '../src';
 
 describe('input length limits (contract 0.1.9, #377)', () => {
   it('serving unit: 100 characters is fine, 101 is too long, checked after trimming', () => {
@@ -21,5 +21,12 @@ describe('input length limits (contract 0.1.9, #377)', () => {
     expect(servingUnitTooLong('😀'.repeat(51))).toBe(true); // 102 units, though only 51 code points
     expect(kitchenNoteTooLong('😀'.repeat(1000))).toBe(false);
     expect(kitchenNoteTooLong('😀'.repeat(1001))).toBe(true);
+  });
+
+  it('custom exercise name: 200 characters is fine, 201 is too long, checked after trimming (#397)', () => {
+    expect(EXERCISE_NAME_MAX).toBe(200);
+    expect(exerciseNameTooLong('x'.repeat(200))).toBe(false);
+    expect(exerciseNameTooLong(`  ${'x'.repeat(200)}  `)).toBe(false);
+    expect(exerciseNameTooLong('x'.repeat(201))).toBe(true);
   });
 });
