@@ -577,6 +577,16 @@ describe('fitSuggestions and applyFit (prototype fitSuggestions, fit-oil, fit-so
     expect(applyFit('fit-soya', recipe.ingredients, raw).at(-1)).toEqual({ ingredient: 'Soya chunks', amount: '50', unit: 'g' });
   });
 
+  it('suggests the oil at exactly 25 kcal per katori and not at 24.9 (the prototype save >= 25)', () => {
+    const at = (oilG: number) => fitSuggestions({ ingredients: [{ ingredient: 'Oil', amount: oilG, unit: 'g' }, { ingredient: 'Egg', amount: 50, unit: 'g' }], yield_mode: 'katori', katoris: 9, cooked_g: null }, raw, katoriG);
+    // 50 g oil: 25 x 9 / 9 = 25 exactly.
+    expect(at(50)).toEqual([{ kind: 'fit-oil', kcal_saved: 25 }]);
+    expect(at(49.8)).toEqual([]);
+    const rb = (g: string): ProtoRB => ({ rows: [{ ing: 'Oil', amt: g, unit: 'g' }, { ing: 'Egg', amt: '50', unit: 'g' }], ymode: 'katori', katoris: '9', grams: '' } as ProtoRB);
+    expect(proto.fitSuggestions(rb('50')).map((x) => x[0])).toEqual(['fit-oil']);
+    expect(proto.fitSuggestions(rb('49.8'))).toEqual([]);
+  });
+
   it('gives nothing without a yield, and under 25 kcal of oil saved no oil suggestion', () => {
     const rows: IngredientRow[] = [{ ingredient: 'Oil', amount: 100, unit: 'g' }];
     expect(fitSuggestions({ ingredients: rows, yield_mode: 'katori', katoris: 0, cooked_g: null }, raw, katoriG)).toEqual([]);
@@ -641,12 +651,11 @@ describe('kitchenCompare (prototype ktResultHtml cmp)', () => {
 });
 
 describe('stepMinutes (prototype cookSheet)', () => {
-  it('reads the first number before "min", as the prototype regex does, for every library step', () => {
-    for (const r of recipesContent.library) {
-      for (const s of r.steps) {
-        const m = /(\d+)\s*min/.exec(s);
-        expect(stepMinutes(s)).toBe(m ? Number(m[1]) : null);
-      }
+  it('matches the prototype cookSheet regex, cut from its source, for every library step and edge cases', () => {
+    const steps = [...recipesContent.library.flatMap((r) => r.steps), 'Rest 5min, then 10 min more', 'Cook for 1 minute', 'Min 5', '', '3 mins', '007 min', 'Soak 12\u00a0min', 'a 4 \n min'];
+    for (const st of steps) {
+      const want = proto.cookMinutes(st);
+      expect(stepMinutes(st)).toBe(want === null ? null : Number(want));
     }
   });
 
@@ -657,5 +666,29 @@ describe('stepMinutes (prototype cookSheet)', () => {
     expect(stepMinutes('Cook for 1 minute')).toBe(1);
     expect(stepMinutes('Min 5')).toBeNull();
     expect(stepMinutes('')).toBeNull();
+  });
+});
+
+describe('kitchenCompare against the prototype (ktResultHtml cmp)', () => {
+  const line = (c: NonNullable<ReturnType<typeof kitchenCompare>>): string =>
+    `The app’s current value for ${c.food.name} (${c.food.unit}) is ${Math.round(c.food.kcal).toLocaleString('en-IN')} kcal; your dish is ${c.diff_kcal >= 0 ? '+' : '−'}${Math.round(Math.abs(c.diff_kcal)).toLocaleString('en-IN')} kcal per serving.`;
+  const BUILT: [string, string, number][] = [['Dal', '1 katori (35 g dal)', 161], ['Roti / chapati', '1 roti', 102], ['dal', 'second built-in', 5]];
+  const MINE = [{ name: 'DAL fry', unit: '1 bowl', kcal: 320 }, { name: 'Rice', kcal: 210 }, { name: 'dal', unit: '', kcal: 400 }];
+
+  it('finds the same food and difference as the prototype over random tests and names', () => {
+    const rand = rng(7195);
+    const names = ['Dal', 'dAL', 'DAL fry', 'Rice', ' Dal', 'Roti / chapati', 'Nothing', '', 'Dal '];
+    let hits = 0;
+    for (let i = 0; i < 1500; i++) {
+      const d = randomTest(rand, names[Math.floor(rand() * names.length)]);
+      const ps = kitchenTest(testInput(d), raw);
+      // The app passes personal foods through userFoodFacts (a blank unit reads "1 serving") before built-in ones.
+      const foods = [...MINE.map((m) => { const u = userFoodFacts({ name: m.name, unit: m.unit ?? '', kcal: m.kcal, protein_g: 0, carbs_g: 0, fat_g: 0, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null }); return { name: u.name, unit: u.serving.label, kcal: u.per_serving.kcal }; }), ...BUILT.map(([name, unit, kcal]) => ({ name, unit, kcal }))];
+      const got = kitchenCompare(d.name, ps.ready ? ps.perServing : null, foods);
+      const want = proto.ktCompare(d, MINE, BUILT);
+      expect(got ? line(got) : '').toBe(want);
+      if (got) hits++;
+    }
+    expect(hits).toBeGreaterThan(100);
   });
 });
