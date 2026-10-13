@@ -450,7 +450,7 @@ export function fitSuggestions(recipe: RecipeYield, raw: readonly RawIngredient[
  * number, unit kept (also a row whose amount is 0 or blank, which becomes "0"); `fit-soya` adds 50 g of
  * Soya chunks. Amounts come back as text, as the prototype's text boxes hold them.
  *
- * Mirrors prototype `case 'fit-oil'` and `case 'fit-soya'` of `recipeAction`.
+ * Mirrors prototype `case 'fit-oil'` and `case 'fit-soya'` of `food3Action`.
  */
 export function applyFit(kind: FitSuggestion['kind'], rows: readonly IngredientRow[], raw: readonly RawIngredient[]): IngredientRow[] {
   if (kind === 'fit-soya') return [...rows.map((r) => ({ ...r })), { ingredient: SOYA_INGREDIENT, amount: String(FIT_SOYA_G), unit: 'g' }];
@@ -471,7 +471,7 @@ export interface KitchenTestRecord extends KitchenTestInput {
  * "Copy all as a table": tab-separated text, a header line then one line per test in the order given. Columns:
  * dish, date, notes, cooked_g (rounded, 0 when not ready), serving, serving_g, kcal_per_serving (rounded),
  * protein, carbs, fat, fibre and oil per serving (to 0.1; a test with no serving gives an empty serving_g and
- * zeros), and the ingredients with an amount above 0 as "name 80g; name 1tsp". Text is not escaped, as in the prototype.
+ * zeros), and the ingredients with a non-zero amount (a negative one is listed too) as "name 80g; name 1tsp". Text is not escaped, as in the prototype.
  *
  * Mirrors prototype `ktExport()` (the text it copies).
  */
