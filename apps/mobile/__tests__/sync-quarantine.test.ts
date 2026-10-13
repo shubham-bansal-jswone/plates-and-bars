@@ -97,6 +97,26 @@ describe('a 400 from /sync', () => {
     expect(await pendingCount(db)).toBe(2);
   });
 
+  it('a run refused after it set a record aside reports that progress; a plain refusal reports none (#401)', async () => {
+    const { db, server, deps } = await setup();
+    server.rejectIf = null;
+    await saveWeightDoc(db, weight('2026-10-07', 80));
+    await saveWeightDoc(db, weight('2026-10-08', 81));
+    server.force400.push([{ field: 'changes.weights[0].weight_kg', issue: 'maximum' }], undefined);
+    expect(await syncOnce(deps)).toMatchObject({ status: 'rejected', quarantined: 1, pushed: 0 });
+    server.force400.push(undefined);
+    const plain = await syncOnce(deps);
+    expect(plain.status).toBe('rejected');
+    expect((plain.pushed ?? 0) + (plain.pulled ?? 0) + (plain.quarantined ?? 0)).toBe(0);
+  });
+
+  it('pushed counts the records the server applied', async () => {
+    const { db, deps } = await setup();
+    await saveWeightDoc(db, weight('2026-10-07', 80));
+    await saveWeightDoc(db, weight('2026-10-08', 81));
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok', pushed: 2 });
+  });
+
   it('several fields naming one record set it aside once', async () => {
     const { db, server, deps } = await setup();
     server.rejectIf = null;

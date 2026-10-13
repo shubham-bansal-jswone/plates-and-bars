@@ -54,7 +54,7 @@ export function SignInScreen() {
         <H1>{t.title}</H1>
         <Hint>{unsynced > 0 ? t.unsynced(unsynced) : t.allSynced}</Hint>
         {s.last?.status === 'unavailable' || s.last?.status === 'offline' ? <Note>{t.retrying}</Note> : null}
-        {s.last?.status === 'rejected' ? <Note>{t.rejected}</Note> : null}
+        {s.last?.status === 'rejected' ? <Note>{rejectedText(s.last)}</Note> : null}
         {s.last?.status === 'error' ? <Note>{t.failed}</Note> : null}
         {s.last?.status === 'consent_required' ? (
           <>
@@ -247,4 +247,11 @@ export function SignInScreen() {
       )}
     </Page>
   );
+}
+
+/** A refused run that already synced or set records aside is not just an 'update the app' case (#401). */
+function rejectedText(r: { pushed?: number; pulled?: number; quarantined?: number }): string {
+  if ((r.pushed ?? 0) + (r.pulled ?? 0) > 0) return t.rejectedAfterProgress;
+  if ((r.quarantined ?? 0) > 0) return t.rejectedAfterSetAside;
+  return t.rejected;
 }
