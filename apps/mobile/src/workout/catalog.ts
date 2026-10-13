@@ -1,4 +1,4 @@
-import type { ExerciseCatalog, LadderCatalog } from '@plate-and-bar/core';
+import { applyCustomTags, type ExerciseCatalog, type ExerciseTag, type LadderCatalog } from '@plate-and-bar/core';
 import exercises from '../../../../content/exercises.json';
 import { has, isProtoName } from '../content/own';
 import { contentReader, isArrOf, isNum, isNumIn, isObj, isStr, isText, perLoad } from '../content/reader';
@@ -132,5 +132,31 @@ const isExercises = (v: unknown): v is Catalog => {
 /** The single accept or reject decision for the exercises bundle: the catalog and the library both read this. */
 export const chosenExercises = contentReader('exercises', shipped, isExercises);
 
-/** The exercise content, passed to core as is. Call it where it is used, not at module level. */
-export const getCatalog: () => Catalog = perLoad(() => chosenExercises());
+const baseCatalog: () => Catalog = perLoad(() => chosenExercises());
+
+// The user's custom exercises (Settings.custom_tags, prototype customTags), set by the settings store. Entries come from
+// sync too, so each is checked with the content's own tag rule and a bad one is left out (#312).
+let customTags: Readonly<Record<string, ExerciseTag>> = {};
+let customSource: unknown = null;
+let applied: { base: Catalog; tags: typeof customTags; catalog: Catalog } | null = null;
+
+/** Sets the custom exercise tags from the settings record (unchanged input is a no-op). */
+export function setCustomTags(raw: unknown): void {
+  if (raw === customSource) return;
+  customSource = raw;
+  const next: Record<string, ExerciseTag> = {};
+  if (isObj(raw)) {
+    for (const [name, t] of Object.entries(raw)) {
+      if (has(raw, name) && !isProtoName(name) && trimmed(NAME_MAX)(name) && isTag(t)) next[name] = t as ExerciseTag;
+    }
+  }
+  customTags = next;
+}
+
+/** The exercise content with the user's custom exercises added (core `applyCustomTags`). Call it where it is used, not at module level. */
+export function getCatalog(): Catalog {
+  const base = baseCatalog();
+  if (!Object.keys(customTags).length) return base; // no custom exercises: the content itself, same reference
+  if (!applied || applied.base !== base || applied.tags !== customTags) applied = { base, tags: customTags, catalog: applyCustomTags(base, customTags) };
+  return applied.catalog;
+}

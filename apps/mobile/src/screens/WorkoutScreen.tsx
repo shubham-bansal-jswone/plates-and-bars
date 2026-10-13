@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -15,6 +15,7 @@ import { getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
+import { CustomTagsSheet } from '../workout/CustomTagsSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards } from '../workout/ExerciseCards';
 import { CantSheet } from '../workout/CantSheet';
@@ -208,6 +209,20 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
   const { date, day } = w;
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [tagging, setTagging] = useState<string | null>(null);
+  const { addCustomTags } = useSettings();
+  const addTyped = (raw: string) => {
+    const typed = raw.trim();
+    if (!typed) return notify('Type an exercise name.');
+    if (exerciseNameTooLong(typed)) return notify('That exercise name is too long. Shorten it.');
+    // A name the library knows (any case) is that exercise; a new one needs its muscles first (prototype exCustom).
+    const known = Object.keys(getCatalog().tags).find((n) => n.toLowerCase() === typed.toLowerCase());
+    setAdding(false);
+    if (known) {
+      if (w.addExercise(known)) notify(`${known} added`);
+      else notify(`${known} is already in today’s session.`);
+    } else setTagging(typed);
+  };
   const wk = day.workout as Workout;
   const ctx = progressionContext(date, day.lifts, profile, wk, tune);
   let done = 0;
@@ -265,6 +280,20 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
           onPick={(n) => {
             setAdding(false);
             if (w.addExercise(n)) notify(`${n} added`);
+          }}
+          onCustom={addTyped}
+        />
+      ) : null}
+      {tagging ? (
+        <CustomTagsSheet
+          name={tagging}
+          notify={notify}
+          onClose={() => setTagging(null)}
+          onSave={(tags) => {
+            const name = tagging;
+            setTagging(null);
+            if (!addCustomTags(name, tags)) return notify('Couldn’t save that exercise. Try again.');
+            if (w.addExercise(name)) notify(`${name} added`);
           }}
         />
       ) : null}

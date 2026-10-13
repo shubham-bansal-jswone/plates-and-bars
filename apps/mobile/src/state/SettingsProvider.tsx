@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../db/settings';
 import type { StoreDb } from '../db/records';
-import type { FlexEntry, MealPlan } from '@plate-and-bar/core';
+import type { ExerciseTag, FlexEntry, MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
+import { setCustomTags } from '../workout/catalog';
 
 interface SettingsState {
   ready: boolean;
@@ -20,11 +21,15 @@ interface SettingsState {
   setDiet(diet: Settings['diet']): void;
   /** Saves the weekly meal plan. */
   setMealPlan(plan: MealPlan): void;
+  /** Saves a custom exercise's tags (prototype `tg-save`); false when the record cannot be written or the limit is reached. */
+  addCustomTags(name: string, tags: ExerciseTag): boolean;
   /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
   update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
+/** Most custom exercises the contract accepts (`Settings.custom_tags` maxProperties). */
+export const CUSTOM_TAGS_MAX = 500;
 const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /**
@@ -48,6 +53,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
       if (!live) return;
       if (s) {
         ref.current = s;
+        setCustomTags(s.custom_tags); // before the render that reads the catalog
         setState(s);
       }
       setReady(true);
@@ -67,6 +73,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
       if (blocked.current) return false;
       const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
       ref.current = next;
+      setCustomTags(next.custom_tags);
       setState(next);
       queue.current = queue.current
         .then(() => saveSettings(db, ref.current))
@@ -85,7 +92,17 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
 
   const setMealPlan = useCallback((meal_plan: MealPlan) => change({ meal_plan }), [change]);
 
-  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, update: change }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, change]);
+  const addCustomTags = useCallback(
+    (name: string, tags: ExerciseTag) => {
+      const have = ref.current.custom_tags;
+      // The contract keeps at most 500 custom exercises; replacing one already there is always fine.
+      if (!Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_TAGS_MAX) return false;
+      return change((s) => ({ custom_tags: { ...s.custom_tags, [name]: tags } }));
+    },
+    [change],
+  );
+
+  const value = useMemo(() => ({ ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, addCustomTags, update: change }), [ready, settings, saveFailed, loadFailed, setFocus, setRestOff, setFlex, setDiet, setMealPlan, addCustomTags, change]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

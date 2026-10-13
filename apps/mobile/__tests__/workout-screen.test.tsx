@@ -182,6 +182,33 @@ describe('Workout tab: logging sets', () => {
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).not.toContain('Goblet Squat'));
   });
 
+  it('typed exercises: a library name in any case adds it; a new name asks for its muscles, then is saved and added (#312, #397)', async () => {
+    const db = await started();
+    const typeAndAdd = async (name: string) => {
+      await press('Add exercise');
+      await fireEvent.changeText(screen.getByLabelText('Your own exercise'), name);
+      await press('Add the exercise you typed');
+    };
+    await typeAndAdd('   ');
+    expect(await screen.findByText('Type an exercise name.')).toBeTruthy();
+    await press('Close');
+    await typeAndAdd('goblet squat');
+    expect(await screen.findByText('Goblet Squat added')).toBeTruthy();
+    await typeAndAdd('x'.repeat(201));
+    expect(await screen.findByText('That exercise name is too long. Shorten it.')).toBeTruthy();
+    await press('Close');
+    await typeAndAdd('Cossack Squat');
+    await press('Add Cossack Squat with these muscles');
+    expect(await screen.findByText('Pick at least one main muscle.')).toBeTruthy();
+    await press('Main muscle: quads');
+    await press('Also working: glutes');
+    await press('Add Cossack Squat with these muscles');
+    expect(await screen.findByText('Cossack Squat added')).toBeTruthy();
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toContain('Cossack Squat'));
+    await waitFor(() => expect(JSON.parse(db.rows.get('user_settings:me')!).custom_tags['Cossack Squat']).toEqual({ pattern: 'h-press', family: 'custom', equipment: 'machine', difficulty: 2, primary: ['quads'], secondary: ['glutes'], joints: [] }));
+    expect(screen.getByText('Cossack Squat')).toBeTruthy();
+  });
+
   it('shows core’s suggestion, target and warm-up line', async () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.
