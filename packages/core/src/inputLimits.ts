@@ -16,3 +16,11 @@ export function servingUnitTooLong(unit: string): boolean {
 export function kitchenNoteTooLong(note: string | null | undefined): boolean {
   return (note ?? '').length > NOTE_MAX;
 }
+
+/** Longest custom exercise name the contract accepts (`Settings.custom_tags` keys, `WorkoutExercise.name`), in UTF-16 code units. */
+export const EXERCISE_NAME_MAX = 200;
+
+/** True when a trimmed custom exercise name is over `EXERCISE_NAME_MAX` (200) UTF-16 code units: the app asks the user to shorten it (#397). */
+export function exerciseNameTooLong(name: string): boolean {
+  return name.trim().length > EXERCISE_NAME_MAX;
+}

@@ -518,5 +518,6 @@ export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from '
  * Input length limits (contract 0.1.9, #377; the prototype has none, as `FOOD_NAME_MAX`):
  * - `servingUnitTooLong` is true for a trimmed custom-food unit over `UNIT_MAX` (100, `UserFood.unit`).
  * - `kitchenNoteTooLong` is true for a kitchen-test note over `NOTE_MAX` (2000, `KitchenTest.note`).
+ * - `exerciseNameTooLong` is true for a trimmed custom exercise name over `EXERCISE_NAME_MAX` (200, `Settings.custom_tags` keys; #397).
  */
-export { UNIT_MAX, NOTE_MAX, servingUnitTooLong, kitchenNoteTooLong } from './inputLimits';
+export { UNIT_MAX, NOTE_MAX, EXERCISE_NAME_MAX, servingUnitTooLong, kitchenNoteTooLong, exerciseNameTooLong } from './inputLimits';
