@@ -187,6 +187,11 @@ public class AuthService {
             }
             var row = found.get();
             boolean retry = false;
+            if (row.replacedAt() != null) {
+                // A lost-response retry already replaced this token, so whoever holds it is a second party.
+                refreshTokens.revokeFamily(row.familyId(), now);
+                return null;
+            }
             if (row.rotatedAt() != null) {
                 var replacements = refreshTokens.findReplacementsForUpdate(row.id());
                 retry = row.revokedAt() == null
@@ -198,9 +203,9 @@ public class AuthService {
                     refreshTokens.revokeFamily(row.familyId(), now);
                     return null;
                 }
-                // The replacement was never used, so the response carrying it was probably lost. Kill it
-                // and issue one fresh pair.
-                replacements.forEach(r -> refreshTokens.revoke(r.id(), now));
+                // The replacement was never used, so the response carrying it was probably lost. Mark it
+                // replaced and issue one fresh pair.
+                replacements.forEach(r -> refreshTokens.markReplaced(r.id(), now));
             }
             if (row.revokedAt() != null || !now.isBefore(row.expiresAt())) {
                 return null;

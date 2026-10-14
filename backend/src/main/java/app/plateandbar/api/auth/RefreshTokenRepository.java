@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class RefreshTokenRepository {
 
-    public record Row(String id, String userId, String familyId, Instant expiresAt, Instant rotatedAt, Instant revokedAt) {}
+    public record Row(String id, String userId, String familyId, Instant expiresAt, Instant rotatedAt, Instant revokedAt, Instant replacedAt) {}
 
     private final JdbcTemplate jdbc;
 
@@ -36,7 +36,7 @@ public class RefreshTokenRepository {
     /** Tokens issued in exchange for {@code id}, locked. More than one only after lost-response retries. */
     public List<Row> findReplacementsForUpdate(String id) {
         return jdbc.query(
-                "SELECT id, user_id, family_id, expires_at, rotated_at, revoked_at FROM refresh_tokens"
+                "SELECT id, user_id, family_id, expires_at, rotated_at, revoked_at, replaced_at FROM refresh_tokens"
                         + " WHERE replaces_id = ? FOR UPDATE",
                 (rs, i) -> new Row(
                         rs.getString("id"),
@@ -44,19 +44,21 @@ public class RefreshTokenRepository {
                         rs.getString("family_id"),
                         Db.instant(rs.getObject("expires_at", java.time.LocalDateTime.class)),
                         Db.instant(rs.getObject("rotated_at", java.time.LocalDateTime.class)),
-                        Db.instant(rs.getObject("revoked_at", java.time.LocalDateTime.class))),
+                        Db.instant(rs.getObject("revoked_at", java.time.LocalDateTime.class)),
+                                Db.instant(rs.getObject("replaced_at", java.time.LocalDateTime.class))),
                 id);
     }
 
-    public void revoke(String id, Instant now) {
-        jdbc.update("UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", Db.utc(now), id);
+    /** Marks a never-presented token as replaced by a lost-response retry: presenting it later is reuse. */
+    public void markReplaced(String id, Instant now) {
+        jdbc.update("UPDATE refresh_tokens SET replaced_at = ? WHERE id = ? AND replaced_at IS NULL", Db.utc(now), id);
     }
 
     /** Locks the row so concurrent refreshes of one token are serialised. */
     public Optional<Row> findByHashForUpdate(String tokenHash) {
         return jdbc
                 .query(
-                        "SELECT id, user_id, family_id, expires_at, rotated_at, revoked_at FROM refresh_tokens"
+                        "SELECT id, user_id, family_id, expires_at, rotated_at, revoked_at, replaced_at FROM refresh_tokens"
                                 + " WHERE token_hash = ? FOR UPDATE",
                         (rs, i) -> new Row(
                                 rs.getString("id"),
@@ -64,7 +66,8 @@ public class RefreshTokenRepository {
                                 rs.getString("family_id"),
                                 Db.instant(rs.getObject("expires_at", java.time.LocalDateTime.class)),
                                 Db.instant(rs.getObject("rotated_at", java.time.LocalDateTime.class)),
-                                Db.instant(rs.getObject("revoked_at", java.time.LocalDateTime.class))),
+                                Db.instant(rs.getObject("revoked_at", java.time.LocalDateTime.class)),
+                                Db.instant(rs.getObject("replaced_at", java.time.LocalDateTime.class))),
                         tokenHash)
                 .stream()
                 .findFirst();

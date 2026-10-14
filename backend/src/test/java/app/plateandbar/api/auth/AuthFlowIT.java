@@ -395,7 +395,7 @@ class AuthFlowIT {
     }
 
     @Test
-    void parallelRefreshesWithTheSameTokenBothAnswerButOnlyOneNewTokenSurvives() throws Exception {
+    void parallelRefreshesWithTheSameTokenBothAnswerAndTheEarlierTokenIsReplaced() throws Exception {
         Map pair = signInByEmail(uniq("r6"));
         var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
         var gate = new java.util.concurrent.CountDownLatch(1);
@@ -414,11 +414,13 @@ class AuthFlowIT {
                 assertThat(r.getStatusCode().value()).isEqualTo(200);
                 bodies.add(r.getBody());
             }
-            // The second to commit treated the first as a lost response and revoked its token: one survives.
-            long live = bodies.stream()
-                    .filter(b -> refresh(b.get("refresh_token")).getStatusCode().value() == 200)
-                    .count();
-            assertThat(live).isEqualTo(1);
+            // The second to commit treated the first as a lost response and replaced its token.
+            assertThat(bodies.get(0).get("refresh_token")).isNotEqualTo(bodies.get(1).get("refresh_token"));
+            assertThat(jdbc.queryForObject(
+                            "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND replaced_at IS NOT NULL",
+                            Integer.class,
+                            user(pair).get("id")))
+                    .isEqualTo(1);
         } finally {
             pool.shutdownNow();
         }
@@ -434,9 +436,44 @@ class AuthFlowIT {
         Map second = retry.getBody();
         assertThat(second.get("refresh_token")).isNotIn(first.get("refresh_token"), lost.get("refresh_token"));
         assertThat(user(second).get("id")).isEqualTo(user(first).get("id"));
-        // The token of the lost response is dead, the new one works and continues the session.
-        assertThat(refresh(lost.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+        // The new token continues the session.
         assertThat(refresh(second.get("refresh_token")).getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void presentingTheTokenAGraceRetryReplacedRevokesTheWholeSession() {
+        Map t0 = signInByEmail(uniq("g4"));
+        Map t1 = refresh(t0.get("refresh_token")).getBody(); // the thief rotates inside the window
+        clock.advance(Duration.ofSeconds(10));
+        Map t2 = refresh(t0.get("refresh_token")).getBody(); // the device retries and gets a replacement
+        clock.advance(Duration.ofSeconds(10));
+        assertThat(refresh(t1.get("refresh_token")).getStatusCode().value()).isEqualTo(401); // the thief's next refresh
+        assertThat(refresh(t2.get("refresh_token")).getStatusCode().value()).isEqualTo(401); // the whole session is dead
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
+                        Integer.class,
+                        user(t0).get("id")))
+                .isZero();
+    }
+
+    @Test
+    void aGraceRetryDoesNotExtendTheWindow() {
+        Map t0 = signInByEmail(uniq("g5"));
+        refresh(t0.get("refresh_token"));
+        clock.advance(Duration.ofSeconds(40));
+        Map t2 = refresh(t0.get("refresh_token")).getBody(); // re-issued at 40 s
+        clock.advance(Duration.ofSeconds(21)); // 61 s after the first rotation, 21 s after the re-issue
+        assertThat(refresh(t0.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+        assertThat(refresh(t2.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    void usingTheNewAccessTokenDoesNotMakeTheNewRefreshTokenUsed() {
+        Map t0 = signInByEmail(uniq("g6"));
+        Map t1 = refresh(t0.get("refresh_token")).getBody();
+        assertThat(protectedStatus((String) t1.get("access_token"))).isNotEqualTo(401); // authenticated
+        clock.advance(Duration.ofSeconds(5));
+        assertThat(refresh(t0.get("refresh_token")).getStatusCode().value()).isEqualTo(200);
     }
 
     @Test
