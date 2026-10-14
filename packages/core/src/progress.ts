@@ -114,6 +114,18 @@ export const WATER_ML_PER_KG = 33;
 /** Extra water on a training day, in ml (prototype `waterTarget`'s 600). */
 export const WATER_TRAINING_ML = 600;
 
+/** Glass and bottle sizes in ml, in the contract's `Settings.water_sizes` shape. */
+export interface WaterSizes {
+  glass_ml: number;
+  bottle_ml: number;
+}
+
+/**
+ * Default glass and bottle sizes, 250 and 1000 ml: the prototype's fallback when `settings.water` is
+ * not set (`renderTargets`' water card, the Settings screen's water size fields and the `data-wt` handler).
+ */
+export const DEFAULT_WATER_SIZES: Readonly<WaterSizes> = Object.freeze({ glass_ml: 250, bottle_ml: 1000 });
+
 /** What `waterTarget` reads. */
 export interface WaterInput {
   /** The day shown (prototype `S.date`). */
