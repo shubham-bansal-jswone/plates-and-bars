@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
-import { CUSTOM_EXERCISES_MAX } from '@plate-and-bar/core';
+import { CUSTOM_EXERCISES_MAX, DEFAULT_WATER_SIZES } from '@plate-and-bar/core';
 import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { getCatalog, setCustomTags } from '../src/workout/catalog';
 import { memoryDb } from './helpers';
@@ -24,6 +24,13 @@ describe('settings store', () => {
       ['id', 'version', 'updated_at', 'deleted_at', 'focus', 'rest_off', 'custom_tags', 'diet', 'water_sizes', 'exercise_overrides', 'flex', 'returning', 'ladder_stay', 'checkin_seen', 'adjustments', 'adaptive', 'learn', 'meal_plan', 'prep'].sort(),
     );
     expect(s.id).toBeNull();
+  });
+
+  it("fresh water sizes are core's defaults, in a copy of their own (#158)", () => {
+    const s = defaultSettings('2026-10-08T10:00:00Z');
+    expect(s.water_sizes).toEqual(DEFAULT_WATER_SIZES);
+    expect(s.water_sizes).not.toBe(DEFAULT_WATER_SIZES);
+    expect(Object.isFrozen(s.water_sizes)).toBe(false);
   });
 
   it('provider starts from defaults, writes nothing until a change, then keeps rows in the order of the changes', async () => {
