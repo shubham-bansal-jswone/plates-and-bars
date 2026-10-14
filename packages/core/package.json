@@ -16,7 +16,7 @@
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
-    "@swc/core": "1.16.13",
+    "@swc/core": "1.16.18",
     "@swc/jest": "0.2.39",
     "@types/jest": "30.0.0",
     "@types/node": "22.20.5",
