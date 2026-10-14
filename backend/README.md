@@ -257,6 +257,13 @@ with the list empty, once per resolver instance (a singleton, so once per proces
 sends that header, is unaffected. IPv6 clients are keyed by their /64. The in-memory
 buckets are per process: run one instance, or move them to a shared store before scaling out.
 
+### TLS, HSTS and the health version
+
+TLS ends at Caddy, which sets `Strict-Transport-Security` for the API host (`infra/caddy/Caddyfile.api`). The API
+does not: `server.forward-headers-strategy` is `none` on purpose. Enabling it (`native`) would bypass the
+trusted-proxies list, because the container would trust forwarded headers from private-range proxies. The client IP is
+handled only by the trusted-proxy rule above. `GET /api/v1/health` returns `app.version` (`APP_VERSION`) because the contract defines that body; dropping it needs a contract decision (#352).
+
 Secrets come from the environment only. Logs must never contain food, weight, health answers or tokens.
 
 ## Layout

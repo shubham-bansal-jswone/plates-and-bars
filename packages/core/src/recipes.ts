@@ -399,3 +399,138 @@ export function kitchenTestFood(test: KitchenTestFoodInput, raw: readonly RawIng
     },
   };
 }
+
+/** The ingredient "Add 50 g soya chunks" adds, and the one that stops that suggestion (prototype `'Soya chunks'`). */
+export const SOYA_INGREDIENT = 'Soya chunks';
+/** Grams of soya chunks "Add 50 g soya chunks" adds (the `'50'` of prototype `case 'fit-soya'`). */
+export const FIT_SOYA_G = 50;
+/** Protein in `FIT_SOYA_G` of soya chunks, as the prototype states it (the `26` in `fitSuggestions`). */
+export const FIT_SOYA_PROTEIN_G = 26;
+/** Least kcal per katori that halving the oil must save before it is suggested (prototype `save >= 25`). */
+export const FIT_OIL_MIN_SAVE_KCAL = 25;
+/** A vegetarian recipe under this many grams of protein per katori gets the soya suggestion (prototype `per.p < 12`). */
+export const FIT_PROTEIN_MIN_G = 12;
+
+/** One "Make it fit" suggestion. */
+export type FitSuggestion =
+  /** "Use half the oil or ghee: about −N kcal per katori"; `kcal_saved` is unrounded (show with `fmt`). */
+  | { kind: 'fit-oil'; kcal_saved: number }
+  /** "Add 50 g soya chunks: about +N g protein per katori"; `protein_added_g` is unrounded (show with `fmt`). */
+  | { kind: 'fit-soya'; protein_added_g: number };
+
+/**
+ * The recipe builder's "Make it fit" suggestions, in the prototype's order: none until the recipe has a yield.
+ * Oil: the fatty rows with an amount above 0 total `g` grams; halving them saves `g / 2 × 9 / katoris` kcal
+ * per katori, suggested from 25 up. Soya: a recipe with no ingredient containing "Chicken" or "Egg" (a
+ * substring match, as the prototype's `/Chicken|Egg/`), under 12 g protein per katori and no Soya chunks row.
+ * `raw` is content/raw-ingredients.json `ingredients` (an unknown ingredient is not fatty).
+ *
+ * Mirrors prototype `fitSuggestions()` (the `RB` passed in as `recipe`).
+ */
+export function fitSuggestions(recipe: RecipeYield, raw: readonly RawIngredient[], katoriG: number): FitSuggestion[] {
+  const table = indexRaw(raw);
+  const { perKatori, katoris } = totalsWith(recipe, table, katoriG);
+  if (!perKatori) return [];
+  const out: FitSuggestion[] = [];
+  const fat = recipe.ingredients.filter((r) => table.get(r.ingredient)?.fatty && num(r.amount) > 0);
+  if (fat.length) {
+    const g = fat.reduce((a, r) => a + num(r.amount) * unitG(r.unit), 0);
+    const save = ((g / 2) * 9) / katoris;
+    if (save >= FIT_OIL_MIN_SAVE_KCAL) out.push({ kind: 'fit-oil', kcal_saved: save });
+  }
+  const veg = !recipe.ingredients.some((r) => /Chicken|Egg/.test(r.ingredient));
+  if (veg && perKatori.protein_g < FIT_PROTEIN_MIN_G && !recipe.ingredients.some((r) => r.ingredient === SOYA_INGREDIENT)) {
+    out.push({ kind: 'fit-soya', protein_added_g: FIT_SOYA_PROTEIN_G / katoris });
+  }
+  return out;
+}
+
+/**
+ * The rows after "Apply" on a suggestion. `fit-oil` halves every fatty row's amount, rounded to a whole
+ * number, unit kept (also a row whose amount is 0 or blank, which becomes "0"); `fit-soya` adds 50 g of
+ * Soya chunks. Amounts come back as text, as the prototype's text boxes hold them.
+ *
+ * Mirrors prototype `case 'fit-oil'` and `case 'fit-soya'` of `food3Action`.
+ */
+export function applyFit(kind: FitSuggestion['kind'], rows: readonly IngredientRow[], raw: readonly RawIngredient[]): IngredientRow[] {
+  if (kind === 'fit-soya') return [...rows.map((r) => ({ ...r })), { ingredient: SOYA_INGREDIENT, amount: String(FIT_SOYA_G), unit: 'g' }];
+  const table = indexRaw(raw);
+  return rows.map((r) => (table.get(r.ingredient)?.fatty ? { ...r, amount: String(Math.round(num(r.amount) / 2)) } : { ...r }));
+}
+
+/** A kitchen test as the table and the comparison read it: contract `KitchenTest` fields. */
+export interface KitchenTestRecord extends KitchenTestInput {
+  name: string;
+  /** Local date, `YYYY-MM-DD`. */
+  date: string;
+  note: string;
+  serving_name: string;
+}
+
+/**
+ * "Copy all as a table": tab-separated text, a header line then one line per test in the order given. Columns:
+ * dish, date, notes, cooked_g (rounded, 0 when not ready), serving, serving_g, kcal_per_serving (rounded),
+ * protein, carbs, fat, fibre and oil per serving (to 0.1; a test with no serving gives an empty serving_g and
+ * zeros), and the ingredients with a non-zero amount (a negative one is listed too) as "name 80g; name 1tsp". Text is not escaped, as in the prototype.
+ *
+ * Mirrors prototype `ktExport()` (the text it copies).
+ */
+export function kitchenTable(tests: readonly KitchenTestRecord[], raw: readonly RawIngredient[]): string {
+  const head = 'dish\tdate\tnotes\tcooked_g\tserving\tserving_g\tkcal_per_serving\tprotein_g\tcarbs_g\tfat_g\tfibre_g\toil_g_per_serving\tingredients';
+  const lines = tests.map((t) => {
+    const r = kitchenTest(t, raw);
+    const ps = r.ready ? r.perServing : null;
+    return [
+      t.name,
+      t.date,
+      t.note,
+      Math.round(r.ready ? r.cooked_g : 0),
+      t.serving_name,
+      ps ? ps.grams : '',
+      Math.round(ps ? ps.kcal : 0),
+      r1(ps ? ps.protein_g : 0),
+      r1(ps ? ps.carbs_g : 0),
+      r1(ps ? ps.fat_g : 0),
+      r1(ps ? ps.fibre_g : 0),
+      r1(ps ? ps.oil_g : 0),
+      t.ingredients.filter((x) => num(x.amount)).map((x) => `${x.ingredient} ${x.amount}${x.unit}`).join('; '),
+    ].join('\t');
+  });
+  return [head, ...lines].join('\n');
+}
+
+/** A food the kitchen-test comparison can read: a personal food or a built-in one. */
+export interface KitchenCompareFood {
+  name: string;
+  unit: string;
+  kcal: number;
+}
+
+/** The app's current value for a dish, and how the weighed serving differs from it. */
+export interface KitchenComparison {
+  food: KitchenCompareFood;
+  /** Serving kcal minus the food's kcal, unrounded: positive when the dish has more. Show the sign and `fmt` of the absolute value. */
+  diff_kcal: number;
+}
+
+/**
+ * Compares a kitchen test's serving with the food of the same name (case-insensitive, whole name, not trimmed;
+ * the first match, so `foods` lists personal foods before built-in ones). Null without a serving or a match.
+ *
+ * Mirrors the `cmp` of prototype `ktResultHtml(d)` (`foods` is `allFoods()`).
+ */
+export function kitchenCompare(name: string, perServing: KitchenServing | null, foods: readonly KitchenCompareFood[]): KitchenComparison | null {
+  if (!perServing) return null;
+  const n = String(name || '').toLowerCase();
+  const food = foods.find((f) => f.name.toLowerCase() === n);
+  return food ? { food, diff_kcal: perServing.kcal - food.kcal } : null;
+}
+
+/**
+ * The minutes a cooking step asks for: the first number right before "min" ("cook for 12 min", "5min"), or
+ * null. Mirrors the `match(/(\d+)\s*min/)` of prototype `cookSheet`.
+ */
+export function stepMinutes(step: string): number | null {
+  const m = /(\d+)\s*min/.exec(step);
+  return m ? Number(m[1]) : null;
+}

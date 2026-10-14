@@ -29,6 +29,10 @@ logging:
 
 server:
   port: ${PORT:8080}
+  # Deliberately off (#352). Forwarded headers are not trusted by the servlet container: the client IP comes from
+  # ClientIpResolver (app.rate-limit.trusted-proxies) and HSTS is set by the TLS-terminating proxy (Caddy), not here.
+  # Turning it on (native) would bypass the trusted-proxies list: the container would trust private-range proxies.
+  forward-headers-strategy: none
 
 app:
   sync:

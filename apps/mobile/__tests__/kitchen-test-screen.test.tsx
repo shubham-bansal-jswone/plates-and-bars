@@ -6,7 +6,12 @@ import { getRawIngredients } from '../src/recipes/content';
 import { loadKitchenTests } from '../src/db/kitchenTests';
 import { loadUserFoods } from '../src/db/food';
 import { pendingWrites } from '../src/db/pendingWrites';
+import raw from '../../../content/raw-ingredients.json';
+import { BUNDLED } from '../src/content/bundled';
+import { loadContent } from '../src/content/loader';
+import { putStored } from '../src/content/store';
 import { memoryDb } from './helpers';
+import { openDb } from './sync-helpers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
@@ -227,5 +232,25 @@ describe('Kitchen test screen', () => {
     expect(screen.getByText(/1 Oct, \d+ kcal per piece \(50 g\), Mom’s/)).toBeTruthy();
     expect(screen.queryByText('Bad')).toBeNull();
     expect(screen.queryByText('Gone')).toBeNull();
+  });
+});
+
+describe('Kitchen test picker and server-added ingredients', () => {
+  afterEach(async () => { await loadContent(await openDb()); });
+
+  it('offers only shipped ingredient names even when the chosen raw copy adds one', async () => {
+    const copy = JSON.parse(JSON.stringify(raw)) as { ingredients: Record<string, unknown>[] };
+    copy.ingredients.push({ ...copy.ingredients[0], id: '11111111-2222-4333-8444-555555555555', name: 'Server-only test ingredient' });
+    const cdb = await openDb();
+    await putStored(cdb, { name: 'raw-ingredients', sha256: 'x', schema_version: BUNDLED['raw-ingredients']!.schema_version, updated_at: '2099-01-01T00:00:00Z', body: JSON.stringify(copy) });
+    await loadContent(cdb);
+    expect(getRawIngredients().map((i) => i.name)).toContain('Server-only test ingredient');
+    await setup();
+    await start();
+    await fireEvent.press(screen.getByLabelText('Ingredient 1: Toor dal (dry). Tap to change'));
+    await fireEvent.changeText(screen.getByLabelText('Search ingredients'), 'Server-only');
+    expect(screen.getByText('No ingredient matches.')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Search ingredients'), 'paneer');
+    expect(screen.getByLabelText('Paneer')).toBeTruthy();
   });
 });
