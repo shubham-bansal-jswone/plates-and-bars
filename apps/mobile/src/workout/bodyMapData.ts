@@ -1,4 +1,4 @@
-/*
+/*!
 react-body-highlighter (body map polygons)
 MIT License
 

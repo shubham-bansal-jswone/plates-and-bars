@@ -35,7 +35,8 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
     ai.suggestTags(name).then((r) => {
       if (!alive.current) return;
       setBusy(false);
-      if (r.kind !== 'ok') return setNote(failureMessage(r, AI_COPY.suggestFallback));
+      // This sheet has no retry, so the "wait and try again" and "shorten it" wordings do not fit.
+      if (r.kind !== 'ok') return setNote(r.kind === 'rate_limited' || r.kind === 'invalid' ? `${AI_COPY.suggestNoRetry} ${AI_COPY.suggestFallback}` : failureMessage(r, AI_COPY.suggestFallback));
       const t = tagsFromSuggestion(r.data);
       if (!t) return setNote(AI_COPY.suggestFallback);
       setBase(t);
@@ -44,7 +45,11 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
       setNote(AI_COPY.suggestDone);
     });
   }, [ai, name]);
-  const toggle = (list: string[], set: (l: string[]) => void, m: string) => set(list.includes(m) ? list.filter((x) => x !== m) : [...list, m]);
+  // The suggestion is only asked for while the user has not picked anything: a status read that lands late must not replace their picks.
+  const toggle = (list: string[], set: (l: string[]) => void, m: string) => {
+    asked.current = true;
+    set(list.includes(m) ? list.filter((x) => x !== m) : [...list, m]);
+  };
   const save = () => {
     if (!primary.length) return notify('Pick at least one main muscle.');
     onSave({ ...base, primary, secondary });

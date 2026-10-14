@@ -23,7 +23,7 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
 export function BodyMap({ primary, secondary }: { primary: readonly string[]; secondary: readonly string[] }) {
   const c = useTheme();
   const fill = (v: number) => (v === 2 ? c.fat : v === 1 ? c.carbs : c.line);
-  const label = `Muscles worked: ${primary.length ? listJoin(primary.map(muscleName)) : 'none'}`;
+  const label = `Muscles worked: ${primary.length ? listJoin(primary.map(muscleName)) : 'none'}${secondary.length ? `. Also working: ${listJoin(secondary.map(muscleName))}` : ''}`;
   const views = [
     { view: 'front', map: FRONT, dx: 0, name: 'Front' },
     { view: 'back', map: BACK, dx: 110, name: 'Back' },

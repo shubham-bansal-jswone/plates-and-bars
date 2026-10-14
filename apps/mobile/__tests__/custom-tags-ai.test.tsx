@@ -51,7 +51,7 @@ describe('custom exercise tag suggestion', () => {
     expect(await screen.findByText(/AI’s suggestion/)).toBeTruthy();
     expect(pressed('Main muscle: chest')).toBe(true);
     expect(pressed('Also working: front shoulders')).toBe(true);
-    expect(screen.getByLabelText('Muscles worked: chest')).toBeTruthy();
+    expect(screen.getByLabelText('Muscles worked: chest. Also working: front shoulders')).toBeTruthy();
     await tap('Add Pec deck with these muscles');
     expect(onSave).toHaveBeenCalledWith({ pattern: 'fly', family: 'custom', equipment: 'cable', difficulty: 1, primary: ['chest'], secondary: ['front-delt'], joints: ['shoulder'] });
   });
@@ -59,9 +59,9 @@ describe('custom exercise tag suggestion', () => {
   it('lets the user correct the suggestion, and the body map follows', async () => {
     const { onSave } = await open();
     await tap('Main muscle: triceps');
-    expect(screen.getByLabelText('Muscles worked: chest and triceps')).toBeTruthy();
+    expect(screen.getByLabelText('Muscles worked: chest and triceps. Also working: front shoulders')).toBeTruthy();
     await tap('Main muscle: chest');
-    expect(screen.getByLabelText('Muscles worked: triceps')).toBeTruthy();
+    expect(screen.getByLabelText('Muscles worked: triceps. Also working: front shoulders')).toBeTruthy();
     await tap('Add Pec deck with these muscles');
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ primary: ['triceps'], pattern: 'fly' }));
   });
@@ -137,6 +137,43 @@ describe('custom exercise tag suggestion', () => {
     await open({ post });
     expect(await screen.findByText(/Working out which muscles/)).toBeTruthy();
     expect(screen.getByLabelText('Cancel')).toBeTruthy();
+  });
+});
+
+describe('custom exercise tag suggestion timing', () => {
+  it('a status read that lands after the user picked a muscle does not ask or overwrite their picks', async () => {
+    let release: (v: unknown) => void = () => undefined;
+    const get = jest.fn(() => new Promise((r) => (release = r)));
+    const { POST, onSave } = await open({ get });
+    await tap('Main muscle: quads');
+    release({ data: status(true), response: res(200) });
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    await tap('Add Pec deck with these muscles');
+    expect(POST).not.toHaveBeenCalled();
+    expect(onSave).toHaveBeenCalledWith({ ...FALLBACK_TAGS, primary: ['quads'] });
+  });
+
+  it('an answer that arrives after the sheet closed is dropped without error', async () => {
+    let answer: (v: unknown) => void = () => undefined;
+    const post = jest.fn(() => new Promise((r) => (answer = r)));
+    const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    await open({ post });
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    screen.unmount();
+    answer({ data: SUGGESTION, response: res(200) });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it.each([
+    ['rate limited', 429, { code: 'rate_limited', message: 'x' }],
+    ['rejected', 400, { code: 'invalid_request', message: 'x' }],
+  ])('when %s, does not tell the user to try again', async (_n, code, error) => {
+    const post = jest.fn(async () => ({ error, response: res(code, { 'Retry-After': '30' }) }));
+    await open({ post });
+    expect(await screen.findByText(/Couldn’t get a suggestion right now. Tap the muscles/)).toBeTruthy();
+    expect(screen.queryByText(/try again|Shorten/i)).toBeNull();
   });
 });
 

@@ -1,12 +1,14 @@
 import type { Schemas } from '@plate-and-bar/api';
 import type { ExerciseTag } from '@plate-and-bar/core';
 import { has } from '../content/own';
+import { EQUIPMENT_CODES } from './catalog';
 import { getLabels, MUSCLE_CODES } from './copy';
 
 /** The prototype's no-AI tags (`tagSheet` fallback): pattern `h-press`, family `custom`, equipment `machine`, difficulty 2, no muscles or joints. */
 export const FALLBACK_TAGS: ExerciseTag = { pattern: 'h-press', family: 'custom', equipment: 'machine', difficulty: 2, primary: [], secondary: [], joints: [] };
 
-const EQUIPMENT = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight'];
+/** What the contract's `SuggestTagsResponse.equipment` allows: the app's equipment values without `other`. */
+const EQUIPMENT = EQUIPMENT_CODES.filter((e) => e !== 'other');
 const keep = (list: unknown, ok: (x: string) => boolean, max: number): string[] => {
   const out: string[] = [];
   for (const x of Array.isArray(list) ? list : []) if (typeof x === 'string' && ok(x) && !out.includes(x) && out.length < max) out.push(x);

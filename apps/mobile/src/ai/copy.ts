@@ -28,7 +28,7 @@ export const AI_COPY = {
   consentTitle: 'AI features',
   consentLabel: 'Use AI features',
   consentOff: 'Off by default. Everything in the app works without it.',
-  consentSent: 'When you use one, the app sends only this to our server, which passes it to an AI service. Describe a meal: the text you type. Ask why: the card name and the question you type. Suggest muscles: the exercise name you type. Weekly summary: this week’s sessions, days logged, average calories and protein, average weight this and last week, the names of lifts that improved or stalled, your calorie and protein targets, your goal and your estimated burn. Never your name, email, photos, cycle or lab data. Our server does not save or log what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours so a repeat question is quick. The AI service gets only the request, never who you are, and is set not to keep it or learn from it where it offers that.',
+  consentSent: 'When you use one, the app sends only this to our server, which passes it to an AI service. Describe a meal: the text you type. Ask why: the card name and the question you type. Suggest muscles: when you add your own exercise, the name you typed for it, so the AI can suggest its muscles and other tags. Weekly summary: this week’s sessions, days logged, average calories and protein, average weight this and last week, the names of lifts that improved or stalled, your calorie and protein targets, your goal and your estimated burn. Never your name, email, photos, cycle or lab data. Our server does not save or log what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours so a repeat question is quick. The AI service gets only the request, never who you are, and is set not to keep it or learn from it where it offers that.',
   consentNone: 'None of the AI features are switched on yet. They will show up here when they are.',
   consentOn: (names: string[]) => `Available now: ${names.join(', ')}.`,
   consentLeft: (q: AiQuota) => `${q.remaining} of ${q.limit} AI answers left today.`,
@@ -51,6 +51,7 @@ export const AI_COPY = {
   summaryFallback: 'The numbers above still tell the story.',
   suggestWorking: 'Working out which muscles this trains…',
   suggestDone: 'AI’s suggestion. Tap muscles to correct it.',
+  suggestNoRetry: 'Couldn’t get a suggestion right now.',
   suggestFallback: 'Tap the muscles this exercise trains.',
   aiNote: 'AI-written. Check anything that matters.',
 };
