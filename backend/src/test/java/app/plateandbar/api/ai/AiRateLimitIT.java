@@ -21,7 +21,7 @@ class AiRateLimitIT extends AiITBase {
         for (int i = 0; i < 5; i++) {
             assertThat(post(u, "/api/v1/ai/describe-meal", "{\"text\":\"  \"}").getStatusCode().value()).isEqualTo(400);
         }
-        var sixth = post(u, "/api/v1/ai/ask-why", "{}");
+        var sixth = post(u, "/api/v1/ai/suggest-tags", "{\"name\":\"Pec deck\"}");
         assertThat(sixth.getStatusCode().value()).isEqualTo(429);
         assertThat(sixth.getHeaders().getFirst("Retry-After")).isNotNull();
         assertThat(sixth.getBody()).contains("\"code\":\"rate_limited\"");

@@ -21,7 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * The three AI calls, in the contract's order after rate limits: switch, validation, quota, provider. Logs only
+ * The four AI calls, in the contract's order after rate limits: switch, validation, quota, provider. Logs only
  * user id, feature, status and duration, never a body. The identical-request cache is per user, in memory only,
  * keyed by user id and a hash of the normalised request, and expires within 24 hours.
  */
@@ -88,6 +88,16 @@ public class AiService {
             }
             facts.set("stalled", stalled);
             return new Call(AiPrompts.weeklySummary(facts), facts, replies::weeklySummary);
+        });
+    }
+
+    public ObjectNode suggestTags(String userId, JsonNode body) {
+        return run(userId, AiFeature.SUGGEST_TAGS, body, "SuggestTagsRequest", req -> {
+            String name = AiPrompts.sanitize(req.path("name").asText()).trim();
+            if (name.isEmpty()) {
+                throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("name", "pattern")));
+            }
+            return new Call(AiPrompts.suggestTags(name, schemas.muscles(), schemas.equipment()), json.createObjectNode().put("name", name), replies::suggestTags);
         });
     }
 

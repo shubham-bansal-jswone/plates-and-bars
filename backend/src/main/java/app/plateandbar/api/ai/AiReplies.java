@@ -86,6 +86,47 @@ class AiReplies {
         return valid("WeeklySummaryResponse", out);
     }
 
+    /**
+     * Repairs instead of failing (the prototype's suggestTags()): unknown muscles dropped, the first 3 kept, equipment
+     * falls back to machine, difficulty to 2, pattern and joints are cut to the schema limits. Empty only when the
+     * reply does not parse.
+     */
+    Optional<ObjectNode> suggestTags(String raw) {
+        Optional<ObjectNode> root = parse(raw);
+        if (root.isEmpty()) {
+            return Optional.empty();
+        }
+        JsonNode r = root.get();
+        ObjectNode out = json.createObjectNode();
+        JsonNode pattern = r.path("pattern");
+        out.put("pattern", pattern.isTextual() && pattern.asText().codePointCount(0, pattern.asText().length()) <= 50
+                ? pattern.asText() : "");
+        JsonNode eq = r.path("equipment");
+        out.put("equipment", eq.isTextual() && schemas.equipment().contains(eq.asText()) ? eq.asText() : "machine");
+        JsonNode d = r.path("difficulty");
+        out.put("difficulty", d.isNumber() && d.asDouble() >= 1 && d.asDouble() <= 3 && d.asDouble() == Math.rint(d.asDouble())
+                ? (int) d.asDouble() : 2);
+        out.set("primary", muscles(r.path("primary")));
+        out.set("secondary", muscles(r.path("secondary")));
+        ArrayNode joints = out.putArray("joints");
+        for (JsonNode j : r.path("joints")) {
+            if (joints.size() < 20 && j.isTextual() && j.asText().codePointCount(0, j.asText().length()) <= 50) {
+                joints.add(j.asText());
+            }
+        }
+        return valid("SuggestTagsResponse", out);
+    }
+
+    private ArrayNode muscles(JsonNode in) {
+        ArrayNode out = json.createArrayNode();
+        for (JsonNode m : in) {
+            if (out.size() < 3 && m.isTextual() && schemas.muscles().contains(m.asText())) {
+                out.add(m.asText());
+            }
+        }
+        return out;
+    }
+
     private boolean numbersInRange(JsonNode item) {
         for (int i = 0; i < NUMBERS.size(); i++) {
             JsonNode n = item.path(NUMBERS.get(i));
