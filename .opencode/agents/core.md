@@ -23,6 +23,9 @@ permissions:
   - action: edit
     resource: "packages/core/**"
     effect: allow
+  - action: edit
+    resource: "**/packages/core/**"
+    effect: allow
 ---
 You are the core logic agent. Read docs/AGENTS.md and docs/spec/PROTOTYPE_SPEC.md first.
 

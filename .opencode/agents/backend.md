@@ -23,6 +23,9 @@ permissions:
   - action: edit
     resource: "backend/**"
     effect: allow
+  - action: edit
+    resource: "**/backend/**"
+    effect: allow
 ---
 You are the backend agent. Read docs/AGENTS.md and packages/api/openapi.yaml first.
 
