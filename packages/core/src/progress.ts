@@ -855,13 +855,15 @@ export interface BurnToday {
  * Estimated burn so far today: resting + daily movement (0.04 kcal per step at 70 kg, scaled by weight;
  * with no steps, the activity level's share of resting) + training over resting + 10% of the food eaten.
  * `kg` is the latest weigh-in, else the setup weight. The shown range is `total` ± `BURN_RANGE`.
+ * `steps` is the steps box's value as typed, read with `num` and rounded as the prototype does
+ * (`S.day.steps` is text); a fractional value counts its whole steps.
  *
  * Mirrors prototype `burnToday()` (state passed in).
  */
 export function burnToday(
   p: Pick<SetupProfile, 'sex' | 'age' | 'height_cm' | 'activity'>,
   kg: number,
-  steps: number | null | undefined,
+  steps: string | number | null | undefined,
   workout: WorkoutBurn,
   kcalEaten: number,
 ): BurnToday {
