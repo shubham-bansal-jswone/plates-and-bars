@@ -1,4 +1,4 @@
-import { presetIngredients, type OilLevel } from '@plate-and-bar/core';
+import { applyFit, presetIngredients, type FitSuggestion, type OilLevel } from '@plate-and-bar/core';
 import type { Meal } from '../food/types';
 import { getRawIngredients, type RecipeContent } from './content';
 import type { DraftRow } from './IngredientRows';
@@ -40,3 +40,6 @@ export function fromLibrary(d: Draft, l: RecipeContent): Draft {
 export function fromRecipe(d: Draft, r: Recipe): Draft {
   return { ...d, name: r.name, rows: asRows(r.ingredients), ymode: r.yield_mode, katoris: r.katoris === null ? '' : String(r.katoris), grams: r.cooked_g === null ? '' : String(r.cooked_g), oil: r.oil === 'low' || r.oil === 'rich' ? r.oil : 'normal', preset: null, lib: null, editing: r, log: 1 };
 }
+
+/** Prototype `case 'fit-oil'` and `case 'fit-soya'`: the draft after "Apply" on a "Make it fit" suggestion (rows from core's `applyFit`). */
+export const withFit = (d: Draft, kind: FitSuggestion['kind']): Draft => ({ ...d, rows: asRows(applyFit(kind, d.rows, getRawIngredients())) });

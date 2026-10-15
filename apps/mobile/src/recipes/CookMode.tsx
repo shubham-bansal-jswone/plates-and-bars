@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Vibration, View } from 'react-native';
+import { stepMinutes } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
-
-/** The minutes a step asks for ("cook for 12 min"), as the prototype reads them; null when it has none. */
-export const stepMinutes = (step: string): number | null => {
-  const m = /(\d+)\s*min/.exec(step);
-  return m ? Number(m[1]) : null;
-};
 
 const mmss = (s: number): string => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
