@@ -114,8 +114,10 @@ function checkAllBounds(doc) {
   const aiBodies = Object.entries(doc.paths)
     .filter(([p, ops]) => p.startsWith("/ai/") && ops.post?.requestBody)
     .map(([p, ops]) => [p, ops.post.requestBody.content["application/json"].schema]);
+  const syncRefs = new Set(seenRefs);
   for (const [p, schema] of aiBodies) walk(schema, `POST ${p}`);
-  return { found, count, aiBodies: aiBodies.length };
+  const aiRefs = [...seenRefs].filter((n) => !syncRefs.has(n));
+  return { found, count, aiBodies: aiBodies.length, aiRefs };
 }
 const bounds = checkAllBounds(parsed);
 failures.push(...bounds.found);
@@ -124,7 +126,20 @@ if (bounded === 0) failures.push("openapi.yaml: no record fields found for the b
 if (bounds.aiBodies === 0) failures.push("openapi.yaml: no POST /ai/* request bodies found for the bounds check");
 // Must-fail vectors: dropping any one bound from an AI request schema (for example maxLength 200 from
 // SuggestTagsRequest.name, or maxItems from WeeklySummaryRequest.stalled) must make the check above fail.
-const aiRequests = ["DescribeMealRequest", "AskWhyRequest", "SuggestTagsRequest", "WeeklySummaryRequest", "SummaryExercise"];
+// The schemas are every component reached by $ref from a POST /ai/* request body, so a new AI schema gets vectors too.
+const aiRequests = new Set();
+const collectRefs = (node) => {
+  if (!node || typeof node !== "object") return;
+  if (typeof node.$ref === "string") {
+    const name = node.$ref.split("/").pop();
+    if (aiRequests.has(name)) return;
+    aiRequests.add(name);
+    collectRefs(parsed.components.schemas[name]);
+  }
+  for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") collectRefs(v);
+};
+for (const [p, ops] of Object.entries(parsed.paths)) if (p.startsWith("/ai/")) collectRefs(ops.post?.requestBody);
+for (const name of bounds.aiRefs) if (!aiRequests.has(name)) failures.push(`must-fail vectors skip AI request schema ${name}`);
 let mutants = 0;
 for (const name of aiRequests) {
   const visit = (node, path) => {
@@ -166,4 +181,4 @@ console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and opena
 console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);
 console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
 console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and open objects, all bounded`);
-console.log(`openapi.yaml: ${mutants} AI request bounds, each one caught when removed`);
+console.log(`openapi.yaml: ${mutants} bounds in ${aiRequests.size} AI request schemas (${[...aiRequests].join(", ")}), each one caught when removed`);
