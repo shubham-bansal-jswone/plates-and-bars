@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import SetupRoute from '../app/setup';
@@ -485,6 +486,7 @@ describe('Weekly check-in, burn and habits', () => {
     await setup({ db });
     expect(await screen.findByLabelText(/^1 \/ \d+ sessions$/)).toBeTruthy();
     expect(screen.getByText(/Cardio: 30 of 150 min/)).toBeTruthy();
+    expect(screen.getByLabelText('Thu, trained, not logged')).toBeTruthy();
   });
 
   it('suggests new targets from the real burn and applies them to the profile only, then hides the card', async () => {
@@ -730,6 +732,13 @@ describe('Rapid-loss card (#258)', () => {
 
 describe('Progress screen, seven days', () => {
   const food = (date: string, kcal: number, p: number, id: string) => ({ id, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, meal: 'Lunch', name: 'dal', qty: 2, kcal: kcal / 2, protein_g: p / 2, carbs_g: 1, fat_g: 1 });
+  /** The style the day's bar was drawn with: the fill (width) and the target line (left), found by the bar's label. */
+  const weekBar = (label: string) => {
+    const [fill, tgt] = screen.getByLabelText(label).children;
+    const flat = (el: unknown) => StyleSheet.flatten((el as { props: { style?: unknown } }).props.style as never) as Record<string, unknown>;
+    return { fill: flat(fill), tgt: flat(tgt) };
+  };
+
   it('shows a bar per day with the average and sessions, and "not logged" for empty days', async () => {
     const db = memoryDb();
     await saveLog(db, food(DATE, 2400, 90, 'a') as never);
@@ -742,5 +751,25 @@ describe('Progress screen, seven days', () => {
     expect(screen.getByLabelText('2,000 avg kcal')).toBeTruthy();
     expect(screen.getByLabelText('80 g avg protein')).toBeTruthy();
     expect(screen.getByLabelText('0 sessions')).toBeTruthy();
+    // This day's 2,400 kcal is 92.7715…% of core's scale (1.3 × the 1,990 kcal target) and the target line sits at
+    // 76.9230…% (1,990 / 2,587); over target, so the fill is the caution colour at the prototype's 0.85 opacity.
+    expect(weekBar('Thu, 2,400 kcal, 90 g protein')).toMatchObject({
+      fill: { width: '92.77155005798222%', opacity: 0.85 },
+      tgt: { left: '76.92307692307693%' },
+    });
+    // A blank day's bar announces the day and that nothing was logged, not the prototype's "0 kcal, 0 g protein".
+    expect(screen.getByLabelText('Wed, not logged')).toBeTruthy();
+  });
+
+  it('shows "–" for both averages when nothing was logged all week', async () => {
+    const db = memoryDb();
+    await setup({ db });
+    // The check-in card above carries its own averages, so read the week block from its heading down.
+    const week = within(screen.getByRole('header', { name: 'Seven days to 8 Oct' }).parent as never);
+    expect(await week.findByLabelText('– avg kcal')).toBeTruthy();
+    expect(week.getByLabelText('– avg protein')).toBeTruthy();
+    expect(week.getByLabelText('0 sessions')).toBeTruthy();
+    expect(week.getAllByText('not logged')).toHaveLength(7);
+    expect(week.getByLabelText('Fri, not logged')).toBeTruthy();
   });
 });
