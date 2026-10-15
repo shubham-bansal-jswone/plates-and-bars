@@ -133,22 +133,34 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
    * The prototype's "Copy previous day": every non-deleted log of yesterday is copied to today with a new id, as stored
    * (name, meal, qty and values), whether or not the food is still in the list. Returns false when yesterday had none.
    */
+  const copying = useRef(false);
   const copyPrevious = useCallback(async (): Promise<boolean> => {
-    await queue.current; // earlier local writes land first
-    const prev = await loadLogs(db, addDays(date, -1));
-    if (!prev.length) {
-      notify('Nothing was logged the day before.');
+    if (copying.current) return false; // a second tap while the first is still reading
+    copying.current = true;
+    try {
+      await queue.current; // earlier local writes land first
+      const prev = await loadLogs(db, addDays(date, -1));
+      if (logsRef.current.length) return false; // the day got logs (a sync pull, another screen) while we waited: it is not empty any more
+      if (!prev.length) {
+        notify('Nothing was logged the day before.');
+        return false;
+      }
+      const t = stamp(now());
+      const copies = prev.map((l): FoodLog => ({ ...l, id: newId(), version: 0, updated_at: t, deleted_at: null, date }));
+      logsRef.current = [...logsRef.current, ...copies];
+      setLogs(logsRef.current);
+      // A save that fails part way keeps the logs already stored, like other multi-write flows; enqueue shows the generic save toast.
+      enqueue(async () => {
+        for (const c of copies) await saveLog(db, c);
+      });
+      notify('Copied the previous day’s meals');
+      return true;
+    } catch {
+      notify('Couldn’t read your saved food.');
       return false;
+    } finally {
+      copying.current = false;
     }
-    const t = stamp(now());
-    const copies = prev.map((l): FoodLog => ({ ...l, id: newId(), version: 0, updated_at: t, deleted_at: null, date }));
-    logsRef.current = [...logsRef.current, ...copies];
-    setLogs(logsRef.current);
-    enqueue(async () => {
-      for (const c of copies) await saveLog(db, c);
-    });
-    notify('Copied the previous day’s meals');
-    return true;
   }, [db, date, now, enqueue, notify]);
 
   const setComplete = useCallback(

@@ -460,15 +460,42 @@ describe('Food screen', () => {
     it('copies yesterday’s logs as stored, with new ids, and says so', async () => {
       const db = memoryDb();
       db.rows.set('food_logs:p1', JSON.stringify(prev));
-      db.rows.set('food_logs:p2', JSON.stringify({ ...prev, id: 'p2', deleted_at: '2026-10-07T06:00:00Z' }));
+      db.rows.set('food_logs:p2', JSON.stringify({ ...prev, id: 'p2', meal: 'Dinner', name: 'Rice', deleted_at: null }));
+      db.rows.set('food_logs:p3', JSON.stringify({ ...prev, id: 'p3', deleted_at: '2026-10-07T06:00:00Z' }));
       await setup({ db });
       await fireEvent.press(screen.getByLabelText('Copy previous day'));
       expect(await screen.findByText('Copied the previous day’s meals')).toBeTruthy();
       expect(screen.queryByLabelText('Copy previous day')).toBeNull();
+      await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(2));
+      const today = docs(db, 'food_logs').filter((l) => l.date === DATE);
+      expect(today.map((l) => `${l.meal}:${l.name}`).sort()).toEqual(['Dinner:Rice', 'Lunch:Gone dal']);
+      const copy = today.find((l) => l.name === 'Gone dal');
+      expect(copy).toMatchObject({ meal: 'Lunch', qty: 2, kcal: 200, version: 0, food_id: 'no-such-food', updated_at: NOW().toISOString().replace(/\.\d{3}Z$/, 'Z'), deleted_at: null });
+      expect(today.every((l) => !['p1', 'p2'].includes(l.id))).toBe(true);
+    });
+
+    it('copies once when the button is pressed twice at once', async () => {
+      const db = memoryDb();
+      db.rows.set('food_logs:p1', JSON.stringify(prev));
+      await setup({ db });
+      const btn = screen.getByLabelText('Copy previous day');
+      await act(async () => {
+        fireEvent.press(btn);
+        fireEvent.press(btn);
+      });
       await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1));
-      const copy = docs(db, 'food_logs').find((l) => l.date === DATE);
-      expect(copy).toMatchObject({ meal: 'Lunch', name: 'Gone dal', qty: 2, kcal: 200, version: 0, food_id: 'no-such-food' });
-      expect(copy.id).not.toBe('p1');
+      await new Promise((r) => setTimeout(r, 30));
+      expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1);
+    });
+
+    it('says so when the saved food cannot be read', async () => {
+      const db = memoryDb();
+      await setup({ db });
+      const read = db.getAllAsync.bind(db);
+      db.getAllAsync = (async () => { throw new Error('boom'); }) as typeof db.getAllAsync;
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText('Couldn’t read your saved food.')).toBeTruthy();
+      db.getAllAsync = read;
     });
 
     it('says so when yesterday had nothing', async () => {
