@@ -51,6 +51,13 @@ export function MyFoodsSection({ db, notify }: { db: WorkoutDb; notify: (msg: st
   const [foods, setFoods] = useState<UserFood[] | null>(null);
   const dataVersion = useDataVersion();
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useEffect(() => {
     let live = true;
     // Waits for deletes still being written, so a pulled change never brings a deleted food back on screen.
@@ -66,7 +73,7 @@ export function MyFoodsSection({ db, notify }: { db: WorkoutDb; notify: (msg: st
       queue.current = queue.current.then(() => saveUserFood(db, { ...f, deleted_at: t, updated_at: t })).catch(() => {
         // The delete did not stick: show the food again so there is something to try again on.
         notify('Couldn’t save that. Try again.');
-        loadUserFoods(db).then(setFoods, () => {});
+        return loadUserFoods(db).then((f) => void (mounted.current && setFoods(f)), () => {});
       });
       trackWrite(queue.current);
     },

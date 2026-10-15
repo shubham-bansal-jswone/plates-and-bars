@@ -59,7 +59,10 @@ describe('Targets: Water sizes and My foods', () => {
     await saveProfile(db, profile());
     await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), water_sizes: { glass_ml: 300, bottle_ml: 500 } });
     await render(withProfile(db, <TargetsScreen db={db} />));
-    await fireEvent.changeText(await screen.findByLabelText('Glass (ml)'), '330');
+    const glass = await screen.findByLabelText('Glass (ml)');
+    expect(glass.props.value).toBe('300');
+    expect(screen.getByLabelText('Bottle (ml)').props.value).toBe('500');
+    await fireEvent.changeText(glass, '330');
     await waitFor(() => expect(saved(db).water_sizes).toEqual({ glass_ml: 330, bottle_ml: 500 }));
   });
 
