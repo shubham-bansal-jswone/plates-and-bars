@@ -75,6 +75,21 @@ final class AiPrompts {
                 in.toString());
     }
 
+    /** The exercise name is untrusted user text: delimited data only. */
+    static Prompt suggestTags(String name) {
+        String m = newMarker();
+        return new Prompt(
+                "You classify a gym exercise by its name. " + dataRule(m)
+                        + "Reply with JSON only, no other text, shaped {\"pattern\":string,\"equipment\":one of "
+                        + "barbell, dumbbell, machine, cable, bodyweight,\"difficulty\":1, 2 or 3 (1 easiest),"
+                        + "\"primary\":up to 3 main muscles,\"secondary\":up to 3 helping muscles,\"joints\":[string]}. "
+                        + "Muscles are only from: chest, front-delt, side-delt, rear-delt, triceps, lats, upper-back, "
+                        + "biceps, forearms, quads, hams, glutes, calves, abs, lower-back. pattern is a short movement "
+                        + "pattern such as h-press, fly or squat. Use an empty primary array when you cannot place "
+                        + "the exercise.",
+                delimit(name, m));
+    }
+
     /** {@code facts} is the validated request with non-catalogue exercise names already replaced. Numbers and catalogue ids only, so no delimiter. */
     static Prompt weeklySummary(ObjectNode facts) {
         return new Prompt(

@@ -196,7 +196,7 @@ class AiQuotaIT extends AiITBase {
         String u = newUser();
         jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES ('2026-10-01', 1000)");
         clock.advance(Duration.ofDays(23).plusHours(11)); // 2026-10-31T23:00Z: still October in UTC
-        assertThat(quotas.features().values()).containsOnly(false, false, false).hasSize(3);
+        assertThat(quotas.features().values()).containsOnly(false, false, false, false).hasSize(4);
         assertThat(quotas.features().get(AiFeature.ASK_WHY)).isFalse();
         clock.advance(Duration.ofHours(1)); // November 1 00:00Z
         assertThat(quotas.features().get(AiFeature.ASK_WHY)).isTrue();

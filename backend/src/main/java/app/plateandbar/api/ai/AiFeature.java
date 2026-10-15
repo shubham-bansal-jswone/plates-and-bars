@@ -1,10 +1,11 @@
 package app.plateandbar.api.ai;
 
-/** The three v1 AI features. {@code key} is the contract's name and the value stored in ai_usage. */
+/** The four v1 AI features. {@code key} is the contract's name and the value stored in ai_usage. */
 public enum AiFeature {
     DESCRIBE_MEAL("describe_meal"),
     ASK_WHY("ask_why"),
-    WEEKLY_SUMMARY("weekly_summary");
+    WEEKLY_SUMMARY("weekly_summary"),
+    SUGGEST_TAGS("suggest_tags");
 
     private final String key;
 

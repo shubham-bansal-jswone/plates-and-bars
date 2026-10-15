@@ -86,7 +86,7 @@ public class RateLimitProperties {
     private Limit exportPerUser = new Limit(5, Duration.ofHours(1));
     /** GET /me/export, per client IP. */
     private Limit exportPerIp = new Limit(20, Duration.ofHours(1));
-    /** The three POST /ai/* endpoints, per user id (on top of the per-user cap every endpoint has). */
+    /** The four POST /ai/* endpoints, per user id (on top of the per-user cap every endpoint has). */
     private Limit aiPerUser = new Limit(5, Duration.ofMinutes(1));
     /** Every /ai/* endpoint, per client IP. */
     private Limit aiPerIp = new Limit(60, Duration.ofMinutes(1));
