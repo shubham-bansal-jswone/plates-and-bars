@@ -1,5 +1,7 @@
 import { addDays, daysBetween, mondayOf } from './dates';
+import type { ReentryRange } from './day';
 import { num } from './num';
+import { sessionDates, type SessionLog } from './plan';
 import { noLoad, type ExInfo, type ExType, type ExerciseOverride, type LiftRecord, type LiftSet, type ScoreEntry, type SetEntry, type SettingsExerciseOverride } from './progression';
 
 /**
@@ -60,6 +62,8 @@ export interface AdjState {
   dismissed?: Readonly<Record<string, boolean>>;
   /** The current or last recovery week. */
   deload?: AdjRange | null;
+  /** The current or last re-entry period ("Ease back in"). */
+  reentry?: AdjRange | null;
 }
 
 /** `r` covers `date`. Mirrors prototype `inRange(r)` (`S.date` passed in). */
@@ -98,6 +102,81 @@ export function recoveryCard(lifts: Readonly<Record<string, LiftRecord>>, date: 
  */
 export function recoveryWeek(date: string): Required<AdjRange> {
   return { from: date, until: addDays(date, 6) };
+}
+
+/** The "Welcome back" card after a break. */
+export interface ReentryCard {
+  /** Dismissal key, `break:<date of the last session>`. */
+  key: string;
+  /** Days since the last session (14 or more). */
+  gap: number;
+  /** 28 days or more: 2 weeks about 30% lighter and 1 fewer set per exercise. */
+  long: boolean;
+  /** What "Ease back in" passes to `reentryRange`: 0.3 when `long`, else 0.15. */
+  pct: number;
+}
+
+/**
+ * The "Welcome back" card: the last session with a logged set before `date` is 14 or more days
+ * ago, no re-entry period covers `date`, the `break` card type is not muted (declines and mutes use
+ * type `break`) and its key is not dismissed. Null when not shown.
+ *
+ * Mirrors the "back after a break" step of prototype `renderStart()` (`lastSession`) and its `adjCard`.
+ */
+export function reentryCard(sessions: SessionLog, date: string, adj: AdjState = {}): ReentryCard | null {
+  const ds = sessionDates(sessions, date);
+  const last = ds[ds.length - 1];
+  if (last === undefined) return null;
+  const gap = daysBetween(last, date);
+  if (gap < 14 || inRange(adj.reentry, date)) return null;
+  const key = `break:${last}`;
+  if ((adj.muted || {}).break || (adj.dismissed || {})[key]) return null;
+  const long = gap >= 28;
+  return { key, gap, long, pct: long ? 0.3 : 0.15 };
+}
+
+/**
+ * "Ease back in": 14 days from `date` when `pct` is 0.3 or more, else 7. Store it as `adj.reentry`
+ * and dismiss the card's key.
+ *
+ * Mirrors prototype `adjAction('adj-reentry')`.
+ */
+export function reentryRange(date: string, pct: number): Required<ReentryRange> {
+  return { from: date, until: addDays(date, pct >= 0.3 ? 13 : 6), pct };
+}
+
+/** The optional "N steady weeks of training" card. */
+export interface SteadyCard {
+  /** Dismissal key, `dlplan:<Monday of date>`. */
+  key: string;
+  /** Weeks in a row, before this one, with 3 or more session entries (6 to 10). */
+  weeks: number;
+}
+
+/**
+ * The planned-lighter-week card: 6 or more full weeks in a row before `date`'s week (up to 10 are
+ * counted) with 3 or more dates in `sessions` each (any entry counts, even one with no sets, as in
+ * the prototype), no recovery week ending within 42 days of `date` (one ending later than `date`
+ * also hides it), none covering `date`, the `deload-plan` card type not muted and its key not
+ * dismissed. "Take a lighter week" is `recoveryWeek(date)`. Null when not shown.
+ *
+ * Mirrors the "optional planned recovery week" step of prototype `renderStart()` and its `adjCard`.
+ */
+export function steadyCard(sessions: SessionLog, date: string, adj: AdjState = {}): SteadyCard | null {
+  const mon = mondayOf(date);
+  const dates = Object.keys(sessions);
+  let weeks = 0;
+  for (let k = 1; k <= 10; k++) {
+    const ws = addDays(mon, -7 * k);
+    const we = addDays(ws, 7);
+    if (dates.filter((d) => d >= ws && d < we).length >= 3) weeks++;
+    else break;
+  }
+  const lastDl = adj.deload && adj.deload.until ? daysBetween(adj.deload.until, date) : 999;
+  if (weeks < 6 || lastDl <= 42 || inRange(adj.deload, date)) return null;
+  const key = `dlplan:${mon}`;
+  if ((adj.muted || {})['deload-plan'] || (adj.dismissed || {})[key]) return null;
+  return { key, weeks };
 }
 
 /** The per-exercise "No progress in 3 sessions" card. */
