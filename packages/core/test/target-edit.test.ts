@@ -63,6 +63,39 @@ describe('burnToday (prototype burnToday)', () => {
     expect(got.train).toBe(want.train);
     expect(got.dig).toBeCloseTo(want.dig, 9);
     expect(got.total).toBeCloseTo(want.total, 9);
+    // The rounded step count the details block shows ("from N steps") comes back too.
+    expect(got.steps).toBe(want.steps);
+  });
+  it('uses the activity level multiplier when no steps are logged (non-light differential)', () => {
+    // No steps: the prototype falls back to bmr * ACTIVITY[p.activity].m. 'sitting' is 0.15, not light's 0.30,
+    // so this pins the mapping, not just the value a constant 0.3 (light's own) would give.
+    const sitting = { sex: 'male' as const, age: 34, height_cm: 178, activity: 'sitting' as const };
+    const day: ProtoDay = { meals: [], workout: { exercises: [], cardio: 0 } };
+    proto.S.date = '2026-10-05';
+    proto.S.day = day;
+    proto.S.settings.profile = { ...PROFILE, activity: 'sitting' };
+    proto.S.weights.entries = { '2026-10-04': 80 };
+    const want = proto.burnToday()!;
+    const got = burnToday(sitting, 80, undefined, workoutBurn([], 0, 80), 0);
+    expect(got.move).toBeCloseTo(want.move, 9);
+    expect(got.total).toBeCloseTo(want.total, 9);
+    expect(got.move).not.toBeCloseTo(got.bmr * 0.3, 9); // a fixed 0.3 (light) must not survive
+  });
+  it('rounds fractional steps from the steps box, as the prototype does', () => {
+    // S.day.steps is text: the prototype does Math.round(num(S.day.steps)), so '8000.6' counts 8001 steps.
+    const day: ProtoDay = { meals: [], workout: { exercises: [], cardio: 0 }, steps: '8000.6' };
+    proto.S.date = '2026-10-05';
+    proto.S.day = day;
+    proto.S.settings.profile = PROFILE;
+    proto.S.weights.entries = { '2026-10-04': 80 };
+    const want = proto.burnToday()!;
+    expect(want.steps).toBe(8001);
+    const got = burnToday(profile, 80, '8000.6', workoutBurn([], 0, 80), 0);
+    expect(got.move).toBeCloseTo(want.move, 9);
+    expect(got.total).toBeCloseTo(want.total, 9);
+    expect(got.steps).toBe(want.steps); // the rounded count the details block shows
+    // The unrounded step count would give a different movement: the rounding must stay.
+    expect(got.move).not.toBeCloseTo((8000.6 * 0.04 * 80) / 70, 9);
   });
   it('golden: 80 kg, light activity, 8,000 steps, nothing else = 1,747.5 resting + 365.7 movement', () => {
     const b = burnToday(profile, 80, 8000, workoutBurn([], 0, 80), 0);
