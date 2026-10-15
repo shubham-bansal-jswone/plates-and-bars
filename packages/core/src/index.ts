@@ -477,6 +477,7 @@ export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, 
  * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
  *   input (0–24 h); `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
  *   `TAPE_MAX_CM`, `SLEEP_MAX_H` are the contract's `Weight`, `TapeCm` and `DayNote.sleep` bounds.
+ * - `weekSummary` mirrors the "Seven days to <date>" block of `renderProgress()`: bar sizes, averages, sessions.
  */
 export {
   round1,
@@ -499,8 +500,9 @@ export {
   TAPE_MIN_CM,
   TAPE_MAX_CM,
   SLEEP_MAX_H,
+  weekSummary,
 } from './progress';
-export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry } from './progress';
+export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry, WeekDay, WeekSummary } from './progress';
 
 /**
  * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
