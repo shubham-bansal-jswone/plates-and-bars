@@ -27,7 +27,13 @@ permissions:
     resource: "content/**"
     effect: allow
   - action: edit
+    resource: "**/content/**"
+    effect: allow
+  - action: edit
     resource: "tools/**"
+    effect: allow
+  - action: edit
+    resource: "**/tools/**"
     effect: allow
 ---
 You are the content agent. Read docs/AGENTS.md first.

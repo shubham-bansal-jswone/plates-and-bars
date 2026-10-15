@@ -23,6 +23,9 @@ permissions:
   - action: edit
     resource: "apps/site/**"
     effect: allow
+  - action: edit
+    resource: "**/apps/site/**"
+    effect: allow
 ---
 You are the website agent. Read docs/AGENTS.md first.
 

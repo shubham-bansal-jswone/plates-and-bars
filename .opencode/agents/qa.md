@@ -23,6 +23,9 @@ permissions:
   - action: edit
     resource: "tests/e2e/**"
     effect: allow
+  - action: edit
+    resource: "**/tests/e2e/**"
+    effect: allow
 ---
 You are the QA agent. Read docs/AGENTS.md first.
 

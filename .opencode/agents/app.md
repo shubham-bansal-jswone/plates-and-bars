@@ -23,6 +23,9 @@ permissions:
   - action: edit
     resource: "apps/mobile/**"
     effect: allow
+  - action: edit
+    resource: "**/apps/mobile/**"
+    effect: allow
 ---
 You are the app agent. Read docs/AGENTS.md, packages/api/openapi.yaml and the relevant part of the prototype first.
 

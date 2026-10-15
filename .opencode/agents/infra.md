@@ -24,7 +24,13 @@ permissions:
     resource: "infra/**"
     effect: allow
   - action: edit
+    resource: "**/infra/**"
+    effect: allow
+  - action: edit
     resource: ".github/workflows/**"
+    effect: allow
+  - action: edit
+    resource: "**/.github/workflows/**"
     effect: allow
 ---
 You are the infra agent. Read docs/AGENTS.md first.
