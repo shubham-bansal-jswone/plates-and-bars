@@ -337,6 +337,8 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  * - `navyBodyFat` mirrors prototype `navyBF(upTo)`.
  * - `waterTarget` mirrors prototype `waterTarget()` (state passed in); `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`,
  *   `WATER_TRAINING_ML` are its 2500, 33 and 600.
+ * - `DEFAULT_WATER_SIZES` is the prototype's `settings.water` fallback `{ glass:250, bottle:1000 }`
+ *   (`renderTargets`, the Settings water sizes, the `data-wt` handler), as contract `Settings.water_sizes`.
  * - `workoutBurn` mirrors prototype `workoutBurn(w, kg)`.
  * - `stepsTarget` mirrors prototype `stepsTarget()` (days passed in); `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX` are its 7000, 5000 and 12000.
  * - `weightDrift` mirrors the `drift` check in prototype `setupSummaryHtml()` (#161); `WEIGHT_DRIFT_KG` is its 2.
@@ -352,12 +354,13 @@ export {
   WATER_DEFAULT_ML,
   WATER_ML_PER_KG,
   WATER_TRAINING_ML,
+  DEFAULT_WATER_SIZES,
   STEPS_DEFAULT,
   STEPS_MIN,
   STEPS_MAX,
   WEIGHT_DRIFT_KG,
 } from './progress';
-export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WorkoutBurn, WeightDrift } from './progress';
+export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WaterSizes, WorkoutBurn, WeightDrift } from './progress';
 
 /**
  * Recipe builder and kitchen tests. The data is passed in: raw ingredients (prototype `RAW`, `RAW_FIB`, `FATTY`)
@@ -393,6 +396,16 @@ export {
   RECIPE_LOG_MIN,
   RECIPE_LOG_MAX,
   RECIPE_LOG_STEP,
+  SOYA_INGREDIENT,
+  FIT_SOYA_G,
+  FIT_SOYA_PROTEIN_G,
+  FIT_OIL_MIN_SAVE_KCAL,
+  FIT_PROTEIN_MIN_G,
+  fitSuggestions,
+  applyFit,
+  kitchenTable,
+  kitchenCompare,
+  stepMinutes,
 } from './recipes';
 export type {
   RawIngredient,
@@ -412,6 +425,10 @@ export type {
   KitchenTestResult,
   KitchenTestFoodInput,
   KitchenTestFoodResult,
+  FitSuggestion,
+  KitchenTestRecord,
+  KitchenCompareFood,
+  KitchenComparison,
 } from './recipes';
 
 /**
