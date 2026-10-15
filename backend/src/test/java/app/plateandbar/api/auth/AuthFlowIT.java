@@ -9,7 +9,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
-import ch.qos.logback.core.read.ListAppender;
+import app.plateandbar.api.support.ConcurrentListAppender;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -99,7 +99,7 @@ class AuthFlowIT {
     @Autowired CapturingMailSender mail;
     @MockitoBean GoogleIdTokenVerifier google;
 
-    private ListAppender<ILoggingEvent> logs;
+    private ConcurrentListAppender logs;
     private static final List<String> DEBUG_LOGGERS =
             List.of("app.plateandbar", "org.springframework.security", "org.springframework.web");
 
@@ -111,7 +111,7 @@ class AuthFlowIT {
         for (String name : DEBUG_LOGGERS) {
             ((Logger) LoggerFactory.getLogger(name)).setLevel(Level.TRACE);
         }
-        logs = new ListAppender<>();
+        logs = new ConcurrentListAppender();
         logs.start();
         root.addAppender(logs);
     }

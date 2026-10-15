@@ -70,11 +70,11 @@ export async function persistCant(db: WorkoutDb, date: string, base: Workout, ch
   // can end up last rather than in the swapped exercise's place. Nothing is lost or brought back; only the order differs.
   const row = { ...(elsewhere ? mergeWorkout(synced, mine, stored) : mine), version: stored?.version ?? base.version, updated_at: at };
   await saveWorkout(db, row);
-  // A pick another device already added (same name, stored with sets) keeps those sets: this change's blank rows for it
-  // would sit beside them and double the exercise (#446).
+  // A pick another device already added (same name) keeps that device's sets: this change's blank rows for it would sit
+  // beside them and double the exercise (#446). By name alone: its sets may not have been pulled yet (#459). Trade-off: if
+  // that device's sets never arrive (or were all deleted there), the pick shows no sets and "Add set" recovers it.
   const had = new Set(elsewhere && stored ? stored.exercises.filter((e) => !synced.exercises.some((x) => x.name === e.name)).map((e) => e.name) : []);
-  const theirSets = new Set(storedSets.filter((s) => !s.deleted_at && had.has(s.exercise)).map((s) => s.exercise));
-  const added = ch.added.filter((s) => !theirSets.has(s.exercise));
+  const added = ch.added.filter((s) => !had.has(s.exercise));
   for (const s of [...ch.changed, ...ch.removed, ...added]) await saveSet(db, date, { ...s, version: version.get(s.id) ?? s.version });
   return elsewhere ? 'stale' : row;
 }

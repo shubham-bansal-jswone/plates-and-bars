@@ -3,7 +3,9 @@ import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { weightDrift, type WeekPlan } from '@plate-and-bar/core';
+import { loadKitchenTests } from '../db/kitchenTests';
 import { loadWeights } from '../db/progress';
+import { listIntro } from '../kitchen/copy';
 import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -45,6 +47,15 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   useEffect(() => {
     let live = true;
     loadWeights(db).then((w) => live && setWeights(w)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [db, shown]);
+  // The count of kitchen tests, read again each time the tab is shown; null (no line) until read or when it cannot be.
+  const [kitchen, setKitchen] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadKitchenTests(db).then((t) => live && setKitchen(t.length)).catch(() => {});
     return () => {
       live = false;
     };
@@ -100,6 +111,12 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
           </View>
         ) : null}
+        {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Workout as there; the list itself is on its own screen. */}
+        <View style={{ gap: 8, marginTop: 16 }}>
+          <Label>Kitchen tests</Label>
+          {kitchen !== null ? <Hint>{listIntro(kitchen)}</Hint> : null}
+          <Button label="Kitchen tests" kind="ghost" onPress={() => router.push('/kitchen-test' as never)} />
+        </View>
       </Page>
       <ToastBar message={toast} />
     </View>

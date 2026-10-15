@@ -18,7 +18,7 @@ class AiDisabledIT extends AiITBase {
     @Test
     void everyEndpointIsFeatureDisabledEvenForABadBodyAndStatusReportsOff() {
         String u = newUser();
-        for (String path : new String[] {"describe-meal", "ask-why", "weekly-summary"}) {
+        for (String path : new String[] {"describe-meal", "ask-why", "weekly-summary", "suggest-tags"}) {
             var res = post(u, "/api/v1/ai/" + path, "{}"); // switch is checked before validation
             assertThat(res.getStatusCode().value()).as(path).isEqualTo(503);
             assertThat(res.getBody()).contains("\"code\":\"feature_disabled\"");
@@ -26,7 +26,7 @@ class AiDisabledIT extends AiITBase {
         var status = get(u, "/api/v1/ai/status");
         assertThat(status.getStatusCode().value()).isEqualTo(200);
         assertThat(status.getBody())
-                .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false")
+                .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false", "\"suggest_tags\":false")
                 .contains("\"remaining\":10");
         assertThat(calls(u)).isZero();
         org.mockito.Mockito.verify(provider, org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());

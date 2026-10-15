@@ -101,7 +101,16 @@ export function fakeServer(userId: string) {
       // The size check runs before anything else (contract wire conventions): before forced statuses, auth and holds.
       if (path === '/sync') s.sizes.push(bytes);
       if (bytes > s.maxBytes) return json(s.tooLargeStatus, s.tooLargeStatus === 413 ? { code: 'too_large', message: 'x' } : { code: 'invalid_request', message: 'The request is too large.', details: [{ field: '', issue: 'too_large' }] });
-      if (s.hold && (!s.holdPath || s.holdPath === path)) await s.hold;
+      if (s.hold && (!s.holdPath || s.holdPath === path)) {
+        // A held request ends with an AbortError when its signal fires, like a real fetch.
+        const aborted = new Promise<never>((_, reject) => {
+          const fire = () => reject(new DOMException('aborted', 'AbortError'));
+          if (req.signal.aborted) fire();
+          else req.signal.addEventListener('abort', fire, { once: true });
+        });
+        aborted.catch(() => undefined); // may reject after the hold settled: that must not be an unhandled rejection
+        await Promise.race([s.hold, aborted]);
+      }
       if (path === '/auth/email/verify') {
         s.accessValid = 'access-verified';
         return json(200, { token_type: 'Bearer', access_token: 'access-verified', access_token_expires_at: '2026-10-09T00:00:00Z', refresh_token: 'refresh-verified', refresh_token_expires_at: '2027-01-01T00:00:00Z', user: { id: userId, email: null, created_at: '2026-10-01T00:00:00Z' }, new_user: false });
