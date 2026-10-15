@@ -97,7 +97,7 @@ public class AiService {
             if (name.isEmpty()) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("name", "pattern")));
             }
-            return new Call(AiPrompts.suggestTags(name), json.createObjectNode().put("name", name), replies::suggestTags);
+            return new Call(AiPrompts.suggestTags(name, schemas.muscles(), schemas.equipment()), json.createObjectNode().put("name", name), replies::suggestTags);
         });
     }
 

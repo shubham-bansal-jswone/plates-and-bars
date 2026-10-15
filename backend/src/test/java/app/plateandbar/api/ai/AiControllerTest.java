@@ -41,6 +41,19 @@ class AiControllerTest {
     }
 
     @Test
+    void suggestTagsIsItsOwnFlag() throws Exception {
+        when(quotas.features()).thenReturn(java.util.Map.of(
+                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, false, AiFeature.WEEKLY_SUMMARY, false,
+                AiFeature.SUGGEST_TAGS, true));
+        when(quotas.quota(USER)).thenReturn(QUOTA);
+        callStatus("198.51.100.9")
+                .andExpect(jsonPath("$.features.describe_meal").value(false))
+                .andExpect(jsonPath("$.features.ask_why").value(false))
+                .andExpect(jsonPath("$.features.weekly_summary").value(false))
+                .andExpect(jsonPath("$.features.suggest_tags").value(true));
+    }
+
+    @Test
     void reportsFeaturesAndQuotaInTheContractShape() throws Exception {
         when(quotas.features()).thenReturn(java.util.Map.of(
                 AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, true, AiFeature.WEEKLY_SUMMARY, false,

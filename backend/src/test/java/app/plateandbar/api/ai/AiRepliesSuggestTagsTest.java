@@ -34,9 +34,11 @@ class AiRepliesSuggestTagsTest {
     void equipmentAndDifficultyFallBack() {
         assertThat(ok("{}").path("equipment").asText()).isEqualTo("machine");
         assertThat(ok("{}").path("difficulty").asInt()).isEqualTo(2);
-        for (String d : new String[] {"0", "4", "1.5", "\"2\"", "null", "99999999999"}) {
+        for (String d : new String[] {"0", "4", "1.5", "\"2\"", "null", "99999999999", "0.5", "3.5"}) {
             assertThat(ok("{\"difficulty\":" + d + "}").path("difficulty").asInt()).as(d).isEqualTo(2);
         }
+        assertThat(ok("{\"difficulty\":3.0}").path("difficulty").asInt()).isEqualTo(3);
+        assertThat(ok("{\"difficulty\":1.0}").path("difficulty").isInt()).isTrue();
         assertThat(ok("{\"difficulty\":3,\"equipment\":\"Barbell\"}").path("difficulty").asInt()).isEqualTo(3);
         assertThat(ok("{\"equipment\":\"Barbell\"}").path("equipment").asText()).isEqualTo("machine");
         assertThat(ok("{\"equipment\":\"barbell\"}").path("equipment").asText()).isEqualTo("barbell");

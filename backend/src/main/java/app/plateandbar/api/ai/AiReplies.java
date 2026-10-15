@@ -86,12 +86,6 @@ class AiReplies {
         return valid("WeeklySummaryResponse", out);
     }
 
-    private static final java.util.Set<String> MUSCLES = java.util.Set.of("chest", "front-delt", "side-delt",
-            "rear-delt", "triceps", "lats", "upper-back", "biceps", "forearms", "quads", "hams", "glutes", "calves",
-            "abs", "lower-back");
-    private static final java.util.Set<String> EQUIPMENT =
-            java.util.Set.of("barbell", "dumbbell", "machine", "cable", "bodyweight");
-
     /**
      * Repairs instead of failing (the prototype's suggestTags()): unknown muscles dropped, the first 3 kept, equipment
      * falls back to machine, difficulty to 2, pattern and joints are cut to the schema limits. Empty only when the
@@ -108,10 +102,10 @@ class AiReplies {
         out.put("pattern", pattern.isTextual() && pattern.asText().codePointCount(0, pattern.asText().length()) <= 50
                 ? pattern.asText() : "");
         JsonNode eq = r.path("equipment");
-        out.put("equipment", eq.isTextual() && EQUIPMENT.contains(eq.asText()) ? eq.asText() : "machine");
+        out.put("equipment", eq.isTextual() && schemas.equipment().contains(eq.asText()) ? eq.asText() : "machine");
         JsonNode d = r.path("difficulty");
-        out.put("difficulty", d.isIntegralNumber() && d.canConvertToInt() && d.asInt() >= 1 && d.asInt() <= 3
-                ? d.asInt() : 2);
+        out.put("difficulty", d.isNumber() && d.asDouble() >= 1 && d.asDouble() <= 3 && d.asDouble() == Math.rint(d.asDouble())
+                ? (int) d.asDouble() : 2);
         out.set("primary", muscles(r.path("primary")));
         out.set("secondary", muscles(r.path("secondary")));
         ArrayNode joints = out.putArray("joints");
@@ -126,7 +120,7 @@ class AiReplies {
     private ArrayNode muscles(JsonNode in) {
         ArrayNode out = json.createArrayNode();
         for (JsonNode m : in) {
-            if (out.size() < 3 && m.isTextual() && MUSCLES.contains(m.asText())) {
+            if (out.size() < 3 && m.isTextual() && schemas.muscles().contains(m.asText())) {
                 out.add(m.asText());
             }
         }

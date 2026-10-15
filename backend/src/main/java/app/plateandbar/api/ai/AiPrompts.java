@@ -1,6 +1,7 @@
 package app.plateandbar.api.ai;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.List;
 
 /**
  * Builds the instructions and the input for each feature. User text is placed between fixed delimiters as data,
@@ -76,15 +77,14 @@ final class AiPrompts {
     }
 
     /** The exercise name is untrusted user text: delimited data only. */
-    static Prompt suggestTags(String name) {
+    static Prompt suggestTags(String name, List<String> muscles, List<String> equipment) {
         String m = newMarker();
         return new Prompt(
                 "You classify a gym exercise by its name. " + dataRule(m)
                         + "Reply with JSON only, no other text, shaped {\"pattern\":string,\"equipment\":one of "
-                        + "barbell, dumbbell, machine, cable, bodyweight,\"difficulty\":1, 2 or 3 (1 easiest),"
+                        + String.join(", ", equipment) + ",\"difficulty\":1, 2 or 3 (1 easiest),"
                         + "\"primary\":up to 3 main muscles,\"secondary\":up to 3 helping muscles,\"joints\":[string]}. "
-                        + "Muscles are only from: chest, front-delt, side-delt, rear-delt, triceps, lats, upper-back, "
-                        + "biceps, forearms, quads, hams, glutes, calves, abs, lower-back. pattern is a short movement "
+                        + "Muscles are only from: " + String.join(", ", muscles) + ". pattern is a short movement "
                         + "pattern such as h-press, fly or squat. Use an empty primary array when you cannot place "
                         + "the exercise.",
                 delimit(name, m));
