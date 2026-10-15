@@ -5,7 +5,7 @@ import { planList, splitFor, type PlanProfile, type SessionLog, type WeekPlan } 
 import type { LiftRecord } from './progression';
 import { toTargetsProfile, type SetupProfile } from './setup';
 import { stalledList } from './stalls';
-import { calcTargets, type Sex } from './targets';
+import { ACTIVITY_MULTIPLIER, bmrOf, calcTargets, type Sex } from './targets';
 
 /**
  * Progress formulas (PROTOTYPE_SPEC section 6): body measures and day targets. Weigh-ins come in the
@@ -775,4 +775,35 @@ export function sleepEntry(text: string): SleepEntry {
   if (!Number.isFinite(parseFloat(text.replace(',', '.')))) return { kind: 'bad' };
   const h = num(text);
   return h >= 0 && h <= SLEEP_MAX_H ? { kind: 'save', h } : { kind: 'bad' };
+}
+
+/** Result of `burnToday`: kcal by part, and their total. */
+export interface BurnToday {
+  bmr: number;
+  move: number;
+  train: number;
+  dig: number;
+  total: number;
+}
+
+/**
+ * Estimated burn so far today: resting + daily movement (0.04 kcal per step at 70 kg, scaled by weight;
+ * with no steps, the activity level's share of resting) + training over resting + 10% of the food eaten.
+ * `kg` is the latest weigh-in, else the setup weight. The shown range is `total` ± `BURN_RANGE`.
+ *
+ * Mirrors prototype `burnToday()` (state passed in).
+ */
+export function burnToday(
+  p: Pick<SetupProfile, 'sex' | 'age' | 'height_cm' | 'activity'>,
+  kg: number,
+  steps: number | null | undefined,
+  workout: WorkoutBurn,
+  kcalEaten: number,
+): BurnToday {
+  const bmr = bmrOf({ sex: p.sex, age: p.age, height: p.height_cm }, kg);
+  const st = Math.round(num(steps));
+  const move = st > 0 ? (st * 0.04 * kg) / 70 : bmr * ACTIVITY_MULTIPLIER[p.activity];
+  const train = workout.extra;
+  const dig = kcalEaten * 0.1;
+  return { bmr, move, train, dig, total: bmr + move + train + dig };
 }

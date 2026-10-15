@@ -139,3 +139,34 @@ export function calcTargets(p: TargetsProfile): TargetsResult {
   const weekly = ((kcal - tdee) * 7) / 7700;
   return { w, bmr, movement, training, digestion, tdee, kcal, adj, capped, floor, floored, special, bmi, refW, perKg, protein, fat, carbs, weekly };
 }
+
+/** Macros' kcal beyond which the targets are called out of step with the calorie target (prototype's 50). */
+export const MACRO_MISMATCH_KCAL = 50;
+
+/** The four daily targets as the contract's `Targets` names them. */
+export interface TargetSet {
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+/** Kcal the macros add up to (4 per g protein and carbs, 9 per g fat). Prototype `renderTargets`' `macroK`. */
+export function macroKcal(t: TargetSet): number {
+  return t.protein_g * 4 + t.carbs_g * 4 + t.fat_g * 9;
+}
+
+/** Whether the macros are more than 50 kcal off the calorie target (prototype `off`). */
+export function macrosOff(t: TargetSet): boolean {
+  return Math.abs(macroKcal(t) - t.kcal) > MACRO_MISMATCH_KCAL;
+}
+
+/** A typed target: rounded to a whole number, never below 0, anything unreadable 0. Prototype's `input` handler for `data-t`. */
+export function cleanTarget(text: string): number {
+  return Math.max(0, Math.round(num(text)));
+}
+
+/** "Adjust carbs to match calories": the carbs that fill the calories left after protein and fat, never below 0. Prototype `fitcarbs`. */
+export function fitCarbs(t: TargetSet): number {
+  return Math.max(0, Math.round((t.kcal - t.protein_g * 4 - t.fat_g * 9) / 4));
+}
