@@ -126,6 +126,20 @@ export interface WaterSizes {
  */
 export const DEFAULT_WATER_SIZES: Readonly<WaterSizes> = Object.freeze({ glass_ml: 250, bottle_ml: 1000 });
 
+/** Smallest and largest glass or bottle size, in ml, that the water size boxes keep (prototype `data-wt` handler). */
+export const WATER_SIZE_MIN_ML = 50;
+export const WATER_SIZE_MAX_ML = 3000;
+
+/**
+ * Reads a water size box (Glass or Bottle, ml): the text rounded to a whole number, or null when it is outside
+ * 50 to 3000 or not a number (the prototype then keeps the stored size). Both bounds are inside the contract's
+ * `Settings.water_sizes` (an integer above 0). Mirrors the `data-wt` step of the prototype's input listener.
+ */
+export function waterSizeEntry(text: string): number | null {
+  const ml = Math.round(num(text));
+  return ml >= WATER_SIZE_MIN_ML && ml <= WATER_SIZE_MAX_ML ? ml : null;
+}
+
 /** What `waterTarget` reads. */
 export interface WaterInput {
   /** The day shown (prototype `S.date`). */

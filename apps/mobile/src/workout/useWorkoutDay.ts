@@ -183,7 +183,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
   const ids = (rows: readonly Row[]) => rows.map((r) => r.id);
 
   const start = useCallback(
-    async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice']) => {
+    async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) => {
       if (!profile || building.current || ref.current.workout) return;
       building.current = true;
       try {
@@ -193,7 +193,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
           template,
           date,
           profile,
-          where: profile.where,
+          where: override ?? profile.where,
           sessions,
           lifts: d.lifts,
           ciChoice,
@@ -208,9 +208,9 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
           updated_at: stamp(now()),
           deleted_at: null,
           date,
-          template: templateName(template, profile.where),
+          template: templateName(template, override ?? profile.where),
           base: template,
-          where: null,
+          where: override,
           cardio_min: null,
           mods: built.mods,
           exercises: [],
@@ -257,7 +257,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
           template,
           date,
           profile,
-          where: profile.where,
+          where: old.where ?? profile.where,
           sessions,
           lifts: d.lifts,
           ciChoice: old.ci_choice,
