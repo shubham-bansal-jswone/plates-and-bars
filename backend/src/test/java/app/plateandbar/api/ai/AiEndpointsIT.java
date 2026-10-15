@@ -63,6 +63,11 @@ class AiEndpointsIT extends AiITBase {
         clock.advance(Duration.between(clock.instant(), START));
     }
 
+    @org.junit.jupiter.api.AfterEach
+    void clearSpend() {
+        jdbc.update("DELETE FROM ai_spend_monthly"); // the budget-exhausted test must not starve other classes sharing the DB
+    }
+
     private void reply(String text) {
         when(provider.complete(any(), any(), any())).thenReturn(new AiProvider.Completion(text, 100, 50));
     }
@@ -420,7 +425,7 @@ class AiEndpointsIT extends AiITBase {
     @Test
     void suggestTagsNeverLogsTheExerciseName() {
         Logger root = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
-        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        ConcurrentListAppender logs = new ConcurrentListAppender();
         logs.start();
         root.addAppender(logs);
         try {
