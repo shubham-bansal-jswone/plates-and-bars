@@ -140,11 +140,13 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
     try {
       await queue.current; // earlier local writes land first
       const prev = await loadLogs(db, addDays(date, -1));
-      if (logsRef.current.length) return false; // the day got logs (a sync pull, another screen) while we waited: it is not empty any more
+      // Yesterday is checked first, as the prototype does, so "nothing the day before" is said even when the day gained a log while we read.
       if (!prev.length) {
         notify('Nothing was logged the day before.');
         return false;
       }
+      // The day got logs (a sync pull, another screen) while we waited: it is not empty any more, so there is nothing to copy and no toast.
+      if (logsRef.current.length) return false;
       const t = stamp(now());
       const copies = prev.map((l): FoodLog => ({ ...l, id: newId(), version: 0, updated_at: t, deleted_at: null, date }));
       logsRef.current = [...logsRef.current, ...copies];
