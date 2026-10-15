@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
+import { addDays, saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
@@ -129,6 +129,47 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
     [db, now, enqueue],
   );
 
+  /**
+   * The prototype's "Copy previous day": every non-deleted log of yesterday is copied to today with a new id, as stored
+   * (name, meal, qty and values), whether or not the food is still in the list.
+   *
+   * Returns false, having copied nothing, on every path that is not a copy: a tap while another copy is still reading;
+   * an empty yesterday ("Nothing was logged the day before."); a day that gained a log while we read it (a sync pull or
+   * another screen — silent, because the copy is no longer wanted); and a read that fails
+   * ("Couldn’t read your saved food.").
+   */
+  const copying = useRef(false);
+  const copyPrevious = useCallback(async (): Promise<boolean> => {
+    if (copying.current) return false; // a second tap while the first is still reading
+    copying.current = true;
+    try {
+      await queue.current; // earlier local writes land first
+      const prev = await loadLogs(db, addDays(date, -1));
+      // Yesterday is checked first, as the prototype does, so "nothing the day before" is said even when the day gained a log while we read.
+      if (!prev.length) {
+        notify('Nothing was logged the day before.');
+        return false;
+      }
+      // The day got logs (a sync pull, another screen) while we waited: it is not empty any more, so there is nothing to copy and no toast.
+      if (logsRef.current.length) return false;
+      const t = stamp(now());
+      const copies = prev.map((l): FoodLog => ({ ...l, id: newId(), version: 0, updated_at: t, deleted_at: null, date }));
+      logsRef.current = [...logsRef.current, ...copies];
+      setLogs(logsRef.current);
+      // A save that fails part way keeps the logs already stored, like other multi-write flows; enqueue shows the generic save toast.
+      enqueue(async () => {
+        for (const c of copies) await saveLog(db, c);
+      });
+      notify('Copied the previous day’s meals');
+      return true;
+    } catch {
+      notify('Couldn’t read your saved food.');
+      return false;
+    } finally {
+      copying.current = false;
+    }
+  }, [db, date, now, enqueue, notify]);
+
   const setComplete = useCallback(
     (complete: boolean) => {
       const n: DayNote = { ...(noteRef.current ?? { id: null, version: 0, deleted_at: null, date, steps: null, sleep: null, fast: false }), complete, updated_at: stamp(now()) };
@@ -168,5 +209,5 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
     [db, now, enqueue],
   );
 
-  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
+  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, copyPrevious, setComplete, setFast, saveMine };
 }

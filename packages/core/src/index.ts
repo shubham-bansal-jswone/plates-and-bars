@@ -14,9 +14,11 @@ export { num } from './num';
  * - `PACE_ADJ` mirrors prototype `PACE[k].adj`.
  * - `TRAIN_NET_MET` mirrors prototype `TRAIN_NET_MET`.
  * - `DEFICIT_CAP_KCAL` mirrors the 750 kcal deficit cap in prototype `calcTargets`.
+ * - Editing targets (prototype `renderTargets`): `macroKcal` is `macroK`, `macrosOff` is `off` (`MACRO_MISMATCH_KCAL` its 50),
+ *   `cleanTarget` is the `data-t` input handler's rounding, `fitCarbs` is the `fitcarbs` action.
  */
-export { calcTargets, bmrOf, ACTIVITY_MULTIPLIER, PACE_ADJ, TRAIN_NET_MET, DEFICIT_CAP_KCAL } from './targets';
-export type { TargetsProfile, TargetsResult, Sex, Activity, Goal, Pace, Special } from './targets';
+export { calcTargets, bmrOf, ACTIVITY_MULTIPLIER, PACE_ADJ, TRAIN_NET_MET, DEFICIT_CAP_KCAL, MACRO_MISMATCH_KCAL, macroKcal, macrosOff, cleanTarget, fitCarbs } from './targets';
+export type { TargetSet, TargetsProfile, TargetsResult, Sex, Activity, Goal, Pace, Special } from './targets';
 
 /**
  * Setup flow: validation, the saved profile, and the results screen's values.
@@ -343,7 +345,7 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  * - `DEFAULT_WATER_SIZES` is the prototype's `settings.water` fallback `{ glass:250, bottle:1000 }`
  *   (`renderTargets`, the Settings water sizes, the `data-wt` handler), as contract `Settings.water_sizes`.
  * - `waterSizeEntry` mirrors the `data-wt` step (round, keep 50 to 3000 ml, else null); `WATER_SIZE_MIN_ML`, `WATER_SIZE_MAX_ML` are its bounds.
- * - `workoutBurn` mirrors prototype `workoutBurn(w, kg)`.
+ * - `workoutBurn` mirrors prototype `workoutBurn(w, kg)`; `burnToday` mirrors `burnToday()` (state passed in).
  * - `stepsTarget` mirrors prototype `stepsTarget()` (days passed in); `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX` are its 7000, 5000 and 12000.
  * - `weightDrift` mirrors the `drift` check in prototype `setupSummaryHtml()` (#161); `WEIGHT_DRIFT_KG` is its 2.
  */
@@ -353,6 +355,7 @@ export {
   navyBodyFat,
   waterTarget,
   workoutBurn,
+  burnToday,
   stepsTarget,
   weightDrift,
   WATER_DEFAULT_ML,
@@ -367,7 +370,7 @@ export {
   STEPS_MAX,
   WEIGHT_DRIFT_KG,
 } from './progress';
-export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WaterSizes, WorkoutBurn, WeightDrift } from './progress';
+export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProfile, WaterInput, WaterSizes, WorkoutBurn, BurnToday, WeightDrift } from './progress';
 
 /**
  * Recipe builder and kitchen tests. The data is passed in: raw ingredients (prototype `RAW`, `RAW_FIB`, `FATTY`)
