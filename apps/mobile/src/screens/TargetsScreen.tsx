@@ -12,6 +12,7 @@ import type { WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
+import { TargetsEditor } from '../targets/TargetsEditor';
 import { RulesSection } from '../targets/RulesSection';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
@@ -28,7 +29,7 @@ interface Props {
 
 /** Targets tab: the stored setup's targets, focus muscles and coverage, and the workout settings. */
 export function TargetsScreen({ db, now = () => new Date() }: Props) {
-  const { profile, markCleared } = useProfile();
+  const { profile, markCleared, setProfile } = useProfile();
   const { ready, settings, saveFailed, loadFailed, setFocus, setRestOff } = useSettings();
   const router = useRouter();
   const c = useTheme();
@@ -74,7 +75,8 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={{ flex: 1 }}>
       <Page>
-        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} />
+        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets />
+        <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
         {drift ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>

@@ -47,11 +47,12 @@ describe('TargetsScreen', () => {
     const db = memoryDb();
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
-    expect(await screen.findByLabelText('1,990 kcal')).toBeTruthy();
+    // The targets are the editable "Daily targets" fields now (prototype tK, tP, tC, tF).
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
     expect(g.output.kcal).toBe(1990);
-    expect(screen.getByLabelText(`${g.output.protein} g protein`)).toBeTruthy();
-    expect(screen.getByLabelText(`${g.output.carbs} g carbs`)).toBeTruthy();
-    expect(screen.getByLabelText(`${g.output.fat} g fat`)).toBeTruthy();
+    expect(screen.getByLabelText('Protein (g)').props.value).toBe(String(g.output.protein));
+    expect(screen.getByLabelText('Carbs (g)').props.value).toBe(String(g.output.carbs));
+    expect(screen.getByLabelText('Fat (g)').props.value).toBe(String(g.output.fat));
     expect(screen.getByText('You burn about 2,493 kcal a day')).toBeTruthy();
   });
 

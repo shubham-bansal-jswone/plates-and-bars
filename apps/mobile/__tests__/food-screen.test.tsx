@@ -513,3 +513,16 @@ describe('Food screen', () => {
     });
   });
 });
+
+describe('Estimated burn today so far', () => {
+  it('shows core’s burnToday as a range with a breakdown under Details', async () => {
+    await setup();
+    // 82 kg, 165 cm, 30, sitting (0.15), no steps or food: bmr 1,706.25 + movement 255.9 = 1,962.2; range -10% / +10%.
+    expect(await screen.findByLabelText('Estimated burn today so far, 1,766–2,158 kcal')).toBeTruthy();
+    expect(screen.queryByLabelText('Resting, 1,706 kilocalories')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Show burn details'));
+    expect(screen.getByLabelText('Resting, 1,706 kilocalories')).toBeTruthy();
+    expect(screen.getByLabelText('Daily movement, from your activity level, 256 kilocalories')).toBeTruthy();
+    expect(screen.getByLabelText('Training, nothing logged yet, 0 kilocalories')).toBeTruthy();
+  });
+});
