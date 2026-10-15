@@ -215,12 +215,15 @@ export type {
  *   unticking every set today restores the session before, or gives a null record (delete it) (#122).
  *   `sessionScore` and `updateLift` take the profile's weight for assisted scores (#122).
  * - `recoveryCard` mirrors the "several stalls → recovery week" card in prototype `renderStart()`.
+ * - `reentryCard` mirrors the "back after a break" ("Welcome back") card in prototype `renderStart()`;
+ *   `reentryRange` mirrors prototype `adjAction('adj-reentry')`.
+ * - `steadyCard` mirrors the "N steady weeks of training" card in prototype `renderStart()`.
  * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`;
  *   `stallRangeOverride` is `stallRange` in contract `Settings.exercise_overrides` shape (#128).
  * - `addDays` mirrors prototype `addDays(s, n)`.
  */
-export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
-export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './stalls';
+export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, reentryCard, reentryRange, steadyCard, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
+export type { AdjRange, AdjState, RecoveryCard, ReentryCard, SteadyCard, StallCard, LiftUpdate } from './stalls';
 export { addDays } from './dates';
 
 /**
@@ -339,6 +342,7 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  *   `WATER_TRAINING_ML` are its 2500, 33 and 600.
  * - `DEFAULT_WATER_SIZES` is the prototype's `settings.water` fallback `{ glass:250, bottle:1000 }`
  *   (`renderTargets`, the Settings water sizes, the `data-wt` handler), as contract `Settings.water_sizes`.
+ * - `waterSizeEntry` mirrors the `data-wt` step (round, keep 50 to 3000 ml, else null); `WATER_SIZE_MIN_ML`, `WATER_SIZE_MAX_ML` are its bounds.
  * - `workoutBurn` mirrors prototype `workoutBurn(w, kg)`.
  * - `stepsTarget` mirrors prototype `stepsTarget()` (days passed in); `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX` are its 7000, 5000 and 12000.
  * - `weightDrift` mirrors the `drift` check in prototype `setupSummaryHtml()` (#161); `WEIGHT_DRIFT_KG` is its 2.
@@ -355,6 +359,9 @@ export {
   WATER_ML_PER_KG,
   WATER_TRAINING_ML,
   DEFAULT_WATER_SIZES,
+  waterSizeEntry,
+  WATER_SIZE_MIN_ML,
+  WATER_SIZE_MAX_ML,
   STEPS_DEFAULT,
   STEPS_MIN,
   STEPS_MAX,
@@ -470,6 +477,7 @@ export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, 
  * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
  *   input (0–24 h); `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
  *   `TAPE_MAX_CM`, `SLEEP_MAX_H` are the contract's `Weight`, `TapeCm` and `DayNote.sleep` bounds.
+ * - `weekSummary` mirrors the "Seven days to <date>" block of `renderProgress()`: bar sizes, averages, sessions.
  */
 export {
   round1,
@@ -492,8 +500,9 @@ export {
   TAPE_MIN_CM,
   TAPE_MAX_CM,
   SLEEP_MAX_H,
+  weekSummary,
 } from './progress';
-export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry } from './progress';
+export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry, WeekDay, WeekSummary } from './progress';
 
 /**
  * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
