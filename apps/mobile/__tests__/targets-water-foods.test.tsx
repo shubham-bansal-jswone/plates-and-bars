@@ -1,4 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { WaterSizesSection } from '../src/targets/WaterAndFoods';
+import { pendingWrites } from '../src/db/pendingWrites';
+import { SyncContext } from '../src/sync/SyncProvider';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
@@ -34,16 +37,41 @@ describe('Targets: Water sizes and My foods', () => {
     await waitFor(() => expect(saved(db).water_sizes).toEqual({ glass_ml: 330, bottle_ml: 1000 }));
   });
 
-  it('keeps the stored size when the typed one is out of range or not a number', async () => {
+  it('keeps the stored size when the typed one is out of range or not a number, and rounds the rest', async () => {
     const db = await setup();
     const bottle = await screen.findByLabelText('Bottle (ml)');
-    await fireEvent.changeText(bottle, '49');
-    await fireEvent.changeText(bottle, '3001');
-    await fireEvent.changeText(bottle, '');
+    for (const bad of ['49', '3001', '', 'abc']) {
+      await fireEvent.changeText(bottle, bad);
+      expect(saved(db).water_sizes.bottle_ml).toBe(1000);
+    }
+    await fireEvent.changeText(bottle, '50');
+    await waitFor(() => expect(saved(db).water_sizes.bottle_ml).toBe(50));
     await fireEvent.changeText(bottle, '3000');
     await waitFor(() => expect(saved(db).water_sizes.bottle_ml).toBe(3000));
-    await fireEvent.changeText(bottle, '49');
-    expect(saved(db).water_sizes).toEqual({ glass_ml: 250, bottle_ml: 3000 });
+    await fireEvent.changeText(bottle, '3001');
+    expect(saved(db).water_sizes.bottle_ml).toBe(3000);
+    await fireEvent.changeText(bottle, '330.4');
+    await waitFor(() => expect(saved(db).water_sizes.bottle_ml).toBe(330));
+  });
+
+  it('an edit keeps the other stored size', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), water_sizes: { glass_ml: 300, bottle_ml: 500 } });
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await fireEvent.changeText(await screen.findByLabelText('Glass (ml)'), '330');
+    await waitFor(() => expect(saved(db).water_sizes).toEqual({ glass_ml: 330, bottle_ml: 500 }));
+  });
+
+  it('shows a size that changed in the stored settings, but leaves a box whose text already reads as it', async () => {
+    const ui = (g: number, b: number) => <WaterSizesSection sizes={{ glass_ml: g, bottle_ml: b }} onChange={() => {}} />;
+    const { rerender } = await render(ui(250, 1000));
+    await fireEvent.changeText(screen.getByLabelText('Glass (ml)'), '330.4');
+    await rerender(ui(330, 1000));
+    expect(screen.getByLabelText('Glass (ml)').props.value).toBe('330.4');
+    await rerender(ui(400, 1500));
+    expect(screen.getByLabelText('Glass (ml)').props.value).toBe('400');
+    expect(screen.getByLabelText('Bottle (ml)').props.value).toBe('1500');
   });
 
   it('with no saved foods shows the hint', async () => {
@@ -62,7 +90,10 @@ describe('Targets: Water sizes and My foods', () => {
     expect(screen.queryByText('Paneer bhurji')).toBeNull();
     expect(screen.getByText('Dal')).toBeTruthy();
     await waitFor(() => expect(JSON.parse(db.rows.get('user_foods:a')!).deleted_at).toMatch(/^\d{4}-\d\d-\d\dT.*Z$/));
-    expect(JSON.parse(db.rows.get('user_foods:a')!).version).toBe(1);
+    const tomb = JSON.parse(db.rows.get('user_foods:a')!);
+    expect(tomb.version).toBe(1);
+    expect(tomb.updated_at).toBe(tomb.deleted_at);
+    expect(tomb.updated_at > '2026-10-01T00:00:00Z').toBe(true);
     expect(JSON.parse(db.rows.get('user_foods:b')!).deleted_at).toBeNull();
   });
 
@@ -84,5 +115,38 @@ describe('Targets: Water sizes and My foods', () => {
     db.failWrites = true;
     await fireEvent.press(screen.getByLabelText('Delete Dal'));
     expect(await screen.findByText('Couldn’t save that. Try again.')).toBeTruthy();
+    expect(await screen.findByText('Dal')).toBeTruthy();
+  });
+
+  const withSync = (db: ReturnType<typeof memoryDb>, n: number) => withProfile(db, <SyncContext.Provider value={{ dataVersion: n } as never}><TargetsScreen db={db} /></SyncContext.Provider>);
+
+  it('reads my foods again after a sync pulled records', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const { rerender } = await render(withSync(db, 0));
+    await screen.findByText(/Foods you add under Custom/);
+    db.rows.set('user_foods:n', JSON.stringify(food('n', 'Pulled food')));
+    await rerender(withSync(db, 1));
+    expect(await screen.findByText('Pulled food')).toBeTruthy();
+  });
+
+  it('a re-read waits for a delete still being written, and the delete is registered as a pending write', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    db.rows.set('user_foods:a', JSON.stringify(food('a', 'Dal')));
+    const { rerender } = await render(withSync(db, 0));
+    await screen.findByText('Dal');
+    db.lag = (sql) => (sql.includes('user_foods') ? 150 : 0);
+    await fireEvent.press(screen.getByLabelText('Delete Dal'));
+    await rerender(withSync(db, 1));
+    expect(JSON.parse(db.rows.get('user_foods:a')!).deleted_at).toBeNull();
+    await act(async () => {
+      await pendingWrites();
+    });
+    expect(JSON.parse(db.rows.get('user_foods:a')!).deleted_at).not.toBeNull();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(screen.queryByText('Dal')).toBeNull();
   });
 });

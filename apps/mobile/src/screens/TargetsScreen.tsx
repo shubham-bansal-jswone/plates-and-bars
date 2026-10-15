@@ -112,7 +112,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
           </View>
         ) : null}
-        {ready ? <WaterSizesSection sizes={settings.water_sizes} onChange={(water_sizes) => update({ water_sizes })} /> : null}
+        {ready ? <WaterSizesSection sizes={settings.water_sizes} onChange={(k, ml) => update((s) => ({ water_sizes: { ...s.water_sizes, [k]: ml } }))} /> : null}
         {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Water sizes and before My foods as there; the list itself is on its own screen. */}
         <View style={{ gap: 8, marginTop: 16 }}>
           <Label>Kitchen tests</Label>

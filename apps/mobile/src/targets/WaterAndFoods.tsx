@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { num } from '@plate-and-bar/core';
+import { num, waterSizeEntry } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Field, Hint, Label, Press } from '../components/ui';
 import { loadUserFoods, saveUserFood } from '../db/food';
@@ -11,17 +11,24 @@ import type { Settings } from '../settings/types';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useTheme } from '../theme/useTheme';
 
-// Prototype `data-wt` handler: a size is kept only when it rounds to 50-3000 ml. The contract asks only for an integer above 0, so this is stricter.
-const WATER_MIN = 50;
-const WATER_MAX = 3000;
+type SizeKey = keyof Settings['water_sizes'];
 
-/** Prototype "Water sizes": glass and bottle ml, saved as typed once the value is in range. */
-export function WaterSizesSection({ sizes, onChange }: { sizes: Settings['water_sizes']; onChange: (s: Settings['water_sizes']) => void }) {
+/** Prototype "Water sizes": glass and bottle ml, saved as typed once core's `waterSizeEntry` accepts the value. */
+export function WaterSizesSection({ sizes, onChange }: { sizes: Settings['water_sizes']; onChange: (key: SizeKey, ml: number) => void }) {
   const [text, setText] = useState({ glass_ml: String(sizes.glass_ml), bottle_ml: String(sizes.bottle_ml) });
-  const edit = (k: 'glass_ml' | 'bottle_ml', v: string) => {
+  // Tabs stay mounted, so a size pulled from the server shows here. A box whose text already reads as the stored size is left alone (no lost focus or half-typed text).
+  // Adjusted while rendering, when the stored sizes change (React's pattern for state that follows a prop).
+  const [seen, setSeen] = useState(sizes);
+  if (seen.glass_ml !== sizes.glass_ml || seen.bottle_ml !== sizes.bottle_ml) {
+    setSeen(sizes);
+    const next = { ...text };
+    for (const k of ['glass_ml', 'bottle_ml'] as const) if (Math.round(num(text[k])) !== sizes[k]) next[k] = String(sizes[k]);
+    setText(next);
+  }
+  const edit = (k: SizeKey, v: string) => {
     setText((t) => ({ ...t, [k]: v }));
-    const n = Math.round(num(v));
-    if (n >= WATER_MIN && n <= WATER_MAX) onChange({ ...sizes, [k]: n });
+    const ml = waterSizeEntry(v);
+    if (ml !== null) onChange(k, ml);
   };
   return (
     <View style={styles.gap}>
@@ -56,7 +63,11 @@ export function MyFoodsSection({ db, notify }: { db: WorkoutDb; notify: (msg: st
     (f: UserFood) => {
       setFoods((cur) => (cur ? cur.filter((x) => x.id !== f.id) : cur));
       const t = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-      queue.current = queue.current.then(() => saveUserFood(db, { ...f, deleted_at: t, updated_at: t })).catch(() => notify('Couldn’t save that. Try again.'));
+      queue.current = queue.current.then(() => saveUserFood(db, { ...f, deleted_at: t, updated_at: t })).catch(() => {
+        // The delete did not stick: show the food again so there is something to try again on.
+        notify('Couldn’t save that. Try again.');
+        loadUserFoods(db).then(setFoods, () => {});
+      });
       trackWrite(queue.current);
     },
     [db, notify],
