@@ -61,7 +61,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
 - AI (#232, contract 0.1.6), package `ai`:
   - `GET /ai/status`: which features are on and the user's daily quota (`no-store`; only the per-IP limit applies).
   - Every feature is off by default. A feature is on only while its flag is set (`AI_DESCRIBE_MEAL_ENABLED`,
-    `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
+    `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`, `AI_SUGGEST_TAGS_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
     by the tokens recorded in `ai_spend_monthly` for the UTC month (0, the default, keeps everything off). The budget is a soft
     cap: it is read before each call, so calls already with the provider when it is reached can overshoot slightly.
     The flags and the budget are environment variables read at start: flipping one means restarting the container
@@ -78,8 +78,8 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     and the export omits it (`AccountRightsIT` lists it as the one table without an owner column, on purpose).
     V6 backfills it from `ai_usage` once. Rolling back to an image without V6 and then forward again under-counts: spend
     recorded in between is only in `ai_usage`, not in the ledger (and is lost from it if accounts were deleted).
-  - Limits: `app.rate-limit.ai-per-user` (5 per minute, the three POSTs) and `ai-per-ip` (60 per minute, all four).
-  - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`. Order: token (401), per-IP then per-user limit (429
+  - Limits: `app.rate-limit.ai-per-user` (5 per minute, the four POSTs) and `ai-per-ip` (60 per minute, all four).
+  - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`, `/ai/suggest-tags` (contract 0.1.11). Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
     (400, details name the field and keyword, never the value or a submitted key; trailing JSON and duplicate keys are 400), quota reserve (429 `quota_exceeded`), provider.
     The answer is 503 `unavailable` when the provider call fails or times out (no billed response): the unit is released. If the provider answered, it was billed: its tokens are recorded (they also stay in the monthly spend ledger after the account is deleted) and, if the reply has no text or fails the check, the answer is still 503 but the unit stays used. The AI error text in the contract is being updated to match.
@@ -90,7 +90,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
     so its `@ConditionalOnMissingBean(AiProvider.class)` is evaluated after every other bean is known.
   - Provider: `AiProvider` is the one seam; `StubAiProvider` (canned replies, no network, no key, no SDK) is the only
     implementation until one is chosen (#200). To add a real one, write a class implementing `AiProvider` (leave
-    `isStub()` false) and make it a bean (`@Component` or a `@Bean` method); the stub then backs off and the three
+    `isStub()` false) and make it a bean (`@Component` or a `@Bean` method); the stub then backs off and the four
     flags decide per feature. Do not also keep the stub as a second bean. No SDK or key is in the repo. A real one must use the cheapest suitable (small text) model, set
     timeouts, read its key from the environment only, and send only the prompt strings (`AiPrompts`): user text sits
     between `<<<` and `>>>` markers carrying a random per-request token (so no text can close them), after Unicode
@@ -98,7 +98,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
   - Replies (`AiReplies`) are parsed as data and validated against `DescribeMealResponse`, `AskWhyResponse` and
     `WeeklySummaryResponse` from the contract itself. Describe a meal drops items with non-finite or out-of-range
     numbers and keeps only the six contract fields of an item; Ask why nulls an unknown `card_id` and refuses `{` or `}` in the answer; Weekly summary sends any exercise
-    that is not a catalogue id as `custom exercise`.
+    that is not a catalogue id as `custom exercise`. Suggest tags (the typed exercise name goes to the model as delimited data, and is never logged) repairs the reply instead of failing it: unknown muscles dropped, first 3 of `primary` and `secondary`, `machine` for an unknown equipment, 2 for a difficulty outside 1 to 3, `pattern` over 50 characters becomes an empty string, `joints` capped at 20 items of at most 50 characters. No main muscle left is still 200 with an empty `primary` (the unit is kept); only an unparseable reply is 503 `unavailable`.
   - Content: Gradle copies every `content/*.json` into the jar under `/content` (`processResources`; the Dockerfile
     copies them too, and the build fails if `cards.json` or `exercises.json` is missing). Ask why sends every
     card with conditional blocks `{?x}..{/x}` dropped (else branch kept) and bare `{x}` replaced by a neutral phrase.

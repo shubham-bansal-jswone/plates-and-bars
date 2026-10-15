@@ -1,6 +1,7 @@
 package app.plateandbar.api.ai;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.List;
 
 /**
  * Builds the instructions and the input for each feature. User text is placed between fixed delimiters as data,
@@ -73,6 +74,20 @@ final class AiPrompts {
                         + "without braces. Reply with JSON only, shaped {\"answer\":string,\"card_id\":string or null}, "
                         + "where card_id is the card the answer is based on, or null when the cards don't cover it.",
                 in.toString());
+    }
+
+    /** The exercise name is untrusted user text: delimited data only. */
+    static Prompt suggestTags(String name, List<String> muscles, List<String> equipment) {
+        String m = newMarker();
+        return new Prompt(
+                "You classify a gym exercise by its name. " + dataRule(m)
+                        + "Reply with JSON only, no other text, shaped {\"pattern\":string,\"equipment\":one of "
+                        + String.join(", ", equipment) + ",\"difficulty\":1, 2 or 3 (1 easiest),"
+                        + "\"primary\":up to 3 main muscles,\"secondary\":up to 3 helping muscles,\"joints\":[string]}. "
+                        + "Muscles are only from: " + String.join(", ", muscles) + ". pattern is a short movement "
+                        + "pattern such as h-press, fly or squat. Use an empty primary array when you cannot place "
+                        + "the exercise.",
+                delimit(name, m));
     }
 
     /** {@code facts} is the validated request with non-catalogue exercise names already replaced. Numbers and catalogue ids only, so no delimiter. */
