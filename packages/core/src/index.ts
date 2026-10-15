@@ -342,6 +342,7 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  *   `WATER_TRAINING_ML` are its 2500, 33 and 600.
  * - `DEFAULT_WATER_SIZES` is the prototype's `settings.water` fallback `{ glass:250, bottle:1000 }`
  *   (`renderTargets`, the Settings water sizes, the `data-wt` handler), as contract `Settings.water_sizes`.
+ * - `waterSizeEntry` mirrors the `data-wt` step (round, keep 50 to 3000 ml, else null); `WATER_SIZE_MIN_ML`, `WATER_SIZE_MAX_ML` are its bounds.
  * - `workoutBurn` mirrors prototype `workoutBurn(w, kg)`.
  * - `stepsTarget` mirrors prototype `stepsTarget()` (days passed in); `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX` are its 7000, 5000 and 12000.
  * - `weightDrift` mirrors the `drift` check in prototype `setupSummaryHtml()` (#161); `WEIGHT_DRIFT_KG` is its 2.
@@ -358,6 +359,9 @@ export {
   WATER_ML_PER_KG,
   WATER_TRAINING_ML,
   DEFAULT_WATER_SIZES,
+  waterSizeEntry,
+  WATER_SIZE_MIN_ML,
+  WATER_SIZE_MAX_ML,
   STEPS_DEFAULT,
   STEPS_MIN,
   STEPS_MAX,
