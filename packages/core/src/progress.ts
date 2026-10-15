@@ -568,6 +568,57 @@ export function habits(date: string, sessions: SessionLog, profile: PlanProfile 
   return { goal, weeks, thisWeek, logged, message: weeks >= 2 ? 'streak' : logged < 4 ? 'missed' : 'steady' };
 }
 
+/** One row of the Progress "Seven days" block. */
+export interface WeekDay {
+  date: string;
+  /** Any food logged that day; false shows "not logged". */
+  logged: boolean;
+  /** The day's totals, unrounded (show with `Math.round`). */
+  kcal: number;
+  protein_g: number;
+  trained: boolean;
+  /** Bar fill, 0 to 100: kcal against 1.3 times the target, capped. */
+  fillPct: number;
+  /** Where the target line sits on the bar, percent from the left. */
+  targetPct: number;
+  /** Calories above the target (the bar turns to the "over" colour). */
+  over: boolean;
+}
+
+/** Result of `weekSummary`. Averages are over days with food logged, unrounded, or null with none. */
+export interface WeekSummary {
+  days: WeekDay[];
+  avgKcal: number | null;
+  avgProtein_g: number | null;
+  sessions: number;
+}
+
+/**
+ * The 7 days ending on `date`, oldest first, with the bar sizes and the averages under them.
+ *
+ * Mirrors the block of prototype `renderProgress()` under "Seven days to <date>".
+ */
+export function weekSummary(days: readonly ProgressDay[], date: string, kcalTarget: number): WeekSummary {
+  const scale = Math.max(kcalTarget * 1.3, 1);
+  let logged = 0, sk = 0, sp = 0, sessions = 0;
+  const rows = daysEnding(days, date, 7).map((d): WeekDay => {
+    const meals = live(d.logs);
+    let kcal = 0, protein_g = 0;
+    for (const m of meals) {
+      kcal += m.kcal * m.qty;
+      protein_g += m.protein_g * m.qty;
+    }
+    if (meals.length) {
+      logged++;
+      sk += kcal;
+      sp += protein_g;
+    }
+    if (d.trained) sessions++;
+    return { date: d.date, logged: meals.length > 0, kcal, protein_g, trained: d.trained, fillPct: Math.min(kcal / scale, 1) * 100, targetPct: (kcalTarget / scale) * 100, over: kcal > kcalTarget };
+  });
+  return { days: rows, avgKcal: logged ? sk / logged : null, avgProtein_g: logged ? sp / logged : null, sessions };
+}
+
 /* ---------- weight and waist trend, scale-jump note, entry limits (#233) ---------- */
 
 /** Prototype `r1`: to the nearest 0.1, as weigh-ins and tape measurements are saved and shown. */
