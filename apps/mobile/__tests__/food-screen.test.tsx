@@ -454,6 +454,123 @@ describe('Food screen', () => {
     });
   });
 
+  describe('copy previous day', () => {
+    const prev = { id: 'p1', version: 3, updated_at: '2026-10-07T05:00:00Z', deleted_at: null, date: '2026-10-07', meal: 'Lunch', name: 'Gone dal', qty: 2, kcal: 200, protein_g: 10, carbs_g: 30, fat_g: 5, food_id: 'no-such-food' };
+
+    it('copies yesterday’s logs as stored, with new ids, and says so', async () => {
+      const db = memoryDb();
+      db.rows.set('food_logs:p1', JSON.stringify(prev));
+      db.rows.set('food_logs:p2', JSON.stringify({ ...prev, id: 'p2', meal: 'Dinner', name: 'Rice', deleted_at: null }));
+      db.rows.set('food_logs:p3', JSON.stringify({ ...prev, id: 'p3', deleted_at: '2026-10-07T06:00:00Z' }));
+      await setup({ db });
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText('Copied the previous day’s meals')).toBeTruthy();
+      expect(screen.queryByLabelText('Copy previous day')).toBeNull();
+      await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(2));
+      const today = docs(db, 'food_logs').filter((l) => l.date === DATE);
+      expect(today.map((l) => `${l.meal}:${l.name}`).sort()).toEqual(['Dinner:Rice', 'Lunch:Gone dal']);
+      const copy = today.find((l) => l.name === 'Gone dal');
+      expect(copy).toMatchObject({ meal: 'Lunch', qty: 2, kcal: 200, version: 0, food_id: 'no-such-food', updated_at: NOW().toISOString().replace(/\.\d{3}Z$/, 'Z'), deleted_at: null });
+      expect(today.every((l) => !['p1', 'p2'].includes(l.id))).toBe(true);
+    });
+
+    /** Holds the copy's read of yesterday until `release` runs, so the day can change while the copy is mid-read. */
+    const holdCopyRead = (db: Db) => {
+      let release!: () => void;
+      const held = new Promise<void>((r) => { release = r; });
+      const read = db.getAllAsync;
+      db.getAllAsync = (async <T,>(sql: string, ...p: (string | number)[]) =>
+        sql.includes('FROM food_logs WHERE log_date') && p[0] === '2026-10-07' ? held.then(() => read<T>(sql, ...p)) : read<T>(sql, ...p)) as Db['getAllAsync'];
+      return { release, restore: () => void (db.getAllAsync = read) };
+    };
+
+    it('copies nothing and says nothing when a log for today lands while the previous day is still being read', async () => {
+      const db = memoryDb();
+      db.rows.set('food_logs:p1', JSON.stringify(prev));
+      await setup({ db });
+      const { release, restore } = holdCopyRead(db);
+      await act(async () => { fireEvent.press(screen.getByLabelText('Copy previous day')); });
+      // Still mid-read: log a food for today, as another screen or a sync pull would.
+      await open();
+      await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+      await screen.findByText(/Added Roti/);
+      await fireEvent.press(screen.getByText('Done'));
+      release();
+      await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+      expect(docs(db, 'food_logs').filter((l) => l.date === DATE).map((l) => l.name)).toEqual(['Roti / chapati']);
+      expect(screen.queryByText('Copied the previous day’s meals')).toBeNull();
+      restore();
+    });
+
+    it('says yesterday had nothing when a log for today lands while that read is in flight', async () => {
+      const db = memoryDb();
+      await setup({ db });
+      const { release, restore } = holdCopyRead(db);
+      await act(async () => { fireEvent.press(screen.getByLabelText('Copy previous day')); });
+      await open();
+      await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+      await screen.findByText(/Added Roti/);
+      await fireEvent.press(screen.getByText('Done'));
+      release();
+      expect(await screen.findByText('Nothing was logged the day before.')).toBeTruthy();
+      expect(docs(db, 'food_logs').filter((l) => l.date === DATE).map((l) => l.name)).toEqual(['Roti / chapati']);
+      restore();
+    });
+
+    it('copies once when the button is pressed twice at once', async () => {
+      const db = memoryDb();
+      db.rows.set('food_logs:p1', JSON.stringify(prev));
+      await setup({ db });
+      let prevReads = 0;
+      const read = db.getAllAsync;
+      db.getAllAsync = (async <T,>(sql: string, ...p: (string | number)[]) => {
+        if (sql.includes('FROM food_logs WHERE log_date') && p[0] === '2026-10-07') prevReads++;
+        return read<T>(sql, ...p);
+      }) as Db['getAllAsync'];
+      const btn = screen.getByLabelText('Copy previous day');
+      await act(async () => {
+        fireEvent.press(btn);
+        fireEvent.press(btn);
+      });
+      await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1));
+      await new Promise((r) => setTimeout(r, 30));
+      expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1);
+      // The ref drops the second tap before it reads, so yesterday is read once.
+      expect(prevReads).toBe(1);
+      db.getAllAsync = read;
+    });
+
+    it('says so when the saved food cannot be read', async () => {
+      const db = memoryDb();
+      await setup({ db });
+      const read = db.getAllAsync.bind(db);
+      db.getAllAsync = (async () => { throw new Error('boom'); }) as typeof db.getAllAsync;
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText('Couldn’t read your saved food.')).toBeTruthy();
+      db.getAllAsync = read;
+    });
+
+    it('says so when yesterday had nothing', async () => {
+      const db = await setup();
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText('Nothing was logged the day before.')).toBeTruthy();
+      expect(docs(db, 'food_logs')).toHaveLength(0);
+    });
+
+    it('says yesterday had nothing again when Copy is pressed twice in a row on an empty day', async () => {
+      const db = await setup();
+      const says = 'Nothing was logged the day before.';
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText(says)).toBeTruthy();
+      // Let the first toast go, so the second press has to speak for itself: were the copy left in flight (a stuck
+      // `copying` ref), the day is still empty, the button is still offered, and this press would be silent.
+      await waitFor(() => expect(screen.queryByText(says)).toBeNull(), { timeout: 4_000 });
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText(says)).toBeTruthy();
+      expect(docs(db, 'food_logs')).toHaveLength(0);
+    });
+  });
+
   describe('re-reading when shown', () => {
     afterEach(() => void (mockFocus.n = 0));
     const refocus = async (db: Db) => {
