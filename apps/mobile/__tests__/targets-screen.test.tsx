@@ -83,6 +83,45 @@ describe('TargetsScreen', () => {
     expect(mockPush).toHaveBeenLastCalledWith('/setup?redo=1');
   });
 
+  describe('kitchen tests', () => {
+    const stored = (name: string, id: string, deleted: string | null = null) =>
+      JSON.stringify({ id, version: 1, updated_at: '2026-10-01T00:00:00Z', deleted_at: deleted, name, date: '2026-10-01', note: '', ingredients: [], pot_g: null, pot_full_g: null, cooked_g: 300, serving_g: 100, serving_name: 'katori', has_photo: false });
+
+    it('says how many are tested, and opens them', async () => {
+      mockPush.mockClear();
+      const db = memoryDb();
+      await saveProfile(db, goldenProfile());
+      db.rows.set('kitchen_tests:a', stored('Dal', 'a'));
+      db.rows.set('kitchen_tests:b', stored('Rice', 'b'));
+      db.rows.set('kitchen_tests:c', stored('Gone', 'c', '2026-10-02T00:00:00Z'));
+      await render(withProfile(db, <TargetsScreen db={db} />));
+      expect(await screen.findByText(/2 dishes tested\.$/)).toBeTruthy();
+      await fireEvent.press(screen.getByLabelText('Kitchen tests'));
+      expect(mockPush).toHaveBeenLastCalledWith('/kitchen-test');
+    });
+
+    it('reads the count again each time the tab is shown', async () => {
+      const db = memoryDb();
+      await saveProfile(db, goldenProfile());
+      const ui = () => withProfile(db, <TargetsScreen db={db} />);
+      const { rerender } = await render(ui());
+      expect(await screen.findByText(/Start with dal, roti/)).toBeTruthy();
+      db.rows.set('kitchen_tests:a', stored('Dal', 'a'));
+      // still mounted, nothing changed on screen
+      expect(screen.getByText(/Start with dal, roti/)).toBeTruthy();
+      mockFocus.n++;
+      await rerender(ui());
+      expect(await screen.findByText(/1 dish tested\.$/)).toBeTruthy();
+    });
+
+    it('suggests where to start when none is saved', async () => {
+      const db = memoryDb();
+      await saveProfile(db, goldenProfile());
+      await render(withProfile(db, <TargetsScreen db={db} />));
+      expect(await screen.findByText(/Start with dal, roti, rice, sabzi, poha, idli and dosa\.$/)).toBeTruthy();
+    });
+  });
+
   describe('rest timer', () => {
     it('is on by default, and turning it off is stored as Settings.rest_off', async () => {
       const db = memoryDb();

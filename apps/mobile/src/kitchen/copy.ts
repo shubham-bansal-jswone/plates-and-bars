@@ -1,5 +1,6 @@
 // Copy from the prototype's ktSheet(), ktResultHtml(), ktListHtml() and ktSave().
-import type { KitchenTestFoodResult } from '@plate-and-bar/core';
+import type { KitchenComparison, KitchenTestFoodResult } from '@plate-and-bar/core';
+import { fmt } from '../format';
 
 export const HOW_TO = [
   'Use a kitchen scale. Weigh every raw ingredient before cooking, especially oil and ghee. Weigh dals and rice dry.',
@@ -25,3 +26,10 @@ export const problem = (r: Exclude<KitchenTestFoodResult, { kind: 'ok' | 'no-ser
     'no-ingredients': 'Add the raw ingredients with their weights.',
     'not-ready': 'Add the cooked weight, or both pot weights.',
   })[r.kind];
+
+export const COPY_TABLE = 'Copy all as a table';
+export const TABLE_COPIED = 'Copied. Paste into a spreadsheet.';
+export const TABLE_COPY_FAILED = 'Couldn’t copy on this device';
+/** The line under the results (prototype `ktResultHtml` `cmp`). */
+export const compareLine = (c: KitchenComparison): string =>
+  `The app’s current value for ${c.food.name} (${c.food.unit}) is ${fmt(c.food.kcal)} kcal; your dish is ${c.diff_kcal >= 0 ? '+' : '−'}${fmt(Math.abs(c.diff_kcal))} kcal per serving.`;
