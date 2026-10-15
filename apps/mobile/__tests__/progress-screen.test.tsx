@@ -752,10 +752,11 @@ describe('Progress screen, seven days', () => {
     expect(screen.getByLabelText('80 g avg protein')).toBeTruthy();
     expect(screen.getByLabelText('0 sessions')).toBeTruthy();
     // This day's 2,400 kcal is 92.7715…% of core's scale (1.3 × the 1,990 kcal target) and the target line sits at
-    // 76.9230…% (1,990 / 2,587); over target, so the fill is the caution colour at the prototype's 0.85 opacity.
+    // 76.9230…% (1,990 / 2,587); over target, so the fill is the caution colour at the prototype's 0.85 opacity, and
+    // the target line keeps the prototype's 0.5.
     expect(weekBar('Thu, 2,400 kcal, 90 g protein')).toMatchObject({
       fill: { width: '92.77155005798222%', opacity: 0.85 },
-      tgt: { left: '76.92307692307693%' },
+      tgt: { left: '76.92307692307693%', opacity: 0.5 },
     });
     // A blank day's bar announces the day and that nothing was logged, not the prototype's "0 kcal, 0 g protein".
     expect(screen.getByLabelText('Wed, not logged')).toBeTruthy();

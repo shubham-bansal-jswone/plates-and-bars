@@ -35,6 +35,9 @@ export function WeekCard({ date, days, kcalTarget }: Props) {
                 style={[styles.bar, { backgroundColor: c.track }]}
                 accessible
                 accessibilityRole="image"
+                // Deliberate divergence from the prototype's label (`${fmt(t.kcal)} kcal, ${fmt(t.p)} g protein`, which
+                // announces "0 kcal, 0 g protein" on a blank day and never names the day). Filed as #503; do not
+                // "restore" the prototype's string here — a test asserts this one.
                 accessibilityLabel={`${dayName(d.date)}${d.trained ? `, ${WEEK_TRAINED}` : ''}, ${d.logged ? `${fmt(d.kcal)} kcal, ${fmt(d.protein_g)} g protein` : WEEK_NOT_LOGGED}`}
               >
                 <View style={[styles.fill, { width: `${d.fillPct}%`, backgroundColor: d.over ? c.caution : c.brand }]} />
@@ -76,7 +79,9 @@ const styles = StyleSheet.create({
   // Prototype `.bar .fill{opacity:.85}`: the fill is the data mark, so it stays near-solid. Dropping it further
   // against `track` falls under the 3:1 DESIGN.md §11.1 asks of bars.
   fill: { position: 'absolute', top: 0, bottom: 0, left: 0, opacity: 0.85 },
-  tgt: { position: 'absolute', top: 0, bottom: 0, width: 2 },
+  // Prototype `.bar .tgt{opacity:.5}`: the target line is a quieter mark than the fill, so it keeps the prototype's
+  // half opacity. A test asserts it.
+  tgt: { position: 'absolute', top: 0, bottom: 0, width: 2, opacity: 0.5 },
   txt: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 },
   avg: { flexDirection: 'row', gap: 8, marginTop: 4 },
   avgItem: { flex: 1, alignItems: 'center' },
