@@ -115,6 +115,30 @@ describe('Workout tab: preview and Start', () => {
     expect(s.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it('the where chips change today\u2019s preview and Start stores the override', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Training away from your gym?');
+    await press('Dumbbells only');
+    expect(screen.getByLabelText('Training with dumbbells only today')).toBeTruthy();
+    expect(screen.queryByText(/Cable Lateral Raise/)).toBeNull();
+    await press('Start Push B');
+    await screen.findByText('Push B (dumbbells only)');
+    const w = stored<Workout>(db, `workouts:${DATE}`);
+    expect(w).toMatchObject({ where: 'dumbbells', base: 'Push B', template: 'Push B (dumbbells only)' });
+    expect(w.mods).toMatchObject({ where: 'dumbbells' });
+  });
+
+  it('picking the profile\u2019s own where keeps the override empty', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Training away from your gym?');
+    await press('Normal gym');
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    expect(stored<Workout>(db, `workouts:${DATE}`).where).toBeNull();
+  });
+
   it('the check-in choice is stored as ci_choice and makes the session lighter', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
