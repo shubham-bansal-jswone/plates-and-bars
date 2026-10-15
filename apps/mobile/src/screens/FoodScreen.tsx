@@ -118,7 +118,10 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             {t.withoutFibre ? <Hint>{`${t.withoutFibre} item${t.withoutFibre > 1 ? 's' : ''} without fibre data (photo estimates or custom foods) aren’t counted.`}</Hint> : null}
           </View>
         ) : (
-          <Hint>Nothing logged for this day yet. Add food under a meal.</Hint>
+          <View style={styles.gap}>
+            <Hint>Nothing logged for this day yet. Add food under a meal, or copy the previous day if you ate the same things.</Hint>
+            <Button label="Copy previous day" kind="link" onPress={() => void f.copyPrevious()} />
+          </View>
         )}
         {todaysFlex.length ? (
           <View style={styles.gap}>
