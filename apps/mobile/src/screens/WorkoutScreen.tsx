@@ -5,7 +5,7 @@ import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, H1, Hint, Note, Page, Press } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -211,7 +211,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
           <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice, override)} />
         ))}
       </View>
-      <Press accessibilityRole="button" accessibilityLabel={awayLabel} accessibilityState={{ expanded: away }} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
+      <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
         <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
       </Press>
       {away ? (
