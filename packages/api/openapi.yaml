@@ -364,6 +364,20 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/Internal'
+        '503':
+          description: |
+            The refresh could not be completed right now (for example, a database lock
+            conflict that persisted after one server-side retry). The presented token is
+            unchanged and the session is kept; retry later with the same refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: unavailable
+                    message: Service temporarily unavailable.
 
   /sync:
     post:

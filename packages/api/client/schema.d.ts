@@ -1861,6 +1861,19 @@ export interface operations {
             };
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
+            /**
+             * @description The refresh could not be completed right now (for example, a database lock
+             *     conflict that persisted after one server-side retry). The presented token is
+             *     unchanged and the session is kept; retry later with the same refresh token.
+             */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     sync: {
