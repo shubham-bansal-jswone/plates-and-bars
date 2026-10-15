@@ -121,6 +121,8 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   return {
     checkin,
     habit,
+    /** The last 21 days as read for the check-in, null until loaded; the "Seven days" block uses the last 7. */
+    days,
     ready: days !== null && usable,
     /** The stored settings could not be read: the card shows a message and no actions. */
     settingsFailed: loadFailed,

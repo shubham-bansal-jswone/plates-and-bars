@@ -727,3 +727,20 @@ describe('Rapid-loss card (#258)', () => {
     expect(screen.queryByLabelText('Add 150 kcal')).toBeNull();
   });
 });
+
+describe('Progress screen, seven days', () => {
+  const food = (date: string, kcal: number, p: number, id: string) => ({ id, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, meal: 'Lunch', name: 'dal', qty: 2, kcal: kcal / 2, protein_g: p / 2, carbs_g: 1, fat_g: 1 });
+  it('shows a bar per day with the average and sessions, and "not logged" for empty days', async () => {
+    const db = memoryDb();
+    await saveLog(db, food(DATE, 2400, 90, 'a') as never);
+    await saveLog(db, food(addDays(DATE, -2), 1600, 70, 'b') as never);
+    await setup({ db });
+    expect(await screen.findByRole('header', { name: 'Seven days to 8 Oct' })).toBeTruthy();
+    expect(await screen.findByText('2,400 kcal')).toBeTruthy();
+    expect(screen.getByText('1,600 kcal')).toBeTruthy();
+    expect(screen.getAllByText('not logged')).toHaveLength(5);
+    expect(screen.getByLabelText('2,000 avg kcal')).toBeTruthy();
+    expect(screen.getByLabelText('80 g avg protein')).toBeTruthy();
+    expect(screen.getByLabelText('0 sessions')).toBeTruthy();
+  });
+});
