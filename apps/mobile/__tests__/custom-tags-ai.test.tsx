@@ -6,6 +6,7 @@ import { KEY_USER } from '../src/sync/store';
 import { memoryTokenStore } from '../src/sync/tokens';
 import { CustomTagsSheet } from '../src/workout/CustomTagsSheet';
 import { FALLBACK_TAGS, tagsFromSuggestion } from '../src/workout/suggestTags';
+import * as suggestTags from '../src/workout/suggestTags';
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 const QUOTA = { limit: 10, remaining: 7, resets_at: '2026-10-09T00:00:00Z' };
@@ -153,17 +154,17 @@ describe('custom exercise tag suggestion timing', () => {
     expect(onSave).toHaveBeenCalledWith({ ...FALLBACK_TAGS, primary: ['quads'] });
   });
 
-  it('an answer that arrives after the sheet closed is dropped without error', async () => {
+  it('an answer that arrives after the sheet closed is dropped without reading it', async () => {
     let answer: (v: unknown) => void = () => undefined;
     const post = jest.fn(() => new Promise((r) => (answer = r)));
-    const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const read = jest.spyOn(suggestTags, 'tagsFromSuggestion');
     await open({ post });
     await waitFor(() => expect(post).toHaveBeenCalled());
     screen.unmount();
     answer({ data: SUGGESTION, response: res(200) });
     await new Promise((r) => setTimeout(r, 20));
-    expect(errors).not.toHaveBeenCalled();
-    errors.mockRestore();
+    expect(read).not.toHaveBeenCalled();
+    read.mockRestore();
   });
 
   it.each([
