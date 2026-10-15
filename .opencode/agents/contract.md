@@ -24,7 +24,13 @@ permissions:
     resource: "packages/api/**"
     effect: allow
   - action: edit
+    resource: "**/packages/api/**"
+    effect: allow
+  - action: edit
     resource: "docs/adr/**"
+    effect: allow
+  - action: edit
+    resource: "**/docs/adr/**"
     effect: allow
 ---
 You are the contract agent. Read docs/AGENTS.md and docs/development-plan.md first.
