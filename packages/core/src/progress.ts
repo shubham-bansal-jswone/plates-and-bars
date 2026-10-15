@@ -842,13 +842,15 @@ export function sleepEntry(text: string): SleepEntry {
   return h >= 0 && h <= SLEEP_MAX_H ? { kind: 'save', h } : { kind: 'bad' };
 }
 
-/** Result of `burnToday`: kcal by part, and their total. */
+/** Result of `burnToday`: kcal by part, their total, and the rounded step count the details block shows. */
 export interface BurnToday {
   bmr: number;
   move: number;
   train: number;
   dig: number;
   total: number;
+  /** `Math.round(num(steps))`, the count the details block's "from N steps" line shows (0 with no steps). */
+  steps: number;
 }
 
 /**
@@ -856,7 +858,9 @@ export interface BurnToday {
  * with no steps, the activity level's share of resting) + training over resting + 10% of the food eaten.
  * `kg` is the latest weigh-in, else the setup weight. The shown range is `total` ± `BURN_RANGE`.
  * `steps` is the steps box's value as typed, read with `num` and rounded as the prototype does
- * (`S.day.steps` is text); a fractional value counts its whole steps.
+ * (`S.day.steps` is text); a fractional value counts its whole steps, and the rounded count comes back as
+ * `steps`, the "from N steps" number the details block shows. The prototype's details block also shows
+ * `sets`/`cardio`; take those from `workoutBurn`, whose result is passed in, rather than duplicating them here.
  *
  * Mirrors prototype `burnToday()` (state passed in).
  */
@@ -872,5 +876,5 @@ export function burnToday(
   const move = st > 0 ? (st * 0.04 * kg) / 70 : bmr * ACTIVITY_MULTIPLIER[p.activity];
   const train = workout.extra;
   const dig = kcalEaten * 0.1;
-  return { bmr, move, train, dig, total: bmr + move + train + dig };
+  return { bmr, move, train, dig, total: bmr + move + train + dig, steps: st };
 }
