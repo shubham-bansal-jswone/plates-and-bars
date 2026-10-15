@@ -75,7 +75,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
 
   const body =
     day.exs.length === 0 ? (
-      <StartView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+      <StartView key={w.date} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
       <SessionView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name) => setCantName({ i, name })} />
     );

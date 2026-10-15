@@ -139,6 +139,65 @@ describe('Workout tab: preview and Start', () => {
     expect(stored<Workout>(db, `workouts:${DATE}`).where).toBeNull();
   });
 
+  it('marks the chosen where chip as pressed', async () => {
+    await setup();
+    await screen.findByText('Push B day');
+    await press('Training away from your gym?');
+    expect(screen.getByLabelText('Normal gym').props['aria-pressed']).toBe(true);
+    expect(screen.getByLabelText('Dumbbells only').props['aria-pressed']).toBe(false);
+    await press('Dumbbells only');
+    await press('Training with dumbbells only today');
+    expect(screen.getByLabelText('Dumbbells only').props['aria-pressed']).toBe(true);
+    expect(screen.getByLabelText('Normal gym').props['aria-pressed']).toBe(false);
+  });
+
+  it('the other-template chips start with the where override', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Training away from your gym?');
+    await press('Dumbbells only');
+    await press('Start Pull A');
+    await screen.findByText('Pull A (dumbbells only)');
+    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ where: 'dumbbells', base: 'Pull A' });
+  });
+
+  it('a second session on a dumbbells-only day adds only dumbbell versions', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Training away from your gym?');
+    await press('Dumbbells only');
+    await press('Start Push B');
+    await screen.findByText('Push B (dumbbells only)');
+    const first = stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name);
+    for (const n of first) {
+      const wt = screen.queryByLabelText(`${n} set 1 kg each`);
+      if (wt) await fireEvent.changeText(wt, '10');
+      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
+      await press(`Mark ${n} set 1 done`);
+    }
+    await press('Training again later today?');
+    await press('Add Pull B');
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.length).toBeGreaterThan(first.length));
+    const added = stored<Workout>(db, `workouts:${DATE}`).exercises.slice(first.length).map((e) => e.name);
+    expect(added).toEqual(['One-Arm Dumbbell Row', 'Rear Delt Fly', 'Hammer Curl']); // the gym build adds Assisted Pull-up and Chest-Supported Row
+  });
+
+  it('the where override resets on a new day', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    let day = THURSDAY();
+    const ui = () => withProfile(db, <WorkoutScreen db={db} now={() => day} />);
+    const { rerender } = await render(ui());
+    await screen.findByText('Push B day');
+    await press('Training away from your gym?');
+    await press('Dumbbells only');
+    expect(screen.getByLabelText('Training with dumbbells only today')).toBeTruthy();
+    day = new Date(2026, 9, 9, 10, 0, 0);
+    await rerender(ui());
+    await waitFor(() => expect(screen.getByLabelText('Training away from your gym?')).toBeTruthy());
+    expect(screen.queryByLabelText('Training with dumbbells only today')).toBeNull();
+  });
+
   it('the check-in choice is stored as ci_choice and makes the session lighter', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
