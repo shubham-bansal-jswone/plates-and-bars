@@ -96,9 +96,11 @@ export interface paths {
          *     the response of a refresh should retry with the token it still holds.
          *
          *     The 60 seconds are counted from the first rotation of the token and are never
-         *     extended by a retry. The replaced token is dead, and presenting it counts as reuse:
-         *     the whole session is revoked. So if someone else used the window, the device's next
-         *     refresh ends the session. After 60 seconds, or once the newer token has been
+         *     extended by a retry. A second retry of the same old token inside the window replaces
+         *     whichever successor is current (the one the previous retry issued), provided that
+         *     successor has not been presented. The replaced token is dead, and presenting it
+         *     counts as reuse: the whole session is revoked. So if someone else used the window,
+         *     the device's next refresh ends the session. After 60 seconds, or once the newer token has been
          *     presented, reuse is theft as above.
          */
         post: operations["refreshTokens"];
