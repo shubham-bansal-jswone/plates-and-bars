@@ -232,7 +232,7 @@ describe('refreshes are single-flight', () => {
     slow.release();
   });
 
-  it('a finished refresh leaves nothing tracked: a failed one can be retried with the same token', async () => {
+  it('cleanup guard: a failed refresh is not left tracked, so it can be retried with the same token', async () => {
     const { server, deps } = await setup();
     server.online = false;
     expect(await refreshSession(deps)).toBe('offline');

@@ -110,7 +110,11 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
   return fail('signed_out');
 }
 
-/** Refreshes in flight, by owner and refresh token: each (owner, token) pair is presented to the server at most once. */
+/**
+ * Refreshes in flight, by owner and refresh token: each (owner, token) pair is presented to the server at most once.
+ * Keying by owner as well is safe: an owner change always comes with a new token pair, so a token is never shared
+ * between owners and the owner part only keeps a stale caller from joining another user's request.
+ */
 const refreshing = new Map<string, Promise<boolean>>();
 
 /**

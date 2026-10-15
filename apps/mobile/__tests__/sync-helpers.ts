@@ -108,6 +108,7 @@ export function fakeServer(userId: string) {
           if (req.signal.aborted) fire();
           else req.signal.addEventListener('abort', fire, { once: true });
         });
+        aborted.catch(() => undefined); // may reject after the hold settled: that must not be an unhandled rejection
         await Promise.race([s.hold, aborted]);
       }
       if (path === '/auth/email/verify') {
