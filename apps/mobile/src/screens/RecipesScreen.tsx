@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
+import { fitSuggestions, OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { Button, ErrorText, Field, Hint, H1, Label, Page, Press } from '../components/ui';
@@ -9,8 +9,8 @@ import type { WorkoutDb } from '../db/workouts';
 import { MEALS, type Meal } from '../food/types';
 import { getKatoriG, getLibrary, getPresets, getRawIngredients, unknownIngredients } from '../recipes/content';
 import { CookMode } from '../recipes/CookMode';
-import { LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT, unknownBlock } from '../recipes/copy';
-import { blankDraft, fromLibrary, fromPreset, fromRecipe, type Draft } from '../recipes/draft';
+import { FIT_LABEL, fitLine, LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT, unknownBlock } from '../recipes/copy';
+import { blankDraft, fromLibrary, fromPreset, fromRecipe, withFit, type Draft } from '../recipes/draft';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { useRecipes } from '../recipes/useRecipes';
 import { useTheme } from '../theme/useTheme';
@@ -59,6 +59,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
 
   const yieldFields = { yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams };
   const t = recipeTotals({ ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
+  const fits = fitSuggestions({ ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
   const save = (log: boolean) => {
     const unknown = unknownIngredients(d.rows);
     if (unknown.length) return notify(unknownBlock(unknown));
@@ -140,6 +141,17 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
             <Hint>{NO_YIELD_HINT}</Hint>
           )}
         </View>
+        {fits.length ? (
+          <View style={styles.gap}>
+            <Label>{FIT_LABEL}</Label>
+            {fits.map((f) => (
+              <View key={f.kind} style={styles.wrap}>
+                <Text style={[styles.fitText, { color: c.ink }]}>{fitLine(f)}</Text>
+                <Button label="Apply" kind="ghost" a11yLabel={`Apply: ${fitLine(f)}`} onPress={() => setD(withFit(d, f.kind))} />
+              </View>
+            ))}
+          </View>
+        ) : null}
         {steps.length ? (
           <View style={styles.gap}>
             <Label>Steps</Label>
@@ -175,5 +187,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   gap: { gap: 6, marginTop: 10 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  fitText: { flexShrink: 1, flexGrow: 1, flexBasis: 200 },
   step: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });
