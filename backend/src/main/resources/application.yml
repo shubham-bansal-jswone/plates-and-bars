@@ -70,3 +70,4 @@ app:
     describe-meal-enabled: ${AI_DESCRIBE_MEAL_ENABLED:false}
     ask-why-enabled: ${AI_ASK_WHY_ENABLED:false}
     weekly-summary-enabled: ${AI_WEEKLY_SUMMARY_ENABLED:false}
+    suggest-tags-enabled: ${AI_SUGGEST_TAGS_ENABLED:false}
