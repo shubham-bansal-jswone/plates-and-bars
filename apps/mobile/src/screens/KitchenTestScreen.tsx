@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { kitchenNoteTooLong, kitchenTest, kitchenTestFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
+import * as Clipboard from 'expo-clipboard';
+import { kitchenCompare, kitchenNoteTooLong, kitchenTable, kitchenTest, kitchenTestFood, type KitchenCompareFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BAD_DATE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem } from '../kitchen/copy';
+import { BAD_DATE, compareLine, COPY_TABLE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem, TABLE_COPIED, TABLE_COPY_FAILED } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
+import { getFoodCatalog } from '../food/catalog';
 import { getRawIngredients, getShippedRawNames } from '../recipes/content';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { localDate } from '../setup/logic';
@@ -51,6 +53,11 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
     leaving.current = true;
     void store.idle().then(onBack, onBack);
   };
+  // Prototype `ktExport`: oldest first, as saved.
+  const copyTable = () => {
+    const text = kitchenTable([...store.tests].reverse(), getRawIngredients());
+    Clipboard.setStringAsync(text).then((ok) => notify(ok ? TABLE_COPIED : TABLE_COPY_FAILED), () => notify(TABLE_COPY_FAILED));
+  };
   if (store.failed) return <Page><ErrorText>{LOAD_FAILED}</ErrorText><Button label="Back" kind="link" onPress={back} /></Page>;
   if (!store.ready) return <Page><Hint>Loading…</Hint></Page>;
 
@@ -77,6 +84,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           })}
           <View style={styles.wrap}>
             <Button label="New kitchen test" onPress={() => setD(blank(localDate(now())))} />
+            {store.tests.length ? <Button label={COPY_TABLE} kind="ghost" onPress={copyTable} /> : null}
             <Button label="Back" kind="link" onPress={back} />
           </View>
         </Page>
@@ -87,6 +95,10 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
 
   const input: KitchenTestFoodInput = { name: d.name, serving_name: d.sname, ingredients: d.rows, pot_g: d.pot, pot_full_g: d.potFull, cooked_g: d.cooked, serving_g: d.serving };
   const res = kitchenTest(input, getRawIngredients());
+  // Prototype `allFoods()`: my foods first, then the built-in ones. The name is trimmed here (the prototype compares it as typed,
+  // so a keyboard's trailing space hid the comparison).
+  const foods: KitchenCompareFood[] = [...store.mine, ...getFoodCatalog().map((f) => ({ name: f.name, unit: f.serving.label, kcal: f.per_serving.kcal }))];
+  const cmp = res.ready ? kitchenCompare(d.name.trim(), res.perServing, foods) : null;
   const dateOk = validDate(d.date);
   const save = (use: boolean) => {
     const r = kitchenTestFood(input, getRawIngredients());
@@ -148,6 +160,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
                 <>
                   <Text style={{ color: c.ink, fontWeight: '700' }}>{`Per ${d.sname} (${fmt(res.perServing.grams)} g): ${fmt(res.perServing.kcal)} kcal, ${r1(res.perServing.protein_g)} g protein, ${r1(res.perServing.carbs_g)} g carbs, ${r1(res.perServing.fat_g)} g fat, ${r1(res.perServing.fibre_g)} g fibre`}</Text>
                   <Hint>{`Oil and ghee in each serving: about ${r1(res.perServing.oil_g)} g.`}</Hint>
+                  {cmp ? <Hint>{compareLine(cmp)}</Hint> : null}
                 </>
               ) : (
                 <Hint>{NO_SERVING_HINT}</Hint>
