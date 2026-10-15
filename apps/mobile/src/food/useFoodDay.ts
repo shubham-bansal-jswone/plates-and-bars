@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
+import { addDays, saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
@@ -129,6 +129,28 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
     [db, now, enqueue],
   );
 
+  /**
+   * The prototype's "Copy previous day": every non-deleted log of yesterday is copied to today with a new id, as stored
+   * (name, meal, qty and values), whether or not the food is still in the list. Returns false when yesterday had none.
+   */
+  const copyPrevious = useCallback(async (): Promise<boolean> => {
+    await queue.current; // earlier local writes land first
+    const prev = await loadLogs(db, addDays(date, -1));
+    if (!prev.length) {
+      notify('Nothing was logged the day before.');
+      return false;
+    }
+    const t = stamp(now());
+    const copies = prev.map((l): FoodLog => ({ ...l, id: newId(), version: 0, updated_at: t, deleted_at: null, date }));
+    logsRef.current = [...logsRef.current, ...copies];
+    setLogs(logsRef.current);
+    enqueue(async () => {
+      for (const c of copies) await saveLog(db, c);
+    });
+    notify('Copied the previous day’s meals');
+    return true;
+  }, [db, date, now, enqueue, notify]);
+
   const setComplete = useCallback(
     (complete: boolean) => {
       const n: DayNote = { ...(noteRef.current ?? { id: null, version: 0, deleted_at: null, date, steps: null, sleep: null, fast: false }), complete, updated_at: stamp(now()) };
@@ -168,5 +190,5 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
     [db, now, enqueue],
   );
 
-  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, setComplete, setFast, saveMine };
+  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, copyPrevious, setComplete, setFast, saveMine };
 }

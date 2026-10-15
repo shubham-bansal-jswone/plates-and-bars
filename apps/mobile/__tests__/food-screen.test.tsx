@@ -454,6 +454,31 @@ describe('Food screen', () => {
     });
   });
 
+  describe('copy previous day', () => {
+    const prev = { id: 'p1', version: 3, updated_at: '2026-10-07T05:00:00Z', deleted_at: null, date: '2026-10-07', meal: 'Lunch', name: 'Gone dal', qty: 2, kcal: 200, protein_g: 10, carbs_g: 30, fat_g: 5, food_id: 'no-such-food' };
+
+    it('copies yesterday’s logs as stored, with new ids, and says so', async () => {
+      const db = memoryDb();
+      db.rows.set('food_logs:p1', JSON.stringify(prev));
+      db.rows.set('food_logs:p2', JSON.stringify({ ...prev, id: 'p2', deleted_at: '2026-10-07T06:00:00Z' }));
+      await setup({ db });
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText('Copied the previous day’s meals')).toBeTruthy();
+      expect(screen.queryByLabelText('Copy previous day')).toBeNull();
+      await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1));
+      const copy = docs(db, 'food_logs').find((l) => l.date === DATE);
+      expect(copy).toMatchObject({ meal: 'Lunch', name: 'Gone dal', qty: 2, kcal: 200, version: 0, food_id: 'no-such-food' });
+      expect(copy.id).not.toBe('p1');
+    });
+
+    it('says so when yesterday had nothing', async () => {
+      const db = await setup();
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText('Nothing was logged the day before.')).toBeTruthy();
+      expect(docs(db, 'food_logs')).toHaveLength(0);
+    });
+  });
+
   describe('re-reading when shown', () => {
     afterEach(() => void (mockFocus.n = 0));
     const refocus = async (db: Db) => {
