@@ -1,4 +1,4 @@
-package app.plateandbar.api.sync;
+package app.plateandbar.api.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

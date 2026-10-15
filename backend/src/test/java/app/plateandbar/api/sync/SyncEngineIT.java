@@ -6,6 +6,7 @@ import static app.plateandbar.api.sync.SyncFixtures.id;
 import static app.plateandbar.api.sync.SyncFixtures.waterLog;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import app.plateandbar.api.support.ConcurrentListAppender;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;

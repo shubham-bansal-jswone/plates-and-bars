@@ -12,7 +12,7 @@ import static org.mockito.Mockito.when;
 import app.plateandbar.api.sync.ContractSchemas;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import app.plateandbar.api.support.ConcurrentListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -392,7 +392,7 @@ class AiEndpointsIT extends AiITBase {
     @Test
     void nothingTheUserSentOrReceivedIsLoggedOrStored() {
         Logger root = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
-        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        ConcurrentListAppender logs = new ConcurrentListAppender();
         logs.start();
         root.addAppender(logs);
         try {
