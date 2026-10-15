@@ -315,6 +315,16 @@ describe('add and remove exercises (#147)', () => {
     expect(await live(db, 'Dumbbell Bench Press')).toHaveLength(0);
   });
 
+  it('a can\'t-do pick that no other device added still gets its sets when another exercise was added elsewhere (#459 guard)', async () => {
+    const { db, result } = await started();
+    const first = result.current.day.exs[0]!.name;
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, exercises: [...w.exercises, { name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], updated_at: '2026-10-08T09:30:00Z' });
+    await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur: 'today', scope: 'exercise', key: first }, 'Dumbbell Bench Press'));
+    await settle();
+    expect((await live(db, 'Dumbbell Bench Press')).length).toBeGreaterThanOrEqual(3);
+  });
+
   it('two can\'t-do swaps in a row: the second replaces the first in place (#445 review)', async () => {
     const { db, result } = await started();
     const first = result.current.day.exs[0]!.name;
