@@ -74,6 +74,16 @@ describe('weekSummary', () => {
     const w = weekSummary([{ date: DATE, logs: [{ name: 'a', qty: 1, kcal: 500, protein_g: 1, carbs_g: 0, fat_g: 0 }], trained: false }], DATE, 0);
     expect(w.days[6]).toMatchObject({ fillPct: 100, targetPct: 0, over: true });
   });
+  it('a day exactly on target is not over, and a day with only deleted logs is blank', () => {
+    const onTarget = weekSummary([{ date: DATE, logs: [{ name: 'a', qty: 1, kcal: 1900, protein_g: 1, carbs_g: 0, fat_g: 0 }], trained: false }], DATE, 1900);
+    expect(onTarget.days[6]).toMatchObject({ logged: true, kcal: 1900, over: false });
+
+    const gone = weekSummary([{ date: DATE, logs: [{ name: 'a', qty: 1, kcal: 500, protein_g: 10, carbs_g: 0, fat_g: 0, deleted_at: '2026-10-14T00:00:00Z' }], trained: false }], DATE, 1900);
+    expect(gone.days[6]).toMatchObject({ logged: false, kcal: 0, protein_g: 0, over: false });
+    // A day whose logs are all deleted counts as no logged day, so there is no average.
+    expect(gone.avgKcal).toBeNull();
+    expect(gone.avgProtein_g).toBeNull();
+  });
   it('matches the prototype over 500 random weeks', async () => {
     const r = rng(489);
     let over = 0, blank = 0, sessions = 0;
