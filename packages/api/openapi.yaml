@@ -368,7 +368,7 @@ paths:
           description: |
             The refresh could not be completed right now (for example, a database lock
             conflict that persisted after one server-side retry). The presented token is
-            unchanged and the session is kept; retry later with the same refresh token.
+            unchanged and the session is kept; retry shortly with the same refresh token (the grace window still runs from the first rotation).
           content:
             application/json:
               schema:
