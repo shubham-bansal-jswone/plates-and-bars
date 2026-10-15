@@ -17,7 +17,7 @@ import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
 import { CustomTagsSheet } from '../workout/CustomTagsSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
-import { ExerciseCards, RecheckCards } from '../workout/ExerciseCards';
+import { ExerciseCards, RecheckCards, RecoveryCards } from '../workout/ExerciseCards';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -60,7 +60,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const rulesApi = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const { rules, addRule } = rulesApi;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
-  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
+  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   const [cantName, setCantName] = useState<{ i: number; name: string } | null>(null);
 
@@ -110,6 +110,7 @@ type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
   const c = useTheme();
   const { date, day } = w;
+  const { settings } = useSettings();
   const [ci, setCi] = useState<Checkin>({});
   const [choice, setChoice] = useState<Workout['ci_choice']>(null);
   const plan = planned(date, { profile, sessions: day.sessions });
@@ -122,7 +123,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
     if (!checkinFlags(next, nextT).flagged) setChoice(null);
   };
   const built = startT
-    ? buildSession({ template: startT, date, profile, where: profile.where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps })
+    ? buildSession({ template: startT, date, profile, where: profile.where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, adjustments: settings.adjustments })
     : null;
   const names = built ? built.exercises.map((e) => e.name) : [];
   const prim = [...new Set(names.flatMap((n) => getCatalog().tags[n]?.primary ?? []))];
@@ -132,6 +133,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   return (
     <Page>
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
+      <RecoveryCards date={date} lifts={day.lifts} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan

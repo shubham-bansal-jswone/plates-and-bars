@@ -15,7 +15,7 @@ const profile = buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'c
 
 async function started() {
   const db = await openDb();
-  const opts = { db, profile, now: NOW, focus: [], notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+  const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
   const view = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
   await waitFor(() => expect(view.result.current.day.ready).toBe(true));
   await act(async () => void (await view.result.current.start('Upper A', {}, null)));
@@ -169,7 +169,7 @@ describe('add and remove exercises (#147)', () => {
     const { db } = await started();
     await saveLift(db, 'Goblet Squat', { date: '2026-10-01', sets: Array.from({ length: 5 }, () => ({ w: 20, r: 10 })), prev: null });
     const { result: fresh } = await (async () => {
-      const opts = { db, profile, now: NOW, focus: [], notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+      const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
       const v = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
       await waitFor(() => expect(v.result.current.day.ready).toBe(true));
       return v;

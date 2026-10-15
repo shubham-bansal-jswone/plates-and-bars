@@ -95,7 +95,7 @@ describe('a pull makes the screens read SQLite again (dataVersion)', () => {
 
   it('Workout shows a session that arrived from another device', async () => {
     const db = await openDb();
-    const opts = { db, profile: null, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db, profile: null, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result, rerender } = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(result.current.day.ready).toBe(true));
     expect(result.current.day.workout).toBeNull();
@@ -142,7 +142,7 @@ describe('the wait for queued writes and the write counter matter', () => {
     const real = await openDb();
     const { g, db } = gated(real);
     const profile = buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1));
-    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result, rerender } = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(result.current.day.ready).toBe(true));
     g.arm();
