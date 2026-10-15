@@ -81,7 +81,7 @@ describe('re-entry and steady-weeks cards: differential against the prototype', 
   const randAdj = (date: string, last: string | undefined): AdjState => ({
     muted: { break: r() < 0.1, 'deload-plan': r() < 0.1 },
     dismissed: r() < 0.15 ? { [`break:${last}`]: true, [`dlplan:${pick(['2026-10-05', '2026-09-28'])}`]: true } : {},
-    ...(r() < 0.3 ? { deload: pick([{ from: date, until: addDays(date, 6) }, { until: '2026-08-20' }, { from: '2026-08-01', until: addDays(date, -43) }, { from: addDays(date, 3), until: addDays(date, 9) }]) } : {}),
+    ...(r() < 0.3 ? { deload: pick([{ from: date, until: addDays(date, 6) }, { until: '2026-08-20' }, { from: '2026-08-01', until: addDays(date, -43) }, { from: '2026-08-01', until: addDays(date, -42) }, { from: addDays(date, 3), until: addDays(date, 9) }]) } : {}),
     ...(r() < 0.3 ? { reentry: pick([{ from: date, until: addDays(date, 6) }, { until: '2026-08-20' }, { from: addDays(date, 1), until: addDays(date, 9) }]) } : {}),
   });
 
