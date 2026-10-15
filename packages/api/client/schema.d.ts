@@ -89,9 +89,10 @@ export interface paths {
          *     **Lost response.** There is one exception, so that a response that never reached the
          *     device does not sign the user out. If the token was rotated less than 60 seconds ago
          *     and the token it was exchanged for has never been presented to this endpoint (using
-         *     its access token does not count), the server treats the call as a retry: it replaces
-         *     that token, keeps the session, and answers 200 with a new pair (a replacement, not a
-         *     copy of the first response; the server stores only hashes). A device that did not get
+         *     its access token does not count), the server treats the call as a retry: it rotates
+         *     that unused token (marks it replaced, as if it had been presented), keeps the
+         *     session, and answers 200 with a new pair (a replacement, not a copy of the first
+         *     response; the server stores only hashes). A device that did not get
          *     the response of a refresh should retry with the token it still holds.
          *
          *     The 60 seconds are counted from the first rotation of the token and are never

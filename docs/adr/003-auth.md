@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Amended 2026-10-08: recorded the per-address code limits added with rate limiting (#43) and their lockout consequence. The per-code rule is unchanged.
-- Amended 2026-10-13: lost-response grace window for refresh (#399).
+- Amended 2026-10-15: lost-response grace window for refresh (#399).
 - Date: 2026-10-08
 
 ## Context
@@ -18,7 +18,7 @@ The app is offline-first, so a user may open it on a gym floor with no signal lo
 - **Access token:** a JWT valid for 15 minutes, sent as a bearer token.
 - **Refresh token:** opaque, single-use, stored server-side (`refresh_tokens`) and on the device in secure storage. Lifetime 90 days, extended on rotation: each `POST /auth/refresh` invalidates the old token and returns a new one valid for 90 days from that refresh.
 - **Reuse revokes the session:** presenting an already-rotated refresh token is treated as theft, and every token descended from the same sign-in is revoked; the user must sign in again.
-- **Lost-response grace (#399):** a rotated token presented again less than 60 seconds after its first rotation, while the token it was exchanged for has never been presented to `/auth/refresh` (using its access token does not count), is treated as a retry of a lost response: the server replaces that token and issues one new pair in the same session. The window is measured from the first rotation and is never extended by a retry. The replaced token is dead and presenting it is reuse, so the session is revoked. Refresh tokens are stored only as hashes, so the first response cannot be replayed; a replacement is issued instead. After 60 seconds, or once the newer token was presented, reuse revokes the session as above. Rejected: a client-sent `refresh_id` (needs the response or token stored, and a request schema change).
+- **Lost-response grace (#399):** a rotated token presented again less than 60 seconds after its first rotation, while the token it was exchanged for has never been presented to `/auth/refresh` (using its access token does not count), is treated as a retry of a lost response: the server rotates that unused token (marks it replaced, exactly as if it had been presented) and issues one new pair in the same session. The window is measured from the first rotation and is never extended by a retry. The replaced token is dead and presenting it is reuse, so the session is revoked. Refresh tokens are stored only as hashes, so the first response cannot be replayed; a replacement is issued instead. After 60 seconds, or once the newer token was presented, reuse revokes the session as above. Rejected: a client-sent `refresh_id` (needs the response or token stored, and a request schema change).
 
 ## Consequences
 
