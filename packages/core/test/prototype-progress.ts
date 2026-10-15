@@ -13,7 +13,7 @@ export interface ProtoProgress {
   S: {
     date: string;
     day: ProtoDay;
-    settings: { profile: Record<string, unknown> | null; kcal?: number; protein?: number; carbs?: number; adj?: Record<string, unknown>; adaptive?: Record<string, unknown> };
+    settings: { profile: Record<string, unknown> | null; kcal?: number; protein?: number; carbs?: number; fat?: number; adj?: Record<string, unknown>; adaptive?: Record<string, unknown> };
     lifts: Record<string, { date: string; hist?: { date: string; e: number }[] }>;
     sessions: { entries: Record<string, { t?: string; n?: number }> };
     ciData?: Record<string, unknown>;
@@ -32,6 +32,9 @@ export interface ProtoProgress {
   waterTarget(): { ml: number; trained: boolean };
   workoutBurn(w: ProtoDay['workout'], kg: number): { sets: number; min: number; cardio: number; gross: number; extra: number; timed: boolean };
   stepsTarget(): Promise<number>;
+  burnToday(): { bmr: number; move: number; steps: number; sets: number; cardio: number; train: number; dig: number; total: number } | null;
+  /** The `fitcarbs` action on `S.settings`. */
+  fitcarbs(): void;
   setupSummaryHtml(): string;
   startSetup(): void;
   /** What the stubbed `TODAY()` returns. */
@@ -106,6 +109,9 @@ export function loadProgress(): ProtoProgress {
     sliceBlock(src, 'function navyBF(upTo){', '}'),
     sliceBlock(src, 'function waterTarget(){', '}'),
     sliceBlock(src, 'function workoutBurn(w, kg){', '}'),
+    sliceBlock(src, 'function burnToday(){', '}'),
+    `function fitcarbs(){ switch('fitcarbs'){\n${sliceTrimmed(src, "case 'fitcarbs':")}\n} }`,
+    'const renderTargets = () => {};',
     sliceBlock(src, 'async function loadDays(end, n){', '}'),
     sliceBlock(src, 'async function stepsTarget(){', '}'),
     sliceBlock(src, 'function weeklyAvg(end){', '}'),
@@ -123,7 +129,7 @@ export function loadProgress(): ProtoProgress {
     sliceBlock(src, 'function startSetup(stepTo){', '}'),
     'const render = () => {}, scrollTo = () => {};',
     'const renderCheckinHtml = async () => { el.innerHTML = ""; await renderCheckin(); return el.innerHTML; };',
-    'return { S, SU, stored, setPlanned, setToday, latestWeight, measureAt, navyBF, waterTarget, workoutBurn, stepsTarget, setupSummaryHtml, startSetup,',
+    'return { S, SU, stored, setPlanned, setToday, latestWeight, measureAt, navyBF, waterTarget, workoutBurn, burnToday, fitcarbs, stepsTarget, setupSummaryHtml, startSetup,',
     '  weeklyAvg, calorieCard, adjKcal, weightSlope, adaptiveBurn, targetFromBurn, loadDays, renderCheckin: renderCheckinHtml, consistencyHtml };',
   ].join('\n');
   return new Function(code)() as ProtoProgress;
