@@ -110,13 +110,20 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
   return fail('signed_out');
 }
 
-let refreshing: { promise: Promise<boolean>; token: string; owner: string | null } | null = null;
+/**
+ * Refreshes in flight, by owner and refresh token: each (owner, token) pair is presented to the server at most once.
+ * Keying by owner as well is safe: an owner change always comes with a new token pair, so a token is never shared
+ * between owners and the owner part only keeps a stale caller from joining another user's request.
+ */
+const refreshing = new Map<string, Promise<boolean>>();
 
 /**
- * Rotates the token pair; single-flight: a call made while one is in flight for the same refresh token and owner joins it
- * (a second request with the same token would be reuse of a rotated token, and the server then revokes the whole
- * session). A joiner waits for the shared answer but gives up on its own `signal`; the leader's `signal` aborts the
- * request for everyone. False means the session is over (tokens cleared); transient errors keep the tokens. The response
+ * Rotates the token pair; single-flight per (owner, refresh token): a call made while one is in flight for the same
+ * token and owner joins it (a second request with the same token would be reuse of a rotated token, and the server then
+ * revokes the whole session). A refresh for a different token or owner is tracked on its own, so callers that share
+ * that pair join each other too. A joiner waits for the shared answer but gives up on its own `signal`; the leader's
+ * `signal` aborts the request for everyone, and a joiner cut off that way reports a failed request (`unavailable`), not
+ * a lost connection. False means the session is over (tokens cleared); transient errors keep the tokens. The response
  * is applied whenever it arrives, even while sync is paused for an account operation, because dropping a rotated pair
  * leaves only a dead refresh token (#287). The only reason to drop it is that the store belongs to another user now
  * (`owner` is who it belonged to at the start).
@@ -124,13 +131,12 @@ let refreshing: { promise: Promise<boolean>; token: string; owner: string | null
 async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
   const t = await d.tokens.load();
   if (!t) return false;
-  const inflight = refreshing;
-  if (inflight && inflight.token === t.refresh && inflight.owner === owner) return raceAbort(inflight.promise, signal);
-  const promise = rotate(d, owner, t, signal);
-  if (inflight) return promise; // another token or owner is in flight: do not share, do not replace
-  const entry = { promise: promise.finally(() => void (refreshing === entry && (refreshing = null))), token: t.refresh, owner };
-  refreshing = entry;
-  return entry.promise;
+  const key = JSON.stringify([owner, t.refresh]);
+  const inflight = refreshing.get(key);
+  if (inflight) return raceAbort(inflight, signal);
+  const promise: Promise<boolean> = rotate(d, owner, t, signal).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
+  refreshing.set(key, promise);
+  return promise;
 }
 
 /** Rejects when `signal` aborts before `p` settles (the shared request itself keeps going for its leader). */
@@ -148,7 +154,15 @@ async function rotate(d: SyncDeps, owner: string | null, t: { refresh: string },
   const sameOwner = async () => {
     if ((await getUserId(d.db)) !== owner) throw new Aborted(); // a wipe and another sign-in happened meanwhile: do not touch their tokens
   };
-  const { data, response } = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh }, signal }));
+  let result;
+  try {
+    result = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh }, signal }));
+  } catch (e) {
+    // Aborted by the caller that started this request (its timeout): joiners must not read that as "offline".
+    if (e instanceof NetworkError && signal?.aborted) throw new TransientError(fail('unavailable'));
+    throw e;
+  }
+  const { data, response } = result;
   if (data) {
     await sameOwner();
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });

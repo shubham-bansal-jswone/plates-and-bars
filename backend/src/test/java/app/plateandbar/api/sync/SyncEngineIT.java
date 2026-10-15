@@ -6,11 +6,11 @@ import static app.plateandbar.api.sync.SyncFixtures.id;
 import static app.plateandbar.api.sync.SyncFixtures.waterLog;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import app.plateandbar.api.support.ConcurrentListAppender;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
-import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Duration;
@@ -725,7 +725,7 @@ class SyncEngineIT extends SyncITBase {
         for (String n : names) {
             ((Logger) LoggerFactory.getLogger(n)).setLevel(Level.TRACE);
         }
-        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        ConcurrentListAppender logs = new ConcurrentListAppender();
         logs.start();
         root.addAppender(logs);
         try {

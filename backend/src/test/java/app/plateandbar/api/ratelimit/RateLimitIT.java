@@ -8,7 +8,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
-import ch.qos.logback.core.read.ListAppender;
+import app.plateandbar.api.support.ConcurrentListAppender;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -95,7 +95,7 @@ class RateLimitIT {
     @Autowired CapturingMail mail;
     @Autowired RateLimiter ipLimiter;
 
-    private ListAppender<ILoggingEvent> logs;
+    private ConcurrentListAppender logs;
     // TRACE for our code only; framework loggers stay at their defaults (Spring Security TRACE prints the peer address itself).
     private static final List<String> LOGGERS = List.of("app.plateandbar");
 
@@ -104,7 +104,7 @@ class RateLimitIT {
         for (String n : LOGGERS) {
             ((Logger) LoggerFactory.getLogger(n)).setLevel(Level.TRACE);
         }
-        logs = new ListAppender<>();
+        logs = new ConcurrentListAppender();
         logs.start();
         ((Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME)).addAppender(logs);
     }

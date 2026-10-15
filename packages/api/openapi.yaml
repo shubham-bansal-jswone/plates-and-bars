@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.10
+  version: 0.1.11
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -101,7 +101,7 @@ tags:
       new revert to `main`, which gets a later `updated_at`.
   - name: ai
     description: |
-      v1 AI calls: Describe a meal, Ask why, Weekly summary, and `GET /ai/status` for
+      v1 AI calls: Describe a meal, Ask why, Weekly summary, Suggest tags, and `GET /ai/status` for
       which of them are on. Text only; no images in v1.
       Every AI call goes through the backend, which holds the provider key; the app never
       calls a model directly. Each feature has a non-AI fallback, so the app works fully
@@ -118,7 +118,7 @@ tags:
       `quota_exceeded`), then the provider call. A request rejected at any of these steps
       does not count against the quota.
 
-      **Daily quota (`ai_usage`).** Each user has one daily allowance shared by all three
+      **Daily quota (`ai_usage`).** Each user has one daily allowance shared by all four
       endpoints, by default 10 text calls a day. The limit is server configuration, so the
       app reads `quota.limit` and never hard-codes 10. The day is the UTC calendar day:
       the count resets at 00:00:00Z (05:30 in India), which `quota.resets_at` gives. The
@@ -143,14 +143,14 @@ tags:
       not give its spend back to the budget.
 
       **Rate limit.** On top of the daily quota, at most 5 AI requests per user per minute
-      across the three POST endpoints, plus the per-IP limit every endpoint has. Requests
+      across the four POST endpoints, plus the per-IP limit every endpoint has. Requests
       rejected for validation (400) or quota (429 `quota_exceeded`) still count toward the
       5 per minute. Beyond that, 429 `rate_limited` with `Retry-After` (prototype message:
       "Too many requests right now. Wait a minute and try again."). `GET /ai/status` is
       not part of this limit, only the per-IP one.
 
       **Kill switch.** One server flag per feature (`describe_meal`, `ask_why`,
-      `weekly_summary`) turns it off instantly, without a deploy; requests already with the
+      `weekly_summary`, `suggest_tags`) turns it off instantly, without a deploy; requests already with the
       provider finish. While a feature is off its endpoint answers 503 `feature_disabled`
       and nothing counts against the quota. Reaching the monthly AI budget cap turns every
       AI feature off the same way until the cap is raised or the month ends. All flags
@@ -161,7 +161,7 @@ tags:
       timeout is 503 `unavailable` instead: a one-off, so the app shows "Couldn't get an
       answer, try again" and the fallback.
 
-      **Prompt injection and output checks.** User text (`text`, `question`) goes into the
+      **Prompt injection and output checks.** User text (`text`, `question`, `name`) goes into the
       prompt as delimited data, never as instructions, and the instructions tell the model
       to treat it only as data. The model's reply is parsed as data and checked against the
       response schema (types, `maxLength`, `maximum`) before it is returned; nothing in it
@@ -169,10 +169,20 @@ tags:
       are out of range. Ask why turns a reply `card_id` that is not in
       `content/cards.json` into null, and rejects an `answer` containing `{` or `}`. A
       reply that cannot be parsed or fails these checks is 503 `unavailable`; the provider
-      has billed it, so the reserved quota unit is kept (see Daily quota).
+      has billed it, so the reserved quota unit is kept (see Daily quota). Suggest tags
+      repairs a reply the way the prototype's `suggestTags()` does instead of failing it:
+      it drops muscles that are not in `Muscle`, keeps the first 3 of `primary` and of
+      `secondary`, uses `machine` for an equipment that is not in the enum, 2 for a
+      difficulty outside 1 to 3. It passes `pattern` and `joints` through as the model
+      gave them, cut to the schema limits (a `pattern` over 50 characters is dropped to an
+      empty string; `joints` keeps at most 20 items and drops any over 50 characters); the
+      app keeps only the patterns and joints it knows and uses `h-press` otherwise. When no
+      main muscle is left it answers 200 with `primary` empty (the quota unit is kept, the
+      provider billed it) and the app shows the manual tag sheet. It is 503 `unavailable`
+      only when the reply does not parse.
 
       **No logging.** Request and response bodies of `/ai/*` (meal text, questions,
-      answers, check-in numbers, exercise ids) are never logged, written to the database or
+      answers, check-in numbers, exercise ids, exercise names) are never logged, written to the database or
       sent to error reporting, and 400 `details[].issue` never echoes a submitted value.
       The identical-request cache, if used, is per user (never shared across users), in
       memory only, keyed by the user id and a hash of the request, and expires within 24
@@ -934,6 +944,7 @@ paths:
                       describe_meal: false
                       ask_why: false
                       weekly_summary: false
+                      suggest_tags: false
                     quota:
                       limit: 10
                       remaining: 10
@@ -1102,6 +1113,70 @@ paths:
         '503':
           $ref: '#/components/responses/AiUnavailable'
 
+  /ai/suggest-tags:
+    post:
+      tags: [ai]
+      operationId: suggestTags
+      summary: Suggest tags for an exercise the user typed
+      description: |
+        Classifies a custom exercise name: movement pattern, equipment, difficulty, main and
+        secondary muscles and joints. Mirrors the prototype's `suggestTags()`. The app shows
+        the suggestion on the tag sheet for the user to confirm and correct (suggest and
+        confirm); nothing is stored by this call. `primary` can be empty when the model could
+        not place the exercise; the app then shows the manual fallback.
+
+        Counts against the shared daily quota like the other AI calls. The server may answer
+        with any strings for `pattern` and `joints` (within the schema limits, see the `ai`
+        tag); the app keeps only the ones it knows and uses `h-press` for an unknown pattern.
+
+        Non-AI fallback: the user picks the muscles by hand (the tag sheet without a
+        suggestion). See the `ai` tag for quota, kill-switch, rate-limit and no-logging rules.
+        Switched on by the optional `features.suggest_tags` flag in `GET /ai/status`; a server
+        that does not send it has the feature off.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuggestTagsRequest'
+            examples:
+              default:
+                value:
+                  name: Pec deck
+      responses:
+        '200':
+          description: The suggested tags and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestTagsResponse'
+              examples:
+                default:
+                  value:
+                    pattern: fly
+                    equipment: machine
+                    difficulty: 1
+                    primary: [chest]
+                    secondary: [front-delt]
+                    joints: [shoulder]
+                    quota:
+                      limit: 10
+                      remaining: 6
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
   /ai/weekly-summary:
     post:
       tags: [ai]
@@ -1114,7 +1189,7 @@ paths:
         only these numbers and invent none.
 
         The request is numeric facts only, plus the goal and catalogue exercise ids for the
-        improved and stalled lifts; no user-typed text reaches the provider. Lifts are
+        improved and stalled lifts; no user-typed text reaches the provider in this call. Lifts are
         identified by their `content/exercises.json` id, and every custom exercise is sent
         as the fixed label `custom exercise`, never by its user-typed name. The server
         sends any value that is not a catalogue id as `custom exercise` too. Unknown fields
@@ -2260,6 +2335,9 @@ components:
               type: boolean
             weekly_summary:
               type: boolean
+            suggest_tags:
+              type: boolean
+              description: Custom exercise tag suggestion. Optional, so a server that does not send it has the feature off.
         quota:
           $ref: '#/components/schemas/AiQuota'
 
@@ -2352,6 +2430,53 @@ components:
         card_id:
           type: [string, 'null']
           description: The card the answer is based on, or null when the cards don't cover the question.
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    SuggestTagsRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '\S'
+          description: |
+            The exercise name as the user typed it, trimmed by the app (the app's name limit,
+            200 characters). Must contain a non-space character. This is the one place a
+            custom exercise's typed name leaves the device, and only when the user has turned
+            AI on; Weekly summary still sends `custom exercise` instead.
+
+    SuggestTagsResponse:
+      type: object
+      required: [pattern, equipment, difficulty, primary, secondary, joints, quota]
+      properties:
+        pattern:
+          type: string
+          maxLength: 50
+        equipment:
+          type: string
+          enum: [barbell, dumbbell, machine, cable, bodyweight]
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 3
+        primary:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/Muscle' }
+        secondary:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/Muscle' }
+        joints:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 50
         quota:
           $ref: '#/components/schemas/AiQuota'
 
@@ -2472,7 +2597,7 @@ components:
       description: |
         A catalogue exercise id (a key of `content/exercises.json` `tags`, for example
         `Goblet Squat`) or the fixed label `custom exercise` for any custom exercise. The
-        app never sends a custom exercise's user-typed name; the server sends any value
+        app never sends a custom exercise's user-typed name in this call (only Suggest tags does); the server sends any value
         that is not a catalogue id to the provider as `custom exercise`.
       examples: [Goblet Squat, custom exercise]
 

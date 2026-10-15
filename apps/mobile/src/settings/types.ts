@@ -1,4 +1,4 @@
-import type { FlexEntry, MealPlan } from '@plate-and-bar/core';
+import { DEFAULT_WATER_SIZES, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
 /**
@@ -43,8 +43,7 @@ export function defaultSettings(updatedAt: string): Settings {
     rest_off: false,
     custom_tags: {},
     diet: 'any',
-    // The prototype's default glass and bottle sizes (renderTargets). TODO(#158): import core's defaults.
-    water_sizes: { glass_ml: 250, bottle_ml: 1000 },
+    water_sizes: { ...DEFAULT_WATER_SIZES },
     exercise_overrides: {},
     flex: [],
     returning: {},

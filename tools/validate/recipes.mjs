@@ -125,7 +125,7 @@ export const ROLES = ['p', 'c', 'v', 'b', 's', 'f', 'bp', 'sp', 'side'];
 export const DIETS = ['v', 'e', 'n'];
 const GROCERY_UNITS = ['g', 'ml', 'pcs', 'scoops', 'slices'];
 
-// foodNames: names from foods.json plus eat-out dishes; every food keyed here must be one of them.
+// foodNames: names from foods.json only (eat-out dishes do not count, #342); every food keyed here must be one of them.
 export function validatePlanning(content, foodNames) {
   const errors = [];
   checkKeys(content, ['schema_version', 'source', 'updated_at', 'needs_dietitian_review', 'meal_weights', 'protein_weights', 'max_portions', 'min_portions', 'grocery', 'roles'], (m) => errors.push(m));

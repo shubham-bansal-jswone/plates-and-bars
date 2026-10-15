@@ -195,4 +195,49 @@ describe('refreshes are single-flight', () => {
     await run;
     expect(server.calls.filter((c) => c.path === '/auth/refresh')).toHaveLength(2);
   });
+
+  it('two callers that share a token other than the one in flight join each other: one request for it', async () => {
+    const { server, tokens, deps, slow, run } = await runWithHeldRefresh();
+    tokens.current = { access: 'x', refresh: 'refresh-other' };
+    const a = refreshSession(deps);
+    const b = refreshSession(deps);
+    await settle();
+    slow.release();
+    await Promise.all([a, b, run]);
+    expect(server.calls.filter((c) => c.path === '/auth/refresh').map((c) => c.body.refresh_token).sort()).toEqual(['refresh-1', 'refresh-other']);
+  });
+
+  it('the same pair for another owner in flight is tracked: two callers for it make one request', async () => {
+    const { db, server, deps, slow, run } = await runWithHeldRefresh();
+    await setKv(db, KEY_USER, OTHER);
+    const a = refreshSession(deps);
+    const b = refreshSession(deps);
+    await settle();
+    slow.release();
+    await Promise.all([a, b, run]);
+    expect(server.calls.filter((c) => c.path === '/auth/refresh')).toHaveLength(2);
+  });
+
+  it('a joiner cut off by the leader\'s timeout reports unavailable, not offline', async () => {
+    const { server, tokens, deps } = await setup();
+    const slow = gate();
+    server.hold = slow.p;
+    server.holdPath = '/auth/refresh';
+    const leader = refreshSession({ ...deps, timeoutMs: 40 });
+    await settle(5);
+    const joiner = refreshSession({ ...deps, timeoutMs: 5000 });
+    expect(await leader).toBe('unavailable');
+    expect(await joiner).toBe('unavailable');
+    expect(tokens.current?.refresh).toBe('refresh-1'); // tokens kept
+    slow.release();
+  });
+
+  it('cleanup guard: a failed refresh is not left tracked, so it can be retried with the same token', async () => {
+    const { server, deps } = await setup();
+    server.online = false;
+    expect(await refreshSession(deps)).toBe('offline');
+    server.online = true;
+    expect(await refreshSession(deps)).toBe('ok');
+    expect(server.calls.map((c) => c.body.refresh_token)).toEqual(['refresh-1']);
+  });
 });
