@@ -215,12 +215,15 @@ export type {
  *   unticking every set today restores the session before, or gives a null record (delete it) (#122).
  *   `sessionScore` and `updateLift` take the profile's weight for assisted scores (#122).
  * - `recoveryCard` mirrors the "several stalls → recovery week" card in prototype `renderStart()`.
+ * - `reentryCard` mirrors the "back after a break" ("Welcome back") card in prototype `renderStart()`;
+ *   `reentryRange` mirrors prototype `adjAction('adj-reentry')`.
+ * - `steadyCard` mirrors the "N steady weeks of training" card in prototype `renderStart()`.
  * - `recoveryWeek` mirrors prototype `adjAction('adj-deload')`; `stallRange` mirrors `adjAction('adj-range')`;
  *   `stallRangeOverride` is `stallRange` in contract `Settings.exercise_overrides` shape (#128).
  * - `addDays` mirrors prototype `addDays(s, n)`.
  */
-export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
-export type { AdjRange, AdjState, RecoveryCard, StallCard, LiftUpdate } from './stalls';
+export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, reentryCard, reentryRange, steadyCard, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
+export type { AdjRange, AdjState, RecoveryCard, ReentryCard, SteadyCard, StallCard, LiftUpdate } from './stalls';
 export { addDays } from './dates';
 
 /**
