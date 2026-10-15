@@ -3,7 +3,7 @@ import { Text } from '../components/Text';
 import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { ABOUT_COPY as t, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
+import { ABOUT_COPY as t, BODY_MAP_LICENCE, BODY_MAP_SOURCE, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
 
 function Source({ s }: { s: SourceInfo }) {
   const c = useTheme();
@@ -34,6 +34,9 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Hint>{t.exercisesText}</Hint>
       <Label>{t.fonts}</Label>
       <View style={{ gap: 8 }}>{FONT_SOURCES.map((s) => <Source key={s.code} s={s} />)}</View>
+      <Label>{t.bodyMap}</Label>
+      <Source s={BODY_MAP_SOURCE} />
+      <Hint>{BODY_MAP_LICENCE}</Hint>
     </Page>
   );
 }

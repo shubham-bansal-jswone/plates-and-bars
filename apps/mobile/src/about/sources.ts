@@ -34,11 +34,17 @@ export const FONT_SOURCES: readonly SourceInfo[] = [
   { code: 'roboto', name: 'Roboto (headlines and big numbers)', licence: 'SIL Open Font License 1.1', url: null },
 ];
 
+/** The body map shapes (`workout/bodyMapData.ts`). MIT asks for this notice in every copy of the data. */
+export const BODY_MAP_SOURCE: SourceInfo = { code: 'react-body-highlighter', name: 'Body map shapes: react-body-highlighter', licence: 'MIT License, Copyright (c) 2020 GV79', url: 'https://github.com/giavinh79/react-body-highlighter' };
+export const BODY_MAP_LICENCE =
+  'Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.';
+
 export const ABOUT_COPY = {
   title: 'About and sources',
   intro: 'Where the numbers and content in Plate & Bar come from, and under what licence.',
   food: 'Food data',
   fonts: 'Fonts',
+  bodyMap: 'Body map',
   exercises: 'Exercises',
   exercisesText: 'The exercise library and how-to notes are text only. The app shows no exercise photos.',
   licence: (l: string) => `Licence: ${l}`,

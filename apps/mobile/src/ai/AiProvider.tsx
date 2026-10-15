@@ -5,7 +5,7 @@ import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { getKv, getUserId, setKv } from '../sync/store';
 import type { TokenStore } from '../sync/tokens';
-import { askWhy, describeMeal, getAiStatus, weeklySummary, type AiDeps, type AiFeature, type AiQuota, type AiResult, type AiStatus } from './client';
+import { askWhy, describeMeal, getAiStatus, suggestTags, weeklySummary, type AiDeps, type AiFeature, type AiQuota, type AiResult, type AiStatus } from './client';
 
 /** Device-only. Holds the id of the user who opted in, so another account on this device starts off, and a wipe (`sync.%`) clears it. */
 export const KEY_AI_CONSENT = 'sync.ai_consent';
@@ -24,6 +24,7 @@ export interface AiApi {
   describeMeal(text: string): Promise<AiResult<Schemas['DescribeMealResponse']>>;
   askWhy(cardId: string, question: string): Promise<AiResult<Schemas['AskWhyResponse']>>;
   weeklySummary(body: Schemas['WeeklySummaryRequest']): Promise<AiResult<Schemas['WeeklySummaryResponse']>>;
+  suggestTags(name: string): Promise<AiResult<Schemas['SuggestTagsResponse']>>;
 }
 
 const OFF: AiApi = {
@@ -36,6 +37,7 @@ const OFF: AiApi = {
   describeMeal: async () => ({ kind: 'disabled' }),
   askWhy: async () => ({ kind: 'disabled' }),
   weeklySummary: async () => ({ kind: 'disabled' }),
+  suggestTags: async () => ({ kind: 'disabled' }),
 };
 
 const AiContext = createContext<AiApi>(OFF);
@@ -152,6 +154,7 @@ export function AiProvider({ db, api, tokens, signedIn, syncStamp, now = () => n
       describeMeal: (text) => guard('describe_meal', (d) => describeMeal(d, text)),
       askWhy: (cardId, question) => guard('ask_why', (d) => askWhy(d, cardId, question)),
       weeklySummary: (body) => guard('weekly_summary', (d) => weeklySummary(d, body)),
+      suggestTags: (name) => guard('suggest_tags', (d) => suggestTags(d, name)),
     };
   }, [live, consent, status, setConsent, api, db, tokens, refresh, now, keep]);
 
