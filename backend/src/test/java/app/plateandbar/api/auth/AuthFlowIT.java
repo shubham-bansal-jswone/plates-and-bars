@@ -468,6 +468,20 @@ class AuthFlowIT {
     }
 
     @Test
+    void repeatedGraceRetriesRotateEachTimeAndTheWindowStillEndsSixtySecondsAfterTheFirstRotation() {
+        Map t0 = signInByEmail(uniq("g7"));
+        Map t1 = refresh(t0.get("refresh_token")).getBody();
+        clock.advance(Duration.ofSeconds(30));
+        Map t2 = refresh(t0.get("refresh_token")).getBody();
+        clock.advance(Duration.ofSeconds(20));
+        Map t3 = refresh(t0.get("refresh_token")).getBody(); // still inside 60 s of the first rotation
+        assertThat(t3.get("refresh_token")).isNotIn(t1.get("refresh_token"), t2.get("refresh_token"));
+        clock.advance(Duration.ofSeconds(11)); // 61 s after the first rotation
+        assertThat(refresh(t0.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+        assertThat(refresh(t3.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
     void usingTheNewAccessTokenDoesNotMakeTheNewRefreshTokenUsed() {
         Map t0 = signInByEmail(uniq("g6"));
         Map t1 = refresh(t0.get("refresh_token")).getBody();
