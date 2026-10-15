@@ -556,6 +556,19 @@ describe('Food screen', () => {
       expect(await screen.findByText('Nothing was logged the day before.')).toBeTruthy();
       expect(docs(db, 'food_logs')).toHaveLength(0);
     });
+
+    it('says yesterday had nothing again when Copy is pressed twice in a row on an empty day', async () => {
+      const db = await setup();
+      const says = 'Nothing was logged the day before.';
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText(says)).toBeTruthy();
+      // Let the first toast go, so the second press has to speak for itself: were the copy left in flight (a stuck
+      // `copying` ref), the day is still empty, the button is still offered, and this press would be silent.
+      await waitFor(() => expect(screen.queryByText(says)).toBeNull(), { timeout: 4_000 });
+      await fireEvent.press(screen.getByLabelText('Copy previous day'));
+      expect(await screen.findByText(says)).toBeTruthy();
+      expect(docs(db, 'food_logs')).toHaveLength(0);
+    });
   });
 
   describe('re-reading when shown', () => {

@@ -131,7 +131,12 @@ export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
 
   /**
    * The prototype's "Copy previous day": every non-deleted log of yesterday is copied to today with a new id, as stored
-   * (name, meal, qty and values), whether or not the food is still in the list. Returns false when yesterday had none.
+   * (name, meal, qty and values), whether or not the food is still in the list.
+   *
+   * Returns false, having copied nothing, on every path that is not a copy: a tap while another copy is still reading;
+   * an empty yesterday ("Nothing was logged the day before."); a day that gained a log while we read it (a sync pull or
+   * another screen — silent, because the copy is no longer wanted); and a read that fails
+   * ("Couldn’t read your saved food.").
    */
   const copying = useRef(false);
   const copyPrevious = useCallback(async (): Promise<boolean> => {
