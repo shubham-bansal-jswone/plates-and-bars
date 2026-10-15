@@ -45,7 +45,7 @@ public class RefreshTokenRepository {
                         Db.instant(rs.getObject("expires_at", java.time.LocalDateTime.class)),
                         Db.instant(rs.getObject("rotated_at", java.time.LocalDateTime.class)),
                         Db.instant(rs.getObject("revoked_at", java.time.LocalDateTime.class)),
-                                Db.instant(rs.getObject("replaced_at", java.time.LocalDateTime.class))),
+                        Db.instant(rs.getObject("replaced_at", java.time.LocalDateTime.class))),
                 id);
     }
 
