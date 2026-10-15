@@ -35,6 +35,25 @@ class AiSchemas {
         }
     }
 
+    /** The Muscle enum from the contract, in contract order. */
+    List<String> muscles() {
+        return enumValues(components.path("schemas").path("Muscle"));
+    }
+
+    /** The equipment enum of SuggestTagsResponse, in contract order. */
+    List<String> equipment() {
+        return enumValues(components.path("schemas").path("SuggestTagsResponse").path("properties").path("equipment"));
+    }
+
+    private static List<String> enumValues(JsonNode node) {
+        List<String> out = new java.util.ArrayList<>();
+        node.path("enum").forEach(v -> out.add(v.asText()));
+        if (out.isEmpty()) {
+            throw new IllegalStateException("enum missing in openapi.yaml");
+        }
+        return List.copyOf(out);
+    }
+
     private final java.util.Map<String, Schema> cache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private Schema schema(String name) {

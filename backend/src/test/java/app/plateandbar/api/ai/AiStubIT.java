@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 /** The real StubAiProvider is active and every flag and the budget are set: canned text still never reaches users. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"app.ai.describe-meal-enabled=true", "app.ai.ask-why-enabled=true",
-            "app.ai.weekly-summary-enabled=true", "app.ai.monthly-budget-tokens=1000000",
+            "app.ai.weekly-summary-enabled=true", "app.ai.suggest-tags-enabled=true", "app.ai.monthly-budget-tokens=1000000",
             "app.rate-limit.ai-per-user.capacity=1000"})
 @Import(AiITBase.Config.class)
 class AiStubIT extends AiITBase {
@@ -23,7 +23,7 @@ class AiStubIT extends AiITBase {
         assertThat(ctx.getBeansOfType(AiProvider.class)).hasSize(1).containsOnlyKeys("stubAiProvider");
         String u = newUser();
         assertThat(get(u, "/api/v1/ai/status").getBody())
-                .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false");
+                .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false", "\"suggest_tags\":false");
         var res = post(u, "/api/v1/ai/describe-meal", "{\"text\":\"rice\"}");
         assertThat(res.getStatusCode().value()).isEqualTo(503);
         assertThat(res.getBody()).contains("feature_disabled").doesNotContain("Roti");

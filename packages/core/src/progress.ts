@@ -126,6 +126,20 @@ export interface WaterSizes {
  */
 export const DEFAULT_WATER_SIZES: Readonly<WaterSizes> = Object.freeze({ glass_ml: 250, bottle_ml: 1000 });
 
+/** Smallest and largest glass or bottle size, in ml, that the water size boxes keep (prototype `data-wt` handler). */
+export const WATER_SIZE_MIN_ML = 50;
+export const WATER_SIZE_MAX_ML = 3000;
+
+/**
+ * Reads a water size box (Glass or Bottle, ml): the text rounded to a whole number, or null when it is outside
+ * 50 to 3000 or not a number (the prototype then keeps the stored size). Both bounds are inside the contract's
+ * `Settings.water_sizes` (an integer above 0). Mirrors the `data-wt` step of the prototype's input listener.
+ */
+export function waterSizeEntry(text: string): number | null {
+  const ml = Math.round(num(text));
+  return ml >= WATER_SIZE_MIN_ML && ml <= WATER_SIZE_MAX_ML ? ml : null;
+}
+
 /** What `waterTarget` reads. */
 export interface WaterInput {
   /** The day shown (prototype `S.date`). */
@@ -566,6 +580,57 @@ export function habits(date: string, sessions: SessionLog, profile: PlanProfile 
   const logged = daysEnding(days, date, 7).filter((d) => live(d.logs).length).length;
   const thisWeek = dates.filter((d) => d >= monday && d <= date).length;
   return { goal, weeks, thisWeek, logged, message: weeks >= 2 ? 'streak' : logged < 4 ? 'missed' : 'steady' };
+}
+
+/** One row of the Progress "Seven days" block. */
+export interface WeekDay {
+  date: string;
+  /** Any food logged that day; false shows "not logged". */
+  logged: boolean;
+  /** The day's totals, unrounded (show with `Math.round`). */
+  kcal: number;
+  protein_g: number;
+  trained: boolean;
+  /** Bar fill, 0 to 100: kcal against 1.3 times the target, capped. */
+  fillPct: number;
+  /** Where the target line sits on the bar, percent from the left. */
+  targetPct: number;
+  /** Calories above the target (the bar turns to the "over" colour). */
+  over: boolean;
+}
+
+/** Result of `weekSummary`. Averages are over days with food logged, unrounded, or null with none. */
+export interface WeekSummary {
+  days: WeekDay[];
+  avgKcal: number | null;
+  avgProtein_g: number | null;
+  sessions: number;
+}
+
+/**
+ * The 7 days ending on `date`, oldest first, with the bar sizes and the averages under them.
+ *
+ * Mirrors the block of prototype `renderProgress()` under "Seven days to <date>".
+ */
+export function weekSummary(days: readonly ProgressDay[], date: string, kcalTarget: number): WeekSummary {
+  const scale = Math.max(kcalTarget * 1.3, 1);
+  let logged = 0, sk = 0, sp = 0, sessions = 0;
+  const rows = daysEnding(days, date, 7).map((d): WeekDay => {
+    const meals = live(d.logs);
+    let kcal = 0, protein_g = 0;
+    for (const m of meals) {
+      kcal += m.kcal * m.qty;
+      protein_g += m.protein_g * m.qty;
+    }
+    if (meals.length) {
+      logged++;
+      sk += kcal;
+      sp += protein_g;
+    }
+    if (d.trained) sessions++;
+    return { date: d.date, logged: meals.length > 0, kcal, protein_g, trained: d.trained, fillPct: Math.min(kcal / scale, 1) * 100, targetPct: (kcalTarget / scale) * 100, over: kcal > kcalTarget };
+  });
+  return { days: rows, avgKcal: logged ? sk / logged : null, avgProtein_g: logged ? sp / logged : null, sessions };
 }
 
 /* ---------- weight and waist trend, scale-jump note, entry limits (#233) ---------- */

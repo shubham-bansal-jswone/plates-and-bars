@@ -107,7 +107,7 @@ export function dayTemplate(date: string, profile: PlanProfile | null | undefine
 }
 
 /** Dates before `before` with at least one logged set, ascending. Mirrors prototype `sessionDates(before)`. */
-function sessionDates(sessions: SessionLog, before: string): string[] {
+export function sessionDates(sessions: SessionLog, before: string): string[] {
   return Object.keys(sessions)
     .filter((d) => d < before && (sessions[d]?.n ?? 0) > 0)
     .sort();

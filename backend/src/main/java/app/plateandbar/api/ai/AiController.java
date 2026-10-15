@@ -27,7 +27,8 @@ public class AiController {
     public record Features(
             @JsonProperty("describe_meal") boolean describeMeal,
             @JsonProperty("ask_why") boolean askWhy,
-            @JsonProperty("weekly_summary") boolean weeklySummary) {}
+            @JsonProperty("weekly_summary") boolean weeklySummary,
+            @JsonProperty("suggest_tags") boolean suggestTags) {}
 
     public record StatusResponse(@JsonProperty("features") Features features, @JsonProperty("quota") AiQuota quota) {}
 
@@ -94,13 +95,19 @@ public class AiController {
         return post(a, r, ai::weeklySummary);
     }
 
+    @PostMapping(path = "/suggest-tags", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ObjectNode> suggestTags(Authentication a, HttpServletRequest r) throws IOException {
+        return post(a, r, ai::suggestTags);
+    }
+
     /** Only the per-IP limit applies here; it is not part of the 5-per-minute AI limit. */
     @GetMapping(path = "/status", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<StatusResponse> status(Authentication auth, HttpServletRequest request) {
         limiter.consume("ai-ip", ips.resolve(request), limits.getAiPerIp());
         var on = quotas.features();
         Features f = new Features(
-                on.get(AiFeature.DESCRIBE_MEAL), on.get(AiFeature.ASK_WHY), on.get(AiFeature.WEEKLY_SUMMARY));
+                on.get(AiFeature.DESCRIBE_MEAL), on.get(AiFeature.ASK_WHY), on.get(AiFeature.WEEKLY_SUMMARY),
+                on.get(AiFeature.SUGGEST_TAGS));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(new StatusResponse(f, quotas.quota(auth.getName())));

@@ -27,6 +27,6 @@ class AiDefaultsTest {
         }
         assertThat(props.getMonthlyBudgetTokens()).isZero();
         assertThat(props.getDailyLimit()).isEqualTo(10);
-        assertThat(List.of(AiFeature.values())).hasSize(3);
+        assertThat(List.of(AiFeature.values())).hasSize(4);
     }
 }
