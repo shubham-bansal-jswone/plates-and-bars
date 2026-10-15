@@ -1,5 +1,6 @@
 // Copy from the prototype's recipeBody(), recipeAction() and cookSheet().
-import type { RecipeFoodResult } from '@plate-and-bar/core';
+import { FIT_SOYA_G, type FitSuggestion, type RecipeFoodResult } from '@plate-and-bar/core';
+import { fmt } from '../format';
 
 export const RB_INTRO = 'Start from a typical home-style recipe';
 export const OIL_HINT = 'Oil and ghee are the biggest hidden calories in home cooking.';
@@ -18,5 +19,9 @@ export const problem = (r: Exclude<RecipeFoodResult, { kind: 'ok' }>): string =>
     'no-yield': 'Add how many katoris it made, or the cooked weight.',
   })[r.kind];
 
+export const FIT_LABEL = 'Make it fit';
+/** The suggestion line, from the prototype's `fitSuggestions()`. */
+export const fitLine = (s: FitSuggestion): string =>
+  s.kind === 'fit-oil' ? `Use half the oil or ghee: about −${fmt(s.kcal_saved)} kcal per katori` : `Add ${FIT_SOYA_G} g soya chunks: about +${fmt(s.protein_added_g)} g protein per katori`;
 export const UNKNOWN_ROW = 'not in the ingredient table, not counted';
 export const unknownBlock = (names: readonly string[]): string => `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} ${UNKNOWN_ROW}. Pick another ingredient or remove the row to save.`;
