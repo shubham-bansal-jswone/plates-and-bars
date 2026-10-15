@@ -53,6 +53,14 @@ describe('about and sources', () => {
     expect(screen.getByText(/shows no exercise photos/)).toBeTruthy();
   });
 
+  it('credits the body map shapes under the MIT licence with the full notice', async () => {
+    await render(<AboutScreen onBack={() => {}} />);
+    expect(screen.getByText('Body map shapes: react-body-highlighter')).toBeTruthy();
+    expect(screen.getByText('Licence: MIT License, Copyright (c) 2020 GV79')).toBeTruthy();
+    expect(screen.getByText(/Permission is hereby granted, free of charge/)).toBeTruthy();
+    expect(screen.getByText(/THE SOFTWARE IS PROVIDED “AS IS”/)).toBeTruthy();
+  });
+
   it('never names the excluded Indian tables', async () => {
     await render(<AboutScreen onBack={() => {}} />);
     expect(JSON.stringify(screen.toJSON())).not.toMatch(/IFCT|INDB/i);

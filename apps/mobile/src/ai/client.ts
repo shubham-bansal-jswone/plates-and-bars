@@ -7,7 +7,7 @@ import { getUserId } from '../sync/store';
 import { REQUEST_TIMEOUT_MS, withTimeout } from '../sync/timeout';
 import type { TokenStore } from '../sync/tokens';
 
-export type AiFeature = 'describe_meal' | 'ask_why' | 'weekly_summary';
+export type AiFeature = 'describe_meal' | 'ask_why' | 'weekly_summary' | 'suggest_tags';
 export type AiStatus = Schemas['AiStatus'];
 export type AiQuota = Schemas['AiQuota'];
 
@@ -99,3 +99,6 @@ export const askWhy = (d: AiDeps, cardId: string, question: string) => run<Schem
 
 /** `POST /ai/weekly-summary`: sends the weekly check-in facts built by `buildSummaryRequest`. */
 export const weeklySummary = (d: AiDeps, body: Schemas['WeeklySummaryRequest']) => run<Schemas['WeeklySummaryResponse']>(d, (signal) => d.api.POST('/ai/weekly-summary', { body, signal }));
+
+/** `POST /ai/suggest-tags`: sends only the exercise name the user typed. */
+export const suggestTags = (d: AiDeps, name: string) => run<Schemas['SuggestTagsResponse']>(d, (signal) => d.api.POST('/ai/suggest-tags', { body: { name }, signal }));
