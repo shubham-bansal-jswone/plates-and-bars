@@ -77,35 +77,73 @@ if (new Set(declared).size !== declared.length) failures.push("openapi.yaml: a t
 const used = new Set([...spec.matchAll(/^ {6}tags: \[([^\]]*)\]$/gm)].flatMap((m) => m[1].split(",").map((t) => t.trim())));
 if (used.size === 0) failures.push("openapi.yaml: no operation tags found");
 for (const t of used) if (!declared.includes(t)) failures.push(`openapi.yaml: operation tag ${t} is not declared under tags`);
-// Every string, array and open object reachable from a sync record schema is bounded (maxLength, maxItems,
-// maxProperties), so the server can cap what one account stores (#353). Enums, formats, patterns and consts
-// count as bounds for strings. "Open object" means one that declares `additionalProperties`; objects without
-// it, and the contents of `additionalProperties: true` objects, are not checked (see the wire conventions).
-const schemas = load(spec).components.schemas;
-const seenRefs = new Set();
-let bounded = 0;
-function checkBounds(node, path) {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) return node.forEach((n, i) => checkBounds(n, `${path}[${i}]`));
-  if (typeof node.$ref === "string") {
-    const name = node.$ref.split("/").pop();
-    if (!seenRefs.has(name)) {
-      seenRefs.add(name);
-      checkBounds(schemas[name], name);
+// Every string, array and open object reachable from a sync record schema or a POST /ai/* request body is
+// bounded (maxLength, maxItems, maxProperties), so the server can cap what one account stores (#353) and what
+// one AI call sends to the provider (#469). Enums, formats and consts count as bounds for strings; a pattern
+// counts only when it is anchored at both ends and has no `*`, `+` or open `{n,}` repeat (`\S` bounds
+// nothing). "Open object" means one that declares `additionalProperties`; objects without it, and the
+// contents of `additionalProperties: true` objects, are not checked (see the wire conventions).
+const parsed = load(spec);
+const boundedPattern = (p) => typeof p === "string" && p.startsWith("^") && p.endsWith("$") && !/[*+]|\{\d+,\}/.test(p);
+function checkAllBounds(doc) {
+  const schemas = doc.components.schemas;
+  const found = [];
+  const seenRefs = new Set();
+  let count = 0;
+  function walk(node, path) {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach((n, i) => walk(n, `${path}[${i}]`));
+    if (typeof node.$ref === "string") {
+      const name = node.$ref.split("/").pop();
+      if (!seenRefs.has(name)) {
+        seenRefs.add(name);
+        walk(schemas[name], name);
+      }
     }
+    const types = [].concat(node.type ?? []);
+    const isString = types.includes("string") && !node.enum && !node.format && !boundedPattern(node.pattern) && node.const === undefined;
+    const isArray = types.includes("array");
+    const isOpen = types.includes("object") && node.additionalProperties !== undefined && node.additionalProperties !== false;
+    if (isString && node.maxLength == null) found.push(`openapi.yaml: unbounded string at ${path}`);
+    if (isArray && node.maxItems == null) found.push(`openapi.yaml: unbounded array at ${path}`);
+    if (isOpen && node.maxProperties == null) found.push(`openapi.yaml: unbounded object at ${path}`);
+    if (isString || isArray || isOpen) count++;
+    for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") walk(v, `${path}.${k}`);
   }
-  const types = [].concat(node.type ?? []);
-  const isString = types.includes("string") && !node.enum && !node.format && !node.pattern && node.const === undefined;
-  const isArray = types.includes("array");
-  const isOpen = types.includes("object") && node.additionalProperties !== undefined && node.additionalProperties !== false;
-  if (isString && node.maxLength == null) failures.push(`openapi.yaml: unbounded string at ${path}`);
-  if (isArray && node.maxItems == null) failures.push(`openapi.yaml: unbounded array at ${path}`);
-  if (isOpen && node.maxProperties == null) failures.push(`openapi.yaml: unbounded object at ${path}`);
-  if (isString || isArray || isOpen) bounded++;
-  for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") checkBounds(v, `${path}.${k}`);
+  for (const [table, prop] of Object.entries(schemas.SyncChanges.properties)) walk(prop.items, `SyncChanges.${table}`);
+  const aiBodies = Object.entries(doc.paths)
+    .filter(([p, ops]) => p.startsWith("/ai/") && ops.post?.requestBody)
+    .map(([p, ops]) => [p, ops.post.requestBody.content["application/json"].schema]);
+  for (const [p, schema] of aiBodies) walk(schema, `POST ${p}`);
+  return { found, count, aiBodies: aiBodies.length };
 }
-for (const [table, prop] of Object.entries(schemas.SyncChanges.properties)) checkBounds(prop.items, `SyncChanges.${table}`);
+const bounds = checkAllBounds(parsed);
+failures.push(...bounds.found);
+const bounded = bounds.count;
 if (bounded === 0) failures.push("openapi.yaml: no record fields found for the bounds check");
+if (bounds.aiBodies === 0) failures.push("openapi.yaml: no POST /ai/* request bodies found for the bounds check");
+// Must-fail vectors: dropping any one bound from an AI request schema (for example maxLength 200 from
+// SuggestTagsRequest.name, or maxItems from WeeklySummaryRequest.stalled) must make the check above fail.
+const aiRequests = ["DescribeMealRequest", "AskWhyRequest", "SuggestTagsRequest", "WeeklySummaryRequest", "SummaryExercise"];
+let mutants = 0;
+for (const name of aiRequests) {
+  const visit = (node, path) => {
+    if (!node || typeof node !== "object") return;
+    for (const key of ["maxLength", "maxItems", "maxProperties"]) {
+      if (node[key] === undefined) continue;
+      const copy = structuredClone(parsed);
+      let target = copy.components.schemas[name];
+      for (const step of path) target = target[step];
+      delete target[key];
+      mutants++;
+      if (checkAllBounds(copy).found.length === 0) failures.push(`bounds check misses ${name}${path.map((s) => `.${s}`).join("")} without ${key}`);
+    }
+    for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") visit(v, [...path, k]);
+  };
+  if (!parsed.components.schemas[name]) failures.push(`openapi.yaml: no ${name} schema`);
+  visit(parsed.components.schemas[name], []);
+}
+if (mutants === 0) failures.push("openapi.yaml: no AI request bounds to mutate");
 // YAML 1.1 readers (SnakeYAML under the backend's Jackson YAMLMapper) read bare y/n/yes/no/on/off (any case) as
 // booleans and a leading-zero integer such as 010 as octal. Jackson keeps mapping keys as text but converts values,
 // including flow and block list items, so `required: [..., on]` became `true` on the server (#418). Quote them all.
@@ -127,4 +165,5 @@ if (failures.length) {
 console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and openapi.yaml example ids verified`);
 console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);
 console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
-console.log(`openapi.yaml: ${bounded} record strings, arrays and open objects, all bounded`);
+console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and open objects, all bounded`);
+console.log(`openapi.yaml: ${mutants} AI request bounds, each one caught when removed`);
