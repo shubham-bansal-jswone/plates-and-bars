@@ -17,6 +17,7 @@ import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
+import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
@@ -29,7 +30,7 @@ interface Props {
 /** Targets tab: the stored setup's targets, focus muscles and coverage, and the workout settings. */
 export function TargetsScreen({ db, now = () => new Date() }: Props) {
   const { profile, markCleared } = useProfile();
-  const { ready, settings, saveFailed, loadFailed, setFocus, setRestOff } = useSettings();
+  const { ready, settings, saveFailed, loadFailed, setFocus, setRestOff, update } = useSettings();
   const router = useRouter();
   const c = useTheme();
   const [toast, setToast] = useState<string | null>(null);
@@ -111,12 +112,14 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
           </View>
         ) : null}
-        {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Workout as there; the list itself is on its own screen. */}
+        {ready ? <WaterSizesSection sizes={settings.water_sizes} onChange={(water_sizes) => update({ water_sizes })} /> : null}
+        {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Water sizes and before My foods as there; the list itself is on its own screen. */}
         <View style={{ gap: 8, marginTop: 16 }}>
           <Label>Kitchen tests</Label>
           {kitchen !== null ? <Hint>{listIntro(kitchen)}</Hint> : null}
           <Button label="Kitchen tests" kind="ghost" onPress={() => router.push('/kitchen-test' as never)} />
         </View>
+        <MyFoodsSection db={db} notify={notify} />
       </Page>
       <ToastBar message={toast} />
     </View>
