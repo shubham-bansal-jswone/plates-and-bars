@@ -147,4 +147,14 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_request"));
     }
+
+    @Test
+    void refreshThatCannotCompleteIs503Unavailable() throws Exception {
+        when(auth.refresh(any()))
+                .thenThrow(new app.plateandbar.api.common.ServiceUnavailableException(
+                        new org.springframework.dao.CannotAcquireLockException("lock")));
+        mvc.perform(json("/api/v1/auth/refresh", "{\"refresh_token\":\"rt_old\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("unavailable"));
+    }
 }

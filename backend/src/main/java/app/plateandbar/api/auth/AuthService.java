@@ -5,6 +5,7 @@ import app.plateandbar.api.auth.AuthDtos.TokenPair;
 import app.plateandbar.api.auth.AuthDtos.UserDto;
 import app.plateandbar.api.auth.UserRepository.User;
 import app.plateandbar.api.common.ApiException;
+import app.plateandbar.api.common.ServiceUnavailableException;
 import app.plateandbar.api.ratelimit.RateLimitProperties;
 import app.plateandbar.api.ratelimit.RateLimitedException;
 import app.plateandbar.api.ratelimit.RateLimiter;
@@ -23,8 +24,10 @@ import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -179,7 +182,7 @@ public class AuthService {
 
     public TokenPair refresh(String presented) {
         String hash = sha256Hex(presented);
-        TokenPair pair = tx.execute(s -> {
+        TransactionCallback<TokenPair> attempt = s -> {
             Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
             var found = refreshTokens.findByHashForUpdate(hash);
             if (found.isEmpty()) {
@@ -218,7 +221,19 @@ public class AuthService {
                 refreshTokens.markRotated(row.id(), now);
             }
             return issue(user.get(), row.familyId(), false, row.id());
-        });
+        };
+        TokenPair pair;
+        try {
+            pair = tx.execute(attempt);
+        } catch (PessimisticLockingFailureException e) {
+            // A deadlock or lock timeout (e.g. a grace retry racing the device's refresh) rolled everything back,
+            // so the token is untouched: retry once, then answer 503 so the client keeps its session and retries.
+            try {
+                pair = tx.execute(attempt);
+            } catch (PessimisticLockingFailureException again) {
+                throw new ServiceUnavailableException(again);
+            }
+        }
         if (pair == null) {
             throw ApiException.sessionEnded();
         }
