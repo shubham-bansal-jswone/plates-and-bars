@@ -59,10 +59,15 @@ function permissionsFor(name, tools) {
   // Leaf workers: no spawning further subagents.
   list.push({ action: "subagent", resource: "*", effect: "deny" });
   // Edits: deny by default, then re-allow only the lane's own folders.
+  // Both forms are emitted: the plain glob matches the canonical checkout's
+  // relative path, and the `**/`-prefixed glob also matches absolute paths
+  // into a sibling git worktree (the matcher is unanchored), so a lane agent
+  // can work in a worktree without losing its scope.
   list.push({ action: "edit", resource: "*", effect: "deny" });
   const globs = LANES[name] ?? [];
   for (const resource of globs) {
     list.push({ action: "edit", resource, effect: "allow" });
+    list.push({ action: "edit", resource: `**/${resource}`, effect: "allow" });
   }
   return list;
 }
