@@ -6,3 +6,9 @@ export const shortDate = (ymd: string): string => {
   const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
+
+/** Mirrors prototype `dayName`: "Mon". */
+export const dayName = (ymd: string): string => {
+  const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'short' });
+};
