@@ -9,19 +9,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.ai")
 public class AiProperties {
 
-    /** Calls per user per UTC day, shared by all three endpoints. */
+    /** Calls per user per UTC day, shared by all four endpoints. */
     private int dailyLimit = 10;
     /** Monthly cap on input plus output tokens across all users; 0 (the default) keeps every feature off. */
     private long monthlyBudgetTokens = 0;
     private boolean describeMealEnabled = false;
     private boolean askWhyEnabled = false;
     private boolean weeklySummaryEnabled = false;
+    private boolean suggestTagsEnabled = false;
 
     public boolean flag(AiFeature f) {
         return switch (f) {
             case DESCRIBE_MEAL -> describeMealEnabled;
             case ASK_WHY -> askWhyEnabled;
             case WEEKLY_SUMMARY -> weeklySummaryEnabled;
+            case SUGGEST_TAGS -> suggestTagsEnabled;
         };
     }
 
@@ -63,5 +65,13 @@ public class AiProperties {
 
     public void setWeeklySummaryEnabled(boolean v) {
         this.weeklySummaryEnabled = v;
+    }
+
+    public boolean isSuggestTagsEnabled() {
+        return suggestTagsEnabled;
+    }
+
+    public void setSuggestTagsEnabled(boolean v) {
+        this.suggestTagsEnabled = v;
     }
 }

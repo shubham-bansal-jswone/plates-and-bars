@@ -19,6 +19,8 @@ class StubAiProvider implements AiProvider {
                             + "dietitian or doctor.\",\"card_id\":null}";
                     case WEEKLY_SUMMARY -> "{\"text\":\"You trained and logged food this week. Protein was the gap. "
                             + "Next week, aim to hit your protein target on more days.\"}";
+                    case SUGGEST_TAGS -> "{\"pattern\":\"fly\",\"equipment\":\"machine\",\"difficulty\":1,"
+                            + "\"primary\":[\"chest\"],\"secondary\":[\"front-delt\"],\"joints\":[\"shoulder\"]}";
                 };
         return new Completion(text, (instructions.length() + input.length()) / 4, text.length() / 4);
     }

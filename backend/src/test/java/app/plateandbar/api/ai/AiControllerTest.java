@@ -41,9 +41,23 @@ class AiControllerTest {
     }
 
     @Test
+    void suggestTagsIsItsOwnFlag() throws Exception {
+        when(quotas.features()).thenReturn(java.util.Map.of(
+                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, false, AiFeature.WEEKLY_SUMMARY, false,
+                AiFeature.SUGGEST_TAGS, true));
+        when(quotas.quota(USER)).thenReturn(QUOTA);
+        callStatus("198.51.100.9")
+                .andExpect(jsonPath("$.features.describe_meal").value(false))
+                .andExpect(jsonPath("$.features.ask_why").value(false))
+                .andExpect(jsonPath("$.features.weekly_summary").value(false))
+                .andExpect(jsonPath("$.features.suggest_tags").value(true));
+    }
+
+    @Test
     void reportsFeaturesAndQuotaInTheContractShape() throws Exception {
         when(quotas.features()).thenReturn(java.util.Map.of(
-                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, true, AiFeature.WEEKLY_SUMMARY, false));
+                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, true, AiFeature.WEEKLY_SUMMARY, false,
+                AiFeature.SUGGEST_TAGS, true));
         when(quotas.quota(USER)).thenReturn(QUOTA);
         callStatus("198.51.100.1")
                 .andExpect(status().isOk())
@@ -51,6 +65,7 @@ class AiControllerTest {
                 .andExpect(jsonPath("$.features.describe_meal").value(false))
                 .andExpect(jsonPath("$.features.ask_why").value(true))
                 .andExpect(jsonPath("$.features.weekly_summary").value(false))
+                .andExpect(jsonPath("$.features.suggest_tags").value(true))
                 .andExpect(jsonPath("$.quota.limit").value(10))
                 .andExpect(jsonPath("$.quota.remaining").value(7))
                 .andExpect(jsonPath("$.quota.resets_at").value("2026-10-10T00:00:00Z"));
@@ -65,7 +80,8 @@ class AiControllerTest {
     void isLimitedPerIpWith429AndRetryAfter() throws Exception {
         when(quotas.quota(any())).thenReturn(QUOTA);
         when(quotas.features()).thenReturn(java.util.Map.of(
-                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, false, AiFeature.WEEKLY_SUMMARY, false));
+                AiFeature.DESCRIBE_MEAL, false, AiFeature.ASK_WHY, false, AiFeature.WEEKLY_SUMMARY, false,
+                AiFeature.SUGGEST_TAGS, false));
         callStatus("198.51.100.2").andExpect(status().isOk());
         callStatus("198.51.100.2").andExpect(status().isOk());
         callStatus("198.51.100.2")
