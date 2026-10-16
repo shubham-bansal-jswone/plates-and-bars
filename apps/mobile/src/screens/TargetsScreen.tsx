@@ -79,7 +79,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
     );
   }
   const drift = weightDrift(weights, profile.weight_kg);
-  const whyValues = profileWhyValues(profile);
+  const whyValues = profileWhyValues(profile, { date: localDate(now()), flex: settings.flex });
   return (
     <View style={{ flex: 1 }}>
       <Page>

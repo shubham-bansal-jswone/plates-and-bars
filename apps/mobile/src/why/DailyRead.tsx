@@ -38,7 +38,7 @@ export function DailyRead({ sex, values, now = () => new Date() }: { sex?: strin
           <Button kind="ghost" label="Read" a11yLabel={`Read ${next.title}`} onPress={() => setOpen(next.id)} />
         </View>
       ) : null}
-      {open ? <WhySheet id={open} values={values} onClose={() => setOpen(null)} /> : null}
+      {open ? <WhySheet id={open} values={values} now={now} onClose={() => setOpen(null)} /> : null}
     </>
   );
 }
