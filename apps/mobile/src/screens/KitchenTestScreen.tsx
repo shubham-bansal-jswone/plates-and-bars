@@ -141,7 +141,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           <Field label="Date" placeholder="2026-10-08" autoCapitalize="none" value={d.date} onChangeText={(date) => set({ date })} />
           {dateOk ? null : <ErrorText>{BAD_DATE}</ErrorText>}
           <Caption>Notes (who cooked, region, method)</Caption>
-          <Field label="Notes" placeholder="e.g. Mom’s Punjabi-style, pressure cooker" value={d.note} onChangeText={(note) => set({ note })} />
+          <Field label="Notes (who cooked, region, method)" placeholder="e.g. Mom’s Punjabi-style, pressure cooker" value={d.note} onChangeText={(note) => set({ note })} />
         </View>
         <View style={styles.gap}>
           <Label>Raw ingredients</Label>
