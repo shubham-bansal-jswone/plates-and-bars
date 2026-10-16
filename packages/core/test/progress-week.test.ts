@@ -104,7 +104,9 @@ describe('weekSummary', () => {
       const rows = html.split('<div class="wk-r">').slice(1);
       rows.forEach((row, k) => {
         const d = w.days[k]!;
-        expect(row).toContain(`aria-label="${Math.round(d.kcal).toLocaleString('en-IN')} kcal, ${Math.round(d.protein_g).toLocaleString('en-IN')} g protein"`);
+        const day = new Date(Number(d.date.slice(0, 4)), Number(d.date.slice(5, 7)) - 1, Number(d.date.slice(8))).toLocaleDateString('en-IN', { weekday: 'short' });
+        // #503: names the day, mentions a session, and says "not logged" instead of announcing zeros.
+        expect(row).toContain(`aria-label="${day}${d.trained ? ', trained' : ''}, ${d.logged ? `${Math.round(d.kcal).toLocaleString('en-IN')} kcal, ${Math.round(d.protein_g).toLocaleString('en-IN')} g protein` : 'not logged'}"`);
         expect(row).toContain(`style="width:${d.fillPct}%"`);
         expect(row).toContain(`style="left:${d.targetPct}%"`);
         expect(row.includes('class="fill over"')).toBe(d.over);

@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — prototype fix (a11y; spec-change; golden fixtures unchanged).**
+- #503: the Seven-days bar's `aria-label` (`renderProgress`) named no day and read "0 kcal, 0 g protein" on a day with nothing logged, as if the user had eaten nothing. It now names the day and says "not logged" for a blank day: "Thu, 2,400 kcal, 90 g protein", "Wed, not logged", "Thu, trained, not logged" (a session-only day). The app already announces this (`WeekCard`).
+
 **2026-10-09 — prototype fix, batch 10 (spec-change; golden fixtures unchanged, hand-worked cases in core's tests until the generator lands, #99).**
 - #267: in the "can't do" flow (`applyCant`'s `replaceAt`), the replacement takes the part of the exercise it replaces (`nx.part = ex.part`), whether it takes its place or goes after its ticked sets. A pick for a second-session exercise stays in the second session, so the "Second session" heading no longer moves below it or shows twice. Exercises added in other ways are unchanged.
 - #272: `candidates` with no `o.where` uses where the user trains today (`whereNow()`: the day's override, else the profile's, else gym) instead of the day's override, else gym. Its two callers without a `where`, the "can't do" sheet's pick list (`renderCant`) and `applyCant`'s "caught by a wider rule" loop, no longer offer or insert gym-only exercises for a user whose profile says dumbbells or bodyweight. Session building (`resolveName`) already passed `where`; unchanged.
