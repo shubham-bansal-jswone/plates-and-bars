@@ -429,6 +429,7 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
         })) {
           stored++;
           // A kitchen test deleted on another device: its serving photo (vault only) goes too, whatever the flag said here.
+          // This runs after the record transaction commits: a local photo save on the same test in that gap would be deleted too (rare, and the vault lock keeps the file consistent).
           if (tbl === 'kitchen_tests' && rec.deleted_at) await deleteKitchenPhoto(key).catch(() => undefined);
         }
         if (tbl === 'workouts') ctx.dates?.set(String(rec.id), key);

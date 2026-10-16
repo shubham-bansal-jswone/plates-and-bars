@@ -324,4 +324,45 @@ describe('kitchen test photos on a pulled delete', () => {
     server.put('kitchen_tests', kt('k1', '2026-10-09T06:00:00Z'));
     expect(await syncOnce(deps)).toMatchObject({ status: 'ok', pulled: 1 });
   });
+
+  describe('with a local copy', () => {
+    const local = (name: string, version = 1) => ({ ...kt('k1', null), name, version, id: 'k1' });
+    const put = (db: { runAsync: (sql: string, ...p: string[]) => Promise<unknown> }, t: object) => db.runAsync('INSERT OR REPLACE INTO kitchen_tests (key, data) VALUES (?, ?)', 'k1', JSON.stringify(t));
+
+    it('a conflict that ends with the server deletion kept locally removes the photo', async () => {
+      const { db, server, deps } = await setup();
+      await put(db, local('Dal'));
+      server.seed('kitchen_tests', kt('k1', '2026-10-09T06:00:00Z'));
+      expect(await syncOnce(deps)).toMatchObject({ status: 'ok', conflicts: 1, pulled: 0 });
+      expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM kitchen_tests WHERE key = 'k1'"))!.data).deleted_at).toMatch(/^2026-10-09T06:00:00/);
+      expect(deleteKitchenPhoto).toHaveBeenCalledTimes(1);
+      expect(deleteKitchenPhoto).toHaveBeenCalledWith('k1');
+    });
+
+    it('a newer local edit made during the push survives the conflict and keeps its photo', async () => {
+      const { db, server, deps } = await setup();
+      await put(db, local('Dal'));
+      server.seed('kitchen_tests', kt('k1', '2026-10-09T06:00:00Z'));
+      db.beforeTxn = async () => {
+        db.beforeTxn = undefined;
+        await put(db, local('Dal, edited'));
+      };
+      await syncOnce(deps);
+      expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM kitchen_tests WHERE key = 'k1'"))!.data)).toMatchObject({ name: 'Dal, edited', deleted_at: null });
+      expect(deleteKitchenPhoto).not.toHaveBeenCalled();
+    });
+
+    it('a pulled deletion for a test with a queued local edit leaves the photo', async () => {
+      const { db, server, deps } = await setup();
+      await put(db, local('Dal'));
+      await db.runAsync('DELETE FROM sync_outbox'); // synced
+      server.put('kitchen_tests', kt('k1', '2026-10-09T06:00:00Z'));
+      db.beforeTxn = async () => {
+        db.beforeTxn = undefined;
+        await put(db, local('Dal, edited'));
+      };
+      await syncOnce(deps);
+      expect(deleteKitchenPhoto).not.toHaveBeenCalled();
+    });
+  });
 });
