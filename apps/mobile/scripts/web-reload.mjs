@@ -88,6 +88,8 @@ try {
     const el = await page.waitForSelector(sel(l), { timeout: 20000 });
     await el.type(v);
   };
+  // Targets edits the calorie target in a number field, so the stored value is read from the input.
+  const kcalIs = (v) => page.waitForFunction((x) => document.querySelector('input[aria-label="Calories (kcal)"]')?.value === x, { timeout: 20000 }, v);
   page.on('console', (m) => m.type() === 'error' && console.log('console.error:', m.text().slice(0, 300)));
   let offlineNavFailed = false;
   page.on('requestfailed', (r) => {
@@ -122,7 +124,7 @@ try {
   await click('See my targets');
   await click('Use these targets');
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 }); // only Targets has it (the setup results also show 1,990 kcal)
-  await page.waitForSelector(sel('1,990 kcal'), { timeout: 20000 });
+  await kcalIs('1990');
   console.log('offline: setup completed and Targets shows 1,990 kcal with the network off');
   // The static export has no service worker or other offline cache for the app shell, so a reload while
   // offline cannot fetch index.html; that is expected and only logged. Persistence is asserted online below.
@@ -131,7 +133,7 @@ try {
   await page.setOfflineMode(false);
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 });
-  await page.waitForSelector(sel('1,990 kcal'), { timeout: 20000 });
+  await kcalIs('1990');
   console.log('after reload: targets screen shows 1,990 kcal without setup (profile read back from SQLite)');
   // Workout: start today's session (the planned one, or the first other template on a rest day), tick a set.
   await click('Workout');
