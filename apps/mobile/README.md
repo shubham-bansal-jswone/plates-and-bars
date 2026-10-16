@@ -1,6 +1,6 @@
 # Plate & Bar mobile app
 
-Expo (SDK 57) + TypeScript strict + Expo Router. Offline first: records live in expo-sqlite, tokens in expo-secure-store. M0 skeleton: four tabs matching the prototype (Food, Workout, Progress, Targets), a SQLite database opened on start with a `schema_version` table and one migration, and a Targets tab showing the daily targets that `packages/core` computes from a fixed demo profile.
+Expo (SDK 58) + TypeScript strict + Expo Router. Offline first: records live in expo-sqlite, tokens in expo-secure-store. M0 skeleton: four tabs matching the prototype (Food, Workout, Progress, Targets), a SQLite database opened on start with a `schema_version` table and one migration, and a Targets tab showing the daily targets that `packages/core` computes from a fixed demo profile.
 
 ## Commands (Node 22, run in `apps/mobile`)
 
@@ -67,6 +67,8 @@ npx serve@latest dist -l 8080 --single      # open http://localhost:8080
 ```
 
 Without the two headers the page is not cross-origin isolated and the database does not open on web.
+
+`app.json` passes `{ "asyncRoutes": false }` to the `expo-router` plugin: SDK 58 otherwise splits every route into its own JS file, loaded only when that route is first opened. On a page with no service worker that breaks the offline-first rule for the web build - a screen the user has not opened online yet cannot be opened at all offline (the e2e suite's offline tests fail on it). With async routes off the export is one `entry-*.js` plus the SQLite worker, exactly as under SDK 57.
 
 Check that data survives a reload (needs a local Chrome; set `CHROME_PATH` if it is not in a standard place):
 
