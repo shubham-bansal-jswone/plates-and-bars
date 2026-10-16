@@ -14,7 +14,7 @@ describe('owed photo wipe on web (#517)', () => {
     jest.restoreAllMocks();
   });
 
-  /** A real SQLite that behaves like expo-sqlite on web, behind lockedDb; `leaked` is set when a statement takes the write lock while a transaction is open. */
+  /** A real SQLite that behaves like expo-sqlite on web, behind lockedDb; taking the write lock while a transaction is open throws. */
   async function webDb() {
     let lockedDb!: typeof import('../src/db/lockedDb').lockedDb, writeLock!: typeof import('../src/db/writeLock').writeLock;
     let vault!: Vault, guard!: Guard, store!: Store;
@@ -36,31 +36,31 @@ describe('owed photo wipe on web (#517)', () => {
       withExclusiveTransactionAsync: async () => {
         throw new Error('withExclusiveTransactionAsync is not supported on web');
       },
-      withTransactionAsync: async (task: () => Promise<void>) => {
+      withTransactionAsync: async function (this: { execAsync(s: string): Promise<void> }, task: () => Promise<void>) {
         open = true;
-        await sqlite.execAsync('BEGIN');
+        await this.execAsync('BEGIN');
         try {
           await task();
-          await sqlite.execAsync('COMMIT');
+          await this.execAsync('COMMIT');
         } catch (e) {
-          await sqlite.execAsync('ROLLBACK');
+          await this.execAsync('ROLLBACK');
           throw e;
         } finally {
           open = false;
         }
       },
     });
-    const state = { leaked: false };
     const run = writeLock.run.bind(writeLock);
     jest.spyOn(writeLock, 'run').mockImplementation((task) => {
-      if (open) state.leaked = true; // on a device this waits for the open transaction, which waits for this: a deadlock
+      // On a device this would wait for the open transaction, which waits for this: a deadlock.
+      if (open) throw new Error('write lock taken inside an open transaction');
       return run(task);
     });
-    return { db: lockedDb(raw as unknown as SQLiteDatabase) as unknown as Parameters<Guard['completePhotoWipe']>[0], vault, guard, store, state };
+    return { db: lockedDb(raw as unknown as SQLiteDatabase) as unknown as Parameters<Guard['completePhotoWipe']>[0], vault, guard, store };
   }
 
   it('a store wipe sets the marker, wipes the in-memory vault and clears the marker, with nothing in the transaction through the locked db', async () => {
-    const { db, vault, guard, store, state } = await webDb();
+    const { db, vault, guard, store } = await webDb();
     expect(vault.persistent).toBe(false);
     await vault.putPhoto('2026-10-01', 'front', 'AAAA');
     const told: boolean[] = [];
@@ -68,7 +68,6 @@ describe('owed photo wipe on web (#517)', () => {
 
     expect(await guard.wipeLocalStore(db, { force: true })).toBe(0);
 
-    expect(state.leaked).toBe(false);
     expect(await vault.photoDates()).toEqual([]);
     expect(await vault.getPhoto('2026-10-01', 'front')).toBeNull();
     expect(await store.getKv(db, store.KEY_PHOTOS_WIPE)).toBeNull();
@@ -76,13 +75,12 @@ describe('owed photo wipe on web (#517)', () => {
   });
 
   it('an owed wipe left by an earlier run is finished by completePhotoWipe', async () => {
-    const { db, vault, guard, store, state } = await webDb();
+    const { db, vault, guard, store } = await webDb();
     await vault.putPhoto('2026-10-01', 'side', 'BBBB');
     await store.setKv(db, store.KEY_PHOTOS_WIPE, '1');
 
     await guard.completePhotoWipe(db);
 
-    expect(state.leaked).toBe(false);
     expect(await vault.getPhoto('2026-10-01', 'side')).toBeNull();
     expect(await store.getKv(db, store.KEY_PHOTOS_WIPE)).toBeNull();
   });
