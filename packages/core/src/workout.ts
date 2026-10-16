@@ -6,6 +6,8 @@ import { COMPOUND, type ExerciseCatalog } from './session';
 export const REST_COMPOUND_SEC = 150;
 /** Rest after a set of any other exercise, in seconds (prototype `restFor`). */
 export const REST_OTHER_SEC = 75;
+/** Seconds the rest timer's "+30 s" button adds (prototype `rest-add`). */
+export const REST_EXTEND_SEC = 30;
 
 /**
  * Rest between sets in seconds: 150 for a compound lift (its tag's pattern is in `COMPOUND`), 75 for
