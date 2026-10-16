@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
+import { DailyRead } from '../why/DailyRead';
+import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
 import { DEFAULT_KCAL_TARGET, round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
@@ -53,6 +55,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <H1>Progress</H1>
             <CheckinCard date={p.date} c={ci} />
             <RapidLossCard c={ci} />
+            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} />
