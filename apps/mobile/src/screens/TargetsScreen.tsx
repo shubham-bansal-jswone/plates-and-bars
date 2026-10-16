@@ -13,6 +13,7 @@ import { listIntro } from '../kitchen/copy';
 import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
+import type { PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -32,7 +33,7 @@ const burnParts = (p: Profile) => {
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
 interface Props {
-  db: WorkoutDb;
+  db: WorkoutDb & PullDb;
   /** Clock, injectable for tests. */
   now?: () => Date;
 }

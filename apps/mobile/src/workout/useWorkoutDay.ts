@@ -223,10 +223,12 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         d.sessions = sessions;
         d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         commit(d);
-        await enqueue(async () => {
+        // One transaction: the old sets' tombstones, the workout row and the new sets are stored together or not at all (#516).
+        await enqueue(() => inTransaction(db, async (txn) => {
+          const h = txn as WorkoutDb;
           // Started over a session deleted on another device: its sets go with it, so the new session does not
           // pick them up (the contract does not promise that the deleting device tombstoned them).
-          const stored = await loadWorkout(db, date);
+          const stored = await loadWorkout(h, date);
           if (stored && !stored.deleted_at) {
             // A live session is already stored (pulled from another device, or kept after a removal) that this screen
             // has not shown yet: never overwrite it; read it again so it shows instead.
@@ -236,11 +238,11 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           const overTombstone = !!stored?.deleted_at;
           if (overTombstone) {
             const at = stamp(now());
-            for (const s of await loadSets(db, date)) if (!s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
+            for (const s of await loadSets(h, date)) if (!s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
           }
-          await writeWorkout(overTombstone);
-          for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets));
-        });
+          await writeWorkout(overTombstone, h);
+          for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets), h);
+        }));
       } finally {
         building.current = false;
       }
@@ -279,10 +281,12 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         d.workout = { ...old, template: merged.template, base: merged.base, mods: merged.mods };
         commit(d);
         notify(`${template} added to today`);
-        await enqueue(async () => {
-          await writeWorkout();
-          for (const ex of added) await writeSets(ex.name, 'work', ids(ex.sets));
-        });
+        await enqueue(() =>
+          inTransaction(db, async (txn) => {
+            await writeWorkout(false, txn as WorkoutDb);
+            for (const ex of added) await writeSets(ex.name, 'work', ids(ex.sets), txn as WorkoutDb);
+          }),
+        );
       } finally {
         building.current = false;
       }
@@ -497,25 +501,35 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     commit(d);
     void enqueue(async () => {
       const at = stamp(now());
-      // Every stored row of the exercise, also ones a pull stored that this screen never loaded.
-      for (const s of await loadSets(db, date)) if (s.exercise === name && !s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
-      if (last) {
-        const stored = await loadWorkout(db, date);
-        if (stored && !stored.deleted_at) {
-          // Exercises another device added since this screen loaded are not this removal's to delete: keep them.
-          const base = synced.current;
-          const elsewhere = stored.exercises.filter((e) => e.name !== name && !base?.exercises.some((b) => b.name === e.name));
-          if (elsewhere.length) {
-            const row = { ...stored, exercises: elsewhere, updated_at: at };
-            await saveWorkout(db, row);
-            synced.current = row;
-            setMerged((n) => n + 1); // show them
-          } else {
-            await saveWorkout(db, { ...stored, updated_at: at, deleted_at: at });
-            synced.current = null;
+      let after: Workout | null | undefined; // the base to keep once the transaction has committed
+      let show = false;
+      // One transaction: the tombstoned sets and the workout row change together or not at all (#516).
+      await inTransaction(db, async (txn) => {
+        const h = txn as WorkoutDb;
+        after = undefined;
+        show = false;
+        // Every stored row of the exercise, also ones a pull stored that this screen never loaded.
+        for (const s of await loadSets(h, date)) if (s.exercise === name && !s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
+        if (last) {
+          const stored = await loadWorkout(h, date);
+          if (stored && !stored.deleted_at) {
+            // Exercises another device added since this screen loaded are not this removal's to delete: keep them.
+            const base = synced.current;
+            const elsewhere = stored.exercises.filter((e) => e.name !== name && !base?.exercises.some((b) => b.name === e.name));
+            if (elsewhere.length) {
+              const row = { ...stored, exercises: elsewhere, updated_at: at };
+              await saveWorkout(h, row);
+              after = row;
+              show = true; // show them
+            } else {
+              await saveWorkout(h, { ...stored, updated_at: at, deleted_at: at });
+              after = null;
+            }
           }
-        }
-      } else await writeWorkout();
+        } else await writeWorkout(false, h);
+      });
+      if (after !== undefined) synced.current = after;
+      if (show) setMerged((n) => n + 1);
       if (gone.sets.some((s) => s.done)) await syncLift(gone.name, gone);
     });
     return true;
