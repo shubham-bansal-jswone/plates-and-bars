@@ -44,12 +44,13 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   const queue = useRef<Promise<void>>(Promise.resolve());
   /** Counts local changes, so a reload can tell that one started while it was reading (#597). */
   const writes = useRef(0);
-  /** Number of reloads reading now. A change made meanwhile is applied to the stored record, not saved over it (#614). */
-  const reloading = useRef(0);
+  /** Changes made and not yet finished writing (saved or failed). */
+  const pending = useRef(0);
+  /** Edits whose write failed: the next save applies them again, once each, so a later edit does not drop them. */
+  const unsaved = useRef<((s: Settings) => Settings)[]>([]);
 
   useEffect(() => {
     let live = true;
-    reloading.current += 1;
     (async () => {
       // Local edits still being written land first, so a reload never reads around them. An edit made while the
       // read was running is newer than what was read (and its save may not have landed yet): read again after it.
@@ -68,15 +69,13 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
         setState(s);
       }
       setReady(true);
-    })()
-      .catch(() => {
-        if (!live) return;
-        setCustomTags({}); // the record could not be read: no custom exercises rather than someone else's
-        blocked.current = true;
-        setLoadFailed(true);
-        setReady(true);
-      })
-      .finally(() => void (reloading.current -= 1));
+    })().catch(() => {
+      if (!live) return;
+      setCustomTags({}); // the record could not be read: no custom exercises rather than someone else's
+      blocked.current = true;
+      setLoadFailed(true);
+      setReady(true);
+    });
     return () => {
       live = false;
     };
@@ -87,21 +86,38 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
       if (blocked.current) return false;
       const at = stamp(new Date());
       const apply = (s: Settings): Settings => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch), updated_at: at });
+      // The edit shows at once. Its save applies it, once, to the record in the store, not to this copy: a pull may
+      // have replaced the record since (a field another device changed must not be reverted and uploaded, #614).
       const next = apply(ref.current);
-      // While a reload reads, the in-memory copy may be older than the stored record (a pull just replaced it):
-      // apply the edit on top of what is stored, so a field another device changed is not reverted and uploaded (#614).
-      const onStored = reloading.current > 0;
       ref.current = next;
       writes.current += 1;
+      pending.current += 1;
       setCustomTags(next.custom_tags);
       setState(next);
       queue.current = queue.current
         .then(async () => {
-          const stored = onStored ? await loadSettings(db) : null;
-          await saveSettings(db, stored ? apply(stored) : ref.current);
+          unsaved.current.push(apply);
+          const saved = unsaved.current.reduce((s, f) => f(s), (await loadSettings(db)) ?? defaultSettings(at));
+          await saveSettings(db, saved);
+          unsaved.current = [];
+          return saved;
         })
-        .then(() => setSaveFailed(false))
-        .catch(() => setSaveFailed(true));
+        .then(
+          (saved) => {
+            setSaveFailed(false);
+            pending.current -= 1;
+            // The last of the queued edits has landed: what shows is what is stored (it keeps the pulled fields and version).
+            if (pending.current === 0) {
+              ref.current = saved;
+              setCustomTags(saved.custom_tags);
+              setState(saved);
+            }
+          },
+          () => {
+            pending.current -= 1;
+            setSaveFailed(true);
+          },
+        );
       return true;
     },
     [db],
