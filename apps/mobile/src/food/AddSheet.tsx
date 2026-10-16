@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
@@ -118,6 +119,7 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
         ))}
       </View>
       <Label>Smart picks</Label>
+      {name === 'Drinks' ? <WhyLink id="alcohol" /> : null}
       {cu?.tips.map((t) => <Hint key={t}>{`• ${t}`}</Hint>)}
       {cu?.dishes.map((d) => <Row key={d.id ?? d.name} food={d} badge={false} sub={`${d.per_serving.protein_g} g protein, ${d.per_serving.carbs_g} g carbs, ${d.per_serving.fat_g} g fat`} onPress={() => { onAdd(logOf(d, 1)); say(`Added ${d.name}`); }} />)}
       <Hint>{EATOUT_HINT}</Hint>

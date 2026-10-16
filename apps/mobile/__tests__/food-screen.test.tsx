@@ -352,7 +352,9 @@ describe('Food screen', () => {
     await open();
     await fireEvent.press(screen.getByLabelText('Eating out'));
     expect(screen.getByText('Smart picks')).toBeTruthy();
+    expect(screen.queryByLabelText('Why? Alcohol and training')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Drinks'));
+    expect(screen.getByLabelText('Why? Alcohol and training')).toBeTruthy();
     const beer = getCuisines().find((c) => c.name === 'Drinks')!.dishes[0]!;
     await fireEvent.press(screen.getByLabelText(new RegExp(`^Add ${beer.name.replace(/[()]/g, '\\$&')}`)));
     await screen.findByText(`Added ${beer.name}`);

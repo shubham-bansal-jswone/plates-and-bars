@@ -78,6 +78,7 @@ export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
       </View>
       <Text style={{ color: t.ink }}>{weekly}</Text>
       <Text style={{ color: t.ink }}>{cardio}</Text>
+      <WhyLink id="activity" />
       <Text style={{ color: t.ink }}>{lifts}</Text>
       <Card style={styles.gap}>
         <Text style={{ color: t.ink, fontWeight: '700' }}>{BURN_TITLE}</Text>
