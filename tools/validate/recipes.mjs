@@ -1,9 +1,9 @@
 // Validators for content/raw-ingredients.json, content/recipes.json and content/meal-planning.json.
 // Each returns a list of error strings. Source codes and the kcal tolerance are shared with validate/foods.mjs.
 import { SOURCE_CODES, kcalTolerance } from './foods.mjs';
+import { nonEmpty } from './text.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const nonEmpty = (s) => typeof s === 'string' && s.trim() !== '';
 const num = (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
 const pos = (x) => num(x) && x > 0;
 const norm = (s) => s.trim().toLowerCase();
