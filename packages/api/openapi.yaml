@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.15
+  version: 0.1.17
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -53,7 +53,65 @@ security:
   - bearerAuth: []
 tags:
   - name: auth
-    description: Sign-in and token refresh. Public.
+    description: |
+      Sign-in, token refresh and sign-out. Public. ADR 003 covers the tokens and ADR 006
+      covers the web cookie.
+
+      **Two ways to carry the refresh token.** Native apps use the body (unchanged): the
+      refresh token arrives in `TokenPair.refresh_token`, the app keeps it in the
+      platform's secure store and sends it back in `RefreshRequest.refresh_token`. The web
+      app uses a cookie, because a browser has no secure store. It sends the header
+      `X-Auth-Transport: cookie` (fetch option `credentials: 'include'`) on
+      `POST /auth/google`, `POST /auth/email/verify`, `POST /auth/refresh` and
+      `POST /auth/refresh/revoke`. Without that header the server never reads or sets the
+      cookie, even if the browser sends one, and everything works as in body mode.
+
+      **Cookie mode.**
+      - A response that issues tokens (200 from sign-in or refresh) sets
+        `__Secure-pb_refresh=<token>; Path=/api/v1/auth/refresh; Max-Age=7776000; HttpOnly; Secure; SameSite=Strict`
+        (no `Domain`, so only the API host gets it; `Max-Age` is the 90-day refresh
+        lifetime, matching `refresh_token_expires_at`). In the body, `refresh_token` is
+        the empty string; everything else is as in body mode.
+      - `POST /auth/refresh` and `POST /auth/refresh/revoke` read the token from the
+        cookie only. A `refresh_token` in the body is refused with 400 `invalid_request`.
+        Rotation replaces the cookie.
+      - The cookie is cleared (same name, `Path` and attributes, `Max-Age=0`) by every
+        401 from `POST /auth/refresh` and every 204 from `POST /auth/refresh/revoke`.
+        Other errors (400, 403, 429, 5xx) leave it unchanged.
+      - The web app keeps the access token in memory only, never in `localStorage`,
+        `sessionStorage`, IndexedDB or a script-readable cookie. After a reload it calls
+        `POST /auth/refresh` to get a new one.
+
+      **CSRF.** Cookie mode is accepted only when the request carries an `Origin` header
+      exactly equal to one of the configured web app origins (the CORS allow-list). If
+      `Origin` is missing or not allowed, the server answers 403 `forbidden`, and it
+      neither reads nor changes the cookie or the session. This applies to the sign-in
+      endpoints too, which stops a login CSRF from planting someone else's session. It
+      adds to two other defences:
+      - `SameSite=Strict`: the browser never sends the cookie on a request started from
+        another site.
+      - The custom header: a cross-site form or simple request cannot carry it, and a
+        script on another origin must pass a CORS preflight, which only allowed origins
+        pass.
+
+      **CORS.** For each configured web app origin (exact match, never `*`), responses
+      on `/auth/*`, including preflights, carry `Access-Control-Allow-Origin: <origin>`,
+      `Access-Control-Allow-Credentials: true` and `Vary: Origin`. Preflights allow the
+      `X-Auth-Transport` and `Content-Type` request headers. The web app sends
+      credentials only to the four endpoints above. Other endpoints use the bearer header
+      and need not allow credentials.
+
+      **Deployment.** The web app and the API must be on the same site (`https` and the
+      same registrable domain, for example `app.example.com` and `api.example.com`).
+      Otherwise the browser treats the cookie as third-party and never sends it. The
+      `__Secure-` prefix and `Secure` need HTTPS. Local development needs HTTPS too, or a
+      browser that treats `http://localhost` as a secure context.
+
+      **Several tabs.** All tabs of a browser share the cookie, and each tab keeps its own
+      access token in memory. The web app runs at most one refresh at a time across tabs
+      (for example with the Web Locks API). Otherwise two refreshes could race on one
+      cookie: if the older `Set-Cookie` arrives last, the browser keeps a replaced token,
+      and the next refresh ends the session as reuse.
   - name: sync
     description: Offline-first sync of user-owned records.
   - name: foods
@@ -210,6 +268,8 @@ paths:
         Verifies the Google ID token obtained on the device, creates the account on first
         sign-in, and returns a new token pair.
       security: []
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
       requestBody:
         required: true
         content:
@@ -227,6 +287,8 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -281,6 +343,8 @@ paths:
         token pair. A code is single-use; after 5 wrong attempts it is invalidated and the
         user must request a new one.
       security: []
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
       requestBody:
         required: true
         content:
@@ -308,6 +372,8 @@ paths:
                   value:
                     code: invalid_code
                     message: That code is wrong or has expired. Request a new one.
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -341,7 +407,15 @@ paths:
         counts as reuse: the whole session is revoked. So if someone else used the window,
         the device's next refresh ends the session. After 60 seconds, or once the newer token has been
         presented, reuse is theft as above.
+
+        **Web (cookie mode).** With `X-Auth-Transport: cookie` the token comes from the
+        `__Secure-pb_refresh` cookie and the body is `{}`; see the `auth` tag. The rules
+        above are the same. The browser holds the token, so "retry with the token it still
+        holds" means retrying with whatever cookie the browser has.
       security: []
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
+        - $ref: '#/components/parameters/RefreshCookie'
       requestBody:
         required: true
         content:
@@ -350,15 +424,24 @@ paths:
               $ref: '#/components/schemas/RefreshRequest'
             examples:
               default:
+                summary: Native app (body mode)
                 value:
                   refresh_token: rt_9f2c1e6b7a8d4c3b9e0f1a2b3c4d5e6f
+              cookie:
+                summary: Web app (cookie mode, X-Auth-Transport cookie)
+                value: {}
       responses:
         '200':
           $ref: '#/components/responses/TokenPair'
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':
-          description: Refresh token unknown, expired, revoked or reused.
+          description: |
+            Refresh token unknown, expired, revoked or reused, or (cookie mode) no cookie.
+            In cookie mode the response also clears the cookie.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/ClearRefreshCookie'
           content:
             application/json:
               schema:
@@ -368,6 +451,8 @@ paths:
                   value:
                     code: unauthorized
                     message: Your session has ended. Sign in again.
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -386,6 +471,67 @@ paths:
                   value:
                     code: unavailable
                     message: Service temporarily unavailable.
+
+  /auth/refresh/revoke:
+    post:
+      tags: [auth]
+      operationId: revokeSession
+      summary: Sign out (end the session and clear the refresh cookie)
+      description: |
+        Ends the session the presented refresh token belongs to. Every token descended
+        from the same sign-in is revoked, so this browser or device is signed out. Other
+        devices have their own sessions and stay signed in. Access tokens already issued
+        stay valid until they expire (at most 15 minutes), so the app discards its own.
+
+        Any refresh token the server knows revokes its session, whether current, already
+        rotated or expired. An unknown token, or no cookie in cookie mode, revokes
+        nothing. The answer is 204 in every one of these cases, so a retry is safe. In
+        cookie mode the 204 also clears the cookie.
+
+        **Web app.** It must call this to sign out, because script cannot delete an
+        httpOnly cookie. Until the call succeeds, the cookie would sign the user back in
+        on the next reload. If the call does not complete (for example offline), the app
+        keeps a "sign-out pending" flag, which holds no token and may sit in
+        `localStorage`. While the flag is set the app does not call `POST /auth/refresh`,
+        and it retries this call first. After `DELETE /me` it also calls this endpoint,
+        only to clear the cookie (the session is already revoked).
+
+        **Native apps** may call it in body mode on sign-out. They delete their stored
+        tokens whatever the result.
+
+        Rate-limited per IP like every endpoint. The token is never logged.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
+        - $ref: '#/components/parameters/RefreshCookie'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            examples:
+              default:
+                summary: Native app (body mode)
+                value:
+                  refresh_token: rt_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
+              cookie:
+                summary: Web app (cookie mode, X-Auth-Transport cookie)
+                value: {}
+      responses:
+        '204':
+          description: Signed out (or there was nothing to revoke). In cookie mode the cookie is cleared.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/ClearRefreshCookie'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
 
   /sync:
     post:
@@ -916,7 +1062,8 @@ paths:
         15 minutes but are refused by every endpoint with 401 `unauthorized`, except
         this one (see Idempotency). Other signed-in devices therefore get 401 on their
         next request and must sign in again; no request made with a pre-deletion token
-        can write data. The server cannot erase data stored on other devices; the app
+        can write data. The web app then calls `POST /auth/refresh/revoke` in cookie mode
+        to clear its refresh cookie. The server cannot erase data stored on other devices; the app
         deletes the local store on the device that made the request.
 
         **Idempotency.** Deleting an account that is already deleted succeeds: a repeat
@@ -1484,8 +1631,44 @@ components:
       schema:
         type: string
       example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+    AuthTransport:
+      name: X-Auth-Transport
+      in: header
+      required: false
+      description: |
+        `cookie` selects cookie mode, which the web app uses: the refresh token travels
+        only in the `__Secure-pb_refresh` cookie, never in a body. Requires an allowed
+        `Origin` (else 403 `forbidden`). Absent: body mode, which native apps use and
+        which is unchanged. See the `auth` tag.
+      schema:
+        type: string
+        const: cookie
+      example: cookie
+    RefreshCookie:
+      name: __Secure-pb_refresh
+      in: cookie
+      required: false
+      description: |
+        The refresh token in cookie mode, set by the server and sent by the browser
+        (`HttpOnly`, so the web app's script never sees it). Read only when
+        `X-Auth-Transport: cookie` is present, and ignored otherwise.
+      schema:
+        type: string
+      example: rt_9f2c1e6b7a8d4c3b9e0f1a2b3c4d5e6f
 
   headers:
+    SetRefreshCookie:
+      description: |
+        Cookie mode only: sets or rotates the refresh token cookie. Absent in body mode.
+      schema:
+        type: string
+      example: __Secure-pb_refresh=rt_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d; Path=/api/v1/auth/refresh; Max-Age=7776000; HttpOnly; Secure; SameSite=Strict
+    ClearRefreshCookie:
+      description: |
+        Cookie mode only: clears the refresh token cookie. Absent in body mode.
+      schema:
+        type: string
+      example: __Secure-pb_refresh=; Path=/api/v1/auth/refresh; Max-Age=0; HttpOnly; Secure; SameSite=Strict
     NoStore:
       description: Always `no-store`.
       schema:
@@ -1522,13 +1705,17 @@ components:
         Vary:
           $ref: '#/components/headers/VaryAcceptEncoding'
     TokenPair:
-      description: Signed in; a new token pair.
+      description: Signed in; a new token pair. In cookie mode the refresh token is in the cookie and the body's `refresh_token` is empty.
+      headers:
+        Set-Cookie:
+          $ref: '#/components/headers/SetRefreshCookie'
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/TokenPair'
           examples:
             default:
+              summary: Native app (body mode)
               value:
                 token_type: Bearer
                 access_token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhMWIyIn0.c2ln
@@ -1540,6 +1727,19 @@ components:
                   email: asha@example.com
                   created_at: '2026-10-08T06:30:00Z'
                 new_user: true
+            cookie:
+              summary: Web app (cookie mode); the refresh token is only in Set-Cookie
+              value:
+                token_type: Bearer
+                access_token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhMWIyIn0.c2ln
+                access_token_expires_at: '2026-10-08T06:45:00Z'
+                refresh_token: ''
+                refresh_token_expires_at: '2027-01-06T06:30:00Z'
+                user:
+                  id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                  email: asha@example.com
+                  created_at: '2026-10-08T06:30:00Z'
+                new_user: false
     InvalidRequest:
       description: The request is malformed or fails validation.
       content:
@@ -1595,6 +1795,20 @@ components:
               value:
                 code: rate_limited
                 message: Too many requests. Try again in a minute.
+    Forbidden:
+      description: |
+        Cookie mode (`X-Auth-Transport: cookie`) without an allowed `Origin`: the header
+        is missing or not one of the configured web app origins. Nothing was read or
+        changed (no cookie, session or sign-in). See the `auth` tag, CSRF.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            default:
+              value:
+                code: forbidden
+                message: This request is not allowed from here.
     Internal:
       description: Unexpected server error.
       content:
@@ -1687,14 +1901,16 @@ components:
             - unavailable
             - quota_exceeded
             - feature_disabled
+            - forbidden
           description: |
             Stable machine-readable code. `token_expired`: refresh the access token and
             retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
             or expired. `not_found` (404): the named resource does not exist; today only
             `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
             `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
-            the server; use the non-AI fallback. Clients treat an unknown code like
-            `internal`.
+            the server; use the non-AI fallback. `forbidden` (403, `/auth/*` cookie mode
+            only): the request's `Origin` is missing or not an allowed web app origin.
+            Clients treat an unknown code like `internal`.
         message:
           type: string
           description: Plain-language message safe to show the user. Never contains health data.
@@ -1769,10 +1985,15 @@ components:
 
     RefreshRequest:
       type: object
-      required: [refresh_token]
+      description: |
+        Body mode (native apps): `refresh_token` is required, and a request without it
+        is 400 `invalid_request`. Cookie mode (`X-Auth-Transport: cookie`, the web app):
+        send `{}`. The token comes from the cookie, and a body that carries
+        `refresh_token` is 400 `invalid_request`.
       properties:
         refresh_token:
           type: string
+          description: The current refresh token. Body mode only.
 
     TokenPair:
       type: object
@@ -1797,6 +2018,9 @@ components:
           type: string
           description: |
             Opaque, single-use. Store in secure storage; replace on every refresh.
+            Cookie mode (`X-Auth-Transport: cookie`, the web app): always the empty
+            string. The token is only in the httpOnly `__Secure-pb_refresh` cookie (see
+            the `auth` tag). The field stays required so both modes share one shape.
             Lifetime 90 days, extended on rotation: every `/auth/refresh` returns a new
             refresh token valid for 90 days from that refresh, so a device that opens the
             app at least once every 90 days stays signed in. Presenting an already-rotated
@@ -1804,7 +2028,7 @@ components:
             rotation while the newer token has never been presented (see `/auth/refresh`).
         refresh_token_expires_at:
           $ref: '#/components/schemas/Timestamp'
-          description: When `refresh_token` expires, 90 days after it was issued.
+          description: When the refresh token expires (in body or cookie), 90 days after it was issued.
         user:
           $ref: '#/components/schemas/User'
         new_user:
