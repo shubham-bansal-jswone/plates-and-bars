@@ -13,6 +13,7 @@ import {
   type ExclusionReason,
   type ExclusionScope,
   type ExerciseTag,
+  type ExerciseCatalog,
   type LadderCatalog,
   type LiftRecord,
   type Where,
@@ -22,7 +23,7 @@ import { loadLadders, type ProtoRule } from './prototype-ladders';
 
 // No golden cases exist for the "can't do" sheet; the workout steps are checked against the prototype's
 // own applyCant (with its replaceAt and newExercise) over random sessions, and by hand-worked tests.
-const catalog = content as unknown as LadderCatalog & typeof content;
+const catalog = content as unknown as LadderCatalog & ExerciseCatalog & typeof content;
 const { tags } = catalog;
 const DATE = '2026-10-08';
 const NAMES = Object.keys(tags);
