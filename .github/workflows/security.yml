@@ -31,13 +31,18 @@ jobs:
           tar -xzf "/tmp/$tgz" -C /usr/local/bin gitleaks
       # gitleaks defaults to `git log --all`, so one branch's finding would fail every PR.
       # PR: checkout is the tested merge commit; HEAD^1 is the base tip, so HEAD^1..HEAD is
-      # only the PR's own commits. Push to main and schedule: HEAD is main, full history.
+      # only the PR's own commits. Push to main: HEAD is main, full history. Weekly schedule:
+      # every branch and tag (--all), so a secret on a branch without a PR is found; a finding
+      # fails only the scheduled run, never a PR.
       - name: Scan PR commits
         if: github.event_name == 'pull_request'
         run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --log-opts="HEAD^1..HEAD"
       - name: Scan main history
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push'
         run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --log-opts="HEAD"
+      - name: Scan all branches (weekly)
+        if: github.event_name == 'schedule'
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --log-opts="--all"
 
   dependency-review:
     name: dependency-review
