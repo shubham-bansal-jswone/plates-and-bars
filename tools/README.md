@@ -6,7 +6,24 @@ Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm
 - `validate/` checks `content/exercises.json` (`npm run validate:exercises`) and `content/foods.json` (`npm run validate:foods`).
 - `foods-import/` regenerates `content/foods.json` from `docs/spec/golden/foods.json` (`npm run import:foods`).
 - `cards-import/` regenerates `content/cards.json` (KB and LEARN), `content/measures.json` (MEASURES) and `content/labels.json` (MUSCLE, JOINT, replacement-reason phrases) from the prototype (`npm run import:cards`); `validate/cards-cli.mjs` checks them (`npm run validate:cards`) and rejects a card without a source. See "Cards, measures and labels" below.
+- `golden-gen/` regenerates `docs/spec/golden/*.json` from the prototype's own code (`npm run golden`; `npm run check:golden` compares without writing). See "Golden fixtures" below.
 - `check-no-ifct/` exits non-zero if "IFCT" or "INDB" (any case) appears in a file name or file under `content/` (`npm run check:sources`). CI wiring lives in `.github/workflows/` (infra).
+
+## Golden fixtures
+
+`golden-gen/` runs the prototype (`docs/prototype/plate-and-bar.html`) in a Node `vm` sandbox and writes the seven files in `docs/spec/golden/`, byte for byte as committed (JSON, one-space indent, no trailing newline). No dependencies, no clock, no randomness, no network; a test runs it under three time zones.
+
+- `prototype.mjs` copies top-level statements of the prototype by name (`const X = ...`, `Object.assign(X, ...)`, `X[...] = ...`, `X.push(...)`, a function) and evaluates only those, the way core's tests slice the HTML. Tables (`TAGS`, `CARDS`, `LIB`, `LADDERS`, `AWAY`, `FOODS`, `FIB`, `RAW`, `RAW_FIB`, `ALIAS`, `TEMPLATES`, `SPLITS`, `EX_META`, `DEFAULT_STEP`) are read as the prototype leaves them after its later `Object.assign` and `push` edits; `calcTargets`, `suggestBase`, `navyBF`, `waterTarget`, `fibreTarget`, `workoutBurn`, `planned`, `exerciseCap` and the session pipeline are run, never re-typed.
+- `cases.mjs` is the checked-in case list: the profiles for `targets.json`, the lift records for `progression.json`, the training days and session lengths for `plan.json`, the profile behind every `sessions.json` case (45 minutes, experience "some", no stored sessions, so rotation offset 0), and the inputs of `formulas.json`. `TODAY` (2026-10-07) and `WEEK_START` (2026-10-05) are the fixed dates.
+- Rounding of stored values is applied in `generate.mjs` as in `docs/spec/PROTOTYPE_SPEC.md` section 1: whole kcal for `tdee`, `bmr`, `movement`, `training` and `digestion`; `refWeight` whole; `weeklyKg` to 2 decimals; `navyBodyFat` to 1 decimal; negative zero stored as 0.
+- `npm test` fails if any committed golden file differs from what the prototype produces (`golden-gen.test.mjs`), and CI runs `tools` whenever `docs/prototype/` or `docs/spec/golden/` changes. `node golden-gen/cli.mjs --check` does the same from the command line.
+
+How a `spec-change` PR regenerates fixtures:
+
+1. Change `docs/prototype/plate-and-bar.html` (and add cases in `golden-gen/cases.mjs`, or a generator for a new fixture in `golden-gen/generate.mjs`).
+2. From `tools/`, run `node golden-gen/cli.mjs`. Never edit `docs/spec/golden/*.json` by hand.
+3. Commit the prototype, the case list and the regenerated fixtures together, label the PR `spec-change`, and add the dated entry at the top of section 0 of the spec.
+4. If a fixture's recorded inputs changed, `npm test` also checks that `cases.mjs` matches them.
 
 ## Exercise card keys
 
