@@ -2881,7 +2881,7 @@ Question: ${q}`, { modelTier:'quick' });
 function learnCardHtml(){
   const L = S.settings.learn = S.settings.learn || { start: TODAY(), read: [] };
   const list = LEARN.slice(); if(S.settings.profile && S.settings.profile.sex === 'female') list.splice(6, 0, 'bulky');
-  const due = Math.min(list.length, 1 + Math.floor(daysBetween(L.start, TODAY()) / 3));
+  const due = Math.min(list.length, 1 + Math.floor(Math.max(0, daysBetween(L.start, TODAY())) / 3)); // a start after today counts as today
   const next = list.slice(0, due).find(id => !L.read.includes(id));
   const readN = list.filter(id => L.read.includes(id)).length;
   if(!next) return readN < list.length ? '' : '';

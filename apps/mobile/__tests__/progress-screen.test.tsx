@@ -800,7 +800,7 @@ describe('Progress screen, seven days', () => {
       fill: { width: '92.77155005798222%', opacity: 0.85 },
       tgt: { left: '76.92307692307693%', opacity: 0.5 },
     });
-    // A blank day's bar announces the day and that nothing was logged, not the prototype's "0 kcal, 0 g protein".
+    // A blank day's bar announces the day and that nothing was logged, as the prototype's bar does too (#588), not "0 kcal, 0 g protein".
     expect(screen.getByLabelText('Wed, not logged')).toBeTruthy();
   });
 
