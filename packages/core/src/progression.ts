@@ -1,18 +1,23 @@
 import { daysBetween } from './dates';
 import { num } from './num';
 import { older, type PlanProfile, type Where } from './plan';
+import type { components } from '../../api/client/schema';
 import type { ExerciseCatalog, ExerciseTag } from './session';
 
-/** Equipment type of an exercise (prototype `EX_META[name][0]`). */
-export type ExType = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'assisted' | 'bodyweight' | 'time' | 'other';
+/**
+ * Equipment type of an exercise (prototype `EX_META[name][0]`): the contract's eight-value enum at
+ * `Settings.exercise_overrides[name].type`, from the generated client.
+ */
+export type ExType = components['schemas']['Settings']['exercise_overrides'][string]['type'];
 
 /**
  * An exercise's type and rep range: prototype `EX_META[name]` (`[type, lo, hi]`) under content's names
- * (content/exercises.json `meta`, the contract's `exercise_overrides` names). `type` is a plain string
- * so content/exercises.json is assignable as is; content's validator limits it to `ExType` values.
+ * (content/exercises.json `meta`, the contract's `exercise_overrides` names). A JSON import types `type`
+ * as a plain string, so content/exercises.json needs a cast (or a runtime check) to become an
+ * `ExerciseMeta`; content's validator limits it to `ExType` values.
  */
 export interface ExerciseMeta {
-  type: string;
+  type: ExType;
   rep_low: number;
   rep_high: number;
 }
@@ -77,7 +82,7 @@ export interface ExerciseOverride {
 
 /** One entry of contract `Settings.exercise_overrides` (prototype `S.settings.ex[name]` renamed). */
 export interface SettingsExerciseOverride {
-  type: string;
+  type: ExType;
   step_kg: number;
   rep_low: number;
   rep_high: number;
@@ -89,7 +94,7 @@ export interface SettingsExerciseOverride {
  * Like the prototype, a falsy type or rep bound falls back to the catalogue in `exInfo`.
  */
 export function overridesFromSettings(overrides: Readonly<Record<string, SettingsExerciseOverride>> | null | undefined): Record<string, ExerciseOverride> {
-  return Object.fromEntries(Object.entries(overrides || {}).map(([n, o]) => [n, { type: o.type as ExType, step: o.step_kg, lo: o.rep_low, hi: o.rep_high }]));
+  return Object.fromEntries(Object.entries(overrides || {}).map(([n, o]) => [n, { type: o.type, step: o.step_kg, lo: o.rep_low, hi: o.rep_high }]));
 }
 
 /** Type, rep range and weight step for an exercise. */
@@ -172,7 +177,7 @@ const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
 export function exInfo(name: string, catalog: Pick<ExerciseCatalog, 'meta'>, override?: ExerciseOverride | null, where: Where = 'gym'): ExInfo {
   const m = metaFor(name, catalog);
   const o = override || {};
-  const type = o.type || (m.type as ExType);
+  const type = o.type || m.type;
   const homeDb = type === 'dumbbell' && !o.lo && where === 'dumbbells';
   return { type, lo: o.lo || (homeDb ? Math.max(10, m.rep_low) : m.rep_low), hi: o.hi || (homeDb ? Math.max(20, m.rep_high) : m.rep_high), step: o.step !== undefined ? o.step : DEFAULT_STEP[type] };
 }

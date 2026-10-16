@@ -3,8 +3,9 @@ import { applyFocus, mapForWhere, sessionSets, TEMPLATES, type ExerciseCatalog }
 import { loadGolden } from './helpers';
 import { goldenCatalog, metaTable, type MetaTable } from './prototype-plan';
 
-// content/exercises.json is passed to the session functions as is; this assignment is the type check.
-const fromContent: ExerciseCatalog = content;
+// content/exercises.json is passed to the session functions as is. A JSON import types meta `type` as a
+// plain string, so this is a cast; the meta test below checks every type against prototype EX_META.
+const fromContent = content as ExerciseCatalog;
 const golden = goldenCatalog();
 
 describe('content/exercises.json against golden/exercises.json', () => {
