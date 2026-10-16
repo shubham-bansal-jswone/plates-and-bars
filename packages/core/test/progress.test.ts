@@ -53,6 +53,7 @@ const proto = loadProgress();
 const r1 = (n: number): number => Math.round(n * 10) / 10;
 const RUNS = 3000;
 const DATE = '2026-10-07';
+const NEXT = addDays(DATE, 1);
 const T0 = Date.parse('2026-10-07T07:00:00Z');
 
 /** Contract-shaped records to prototype `S` state. */
@@ -414,15 +415,23 @@ describe('weightSlope, adaptiveBurn, targetFromBurn', () => {
     expect(weightSlope(ws, DATE, 14)).toEqual({ n: 5 });
   });
   it('needs 10 complete days in 14 and 6 weigh-ins in 21', () => {
-    expect(adaptiveBurn([], [], DATE, 2000, null)).toEqual({ ready: false, needDays: 10, needW: 6 });
+    expect(adaptiveBurn([], [], DATE, 2000, null, NEXT)).toEqual({ ready: false, needDays: 10, needW: 6 });
   });
   it('burn = intake − slope × 7,700, smoothed 60/40 with last week', () => {
     const days: ProgressDay[] = Array.from({ length: 10 }, (_, b) => ({ date: addDays(DATE, -b), logs: [{ name: 'x', qty: 1, kcal: 2000, protein_g: 0, carbs_g: 0, fat_g: 0 }], complete: true, trained: false }));
     const ws = Array.from({ length: 7 }, (_, b) => ({ date: addDays(DATE, -b * 3), weight_kg: 80 + b * 0.3 }));
-    const fresh = adaptiveBurn(days, ws, DATE, 2000, null);
+    const fresh = adaptiveBurn(days, ws, DATE, 2000, null, NEXT);
     expect(fresh).toMatchObject({ ready: true, intake: 2000, logged: 10, burn: Math.round(2000 + 0.1 * KCAL_PER_KG) });
-    expect(adaptiveBurn(days, ws, DATE, 2000, { week: mondayOf(DATE), prev: 2500, value: 9999 })).toMatchObject({ burn: Math.round(0.6 * 2500 + 0.4 * 2770) });
-    expect(adaptiveBurn(days, ws, DATE, 2000, { week: '2026-01-05', prev: 9999, value: 2500 })).toMatchObject({ burn: Math.round(0.6 * 2500 + 0.4 * 2770) });
+    expect(adaptiveBurn(days, ws, DATE, 2000, { week: mondayOf(DATE), prev: 2500, value: 9999 }, NEXT)).toMatchObject({ burn: Math.round(0.6 * 2500 + 0.4 * 2770) });
+    expect(adaptiveBurn(days, ws, DATE, 2000, { week: '2026-01-05', prev: 9999, value: 2500 }, NEXT)).toMatchObject({ burn: Math.round(0.6 * 2500 + 0.4 * 2770) });
+  });
+  it('today counts only when ticked; the fallback reads days before today (#150: the prototype counts today too)', () => {
+    const full = (date: string, complete?: boolean): ProgressDay => ({ date, logs: [1, 2, 3].map((k) => ({ name: `x${k}`, qty: 1, kcal: 700, protein_g: 0, carbs_g: 0, fat_g: 0 })), ...(complete === undefined ? {} : { complete }), trained: false });
+    const days = Array.from({ length: 10 }, (_, b) => full(addDays(DATE, -b)));
+    const ws = Array.from({ length: 7 }, (_, b) => ({ date: addDays(DATE, -b * 3), weight_kg: 80 + b * 0.3 }));
+    expect(adaptiveBurn(days, ws, DATE, 2000, null, NEXT)).toMatchObject({ ready: true, logged: 10 });
+    expect(adaptiveBurn(days, ws, DATE, 2000, null, DATE)).toEqual({ ready: false, needDays: 1, needW: 0 });
+    expect(adaptiveBurn([full(DATE, true), ...days.slice(1)], ws, DATE, 2000, null, DATE)).toMatchObject({ ready: true, logged: 10 });
   });
   it('nextAdaptive moves last week\'s value to prev on a new week', () => {
     expect(nextAdaptive(null, DATE, 2400)).toEqual({ week: mondayOf(DATE), prev: null, value: 2400 });
@@ -443,7 +452,8 @@ describe('weightSlope, adaptiveBurn, targetFromBurn', () => {
       setProfile(profile);
       Object.assign(proto.S.settings, { kcal, protein, adaptive: AD ? { ...AD } : undefined });
       expect(weightSlope(ws, DATE, 21)).toEqual(proto.weightSlope(DATE, 21));
-      expect(adaptiveBurn(days, ws, DATE, kcal, AD)).toEqual(proto.adaptiveBurn(await proto.loadDays(DATE, 21)));
+      // The day after DATE is today, so every day read is an older day and the fallback applies as in the prototype.
+      expect(adaptiveBurn(days, ws, DATE, kcal, AD, NEXT)).toEqual(proto.adaptiveBurn(await proto.loadDays(DATE, 21)));
       const burn = 1200 + Math.floor(r() * 2500);
       expect(targetFromBurn(burn, profile, ws, protein)).toEqual(proto.targetFromBurn(burn));
     }
@@ -458,6 +468,12 @@ describe('weeklyCheckin', () => {
     expect(CARDIO_WEEK_MIN).toBe(150);
     expect(weeklyCheckin({ ...base, muted: { checkin: true } }).suggestion).toBeNull();
     expect(weeklyCheckin({ ...base, dismissed: { [c.key]: true } }).suggestion).toBeNull();
+  });
+  it('the burn line counts today only when ticked; with no today every day up to date is older (#150)', () => {
+    const days: ProgressDay[] = Array.from({ length: 10 }, (_, b) => ({ date: addDays(DATE, -b), logs: [1, 2, 3].map((k) => ({ name: `x${k}`, qty: 1, kcal: 700, protein_g: 0, carbs_g: 0, fat_g: 0 })), trained: false }));
+    const weighIns = Array.from({ length: 7 }, (_, b) => ({ date: addDays(DATE, -b * 3), weight_kg: 80 + b * 0.3 }));
+    expect(weeklyCheckin({ ...base, days, weighIns }).burn).toMatchObject({ ready: true, logged: 10 });
+    expect(weeklyCheckin({ ...base, days, weighIns, today: DATE }).burn).toEqual({ ready: false, needDays: 1, needW: 0 });
   });
   it('this week\'s plan sets the planned count', () => {
     const weekPlan: WeekPlan = { start: mondayOf(DATE), list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'] };
