@@ -144,7 +144,7 @@ Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fracti
 
 Session build order (`buildSession`):
 1. Template → home mapping (`AWAY` table) if `where` is not gym (day override beats profile).
-2. Exclusions and swaps resolve each name (`resolveSession`; swap targets and picks mapped for `where`; replacements, swap targets and picks not already in the session, else the next-best candidate, else a "fewer sets" note, #110, #143); ladder "bridge" exercises appended with 2 sets for 2 weeks.
+2. Exclusions and swaps resolve each name (`resolveSession`; swap targets and picks mapped for `where`; replacements, swap targets and picks not already in the session, else the next-best candidate, else a "fewer sets" note, #110, #143; a swap with a running bridge is kept, its old exercise staying as the 2-set bridge; a stored skip still skips with no note); ladder "bridge" exercises appended with 2 sets for 2 weeks.
 3. Trim to the exercise cap (30 min → 3, 45 → 4, 60 → 5, 75 → 6, 90 → 7). The first 2 lifts always stay; the extras **rotate** by how many times this template was done (`trimSession`).
 4. Focus muscles (`applyFocus`), then the check-in "short session" cut.
 5. Sets: 3 default; 2 for `exp=new` in the first 14 days from profile creation; calf raises at least 4; +1 on focus exercises (max 5). Deload: ~60% of sets. Light day: −1 set.
