@@ -91,7 +91,7 @@ export function loadProgress(): ProtoProgress {
     sliceBlock(src, 'function stalled(name){', '}'),
     sliceLine(src, 'const stalledList = '),
     sliceBlock(src, 'function totals(meals = S.day.meals){', '}'),
-    sliceBlock(src, 'function dayComplete(d){', '}'),
+    sliceBlock(src, 'function dayComplete(d, date){', '}'),
     sliceLine(src, 'const ORDER = '),
     sliceBlock(src, 'const SPLITS = {', '};'),
     sliceBlock(src, 'function splitFor(){', '}'),
