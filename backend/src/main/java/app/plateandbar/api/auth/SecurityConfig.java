@@ -6,7 +6,7 @@ import app.plateandbar.api.ratelimit.ClientIpResolver;
 import app.plateandbar.api.ratelimit.RateLimitFilter;
 import app.plateandbar.api.ratelimit.RateLimitProperties;
 import app.plateandbar.api.ratelimit.RateLimiter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

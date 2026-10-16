@@ -13,7 +13,7 @@ import app.plateandbar.api.sync.ContractSchemas;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import app.plateandbar.api.support.ConcurrentListAppender;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,7 +90,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getHeaders().getFirst("Cache-Control")).isEqualTo("no-store");
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("DescribeMealResponse", b)).isEmpty();
-        assertThat(b.path("items").get(0).path("name").asText()).isEqualTo("Roti");
+        assertThat(b.path("items").get(0).path("name").asString()).isEqualTo("Roti");
         assertThat(b.path("quota").path("remaining").asInt()).isEqualTo(9);
         assertThat(calls(u)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT input_tokens + output_tokens FROM ai_usage WHERE user_id = ?", Long.class, u))
@@ -162,7 +162,7 @@ class AiEndpointsIT extends AiITBase {
                 + "{\"name\":\"Huge\",\"qty\":\"1\",\"kcal\":1e999,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1}]}");
         JsonNode b = body(post(newUser(), DESCRIBE, "{\"text\":\"x\"}"));
         assertThat(b.path("items")).hasSize(1);
-        assertThat(b.path("items").get(0).path("name").asText()).isEqualTo("Ok");
+        assertThat(b.path("items").get(0).path("name").asString()).isEqualTo("Ok");
     }
 
     @Test
@@ -188,7 +188,7 @@ class AiEndpointsIT extends AiITBase {
             reply(r);
             var res = post(u, DESCRIBE, "{\"text\":\"x\"}");
             assertThat(res.getStatusCode().value()).as(r.substring(0, Math.min(30, r.length()))).isEqualTo(503);
-            assertThat(body(res).path("code").asText()).isEqualTo("unavailable");
+            assertThat(body(res).path("code").asString()).isEqualTo("unavailable");
             // The provider answered and was billed: the unit stays used (security review M1).
             assertThat(calls(u)).isEqualTo(++n);
         }
@@ -217,9 +217,9 @@ class AiEndpointsIT extends AiITBase {
         for (String b : new String[] {over, multibyte, "{\"text\":\"x\"}" + " ".repeat(20000)}) {
             var res = post(u, DESCRIBE, b);
             assertThat(res.getStatusCode().value()).isEqualTo(400);
-            assertThat(body(res).path("code").asText()).isEqualTo("invalid_request");
-            assertThat(body(res).path("details").get(0).path("field").asText()).isEmpty();
-            assertThat(body(res).path("details").get(0).path("issue").asText()).isEqualTo("too_large");
+            assertThat(body(res).path("code").asString()).isEqualTo("invalid_request");
+            assertThat(body(res).path("details").get(0).path("field").asString()).isEmpty();
+            assertThat(body(res).path("details").get(0).path("issue").asString()).isEqualTo("too_large");
         }
         verify(provider, never()).complete(any(), any(), any());
         assertThat(calls(u)).isZero();
@@ -228,7 +228,7 @@ class AiEndpointsIT extends AiITBase {
         String exact = "{\"text\":\"" + "a".repeat(16 * 1024 - 11) + "\"}";
         assertThat(exact.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(16 * 1024);
         assertThat(post(u, DESCRIBE, exact).getStatusCode().value()).isIn(200, 400); // 400 only for text length (1000)
-        assertThat(body(post(u, DESCRIBE, exact)).path("details").get(0).path("issue").asText()).isNotEqualTo("too_large");
+        assertThat(body(post(u, DESCRIBE, exact)).path("details").get(0).path("issue").asString()).isNotEqualTo("too_large");
     }
 
     @Test
@@ -253,7 +253,7 @@ class AiEndpointsIT extends AiITBase {
                 "{\"text\":5}", "not json", "[]", "{\"text\":\"" + "a".repeat(1001) + "\"}"}) {
             var res = post(u, DESCRIBE, bad);
             assertThat(res.getStatusCode().value()).as(bad).isEqualTo(400);
-            assertThat(body(res).path("code").asText()).isEqualTo("invalid_request");
+            assertThat(body(res).path("code").asString()).isEqualTo("invalid_request");
         }
         var secret = post(u, DESCRIBE, "{\"text\":\"my secret meal\",\"extra\":\"hidden-value\"}");
         assertThat(secret.getBody()).doesNotContain("hidden-value").doesNotContain("secret meal");
@@ -269,7 +269,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("AskWhyResponse", b)).isEmpty();
-        assertThat(b.path("card_id").asText()).isEqualTo("protein");
+        assertThat(b.path("card_id").asString()).isEqualTo("protein");
         ArgumentCaptor<String> in = ArgumentCaptor.forClass(String.class);
         verify(provider).complete(eq(AiFeature.ASK_WHY), any(), in.capture());
         assertThat(in.getValue()).contains("[card protein]", "reading card protein", "Is 150 g too much?")
@@ -281,7 +281,7 @@ class AiEndpointsIT extends AiITBase {
         String u = newUser();
         var res = post(u, ASK, "{\"card_id\":\"nope\",\"question\":\"why?\"}");
         assertThat(res.getStatusCode().value()).isEqualTo(400);
-        assertThat(body(res).path("details").get(0).path("field").asText()).isEqualTo("card_id");
+        assertThat(body(res).path("details").get(0).path("field").asString()).isEqualTo("card_id");
         assertThat(calls(u)).isZero();
 
         reply("{\"answer\":\"Not covered, ask a doctor.\",\"card_id\":\"made_up\"}");
@@ -312,10 +312,10 @@ class AiEndpointsIT extends AiITBase {
         ArgumentCaptor<String> in = ArgumentCaptor.forClass(String.class);
         verify(provider).complete(eq(AiFeature.WEEKLY_SUMMARY), any(), in.capture());
         JsonNode sent = json.readTree(in.getValue());
-        assertThat(sent.path("improved").get(0).path("exercise").asText()).isEqualTo("Goblet Squat");
-        assertThat(sent.path("improved").get(1).path("exercise").asText()).isEqualTo("custom exercise");
-        assertThat(sent.path("stalled").get(0).asText()).isEqualTo("Lat Pulldown");
-        assertThat(sent.path("stalled").get(1).asText()).isEqualTo("custom exercise");
+        assertThat(sent.path("improved").get(0).path("exercise").asString()).isEqualTo("Goblet Squat");
+        assertThat(sent.path("improved").get(1).path("exercise").asString()).isEqualTo("custom exercise");
+        assertThat(sent.path("stalled").get(0).asString()).isEqualTo("Lat Pulldown");
+        assertThat(sent.path("stalled").get(1).asString()).isEqualTo("custom exercise");
         assertThat(in.getValue()).doesNotContain("My Secret Lift").doesNotContain("Zed Curl");
     }
 
@@ -366,7 +366,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getStatusCode().value()).isEqualTo(429);
         assertThat(res.getHeaders().getFirst("Retry-After")).isEqualTo(String.valueOf(12 * 3600));
         JsonNode b = body(res);
-        assertThat(b.path("code").asText()).isEqualTo("quota_exceeded");
+        assertThat(b.path("code").asString()).isEqualTo("quota_exceeded");
         assertThat(b.path("quota").path("remaining").asInt()).isZero();
         assertThat(b.path("quota").path("limit").asInt()).isEqualTo(10);
         assertThat(ContractSchemas.validate("Error", b)).isEmpty();
@@ -385,7 +385,7 @@ class AiEndpointsIT extends AiITBase {
         jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES ('2026-10-01', 1000000)");
         var res = post(u, DESCRIBE, "{\"text\":\"x\"}");
         assertThat(res.getStatusCode().value()).isEqualTo(503);
-        assertThat(body(res).path("code").asText()).isEqualTo("feature_disabled");
+        assertThat(body(res).path("code").asString()).isEqualTo("feature_disabled");
         assertThat(calls(u)).isZero();
         verify(provider, never()).complete(any(), any(), any());
     }
@@ -457,7 +457,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getHeaders().getFirst("Cache-Control")).isEqualTo("no-store");
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("SuggestTagsResponse", b)).isEmpty();
-        assertThat(b.path("primary").get(0).asText()).isEqualTo("chest");
+        assertThat(b.path("primary").get(0).asString()).isEqualTo("chest");
         assertThat(b.path("quota").path("remaining").asInt()).isEqualTo(9);
         assertThat(calls(u)).isEqualTo(1);
     }
@@ -472,8 +472,8 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("SuggestTagsResponse", b)).isEmpty();
-        assertThat(b.path("pattern").asText()).isEmpty();
-        assertThat(b.path("equipment").asText()).isEqualTo("machine");
+        assertThat(b.path("pattern").asString()).isEmpty();
+        assertThat(b.path("equipment").asString()).isEqualTo("machine");
         assertThat(b.path("difficulty").asInt()).isEqualTo(2);
         assertThat(b.path("primary")).hasSize(3);
         assertThat(b.path("joints")).hasSize(1);

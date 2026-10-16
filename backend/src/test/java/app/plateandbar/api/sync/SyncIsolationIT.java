@@ -6,8 +6,8 @@ import static app.plateandbar.api.sync.SyncFixtures.naturalId;
 import static app.plateandbar.api.sync.SyncFixtures.waterLog;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -41,9 +41,9 @@ class SyncIsolationIT extends SyncITBase {
         for (String cursor : new String[] {null, "c_0000000000000000"}) {
             JsonNode changes = ok(b, Req.of(cursor).build()).body().path("changes");
             assertThat(changes.path("water_logs")).hasSize(1);
-            assertThat(changes.path("water_logs").get(0).path("id").asText()).isEqualTo(bWater);
+            assertThat(changes.path("water_logs").get(0).path("id").asString()).isEqualTo(bWater);
             assertThat(changes.path("food_logs")).hasSize(1);
-            assertThat(changes.path("food_logs").get(0).path("id").asText()).isEqualTo(bFood);
+            assertThat(changes.path("food_logs").get(0).path("id").asString()).isEqualTo(bFood);
             assertThat(changes.size()).as("only B's two tables").isEqualTo(2);
         }
     }
@@ -127,7 +127,7 @@ class SyncIsolationIT extends SyncITBase {
         // B sends A's profile (same id) as its own.
         Resp r = post(b, Req.of(null).add(SyncTable.profiles, aProfile).build());
         assertThat(r.status()).isEqualTo(400);
-        assertThat(r.body().path("details").get(0).path("field").asText()).isEqualTo("changes.profiles[0].id");
+        assertThat(r.body().path("details").get(0).path("field").asString()).isEqualTo("changes.profiles[0].id");
         assertThat(r.body().toString()).doesNotContain("recomp");
 
         // And B's own profile has a different id.
@@ -160,7 +160,7 @@ class SyncIsolationIT extends SyncITBase {
         for (int i = 0; i < 20; i++) {
             many.add(SyncTable.water_logs, waterLog(id(), 0, MID, null, 250));
         }
-        String aCursor = ok(a, many.build()).body().path("cursor").asText();
+        String aCursor = ok(a, many.build()).body().path("cursor").asString();
         assertThat(aCursor).isNotEqualTo("c_0000000000000000");
 
         // A's cursor is ahead of anything B has done, so it is not valid for B and gives B no view of A.

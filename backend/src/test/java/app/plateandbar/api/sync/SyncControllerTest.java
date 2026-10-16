@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import app.plateandbar.api.auth.JwtService;
 import app.plateandbar.api.support.WebMvcAuthSlice;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -29,7 +29,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -85,7 +85,7 @@ class SyncControllerTest {
             assertThat(r.table()).isEqualTo(SyncTable.food_logs);
             assertThat(r.id()).isEqualTo(logId);
             assertThat(r.version()).isZero();
-            assertThat(r.data().get("name").asText()).isEqualTo("Poha");
+            assertThat(r.data().get("name").asString()).isEqualTo("Poha");
             assertThat(r.data().has("id")).isFalse();
         });
     }

@@ -1,9 +1,9 @@
 package app.plateandbar.api.ai;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -59,17 +59,17 @@ class AiReplies {
             return Optional.empty();
         }
         JsonNode id = root.get().path("card_id");
-        if (!id.isNull() && !id.isMissingNode() && !id.isTextual()) {
+        if (!id.isNull() && !id.isMissingNode() && !id.isString()) {
             return Optional.empty();
         }
         ObjectNode out = json.createObjectNode();
         out.set("answer", root.get().path("answer"));
-        if (id.isTextual() && content.hasCard(id.asText())) {
+        if (id.isString() && content.hasCard(id.asString())) {
             out.set("card_id", id);
         } else {
             out.putNull("card_id");
         }
-        String answer = out.path("answer").asText("");
+        String answer = out.path("answer").asString("");
         if (answer.contains("{") || answer.contains("}")) {
             return Optional.empty();
         }
@@ -99,10 +99,10 @@ class AiReplies {
         JsonNode r = root.get();
         ObjectNode out = json.createObjectNode();
         JsonNode pattern = r.path("pattern");
-        out.put("pattern", pattern.isTextual() && pattern.asText().codePointCount(0, pattern.asText().length()) <= 50
-                ? pattern.asText() : "");
+        out.put("pattern", pattern.isString() && pattern.asString().codePointCount(0, pattern.asString().length()) <= 50
+                ? pattern.asString() : "");
         JsonNode eq = r.path("equipment");
-        out.put("equipment", eq.isTextual() && schemas.equipment().contains(eq.asText()) ? eq.asText() : "machine");
+        out.put("equipment", eq.isString() && schemas.equipment().contains(eq.asString()) ? eq.asString() : "machine");
         JsonNode d = r.path("difficulty");
         out.put("difficulty", d.isNumber() && d.asDouble() >= 1 && d.asDouble() <= 3 && d.asDouble() == Math.rint(d.asDouble())
                 ? (int) d.asDouble() : 2);
@@ -110,8 +110,8 @@ class AiReplies {
         out.set("secondary", muscles(r.path("secondary")));
         ArrayNode joints = out.putArray("joints");
         for (JsonNode j : r.path("joints")) {
-            if (joints.size() < 20 && j.isTextual() && j.asText().codePointCount(0, j.asText().length()) <= 50) {
-                joints.add(j.asText());
+            if (joints.size() < 20 && j.isString() && j.asString().codePointCount(0, j.asString().length()) <= 50) {
+                joints.add(j.asString());
             }
         }
         return valid("SuggestTagsResponse", out);
@@ -120,8 +120,8 @@ class AiReplies {
     private ArrayNode muscles(JsonNode in) {
         ArrayNode out = json.createArrayNode();
         for (JsonNode m : in) {
-            if (out.size() < 3 && m.isTextual() && schemas.muscles().contains(m.asText())) {
-                out.add(m.asText());
+            if (out.size() < 3 && m.isString() && schemas.muscles().contains(m.asString())) {
+                out.add(m.asString());
             }
         }
         return out;

@@ -1,8 +1,9 @@
 package app.plateandbar.api.content;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -83,7 +84,7 @@ public class ContentBundles {
         byte[] body;
         try {
             body = json.writeValueAsBytes(Map.of("bundles", infos));
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("content manifest cannot be written", e);
         }
         this.manifest = new Served(body, quote(sha256(body)));
@@ -121,7 +122,7 @@ public class ContentBundles {
         JsonNode root;
         try {
             root = json.readTree(bytes);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("content/" + name + ".json is not valid JSON");
         }
         JsonNode v = root == null ? null : root.get("schema_version");

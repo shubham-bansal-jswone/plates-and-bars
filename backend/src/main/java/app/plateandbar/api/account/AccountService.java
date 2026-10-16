@@ -2,8 +2,8 @@ package app.plateandbar.api.account;
 
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.sync.SyncExporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;

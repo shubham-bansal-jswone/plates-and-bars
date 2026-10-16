@@ -5,9 +5,9 @@ import app.plateandbar.api.ratelimit.ClientIpResolver;
 import app.plateandbar.api.ratelimit.RateLimitProperties;
 import app.plateandbar.api.ratelimit.RateLimiter;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import org.springframework.http.HttpHeaders;
@@ -43,9 +43,10 @@ public class AiController {
     AiController(AiQuotaService quotas, AiService ai, ObjectMapper json, RateLimiter limiter, ClientIpResolver ips,
             RateLimitProperties limits) {
         this.ai = ai;
-        this.json = json.copy()
-                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-                .enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        this.json = json.rebuild()
+                .enable(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .enable(tools.jackson.core.StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+                .build();
         this.quotas = quotas;
         this.limiter = limiter;
         this.ips = ips;
