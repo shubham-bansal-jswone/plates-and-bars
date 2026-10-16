@@ -24,7 +24,7 @@ export function DailyRead({ sex, values, now = () => new Date() }: { sex?: strin
     if (ready && start === null && update) update((x) => ({ learn: { ...x.learn, start: today } }));
   }, [ready, start, today, update]);
   if (!s || !ready) return null;
-  const { next, readN, total } = dailyRead(learn, sex, today, values);
+  const { next, readN, total } = dailyRead(learn, sex, today);
   // The sheet stays up after the read mark moves the card on.
   if (!next && !open) return null;
   return (

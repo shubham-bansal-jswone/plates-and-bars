@@ -79,13 +79,14 @@ describe('Split card with no training days (#570)', () => {
     expect(await screen.findByLabelText(`Open ${split.title}`)).toBeTruthy();
     expect(screen.getAllByLabelText(/^Open /)).toHaveLength(shown.length);
   });
-  it('is left out of the daily read list, due count and total for 0 days, and kept for 2+', () => {
+  it('is ruled out by cardOffered for 0 days only, and the daily read never lists it', () => {
     expect(cardOffered('split', { days: 0 })).toBe(false);
     expect(cardOffered('split', { days: 2 })).toBe(true);
     expect(cardOffered('split')).toBe(true);
     expect(cardOffered('rir', { days: 0 })).toBe(true);
-    expect(learnList('male', { days: 0 }).map((c) => c.id)).not.toContain('split');
-    expect(dailyRead({ start: '2026-10-01', read: [] }, 'male', '2026-10-01', { days: 0 })).toMatchObject({ total: 10 });
+    // The daily read already leaves split out through content (learn_order null); if content gives it a slot, filter with cardOffered there.
+    expect(learnList('male').map((c) => c.id)).not.toContain('split');
+    expect(learnList('female').map((c) => c.id)).not.toContain('split');
   });
 });
 
