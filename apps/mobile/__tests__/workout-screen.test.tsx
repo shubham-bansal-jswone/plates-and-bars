@@ -361,6 +361,63 @@ describe('Workout tab: logging sets', () => {
     expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no');
   });
 
+  describe('feel check after a set (#485)', () => {
+    const NAME = 'Overhead Cable Extension';
+    it('shows only once a set is done, then stores the answer and its tip', async () => {
+      const db = await started();
+      expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
+      await press(`Mark ${NAME} set 1 done`);
+      expect(await screen.findByText('Where did you feel that set most?')).toBeTruthy();
+      await press(`${NAME} felt: Shoulders`);
+      expect(await screen.findByText('Use a lighter weight and keep your elbows closer together.', { exact: false })).toBeTruthy();
+      await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('0'));
+    });
+
+    it('the right place is stored as target', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME} felt: Back of the upper arms (triceps)`);
+      expect(await screen.findByText('Felt it in the right place. Good.')).toBeTruthy();
+      await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('target'));
+    });
+
+    it('is not asked once the exercise is out of learn mode', async () => {
+      const db = await setup({ lifts });
+      db.rows.set(`lift_stats:${NAME}`, JSON.stringify({ ...stored<LiftRecord>(db, `lift_stats:${NAME}`), n: 3 }));
+      await screen.unmount();
+      await mount(db);
+      await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+      await screen.findByText('Push B');
+      await press(`Mark ${NAME} set 1 done`);
+      await waitFor(() => expect(storedSets(db).some((x) => x.done)).toBe(true));
+      expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
+    });
+
+    it('It hurt shows the safety note; Skip remaining sets keeps only the done sets', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME}: It hurt`);
+      expect(await screen.findByText('Stop this exercise for today.')).toBeTruthy();
+      expect(screen.getByText(/Pain is different from muscle effort or burning\. If it happens again next session, pick a different exercise, and see a physio if it keeps happening\./)).toBeTruthy();
+      await press(`Skip remaining sets of ${NAME}`);
+      expect(await screen.findByText('Skipped the remaining sets')).toBeTruthy();
+      expect(screen.queryByLabelText(`${NAME} set 2 kg`)).toBeNull();
+      expect(screen.queryByLabelText(`Skip remaining sets of ${NAME}`)).toBeNull();
+      await waitFor(() => expect(storedSets(db).filter((x) => x.exercise === NAME && x.kind === 'work' && !x.deleted_at)).toHaveLength(1));
+      expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('pain');
+    });
+
+    it('It hurt then Find an alternative opens the can\'t-do sheet at "for how long" with pain', async () => {
+      await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME}: It hurt`);
+      await press(`Find an alternative to ${NAME}`);
+      expect(await screen.findByText(`Can’t do ${NAME}?`)).toBeTruthy();
+      expect(screen.queryByText('Why not? This decides what the app suggests instead.')).toBeNull();
+      expect(screen.getByText('Pain is a signal to stop, not push through. If it keeps happening or came from an injury, see a physio.')).toBeTruthy();
+    });
+  });
+
   it('keeps what was ticked after the app is reopened', async () => {
     const db = await started();
     await fireEvent.changeText(screen.getByLabelText('Pec Deck Fly set 1 kg'), '27.5');
@@ -552,7 +609,7 @@ describe('Workout tab: write ordering and guards', () => {
 });
 
 describe('stored set records', () => {
-  const ex = (): ExState => ({ name: 'Pec Deck Fly', part: 1, bridge: false, form: null, found: null, skipRamp: false, ramp: [], sets: [{ ...blankRow(), w: '-5', r: '-3', done: true }] });
+  const ex = (): ExState => ({ name: 'Pec Deck Fly', part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, ramp: [], sets: [{ ...blankRow(), w: '-5', r: '-3', done: true }] });
 
   it('never stores a negative weight or reps (contract minimum 0)', () => {
     const r = setRecord(ex(), 'work', 0, new Date(2026, 9, 8));

@@ -242,7 +242,7 @@ describe('the day’s where, not the profile’s', () => {
     await saveProfile(db, profile()); // gym
     const w: Workout = { id: null, version: 0, updated_at: 'x', deleted_at: null, date: DATE, template: 'Push B', base: 'Push B', where: 'dumbbells', cardio_min: null, mods: {}, exercises: [{ name: 'Lateral Raise', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], ci_choice: null };
     await saveWorkout(db, w);
-    const ex = { name: 'Lateral Raise', part: 1 as const, bridge: false, form: null, found: null, skipRamp: false, sets: [blankRow()], ramp: [] };
+    const ex = { name: 'Lateral Raise', part: 1 as const, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: [blankRow()], ramp: [] };
     await saveSet(db, DATE, setRecord(ex, 'work', 0, THURSDAY()));
     seed(db, 'Lateral Raise', lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) }));
     await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));

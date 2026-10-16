@@ -8,7 +8,7 @@ import { getCatalog } from './catalog';
 
 /** A toggle chip (prototype `.chip` with `aria-pressed`). */
 /** `label` is the spoken name; `text` (default the label) is what shows. */
-export function Chip({ label, text, pressed, onPress }: { label: string; text?: string; pressed?: boolean; onPress: () => void }) {
+export function Chip({ label, text, pressed, danger, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; onPress: () => void }) {
   const c = useTheme();
   return (
     <Press
@@ -17,9 +17,9 @@ export function Chip({ label, text, pressed, onPress }: { label: string; text?: 
       {...a11yState({ pressed })}
       onPress={onPress}
       hitSlop={{ top: 6, bottom: 6 }}
-      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }]}
+      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null]}
     >
-      <Text style={{ color: pressed ? c.onBrand : c.ink, ...type.buttonSm }}>{text ?? label}</Text>
+      <Text style={{ color: pressed ? c.onBrand : danger ? c.danger : c.ink, ...type.buttonSm }}>{text ?? label}</Text>
     </Press>
   );
 }
