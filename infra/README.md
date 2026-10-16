@@ -1,13 +1,14 @@
 # Infra
 
-CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `.github/workflows/`). Staging config (Compose, backup script, runbook) is in `infra/staging/` and `infra/RUNBOOK.md` (#36); no deploy workflow exists yet.
+CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `.github/workflows/`). Staging config (Compose, backup script, runbook) is in `infra/staging/` and `infra/RUNBOOK.md` (#36). The staging deploy workflow (#411) is inert until the owner enables it (see Staging deploy).
 
 ## Workflows
 
 | File | Trigger | What it does |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
-| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), images pinned (including rclone in `backup.sh`) (not a required check) |
+| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), `test-deploy.sh` (deploy.sh against stubs: success, rollback on a failed `compose up` or health check, nothing to roll back to, failed build), images pinned (including rclone in `backup.sh`) (not a required check) |
+| `.github/workflows/staging-deploy.yml` | push to `main` touching `backend/`, `content/`, `packages/api/openapi.yaml`, `infra/staging/` or the API Caddyfile; manual | SSH to the staging VM, fast-forward to the pushed commit, run `infra/staging/deploy.sh`; skipped until repository variable `STAGING_DEPLOY_ENABLED` is `true` (see Staging deploy) |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
 | `.github/workflows/site-deploy.yml` | push to `main` touching `apps/site`, manual (deploys); PR touching `infra/caddy/` (validate only) | Builds `apps/site` and deploys it; every job is skipped until repository variable `SITE_DEPLOY_TARGET` is set (see below) |
 | `.github/workflows/android-release.yml` | tag `v*`, manual, PR touching the workflow | `expo prebuild` + Gradle `assembleRelease bundleRelease`; uploads APK and AAB as an artifact (see below) |
@@ -103,7 +104,7 @@ The plan named Cloudflare Pages; that needs a vendor account and terms, so the w
 | `github-pages` | `npm ci`, `check`, `build`, then `actions/deploy-pages` | Settings > Pages > Source: GitHub Actions; a custom domain (the site is built for the domain root, so the default `user.github.io/repo/` path would break asset links) |
 | `caddy` | Build, then `rsync --delete` of `dist/` to the VM over SSH; Caddy serves it (`infra/caddy/Caddyfile.site`) | variables `SITE_SSH_HOST`, `SITE_SSH_USER`, `SITE_WEB_ROOT`; secrets `SITE_SSH_KEY` (private key of a deploy-only user), `SITE_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); a GitHub environment named `site`, with deployment branches restricted to `main` (Settings > Environments > site) |
 
-Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The workflow's `validate Caddyfile` job runs `caddy validate` with the pinned official Apache-2.0 Caddy image on both Caddyfiles on every PR touching `infra/caddy/` or `apps/site/public/_headers`, and `infra/scripts/check-caddy-headers.sh` fails it if a header in `_headers` is missing from, or differs in, `Caddyfile.site`. Caddy ignores `_headers`, so the CSP and security headers live in both; change them together. The Caddyfile sets long-lived immutable caching for `/_astro/*`, `no-cache` for everything else, and security headers.
+Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The workflow's `validate Caddyfile` job runs `caddy validate` with the pinned official Apache-2.0 Caddy image on both Caddyfiles on every PR touching `infra/caddy/` or `apps/site/public/_headers`, and `infra/scripts/check-caddy-headers.sh` fails it if a header in `_headers` is missing from, or differs in, `Caddyfile.site`, or if `Caddyfile.api` loses its `Strict-Transport-Security` header (`infra/scripts/test-check-caddy-headers.sh` tests the check). Caddy ignores `_headers`, so the CSP and security headers live in both; change them together. The Caddyfile sets long-lived immutable caching for `/_astro/*`, `no-cache` for everything else, and security headers.
 
 Safety rails: deploys run only from `main`, even when started manually; the `caddy` job refuses to run `rsync --delete` unless `SITE_SSH_HOST`, `SITE_SSH_USER` and `SITE_WEB_ROOT` are set and `SITE_WEB_ROOT` is a directory under `/srv`, `/var/www` or `/opt` (for example `/srv/site`; never `/` or a home directory, because `rsync --delete` would remove `~/.ssh/authorized_keys`). Use a dedicated deploy user that can write only that directory.
 
@@ -147,3 +148,15 @@ How the secrets are protected:
 - Gradle caching uses the MIT `basic` provider of `gradle/actions/setup-gradle`, like `ci.yml`.
 
 Generate the keystore with `keytool -genkeypair -v -storetype PKCS12 -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000` and keep it, with its passwords, somewhere safe outside the repo; losing the upload key is recoverable with Play support, but only if Play App Signing is on.
+
+## Staging deploy (#411)
+
+Nothing runs until the owner has a VM (`infra/RUNBOOK.md` section 1) and sets the repository variable `STAGING_DEPLOY_ENABLED` to `true`. Then every push to `main` that touches the backend, content, `packages/api/openapi.yaml` or staging files (and manual runs from `main`) deploys that commit. Needed:
+
+| What | Name | Where |
+| --- | --- | --- |
+| Variable | `STAGING_DEPLOY_ENABLED` = `true` | repository variables |
+| Variables | `STAGING_SSH_HOST`, `STAGING_SSH_USER`, `STAGING_DIR` (checkout on the VM, for example `/opt/plateandbar`) | environment `staging` |
+| Secrets | `STAGING_SSH_KEY` (private key of a deploy-only user in the `docker` group), `STAGING_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`) | environment `staging`, deployment branches restricted to `main` |
+
+The job runs `git fetch`, `git merge --ff-only <sha>` and `infra/staging/deploy.sh` on the VM. The script builds `plateandbar-api:<12-char sha>`, writes it to `API_TAG` in `.env`, runs `docker compose up -d` and polls `https://$API_HOST/api/v1/health` for up to 5 minutes (`HEALTH_TIMEOUT_SECONDS`). If `compose up` fails or it never turns healthy it restores the previous `API_TAG`, recreates the API and exits non-zero. The workflow does not re-run CI: branch protection on the PR is what gates the merge. A tagged production release with a pre-deploy backup is not part of this workflow.

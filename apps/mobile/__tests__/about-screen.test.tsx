@@ -4,7 +4,7 @@ import eatout from '../../../content/eatout.json';
 import foods from '../../../content/foods.json';
 import raw from '../../../content/raw-ingredients.json';
 import { AboutScreen } from '../src/about/AboutScreen';
-import { getFoodSources, sourceKey } from '../src/about/sources';
+import { getFoodSources, mergeSources, sourceKey } from '../src/about/sources';
 
 type S = { code: string; name: string };
 
@@ -77,5 +77,38 @@ describe('about and sources', () => {
     await render(<AboutScreen onBack={onBack} />);
     await fireEvent.press(screen.getByLabelText('Back'));
     expect(onBack).toHaveBeenCalled();
+  });
+});
+
+describe('mergeSources reference', () => {
+  const row = (reference: string | null, name = 'USDA') => ({ code: 'usda_fdc', name, licence: 'CC0', url: null, reference });
+  it('drops the reference when merged rows disagree', () => {
+    expect(mergeSources([row('FDC 1'), row('FDC 2')])).toEqual([expect.objectContaining({ reference: null })]);
+  });
+  it('drops it when only some rows carry one, whichever comes first', () => {
+    expect(mergeSources([row(null), row('FDC 2')])[0]!.reference).toBeNull();
+    expect(mergeSources([row('FDC 2'), row(null)])[0]!.reference).toBeNull();
+  });
+  it('keeps a reference every row agrees on, and a single row\'s own', () => {
+    expect(mergeSources([row('FDC 1'), row('FDC 1', 'USDA; values match corn')])[0]!.reference).toBe('FDC 1');
+    expect(mergeSources([row('FDC 1')])[0]!.reference).toBe('FDC 1');
+  });
+});
+
+describe('about sources with the real content', () => {
+  it('the merged USDA entry carries no single food\'s reference (13 foods, 13 different references)', () => {
+    const fdc = (foods as unknown as { foods: { source: S & { reference?: string | null } }[] }).foods.filter((f) => f.source.code === 'usda_fdc');
+    expect(new Set(fdc.map((f) => f.source.reference)).size).toBeGreaterThan(1);
+    expect(getFoodSources().find((s) => s.code === 'usda_fdc')!.reference).toBeNull();
+  });
+  it('merging only the foods rows (each with its own reference) leaves no reference, where keeping one row\'s would show a single food\'s', () => {
+    const rows = (foods as unknown as { foods: { source: S & { url: string | null; licence: string; reference?: string | null } }[] }).foods.map((f) => f.source);
+    const lastFdc = [...rows].reverse().find((s) => s.code === 'usda_fdc')!;
+    expect(lastFdc.reference).toEqual(expect.stringMatching(/^FDC /));
+    expect(mergeSources(rows).find((s) => s.code === 'usda_fdc')!.reference).toBeNull();
+  });
+  it('About shows no FDC reference line', async () => {
+    await render(<AboutScreen onBack={() => {}} />);
+    expect(screen.queryByText(/^Reference: FDC/)).toBeNull();
   });
 });

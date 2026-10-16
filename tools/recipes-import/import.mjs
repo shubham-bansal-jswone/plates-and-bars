@@ -29,6 +29,48 @@ export const USDA_PROXY = {
   'Chicken curry cut (raw)': 'chicken, broilers or fryers, thigh, meat only, raw',
 };
 
+// FDC record behind each usda_fdc row of RAW (SR Legacy, FoodData Central April 2018 release; public domain; issue #98).
+// RAW values are per 100 g, so no serving scaling applies. Each id was matched by comparing kcal, protein, carbs, fibre and fat
+// with the SR Legacy record (all agree to the rounding RAW uses). A value after " - " says the record is a proxy or has an
+// identical twin. "Oil" has no entry: the prototype's 884 kcal / 100 g fat fits every refined cooking oil, so no one FDC record is right.
+export const FDC_RAW = {
+  'Toor dal (dry)': [172436, 'Pigeon peas (red gram), mature seeds, raw'],
+  'Urad dal (dry)': [174259, 'Mungo beans, mature seeds, raw', 'USDA name for black gram (urad)'],
+  'Moong dal (dry)': [174256, 'Mung beans, mature seeds, raw', 'whole beans used as a proxy for split dal'],
+  'Masoor dal (dry)': [172420, 'Lentils, raw'],
+  'Chana dal (dry)': [173756, 'Chickpeas (garbanzo beans, bengal gram), mature seeds, raw', 'proxy: the split-gram dal itself is not an SR Legacy item'],
+  'Rajma (dry)': [173744, 'Beans, kidney, red, mature seeds, raw'],
+  'Kabuli chana (dry)': [173756, 'Chickpeas (garbanzo beans, bengal gram), mature seeds, raw'],
+  'Rice (raw)': [168877, 'Rice, white, long-grain, regular, raw, enriched', 'unenriched FDC 169756 has identical values'],
+  'Atta (whole wheat flour)': [168893, 'Wheat flour, whole-grain'],
+  'Besan': [174288, 'Chickpea flour (besan)'],
+  'Oats': [169705, 'Oats'],
+  'Soya chunks': [174275, 'Soy flour, defatted', 'proxy: closest SR Legacy item to dry textured soya, not the branded product'],
+  'Chicken breast (raw)': [171077, 'Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw'],
+  'Chicken curry cut (raw)': [173627, 'Chicken, broilers or fryers, dark meat, thigh, meat only, raw', 'proxy for curry-cut pieces'],
+  'Egg': [171287, 'Egg, whole, raw, fresh'],
+  'Potato': [170026, 'Potatoes, flesh and skin, raw'],
+  'Onion': [170000, 'Onions, raw'],
+  'Tomato': [170457, 'Tomatoes, red, ripe, raw, year round average'],
+  'Spinach': [168462, 'Spinach, raw'],
+  'Bhindi': [169260, 'Okra, raw'],
+  'Cauliflower': [169986, 'Cauliflower, raw'],
+  'Green peas': [170419, 'Peas, green, raw'],
+  'Ghee': [173412, 'Butter oil, anhydrous', 'USDA lists no ghee with these values; foods.json Ghee uses FDC 171314 (900 kcal / 100 g), see #576'],
+  'Butter': [173410, 'Butter, salted', 'unsalted FDC 173430 has identical values; RAW rounds protein and carbs up'],
+  'Sugar': [169655, 'Sugars, granulated'],
+  'Cashews': [170162, 'Nuts, cashew nuts, raw'],
+  'Coconut (fresh)': [170169, 'Nuts, coconut meat, raw'],
+  'Sabudana': [169717, 'Tapioca, pearl, dry'],
+  'Peanuts': [172430, 'Peanuts, all types, raw'],
+  'Moong (whole, dry)': [174256, 'Mung beans, mature seeds, raw'],
+  'Rava (sooji)': [169715, 'Semolina, enriched', 'unenriched FDC 168933 has identical values'],
+  'Capsicum': [170427, 'Peppers, sweet, green, raw', 'green only; other colours differ'],
+  'Cucumber': [168409, 'Cucumber, with peel, raw'],
+  'Kuttu atta': [170687, 'Buckwheat flour, whole-groat'],
+};
+export const FDC_UNMATCHED = ['Oil'];
+
 // The prototype's comment on RAW: "USDA SR28 / FoodData Central; paneer, curd and milk derived from FSSAI composition
 // standards; poha approximated from rice". Everything else is usda_fdc. Packaged foods are label_typical (ADR 005);
 // the generic mixed-vegetable blend has no single USDA entry, so it is our own estimate; fresh cream is a typical label value.
@@ -78,7 +120,9 @@ export function extractRecipeData(html) {
 
 const sourceFor = (name) => {
   const src = SOURCES[SOURCE_OVERRIDE[name] ?? 'usda_fdc'];
-  return USDA_PROXY[name] ? { ...src, name: `${src.name}; values match USDA "${USDA_PROXY[name]}"` } : src;
+  const named = USDA_PROXY[name] ? { ...src, name: `${src.name}; values match USDA "${USDA_PROXY[name]}"` } : src;
+  const fdc = FDC_RAW[name];
+  return fdc ? { ...named, reference: `FDC ${fdc[0]} (SR Legacy: ${fdc[1]}), per 100 g${fdc[2] ? ` - ${fdc[2]}` : ''}` } : named;
 };
 
 export function importRaw(p) {
@@ -86,6 +130,8 @@ export function importRaw(p) {
   if (unknown.length) throw new Error(`RAW_FIB names not in RAW: ${unknown.join(', ')}`);
   const badProxy = Object.keys(USDA_PROXY).filter((n) => !(n in p.RAW) || (SOURCE_OVERRIDE[n] ?? 'usda_fdc') !== 'usda_fdc');
   if (badProxy.length) throw new Error(`USDA_PROXY names not usda_fdc rows in RAW: ${badProxy.join(', ')}`);
+  const badFdc = Object.keys(FDC_RAW).filter((n) => !(n in p.RAW) || (SOURCE_OVERRIDE[n] ?? 'usda_fdc') !== 'usda_fdc');
+  if (badFdc.length) throw new Error(`FDC_RAW names not usda_fdc rows in RAW: ${badFdc.join(', ')}`);
   const badOverride = Object.keys(SOURCE_OVERRIDE).filter((n) => !(n in p.RAW));
   if (badOverride.length) throw new Error(`SOURCE_OVERRIDE names not in RAW: ${badOverride.join(', ')}`);
   return {

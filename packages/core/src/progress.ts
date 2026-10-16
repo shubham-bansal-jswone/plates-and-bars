@@ -375,12 +375,13 @@ export type AdaptiveBurn =
 /**
  * Real burn: average intake on complete days with food in the 14 days ending on `date`, minus the
  * 21-day weight slope × 7,700, smoothed 60/40 with last week's estimate and rounded. Needs 10 such
- * days and 6 weigh-ins. `kcalTarget` is the settings target, for `dayComplete`.
+ * days and 6 weigh-ins. `kcalTarget` is the settings target and `today` the real date, for
+ * `dayComplete` (today counts only when ticked, #150).
  *
- * Mirrors prototype `adaptiveBurn(days)` (days, weigh-ins and state passed in).
+ * Mirrors prototype `adaptiveBurn(days)` (days, weigh-ins, state and today passed in).
  */
-export function adaptiveBurn(days: readonly ProgressDay[], weighIns: readonly WeighIn[], date: string, kcalTarget: number, adaptive: AdaptiveState | null | undefined): AdaptiveBurn {
-  const logged = daysEnding(days, date, 14).filter((d) => live(d.logs).length && dayComplete(d, d.logs, kcalTarget));
+export function adaptiveBurn(days: readonly ProgressDay[], weighIns: readonly WeighIn[], date: string, kcalTarget: number, adaptive: AdaptiveState | null | undefined, today: string): AdaptiveBurn {
+  const logged = daysEnding(days, date, 14).filter((d) => live(d.logs).length && dayComplete(d, d.logs, kcalTarget, d.date, today));
   const ws = weightSlope(weighIns, date, 21);
   const needDays = Math.max(0, 10 - logged.length), needW = Math.max(0, 6 - ws.n);
   if (needDays || needW) return { ready: false, needDays, needW };
@@ -444,6 +445,11 @@ export interface CheckinInput {
   weekPlan?: WeekPlan | null | undefined;
   dismissed?: Readonly<Record<string, boolean>> | undefined;
   muted?: Readonly<Record<string, boolean>> | undefined;
+  /**
+   * The real date, `YYYY-MM-DD` (prototype `TODAY()`): the real-burn line counts it only when ticked
+   * (#150). Omitted: every day up to `date` counts as an older day, as in the prototype.
+   */
+  today?: string | undefined;
 }
 
 /** The check-in's one suggestion, if any. */
@@ -513,7 +519,7 @@ export function weeklyCheckin(i: CheckinInput): WeeklyCheckin {
     })
     .filter((x): x is { n: string; pct: number } => x !== null)
     .sort((a, b) => b.pct - a.pct);
-  const st = stalledList(i.lifts, i.date), burn = adaptiveBurn(days, i.weighIns, i.date, i.kcal, i.adaptive);
+  const st = stalledList(i.lifts, i.date), burn = adaptiveBurn(days, i.weighIns, i.date, i.kcal, i.adaptive, i.today ?? addDays(i.date, 1));
   const key = 'ci:' + monday;
   let suggestion: CheckinSuggestion | null = null;
   if (!i.dismissed?.[key] && !i.muted?.['checkin']) {

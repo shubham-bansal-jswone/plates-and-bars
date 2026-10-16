@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, ErrorText, Field, Hint, Note } from '../components/ui';
+import { Button, ErrorText, Caption, Field, Hint, Note } from '../components/ui';
 import { isBlank } from '../text/blank';
 import { useAi } from './AiProvider';
 import { AI_COPY, failureMessage } from './copy';
 import { cardTitle } from './cards';
 
 const QUESTION_MAX = 300;
+const QUESTION_LABEL = 'Ask a follow-up';
 
 /**
  * "Ask a follow-up" under a Why card (prototype `openWhy`). Renders nothing unless AI is on for this user and the server
@@ -46,7 +47,9 @@ function FollowUpForm({ cardId }: { cardId: string }) {
 
   return (
     <View style={styles.body}>
-      <Field label="Ask a follow-up" placeholder="e.g. Is 150 g too much protein?" multiline maxLength={QUESTION_MAX} value={question} onChangeText={setQuestion} />
+      {/* The caption is visible; the field carries the spoken label, so the caption is hidden from screen readers. */}
+      <Caption>{QUESTION_LABEL}</Caption>
+      <Field label={QUESTION_LABEL} placeholder="e.g. Is 150 g too much protein?" multiline maxLength={QUESTION_MAX} value={question} onChangeText={setQuestion} />
       {used ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.askFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
       {used ? null : <Button kind="ghost" label={busy ? 'Thinking…' : 'Ask'} a11yLabel="Ask" busy={busy} onPress={() => void send()} />}
       {answer ? (

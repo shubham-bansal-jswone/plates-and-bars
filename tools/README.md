@@ -6,7 +6,24 @@ Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm
 - `validate/` checks `content/exercises.json` (`npm run validate:exercises`) and `content/foods.json` (`npm run validate:foods`).
 - `foods-import/` regenerates `content/foods.json` from `docs/spec/golden/foods.json` (`npm run import:foods`).
 - `cards-import/` regenerates `content/cards.json` (KB and LEARN), `content/measures.json` (MEASURES) and `content/labels.json` (MUSCLE, JOINT, replacement-reason phrases) from the prototype (`npm run import:cards`); `validate/cards-cli.mjs` checks them (`npm run validate:cards`) and rejects a card without a source. See "Cards, measures and labels" below.
+- `golden-gen/` regenerates `docs/spec/golden/*.json` from the prototype's own code (`npm run golden`; `npm run check:golden` compares without writing). See "Golden fixtures" below.
 - `check-no-ifct/` exits non-zero if "IFCT" or "INDB" (any case) appears in a file name or file under `content/` (`npm run check:sources`). CI wiring lives in `.github/workflows/` (infra).
+
+## Golden fixtures
+
+`golden-gen/` runs the prototype (`docs/prototype/plate-and-bar.html`) in a Node `vm` sandbox and writes the eight files in `docs/spec/golden/`, byte for byte as committed (JSON, one-space indent, no trailing newline). No dependencies, no clock, no randomness, no network; a test runs it under three time zones.
+
+- `prototype.mjs` copies top-level statements of the prototype by name (`const X = ...`, `Object.assign(X, ...)`, `X[...] = ...`, `X.push(...)`, a function) and evaluates only those, the way core's tests slice the HTML. Tables (`TAGS`, `CARDS`, `LIB`, `LADDERS`, `AWAY`, `FOODS`, `FIB`, `RAW`, `RAW_FIB`, `ALIAS`, `TEMPLATES`, `SPLITS`, `EX_META`, `DEFAULT_STEP`) are read as the prototype leaves them after its later `Object.assign` and `push` edits; `calcTargets`, `suggestBase`, `navyBF`, `waterTarget`, `fibreTarget`, `workoutBurn`, `planned`, `exerciseCap` and the session pipeline are run, never re-typed.
+- `cases.mjs` is the checked-in case list: the profiles for `targets.json`, the lift records for `progression.json`, the training days, session lengths, stored modes, week plans and sessions for `plan.json`, the profile behind every `sessions.json` case (where, template, minutes, experience, focus and stored-session history, which sets the rotation offset; each case records it), the sexes, days since the learn start and read sets for `learn.json` (the daily "Why it works" read, run through the prototype's `learnCardHtml`; hidden cards are an app filter and are not in it), and the inputs of `formulas.json`. `TODAY` (2026-10-07) and `WEEK_START` (2026-10-05) are the fixed dates.
+- Rounding of stored values is applied in `generate.mjs` as in `docs/spec/PROTOTYPE_SPEC.md` section 1: whole kcal for `tdee`, `bmr`, `movement`, `training` and `digestion`; `refWeight` whole; `weeklyKg` to 2 decimals; `navyBodyFat` to 1 decimal; negative zero stored as 0.
+- `npm test` fails if any committed golden file differs from what the prototype produces (`golden-gen.test.mjs`), and CI runs `tools` whenever `docs/prototype/` or `docs/spec/golden/` changes. `node golden-gen/cli.mjs --check` does the same from the command line.
+
+How a `spec-change` PR regenerates fixtures:
+
+1. Change `docs/prototype/plate-and-bar.html` (and add cases in `golden-gen/cases.mjs`, or a generator for a new fixture in `golden-gen/generate.mjs`).
+2. From `tools/`, run `node golden-gen/cli.mjs`. Never edit `docs/spec/golden/*.json` by hand.
+3. Commit the prototype, the case list and the regenerated fixtures together, label the PR `spec-change`, and add the dated entry at the top of section 0 of the spec.
+4. If a fixture's recorded inputs changed, `npm test` also checks that `cases.mjs` matches them.
 
 ## Exercise card keys
 
@@ -34,7 +51,7 @@ should offer at least one "felt it in the wrong place" fix.
 ## Food rows
 
 `content/foods.json` rows follow `Food` in `packages/api/openapi.yaml` (per-serving values, carbs include fibre).
-`source` is the contract `FoodSource` object, so its `reference` is the source id (null until a USDA FDC id is recorded).
+`source` is the contract `FoodSource` object, so its `reference` is the source id (an FDC id and serving scaling for `usda_fdc` rows, null otherwise).
 
 - `source`: packaged whey, Greek yogurt and makhana are `label_typical`; paneer, curd and toned milk are `fssai`
   (prototype note); single plain foods are `usda_fdc` and composed dishes are `own_recipe` (ADR 005). Chicken breast, cooked (raw value / cooking yield) and buttermilk (80 g curd) are `own_recipe`.
@@ -77,7 +94,7 @@ Everything is derived from the prototype by running its own code with stub state
 
 Three files come from the prototype's recipe builder and meal-idea code (`npm run import:recipes`; a test fails if they drift from `docs/prototype/plate-and-bar.html`). Validate with `npm run validate:recipes`.
 
-- `content/raw-ingredients.json`: `RAW` and `RAW_FIB`, per 100 g raw, carbs include fibre, `fibre_g` 0 where `RAW_FIB` has no entry (the prototype counts it as 0). `fatty` marks `FATTY` (oil, ghee, butter, cream). Source per row: paneer, curd and toned milk are `fssai`; whey protein, Greek yogurt and makhana are `label_typical`; poha (approximated from rice) and the generic mixed-vegetable blend are `own_estimate`; fresh cream is `label_typical`; the rest are `usda_fdc` as the prototype's note says (`SOURCE_OVERRIDE` in `recipes-import/import.mjs`). Rows that borrow another USDA entry (`USDA_PROXY`: chana dal, moong dal, whole moong, chicken curry cut) say so in `source.name`. The USDA FDC ids are not recorded yet, so `source.reference` is null.
+- `content/raw-ingredients.json`: `RAW` and `RAW_FIB`, per 100 g raw, carbs include fibre, `fibre_g` 0 where `RAW_FIB` has no entry (the prototype counts it as 0). `fatty` marks `FATTY` (oil, ghee, butter, cream). Source per row: paneer, curd and toned milk are `fssai`; whey protein, Greek yogurt and makhana are `label_typical`; poha (approximated from rice) and the generic mixed-vegetable blend are `own_estimate`; fresh cream is `label_typical`; the rest are `usda_fdc` as the prototype's note says (`SOURCE_OVERRIDE` in `recipes-import/import.mjs`). Rows that borrow another USDA entry (`USDA_PROXY`: chana dal, moong dal, whole moong, chicken curry cut) say so in `source.name`. Each `usda_fdc` row records its SR Legacy FDC id in `source.reference` (`FDC_RAW` in the importer, per 100 g, with a note where the record is a proxy or has an identical twin); `Oil` is left null because the generic 884 kcal / 100 g fits every refined cooking oil (`FDC_UNMATCHED`).
 - `content/recipes.json`: `library` (the 9 recipes with steps, time, cost and tags) and `presets` (the 8 typical home-style versions). Ingredients use the contract's `Ingredient` shape (`ingredient`, `amount`, `unit`) and every name must be in `raw-ingredients.json`. Source is `own_recipe`. `katori_g` is the prototype's `KATORI_G`.
 - `content/meal-planning.json`: meal and protein weights, per-food portion caps (`MAXQ`) and minimums (`MINQ`), and the grocery map (`GROC`). Every food named in the caps and grocery map must exist in `foods.json`.
 - Every row carries `needs_dietitian_review: true` until a dietitian signs it off; the importer sets it, so clearing it is a deliberate content change.

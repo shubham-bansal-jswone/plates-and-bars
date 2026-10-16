@@ -262,6 +262,16 @@ describe('Ask why', () => {
     expect(screen.getByText('Based on the card: Why so much protein?')).toBeTruthy();
   });
 
+  it('shows its label as visible text that stays once the user types', async () => {
+    const { api } = fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }), response: res(200) })) });
+    await ai(optedIn(), api, <AiSection />);
+    await fireEvent.press(await screen.findByLabelText('Ask why about your targets'));
+    expect(await screen.findByText('Your question', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Your question')).toBeNull(); // hidden from screen readers: the field speaks the label
+    await fireEvent.changeText(screen.getByLabelText('Your question'), 'Why so much protein?');
+    expect(screen.getByText('Your question', { includeHiddenElements: true })).toBeTruthy();
+  });
+
   it('is hidden when the server has it off', async () => {
     const { api, GET } = fakeApi();
     await ai(optedIn(), api, <AiSection />);
@@ -482,6 +492,16 @@ describe('Why sheet follow-up', () => {
     await fireEvent.press(await screen.findByLabelText(/^Why\? /));
     expect(screen.getByText(/Source: /)).toBeTruthy();
     expect(screen.queryByLabelText('Ask a follow-up')).toBeNull();
+  });
+
+  it('shows its label as visible text that stays once the user types', async () => {
+    const { api } = on();
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    expect(await screen.findByText('Ask a follow-up', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Ask a follow-up')).toBeNull(); // hidden from screen readers: the field speaks the label
+    await fireEvent.changeText(screen.getByLabelText('Ask a follow-up'), 'Is 150 g too much?');
+    expect(screen.getByText('Ask a follow-up', { includeHiddenElements: true })).toBeTruthy();
   });
 
   it('is hidden when consent is not given, and nothing is sent', async () => {
