@@ -46,7 +46,7 @@ describe('learn: golden/learn.json', () => {
     const list = ids(learnList(cards, sex));
     expect(list.slice(0, output.due).find((id) => !input.read.includes(id)) ?? null).toBe(output.next);
   });
-  it('covers days 0, 2, 3, 6 and 30 for each sex', () => {
+  it('covers days 0, 2, 3, 6, 12 and 30 for each sex', () => {
     for (const sex of ['male', 'female', null]) expect([...new Set(golden.cases.filter((c) => c.input.sex === sex).map((c) => c.input.days))]).toEqual([0, 2, 3, 6, 12, 30]);
     expect(golden.cases.filter((c) => c.input.sex === 'male' && c.input.read.length === 0).map((c) => c.output.due)).toEqual([1, 1, 2, 3, 5, 11]);
   });
