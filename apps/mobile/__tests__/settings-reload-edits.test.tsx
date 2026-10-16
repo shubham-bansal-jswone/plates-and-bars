@@ -12,6 +12,7 @@ import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 
+const PULLED_VERSION = 7; // the server's version of the record: a save must keep it, or the upload is a conflict
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 /** A real SQLite whose reads of the settings record can be held: a read returns what it read, but only after `release`. */
@@ -37,6 +38,26 @@ async function setup() {
     }
     return row;
   }) as typeof db.getFirstAsync;
+  // Writes of the settings record: the next one can be held, and all of them can be made to fail.
+  let heldWrite: Promise<void> | null = null;
+  const writes = { failing: false };
+  const run = db.runAsync.bind(db);
+  db.runAsync = (async (sql: string, ...p: (string | number)[]) => {
+    if (sql.includes('user_settings')) {
+      if (heldWrite) {
+        const h = heldWrite;
+        heldWrite = null;
+        await h;
+      }
+      if (writes.failing) throw new Error('disk full');
+    }
+    return run(sql, ...p);
+  }) as typeof db.runAsync;
+  const holdWrite = () => {
+    let open!: () => void;
+    heldWrite = new Promise<void>((r) => (open = r));
+    return open;
+  };
   /** Holds the next read of the settings record; `reached` resolves when a read is held, `open` lets it return. */
   const holdNext = () => {
     let open!: () => void;
@@ -72,19 +93,22 @@ async function setup() {
     await pullOnce();
     reads.n = 0; // only the provider's reads are counted
   };
-  return { db, result, reload, holdNext, reads, upload, pull };
+  return { db, result, reload, holdNext, holdWrite, writes, reads, upload, pull };
 }
 
 /** Another device changed `rest_off`: a pull stores the record (without queuing it), as the sync engine does. */
 function pullFromOtherDevice(db: Awaited<ReturnType<typeof openDb>>) {
   return async () => {
     const cur = (await loadSettings(db))!;
-    await applyPulled(db, 'settings', 'me', (txn) => saveSettings(txn, { ...cur, rest_off: true, updated_at: '2026-10-09T09:00:00Z' }));
+    await applyPulled(db, 'settings', 'me', (txn) => saveSettings(txn, { ...cur, version: PULLED_VERSION, rest_off: true, updated_at: '2026-10-09T09:00:00Z' }));
   };
 }
 
+const inc = (s: Settings) => ({ adjustments: { ...s.adjustments, n: ((s.adjustments.n as number | undefined) ?? 0) + 1 } });
+const count = (s: Settings) => s.adjustments.n;
+
 describe('settings reload with an edit while it reads (#614)', () => {
-  it('applies the edit on the pulled record: a field another device changed is kept, in memory, stored and uploaded', async () => {
+  it('applies the edit on the pulled record: a field another device changed is kept, in memory, stored and uploaded, with the pulled version', async () => {
     const { db, result, reload, holdNext, pull, upload } = await setup();
     await pull();
     const first = holdNext();
@@ -96,9 +120,10 @@ describe('settings reload with an edit while it reads (#614)', () => {
     await act(async () => first.open());
     await waitFor(() => expect(result.current.settings).toMatchObject({ focus: ['chest'], rest_off: true }));
     await new Promise((r) => setTimeout(r, 20));
-    expect(result.current.settings).toMatchObject({ focus: ['chest'], rest_off: true });
-    expect(await loadSettings(db)).toMatchObject({ focus: ['chest'], rest_off: true });
-    expect(await upload()).toMatchObject({ focus: ['chest'], rest_off: true });
+    const want = { focus: ['chest'], rest_off: true, version: PULLED_VERSION };
+    expect(result.current.settings).toMatchObject(want);
+    expect(await loadSettings(db)).toMatchObject(want);
+    expect(await upload()).toMatchObject(want); // the server's version, so it accepts the upload instead of logging a conflict
   });
 
   it('keeps all three of one edit during the first read and two during the re-read, and stops reading', async () => {
@@ -118,14 +143,104 @@ describe('settings reload with an edit while it reads (#614)', () => {
       result.current.update({ water_sizes: { glass_ml: 123, bottle_ml: 456 } });
     });
     await act(async () => second.open());
-    const all = { focus: ['chest'], diet: 'veg', water_sizes: { glass_ml: 123, bottle_ml: 456 }, rest_off: true };
+    const all = { focus: ['chest'], diet: 'veg', water_sizes: { glass_ml: 123, bottle_ml: 456 }, rest_off: true, version: PULLED_VERSION };
     await waitFor(() => expect(result.current.settings).toMatchObject(all));
-    await new Promise((r) => setTimeout(r, 30));
-    const settled = reads.n;
-    await new Promise((r) => setTimeout(r, 30));
-    expect(reads.n).toBe(settled); // the loop stopped: no further read
+    await new Promise((r) => setTimeout(r, 60));
+    // Exactly three reads by the reload (first, re-read, final: the loop stopped) and one by each of the three saves.
+    expect(reads.n).toBe(6);
     expect(result.current.settings).toMatchObject(all);
     expect(await loadSettings(db)).toMatchObject(all);
     expect(await upload()).toMatchObject(all);
+  });
+
+  it('keeps the pulled field when the edit lands after the pull stored it but before the reload starts', async () => {
+    const { db, result, reload, pull, upload } = await setup();
+    await pull(); // the rest of the sync run still has to finish before the app reloads
+    await act(async () => {
+      result.current.setFocus(['chest']);
+    });
+    await waitFor(() => expect(result.current.settings.rest_off).toBe(true)); // what the save stored is what shows, even before any reload
+    await reload();
+    await new Promise((r) => setTimeout(r, 30));
+    const want = { focus: ['chest'], rest_off: true, version: PULLED_VERSION };
+    expect(result.current.settings).toMatchObject(want);
+    expect(await loadSettings(db)).toMatchObject(want);
+    expect(await upload()).toMatchObject(want);
+  });
+
+  it('applies a function edit once: one queued outside a reload, then a reload, then another during it', async () => {
+    const { db, result, reload, holdWrite } = await setup();
+    const open = holdWrite();
+    await act(async () => {
+      result.current.setDiet('veg'); // its write is held
+    });
+    await act(async () => {
+      result.current.update(inc); // outside a reload, queued behind the held write
+    });
+    await reload(); // the reload starts and waits for the queue
+    await act(async () => {
+      result.current.update(inc); // during the reload
+    });
+    await act(async () => open());
+    await new Promise((r) => setTimeout(r, 30));
+    expect(count((await loadSettings(db))!)).toBe(2);
+    expect(count(result.current.settings)).toBe(2);
+  });
+});
+
+describe('settings saves outside a reload', () => {
+  it('save as before: each edit is stored in order, with the stored version and fields kept, and memory matches', async () => {
+    const { db, result } = await setup();
+    const before = (await loadSettings(db))!;
+    await act(async () => {
+      result.current.setFocus(['chest']);
+      result.current.update(inc);
+      result.current.update(inc);
+      result.current.setDiet('veg');
+    });
+    await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest'], diet: 'veg' }));
+    expect(count((await loadSettings(db))!)).toBe(2);
+    expect(await loadSettings(db)).toMatchObject({ version: before.version, rest_off: false, water_sizes: before.water_sizes });
+    expect(result.current.settings).toMatchObject({ focus: ['chest'], diet: 'veg', adjustments: { n: 2 } });
+    expect(result.current.saveFailed).toBe(false);
+  });
+
+  it('saves into an empty store from the defaults plus the edit, once', async () => {
+    const { db, result } = await setup();
+    await db.runAsync('DELETE FROM user_settings');
+    await act(async () => {
+      result.current.update(inc);
+    });
+    await waitFor(async () => expect(await loadSettings(db)).not.toBeNull());
+    expect(await loadSettings(db)).toMatchObject({ focus: [], adjustments: { n: 1 } });
+  });
+});
+
+describe('a failed settings write (#614)', () => {
+  it('is kept and applied once with the next successful save, not dropped and not applied twice', async () => {
+    const { db, result, writes, pull, upload } = await setup();
+    await pull();
+    writes.failing = true;
+    await act(async () => {
+      result.current.update(inc);
+    });
+    await waitFor(() => expect(result.current.saveFailed).toBe(true));
+    expect(count((await loadSettings(db))!)).toBeUndefined(); // not stored
+    expect(count(result.current.settings)).toBe(1); // still shown
+    writes.failing = false;
+    await act(async () => {
+      result.current.update(inc);
+    });
+    await waitFor(() => expect(result.current.saveFailed).toBe(false));
+    expect(count((await loadSettings(db))!)).toBe(2); // the failed edit once, the new one once
+    await act(async () => {
+      result.current.setDiet('veg');
+    });
+    await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ diet: 'veg' }));
+    const stored = (await loadSettings(db))!;
+    expect(count(stored)).toBe(2); // a saved edit is not applied again
+    expect(stored).toMatchObject({ rest_off: true, version: PULLED_VERSION });
+    expect(count(result.current.settings)).toBe(2);
+    expect(count((await upload()) as Settings)).toBe(2);
   });
 });
