@@ -450,6 +450,35 @@ describe('Weekly check-in, burn and habits', () => {
     if (weights) for (let i = 0; i < 12; i++) await saveWeight(db, weigh(day(i), Math.round((80 + i * 0.1) * 10) / 10));
   };
 
+  // Nine older days are ticked complete; the tenth is a day with 3 items at 75% of the target and no tick.
+  const nineTicked = async (db: Db) => {
+    for (let i = 2; i <= 10; i++) {
+      await saveLog(db, meal(day(i), 1, 1500));
+      await saveDayNote(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: day(i), complete: true, steps: 8000, sleep: 6.5, fast: false });
+    }
+  };
+  const threeItems = async (db: Db, date: string) => {
+    for (let n = 1; n <= 3; n++) await saveLog(db, meal(date, n, 1000));
+  };
+  const DAYS_HINT = /more complete day/;
+
+  it('does not count today as a complete day by the 3-items fallback, only when ticked (#601)', async () => {
+    const db = memoryDb();
+    await nineTicked(db);
+    await threeItems(db, DATE);
+    await setup({ db });
+    expect(await screen.findByText(/Needs 1 more complete day in the last 2 weeks/)).toBeTruthy();
+  });
+
+  it('counts the same day by the fallback once it is yesterday (#601)', async () => {
+    const db = memoryDb();
+    await nineTicked(db);
+    await threeItems(db, day(1));
+    await setup({ db });
+    expect(await screen.findByText(/Needs 6 more weigh-ins/)).toBeTruthy();
+    expect(screen.queryByText(DAYS_HINT)).toBeNull();
+  });
+
   it('shows the week numbers from core, the burn card waiting for data, and the habits', async () => {
     const db = memoryDb();
     await saveLog(db, meal(DATE, 1, 600));
