@@ -12,5 +12,6 @@ test('the profile survives a reload and the app opens straight to Targets', asyn
   await completeSetup(page);
   await page.reload({ waitUntil: 'load' });
   await expect(label(page, 'Redo setup')).toBeVisible({ timeout: 40_000 });
-  await expect(label(page, '1,990 kcal')).toBeVisible();
+  // The targets are the editable "Daily targets" fields now (#483), so read the calories field's value.
+  await expect(label(page, 'Calories (kcal)')).toHaveValue('1990');
 });

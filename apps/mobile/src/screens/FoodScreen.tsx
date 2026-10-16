@@ -16,6 +16,7 @@ import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
 import { IdeasCard } from '../meals/IdeasCard';
 import { useWater } from '../food/useWater';
+import { BurnCard } from '../food/BurnCard';
 import { WaterCard } from '../food/WaterCard';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -153,6 +154,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           onFlex={plan}
           onPlanWeek={() => router.push('/meal-plan')}
         />
+        {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} kcalEaten={t.kcal} reloadKey={dataVersion} /> : null}
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
