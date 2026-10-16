@@ -407,6 +407,32 @@ describe('Workout tab: logging sets', () => {
       expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('pain');
     });
 
+    it('the answer is still there after the app is reopened', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME} felt: Back of the upper arms (triceps)`);
+      await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('target'));
+      await screen.unmount();
+      await mount(db);
+      expect(await screen.findByText('Felt it in the right place. Good.')).toBeTruthy();
+      expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
+    });
+
+    it('Skip remaining sets renumbers the sets left, so a set added next gets a free position', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`Mark ${NAME} set 3 done`); // done, not done, done
+      await press(`${NAME}: It hurt`);
+      await press(`Skip remaining sets of ${NAME}`);
+      await waitFor(() => expect(screen.queryByLabelText(`${NAME} set 3 kg`)).toBeNull());
+      await press(`Add a set to ${NAME}`);
+      await waitFor(() => expect(screen.getByLabelText(`${NAME} set 3 kg`)).toBeTruthy());
+      await waitFor(() => {
+        const live = storedSets(db).filter((x) => x.exercise === NAME && x.kind === 'work' && !x.deleted_at);
+        expect(live.map((x) => x.set_index).sort()).toEqual([0, 1, 2]);
+      });
+    });
+
     it('It hurt then Find an alternative opens the can\'t-do sheet at "for how long" with pain', async () => {
       await started();
       await press(`Mark ${NAME} set 1 done`);
@@ -415,6 +441,10 @@ describe('Workout tab: logging sets', () => {
       expect(await screen.findByText(`Can’t do ${NAME}?`)).toBeTruthy();
       expect(screen.queryByText('Why not? This decides what the app suggests instead.')).toBeNull();
       expect(screen.getByText('Pain is a signal to stop, not push through. If it keeps happening or came from an injury, see a physio.')).toBeTruthy();
+      // Pain's default scope is the joint, as in the prototype's defaultScope (the exercise's first joint, the elbow).
+      await press('Permanently');
+      const joint = await screen.findByLabelText(/^Anything that loads the .*elbow/i);
+      expect(joint.props.accessibilityState.checked).toBe(true);
     });
   });
 

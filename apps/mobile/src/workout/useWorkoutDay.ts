@@ -397,10 +397,11 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         ex.sets = ex.sets.filter((s) => s.done);
         notify('Skipped the remaining sets');
       },
-      async () => {
+      async (name) => {
         const at = stamp(now());
-        const ids = new Set(gone.map((g) => g.id));
-        for (const stored of (await loadSets(db, date)).filter((s) => ids.has(s.id) && !s.deleted_at)) await saveSet(db, date, { ...stored, updated_at: at, deleted_at: at });
+        const goneIds = new Set(gone.map((g) => g.id));
+        for (const stored of (await loadSets(db, date)).filter((s) => goneIds.has(s.id) && !s.deleted_at)) await saveSet(db, date, { ...stored, updated_at: at, deleted_at: at });
+        await writeSets(name, 'work', ids(exNamed(name)?.sets ?? [])); // the rows left move up: set_index is the position
       },
     );
   };

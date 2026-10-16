@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
-import { feelResult, isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
+import { feelResult, isFocus, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
 import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
@@ -100,12 +100,14 @@ function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
   if (r.kind === 'pain')
     return (
       <View style={{ gap: 8 }}>
-        <Note>
-          <Text style={{ fontWeight: '700' }}>Stop this exercise for today.</Text> Pain is different from muscle effort or burning. If it happens again next session, pick a different exercise, and see a physio if it keeps happening.
-        </Note>
+        <View style={{ borderLeftWidth: 3, borderLeftColor: c.danger, borderRadius: radius.md }}>
+          <Note>
+            <Text style={{ fontWeight: '700' }}>Stop this exercise for today.</Text> Pain is different from muscle effort or burning. If it happens again next session, pick a different exercise, and see a physio if it keeps happening.
+          </Note>
+        </View>
         <View style={styles.wrap}>
-          <Button label={`Find an alternative to ${ex.name}`} onPress={act.cantPain} />
-          {ex.sets.some((s) => !s.done) ? <Button label={`Skip remaining sets of ${ex.name}`} kind="ghost" onPress={act.skipRest} /> : null}
+          <Button label="Find an alternative" a11yLabel={`Find an alternative to ${ex.name}`} onPress={act.cantPain} />
+          {ex.sets.some((s) => !s.done) ? <Button label="Skip remaining sets" a11yLabel={`Skip remaining sets of ${ex.name}`} kind="ghost" onPress={act.skipRest} /> : null}
         </View>
       </View>
     );
@@ -115,7 +117,7 @@ function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
       <View style={styles.wrap}>
         <Chip label={`${ex.name} felt: ${card.where_to_feel.split(',')[0]}`} text={card.where_to_feel.split(',')[0] ?? ''} onPress={() => act.feel('target')} />
         {card.misplaced_feel.map(([area], k) => (
-          <Chip key={area} label={`${ex.name} felt: ${area}`} text={area} onPress={() => act.feel(String(k))} />
+          <Chip key={k} label={`${ex.name} felt: ${area}`} text={area} onPress={() => act.feel(String(k))} />
         ))}
         <Chip label={`${ex.name}: It hurt`} text="It hurt" danger onPress={() => act.feel('pain')} />
       </View>
@@ -227,7 +229,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning 
         })}
       </View>
 
-      {learning && working ? <FeelStep ex={ex} act={act} /> : null}
+      {showFeel(!!learning, working) ? <FeelStep ex={ex} act={act} /> : null}
 
       {allDone && !nl ? (
         ex.form ? (
