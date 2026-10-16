@@ -113,6 +113,23 @@ describe('settings store', () => {
       expect(ok).toBe(true);
       await waitFor(async () => expect((await loadSettings(db))?.custom_tags.E0).toMatchObject({ primary: ['glutes'] }));
     });
+
+    it('addCustomTags refuses a name that is a known exercise in another letter case, built-in or custom (#450)', async () => {
+      const db = memoryDb();
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      let ok = true;
+      await act(async () => void (ok = result.current.addCustomTags('goblet squat', tag)));
+      expect(ok).toBe(false);
+      expect(getCatalog().tags['goblet squat']).toBeUndefined();
+      await act(async () => void (ok = result.current.addCustomTags('Cossack Squat', tag)));
+      expect(ok).toBe(true);
+      await act(async () => void (ok = result.current.addCustomTags('COSSACK SQUAT', tag)));
+      expect(ok).toBe(false);
+      await act(async () => void (ok = result.current.addCustomTags('Cossack Squat', { ...tag, primary: ['glutes'] })));
+      expect(ok).toBe(true); // the exact name is a replace, as before
+      expect(Object.keys((await loadSettings(db))?.custom_tags ?? {})).toEqual(['Cossack Squat']);
+    });
   });
 });
 
