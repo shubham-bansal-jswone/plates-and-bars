@@ -28,8 +28,13 @@ export const blankRow = (): Row => ({ id: newId(), version: 0, w: '', r: '', don
 
 export const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
-export function exerciseRecord(e: ExState): WorkoutExercise {
-  return { name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}) };
+/**
+ * The stored exercise for `e`. Keys this client does not know (added by a newer one) are carried through from the
+ * `stored` copy, as `mods` is; the known keys always come from the screen, and `feel` is dropped when it is cleared.
+ */
+export function exerciseRecord(e: ExState, stored?: WorkoutExercise): WorkoutExercise {
+  const { feel: _f, ...extra } = stored ?? ({} as WorkoutExercise);
+  return { ...extra, name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}) };
 }
 
 const text = (n: number | null): string => (n === null ? '' : String(n));
