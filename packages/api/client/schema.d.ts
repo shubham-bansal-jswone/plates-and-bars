@@ -1000,8 +1000,8 @@ export interface components {
         };
         DescribeMealRequest: {
             /**
-             * @description What the user ate, in their own words, with rough amounts if known. Must contain
-             *     a non-space character. Prototype: the Describe it textarea.
+             * @description What the user ate, in their own words, with rough amounts if known. Must not be
+             *     blank (see the wire conventions). Prototype: the Describe it textarea.
              */
             text: string;
         };
@@ -1027,7 +1027,7 @@ export interface components {
              *     `protein`, `scale`). Prototype: `WHY.id`.
              */
             card_id: string;
-            /** @description The follow-up question. Must contain a non-space character. Prototype: `#askQ`. */
+            /** @description The follow-up question. Must not be blank (see the wire conventions). Prototype: `#askQ`. */
             question: string;
         };
         AskWhyResponse: {
@@ -1040,7 +1040,7 @@ export interface components {
         SuggestTagsRequest: {
             /**
              * @description The exercise name as the user typed it, trimmed by the app (the app's name limit,
-             *     200 characters). Must contain a non-space character. This is the one place a
+             *     200 characters). Must not be blank (see the wire conventions). This is the one place a
              *     custom exercise's typed name leaves the device, and only when the user has turned
              *     AI on; Weekly summary still sends `custom exercise` instead.
              */
@@ -1303,6 +1303,8 @@ export interface components {
             found_kg: number | null;
             /** @description User skipped the find-your-weight ramp. Prototype: `skipRamp`. */
             skip_ramp: boolean;
+            /** @description Where the user felt the last set: `target`, `pain`, or the index of the guide card's "felt it somewhere else" entry. Null or absent when not answered. Optional so older clients that omit it still validate; a client that does not know the field may drop it when it rewrites the exercise. Prototype: `ex.feel`. */
+            feel?: string | null;
         };
         /** @description One working or ramp set within a workout. */
         WorkoutSet: components["schemas"]["SyncMeta"] & {
