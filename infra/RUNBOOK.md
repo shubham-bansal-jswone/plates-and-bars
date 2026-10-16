@@ -1,6 +1,6 @@
 # Staging runbook
 
-Staging runs from `infra/staging/` on one VM: Caddy (HTTPS), the API and MySQL 8.4 in Docker Compose. This file covers set-up, backups, restore, rollback and monitoring. Nothing here is automated yet: no deploy workflow exists and no account has been created. Steps marked **Owner** need an account or a decision from Shubham.
+Staging runs from `infra/staging/` on one VM: Caddy (HTTPS), the API and MySQL 8.4 in Docker Compose. This file covers set-up, backups, restore, rollback and monitoring. Backups are not automated until you add the cron line (section 3). The merge-to-`main` deploy exists but stays off until you enable it (section 2); no account has been created. Steps marked **Owner** need an account or a decision from Shubham.
 
 ## Free-tier limits (checked 2026-10-12)
 
@@ -32,7 +32,7 @@ Update: `git pull`, then repeat the commands of step 6. Each build tags the imag
 
 Rollback = previous image tag: `docker image ls plateandbar-api`, set `API_TAG=<previous tag>` in `.env`, then `docker compose up -d api` (no `build`). Flyway migrations are forward-only: if the bad release added a migration, restore the last backup (section 4) as well, or ship a fix forward.
 
-Merge-to-`main` deploys and tagged production releases are not wired up; they need the VM and SSH credentials first (**Owner**), and then a workflow that runs these same commands.
+Automatic staging deploy (#411): `.github/workflows/staging-deploy.yml` does the update above on every merge to `main` that touches the backend, content, `packages/api/openapi.yaml` or staging files, using `infra/staging/deploy.sh`. The script tags the image with the 12-character commit sha, polls `/api/v1/health` for up to 5 minutes and, if it fails, sets `API_TAG` back to the previous tag and recreates the API (rollback by hand is the same). The checkout stays on `main` (the workflow uses `git merge --ff-only`), so keep the VM checkout clean and do not commit on it. **Owner:** to switch it on, create the VM and the deploy-only SSH user, then set the repository variable `STAGING_DEPLOY_ENABLED=true` and the `staging` environment values listed in `infra/README.md` (Staging deploy). The health poll goes through the local Caddy (`curl --resolve <API_HOST>:443:127.0.0.1`), so a VM that cannot reach its own public address still deploys. Re-running an old workflow run is intended to deploy the current checkout HEAD (the fast-forward to the old sha is a no-op), not the old sha; to run an older build use the manual rollback above. Tagged production releases are not wired up yet.
 
 ## 3. Nightly backup
 
