@@ -551,3 +551,10 @@ export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from '
  * - `CUSTOM_EXERCISES_MAX` (500) is the most custom exercises `Settings.custom_tags` holds (maxProperties).
  */
 export { UNIT_MAX, NOTE_MAX, EXERCISE_NAME_MAX, CUSTOM_EXERCISES_MAX, servingUnitTooLong, kitchenNoteTooLong, exerciseNameTooLong } from './inputLimits';
+
+/**
+ * The feel step after a set in learn mode (#485). `priorSessions`, `isLearning` and `showFeel` mirror prototype
+ * `priorSessions`, `learning` and the gate of `feelHtml`; `feelResult` mirrors its answer branches (state passed in).
+ */
+export { priorSessions, isLearning, showFeel, feelResult } from './feel';
+export type { FeelResult } from './feel';
