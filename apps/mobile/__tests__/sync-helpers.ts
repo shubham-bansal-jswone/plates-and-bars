@@ -85,6 +85,10 @@ export function fakeServer(userId: string) {
       store.set(`${table}:${rec.id}`, rec);
       (pending[table] ??= []).push(rec);
     },
+    /** Stores a record on the server without sending it as a pulled change (the client only meets it through a conflict). */
+    seed(table: string, rec: Rec) {
+      store.set(`${table}:${rec.id}`, rec);
+    },
     get: (table: string, id: string) => store.get(`${table}:${id}`),
     pushed: (): (Rec & { table: string })[] => s.calls.filter((c) => c.path === '/sync').flatMap((c) => Object.entries(c.body.changes ?? {}).flatMap(([t, rs]) => rs.map((r) => ({ table: t, ...r })))),
     userId,
