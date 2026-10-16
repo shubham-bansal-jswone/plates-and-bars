@@ -29,6 +29,14 @@ async function consent() {
 describe('setup flow', () => {
   beforeEach(() => mockReplace.mockClear());
 
+  it('hides the visible Age caption from screen readers; the field speaks the label', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    expect(screen.getByText('Age', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Age')).toBeNull();
+    expect(screen.getAllByLabelText('Age')).toHaveLength(1);
+  });
+
   it('consent first, then answers stored as the contract Profile; results match calcTargets', async () => {
     const db = memoryDb();
     await render(withProfile(db, <SetupScreen />));

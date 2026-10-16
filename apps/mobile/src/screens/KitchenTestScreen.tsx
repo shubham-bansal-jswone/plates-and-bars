@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenCompare, kitchenNoteTooLong, kitchenTable, kitchenTest, kitchenTestFood, type KitchenCompareFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { CameraDenied, capturePhoto } from '../photos/capture';
@@ -18,10 +18,6 @@ import { localDate } from '../setup/logic';
 import { useTheme } from '../theme/useTheme';
 import { Chip, ToastBar } from '../workout/parts';
 
-/** A visible caption over a field that already carries its spoken label: hidden from screen readers so it is not read twice. */
-const Cap = ({ children }: { children: string }) => (
-  <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Label>{children}</Label></View>
-);
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 const blank = (date: string): TestFields => ({ id: newId(), name: '', date, note: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '', unit: 'g' }], pot: '', potFull: '', cooked: '', serving: '', sname: 'katori' });
 const validDate = (s: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(s) && localDate(new Date(`${s}T00:00:00`)) === s;
@@ -139,12 +135,12 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           </View>
         ) : null}
         <View style={styles.gap}>
-          <Cap>Dish</Cap>
+          <Caption>Dish</Caption>
           <Field label="Dish" placeholder="e.g. Dal" value={d.name} onChangeText={(name) => set({ name })} />
-          <Cap>Date</Cap>
+          <Caption>Date</Caption>
           <Field label="Date" placeholder="2026-10-08" autoCapitalize="none" value={d.date} onChangeText={(date) => set({ date })} />
           {dateOk ? null : <ErrorText>{BAD_DATE}</ErrorText>}
-          <Cap>Notes (who cooked, region, method)</Cap>
+          <Caption>Notes (who cooked, region, method)</Caption>
           <Field label="Notes" placeholder="e.g. Mom’s Punjabi-style, pressure cooker" value={d.note} onChangeText={(note) => set({ note })} />
         </View>
         <View style={styles.gap}>
