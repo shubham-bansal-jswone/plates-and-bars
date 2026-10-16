@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
@@ -60,6 +61,7 @@ function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: 
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: c.muted, fontSize: 14 }}>How did that feel?</Text>
+      <WhyLink id="rir" />
       <View style={styles.wrap}>
         {RATE_ORDER.map((k) => (
           <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => onRate(k)} />
@@ -207,6 +209,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning 
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
           <Text style={{ color: c.ink, fontWeight: '700' }}>Suggested: {sug.text}</Text>
           <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
+          <WhyLink id="progression" />
         </View>
       ) : null}
       {warm ? (

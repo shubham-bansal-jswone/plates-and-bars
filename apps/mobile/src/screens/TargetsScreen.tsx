@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
+import { fmt } from '../format';
+import { buildResults } from '../setup/results';
+import type { Profile } from '../setup/types';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -19,6 +23,11 @@ import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
 import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
+
+const burnParts = (p: Profile) => {
+  const { r } = buildResults(p);
+  return { tdee: fmt(r.tdee), bmr: fmt(r.bmr), movement: fmt(r.movement), training: fmt(r.training), digestion: fmt(r.digestion) };
+};
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
@@ -80,6 +89,11 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
       <Page>
         <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets />
         <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 }}>
+          {/* The numbers are the stored (possibly edited) targets; the burn breakdown is what setup computed. */}
+          <WhyLink id="targets" label="Why these numbers?" values={{ kcal: fmt(profile.targets.kcal), protein_g: profile.targets.protein_g, ...burnParts(profile) }} />
+          <WhyLink id="protein" label="Why this much protein?" values={{ protein_g: profile.targets.protein_g }} />
+        </View>
         {drift ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
