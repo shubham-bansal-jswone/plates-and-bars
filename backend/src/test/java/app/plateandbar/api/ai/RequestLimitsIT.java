@@ -81,10 +81,10 @@ class RequestLimitsIT extends AiITBase {
             var res = declared(c[0], c[1], over);
             assertThat(res.statusCode()).as(c[1]).isEqualTo(400);
             var body = json.readTree(res.body());
-            assertThat(body.path("code").asText()).isEqualTo("invalid_request");
+            assertThat(body.path("code").asString()).isEqualTo("invalid_request");
             assertThat(body.path("details")).hasSize(1);
-            assertThat(body.path("details").get(0).path("field").asText()).isEmpty();
-            assertThat(body.path("details").get(0).path("issue").asText()).isEqualTo("too_large");
+            assertThat(body.path("details").get(0).path("field").asString()).isEmpty();
+            assertThat(body.path("details").get(0).path("issue").asString()).isEqualTo("too_large");
         }
     }
 
@@ -93,7 +93,7 @@ class RequestLimitsIT extends AiITBase {
         var res = declared("POST", "/api/v1/auth/email/start", jsonOfSize(2 * 1024 * 1024));
         assertThat(res.body()).doesNotContain("too_large");
         assertThat(res.statusCode()).isEqualTo(400);
-        assertThat(json.readTree(res.body()).path("details").get(0).path("field").asText()).isEqualTo("email");
+        assertThat(json.readTree(res.body()).path("details").get(0).path("field").asString()).isEqualTo("email");
         var sync = declared("POST", "/api/v1/sync", jsonOfSize(2 * 1024 * 1024));
         assertThat(sync.statusCode()).isEqualTo(401);
     }

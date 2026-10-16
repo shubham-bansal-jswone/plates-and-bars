@@ -1,7 +1,6 @@
 package app.plateandbar.api.sync;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import java.util.Iterator;
+import tools.jackson.databind.JsonNode;
 import java.util.Map;
 
 /** Deep JSON equality that ignores object key order and treats 60 and 60.0 as the same number. */
@@ -16,9 +15,7 @@ final class JsonContent {
             if (a.size() != b.size()) {
                 return false;
             }
-            Iterator<Map.Entry<String, JsonNode>> it = a.fields();
-            while (it.hasNext()) {
-                Map.Entry<String, JsonNode> e = it.next();
+            for (Map.Entry<String, JsonNode> e : a.properties()) {
                 JsonNode other = b.get(e.getKey());
                 if (other == null || !same(e.getValue(), other)) {
                     return false;

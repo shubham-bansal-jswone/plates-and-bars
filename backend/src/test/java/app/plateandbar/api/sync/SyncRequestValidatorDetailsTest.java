@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;

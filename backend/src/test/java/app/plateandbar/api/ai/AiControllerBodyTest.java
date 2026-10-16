@@ -10,7 +10,7 @@ import app.plateandbar.api.auth.JwtService;
 import app.plateandbar.api.support.WebMvcAuthSlice;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -41,7 +41,7 @@ class AiControllerBodyTest {
 
     @Test
     void anOversizedBodyIsPassedOnAsInvalidAndAValidOneIsParsed() throws Exception {
-        when(ai.describeMeal(any(), any())).thenReturn(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode());
+        when(ai.describeMeal(any(), any())).thenReturn(new tools.jackson.databind.ObjectMapper().createObjectNode());
         // Valid JSON, 100 KB: over the 16 KB read bound, under the global limit. It must not be parsed.
         // Valid JSON followed by whitespace, so cutting the read at 16 KB + 1 still leaves parseable JSON: only the
         // length check can reject it.
@@ -61,7 +61,7 @@ class AiControllerBodyTest {
                 .andExpect(status().isOk());
         org.mockito.Mockito.verify(ai).describeMeal(
                 org.mockito.ArgumentMatchers.eq(USER),
-                org.mockito.ArgumentMatchers.argThat(b -> b != null && b.path("text").asText().length() == 16 * 1024 - 20));
+                org.mockito.ArgumentMatchers.argThat(b -> b != null && b.path("text").asString().length() == 16 * 1024 - 20));
         // Over the global request limit (2 MB): refused by the guard filter before the controller runs.
         mvc.perform(post("/api/v1/ai/describe-meal")
                         .header("Authorization", "Bearer " + jwt.issue(USER).value())
@@ -77,13 +77,13 @@ class AiControllerBodyTest {
                 .andExpect(status().isOk());
         org.mockito.Mockito.verify(ai).describeMeal(
                 org.mockito.ArgumentMatchers.eq(USER),
-                org.mockito.ArgumentMatchers.argThat(b -> b != null && "rice".equals(b.path("text").asText())));
+                org.mockito.ArgumentMatchers.argThat(b -> b != null && "rice".equals(b.path("text").asString())));
     }
 
     @Test
     void aBodyWithANonFiniteNumberIsPassedOnAsUnparseable() throws Exception {
         // #420: 1e400 parses to Infinity, which passes `maximum`; the service gets no body and answers 400.
-        when(ai.weeklySummary(any(), any())).thenReturn(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode());
+        when(ai.weeklySummary(any(), any())).thenReturn(new tools.jackson.databind.ObjectMapper().createObjectNode());
         mvc.perform(post("/api/v1/ai/weekly-summary")
                         .header("Authorization", "Bearer " + jwt.issue(USER).value())
                         .contentType("application/json")
