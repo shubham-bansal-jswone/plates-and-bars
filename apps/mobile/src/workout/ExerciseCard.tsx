@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
-import { feelResult, isFocus, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
+import { estimateFor, exInfo, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
 import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
@@ -51,6 +51,8 @@ interface Props {
   cards?: ReactNode;
   /** Learn mode (core's `isLearning`): the feel question shows once a set is done. */
   learning?: boolean;
+  /** Last sessions by exercise: the first-time guide reads them for a rough weight guess from a related lift (core's `estimateFor`). */
+  lifts?: Readonly<Record<string, LiftRecord>>;
   /** Earlier sessions of this exercise (core's `priorSessions`): the Setup steps start open on the very first one. */
   prior?: number;
 }
@@ -154,7 +156,7 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
 }
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, prior }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, prior }: Props) {
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
     if (!armed) return;
@@ -175,6 +177,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
     const f = rampTickFill(ex.ramp, j, info);
     return { w: f.w || 'kg', r: f.r };
   };
+  const est = showRamp && ex.ramp.length === 0 && lifts ? estimateFor(ex.name, lifts, info) : null;
+  const ladder = ladderOf(ex.name, getCatalog().ladders);
   const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, info).r;
 
   return (
@@ -185,7 +189,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
         {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
         {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
-        {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
+        {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ladder ? `\n${ladder.label} ladder: step ${ladder.i + 1} of ${ladder.steps.length}` : ''}{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
       </Text>
       <WhyLink id="rest" subject={ex.name} />
       {tag ? (
@@ -207,6 +211,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           <Text style={{ color: c.ink, fontWeight: '700' }}>First time: find your weight</Text>
           {ex.ramp.length === 0 ? (
             <>
+              {est ? <Hint>Rough guess from your {est.from} ({kgLabel(est.fromW, exInfo(est.from, getCatalog()))}): about {kgLabel(est.w, info)}. Use the ramp to confirm.</Hint> : null}
               <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>
                 1. Do {firstRampReps} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
               </Text>
