@@ -209,6 +209,14 @@ const feelPattern = new RegExp(parsed.components.schemas.WorkoutExercise.propert
 for (const [v, ok] of [["target", true], ["pain", true], ["0", true], ["12", true], ["", false], ["123", false], ["Pain", false], ["-1", false], ["target\n", false]]) {
   if (feelPattern.test(v) !== ok) failures.push(`WorkoutExercise.feel pattern: ${JSON.stringify(v)} should ${ok ? "match" : "not match"}`);
 }
+// Health (#352): liveness only, no build version or other build detail in the public body.
+const health = parsed.components.schemas.Health;
+if (JSON.stringify(Object.keys(health.properties)) !== '["status"]' || JSON.stringify(health.required) !== '["status"]') {
+  failures.push(`Health schema: only "status" may be defined and required, found ${JSON.stringify(Object.keys(health.properties))}`);
+}
+for (const [name, ex] of Object.entries(parsed.paths["/health"].get.responses["200"].content["application/json"].examples)) {
+  if (JSON.stringify(Object.keys(ex.value)) !== '["status"]') failures.push(`/health 200 example ${name}: only "status" allowed, found ${JSON.stringify(Object.keys(ex.value))}`);
+}
 
 if (failures.length) {
   console.error(failures.join("\n"));
