@@ -10,7 +10,7 @@ import { readLearn } from './learn';
 import { WhySheet } from './WhyLink';
 
 /** Prototype `libraryHtml`: every card that is not held back or ruled out for this profile (no split card with 0 training days), with its evidence and a "read" mark once opened. */
-export function WhyLibrary({ values }: { values?: WhyValues }) {
+export function WhyLibrary({ values, now }: { values?: WhyValues; now?: () => Date }) {
   const c = useTheme();
   const settings = useOptionalSettings();
   const [open, setOpen] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function WhyLibrary({ values }: { values?: WhyValues }) {
           <Button kind="ghost" label="Open" a11yLabel={`Open ${x.title}`} onPress={() => setOpen(x.id)} />
         </View>
       ))}
-      {open ? <WhySheet id={open} values={values} onClose={() => setOpen(null)} /> : null}
+      {open ? <WhySheet id={open} values={values} now={now} onClose={() => setOpen(null)} /> : null}
     </View>
   );
 }
