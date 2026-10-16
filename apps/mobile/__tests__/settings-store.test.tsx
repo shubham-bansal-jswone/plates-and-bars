@@ -116,3 +116,41 @@ describe('settings store', () => {
   });
 });
 
+
+describe('settings reload with a write in flight (#597)', () => {
+  it('keeps a write made while a reload is reading, in memory and in the stored record', async () => {
+    const db = memoryDb();
+    await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), focus: ['abs'] });
+    let release: () => void = () => {};
+    let hold: Promise<void> | null = null;
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      const rows = await read(sql, ...p);
+      if (sql.includes('user_settings') && hold) await hold; // the reload's read is slow
+      return rows;
+    }) as typeof db.getFirstAsync;
+    let key = 0;
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <SettingsProvider db={db} reloadKey={key}>
+        {children}
+      </SettingsProvider>
+    );
+    const { result, rerender } = await renderHook(() => useSettings(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    hold = new Promise<void>((r) => (release = r));
+    key = 1;
+    await rerender(undefined); // a pull stored records: the reload starts and reads the old record
+    await act(async () => {
+      result.current.setFocus(['chest']); // the user edits while it is still reading
+    });
+    await act(async () => {
+      release();
+      hold = null;
+    });
+    await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] }));
+    expect(result.current.settings.focus).toEqual(['chest']);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] });
+    expect(result.current.settings.focus).toEqual(['chest']);
+  });
+});
