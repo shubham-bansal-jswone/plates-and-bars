@@ -1,4 +1,4 @@
-import { prototypeSource, sliceBlock, sliceLine } from './helpers';
+import { prototypeSource, sliceBlock, sliceLine, sliceTrimmedLine } from './helpers';
 
 export interface ProtoProtein {
   S: { weights: { entries: Record<string, number> }; settings: { protein: number; profile: { weight?: number } } };
@@ -14,8 +14,7 @@ export interface ProtoProtein {
  */
 export function loadProtein(): ProtoProtein {
   const src = prototypeSource();
-  const arrow = sliceLine(src, '    b:() => { const w = latestWeight()')
-    .trim()
+  const arrow = sliceTrimmedLine(src, 'b:() => { const w = latestWeight()')
     .replace(/^b:\s*/, '')
     .replace(/,$/, '');
   const code = [
