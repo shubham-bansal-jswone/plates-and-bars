@@ -125,9 +125,9 @@ try {
   // The static export has no service worker or other offline cache for the app shell, so loading it with the network off
   // fails; that is expected and only logged. It is probed on a throwaway page: a failed navigation on `page` would leave
   // Chrome's offline error page there, and Chrome reloads that page by itself once the network is back, at a moment we do
-  // not control. That late history navigation swaps the main frame (#578: "Attempted to use detached Frame" in whichever
-  // step was running) and absorbs the explicit reload below, so the app was restored from the back/forward cache and
-  // never read its profile back from SQLite.
+  // not control. That history navigation swaps the main frame by back/forward-cache restore and absorbs the explicit
+  // reload below, so the app came back with its in-memory state and never read its profile back from SQLite. It is a
+  // plausible source of the intermittent "Attempted to use detached Frame" (#578), not a shown one.
   const probe = await browser.newPage();
   await probe.setOfflineMode(true);
   const offlineLoad = await probe.goto(url, { waitUntil: 'load' }).then(() => 'page loaded', (e) => (e.message.includes('ERR_INTERNET_DISCONNECTED') ? 'page request failed (no offline cache), as expected' : Promise.reject(e)));
