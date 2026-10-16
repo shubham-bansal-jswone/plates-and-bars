@@ -5,6 +5,7 @@ import {
   isFocus,
   mapForWhere,
   muscleAllowed,
+  older,
   sessionSets,
   setsFor,
   shortSession,
@@ -31,19 +32,27 @@ function session(where: Where, t: string, focus: string[], profile: PlanProfile,
 }
 
 describe('sessions: golden/sessions.json', () => {
-  const golden = loadGolden<Record<string, string[]>>('sessions');
-  // The fixture pins only 4 exercises, rotation offset 0: it does not record a profile, history or
-  // exclusions. 45 minutes gives the 4-exercise cap; no sessions logged gives offset 0.
-  const profile: PlanProfile = { minutes: 45 };
+  interface GoldenSession {
+    id: string;
+    input: { where: Where; template: string; minutes: number; exp: string; focus: string | null; history: number; age: number | null };
+    output: string[];
+  }
+  // Each case records its profile (#74): minutes set the exercise cap, `history` is the number of stored sessions of the template
+  // (the rotation offset), and `focus` the one focus muscle. No exclusions or swaps.
+  const golden = loadGolden<GoldenSession[]>('sessions');
 
-  it('has 18 cases', () => {
-    expect(Object.keys(golden)).toHaveLength(18);
+  it('has the base grid and the extra cases, with unique ids', () => {
+    expect(golden).toHaveLength(37);
+    expect(new Set(golden.map((c) => c.id)).size).toBe(golden.length);
   });
 
-  it.each(Object.entries(golden))('%s', (key, expected) => {
-    const [where, t, f] = key.split('|') as [Where, string, string | undefined];
-    const focus = f ? [f.replace('focus=', '')] : [];
-    expect(session(where, t, focus, profile)).toEqual(expected);
+  it.each(golden.map((c) => [c.id, c] as const))('%s', (_id, { input, output }) => {
+    const { where, template, minutes, exp, focus, history, age } = input;
+    const profile = { minutes, exp, age } as PlanProfile;
+    const built = session(where, template, focus ? [focus] : [], profile, history);
+    // The last step of the prototype's buildSession: a profile aged 60 or over gets the balance exercise.
+    if (older(profile) && !built.includes(BALANCE_EXERCISE)) built.push(BALANCE_EXERCISE);
+    expect(built).toEqual(output);
   });
 });
 

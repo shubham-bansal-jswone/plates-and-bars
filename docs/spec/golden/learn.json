@@ -1,0 +1,2661 @@
+{
+ "order": {
+  "male": [
+   "formfirst",
+   "ramp",
+   "rir",
+   "protein",
+   "scale",
+   "overload",
+   "spot",
+   "sleep",
+   "volume",
+   "deload",
+   "soreness",
+   "creatine"
+  ],
+  "female": [
+   "formfirst",
+   "ramp",
+   "rir",
+   "protein",
+   "scale",
+   "overload",
+   "bulky",
+   "spot",
+   "sleep",
+   "volume",
+   "deload",
+   "soreness",
+   "creatine"
+  ],
+  "none": [
+   "formfirst",
+   "ramp",
+   "rir",
+   "protein",
+   "scale",
+   "overload",
+   "spot",
+   "sleep",
+   "volume",
+   "deload",
+   "soreness",
+   "creatine"
+  ]
+ },
+ "cases": [
+  {
+   "id": "male|day0|read=none",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": []
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day0|read=first-only",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day0|read=second-only",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day0|read=first-three",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day0|read=female-card-only",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day0|read=not-in-the-list",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day0|read=all-but-last",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day0|read=all-including-bulky",
+   "input": {
+    "sex": "male",
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day2|read=none",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": []
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day2|read=first-only",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day2|read=second-only",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day2|read=first-three",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day2|read=female-card-only",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day2|read=not-in-the-list",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day2|read=all-but-last",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day2|read=all-including-bulky",
+   "input": {
+    "sex": "male",
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day3|read=none",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": []
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day3|read=first-only",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day3|read=second-only",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day3|read=first-three",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day3|read=female-card-only",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day3|read=not-in-the-list",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day3|read=all-but-last",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day3|read=all-including-bulky",
+   "input": {
+    "sex": "male",
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day6|read=none",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": []
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day6|read=first-only",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day6|read=second-only",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day6|read=first-three",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day6|read=female-card-only",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day6|read=not-in-the-list",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day6|read=all-but-last",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day6|read=all-including-bulky",
+   "input": {
+    "sex": "male",
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day12|read=none",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": []
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day12|read=first-only",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day12|read=second-only",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day12|read=first-three",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "protein",
+    "readN": 3,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day12|read=female-card-only",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day12|read=not-in-the-list",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day12|read=all-but-last",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day12|read=all-including-bulky",
+   "input": {
+    "sex": "male",
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day30|read=none",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": []
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day30|read=first-only",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day30|read=second-only",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day30|read=first-three",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "protein",
+    "readN": 3,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day30|read=female-card-only",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day30|read=not-in-the-list",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "male|day30|read=all-but-last",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": null
+   }
+  },
+  {
+   "id": "male|day30|read=all-including-bulky",
+   "input": {
+    "sex": "male",
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day0|read=none",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": []
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day0|read=first-only",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day0|read=second-only",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day0|read=first-three",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day0|read=female-card-only",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day0|read=not-in-the-list",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day0|read=all-but-last",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day0|read=all-including-bulky",
+   "input": {
+    "sex": "female",
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day2|read=none",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": []
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day2|read=first-only",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day2|read=second-only",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day2|read=first-three",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day2|read=female-card-only",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day2|read=not-in-the-list",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day2|read=all-but-last",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day2|read=all-including-bulky",
+   "input": {
+    "sex": "female",
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day3|read=none",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": []
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day3|read=first-only",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "ramp",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day3|read=second-only",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day3|read=first-three",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day3|read=female-card-only",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day3|read=not-in-the-list",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day3|read=all-but-last",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day3|read=all-including-bulky",
+   "input": {
+    "sex": "female",
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day6|read=none",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": []
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day6|read=first-only",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "ramp",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day6|read=second-only",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day6|read=first-three",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day6|read=female-card-only",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day6|read=not-in-the-list",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day6|read=all-but-last",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day6|read=all-including-bulky",
+   "input": {
+    "sex": "female",
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day12|read=none",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": []
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day12|read=first-only",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "ramp",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day12|read=second-only",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day12|read=first-three",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "protein",
+    "readN": 3,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day12|read=female-card-only",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day12|read=not-in-the-list",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day12|read=all-but-last",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day12|read=all-including-bulky",
+   "input": {
+    "sex": "female",
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": null
+   }
+  },
+  {
+   "id": "female|day30|read=none",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": []
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day30|read=first-only",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "ramp",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day30|read=second-only",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day30|read=first-three",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "protein",
+    "readN": 3,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day30|read=female-card-only",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day30|read=not-in-the-list",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day30|read=all-but-last",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "bulky",
+    "readN": 11,
+    "total": 13
+   }
+  },
+  {
+   "id": "female|day30|read=all-including-bulky",
+   "input": {
+    "sex": "female",
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day0|read=none",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": []
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day0|read=first-only",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day0|read=second-only",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day0|read=first-three",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day0|read=female-card-only",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day0|read=not-in-the-list",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day0|read=all-but-last",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day0|read=all-including-bulky",
+   "input": {
+    "sex": null,
+    "days": 0,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day2|read=none",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": []
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day2|read=first-only",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day2|read=second-only",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day2|read=first-three",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day2|read=female-card-only",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day2|read=not-in-the-list",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day2|read=all-but-last",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day2|read=all-including-bulky",
+   "input": {
+    "sex": null,
+    "days": 2,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 1,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day3|read=none",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": []
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day3|read=first-only",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day3|read=second-only",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day3|read=first-three",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day3|read=female-card-only",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day3|read=not-in-the-list",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day3|read=all-but-last",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day3|read=all-including-bulky",
+   "input": {
+    "sex": null,
+    "days": 3,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 2,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day6|read=none",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": []
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day6|read=first-only",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day6|read=second-only",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day6|read=first-three",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day6|read=female-card-only",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day6|read=not-in-the-list",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day6|read=all-but-last",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day6|read=all-including-bulky",
+   "input": {
+    "sex": null,
+    "days": 6,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 3,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day12|read=none",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": []
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day12|read=first-only",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day12|read=second-only",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day12|read=first-three",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "protein",
+    "readN": 3,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day12|read=female-card-only",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day12|read=not-in-the-list",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day12|read=all-but-last",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day12|read=all-including-bulky",
+   "input": {
+    "sex": null,
+    "days": 12,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 5,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day30|read=none",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": []
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day30|read=first-only",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": [
+     "formfirst"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "ramp",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day30|read=second-only",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": [
+     "ramp"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 1,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day30|read=first-three",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "protein",
+    "readN": 3,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day30|read=female-card-only",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": [
+     "bulky"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day30|read=not-in-the-list",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": [
+     "targets",
+     "fibre"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": "formfirst",
+    "readN": 0,
+    "total": 12
+   }
+  },
+  {
+   "id": "none|day30|read=all-but-last",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": null
+   }
+  },
+  {
+   "id": "none|day30|read=all-including-bulky",
+   "input": {
+    "sex": null,
+    "days": 30,
+    "read": [
+     "formfirst",
+     "ramp",
+     "rir",
+     "protein",
+     "scale",
+     "overload",
+     "bulky",
+     "spot",
+     "sleep",
+     "volume",
+     "deload",
+     "soreness",
+     "creatine"
+    ]
+   },
+   "output": {
+    "due": 11,
+    "next": null
+   }
+  }
+ ]
+}

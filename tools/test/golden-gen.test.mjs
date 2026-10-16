@@ -30,7 +30,10 @@ test('the case list records the inputs behind every computed fixture', () => {
   assert.deepEqual(g('targets.json').map((c) => c.input), cases.TARGETS);
   assert.deepEqual(g('progression.json').cases.map((c) => c.input), cases.PROGRESSION);
   assert.deepEqual(g('plan.json').plans.map((p) => p.days), cases.PLAN_DAYS);
-  assert.equal(Object.keys(g('sessions.json')).length, cases.SESSION_WHERE.length * cases.SESSION_TEMPLATES.length * cases.SESSION_FOCUS.length);
+  assert.deepEqual(g('plan.json').cases.map((c) => [c.id, c.input.days, c.input.mode, c.input.weekPlan, c.input.sessions]), cases.PLAN_CASES.map((c) => [c.id, c.days, c.mode, c.weekPlan, c.sessions]));
+  assert.equal(g('sessions.json').length, cases.SESSION_WHERE.length * cases.SESSION_TEMPLATES.length * cases.SESSION_FOCUS.length + cases.SESSION_EXTRA.length);
+  assert.ok(g('sessions.json').every((c) => c.input.minutes && c.input.exp && c.input.history >= 0), 'every sessions case records its profile');
+  assert.equal(g('learn.json').cases.length, cases.LEARN_SEX.length * cases.LEARN_DAYS.length * Object.keys(cases.LEARN_READ).length);
 });
 
 test('a prototype change that alters a fixture value is detected as drift', () => {
