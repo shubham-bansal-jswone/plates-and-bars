@@ -95,6 +95,14 @@ describe('TargetsScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/data');
   });
 
+  it('with no profile still reaches About and sources', async () => {
+    mockPush.mockClear();
+    const db = memoryDb();
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await fireEvent.press(await screen.findByLabelText('About and sources'));
+    expect(mockPush).toHaveBeenCalledWith('/about');
+  });
+
   it('offers Redo setup, which opens the setup route asking to stay there; Recalculate waits for weigh-ins', async () => {
     mockPush.mockClear();
     const db = memoryDb();
