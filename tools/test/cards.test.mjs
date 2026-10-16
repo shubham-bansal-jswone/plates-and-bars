@@ -20,10 +20,10 @@ test('content files equal a fresh import of the prototype (drift) and validate',
   assert.deepEqual(validateLabels(load('labels.json'), load('exercises.json')), []);
 });
 
-test('all 20 KB cards carry over in prototype order with title, summary, evidence and source unchanged', () => {
+test('all 30 KB cards carry over in prototype order with title, summary, evidence and source unchanged', () => {
   const p = extractScience(html);
   const cards = load('cards.json').cards;
-  assert.equal(cards.length, 20);
+  assert.equal(cards.length, 30);
   assert.deepEqual(cards.map((c) => c.id), Object.keys(p.KB));
   for (const c of cards) {
     const k = p.KB[c.id];
