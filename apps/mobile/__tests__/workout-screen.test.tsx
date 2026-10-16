@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
+import { saveWeight } from '../src/db/progress';
 import { defaultSettings } from '../src/settings/types';
 import { loadSessionLog, saveSet } from '../src/db/workouts';
 import { setRecord, blankRow, type ExState } from '../src/workout/model';
@@ -46,10 +47,11 @@ function profile() {
 
 type Db = ReturnType<typeof memoryDb>;
 
-async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[]; restOff?: boolean; where?: 'gym' | 'dumbbells' } = {}) {
+async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[]; restOff?: boolean; where?: 'gym' | 'dumbbells'; weightKg?: number; weighIns?: { date: string; weight_kg: number }[] } = {}) {
   const db = memoryDb();
   if (opts.focus || opts.restOff) await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), focus: opts.focus ?? [], rest_off: !!opts.restOff });
-  await saveProfile(db, { ...profile(), where: opts.where ?? 'gym' });
+  await saveProfile(db, { ...profile(), where: opts.where ?? 'gym', ...(opts.weightKg === undefined ? {} : { weight_kg: opts.weightKg }) });
+  for (const w of opts.weighIns ?? []) await saveWeight(db, { id: null, version: 0, updated_at: '2026-10-08T00:00:00Z', deleted_at: null, ...w });
   for (const [name, w] of Object.entries(opts.lifts ?? {})) await seedLift(db, name, w, opts.hist?.[name]);
   await mount(db, opts);
   return db;
@@ -315,6 +317,11 @@ describe('Workout tab: logging sets', () => {
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
     expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Why these exercises? How your sessions are built'));
+    expect(await screen.findByText(/You train 6 days a week, so your plan uses push\/pull\/legs twice, which trains .* Sessions are trimmed to fit about 60 minutes, keeping/)).toBeTruthy();
+    expect(screen.queryByText(/starting with 2 sets per exercise/)).toBeNull();
   });
 
   it('ticking an empty set takes the target, writes the set and the lift stat, and starts the rest timer', async () => {
@@ -342,6 +349,20 @@ describe('Workout tab: logging sets', () => {
     expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();
   });
 
+  it('the rest timer’s +30 s button adds core’s REST_EXTEND_SEC', async () => {
+    await started();
+    // A frozen clock, so the countdown reads exactly 2:30, then 3:00.
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now());
+    try {
+      await press('Mark Barbell Bench Press set 1 done');
+      expect(await screen.findByText('Rest 2:30')).toBeTruthy();
+      await press('+30 s');
+      expect(await screen.findByText('Rest 3:00')).toBeTruthy();
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('with the rest timer turned off in settings, ticking a set shows no rest timer but still saves', async () => {
     const db = await started({ restOff: true });
     await press('Mark Barbell Bench Press set 1 done');
@@ -366,6 +387,59 @@ describe('Workout tab: logging sets', () => {
 
     fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).cardio_min).toBeNull());
+  });
+
+  it('uses the latest weigh-in on or before the day, not the profile weight, for the burn', async () => {
+    // One set (about 3 minutes) burns 20 kcal at the 82 kg profile weight, 15 at 60 kg, 25 at 100 kg and 35 at 140 kg.
+    await started({ weighIns: [{ date: '2026-10-01', weight_kg: 60 }, { date: '2026-10-07', weight_kg: 100 }, { date: '2026-10-09', weight_kg: 140 }] });
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(await screen.findByText('About 25 kcal burned')).toBeTruthy();
+  });
+
+  it('asks for a weight when there is neither a weigh-in nor a profile weight, and not before a set is ticked', async () => {
+    await started({ weightKg: 0 });
+    expect(screen.queryByText(/Add your weight/)).toBeNull();
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(await screen.findByText('Add your weight (setup or Progress tab) to see calories burned.')).toBeTruthy();
+    expect(screen.queryByText(/kcal burned/)).toBeNull();
+  });
+
+  it('does not flash the add-your-weight hint while the weigh-ins load, when the profile has a weight', async () => {
+    const db = await setup({ lifts });
+    const real = db.getAllAsync.bind(db);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    db.getAllAsync = (async (sql: string, ...args: (string | number)[]) => {
+      if (/FROM weights/.test(sql)) await gate;
+      return real(sql, ...args);
+    }) as typeof db.getAllAsync;
+    await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+    await screen.findByText('Push B');
+    await press('Mark Barbell Bench Press set 1 done');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(screen.queryByText(/Add your weight/)).toBeNull();
+    release();
+    expect(await screen.findByText('About 20 kcal burned')).toBeTruthy();
+  });
+
+  it('saves cardio minutes as a whole number: 1.5 and 1,5 round to 2, blank or NBSP-only clears, junk is capped', async () => {
+    const db = await started();
+    const saved = () => stored<Workout>(db, `workouts:${DATE}`).cardio_min;
+    const type = async (text: string, want: number | null) => {
+      fireEvent.changeText(screen.getByLabelText('Cardio minutes'), text);
+      await waitFor(() => expect(saved()).toBe(want));
+    };
+    await type('1.5', 2);
+    await type('1,5', 2);
+    await type('20', 20);
+    await type('\u00A0', null);
+    await type('20', 20);
+    await type('', null);
+    await type('45 ', 45);
+    await type('-5', 0);
+    await type('99999', 9999);
   });
 
   it('refuses to tick a first-time set with nothing to fill from', async () => {
