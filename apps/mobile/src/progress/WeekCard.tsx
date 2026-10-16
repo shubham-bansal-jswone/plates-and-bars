@@ -35,9 +35,8 @@ export function WeekCard({ date, days, kcalTarget }: Props) {
                 style={[styles.bar, { backgroundColor: c.track }]}
                 accessible
                 accessibilityRole="image"
-                // Deliberate divergence from the prototype's label (`${fmt(t.kcal)} kcal, ${fmt(t.p)} g protein`, which
-                // announces "0 kcal, 0 g protein" on a blank day and never names the day). Filed as #503; do not
-                // "restore" the prototype's string here — a test asserts this one.
+                // Matches the prototype's bar label (#503, #588): the day, ", trained" when it was, then the kcal and
+                // protein, or "not logged" on a blank day. A test asserts this string.
                 accessibilityLabel={`${dayName(d.date)}${d.trained ? `, ${WEEK_TRAINED}` : ''}, ${d.logged ? `${fmt(d.kcal)} kcal, ${fmt(d.protein_g)} g protein` : WEEK_NOT_LOGGED}`}
               >
                 <View style={[styles.fill, { width: `${d.fillPct}%`, backgroundColor: d.over ? c.caution : c.bar }]} />

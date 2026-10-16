@@ -273,7 +273,7 @@ export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInpu
  * - `fibreTarget` mirrors prototype `fibreTarget()` (today's calorie target passed in).
  * - `fruitVegServings` mirrors the `veg` part of prototype `fibreTotals(meals)` (`produceOf`); `FRUIT_VEG_TARGET` its "of 5".
  * - `showAddedSugar` mirrors the `t.sug >= 10` check in prototype `fibreHtml()`.
- * - `dayComplete` mirrors prototype `dayComplete(d)` (settings calorie target, date and today passed in), except today counts only when ticked (#150).
+ * - `dayComplete` mirrors prototype `dayComplete(d, date)` (settings calorie target and today passed in): today counts only when ticked (#150).
  */
 export { searchFoods, unitGrams, quantityFromGrams, logTotals, fibreTarget, fruitVegServings, showAddedSugar, dayComplete, FRUIT_VEG_TARGET } from './food';
 export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, CompleteFlag, GramsQuantity } from './food';

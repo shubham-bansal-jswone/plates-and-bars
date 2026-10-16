@@ -44,23 +44,25 @@ describe('RestBar live region', () => {
 });
 
 // At 1200 px the rest bar sat bottom-left (#147): it was absolutely placed 8 px from the left with no centring. It must sit
-// under the content column (Page's column) instead. Layout is not computed under jest, so the flexbox rules that decide the
-// bar's x position are applied by hand to the real styles: the dock spans the window, and centres a panel that is at most as
-// wide as the column.
+// under the content column (Page's column) instead. Layout is not computed under jest, so this is a style guard: it pins the
+// styles that carry the placement. The real check, the bar's bounding box against the column at 1200, 800 and 390 px, is the
+// Playwright spec tests/e2e/specs/rest-bar.spec.mjs (#630).
 type Box = Record<string, number | string | undefined>;
 const flat = (el: { props: { style?: unknown } }) => StyleSheet.flatten(el.props.style as never) as Box;
 
 describe('RestBar on a wide window', () => {
-  const WIDTH = 1200;
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
   it('is centred under the content column, not at the left edge', async () => {
+    // As WorkoutScreen mounts it: next to the page body (outside the scrolling column), not inside it.
     await render(
-      <Page>
-        <Text>column content</Text>
+      <>
+        <Page>
+          <Text>column content</Text>
+        </Page>
         <RestBar rest={{ id: 1, end: Date.now() + 60000, total: 60, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />
-      </Page>,
+      </>,
     );
     const panel = flat(screen.getByLabelText('Rest timer'));
     const dock = flat(screen.getByLabelText('Rest timer').parent as never);
@@ -76,12 +78,5 @@ describe('RestBar on a wide window', () => {
     // Same maximum width as the column the page content sits in, so the bar lines up with the cards above it.
     expect(panel.width).toBe('100%');
     expect(panel.maxWidth).toBe(column.maxWidth);
-
-    // Resulting left edge at 1200 px: the column's, which Page centres in the window.
-    const pad = Number(dock.padding ?? 0);
-    const panelW = Math.min(Number(panel.maxWidth), WIDTH - 2 * pad);
-    const panelLeft = Number(dock.left) + pad + (WIDTH - 2 * pad - panelW) / 2;
-    const columnLeft = (WIDTH - Math.min(Number(column.maxWidth), WIDTH)) / 2;
-    expect(panelLeft).toBe(columnLeft);
   });
 });
