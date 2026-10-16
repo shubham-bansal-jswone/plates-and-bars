@@ -29,13 +29,14 @@ export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValu
 }
 
 /** Prototype `whyLink(id, label)`: a "Why?" button that opens the card. Renders nothing for an unknown or held-back card. */
-export function WhyLink({ id, label = 'Why?', values }: { id: string; label?: string; values?: WhyValues }) {
+/** `subject` (an exercise name, say) is spoken after the card title when several links look alike. */
+export function WhyLink({ id, label = 'Why?', values, subject }: { id: string; label?: string; values?: WhyValues; subject?: string }) {
   const [open, setOpen] = useState(false);
   const card = whyCard(id);
   if (!card) return null;
   return (
     <>
-      <Button kind="link" label={label} a11yLabel={`${label} ${card.title}`} onPress={() => setOpen(true)} />
+      <Button kind="link" label={label} a11yLabel={`${label} ${card.title}${subject ? `, ${subject}` : ''}`} onPress={() => setOpen(true)} />
       {open ? <WhySheet id={id} values={values} onClose={() => setOpen(false)} /> : null}
     </>
   );

@@ -21,7 +21,7 @@ function AdjCard({ title, level = 3, subject, children, buttons, declines = 0, o
     <Card style={{ backgroundColor: c.tint, gap: 6 }}>
       <Heading level={level} style={{ color: c.ink, fontWeight: '700' }}>{title}</Heading>
       <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{children}</Text>
-      {why ? <WhyLink id={why} /> : null}
+      {why ? <WhyLink id={why} subject={subject} /> : null}
       <View style={styles.row}>
         {buttons.map((b) => (
           <Button key={b.label} label={b.label} a11yLabel={`${b.label}, ${subject}`} kind={b.primary ? 'primary' : 'ghost'} onPress={b.onPress} />

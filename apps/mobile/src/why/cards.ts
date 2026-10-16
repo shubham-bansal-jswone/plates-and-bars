@@ -63,7 +63,7 @@ function isCard(v: unknown): v is WhyCard {
     isTrimmedText(1000)(v.source) && (v.evidence === 'Strong' || v.evidence === 'Moderate' || v.evidence === 'Emerging') &&
     (v.review_status === 'draft' || v.review_status === 'reviewed') &&
     (v.placeholders === undefined || isArrOf(v.placeholders, name)) && (v.sections === undefined || isArrOf(v.sections, name)) &&
-    (v.learn_order === undefined || v.learn_order === null || Number.isInteger(v.learn_order)) &&
+    (v.learn_order === null || Number.isInteger(v.learn_order)) &&
     (v.learn_insert_at === undefined || Number.isInteger(v.learn_insert_at)) &&
     bodyOk(v as { body: string; placeholders?: string[]; sections?: string[] })
   );
