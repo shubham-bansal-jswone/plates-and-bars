@@ -5,6 +5,7 @@ import {
   nextInList,
   planList,
   REST_COMPOUND_SEC,
+  REST_EXTEND_SEC,
   REST_OTHER_SEC,
   restFor,
   restLabel,
@@ -17,6 +18,7 @@ import {
   type Where,
 } from '../src/index';
 import { goldenCatalog, metaTable, rng, shortTag } from './prototype-plan';
+import { prototypeSource } from './helpers';
 import { loadWorkout } from './prototype-workout';
 
 // No golden fixture covers these rules; they are checked against the prototype's own functions
@@ -41,6 +43,15 @@ describe('restFor and restLabel', () => {
       expect(restFor(n, tags)).toBe(proto.restFor(n));
       expect(restLabel(n, tags)).toBe(proto.restLabel(n));
     }
+  });
+});
+
+describe('REST_EXTEND_SEC', () => {
+  it('matches the prototype rest-add button (milliseconds on the end, seconds on the total)', () => {
+    const m = prototypeSource().match(/a === 'rest-add'\)\{ REST\.end \+= (\d+); REST\.total \+= (\d+);/);
+    if (!m) throw new Error('prototype: rest-add changed shape');
+    expect(Number(m[1])).toBe(REST_EXTEND_SEC * 1000);
+    expect(Number(m[2])).toBe(REST_EXTEND_SEC);
   });
 });
 
