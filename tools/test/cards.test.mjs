@@ -20,10 +20,10 @@ test('content files equal a fresh import of the prototype (drift) and validate',
   assert.deepEqual(validateLabels(load('labels.json'), load('exercises.json')), []);
 });
 
-test('all 20 KB cards carry over in prototype order with title, summary, evidence and source unchanged', () => {
+test('all 30 KB cards carry over in prototype order with title, summary, evidence and source unchanged', () => {
   const p = extractScience(html);
   const cards = load('cards.json').cards;
-  assert.equal(cards.length, 20);
+  assert.equal(cards.length, 30);
   assert.deepEqual(cards.map((c) => c.id), Object.keys(p.KB));
   for (const c of cards) {
     const k = p.KB[c.id];
@@ -49,6 +49,13 @@ test('personalised bodies: all sections off equals the prototype with no profile
     assert.equal(renderBody(c.body, [], NUM), prototypeBody(html, id, 'none'), `${id} off`);
     assert.equal(renderBody(c.body, c.sections, NUM), prototypeBody(html, id, 'profile'), `${id} on`);
   }
+  // fibre: the prototype body carries the figure as {fibre_g}; off drops exactly the clause around it.
+  const fibre = byId.fibre;
+  const fibreProto = prototypeBody(html, 'fibre', 'none');
+  const clause = ', which is about {fibre_g} g for your target';
+  assert.ok(fibreProto.includes(clause));
+  assert.equal(renderBody(fibre.body, ['fibre_g'], { fibre_g: 31 }), fibreProto.replace('{fibre_g}', '31'), 'fibre on');
+  assert.equal(renderBody(fibre.body, [], {}), fibreProto.replace(clause, ''), 'fibre off');
   const split = byId.split;
   const names = load('cards.json').split_names;
   assert.deepEqual(Object.keys(names), ['2', '3', '4', '5', '6']);
