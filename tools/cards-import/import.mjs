@@ -143,6 +143,12 @@ const bodyFor = (html, id, names) => {
   return sectioned(bases[0], variants);
 };
 
+function sectionNames(id) {
+  if (SECTION_TOGGLES[id]) return Object.keys(SECTION_TOGGLES[id]);
+  if (OPTIONAL_CLAUSES[id]) return [OPTIONAL_CLAUSES[id].name];
+  throw new Error(`card '${id}' has placeholders but neither SECTION_TOGGLES nor OPTIONAL_CLAUSES entry`);
+}
+
 export function importCards(html) {
   const p = extractScience(html);
   const names = splitNames(html);
@@ -160,7 +166,7 @@ export function importCards(html) {
     learn_order: learnIds.includes(id) ? learnIds.indexOf(id) : null,
     // 'bulky' is spliced into the learn list at this index for female profiles only.
     ...(id === 'bulky' ? { audience: 'female', learn_insert_at: Number(m[1]) } : {}),
-    ...(PLACEHOLDERS[id] ? { placeholders: PLACEHOLDERS[id], sections: SECTION_TOGGLES[id] ? Object.keys(SECTION_TOGGLES[id]) : [OPTIONAL_CLAUSES[id].name] } : {}),
+    ...(PLACEHOLDERS[id] ? { placeholders: PLACEHOLDERS[id], sections: sectionNames(id) } : {}),
     review_status: 'draft',
   }));
   return { schema_version: 1, origin: 'docs/prototype/plate-and-bar.html (KB, LEARN)', split_names: names, cards };
