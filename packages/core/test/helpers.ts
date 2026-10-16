@@ -30,3 +30,10 @@ export function sliceLine(src: string, start: string): string {
   if (line === undefined) throw new Error(`prototype: no line starting with ${start}`);
   return line;
 }
+
+/** Returns the trimmed single line whose trimmed text starts with `start`, so a reformat of the prototype's indentation does not break the slice. */
+export function sliceTrimmedLine(src: string, start: string): string {
+  const line = src.split('\n').find((l) => l.trim().startsWith(start));
+  if (line === undefined) throw new Error(`prototype: no line whose trimmed text starts with ${start}`);
+  return line.trim();
+}
