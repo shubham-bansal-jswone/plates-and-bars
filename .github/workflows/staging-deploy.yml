@@ -13,6 +13,7 @@ on:
     paths:
       - 'backend/**'
       - 'content/**'
+      - 'packages/api/openapi.yaml'
       - 'infra/staging/**'
       - 'infra/caddy/Caddyfile.api'
       - '.github/workflows/staging-deploy.yml'
@@ -59,5 +60,5 @@ jobs:
           fi
           # fast-forward to exactly this commit (not whatever main is by now), then run the script from that commit;
           # deploy.sh builds, starts, polls /api/v1/health and restores the previous API_TAG if it never turns healthy
-          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes "$SSH_USER@$SSH_HOST" \
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -- "$SSH_USER@$SSH_HOST" \
             "cd '$DIR' && git fetch --quiet origin main && git merge --ff-only '$SHA' && infra/staging/deploy.sh"
