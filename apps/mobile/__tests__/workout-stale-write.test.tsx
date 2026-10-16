@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { deleteLift, loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { applyCantToStoredDay } from '../src/workout/cantApply';
 import { dayQueue } from '../src/workout/dayQueue';
+import type { Workout } from '../src/workout/types';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { failInTxn, openDb } from './sync-helpers';
@@ -41,6 +42,29 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
     expect((await loadSets(db, DATE)).find((s) => s.id === first.id)?.version).toBe(4);
     expect((await loadSets(db, DATE)).find((s) => s.id !== first.id)?.version).toBe(0);
     expect((await loadWorkout(db, DATE))?.version).toBe(7);
+  });
+
+  it('an exercise key this client does not know survives an edit, whether stored before the screen loaded or pulled after (#527)', async () => {
+    const { db, result, rerender } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    const withKey = (x: Workout, v: number): Workout => ({ ...x, version: v, exercises: x.exercises.map((e, i) => (i === 0 ? { ...e, future_key: 'kept' } : e)) });
+    const key = (x: Workout) => (x.exercises[0] as unknown as Record<string, unknown>).future_key;
+    // Pulled, then the screen reloads from it: the screen's exercises cannot hold the key, so only the stored row does.
+    await saveWorkout(db, withKey(w, 7));
+    await rerender({ k: 1 });
+    await waitFor(() => expect(result.current.day.workout?.version).toBe(7));
+    await act(async () => result.current.setForm(0, 'yes')); // an ordinary edit: nothing changed elsewhere
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(key(stored)).toBe('kept');
+    expect(stored.exercises[0]?.form).toBe('yes');
+    // Pulled after the screen loaded: the edit merges with it and keeps it.
+    await saveWorkout(db, { ...stored, version: 8, exercises: stored.exercises.map((e, i) => (i === 0 ? { ...e, future_key: 'newer' } : e)) });
+    await act(async () => result.current.setForm(0, 'no'));
+    await act(async () => void (await dayQueue.current));
+    const after = (await loadWorkout(db, DATE))!;
+    expect(key(after)).toBe('newer');
+    expect(after.exercises[0]?.form).toBe('no');
   });
 
   it('a set another device deleted is not brought back by an edit', async () => {
@@ -96,6 +120,21 @@ describe('a workout deleted on another device (#408)', () => {
     const stored = (await loadWorkout(db, DATE))!;
     expect(stored.deleted_at ?? null).toBeNull();
     expect(stored.version).toBe(6);
+  });
+
+  it('starting over a deleted session does not carry its exercises\' unknown keys into the new one (#527)', async () => {
+    const shape = (await loadWorkout((await started()).db, DATE))!;
+    const db = await openDb();
+    await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-07T09:00:00Z', updated_at: '2026-10-07T09:00:00Z', exercises: shape.exercises.map((x) => ({ ...x, future_key: 'old' })) });
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(result.current.day.ready).toBe(true));
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.deleted_at ?? null).toBeNull();
+    expect(stored.exercises.length).toBeGreaterThan(0);
+    expect(stored.exercises.some((x) => 'future_key' in x)).toBe(false);
   });
 
   it('starting over the deleted session tombstones its sets that were left live', async () => {
@@ -157,6 +196,20 @@ describe('a workout deleted on another device (#408)', () => {
     expect(stored.deleted_at).toBe('2026-10-09T09:59:00Z');
     expect(stored.version).toBe(6);
     expect(await loadSets(db, DATE)).toEqual(before);
+  });
+
+  it('a "can\'t do" change keeps the unknown keys of the other exercises (#527)', async () => {
+    const { db, result, rerender } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, version: 7, exercises: w.exercises.map((e) => ({ ...e, future_key: 'kept' })) });
+    await rerender({ k: 1 });
+    await waitFor(() => expect(result.current.day.workout?.version).toBe(7));
+    const name = result.current.day.exs[0]!.name;
+    await act(async () => result.current.cant(0, { name, reason: 'dislike', dur: 'today', scope: 'exercise', key: name }, null));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.exercises.length).toBeGreaterThan(0);
+    expect(stored.exercises.every((e) => (e as unknown as Record<string, unknown>).future_key === 'kept')).toBe(true);
   });
 
   it('starting over a tombstone stamped ahead of this device\'s clock still stores the session live', async () => {
