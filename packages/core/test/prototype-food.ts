@@ -49,7 +49,9 @@ export interface ProtoFood {
   fibreTotals(meals: ProtoMeal[]): { fib: number; sug: number; veg: number; unknown: number };
   fibreTarget(): number;
   fibreHtml(): string;
-  dayComplete(d: { meals: ProtoMeal[]; complete?: boolean }): boolean;
+  dayComplete(d: { meals: ProtoMeal[]; complete?: boolean }, date: string): boolean;
+  /** What the stubbed `TODAY()` read by `dayComplete` returns. */
+  setToday(d: string): void;
   /** Sets what `kcalTarget(S.date)` returns for `fibreTarget` and `fibreHtml`. */
   setKcalTarget(k: number): void;
   /** The prototype's own `kcalTarget(date)` (with `calcTargets` and `labHoldOn`) against `S.settings`. */
@@ -87,7 +89,7 @@ function replaceOnce(s: string, from: string, to: string): string {
  * Runs the prototype's food rules, sliced out of the HTML, against a fake `S`: the food tables (`FOODS`
  * with its fasting-day and drinks additions, `FIB`, `PRODUCE`, `ALIAS`), `foodMatch`, `unitGrams`,
  * `totals`, `fibOf`, `produceOf`, `fibreTotals`, `fibreTarget`, `fibreHtml`, `dayComplete`, the query and
- * filter of `foodListHtml` and the grams steps of `case 'pick'`. `kcalTarget` and `whyLink` are stubbed.
+ * filter of `foodListHtml` and the grams steps of `case 'pick'`. `kcalTarget`, `whyLink` and `TODAY` are stubbed.
  */
 export function loadFood(): ProtoFood {
   const src = prototypeSource();
@@ -106,6 +108,7 @@ export function loadFood(): ProtoFood {
   const code = [
     'const S = { date:"2026-10-08", day:{ meals:[] }, settings:{ kcal:2000, myFoods:[] } };',
     'let KT = 2000; const kcalTarget = () => KT; const whyLink = () => "";',
+    'let today = "2026-10-08"; const TODAY = () => today; const setToday = d => { today = d; };',
     sliceLine(src, 'const num = '),
     sliceLine(src, 'const fmt = '),
     sliceLine(src, 'const r1 = '),
@@ -125,7 +128,7 @@ export function loadFood(): ProtoFood {
     sliceBlock(src, 'function fibreTotals(meals){', '}'),
     sliceLine(src, 'const fibreTarget = '),
     sliceBlock(src, 'function fibreHtml(){', '}'),
-    sliceBlock(src, 'function dayComplete(d){', '}'),
+    sliceBlock(src, 'function dayComplete(d, date){', '}'),
     'function search(q0){ const FS = { q:q0 };',
     ...['  const q = ', '  const list = allFoods()'].map((p) => {
       const l = listHtml.find((x) => x.startsWith(p));
@@ -176,7 +179,7 @@ export function loadFood(): ProtoFood {
     addCustom,
     '  })();',
     '  const out = { toast:TOAST, meal:MEAL, myFoods:S.settings.myFoods }; S.settings.myFoods = keep; return out; }',
-    'return { S, FOODS, FIB, PRODUCE, ALIAS, unitGrams, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setKcalTarget: k => { KT = k; }, realKcalTarget, planFlex: planFlexRun, flexUndo: flexRun.flexUndo, flexNote: flexRun.flexNote, serv, highProtein, addCustom };',
+    'return { S, FOODS, FIB, PRODUCE, ALIAS, unitGrams, search, pick, totals, fibreTotals, fibreTarget, fibreHtml, dayComplete, setToday, setKcalTarget: k => { KT = k; }, realKcalTarget, planFlex: planFlexRun, flexUndo: flexRun.flexUndo, flexNote: flexRun.flexNote, serv, highProtein, addCustom };',
   ].join('\n');
   return new Function(code)() as ProtoFood;
 }

@@ -1,5 +1,5 @@
 import { AccessibilityInfo, Platform } from 'react-native';
-import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { useKitchenTests, type TestFields } from '../src/kitchen/useKitchenTests';
 import { KitchenTestScreen } from '../src/screens/KitchenTestScreen';
 import { loadKitchenTests, saveKitchenTest } from '../src/db/kitchenTests';
@@ -41,6 +41,11 @@ async function open() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPersistent = true;
+});
+
+// Undoes the spies and the Platform.OS replacement of every test, also when one of its assertions failed first.
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 describe('Kitchen test serving photo', () => {
@@ -159,7 +164,6 @@ describe('Kitchen test serving photo', () => {
     expect(screen.getByTestId('photo-status')).toContainElement(screen.getByText('Photo added'));
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
-    jest.restoreAllMocks();
   });
 
   it('on native there is no live region (the announcement is used), so it is not read twice', async () => {
@@ -172,7 +176,7 @@ describe('Kitchen test photo cleanup (hook)', () => {
   const fields = (id: string): TestFields => ({ id, name: 'Dal', date: '2026-10-08', note: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '150', unit: 'g' }], pot: '500', potFull: '1500', cooked: '', serving: '250', sname: 'katori', photo: 'JPEG64' });
   const failingSaves = (db: ReturnType<typeof memoryDb>) => {
     const real = db.runAsync.bind(db);
-    jest.spyOn(db, 'runAsync').mockImplementation(async (sql: string, ...a: (string | number)[]) => {
+    return jest.spyOn(db, 'runAsync').mockImplementation(async (sql: string, ...a: (string | number)[]) => {
       if (/INSERT OR REPLACE INTO kitchen_tests/.test(sql)) throw new Error('disk full');
       return real(sql, ...a);
     });
@@ -210,12 +214,20 @@ describe('Kitchen test photo cleanup (hook)', () => {
     const db = memoryDb();
     (deleteKitchenPhoto as jest.Mock).mockRejectedValueOnce(new Error('vault'));
     const { hook, notify } = await mount(db);
-    failingSaves(db);
+    const failing = failingSaves(db);
     hook.result.current.save(fields('k2'), 'Dal', null);
     await hook.result.current.idle();
     expect(deleteKitchenPhoto).toHaveBeenCalledWith('k2');
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith(SAVE_FAILED);
+    // The failed cleanup left the save queue working: the next save goes through, with no further failure shown.
+    failing.mockRestore();
+    await act(async () => {
+      hook.result.current.save(fields('k5'), 'Dal', null);
+      await hook.result.current.idle();
+    });
+    expect((await loadKitchenTests(db)).map((t) => t.id)).toEqual(['k5']);
+    expect(notify).toHaveBeenCalledTimes(1);
   });
 
   it('a failing photo delete does not make a delete look failed', async () => {
