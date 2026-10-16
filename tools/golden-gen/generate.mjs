@@ -81,7 +81,8 @@ export function planFixture(html) {
 export function sessionsFixture(html) {
   const get = planSandbox(html);
   const BALANCE = 'Single-Leg Balance (seconds)';
-  if (!html.includes(`name === '${BALANCE}'`)) throw new Error('golden-gen: the prototype no longer adds the balance exercise by that name');
+  const balanceLine = `if(older() && !w.exercises.some(e => e.name === '${BALANCE}')) w.exercises.push({ name:'${BALANCE}'`;
+  if (!html.includes(balanceLine)) throw new Error('golden-gen: the prototype no longer ends buildSession with the older() balance line this fixture mirrors');
   const inputs = [];
   for (const where of C.SESSION_WHERE) {
     for (const template of C.SESSION_TEMPLATES) {
