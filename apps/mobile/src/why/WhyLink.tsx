@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Heading, Hint } from '../components/ui';
 import { Text } from '../components/Text';
+import { localDate } from '../setup/logic';
+import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
+import { withRead } from './learn';
 import { renderBody, whyCard, type WhyValues } from './cards';
 
 const EVIDENCE_NOTE = { Strong: 'Many studies agree.', Moderate: 'Good support, some open questions.', Emerging: 'Early or limited research.' } as const;
@@ -11,6 +14,15 @@ const EVIDENCE_NOTE = { Strong: 'Many studies agree.', Moderate: 'Good support, 
 export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValues; onClose: () => void }) {
   const c = useTheme();
   const card = whyCard(id);
+  const settings = useOptionalSettings();
+  const ready = settings?.ready === true;
+  const update = settings?.update;
+  const learn = settings?.settings.learn;
+  // Opening a card marks it read (prototype `openWhy`); the write is local and queued for sync, never waited on.
+  useEffect(() => {
+    const next = card && ready && learn ? withRead(learn, id, localDate(new Date())) : null;
+    if (next && update) update({ learn: next });
+  }, [card, id, ready, learn, update]);
   if (!card) return null;
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>

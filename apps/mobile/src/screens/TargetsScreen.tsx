@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
-import { fmt } from '../format';
-import { buildResults } from '../setup/results';
-import type { Profile } from '../setup/types';
+import { WhyLibrary } from '../why/WhyLibrary';
+import { profileWhyValues } from '../why/values';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -24,11 +23,6 @@ import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
 import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
-
-const burnParts = (p: Profile) => {
-  const { r } = buildResults(p);
-  return { tdee: fmt(r.tdee), bmr: fmt(r.bmr), movement: fmt(r.movement), training: fmt(r.training), digestion: fmt(r.digestion) };
-};
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
@@ -85,6 +79,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
     );
   }
   const drift = weightDrift(weights, profile.weight_kg);
+  const whyValues = profileWhyValues(profile);
   return (
     <View style={{ flex: 1 }}>
       <Page>
@@ -92,8 +87,8 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 }}>
           {/* The numbers are the stored (possibly edited) targets; the burn breakdown is what setup computed. */}
-          <WhyLink id="targets" label="Why these numbers?" values={{ kcal: fmt(profile.targets.kcal), protein_g: profile.targets.protein_g, ...burnParts(profile) }} />
-          <WhyLink id="protein" label="Why this much protein?" values={{ protein_g: profile.targets.protein_g }} />
+          <WhyLink id="targets" label="Why these numbers?" values={whyValues} />
+          <WhyLink id="protein" label="Why this much protein?" values={whyValues} />
         </View>
         {drift ? (
           <View style={{ gap: 8, marginTop: 8 }}>
@@ -112,6 +107,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           </>
         ) : null}
+        <WhyLibrary values={whyValues} />
         <AiSection />
         {ready ? (
           <View style={{ gap: 8, marginTop: 16 }}>

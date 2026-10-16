@@ -111,3 +111,8 @@ export function useSettings(): SettingsState {
   if (!v) throw new Error('useSettings needs a SettingsProvider');
   return v;
 }
+
+/** Like `useSettings`, but null outside a provider: a card sheet opened where settings are not available just skips read tracking. */
+export function useOptionalSettings(): SettingsState | null {
+  return useContext(Ctx);
+}
