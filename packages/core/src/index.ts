@@ -247,7 +247,7 @@ export type { LiftStatSet, LiftStatSession, LiftStatPrev, LiftStatBody, LiftStat
  * - `nextInList` mirrors prototype `nextInList(t)` (profile passed in).
  * - `checkinFlags` mirrors the `flagged`, `why`, swap and "Good to go" steps of the check-in in prototype `renderStart()`.
  */
-export { restFor, restLabel, nextInList, warmupSets, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC } from './workout';
+export { restFor, restLabel, nextInList, warmupSets, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC, REST_EXTEND_SEC } from './workout';
 export type { WarmupSet, Checkin, CheckinReason, CheckinResult } from './workout';
 
 /**
