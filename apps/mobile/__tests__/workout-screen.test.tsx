@@ -317,7 +317,9 @@ describe('Workout tab: logging sets', () => {
     expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
     expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
     expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
-    expect(screen.getByLabelText('Why these exercises? How your sessions are built')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Why these exercises? How your sessions are built'));
+    expect(await screen.findByText(/You train 6 days a week, so your plan uses push\/pull\/legs twice, which trains .* Sessions are trimmed to fit about 60 minutes, keeping/)).toBeTruthy();
+    expect(screen.queryByText(/starting with 2 sets per exercise/)).toBeNull();
   });
 
   it('ticking an empty set takes the target, writes the set and the lift stat, and starts the rest timer', async () => {

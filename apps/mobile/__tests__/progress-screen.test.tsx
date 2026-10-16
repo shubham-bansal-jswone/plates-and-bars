@@ -132,6 +132,7 @@ describe('Progress screen', () => {
     await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
     await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ date: DATE, steps: 8200, steps_source: 'manual', sleep: 7.5, fast: true, complete: true, version: 2 })]));
     expect(screen.getByText('steps today, target about 7,000')).toBeTruthy();
+    expect(screen.getAllByLabelText('Why? Steps, cardio and lifting').length).toBeGreaterThan(0);
   });
 
   it('shows the steps source, treats a missing source as manual, and clears it with the steps', async () => {
@@ -460,6 +461,7 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText(/Needs 10 more complete days in the last 2 weeks.* and 6 more weigh-ins/)).toBeTruthy();
     expect(screen.getByLabelText('1/7 days with food logged')).toBeTruthy();
     expect(screen.getByLabelText('Why? Building the habit')).toBeTruthy();
+    expect(screen.getAllByLabelText('Why? Steps, cardio and lifting')).toHaveLength(2);
     expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
   });
 

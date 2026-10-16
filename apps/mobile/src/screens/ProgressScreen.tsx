@@ -170,6 +170,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Heading>
       <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={steps} onChangeText={setSteps} />
       <Hint>{`steps today, target about ${fmt(stepsTarget(p.notes, p.date))}`}</Hint>
+      <WhyLink id="activity" />
       {p.today?.steps != null && <Hint>{`Source: ${p.today.steps_source === 'device' ? 'phone step sensor' : 'entered by you'}`}</Hint>}
       <Field label="Hours slept last night" inputMode="decimal" placeholder="Hours" value={sleep} onChangeText={setSleep} />
       <Hint>hours slept last night (aim for 7–9)</Hint>
