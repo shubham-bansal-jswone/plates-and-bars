@@ -38,6 +38,7 @@ export function FocusSection({ focus, onChange, notify }: { focus: readonly stri
   return (
     <View style={styles.gap}>
       <Label>Focus muscles</Label>
+      <WhyLink id="focus" />
       <Hint>Pick up to {FOCUS_MAX}. They get an extra set, come earlier in the session, and get an exercise added on days that train that area.</Hint>
       <View style={styles.wrap} accessibilityLabel="Focus muscles">
         {picker.chips.map((ch) => (

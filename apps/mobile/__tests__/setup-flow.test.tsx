@@ -66,6 +66,7 @@ describe('setup flow', () => {
     await press('Lose fat. Steady fat loss while keeping muscle');
     await press('See my targets');
     expect(screen.getByText('Answer the health check questions.')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why a health check before training?')).toBeTruthy();
     for (const q of SCREEN_Q) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
     await press('See my targets');
 
@@ -148,6 +149,7 @@ describe('setup flow', () => {
     for (const q of SCREEN_Q) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
     await press('See my targets');
     expect(screen.getByText(/^For 60 and over/)).toBeTruthy();
+    expect(screen.getByLabelText('Why? Training and eating after 60')).toBeTruthy();
     expect(screen.queryByText(/^Home plan/)).toBeNull();
     await press('Use these targets');
     await waitFor(async () => expect(await loadProfile(db)).not.toBeNull());
