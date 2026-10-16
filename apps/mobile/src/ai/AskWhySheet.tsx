@@ -7,6 +7,7 @@ import { useTheme } from '../theme/useTheme';
 import { useAi } from './AiProvider';
 import { AI_COPY, failureMessage } from './copy';
 import { ASK_CARDS, cardTitle } from './cards';
+import { isBlank } from '../text/blank';
 
 const QUESTION_MAX = 300;
 
@@ -27,7 +28,7 @@ export function AskWhySheet({ onClose }: { onClose: () => void }) {
   useEffect(() => () => void (alive.current = false), []);
 
   const send = async () => {
-    if (inFlight.current || ai.quotaUsed() || !question.trim()) return;
+    if (inFlight.current || ai.quotaUsed() || isBlank(question)) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);

@@ -1,0 +1,31 @@
+{
+  "description": "The contract's \"not blank\" pattern (see the wire conventions in openapi.yaml). Blank = Unicode White_Space plus U+200B to U+200D, U+2060 and U+FEFF. The pattern is searched, not anchored: a text passes when it has at least one character outside the class. The app and the backend must reject every must_fail text and accept every must_pass text.",
+  "pattern": "[^\\t-\\r \\u0085\\u00A0\\u1680\\u2000-\\u200D\\u2028\\u2029\\u202F\\u205F\\u2060\\u3000\\uFEFF]",
+  "fields": ["DescribeMealRequest.text", "AskWhyRequest.question", "SuggestTagsRequest.name"],
+  "must_fail": [
+    "",
+    " ",
+    "\t\n\u000b\f\r",
+    "\u0085",
+    " ",
+    "   ",
+    "​",
+    "​‌‍",
+    "⁠",
+    "﻿",
+    "            ",
+    "    　",
+    "  ​⁠﻿\t"
+  ],
+  "must_pass": [
+    "a",
+    "rice and dal",
+    " rice ",
+    "​x​",
+    "﻿2 rotis",
+    "दाल",
+    "🍛",
+    "_",
+    "0"
+  ]
+}

@@ -7,6 +7,7 @@ import type { NewLog } from '../food/useFoodDay';
 import { useTheme } from '../theme/useTheme';
 import { useAi } from './AiProvider';
 import { AI_COPY, failureMessage } from './copy';
+import { isBlank } from '../text/blank';
 
 interface Row {
   key: number;
@@ -37,7 +38,7 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
 
   const exhausted = ai.quotaUsed();
   const estimate = async () => {
-    if (inFlight.current || ai.quotaUsed() || !text.trim()) return;
+    if (inFlight.current || ai.quotaUsed() || isBlank(text)) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);

@@ -14,6 +14,7 @@ import { withSyncPaused } from '../src/sync/guard';
 import { Pressable, Text } from 'react-native';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
+import blank from './fixtures/blank-text.json';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -138,6 +139,16 @@ describe('Describe a meal', () => {
     await screen.findByLabelText('Describe your meal');
   };
 
+  it.each(blank.must_fail.map((t) => [JSON.stringify(t), t]))('never sends blank text %s or says to shorten it', async (_n, t) => {
+    const { api, POST } = on();
+    await food(optedIn(), api);
+    await openSheet();
+    await fireEvent.changeText(screen.getByLabelText('Describe your meal'), t);
+    await fireEvent.press(screen.getByLabelText('Estimate'));
+    expect(POST).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Shorten it/)).toBeNull();
+  });
+
   it('shows suggestions for review and logs nothing until the user adds, with their edits', async () => {
     const { api, GET, POST } = on();
     POST.mockResolvedValue({ data: { items: [ROTI], quota: QUOTA }, response: res(200) });
@@ -228,6 +239,16 @@ describe('Describe a meal', () => {
 });
 
 describe('Ask why', () => {
+  it.each(blank.must_fail.map((t) => [JSON.stringify(t), t]))('never sends a blank question %s or says to shorten it', async (_n, t) => {
+    const { api, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }), response: res(200) })) });
+    await ai(optedIn(), api, <AiSection />);
+    await fireEvent.press(await screen.findByLabelText('Ask why about your targets'));
+    await fireEvent.changeText(await screen.findByLabelText('Your question'), t);
+    await fireEvent.press(screen.getByLabelText('Ask'));
+    expect(POST).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Shorten it/)).toBeNull();
+  });
+
   it('sends only the card id and the question, and shows the answer with its card', async () => {
     const { api, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }), response: res(200) })) });
     POST.mockResolvedValue({ data: { answer: 'Because protein protects muscle.', card_id: 'protein', quota: QUOTA }, response: res(200) });
