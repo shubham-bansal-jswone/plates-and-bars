@@ -146,6 +146,22 @@ describe('queued writes find their exercise by name (#439)', () => {
 });
 
 describe('add and remove exercises (#147)', () => {
+  it('a failure between the exercise row and its sets stores neither (#492)', async () => {
+    const { db, result } = await started();
+    const before = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
+    const nSets = (await loadSets(db, DATE)).length;
+    const run = db.runAsync;
+    db.runAsync = async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('workout_sets')) throw new Error('disk full');
+      return run(sql, ...p);
+    };
+    await act(async () => void result.current.addExercise('Goblet Squat'));
+    await settle();
+    db.runAsync = run;
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual(before);
+    expect(await loadSets(db, DATE)).toHaveLength(nSets);
+  });
+
   it('Add exercise appends a library exercise with 3 blank sets in the last exercise\'s part; a name in the session is refused', async () => {
     const { db, result } = await started();
     const before = result.current.day.exs.map((e) => e.name);

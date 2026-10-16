@@ -7,6 +7,7 @@ import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, second
 import { fmt } from '../format';
 import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
+import type { PullDb } from '../db/outbox';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
@@ -25,7 +26,7 @@ import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 
 interface Props {
-  db: WorkoutDb;
+  db: WorkoutDb & PullDb;
   /** Clock, injectable for tests. */
   now?: () => Date;
 }
