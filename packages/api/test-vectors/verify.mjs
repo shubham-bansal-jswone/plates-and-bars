@@ -159,6 +159,37 @@ for (const name of aiRequests) {
   visit(parsed.components.schemas[name], []);
 }
 if (mutants === 0) failures.push("openapi.yaml: no AI request bounds to mutate");
+// blank-text.json: every "not blank" field uses the one shared pattern (#421); no pattern anywhere in the spec uses
+// an escape that ECMA-262 and java.util.regex read differently (`\s`, `\S`, `\v`, `\h`, `\H`, `\R`, `\p{}`, `\P{}`)
+// or a lookbehind; and the pattern rejects every must_fail text and accepts every must_pass text, with and
+// without the `u` flag.
+const blank = JSON.parse(readFileSync(new URL("./blank-text.json", import.meta.url), "utf8"));
+if (!parsed.info.description.includes(`\`${blank.pattern}\``)) failures.push("openapi.yaml: wire conventions do not show the blank-text pattern");
+for (const field of blank.fields) {
+  const [schema, prop] = field.split(".");
+  if (parsed.components.schemas[schema]?.properties?.[prop]?.pattern !== blank.pattern) failures.push(`openapi.yaml: ${field} does not use the blank-text pattern`);
+}
+const patterns = [];
+const collectPatterns = (node, path) => {
+  if (!node || typeof node !== "object") return;
+  if (typeof node.pattern === "string") patterns.push([path, node.pattern]);
+  for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") collectPatterns(v, `${path}.${k}`);
+};
+collectPatterns(parsed.components, "components");
+collectPatterns(parsed.paths, "paths");
+if (patterns.length === 0) failures.push("openapi.yaml: no patterns found");
+const lookbehind = /\(\?<[=!]/;
+const engineSpecific = /\\[sSvhHRpP]/;
+if (lookbehind.test(blank.pattern)) failures.push("blank-text.json: pattern uses lookbehind");
+for (const [path, p] of patterns) {
+  if (engineSpecific.test(p)) failures.push(`openapi.yaml: ${path}.pattern uses \\s, \\S, \\v, \\h, \\H, \\R, \\p or \\P; spell the characters out (see blank-text.json)`);
+  if (lookbehind.test(p)) failures.push(`openapi.yaml: ${path}.pattern uses lookbehind`);
+}
+for (const flags of ["", "u"]) {
+  const re = new RegExp(blank.pattern, flags);
+  for (const t of blank.must_fail) if (re.test(t)) failures.push(`blank-text.json (flags "${flags}"): must_fail ${JSON.stringify(t)} passes`);
+  for (const t of blank.must_pass) if (!re.test(t)) failures.push(`blank-text.json (flags "${flags}"): must_pass ${JSON.stringify(t)} fails`);
+}
 // YAML 1.1 readers (SnakeYAML under the backend's Jackson YAMLMapper) read bare y/n/yes/no/on/off (any case) as
 // booleans and a leading-zero integer such as 010 as octal. Jackson keeps mapping keys as text but converts values,
 // including flow and block list items, so `required: [..., on]` became `true` on the server (#418). Quote them all.
@@ -173,12 +204,19 @@ const yaml11 = [
 for (const [i, line] of spec.split("\n").entries()) {
   if (yaml11.some((re) => re.test(line))) failures.push(`openapi.yaml:${i + 1}: quote the YAML 1.1 boolean or octal in: ${line.trim()}`);
 }
+// WorkoutExercise.feel (#485): which answers the pattern takes.
+const feelPattern = new RegExp(parsed.components.schemas.WorkoutExercise.properties.feel.pattern);
+for (const [v, ok] of [["target", true], ["pain", true], ["0", true], ["12", true], ["", false], ["123", false], ["Pain", false], ["-1", false], ["target\n", false]]) {
+  if (feelPattern.test(v) !== ok) failures.push(`WorkoutExercise.feel pattern: ${JSON.stringify(v)} should ${ok ? "match" : "not match"}`);
+}
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and openapi.yaml example ids verified`);
 console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);
+console.log(`blank-text.json: ${blank.must_fail.length} must-fail and ${blank.must_pass.length} must-pass texts on ${blank.fields.length} fields, ${patterns.length} spec patterns without engine-specific escapes or lookbehind`);
 console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
 console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and open objects, all bounded`);
 console.log(`openapi.yaml: ${mutants} bounds in ${aiRequests.size} AI request schemas (${[...aiRequests].join(", ")}), each one caught when removed`);
