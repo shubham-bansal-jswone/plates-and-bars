@@ -68,9 +68,12 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
       <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
         <View style={styles.restRow}>
           <View style={{ flexShrink: 1 }}>
-            <Text style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>{left ? `Rest ${mmss(left)}` : 'Rest done, go!'}</Text>
+            {/* At zero the visible "Rest done, go!" is hidden from assistive tech: the live region below says it, so a swipe through
+                the bar does not read it twice. While counting, the text stays readable. */}
+            <Text testID="rest-title" aria-hidden={left ? undefined : true} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>{left ? `Rest ${mmss(left)}` : 'Rest done, go!'}</Text>
             {/* Screen readers only announce a live region whose text changes after it is mounted. This one is mounted empty with
-                the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second. */}
+                the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second.
+                srOnly hides it visually only: no display: none and no aria-hidden, which would silence the region. */}
             <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : 'Rest done, go!'}</Text>
             <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
           </View>
@@ -162,7 +165,7 @@ const styles = StyleSheet.create({
   chip: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
-  srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden' },
+  srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
   restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 8, alignItems: 'center' },
   rest: { width: '100%', borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
   restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },

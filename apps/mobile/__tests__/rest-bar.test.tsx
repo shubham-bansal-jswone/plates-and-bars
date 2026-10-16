@@ -18,6 +18,29 @@ describe('RestBar live region', () => {
     expect(screen.getByTestId('rest-announce').props.children).toBe('Rest done, go!');
     expect(screen.getByTestId('rest-announce').props.accessibilityLiveRegion).toBe('polite');
   });
+
+  it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const live = screen.getByTestId('rest-announce');
+    const style = StyleSheet.flatten(live.props.style);
+    expect(style).toMatchObject({ position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' });
+    expect(style.display).toBeUndefined();
+    // Hiding it from assistive tech would silence the announcement.
+    expect(live.props['aria-hidden']).toBeUndefined();
+  });
+
+  it('hides the visible "Rest done, go!" from assistive tech once the timer ends, so only the live region says it', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    // While counting, the visible time stays readable.
+    expect(screen.getByTestId('rest-title').props['aria-hidden']).toBeUndefined();
+    expect(screen.getByText('Rest 0:02')).toBeOnTheScreen();
+
+    await act(async () => { jest.advanceTimersByTime(2500); });
+    expect(screen.getByTestId('rest-title', { includeHiddenElements: true }).props['aria-hidden']).toBe(true);
+    // A swipe through the accessibility tree finds it once (the live region); the hidden visible copy is skipped.
+    expect(screen.queryAllByText('Rest done, go!')).toHaveLength(1);
+    expect(screen.queryAllByText('Rest done, go!', { includeHiddenElements: true })).toHaveLength(2);
+  });
 });
 
 // At 1200 px the rest bar sat bottom-left (#147): it was absolutely placed 8 px from the left with no centring. It must sit
