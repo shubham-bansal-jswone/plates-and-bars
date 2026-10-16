@@ -53,6 +53,6 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
   return db;
 }
 
-export const withProfile = (db: WorkoutDb, ui: ReactNode) => <ProfileProvider db={db}>
+export const withProfile = (db: WorkoutDb & PullDb, ui: ReactNode) => <ProfileProvider db={db}>
     <SettingsProvider db={db}>{ui}</SettingsProvider>
   </ProfileProvider>;
