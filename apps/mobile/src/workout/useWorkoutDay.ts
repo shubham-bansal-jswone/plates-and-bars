@@ -221,7 +221,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           ci_choice: ciChoice,
         };
         d.sessions = sessions;
-        d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         commit(d);
         await enqueue(async () => {
           // Started over a session deleted on another device: its sets go with it, so the new session does not
@@ -272,7 +272,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           adjustments,
         });
         const first = d.exs.length;
-        const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         const merged = mergeSecondSession({ exercises: d.exs, template: old.template, base: old.base, mods: old.mods }, template, { exercises: builtEx, mods: built.mods });
         const added = merged.exercises.slice(first) as ExState[];
         d.exs = merged.exercises as ExState[];
@@ -376,6 +376,36 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
       },
     );
 
+  /** Saves the answer to "Where did you feel that set most?" (prototype `feel`). */
+  const setFeel = (i: number, feel: string) =>
+    change(
+      i,
+      (ex) => {
+        ex.feel = feel;
+      },
+      () => writeWorkout(),
+    );
+
+  /** After "It hurt": drops the sets not done yet (prototype `feel-skip`); their stored rows become tombstones. */
+  const skipRemaining = (i: number) => {
+    let gone: Row[] = [];
+    change(
+      i,
+      (ex) => {
+        gone = ex.sets.filter((s) => !s.done);
+        if (!gone.length) return false;
+        ex.sets = ex.sets.filter((s) => s.done);
+        notify('Skipped the remaining sets');
+      },
+      async (name) => {
+        const at = stamp(now());
+        const goneIds = new Set(gone.map((g) => g.id));
+        for (const stored of (await loadSets(db, date)).filter((s) => goneIds.has(s.id) && !s.deleted_at)) await saveSet(db, date, { ...stored, updated_at: at, deleted_at: at });
+        await writeSets(name, 'work', ids(exNamed(name)?.sets ?? [])); // the rows left move up: set_index is the position
+      },
+    );
+  };
+
   const rampStart = (i: number) => {
     const row = blankRow();
     change(i, (ex) => void (ex.ramp = [row]), (name) => writeSets(name, 'ramp', [row.id]));
@@ -439,7 +469,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     if (!d.workout || d.exs.some((e) => e.name === name)) return false;
     const part = d.exs[d.exs.length - 1]?.part ?? 1;
     const built = newExercise(name, { lifts: d.lifts, date }, part);
-    const ex: ExState = { name, part, bridge: false, form: null, found: null, skipRamp: false, sets: built.sets.map(() => blankRow()), ramp: [] };
+    const ex: ExState = { name, part, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: built.sets.map(() => blankRow()), ramp: [] };
     d.exs = [...d.exs, ex];
     if (!d.workout.template) d.workout = { ...d.workout, template: 'Session' };
     commit(d);
@@ -575,7 +605,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
             .filter((s) => s.exercise === x.name && s.kind === kind)
             .sort((a, b) => a.set_index - b.set_index)
             .map((s) => rows.get(s.id) ?? { id: s.id, version: s.version, w: '', r: '', done: false, rate: null, t: null });
-        return { name: x.name, part: x.part, bridge: x.bridge, form: x.form, found: x.found_kg, skipRamp: x.skip_ramp, sets: pick('work'), ramp: pick('ramp') };
+        return { name: x.name, part: x.part, bridge: x.bridge, form: x.form, found: x.found_kg, skipRamp: x.skip_ramp, feel: x.feel ?? null, sets: pick('work'), ramp: pick('ramp') };
       });
       d.workout = { ...w, exercises: ch.exercises };
       commit(d);
@@ -591,5 +621,5 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
+  return { date, day, cant, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
 }

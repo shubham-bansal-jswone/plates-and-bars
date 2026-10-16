@@ -16,6 +16,8 @@ export interface WorkoutExercise {
   form: Form;
   found_kg: number | null;
   skip_ramp: boolean;
+  /** Where the last set was felt: 'target', 'pain', or the index of the card's `misplaced_feel` entry (#485). */
+  feel?: string | null;
 }
 
 /** Contract `Workout`: one per day. */
