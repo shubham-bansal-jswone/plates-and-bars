@@ -34,9 +34,11 @@ jobs:
             grep -q "required variable $v" err.txt
           done
       - name: shellcheck
-        run: shellcheck backup.sh test-backup.sh
+        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh
       - name: backup.sh against a stub docker
         run: ./test-backup.sh
+      - name: deploy.sh against stubs (rollback on a failed health check)
+        run: ./test-deploy.sh
       - name: every image is pinned to a version
         run: |
           if docker compose --env-file .env.example config --images | grep -E ':latest$|^[^:]+$' | grep -v '^plateandbar-api:'; then
