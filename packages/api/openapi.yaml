@@ -2959,7 +2959,8 @@ components:
           description: >
             Where the user felt the last set: `target`, `pain`, or the index of the
             guide card's "felt it somewhere else" entry. Null or absent when not
-            answered. Optional so older clients that omit it still validate.
+            answered. Optional so older clients that omit it still validate; a client that
+            does not know the field may drop it when it rewrites the exercise.
             Prototype: `ex.feel`.
 
     WorkoutSet:
