@@ -63,8 +63,7 @@ const RECIPE = [
   'Poha', 'Upma', 'Idli', 'Dosa, plain', 'Sambar', 'Aloo paratha', 'Sprouts salad', 'Tea with milk & sugar', 'Chicken breast, cooked', 'Buttermilk (chaas)',
   'Sabudana khichdi', 'Kuttu atta roti', 'Fruit bowl',
 ];
-// FDC record and serving scaling behind each usda_fdc row (SR Legacy, per 100 g x grams; issue #98). A food with no
-// matching record stays null and is not listed here.
+// FDC record and serving scaling behind each usda_fdc row (SR Legacy, per 100 g x grams; issue #98). Only usda_fdc rows get one.
 export const FDC_REFERENCE = {
   "Egg, whole": "FDC 171287 (SR Legacy: Egg, whole, raw, fresh), per 100 g x 50 g (1 large)",
   "Egg white": "FDC 172183 (SR Legacy: Egg, white, raw, fresh), per 100 g x 33 g (1 large)",
@@ -74,6 +73,7 @@ export const FDC_REFERENCE = {
   "Banana": "FDC 173944 (SR Legacy: Bananas, raw), per 100 g x 118 g (1 medium)",
   "Apple": "FDC 171688 (SR Legacy: Apples, raw, with skin), per 100 g x 182 g (1 medium)",
   "Almonds": "FDC 170567 (SR Legacy: Nuts, almonds), per 100 g x 12 g (10 almonds at 1.2 g each)",
+  "Oats, dry": "FDC 169705 (SR Legacy: Oats), per 100 g x 40 g",
   "Roasted chana": "FDC 173756 (SR Legacy: Chickpeas, mature seeds, raw), per 100 g x 30 g; values are for the raw seed",
   "Ghee": "FDC 171314 (SR Legacy: Butter, Clarified butter (ghee)), per 100 g x 4.9 g (1 tsp)",
   "Sweet potato, boiled": "FDC 168484 (SR Legacy: Sweet potato, cooked, boiled, without skin), per 100 g x 150 g",
@@ -152,7 +152,7 @@ export function importFoods(golden) {
         kcal: f.kcal, protein_g: f.protein, carbs_g: f.carbs, fibre_g: fibre, added_sugar_g: sugar, fat_g: f.fat,
       },
       fruit_veg_servings: PRODUCE[f.name] ?? 0,
-      source: { ...SOURCES[code], reference: FDC_REFERENCE[f.name] ?? SOURCES[code].reference },
+      source: { ...SOURCES[code], reference: (code === 'usda_fdc' && FDC_REFERENCE[f.name]) || SOURCES[code].reference },
       updated_at: UPDATED_AT,
     });
   }
