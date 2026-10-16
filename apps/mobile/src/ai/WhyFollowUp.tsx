@@ -48,7 +48,7 @@ function FollowUpForm({ cardId }: { cardId: string }) {
   return (
     <View style={styles.body}>
       {/* The caption is visible; the field carries the spoken label, so the caption is hidden from screen readers. */}
-      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Label>{QUESTION_LABEL}</Label></View>
+      <View aria-hidden><Label>{QUESTION_LABEL}</Label></View>
       <Field label={QUESTION_LABEL} placeholder="e.g. Is 150 g too much protein?" multiline maxLength={QUESTION_MAX} value={question} onChangeText={setQuestion} />
       {used ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.askFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
       {used ? null : <Button kind="ghost" label={busy ? 'Thinking…' : 'Ask'} a11yLabel="Ask" busy={busy} onPress={() => void send()} />}
