@@ -6,6 +6,7 @@ Specs (one concern each, every test starts with an empty browser profile):
 
 - `setup.spec.mjs`: consent, setup to Targets, profile read back after a reload.
 - `logging.spec.mjs`: log a food, water, a weigh-in, a workout set, all offline, then reload online and check it persisted.
+- `rest-bar.spec.mjs`: the rest panel's bounding box against the page column at 1200 and 800 px, and inside the screen at 390 px (#630).
 - `data.spec.mjs`: export (JSON and CSV, offline) and delete everything (local only).
 - `screens.spec.mjs`: exercise library, About, recipe builder and kitchen tests.
 - `a11y.spec.mjs`: axe-core on the main screens, light and dark. Known failures are listed by rule and element with their issue number (`support/axe.mjs`, tested in `axe-known.spec.mjs`); a new violation fails, a fixed one goes stale and fails.
