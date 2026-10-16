@@ -27,15 +27,21 @@ permissions:
     resource: "**/infra/**"
     effect: allow
   - action: edit
-    resource: ".github/workflows/**"
+    resource: ".github/**"
     effect: allow
   - action: edit
-    resource: "**/.github/workflows/**"
+    resource: "**/.github/**"
+    effect: allow
+  - action: edit
+    resource: ".gitleaks.toml"
+    effect: allow
+  - action: edit
+    resource: "**/.gitleaks.toml"
     effect: allow
 ---
 You are the infra agent. Read docs/AGENTS.md first.
 
-You write only in `infra/` and `.github/workflows/`.
+You write only in `infra/`, `.github/` and `.gitleaks.toml`.
 
 Deliverables:
 - GitHub Actions with path filters: lint, types and tests for `packages/core`, `apps/mobile`, `backend`;
