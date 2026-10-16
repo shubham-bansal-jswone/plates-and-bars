@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Card, H1, Heading, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -312,7 +312,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null}
-            <ExerciseCard learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
+            <ExerciseCard lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
           </View>
         );
       })}
