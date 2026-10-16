@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { cleanTarget, fitCarbs, macroKcal, macrosOff, type TargetSet } from '@plate-and-bar/core';
+import { cleanTarget, fitCarbs, macroKcal, macrosOff, RAPID_LOSS_KCAL, type TargetSet } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Field, Hint, Label } from '../components/ui';
 import type { Profile } from '../setup/types';
@@ -68,7 +68,9 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
             setText((cur) => ({ ...cur, carbs_g: String(next.carbs_g) }));
             save(next);
           }} /> : null}
-      <Hint>You can fine-tune these by hand. If your weekly average weight hasn’t moved after 2–3 weeks, lower calories by about 150.</Hint>
+      {/* The 150 is core's `RAPID_LOSS_KCAL`: the prototype's one daily calorie-adjustment step (its `calorieCard`,
+          where the app adds it back, and `renderTargets`, this hint), so the number lives in one place. */}
+      <Hint>{`You can fine-tune these by hand. If your weekly average weight hasn’t moved after 2–3 weeks, lower calories by about ${RAPID_LOSS_KCAL}.`}</Hint>
     </View>
   );
 }

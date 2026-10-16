@@ -43,6 +43,9 @@ export function BurnCard({ db, date, profile, steps, kcalEaten, reloadKey = 0 }:
   const wb = workoutBurn(facts.sets, facts.cardio, facts.kg);
   const b: BurnToday = burnToday(profile, facts.kg, steps, wb, kcalEaten);
   const range = `${fmt(b.total * (1 - BURN_RANGE))}–${fmt(b.total * (1 + BURN_RANGE))} kcal`;
+  // "~10% of food eaten" is the prototype's copy for `burnToday`'s digestion share. Core exports no constant for
+  // it (the 0.1 is inside `burnToday`), and `BURN_RANGE` — the only exported 0.1 — is the ±10% shown around the
+  // total burn, a different rule, so reusing it would tie two unrelated figures together.
   const rows: [string, string, number][] = [
     ['Resting', '', b.bmr],
     ['Daily movement', steps ? `from ${fmt(steps)} steps` : 'from your activity level', b.move],

@@ -56,6 +56,19 @@ describe('TargetsScreen', () => {
     expect(screen.getByText('You burn about 2,493 kcal a day')).toBeTruthy();
   });
 
+  it('shows the targets only as the editable fields: the read-only tiles stay off this screen', async () => {
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
+    // The results block is rendered with `hideTargets`, as prototype `renderTargets` has only the editable
+    // fields: the four read-only tiles would repeat the same numbers right above them (#483 review).
+    expect(screen.queryByTestId('target-0')).toBeNull();
+    expect(screen.queryByTestId('target-3')).toBeNull();
+    expect(screen.queryByLabelText('1,990 kcal')).toBeNull();
+    expect(screen.queryByText('g protein')).toBeNull();
+  });
+
   it('offers the doctor card and notes when a health answer is yes, and home-plan note off the gym', async () => {
     const db = memoryDb();
     const p = { ...goldenProfile(), screen: ['yes', 'no', 'no', 'no', 'no', 'no'] as const, where: 'bodyweight' as const };
