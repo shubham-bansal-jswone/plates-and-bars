@@ -19,6 +19,7 @@ import {
   type Where,
 } from '../src/index';
 import { loadGolden, prototypeSource } from './helpers';
+import { expectProtoOr143 } from './clash143';
 import { loadExclusions, type ProtoRepl, type ProtoRule } from './prototype-exclusions';
 import { goldenCatalog, rng } from './prototype-plan';
 
@@ -186,7 +187,8 @@ describe('resolveName and resolveSession: rules', () => {
   });
 
   it('drops repeats', () => {
-    expect(resolveSession(['Leg Press', 'Hack Squat'], 'gym', st({ swaps: [swap('Leg Press', 'Hack Squat')] }), catalog)).toEqual([{ name: 'Hack Squat' }]);
+    expect(resolveSession(['Leg Press', 'Leg Press'], 'gym', st(), catalog)).toEqual([{ name: 'Leg Press' }]);
+    expect(resolveSession(['Leg Press', 'Leg Press'], 'gym', st({ swaps: [swap('Leg Press', 'Hack Squat')] }), catalog)).toEqual([{ name: 'Hack Squat' }]);
   });
 
   it('adds the bridge through its last day only, after the replacement', () => {
@@ -320,6 +322,92 @@ describe('a replacement already in the session (#110)', () => {
   });
 });
 
+describe('a swap target or stored pick already in the session (#143)', () => {
+  const pushA = TEMPLATES['Push A'] as string[];
+  const pick = (to: string) => rule('exercise', 'Machine Chest Press', { to: { 'Machine Chest Press': to } });
+
+  it('a stored pick already in the session takes the next-best candidate (Push A keeps 5 exercises)', () => {
+    const s = st({ exclusions: [pick('Incline Dumbbell Press')] });
+    const next = candidates('Machine Chest Press', { where: 'gym', inSession: pushA }, s.exclusions, {}, catalog)[0]?.name;
+    expect(next).toBe('Push-ups');
+    expect(resolveSessionWithLost(pushA, 'gym', s, catalog)).toEqual({ items: ['Push-ups', ...pushA.slice(1)].map((name) => ({ name })), lost: [] });
+    // The prototype drops the slot with no note.
+    setProto(s);
+    const lost: string[] = [];
+    expect(proto.resolveSession(pushA, 'gym', lost)).toEqual(pushA.slice(1).map((name) => ({ name })));
+    expect(lost).toEqual([]);
+  });
+
+  it('a swap target already in the session takes the next-best candidate', () => {
+    const s = st({ swaps: [swap('Leg Press', 'Hack Squat')] });
+    const next = candidates('Leg Press', { where: 'gym', inSession: ['Hack Squat'] }, [], {}, catalog)[0]?.name;
+    expect(next).toBe('Goblet Squat');
+    expect(resolveSessionWithLost(['Leg Press', 'Hack Squat'], 'gym', s, catalog)).toEqual({ items: [{ name: 'Goblet Squat' }, { name: 'Hack Squat' }], lost: [] });
+    expect(resolveSessionWithLost(['Hack Squat', 'Leg Press'], 'gym', s, catalog)).toEqual({ items: [{ name: 'Hack Squat' }, { name: 'Goblet Squat' }], lost: [] });
+    // The prototype drops the slot with no note.
+    setProto(s);
+    expect(proto.resolveSession(['Leg Press', 'Hack Squat'], 'gym')).toEqual([{ name: 'Hack Squat' }]);
+  });
+
+  it('a swap whose bridge is running is not passed over: the old exercise stays as its bridge, as in the prototype', () => {
+    const s = st({ swaps: [swap('Leg Press', 'Hack Squat', '2026-10-21')] });
+    const want = [{ name: 'Hack Squat' }, { name: 'Leg Press', bridge: true }];
+    expect(resolveSessionWithLost(['Leg Press', 'Hack Squat'], 'gym', s, catalog)).toEqual({ items: want, lost: [] });
+    expect(resolveName('Leg Press', 'gym', s, catalog, ['Hack Squat'])).toBe('Hack Squat');
+    setProto(s);
+    expect(proto.resolveSession(['Leg Press', 'Hack Squat'], 'gym')).toEqual(want);
+    // Once the bridge has ended, the swap is passed over.
+    expect(resolveSessionWithLost(['Leg Press', 'Hack Squat'], 'gym', { ...s, date: '2026-10-22' }, catalog).items).toEqual([{ name: 'Goblet Squat' }, { name: 'Hack Squat' }]);
+  });
+
+  it("the kept swap's bridge counts as in the session for a later replacement", () => {
+    // Goblet Squat's best candidate with Hack Squat in the session is Leg Press, here the bridge.
+    const s = st({ swaps: [swap('Leg Press', 'Hack Squat', '2026-10-21')], exclusions: [rule('exercise', 'Goblet Squat')] });
+    expect(candidates('Goblet Squat', { where: 'gym', inSession: ['Hack Squat'] }, s.exclusions, {}, catalog)[0]?.name).toBe('Leg Press');
+    const want = [{ name: 'Hack Squat' }, { name: 'Leg Press', bridge: true }, { name: 'Bodyweight Squat' }];
+    expect(resolveSessionWithLost(['Leg Press', 'Hack Squat', 'Goblet Squat'], 'gym', s, catalog)).toEqual({ items: want, lost: [] });
+    setProto(s);
+    expect(proto.resolveSession(['Leg Press', 'Hack Squat', 'Goblet Squat'], 'gym')).toEqual(want);
+  });
+
+  it('a swap target mapped for where, already in the session, is passed over too', () => {
+    // At dumbbells Hack Squat maps to Goblet Squat, which the session holds.
+    const s = st({ swaps: [swap('Dumbbell Split Squat', 'Hack Squat')] });
+    const got = resolveSessionWithLost(['Goblet Squat', 'Dumbbell Split Squat'], 'dumbbells', s, catalog);
+    const next = candidates('Dumbbell Split Squat', { where: 'dumbbells', inSession: ['Goblet Squat'] }, [], {}, catalog)[0]?.name as string;
+    expect(got).toEqual({ items: [{ name: 'Goblet Squat' }, { name: next }], lost: [] });
+  });
+
+  it('a pick followed through a swap onto a name in the session is passed over', () => {
+    const s = st({ exclusions: [rule('exercise', 'Hack Squat', { to: { 'Hack Squat': 'Leg Press' } })], swaps: [swap('Leg Press', 'Barbell Back Squat')] });
+    const got = resolveSessionWithLost(['Barbell Back Squat', 'Hack Squat'], 'gym', s, catalog);
+    const next = candidates('Hack Squat', { where: 'gym', inSession: ['Barbell Back Squat'] }, s.exclusions, {}, catalog)[0]?.name as string;
+    expect(got).toEqual({ items: [{ name: 'Barbell Back Squat' }, { name: next }], lost: [] });
+  });
+
+  it('an excluded exercise whose swap target is taken goes on to its pick', () => {
+    const s = st({ swaps: [swap('Leg Press', 'Hack Squat')], exclusions: [rule('exercise', 'Leg Press', { to: { 'Leg Press': 'Hip Thrust' } })] });
+    expect(resolveSessionWithLost(['Hack Squat', 'Leg Press'], 'gym', s, catalog)).toEqual({ items: [{ name: 'Hack Squat' }, { name: 'Hip Thrust' }], lost: [] });
+    // A skip still skips.
+    const skip = st({ swaps: [swap('Leg Press', 'Hack Squat')], exclusions: [rule('exercise', 'Leg Press', { to: { 'Leg Press': null } })] });
+    expect(resolveSessionWithLost(['Hack Squat', 'Leg Press'], 'gym', skip, catalog)).toEqual({ items: [{ name: 'Hack Squat' }], lost: [] });
+  });
+
+  it('with no candidate left the slot is reported as lost', () => {
+    const s = st({ swaps: [swap('Sled Push', 'Leg Press')] }); // Sled Push has no tags, so no candidates
+    expect(resolveSessionWithLost(['Leg Press', 'Sled Push'], 'gym', s, catalog)).toEqual({ items: [{ name: 'Leg Press' }], lost: ['Sled Push'] });
+    const p = st({ exclusions: [rule('exercise', 'Sled Push', { to: { 'Sled Push': 'Leg Press' } })] });
+    expect(resolveSessionWithLost(['Sled Push', 'Leg Press'], 'gym', p, catalog)).toEqual({ items: [{ name: 'Leg Press' }], lost: ['Sled Push'] });
+  });
+
+  it('resolveName passes over a swap or pick that ends in `taken`', () => {
+    const s = st({ exclusions: [pick('Incline Dumbbell Press')] });
+    expect(resolveName('Machine Chest Press', 'gym', s, catalog)).toBe('Incline Dumbbell Press');
+    expect(resolveName('Machine Chest Press', 'gym', s, catalog, pushA)).toBe('Push-ups');
+    expect(resolveName('Leg Press', 'gym', st({ swaps: [swap('Leg Press', 'Hack Squat')] }), catalog, ['Hack Squat'])).toBe('Goblet Squat');
+  });
+});
+
 describe('differential: the prototype’s own functions', () => {
   const all = Object.keys(tags);
   const CUSTOM = ['Sled Push', 'Battle Ropes'];
@@ -363,14 +451,15 @@ describe('differential: the prototype’s own functions', () => {
     let lostSlots = 0;
     let nextBest = 0; // #110: an excluded name's best replacement is also another slot's exercise
     let mapped = 0; // #109: a swap target or pick changed by where
+    let passedOver = 0; // #143: a swap target or pick already in the session
     for (let i = 0; i < 5000; i++) {
       const { s, names: ns, where } = randomState(r);
       setProto(s);
       const lost: string[] = [];
       const want = proto.resolveSession(ns, where, lost);
       const got = resolveSessionWithLost(ns, where, s, catalog);
-      expect(got).toEqual({ items: want, lost });
-      expect(resolveSession(ns, where, s, catalog)).toEqual(want);
+      passedOver += expectProtoOr143(got, { items: want, lost }, ns, where, s, catalog) ? 1 : 0;
+      expect(resolveSession(ns, where, s, catalog)).toEqual(got.items);
       bridges += want.filter((x) => x.bridge).length;
       dropped += want.length < new Set(ns).size ? 1 : 0;
       lostSlots += lost.length;
@@ -385,6 +474,7 @@ describe('differential: the prototype’s own functions', () => {
     expect(lostSlots).toBeGreaterThan(50);
     expect(nextBest).toBeGreaterThan(20);
     expect(mapped).toBeGreaterThan(500);
+    expect(passedOver).toBeGreaterThan(100);
   });
 
   it('resolveSession matches the prototype on every template, home mapping included', () => {
@@ -396,7 +486,7 @@ describe('differential: the prototype’s own functions', () => {
         setProto(s);
         const lost: string[] = [];
         const want = proto.resolveSession(ns, where, lost);
-        expect(resolveSessionWithLost(ns, where, s, catalog)).toEqual({ items: want, lost });
+        expectProtoOr143(resolveSessionWithLost(ns, where, s, catalog), { items: want, lost }, ns, where, s, catalog);
       }
     }
   });

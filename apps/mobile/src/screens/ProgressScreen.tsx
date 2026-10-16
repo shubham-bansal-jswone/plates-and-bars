@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { DailyRead } from '../why/DailyRead';
+import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
 import { DEFAULT_KCAL_TARGET, round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { Heading, Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
+import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
@@ -34,6 +35,7 @@ const r1 = (n: number): string => round1(n).toString();
 /** Progress tab, body data: weight entry, tape measurements with the navy body-fat estimate, and steps and sleep. */
 export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const { status, profile } = useProfile();
+  const settings = useOptionalSettings();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = useCallback((msg: string) => {
@@ -55,7 +57,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <H1>Progress</H1>
             <CheckinCard date={p.date} c={ci} />
             <RapidLossCard c={ci} />
-            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile) : undefined} now={now} />
+            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} />
@@ -136,7 +138,7 @@ function MeasureSection({ p }: { p: Progress }) {
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
       {shown.map((m) => (
         <View key={m.key} style={styles.field}>
-          <Label>{`${m.label} (cm)`}</Label>
+          <Caption>{`${m.label} (cm)`}</Caption>
           <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
         </View>
       ))}

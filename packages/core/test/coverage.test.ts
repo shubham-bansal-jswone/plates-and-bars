@@ -6,8 +6,10 @@ import {
   doneCoverage,
   FOCUS_MAX,
   focusPicker,
+  mapForWhere,
   mondayOf,
   plannedCoverage,
+  resolveSession,
   SPLITS,
   TEMPLATES,
   toggleFocus,
@@ -22,6 +24,7 @@ import {
   type WeekPlan,
   type Where,
 } from '../src/index';
+import { expectProtoOr143 } from './clash143';
 import { loadCoverage, type ProtoDayDoc } from './prototype-coverage';
 import { goldenCatalog, rng } from './prototype-plan';
 
@@ -286,12 +289,27 @@ describe('differential: the prototype’s own functions', () => {
     let halves = 0;
     let lowAndHigh = 0;
     let windowEdges = 0;
+    let passedOver = 0;
     for (let i = 0; i < 3000; i++) {
       const c = randomCase(r);
       setProto(c);
       const planned = plannedCoverage(c, catalog);
-      expect(planned).toEqual(proto.weeklyCoverage());
-      expect(proto.coverageHtml().split('\n')[0]).toBe(meterHtml(coverageRows(planned)));
+      // #143: a template may resolve differently from the prototype only where a swap or pick already in
+      // the session is passed over (the same check as exclusions.test.ts); then the counts differ.
+      const where = (c.profile && c.profile.where) || 'gym';
+      const state = { date: c.date, exclusions: c.exclusions, swaps: c.swaps, lifts: c.lifts };
+      let differs = false;
+      for (const t of coverageTemplates(c.date, c.profile, c.weekPlan)) {
+        const ns = mapForWhere(TEMPLATES[t] || [], where, catalog);
+        expect(ns).toEqual(proto.mapForWhere([...(TEMPLATES[t] || [])], where));
+        const got = { items: resolveSession(ns, where, state, catalog), lost: [] };
+        if (expectProtoOr143(got, { items: proto.sessionItems(t, where), lost: null }, ns, where, state, catalog)) differs = true;
+      }
+      if (differs) passedOver++;
+      else {
+        expect(planned).toEqual(proto.weeklyCoverage());
+        expect(proto.coverageHtml().split('\n')[0]).toBe(meterHtml(coverageRows(planned)));
+      }
       const done = doneCoverage(c.date, c.days, tags);
       expect(done).toEqual(await proto.actualCoverage());
       proto.S.dayCache = {};
@@ -308,6 +326,8 @@ describe('differential: the prototype’s own functions', () => {
     expect(halves).toBeGreaterThan(500);
     expect(lowAndHigh).toBeGreaterThan(100);
     expect(windowEdges).toBeGreaterThan(500);
+    expect(passedOver).toBeGreaterThan(10);
+    expect(passedOver).toBeLessThan(100); // most states still compare exactly
   });
 
   it('focus toggling and the picker match the prototype over 5,000 seeded random taps', () => {

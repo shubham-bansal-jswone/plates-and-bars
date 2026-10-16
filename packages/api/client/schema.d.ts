@@ -235,7 +235,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liveness and version */
+        /** Liveness */
         get: operations["getHealth"];
         put?: never;
         post?: never;
@@ -697,11 +697,13 @@ export interface components {
             email: string | null;
             created_at: components["schemas"]["Timestamp"];
         };
+        /**
+         * @description Liveness only. The body does not carry the deployed build version (or any other
+         *     build or host detail), so an unauthenticated caller cannot fingerprint the build.
+         */
         Health: {
             /** @constant */
             status: "ok";
-            /** @description Deployed API build version. */
-            version: string;
         };
         /**
          * @description A bundle name: the file name of `content/<name>.json` without `.json`, such as

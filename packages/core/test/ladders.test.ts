@@ -29,6 +29,7 @@ import {
   type ExerciseTag,
   type ExerciseOverride,
   type LadderCard,
+  type ExerciseCatalog,
   type LadderCatalog,
   type LiftRecord,
   type Rate,
@@ -42,7 +43,7 @@ import { loadStalls } from './prototype-stalls';
 
 // golden/exercises.json holds the ladders but no ladder-card, re-check or "can't do" cases; these rules
 // are checked against the prototype's own functions over random inputs, and by hand-worked unit tests.
-const catalog = content as unknown as LadderCatalog & typeof content;
+const catalog = content as unknown as LadderCatalog & ExerciseCatalog & typeof content;
 const { tags } = catalog;
 const DATE = '2026-10-08';
 const WHERES: Where[] = ['gym', 'dumbbells', 'bodyweight'];

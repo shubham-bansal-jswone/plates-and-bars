@@ -27,7 +27,7 @@ import { loadStalls } from './prototype-stalls';
 
 // No golden fixture covers stalls or personal bests; these rules are checked against the prototype's
 // own functions (differential tests below) and by hand-worked unit tests.
-const catalog: ExerciseCatalog = content;
+const catalog = content as ExerciseCatalog;
 const DATE = '2026-10-07'; // a Wednesday; its Monday is 2026-10-05
 const hist = (...es: number[]): ScoreEntry[] => es.map((e, i) => ({ date: addDays('2026-09-01', i * 3), e }));
 const lift = (h: ScoreEntry[], more: Partial<LiftRecord> = {}): LiftRecord => ({ date: '2026-10-01', sets: [{ w: 60, r: 10 }], hist: h, ...more });

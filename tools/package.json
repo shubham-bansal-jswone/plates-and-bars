@@ -16,6 +16,8 @@
     "validate:cards": "node validate/cards-cli.mjs",
     "import:recipes": "node recipes-import/cli.mjs",
     "validate:recipes": "node validate/recipes-cli.mjs",
-    "check:sources": "node check-no-ifct/cli.mjs"
+    "check:sources": "node check-no-ifct/cli.mjs",
+    "golden": "node golden-gen/cli.mjs",
+    "check:golden": "node golden-gen/cli.mjs --check"
   }
 }

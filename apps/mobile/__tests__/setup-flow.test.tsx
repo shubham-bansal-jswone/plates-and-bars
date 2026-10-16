@@ -29,6 +29,22 @@ async function consent() {
 describe('setup flow', () => {
   beforeEach(() => mockReplace.mockClear());
 
+  it('hides the visible Age caption from screen readers; the field speaks the label', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    expect(screen.getByText('Age', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Age')).toBeNull();
+    expect(screen.getAllByLabelText('Age')).toHaveLength(1);
+  });
+
+  it('hides the visible Weight (kg) caption from screen readers; the field speaks its own label', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    expect(screen.getByText('Weight (kg)', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Weight (kg)')).toBeNull();
+    expect(screen.getByLabelText('Weight in kg')).toBeTruthy();
+  });
+
   it('consent first, then answers stored as the contract Profile; results match calcTargets', async () => {
     const db = memoryDb();
     await render(withProfile(db, <SetupScreen />));

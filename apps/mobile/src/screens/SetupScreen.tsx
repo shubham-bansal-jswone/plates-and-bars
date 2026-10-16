@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
-import { Button, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
 import { DeletionNotice } from '../account/DeletionNotice';
@@ -85,7 +85,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
           </View>
         ) : null}
         <View style={layout.field}>
-          <Label>Age</Label>
+          <Caption>Age</Caption>
           <View style={layout.row}>
             <Field label="Age" inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
           </View>
@@ -108,7 +108,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
           </View>
         </View>
         <View style={layout.field}>
-          <Label>Weight (kg)</Label>
+          <Caption>Weight (kg)</Caption>
           <View style={layout.row}>
             <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
           </View>
