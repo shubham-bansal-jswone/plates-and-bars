@@ -38,6 +38,26 @@ updates:
       # CI runs Node 22; @types/node must not jump past it (#82)
       - dependency-name: "@types/node"
         versions: [">=23"]
+      # Expo SDK 57 pins exact React and native module versions, so bumping one
+      # alone can pass Jest yet break at runtime. These move only with the SDK
+      # upgrade (#58), which is also the path their security advisories arrive on.
+      # ("expo*" covers "expo" and "expo-*"; "react-native*" covers
+      # "react-native" and "react-native-*". @expo-google-fonts/* is deliberately
+      # left out: it versions independently of the SDK.)
+      - dependency-name: "expo*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "eslint-config-expo"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-test-renderer"
+      - dependency-name: "react-native*"
+      - dependency-name: "@types/react"
+      - dependency-name: "@types/jest"
+      # eslint-plugin-react does not support ESLint 10, so a human reviews the
+      # major bump (#113)
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /apps/site
     schedule:
