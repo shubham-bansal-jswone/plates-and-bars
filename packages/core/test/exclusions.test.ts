@@ -19,6 +19,7 @@ import {
   type Where,
 } from '../src/index';
 import { loadGolden, prototypeSource } from './helpers';
+import { expectProtoOr143 } from './clash143';
 import { loadExclusions, type ProtoRepl, type ProtoRule } from './prototype-exclusions';
 import { goldenCatalog, rng } from './prototype-plan';
 
@@ -204,9 +205,7 @@ describe('resolveName and resolveSession: rules', () => {
 
   it('a name reaching the swapped exercise through another swap still gets one bridge', () => {
     const s = st({ swaps: [swap('Hack Squat', 'Leg Press'), swap('Leg Press', 'Barbell Back Squat', '2026-10-21')] });
-    expect(resolveSession(['Leg Press', 'Leg Press'], 'gym', s, catalog)).toEqual([{ name: 'Barbell Back Squat' }, { name: 'Leg Press', bridge: true }]);
-    // #143: two different slots reaching one target: the earlier keeps it, the later takes its next-best candidate.
-    expect(resolveSession(['Hack Squat', 'Leg Press'], 'gym', s, catalog)).toEqual([{ name: 'Barbell Back Squat' }, { name: 'Goblet Squat' }]);
+    expect(resolveSession(['Hack Squat', 'Leg Press'], 'gym', s, catalog)).toEqual([{ name: 'Barbell Back Squat' }, { name: 'Leg Press', bridge: true }]);
   });
 });
 
@@ -340,17 +339,35 @@ describe('a swap target or stored pick already in the session (#143)', () => {
   });
 
   it('a swap target already in the session takes the next-best candidate', () => {
-    const s = st({ swaps: [swap('Leg Press', 'Hack Squat', '2026-10-21')] });
+    const s = st({ swaps: [swap('Leg Press', 'Hack Squat')] });
     const next = candidates('Leg Press', { where: 'gym', inSession: ['Hack Squat'] }, [], {}, catalog)[0]?.name;
     expect(next).toBe('Goblet Squat');
-    // No bridge: the swap was not followed.
     expect(resolveSessionWithLost(['Leg Press', 'Hack Squat'], 'gym', s, catalog)).toEqual({ items: [{ name: 'Goblet Squat' }, { name: 'Hack Squat' }], lost: [] });
     expect(resolveSessionWithLost(['Hack Squat', 'Leg Press'], 'gym', s, catalog)).toEqual({ items: [{ name: 'Hack Squat' }, { name: 'Goblet Squat' }], lost: [] });
+    // The prototype drops the slot with no note.
     setProto(s);
-    // The prototype keeps the target and the old exercise as a bridge; with no bridge it drops the slot.
-    expect(proto.resolveSession(['Leg Press', 'Hack Squat'], 'gym')).toEqual([{ name: 'Hack Squat' }, { name: 'Leg Press', bridge: true }]);
-    setProto(st({ swaps: [swap('Leg Press', 'Hack Squat')] }));
     expect(proto.resolveSession(['Leg Press', 'Hack Squat'], 'gym')).toEqual([{ name: 'Hack Squat' }]);
+  });
+
+  it('a swap whose bridge is running is not passed over: the old exercise stays as its bridge, as in the prototype', () => {
+    const s = st({ swaps: [swap('Leg Press', 'Hack Squat', '2026-10-21')] });
+    const want = [{ name: 'Hack Squat' }, { name: 'Leg Press', bridge: true }];
+    expect(resolveSessionWithLost(['Leg Press', 'Hack Squat'], 'gym', s, catalog)).toEqual({ items: want, lost: [] });
+    expect(resolveName('Leg Press', 'gym', s, catalog, ['Hack Squat'])).toBe('Hack Squat');
+    setProto(s);
+    expect(proto.resolveSession(['Leg Press', 'Hack Squat'], 'gym')).toEqual(want);
+    // Once the bridge has ended, the swap is passed over.
+    expect(resolveSessionWithLost(['Leg Press', 'Hack Squat'], 'gym', { ...s, date: '2026-10-22' }, catalog).items).toEqual([{ name: 'Goblet Squat' }, { name: 'Hack Squat' }]);
+  });
+
+  it("the kept swap's bridge counts as in the session for a later replacement", () => {
+    // Goblet Squat's best candidate with Hack Squat in the session is Leg Press, here the bridge.
+    const s = st({ swaps: [swap('Leg Press', 'Hack Squat', '2026-10-21')], exclusions: [rule('exercise', 'Goblet Squat')] });
+    expect(candidates('Goblet Squat', { where: 'gym', inSession: ['Hack Squat'] }, s.exclusions, {}, catalog)[0]?.name).toBe('Leg Press');
+    const want = [{ name: 'Hack Squat' }, { name: 'Leg Press', bridge: true }, { name: 'Bodyweight Squat' }];
+    expect(resolveSessionWithLost(['Leg Press', 'Hack Squat', 'Goblet Squat'], 'gym', s, catalog)).toEqual({ items: want, lost: [] });
+    setProto(s);
+    expect(proto.resolveSession(['Leg Press', 'Hack Squat', 'Goblet Squat'], 'gym')).toEqual(want);
   });
 
   it('a swap target mapped for where, already in the session, is passed over too', () => {
@@ -423,22 +440,6 @@ describe('differential: the prototype’s own functions', () => {
     return { s: { date: DATE, exclusions, swaps, lifts }, names, where: pick(WHERES) };
   }
 
-  /**
-   * The port matches the prototype, except where #143 applies: then some slot's swap or pick, with the
-   * session ignored, ends on a name another slot holds, and the port keeps at least as many slots.
-   */
-  function expectProtoOr143(got: { items: { name: string; bridge?: boolean }[]; lost: string[] }, want: { name: string; bridge?: boolean }[], lost: string[], ns: string[], where: Where, s: ResolveState): void {
-    if (JSON.stringify(got) === JSON.stringify({ items: want, lost })) return;
-    const alone = ns.map((n) => resolveName(n, where, s, catalog));
-    const clash = ns.some((n, k) => {
-      const a = alone[k];
-      return !!a && a !== n && ns.some((m, j) => m !== n && (alone[j] === a || m === a));
-    });
-    expect(clash).toBe(true);
-    expect(new Set(got.items.map((x) => x.name)).size).toBe(got.items.length);
-    expect(got.items.length + got.lost.length).toBeGreaterThanOrEqual(want.length + lost.length);
-  }
-
   it('slices the prototype functions', () => {
     expect(typeof proto.resolveSession).toBe('function');
   });
@@ -457,9 +458,8 @@ describe('differential: the prototype’s own functions', () => {
       const lost: string[] = [];
       const want = proto.resolveSession(ns, where, lost);
       const got = resolveSessionWithLost(ns, where, s, catalog);
-      expectProtoOr143(got, want, lost, ns, where, s);
+      passedOver += expectProtoOr143(got, { items: want, lost }, ns, where, s, catalog) ? 1 : 0;
       expect(resolveSession(ns, where, s, catalog)).toEqual(got.items);
-      passedOver += JSON.stringify(got) === JSON.stringify({ items: want, lost }) ? 0 : 1;
       bridges += want.filter((x) => x.bridge).length;
       dropped += want.length < new Set(ns).size ? 1 : 0;
       lostSlots += lost.length;
@@ -486,7 +486,7 @@ describe('differential: the prototype’s own functions', () => {
         setProto(s);
         const lost: string[] = [];
         const want = proto.resolveSession(ns, where, lost);
-        expectProtoOr143(resolveSessionWithLost(ns, where, s, catalog), want, lost, ns, where, s);
+        expectProtoOr143(resolveSessionWithLost(ns, where, s, catalog), { items: want, lost }, ns, where, s, catalog);
       }
     }
   });

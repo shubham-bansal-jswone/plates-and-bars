@@ -24,6 +24,7 @@ import {
   type WeekPlan,
   type Where,
 } from '../src/index';
+import { expectProtoOr143 } from './clash143';
 import { loadCoverage, type ProtoDayDoc } from './prototype-coverage';
 import { goldenCatalog, rng } from './prototype-plan';
 
@@ -293,13 +294,17 @@ describe('differential: the prototype’s own functions', () => {
       const c = randomCase(r);
       setProto(c);
       const planned = plannedCoverage(c, catalog);
-      // #143: where a template resolves differently from the prototype (a swap or pick already in the
-      // session is passed over), the counts differ; exclusions.test.ts checks those sessions.
+      // #143: a template may resolve differently from the prototype only where a swap or pick already in
+      // the session is passed over (the same check as exclusions.test.ts); then the counts differ.
       const where = (c.profile && c.profile.where) || 'gym';
       const state = { date: c.date, exclusions: c.exclusions, swaps: c.swaps, lifts: c.lifts };
-      const differs = coverageTemplates(c.date, c.profile, c.weekPlan).some(
-        (t) => JSON.stringify(resolveSession(mapForWhere(TEMPLATES[t] || [], where, catalog), where, state, catalog)) !== JSON.stringify(proto.sessionItems(t, where)),
-      );
+      let differs = false;
+      for (const t of coverageTemplates(c.date, c.profile, c.weekPlan)) {
+        const ns = mapForWhere(TEMPLATES[t] || [], where, catalog);
+        expect(ns).toEqual(proto.mapForWhere([...(TEMPLATES[t] || [])], where));
+        const got = { items: resolveSession(ns, where, state, catalog), lost: [] };
+        if (expectProtoOr143(got, { items: proto.sessionItems(t, where), lost: null }, ns, where, state, catalog)) differs = true;
+      }
       if (differs) passedOver++;
       else {
         expect(planned).toEqual(proto.weeklyCoverage());
@@ -322,7 +327,7 @@ describe('differential: the prototype’s own functions', () => {
     expect(lowAndHigh).toBeGreaterThan(100);
     expect(windowEdges).toBeGreaterThan(500);
     expect(passedOver).toBeGreaterThan(10);
-    expect(passedOver).toBeLessThan(600); // most states still compare exactly
+    expect(passedOver).toBeLessThan(100); // most states still compare exactly
   });
 
   it('focus toggling and the picker match the prototype over 5,000 seeded random taps', () => {

@@ -256,7 +256,9 @@ function resolveWith(
   let passedOver = false;
   if (to && !excluded(to)) {
     const r = resolveWith(to, where, s, repl, catalog, depth + 1, taken);
-    if (!inSession(r)) return r;
+    // A swap with a running bridge keeps its target (shown once) and the old exercise as the bridge, as the prototype does.
+    const bridging = !!rp?.bridgeUntil && rp.bridgeUntil >= s.date && r === rp.to && !excluded(name);
+    if (!inSession(r) || bridging) return r;
     passedOver = true;
   }
   const rs = excluded(name) ? activeRules(s.exclusions).filter((x) => ruleMatches(x, name, tags)) : [];
@@ -285,7 +287,8 @@ function resolveWith(
  *
  * A swap or pick that ends on a name in `taken` is passed over (#143): a swapped exercise that is not
  * excluded takes its best candidate leaving out `taken`; an excluded one goes on to its pick, then its
- * best candidate.
+ * best candidate. A swap whose bridge is still running is not passed over (the old exercise stays as
+ * its bridge, as in the prototype).
  *
  * Mirrors prototype `resolveName(name, where, depth, taken)`, plus the #143 pass-over (decided; the
  * prototype follows in the next spec-change batch); leaving `taken` out ignores the session.
@@ -317,7 +320,9 @@ export interface ResolvedSession {
  * names resolved without a candidate, their bridges, and candidates picked for earlier slots (#110).
  * A swap target or stored pick (after mapping and following swaps) that is already in the session is
  * passed over the same way, and that slot takes the next-best candidate, else is `lost` (#143): a name
- * the template holds as it is wins, then earlier slots. A name repeated in `names` is one exercise.
+ * the template holds as it is wins, then earlier slots. A name repeated in `names` is one exercise. A
+ * swap whose bridge is still running is not passed over: its target shows once and the old exercise
+ * stays as its bridge, as in the prototype (decided on #143).
  * `catalog.tags` must already include custom-exercise tags (contract `ExerciseTags`), merged in by the
  * caller as prototype `applyCustomTags` does; otherwise a custom exercise only matches `exercise`
  * rules and gets no replacement.
@@ -341,7 +346,7 @@ export function resolveSessionWithLost(names: readonly string[], where: Where, s
   names.forEach((n, i) => {
     const f = first[i];
     if (f && f !== n && names.indexOf(n) === i) {
-      if (taken.includes(f)) first[i] = undefined;
+      if (taken.includes(f) && !bridged(n, f)) first[i] = undefined;
       else taken.push(f);
     }
     if (bridged(n, first[i])) taken.push(n);
