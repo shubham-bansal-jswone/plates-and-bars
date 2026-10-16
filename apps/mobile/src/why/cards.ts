@@ -89,6 +89,10 @@ export function whyCard(id: string): WhyCard | null {
 
 /** Values for a card's `{placeholder}`s and `{?section}`s; a missing value turns its section off (or shows its `{:}` part). */
 export type WhyValues = Record<string, string | number | undefined>;
+
+/** False for a card that makes no sense for this profile: the split card with no training days (#570). Without values, offered. */
+export const cardOffered = (id: string, values?: WhyValues): boolean => !(id === 'split' && values?.days === 0);
+
 const given = (values: WhyValues, k: string): boolean => has(values, k) && values[k] !== undefined;
 
 /** Fills a card body: `{?s}on{:}off{/s}` sections first, then `{name}` placeholders. */
