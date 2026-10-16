@@ -1,5 +1,7 @@
 import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
 import { useMemo } from 'react';
+import type { SyncDb } from '../sync/engine';
+import { syncDb } from '../sync/db';
 import { writeLock } from './writeLock';
 
 /**
@@ -13,6 +15,9 @@ export function lockedDb(db: SQLiteDatabase): SQLiteDatabase {
     execAsync: locked(db.execAsync),
     getFirstAsync: locked(db.getFirstAsync),
     getAllAsync: locked(db.getAllAsync),
+    // From the raw db, not the locked one: `inTransaction` already holds the lock, and on web BEGIN would wait for it. Web has no
+    // exclusive transactions, so syncDb gives it a plain one.
+    withExclusiveTransactionAsync: (task: Parameters<SyncDb['withExclusiveTransactionAsync']>[0]) => syncDb(db).withExclusiveTransactionAsync(task),
   });
 }
 
