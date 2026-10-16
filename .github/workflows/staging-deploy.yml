@@ -1,0 +1,64 @@
+name: Staging deploy
+
+# Deploys main to the staging VM over SSH (infra/staging/deploy.sh, RUNBOOK.md section 2). Disabled until the owner
+# sets the repository variable STAGING_DEPLOY_ENABLED to 'true' (Settings > Secrets and variables > Actions > Variables).
+# Unset or any other value: the job is skipped. Runs only from main, even for manual runs.
+# Needs a GitHub environment named `staging` (deployment branches: main) holding:
+#   secrets    STAGING_SSH_KEY (private key of a deploy-only user), STAGING_SSH_KNOWN_HOSTS (ssh-keyscan -t ed25519 host)
+#   variables  STAGING_SSH_HOST, STAGING_SSH_USER, STAGING_DIR (checkout on the VM, for example /opt/plateandbar)
+# Merge to main already needed green CI on the PR; this workflow does not re-run it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'content/**'
+      - 'packages/api/openapi.yaml'
+      - 'infra/staging/**'
+      - 'infra/caddy/Caddyfile.api'
+      - '.github/workflows/staging-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # a newer merge waits for the running deploy; it is never cancelled half way through a rollout
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy (staging VM)
+    if: github.ref == 'refs/heads/main' && vars.STAGING_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      SSH_HOST: ${{ vars.STAGING_SSH_HOST }}
+      SSH_USER: ${{ vars.STAGING_SSH_USER }}
+      DIR: ${{ vars.STAGING_DIR }}
+      SHA: ${{ github.sha }}
+    steps:
+      - name: Install SSH key
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          : "${SSH_HOST:?STAGING_SSH_HOST is not set}" "${SSH_USER:?STAGING_SSH_USER is not set}" "${DIR:?STAGING_DIR is not set}"
+          : "${SSH_KEY:?STAGING_SSH_KEY is not set}" "${KNOWN_HOSTS:?STAGING_SSH_KNOWN_HOSTS is not set}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy
+        run: |
+          # the directory is interpolated into a remote shell command: allow plain absolute paths only
+          if ! printf '%s' "$DIR" | grep -Eq '^/[A-Za-z0-9_./-]+$' || printf '%s' "$DIR" | grep -Fq '..'; then
+            echo "::error::STAGING_DIR must be a plain absolute path, for example /opt/plateandbar"
+            exit 1
+          fi
+          # fast-forward to exactly this commit (not whatever main is by now), then run the script from that commit;
+          # deploy.sh builds, starts, polls /api/v1/health and restores the previous API_TAG if it never turns healthy
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -- "$SSH_USER@$SSH_HOST" \
+            "cd '$DIR' && git fetch --quiet origin main && git merge --ff-only '$SHA' && infra/staging/deploy.sh"
