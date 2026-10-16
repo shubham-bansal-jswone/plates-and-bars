@@ -185,15 +185,18 @@ export function showAddedSugar(totals: Pick<DayTotals, 'added_sugar_g'>): boolea
 
 /**
  * Whether a day counts as complete for the real-burn estimate. The user's tick decides when set
- * (true or false); otherwise the day needs 3 or more logged items (not meal slots) and energy of at
- * least 75% of `kcalTarget`, the settings target (prototype `S.settings.kcal`, not the flexed target).
- * The prototype applies this fallback to every day, today included. `logs` are that day's logs.
+ * (true or false); otherwise a day before `today` needs 3 or more logged items (not meal slots) and
+ * energy of at least 75% of `kcalTarget`, the settings target (prototype `S.settings.kcal`, not the
+ * flexed target). `logs` are that day's logs; `date` and `today` are `YYYY-MM-DD`.
  *
- * Mirrors prototype `dayComplete(d)`.
+ * Mirrors prototype `dayComplete(d)`, except that today (or a later day) is complete only by the
+ * user's tick (decided on #150, as PROTOTYPE_SPEC section 5 says; the prototype applies the fallback
+ * to today too and follows in the next spec-change batch).
  */
-export function dayComplete(day: CompleteFlag | null | undefined, logs: readonly FoodLogFacts[], kcalTarget: number): boolean {
+export function dayComplete(day: CompleteFlag | null | undefined, logs: readonly FoodLogFacts[], kcalTarget: number, date: string, today: string): boolean {
   if (day?.complete) return true;
   if (day?.complete === false) return false;
+  if (date >= today) return false;
   const meals = live(logs);
   let kcal = 0;
   for (const m of meals) kcal += m.kcal * m.qty;
