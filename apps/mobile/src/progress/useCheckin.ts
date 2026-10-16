@@ -5,6 +5,7 @@ import { loadDayNote, loadLogs } from '../db/food';
 import { loadLifts, loadSessionLog, loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
 import { freshRead } from '../state/freshRead';
 import { dayQueue, dayWrites } from '../workout/dayQueue';
+import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import type { Weight } from './types';
@@ -83,13 +84,15 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   }, [db, date, shown, notify, reloadKey]);
 
   const A = settings.adjustments as Adjustments;
+  // The real date, so a day that is today is complete only when ticked (core #150), as in useProgress.
+  const today = localDate(now());
   const adaptive = settings.adaptive as AdaptiveState;
   const checkin = useMemo(
     () =>
       profile && days && usable
-        ? weeklyCheckin({ date, days, weighIns: weights, lifts, kcal: profile.targets.kcal, protein: profile.targets.protein_g, profile, adaptive, weekPlan: A.weekPlan, dismissed: A.dismissed, muted: A.muted })
+        ? weeklyCheckin({ date, days, weighIns: weights, lifts, kcal: profile.targets.kcal, protein: profile.targets.protein_g, profile, adaptive, today, weekPlan: A.weekPlan, dismissed: A.dismissed, muted: A.muted })
         : null,
-    [profile, days, usable, date, weights, lifts, adaptive, A.weekPlan, A.dismissed, A.muted],
+    [profile, days, usable, date, today, weights, lifts, adaptive, A.weekPlan, A.dismissed, A.muted],
   );
   // The "Weight is dropping fast" card (prototype `calorieCard`): needs the profile, since "Add 150 kcal" changes its targets.
   const rapid = useMemo(() => {
