@@ -29,6 +29,22 @@ async function consent() {
 describe('setup flow', () => {
   beforeEach(() => mockReplace.mockClear());
 
+  it('hides the visible Age caption from screen readers; the field speaks the label', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    expect(screen.getByText('Age', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Age')).toBeNull();
+    expect(screen.getAllByLabelText('Age')).toHaveLength(1);
+  });
+
+  it('hides the visible Weight (kg) caption from screen readers; the field speaks its own label', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    expect(screen.getByText('Weight (kg)', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Weight (kg)')).toBeNull();
+    expect(screen.getByLabelText('Weight in kg')).toBeTruthy();
+  });
+
   it('consent first, then answers stored as the contract Profile; results match calcTargets', async () => {
     const db = memoryDb();
     await render(withProfile(db, <SetupScreen />));
@@ -66,6 +82,7 @@ describe('setup flow', () => {
     await press('Lose fat. Steady fat loss while keeping muscle');
     await press('See my targets');
     expect(screen.getByText('Answer the health check questions.')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why a health check before training?')).toBeTruthy();
     for (const q of SCREEN_Q) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
     await press('See my targets');
 
@@ -148,6 +165,7 @@ describe('setup flow', () => {
     for (const q of SCREEN_Q) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
     await press('See my targets');
     expect(screen.getByText(/^For 60 and over/)).toBeTruthy();
+    expect(screen.getByLabelText('Why? Training and eating after 60')).toBeTruthy();
     expect(screen.queryByText(/^Home plan/)).toBeNull();
     await press('Use these targets');
     await waitFor(async () => expect(await loadProfile(db)).not.toBeNull());

@@ -182,3 +182,10 @@ test('servingGrams agrees with core unitGrams on a label set (0 in core is null 
   assert.equal(servingGrams('1 plate (1,250 g)'), 1250);
   assert.equal(servingGrams('1,5 g'), 5);
 });
+
+test('every usda_fdc row names its FDC id and only usda_fdc rows do (#98)', () => {
+  for (const f of out.foods) {
+    if (f.source.code === 'usda_fdc') assert.match(f.source.reference, /^FDC \d+ \(SR Legacy: .+\), per 100 g x [\d.]+ g/, f.name);
+    else assert.equal(f.source.reference, null, f.name);
+  }
+});

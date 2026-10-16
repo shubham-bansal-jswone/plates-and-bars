@@ -370,19 +370,27 @@ describe('logTotals, fruitVegServings, fibreTarget, showAddedSugar', () => {
 // ---------- day complete ----------
 describe('dayComplete', () => {
   const three = [logOf(byName('Dal'), 4), logOf(byName('Rice, cooked'), 3), logOf(byName('Paneer'), 1)]; // 644 + 546 + 280 = 1470
+  const OLD = '2026-10-07', TODAY = '2026-10-08';
   it('the tick decides when set', () => {
-    expect(dayComplete({ complete: true }, [], 2000)).toBe(true);
-    expect(dayComplete({ complete: false }, three, 1000)).toBe(false);
+    expect(dayComplete({ complete: true }, [], 2000, OLD, TODAY)).toBe(true);
+    expect(dayComplete({ complete: false }, three, 1000, OLD, TODAY)).toBe(false);
+    expect(dayComplete({ complete: true }, [], 2000, TODAY, TODAY)).toBe(true);
   });
-  it('untouched: 3 or more logs and at least 75% of the target', () => {
-    expect(dayComplete({ complete: null }, three, 1960)).toBe(true); // 1470 = 75% of 1960
-    expect(dayComplete(null, three, 1961)).toBe(false);
-    expect(dayComplete(undefined, three.slice(0, 2), 1000)).toBe(false);
-    expect(dayComplete({}, [...three.slice(0, 2), { ...three[2]!, deleted_at: '2026-10-08T10:00:00Z' }], 1000)).toBe(false);
+  it('untouched, a day before today: 3 or more logs and at least 75% of the target', () => {
+    expect(dayComplete({ complete: null }, three, 1960, OLD, TODAY)).toBe(true); // 1470 = 75% of 1960
+    expect(dayComplete(null, three, 1961, OLD, TODAY)).toBe(false);
+    expect(dayComplete(undefined, three.slice(0, 2), 1000, OLD, TODAY)).toBe(false);
+    expect(dayComplete({}, [...three.slice(0, 2), { ...three[2]!, deleted_at: '2026-10-08T10:00:00Z' }], 1000, OLD, TODAY)).toBe(false);
+  });
+  it('today, or a later day, is complete only by the tick (#150: the prototype applies the fallback to today)', () => {
+    expect(dayComplete({ complete: null }, three, 1000, TODAY, TODAY)).toBe(false);
+    expect(dayComplete(undefined, three, 1000, '2026-10-09', TODAY)).toBe(false);
+    proto.S.settings.kcal = 1000;
+    expect(proto.dayComplete({ meals: three.map((l) => ({ name: l.name, qty: l.qty, kcal: l.kcal, p: l.protein_g, c: l.carbs_g, f: l.fat_g })) })).toBe(true);
   });
   const breakfast = [logOf(byName('Egg, whole'), 10), logOf(byName('Roti / chapati'), 4), logOf(byName('Toned milk'), 2)];
   it('PINNED QUIRK (#151): three items in one meal count as three meals', () => {
-    expect(dayComplete({ complete: null }, breakfast, 1500)).toBe(true);
+    expect(dayComplete({ complete: null }, breakfast, 1500, OLD, TODAY)).toBe(true);
   });
   it(`matches prototype dayComplete over ${RUNS} random days`, () => {
     const r = rng(75);
@@ -393,7 +401,7 @@ describe('dayComplete', () => {
       proto.S.settings.kcal = kcal;
       const d: { meals: ProtoMeal[]; complete?: boolean } = { meals };
       if (complete !== undefined) (d as { complete?: boolean | null }).complete = complete;
-      expect(dayComplete({ complete }, meals.map(toLog), kcal)).toBe(proto.dayComplete(d));
+      expect(dayComplete({ complete }, meals.map(toLog), kcal, '2026-10-07', '2026-10-08')).toBe(proto.dayComplete(d));
     }
   });
 });

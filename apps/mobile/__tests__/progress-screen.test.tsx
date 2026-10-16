@@ -97,6 +97,13 @@ describe('Progress screen', () => {
     expect(docs(db, 'weights')[0].weight_kg).toBe(80.5);
   });
 
+  it('hides the visible measurement captions from screen readers; each field speaks its own label', async () => {
+    await setup();
+    expect(screen.getByText('Neck (cm)', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Neck (cm)')).toBeNull();
+    expect(screen.getByLabelText('Neck in cm')).toBeTruthy();
+  });
+
   it('shows the navy body-fat estimate from core once waist and neck are saved', async () => {
     const db = await setup();
     expect(screen.getByText('Add waist and neck for a body-fat estimate.')).toBeTruthy();
@@ -132,6 +139,7 @@ describe('Progress screen', () => {
     await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
     await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ date: DATE, steps: 8200, steps_source: 'manual', sleep: 7.5, fast: true, complete: true, version: 2 })]));
     expect(screen.getByText('steps today, target about 7,000')).toBeTruthy();
+    expect(screen.getAllByLabelText('Why? Steps, cardio and lifting').length).toBeGreaterThan(0);
   });
 
   it('shows the steps source, treats a missing source as manual, and clears it with the steps', async () => {
@@ -449,6 +457,35 @@ describe('Weekly check-in, burn and habits', () => {
     if (weights) for (let i = 0; i < 12; i++) await saveWeight(db, weigh(day(i), Math.round((80 + i * 0.1) * 10) / 10));
   };
 
+  // Nine older days are ticked complete; the tenth is a day with 3 items at 75% of the target and no tick.
+  const nineTicked = async (db: Db) => {
+    for (let i = 2; i <= 10; i++) {
+      await saveLog(db, meal(day(i), 1, 1500));
+      await saveDayNote(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: day(i), complete: true, steps: 8000, sleep: 6.5, fast: false });
+    }
+  };
+  const threeItems = async (db: Db, date: string) => {
+    for (let n = 1; n <= 3; n++) await saveLog(db, meal(date, n, 1000));
+  };
+  const DAYS_HINT = /more complete day/;
+
+  it('does not count today as a complete day by the 3-items fallback, only when ticked (#601)', async () => {
+    const db = memoryDb();
+    await nineTicked(db);
+    await threeItems(db, DATE);
+    await setup({ db });
+    expect(await screen.findByText(/Needs 1 more complete day in the last 2 weeks/)).toBeTruthy();
+  });
+
+  it('counts the same day by the fallback once it is yesterday (#601)', async () => {
+    const db = memoryDb();
+    await nineTicked(db);
+    await threeItems(db, day(1));
+    await setup({ db });
+    expect(await screen.findByText(/Needs 6 more weigh-ins/)).toBeTruthy();
+    expect(screen.queryByText(DAYS_HINT)).toBeNull();
+  });
+
   it('shows the week numbers from core, the burn card waiting for data, and the habits', async () => {
     const db = memoryDb();
     await saveLog(db, meal(DATE, 1, 600));
@@ -459,6 +496,8 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText(/Steps: about 8,000 a day\. Sleep: 6\.5 hours a night, under the 7–9 hours/)).toBeTruthy();
     expect(screen.getByText(/Needs 10 more complete days in the last 2 weeks.* and 6 more weigh-ins/)).toBeTruthy();
     expect(screen.getByLabelText('1/7 days with food logged')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Building the habit')).toBeTruthy();
+    expect(screen.getAllByLabelText('Why? Steps, cardio and lifting')).toHaveLength(2);
     expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
   });
 

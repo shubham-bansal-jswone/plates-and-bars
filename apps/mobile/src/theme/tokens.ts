@@ -23,6 +23,8 @@ export interface Palette {
   /** Input and control borders (3:1). */
   outline: string;
   brand: string;
+  /** Fill of a goal bar drawn on `track` (3:1, also at the 0.85 opacity the Seven-days bar uses). `brand` is too dark for that in dark mode (#504). */
+  bar: string;
   brandPressed: string;
   brandActive: string;
   onBrand: string;
@@ -60,6 +62,7 @@ export const light: Palette = {
   ghostBorder: '#CCCCCC',
   outline: '#8B8F9B',
   brand: '#2457E6',
+  bar: '#2457E6',
   brandPressed: '#1D48C2',
   brandActive: '#16389A',
   onBrand: '#FFFFFF',
@@ -92,6 +95,7 @@ export const dark: Palette = {
   ghostBorder: '#2A2B2D',
   outline: '#63656A',
   brand: '#2457E6',
+  bar: '#6F95FF',
   brandPressed: '#1D48C2',
   brandActive: '#16389A',
   onBrand: '#FFFFFF',

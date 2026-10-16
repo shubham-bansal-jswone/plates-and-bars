@@ -88,11 +88,9 @@ try {
     const el = await page.waitForSelector(sel(l), { timeout: 20000 });
     await el.type(v);
   };
+  // Targets edits the calorie target in a number field, so the stored value is read from the input.
+  const kcalIs = (v) => page.waitForFunction((x) => document.querySelector('input[aria-label="Calories (kcal)"]')?.value === x, { timeout: 20000 }, v);
   page.on('console', (m) => m.type() === 'error' && console.log('console.error:', m.text().slice(0, 300)));
-  let offlineNavFailed = false;
-  page.on('requestfailed', (r) => {
-    if (r.isNavigationRequest() && r.failure()?.errorText === 'net::ERR_INTERNET_DISCONNECTED') offlineNavFailed = true;
-  });
   // The app redirects to /setup while loading, which Chrome reports as an aborted first navigation.
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
   await page.waitForSelector('[aria-label="Continue"]', { timeout: 30000 });
@@ -122,16 +120,23 @@ try {
   await click('See my targets');
   await click('Use these targets');
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 }); // only Targets has it (the setup results also show 1,990 kcal)
-  await page.waitForSelector(sel('1,990 kcal'), { timeout: 20000 });
+  await kcalIs('1990');
   console.log('offline: setup completed and Targets shows 1,990 kcal with the network off');
-  // The static export has no service worker or other offline cache for the app shell, so a reload while
-  // offline cannot fetch index.html; that is expected and only logged. Persistence is asserted online below.
-  await page.reload({ waitUntil: 'load' }).catch(() => {});
-  console.log('reload while offline:', offlineNavFailed ? 'page request failed (no offline cache), as expected' : 'page loaded');
+  // The static export has no service worker or other offline cache for the app shell, so loading it with the network off
+  // fails; that is expected and only logged. It is probed on a throwaway page: a failed navigation on `page` would leave
+  // Chrome's offline error page there, and Chrome reloads that page by itself once the network is back, at a moment we do
+  // not control. That history navigation swaps the main frame by back/forward-cache restore and absorbs the explicit
+  // reload below, so the app came back with its in-memory state and never read its profile back from SQLite. It is a
+  // plausible source of the intermittent "Attempted to use detached Frame" (#578), not a shown one.
+  const probe = await browser.newPage();
+  await probe.setOfflineMode(true);
+  const offlineLoad = await probe.goto(url, { waitUntil: 'load' }).then(() => 'page loaded', (e) => (e.message.includes('ERR_INTERNET_DISCONNECTED') ? 'page request failed (no offline cache), as expected' : Promise.reject(e)));
+  await probe.close();
+  console.log('load while offline:', offlineLoad);
   await page.setOfflineMode(false);
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 });
-  await page.waitForSelector(sel('1,990 kcal'), { timeout: 20000 });
+  await kcalIs('1990');
   console.log('after reload: targets screen shows 1,990 kcal without setup (profile read back from SQLite)');
   // Workout: start today's session (the planned one, or the first other template on a rest day), tick a set.
   await click('Workout');

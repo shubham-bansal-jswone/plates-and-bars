@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { fitSuggestions, OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { Button, ErrorText, Field, Hint, H1, Label, Page, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, Hint, H1, Label, Page, Press } from '../components/ui';
 import { fmt } from '../format';
 import type { WorkoutDb } from '../db/workouts';
 import { MEALS, type Meal } from '../food/types';
@@ -104,7 +104,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
           </View>
         ) : null}
         <View style={styles.gap}>
-          <Label>Recipe name</Label>
+          <Caption>Recipe name</Caption>
           <Field label="Recipe name" placeholder="e.g. Mom’s dal" value={d.name} onChangeText={(name) => setD({ ...d, name })} />
         </View>
         <View style={styles.gap}>

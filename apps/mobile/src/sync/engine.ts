@@ -8,6 +8,7 @@ import { quarantine } from './quarantine';
 import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { deleteKitchenPhoto } from '../photos/vault';
 
 export type SyncDb = WorkoutDb & PullDb;
 
@@ -116,6 +117,9 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
  * between owners and the owner part only keeps a stale caller from joining another user's request.
  */
 const refreshing = new Map<string, Promise<boolean>>();
+let joins = 0;
+/** How many refresh calls have joined one already in flight. Tests wait on it instead of a timer. */
+export const refreshJoinCount = () => joins;
 
 /**
  * Rotates the token pair; single-flight per (owner, refresh token): a call made while one is in flight for the same
@@ -133,7 +137,10 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
   if (!t) return false;
   const key = JSON.stringify([owner, t.refresh]);
   const inflight = refreshing.get(key);
-  if (inflight) return raceAbort(inflight, signal);
+  if (inflight) {
+    joins++;
+    return raceAbort(inflight, signal);
+  }
   const promise: Promise<boolean> = rotate(d, owner, t, signal).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
   refreshing.set(key, promise);
   return promise;
@@ -382,10 +389,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           continue;
         }
         conflicts++;
+        let adopted = false;
         await settle(d.db, s.entry, guard, async (txn, clean) => {
-          if (clean) await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
-          else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
+          if (clean) {
+            await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
+            adopted = true;
+          } else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
         });
+        // The server's copy of a kitchen test is a tombstone and now stands here: its vault photo goes too.
+        if (adopted && s.entry.tbl === 'kitchen_tests' && server.deleted_at) await deleteKitchenPhoto(s.entry.key).catch(() => undefined);
       }
       const p = await pull(d.db, res.changes as unknown as Record<string, Doc[]>, ctx, guard);
       pulled += p.stored;
@@ -420,7 +432,12 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
         if (await applyPulled(db, tbl, key, async (txn) => {
           await guard(txn);
           await storeRecord(txn, tbl, rec, setDate);
-        })) stored++;
+        })) {
+          stored++;
+          // A kitchen test deleted on another device: its serving photo (vault only) goes too, whatever the flag said here.
+          // This runs after the record transaction commits: a local photo save on the same test in that gap would be deleted too (rare, and the vault lock keeps the file consistent).
+          if (tbl === 'kitchen_tests' && rec.deleted_at) await deleteKitchenPhoto(key).catch(() => undefined);
+        }
         if (tbl === 'workouts') ctx.dates?.set(String(rec.id), key);
       } catch (e) {
         if (!(e instanceof InvalidRecord)) throw e;

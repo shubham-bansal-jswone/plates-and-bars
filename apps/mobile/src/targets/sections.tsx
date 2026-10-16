@@ -38,6 +38,7 @@ export function FocusSection({ focus, onChange, notify }: { focus: readonly stri
   return (
     <View style={styles.gap}>
       <Label>Focus muscles</Label>
+      <WhyLink id="focus" />
       <Hint>Pick up to {FOCUS_MAX}. They get an extra set, come earlier in the session, and get an exercise added on days that train that area.</Hint>
       <View style={styles.wrap} accessibilityLabel="Focus muscles">
         {picker.chips.map((ch) => (
@@ -105,7 +106,7 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   );
 }
 
-function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
+export function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
   const c = useTheme();
   return (
     <View style={styles.gap} accessibilityLabel={title}>
@@ -114,7 +115,7 @@ function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
         <View key={r.muscle} accessible accessibilityLabel={`${title}, ${name(r.muscle)}: ${fmt(r.shown)} sets${r.low ? ', low' : ''}`} style={styles.row}>
           <Text style={[styles.muscle, { color: c.ink }]}>{name(r.muscle)}</Text>
           <View style={[styles.track, { backgroundColor: c.track }]}>
-            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: radius.full, backgroundColor: r.low ? c.caution : c.brand }} />
+            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: radius.full, backgroundColor: r.low ? c.caution : c.bar }} />
           </View>
           <Text style={{ color: r.low ? c.caution : c.ink, fontWeight: '700', minWidth: 28, textAlign: 'right' }}>{fmt(r.shown)}</Text>
         </View>

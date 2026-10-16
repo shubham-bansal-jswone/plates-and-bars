@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenCompare, kitchenNoteTooLong, kitchenTable, kitchenTest, kitchenTestFood, type KitchenCompareFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
+import { CameraDenied, capturePhoto } from '../photos/capture';
+import { persistent } from '../photos/vault';
 import { fmt, shortDate } from '../format';
-import { BAD_DATE, compareLine, COPY_TABLE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem, TABLE_COPIED, TABLE_COPY_FAILED } from '../kitchen/copy';
+import { BAD_DATE, compareLine, COPY_TABLE, LOAD_FAILED, PHOTO_ADD, PHOTO_ADDED, PHOTO_CAMERA_OFF, PHOTO_HINT, PHOTO_HINT_WEB, PHOTO_PICK_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem, TABLE_COPIED, TABLE_COPY_FAILED } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
 import { getFoodCatalog } from '../food/catalog';
@@ -17,10 +19,6 @@ import { localDate } from '../setup/logic';
 import { useTheme } from '../theme/useTheme';
 import { Chip, ToastBar } from '../workout/parts';
 
-/** A visible caption over a field that already carries its spoken label: hidden from screen readers so it is not read twice. */
-const Cap = ({ children }: { children: string }) => (
-  <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Label>{children}</Label></View>
-);
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 const blank = (date: string): TestFields => ({ id: newId(), name: '', date, note: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '', unit: 'g' }], pot: '', potFull: '', cooked: '', serving: '', sname: 'katori' });
 const validDate = (s: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(s) && localDate(new Date(`${s}T00:00:00`)) === s;
@@ -115,6 +113,18 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
     notify('Kitchen test saved');
     setD(null);
   };
+  const addPhoto = async (source: 'camera' | 'library') => {
+    try {
+      const jpeg = await capturePhoto(source);
+      if (jpeg) {
+        setD((x) => (x ? { ...x, photo: jpeg } : x));
+        // Web: announceForAccessibility is a no-op in react-native-web; the label below is a live region instead.
+        if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility(PHOTO_ADDED);
+      }
+    } catch (e) {
+      notify(e instanceof CameraDenied ? PHOTO_CAMERA_OFF : PHOTO_PICK_FAILED);
+    }
+  };
   const set = (patch: Partial<TestFields>) => setD({ ...d, ...patch });
   const how = showHow ?? store.tests.length === 0;
 
@@ -130,13 +140,13 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           </View>
         ) : null}
         <View style={styles.gap}>
-          <Cap>Dish</Cap>
+          <Caption>Dish</Caption>
           <Field label="Dish" placeholder="e.g. Dal" value={d.name} onChangeText={(name) => set({ name })} />
-          <Cap>Date</Cap>
+          <Caption>Date</Caption>
           <Field label="Date" placeholder="2026-10-08" autoCapitalize="none" value={d.date} onChangeText={(date) => set({ date })} />
           {dateOk ? null : <ErrorText>{BAD_DATE}</ErrorText>}
-          <Cap>Notes (who cooked, region, method)</Cap>
-          <Field label="Notes" placeholder="e.g. Mom’s Punjabi-style, pressure cooker" value={d.note} onChangeText={(note) => set({ note })} />
+          <Caption>Notes (who cooked, region, method)</Caption>
+          <Field label="Notes (who cooked, region, method)" placeholder="e.g. Mom’s Punjabi-style, pressure cooker" value={d.note} onChangeText={(note) => set({ note })} />
         </View>
         <View style={styles.gap}>
           <Label>Raw ingredients</Label>
@@ -169,6 +179,14 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           ) : (
             <Hint>{NOT_READY_HINT}</Hint>
           )}
+        </View>
+        <View style={styles.gap}>
+          <View testID="photo-status" accessibilityLiveRegion={Platform.OS === 'web' ? 'polite' : undefined}><Label>{d.photo ? PHOTO_ADDED : PHOTO_ADD}</Label></View>
+          <View style={styles.wrap}>
+            <Button label={d.photo ? 'Retake the serving photo' : 'Take a photo of the serving'} kind="ghost" onPress={() => void addPhoto('camera')} />
+            <Button label={d.photo ? 'Choose another serving photo' : 'Choose a photo of the serving'} kind="ghost" onPress={() => void addPhoto('library')} />
+          </View>
+          <Hint>{persistent ? PHOTO_HINT : PHOTO_HINT_WEB}</Hint>
         </View>
         <View style={styles.wrap}>
           <Button label="Save test" onPress={() => save(false)} />

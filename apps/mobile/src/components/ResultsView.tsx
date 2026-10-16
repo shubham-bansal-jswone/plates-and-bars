@@ -1,4 +1,6 @@
+import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { WhyLink } from '../why/WhyLink';
 import { Text } from './Text';
 import { fmt } from '../format';
 import { buildResults, clearanceNote } from '../setup/results';
@@ -6,6 +8,9 @@ import type { Profile } from '../setup/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Heading, Button, Card, H1, Hint, Label, Note } from './ui';
+
+/** Notes that carry a Why link in the prototype (`resultsHtml`). */
+const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweight: 'home', older: 'older' };
 
 /**
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
@@ -62,9 +67,15 @@ export function ResultsView({ profile, onCleared, hideTargets }: { profile: Prof
           {onCleared ? <Button label="My doctor has cleared me" onPress={onCleared} /> : null}
         </View>
       ) : null}
-      {v.notes.map((n) => (
-        <Note key={n}>{n}</Note>
-      ))}
+      {v.notes.map((n, i) => {
+        const why = NOTE_WHY[v.noteKeys[i] as string];
+        return (
+          <Fragment key={n}>
+            <Note>{n}</Note>
+            {why ? <WhyLink id={why} /> : null}
+          </Fragment>
+        );
+      })}
     </View>
   );
 }
