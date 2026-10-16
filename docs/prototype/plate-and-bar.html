@@ -4090,7 +4090,7 @@ async function renderProgress(){
     if(trained) sessions++;
     const wPct = Math.min(t.kcal/scale, 1)*100, tPct = (g.kcal/scale)*100;
     return `<div class="wk-r"><div class="lab"><b>${dayName(keys[i])}</b>${trained ? 'trained' : ''}</div>
-      <div class="bar" role="img" aria-label="${fmt(t.kcal)} kcal, ${fmt(t.p)} g protein"><div class="fill ${t.kcal > g.kcal ? 'over' : ''}" style="width:${wPct}%"></div><div class="tgt" style="left:${tPct}%"></div>
+      <div class="bar" role="img" aria-label="${dayName(keys[i])}${trained ? ', trained' : ''}, ${d.meals.length ? `${fmt(t.kcal)} kcal, ${fmt(t.p)} g protein` : 'not logged'}"><div class="fill ${t.kcal > g.kcal ? 'over' : ''}" style="width:${wPct}%"></div><div class="tgt" style="left:${tPct}%"></div>
       <div class="txt"><span>${d.meals.length ? fmt(t.kcal) + ' kcal' : 'not logged'}</span><span>${d.meals.length ? fmt(t.p) + ' g P' : ''}</span></div></div></div>`;
   }).join('');
   $('#week').innerHTML = `<div class="wk">${rows}</div>
