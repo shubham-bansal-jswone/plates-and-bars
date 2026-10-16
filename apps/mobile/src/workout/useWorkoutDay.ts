@@ -383,6 +383,16 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     );
   };
 
+  /** Cardio minutes for today's session: digits only, empty clears it (contract `cardio_min`, an integer of 0 or more). */
+  const setCardio = (text: string) => {
+    const d = clone(ref.current);
+    if (!d.workout) return;
+    const digits = text.replace(/\D/g, '').slice(0, 4);
+    d.workout = { ...d.workout, cardio_min: digits ? Number(digits) : null };
+    commit(d);
+    void enqueue(() => writeWorkout());
+  };
+
   const setForm = (i: number, form: 'yes' | 'no' | null) =>
     change(
       i,
@@ -653,5 +663,5 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day, cant, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
+  return { date, day, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
 }

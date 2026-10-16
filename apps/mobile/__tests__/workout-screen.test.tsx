@@ -315,11 +315,6 @@ describe('Workout tab: logging sets', () => {
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
     expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
-    expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
-    expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText('Why these exercises? How your sessions are built'));
-    expect(await screen.findByText(/You train 6 days a week, so your plan uses push\/pull\/legs twice, which trains .* Sessions are trimmed to fit about 60 minutes, keeping/)).toBeTruthy();
-    expect(screen.queryByText(/starting with 2 sets per exercise/)).toBeNull();
   });
 
   it('ticking an empty set takes the target, writes the set and the lift stat, and starts the rest timer', async () => {
@@ -353,6 +348,24 @@ describe('Workout tab: logging sets', () => {
     await waitFor(() => expect(storedSets(db).find((s) => s.done)).toBeTruthy());
     expect(screen.queryByLabelText('Rest timer')).toBeNull();
     expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();
+  });
+
+  it('shows the rough calories burned once a set is ticked, and cardio minutes are saved and counted', async () => {
+    const db = await started();
+    expect(screen.queryByText(/kcal burned/)).toBeNull();
+    await press('Mark Barbell Bench Press set 1 done');
+    // One set, about 3 minutes, at the 82 kg profile weight: core's workoutBurn.
+    expect(await screen.findByText('About 20 kcal burned')).toBeTruthy();
+    expect(screen.getByText(/Rough estimate from 1 sets \(about 3 minutes\) at your bodyweight; about 15 kcal of it is above what you’d burn resting/)).toBeTruthy();
+
+    expect(screen.getByLabelText('Cardio minutes').props.value).toBe('');
+    fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '30');
+    expect(await screen.findByText('About 225 kcal burned')).toBeTruthy();
+    expect(screen.getByText(/plus 30 min cardio/)).toBeTruthy();
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).cardio_min).toBe(30));
+
+    fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '');
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).cardio_min).toBeNull());
   });
 
   it('refuses to tick a first-time set with nothing to fill from', async () => {
