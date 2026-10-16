@@ -1,5 +1,5 @@
 import { createClient } from '@plate-and-bar/api';
-import { refreshSession, syncOnce } from '../src/sync/engine';
+import { refreshJoinCount, refreshSession, syncOnce } from '../src/sync/engine';
 import { signOut, withSyncPaused } from '../src/sync/guard';
 import { KEY_USER, setKv } from '../src/sync/store';
 import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
@@ -16,7 +16,19 @@ const gate = () => {
   const p = new Promise<void>((r) => (release = r));
   return { p, release };
 };
-const settle = (ms = 10) => new Promise((r) => setTimeout(r, ms));
+let joinBase = 0;
+beforeEach(() => void (joinBase = refreshJoinCount()));
+async function until(what: string, ok: () => boolean) {
+  for (let i = 0; !ok(); i++) {
+    if (i > 5000) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 1));
+  }
+}
+/** Waits for observable state, never a fixed time: `n` /auth/refresh requests held at the server, and `joiners` refresh calls that joined one in flight (counted from the start of the test). */
+async function refreshHeld(server: { calls: { path: string }[] }, n: number, joiners = 0) {
+  await until('held refresh requests', () => server.calls.filter((c) => c.path === '/auth/refresh').length >= n);
+  await until('joiners', () => refreshJoinCount() - joinBase >= joiners);
+}
 
 async function setup() {
   const db = await openDb();
@@ -38,7 +50,7 @@ async function runWithHeldRefresh() {
   s.server.hold = slow.p;
   s.server.holdPath = '/auth/refresh';
   const run = syncOnce(s.deps);
-  await settle();
+  await refreshHeld(s.server, 1);
   expect(s.server.calls.map((c) => c.path)).toEqual(['/sync', '/auth/refresh']);
   return { ...s, slow, run };
 }
@@ -89,7 +101,7 @@ describe('a rotated refresh pair is never dropped (#287)', () => {
     s.server.hold = slow.p;
     s.server.holdPath = '/auth/refresh';
     const run = syncOnce(s.deps);
-    await settle();
+    await refreshHeld(s.server, 1);
     expect(s.server.calls.map((c) => c.path)).toEqual(['/sync', '/auth/refresh']);
     const out = signOut(s.db, s.tokens);
     slow.release();
@@ -120,7 +132,7 @@ describe('refreshes are single-flight', () => {
   it('a refresh while the sync run is refreshing joins it: one request, one rotation', async () => {
     const { server, tokens, deps, slow, run } = await runWithHeldRefresh();
     const joined = refreshSession(deps); // no account lock on purpose: single-flight must hold by itself
-    await settle();
+    await refreshHeld(server, 1, 1);
     slow.release();
     expect(await joined).toBe('ok');
     await run;
@@ -135,7 +147,7 @@ describe('refreshes are single-flight', () => {
     server.holdPath = '/auth/refresh';
     const a = refreshSession(deps);
     const b = refreshSession(deps);
-    await settle();
+    await refreshHeld(server, 1, 1);
     slow.release();
     expect(await Promise.all([a, b])).toEqual(['ok', 'ok']);
     expect(server.refreshes).toBe(1);
@@ -157,7 +169,7 @@ describe('refreshes are single-flight', () => {
     server.holdPath = '/auth/refresh';
     const a = refreshSession(deps);
     const b = refreshSession(deps);
-    await settle();
+    await refreshHeld(server, 1, 1);
     slow.release();
     expect(await Promise.all([a, b])).toEqual(['ended', 'ended']);
     expect(tokens.current).toBeNull();
@@ -178,7 +190,7 @@ describe('refreshes are single-flight', () => {
     const { server, tokens, deps, slow, run } = await runWithHeldRefresh();
     tokens.current = { access: 'x', refresh: 'refresh-other' };
     const other = refreshSession(deps);
-    await settle();
+    await refreshHeld(server, 2);
     slow.release();
     await other;
     await run;
@@ -189,7 +201,7 @@ describe('refreshes are single-flight', () => {
     const { db, server, deps, slow, run } = await runWithHeldRefresh();
     await setKv(db, KEY_USER, OTHER);
     const other = refreshSession(deps);
-    await settle();
+    await refreshHeld(server, 2);
     slow.release();
     await other;
     await run;
@@ -201,7 +213,7 @@ describe('refreshes are single-flight', () => {
     tokens.current = { access: 'x', refresh: 'refresh-other' };
     const a = refreshSession(deps);
     const b = refreshSession(deps);
-    await settle();
+    await refreshHeld(server, 2, 1);
     slow.release();
     await Promise.all([a, b, run]);
     expect(server.calls.filter((c) => c.path === '/auth/refresh').map((c) => c.body.refresh_token).sort()).toEqual(['refresh-1', 'refresh-other']);
@@ -212,7 +224,7 @@ describe('refreshes are single-flight', () => {
     await setKv(db, KEY_USER, OTHER);
     const a = refreshSession(deps);
     const b = refreshSession(deps);
-    await settle();
+    await refreshHeld(server, 2, 1);
     slow.release();
     await Promise.all([a, b, run]);
     expect(server.calls.filter((c) => c.path === '/auth/refresh')).toHaveLength(2);
@@ -224,8 +236,8 @@ describe('refreshes are single-flight', () => {
     server.hold = slow.p;
     server.holdPath = '/auth/refresh';
     const leader = refreshSession({ ...deps, timeoutMs: 40 });
-    await settle(5);
-    const joiner = refreshSession({ ...deps, timeoutMs: 5000 });
+    const joiner = refreshSession({ ...deps, timeoutMs: 5000 }); // started at once: the leader's 40 ms timeout must not race it
+    await refreshHeld(server, 1, 1);
     expect(await leader).toBe('unavailable');
     expect(await joiner).toBe('unavailable');
     expect(tokens.current?.refresh).toBe('refresh-1'); // tokens kept

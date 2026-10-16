@@ -117,6 +117,9 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
  * between owners and the owner part only keeps a stale caller from joining another user's request.
  */
 const refreshing = new Map<string, Promise<boolean>>();
+let joins = 0;
+/** How many refresh calls have joined one already in flight. Tests wait on it instead of a timer. */
+export const refreshJoinCount = () => joins;
 
 /**
  * Rotates the token pair; single-flight per (owner, refresh token): a call made while one is in flight for the same
@@ -134,7 +137,10 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
   if (!t) return false;
   const key = JSON.stringify([owner, t.refresh]);
   const inflight = refreshing.get(key);
-  if (inflight) return raceAbort(inflight, signal);
+  if (inflight) {
+    joins++;
+    return raceAbort(inflight, signal);
+  }
   const promise: Promise<boolean> = rotate(d, owner, t, signal).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
   refreshing.set(key, promise);
   return promise;
