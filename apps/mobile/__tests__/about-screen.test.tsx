@@ -94,3 +94,21 @@ describe('mergeSources reference', () => {
     expect(mergeSources([row('FDC 1')])[0]!.reference).toBe('FDC 1');
   });
 });
+
+describe('about sources with the real content', () => {
+  it('the merged USDA entry carries no single food\'s reference (13 foods, 13 different references)', () => {
+    const fdc = (foods as unknown as { foods: { source: S & { reference?: string | null } }[] }).foods.filter((f) => f.source.code === 'usda_fdc');
+    expect(new Set(fdc.map((f) => f.source.reference)).size).toBeGreaterThan(1);
+    expect(getFoodSources().find((s) => s.code === 'usda_fdc')!.reference).toBeNull();
+  });
+  it('merging only the foods rows (each with its own reference) leaves no reference, where keeping one row\'s would show a single food\'s', () => {
+    const rows = (foods as unknown as { foods: { source: S & { url: string | null; licence: string; reference?: string | null } }[] }).foods.map((f) => f.source);
+    const lastFdc = [...rows].reverse().find((s) => s.code === 'usda_fdc')!;
+    expect(lastFdc.reference).toEqual(expect.stringMatching(/^FDC /));
+    expect(mergeSources(rows).find((s) => s.code === 'usda_fdc')!.reference).toBeNull();
+  });
+  it('About shows no FDC reference line', async () => {
+    await render(<AboutScreen onBack={() => {}} />);
+    expect(screen.queryByText(/^Reference: FDC/)).toBeNull();
+  });
+});
