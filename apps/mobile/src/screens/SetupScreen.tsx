@@ -108,7 +108,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
           </View>
         </View>
         <View style={layout.field}>
-          <Label>Weight (kg)</Label>
+          <Caption>Weight (kg)</Caption>
           <View style={layout.row}>
             <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
           </View>

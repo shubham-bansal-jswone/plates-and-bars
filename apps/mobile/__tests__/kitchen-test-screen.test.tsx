@@ -34,7 +34,7 @@ const start = async () => {
 it('hides the visible captions from screen readers; the fields speak the labels', async () => {
   await setup();
   await start();
-  for (const [caption, field] of [['Dish', 'Dish'], ['Date', 'Date'], ['Notes (who cooked, region, method)', 'Notes']] as const) {
+  for (const [caption, field] of [['Dish', 'Dish'], ['Date', 'Date'], ['Notes (who cooked, region, method)', 'Notes (who cooked, region, method)']] as const) {
     expect(screen.getByText(caption, { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByText(caption)).toBeNull();
     expect(screen.getByLabelText(field)).toBeTruthy();
@@ -209,11 +209,11 @@ describe('Kitchen test screen', () => {
     await setup(db);
     await start();
     await fill();
-    await fireEvent.changeText(screen.getByLabelText('Notes'), 'n'.repeat(2001));
+    await fireEvent.changeText(screen.getByLabelText('Notes (who cooked, region, method)'), 'n'.repeat(2001));
     await fireEvent.press(screen.getByLabelText('Save test'));
     expect(await screen.findByText('That note is too long. Shorten it.')).toBeTruthy();
     expect(stored(db, 'kitchen_tests')).toHaveLength(0);
-    await fireEvent.changeText(screen.getByLabelText('Notes'), 'n'.repeat(2000));
+    await fireEvent.changeText(screen.getByLabelText('Notes (who cooked, region, method)'), 'n'.repeat(2000));
     await fireEvent.press(screen.getByLabelText('Save test'));
     await waitFor(() => expect(stored(db, 'kitchen_tests')).toHaveLength(1));
   });
