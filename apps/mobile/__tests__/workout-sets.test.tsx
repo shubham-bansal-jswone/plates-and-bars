@@ -3,7 +3,7 @@ import { loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from
 import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { openDb } from './sync-helpers';
+import { failInTxn, openDb } from './sync-helpers';
 
 // Add set and Remove last set on a working exercise (prototype `addset`, `rmset`; #147).
 jest.mock('expo-router', () => ({ useFocusEffect: () => {} }));
@@ -142,6 +142,49 @@ describe('queued writes find their exercise by name (#439)', () => {
     expect(done.map((s) => s.exercise)).toEqual([second]);
     expect((await loadLifts(db))[second!]?.sets).toHaveLength(1);
     expect((await loadLifts(db))['Dumbbell Bench Press']).toBeUndefined();
+  });
+});
+
+describe('workout row and sets are written together (#516)', () => {
+  it('start: a failure writing the sets stores no workout row either', async () => {
+    const db = await openDb();
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(result.current.day.ready).toBe(true));
+    const f = failInTxn(db, 'workout_sets');
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await settle();
+    f.restore();
+    expect(f.leaked()).toBe(false);
+    expect(await loadWorkout(db, DATE)).toBeNull();
+    expect(await loadSets(db, DATE)).toHaveLength(0);
+  });
+
+  it('addSecond: a failure writing the new sets leaves the workout row as it was', async () => {
+    const { db, result } = await started();
+    const before = await loadWorkout(db, DATE);
+    const nSets = (await loadSets(db, DATE)).length;
+    const f = failInTxn(db, 'workout_sets');
+    await act(async () => void (await result.current.addSecond('Lower A')));
+    await settle();
+    f.restore();
+    expect(f.leaked()).toBe(false);
+    expect(await loadWorkout(db, DATE)).toEqual(before);
+    expect(await loadSets(db, DATE)).toHaveLength(nSets);
+  });
+
+  it('removeExercise: a failure writing the workout row leaves the sets live', async () => {
+    const { db, result } = await started();
+    const name = result.current.day.exs[0]!.name;
+    const before = await loadWorkout(db, DATE);
+    const sets = await loadSets(db, DATE);
+    const f = failInTxn(db, 'INTO workouts');
+    await act(async () => void result.current.removeExercise(name));
+    await settle();
+    f.restore();
+    expect(f.leaked()).toBe(false);
+    expect(await loadWorkout(db, DATE)).toEqual(before);
+    expect(await loadSets(db, DATE)).toEqual(sets);
   });
 });
 

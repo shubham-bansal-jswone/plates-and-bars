@@ -4,7 +4,7 @@ import { applyCantToStoredDay } from '../src/workout/cantApply';
 import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { openDb } from './sync-helpers';
+import { failInTxn, openDb } from './sync-helpers';
 
 jest.mock('expo-router', () => ({ useFocusEffect: () => {} }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
@@ -117,6 +117,20 @@ describe('a workout deleted on another device (#408)', () => {
     expect(live).toBe(oldSets.length); // same template, so the same number of new sets
     await view.rerender({ k: 1 });
     await waitFor(() => expect(view.result.current.day.exs.flatMap((e) => e.sets).length).toBe(live));
+  });
+
+  it('a rule saved on Targets: a failure writing the sets leaves the workout row and sets as they were (#516)', async () => {
+    const { db } = await started();
+    const before = await loadWorkout(db, DATE);
+    const sets = await loadSets(db, DATE);
+    const f = failInTxn(db, 'workout_sets');
+    const onError = jest.fn();
+    await applyCantToStoredDay({ db, date: DATE, now: () => new Date(2026, 9, 8, 10, 5, 0), draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError });
+    f.restore();
+    expect(onError).toHaveBeenCalled();
+    expect(f.leaked()).toBe(false);
+    expect(await loadWorkout(db, DATE)).toEqual(before);
+    expect(await loadSets(db, DATE)).toEqual(sets);
   });
 
   it('a rule saved on Targets leaves a deleted workout and its sets alone', async () => {
