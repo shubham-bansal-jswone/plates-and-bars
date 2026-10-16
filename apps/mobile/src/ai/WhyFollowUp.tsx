@@ -14,6 +14,11 @@ const QUESTION_MAX = 300;
  * is held here and dropped when the sheet closes.
  */
 export function WhyFollowUp({ cardId }: { cardId: string }) {
+  // The form is its own component so that hiding it (switched off, consent withdrawn) drops what was typed and any old message.
+  return useAi().available('ask_why') ? <FollowUpForm cardId={cardId} /> : null;
+}
+
+function FollowUpForm({ cardId }: { cardId: string }) {
   const ai = useAi();
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,16 +28,6 @@ export function WhyFollowUp({ cardId }: { cardId: string }) {
   const inFlight = useRef(false);
   useEffect(() => () => void (alive.current = false), []);
 
-  const available = ai.available('ask_why');
-  // Hidden (switched off, consent withdrawn): drop what was typed and any old message, so it is not there if it comes back.
-  useEffect(() => {
-    if (!available) {
-      setQuestion('');
-      setError(null);
-      setAnswer(null);
-    }
-  }, [available]);
-  if (!available) return null;
   const used = ai.quotaUsed();
 
   const send = async () => {
