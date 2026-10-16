@@ -1,6 +1,7 @@
 // Validates content/cards.json, content/measures.json and content/labels.json.
+import { nonEmpty } from './text.mjs';
+
 const EVIDENCE = ['Strong', 'Moderate', 'Emerging'];
-const nonEmpty = (v) => typeof v === 'string' && v.trim() !== '';
 
 // Body syntax: {name} placeholders, {?sec}on{/sec} and {?sec}on{:}off{/sec} sections (not nested).
 function bodyErrors(c, at) {
