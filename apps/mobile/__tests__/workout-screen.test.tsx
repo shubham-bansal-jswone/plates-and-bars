@@ -9,7 +9,7 @@ import { loadSessionLog, saveSet } from '../src/db/workouts';
 import { setRecord, blankRow, type ExState } from '../src/workout/model';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { getCatalog } from '../src/workout/catalog';
-import type { LiftRecord } from '@plate-and-bar/core';
+import type { ExType, LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
 
@@ -47,9 +47,9 @@ function profile() {
 
 type Db = ReturnType<typeof memoryDb>;
 
-async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[]; restOff?: boolean; where?: 'gym' | 'dumbbells'; weightKg?: number; weighIns?: { date: string; weight_kg: number }[] } = {}) {
+async function setup(opts: { now?: () => Date; lifts?: Record<string, number>; hist?: Record<string, number[]>; focus?: string[]; restOff?: boolean; overrides?: Record<string, { type: ExType; step_kg: number; rep_low: number; rep_high: number }>; where?: 'gym' | 'dumbbells'; weightKg?: number; weighIns?: { date: string; weight_kg: number }[] } = {}) {
   const db = memoryDb();
-  if (opts.focus || opts.restOff) await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), focus: opts.focus ?? [], rest_off: !!opts.restOff });
+  if (opts.focus || opts.restOff || opts.overrides) await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), focus: opts.focus ?? [], rest_off: !!opts.restOff, exercise_overrides: opts.overrides ?? {} });
   await saveProfile(db, { ...profile(), where: opts.where ?? 'gym', ...(opts.weightKg === undefined ? {} : { weight_kg: opts.weightKg }) });
   for (const w of opts.weighIns ?? []) await saveWeight(db, { id: null, version: 0, updated_at: '2026-10-08T00:00:00Z', deleted_at: null, ...w });
   for (const [name, w] of Object.entries(opts.lifts ?? {})) await seedLift(db, name, w, opts.hist?.[name]);
@@ -485,7 +485,42 @@ describe('Workout tab: logging sets', () => {
     expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no');
   });
 
+  describe('first-time rough guess (#621)', () => {
+    it('shows from a real lift of the paired exercise, with each-hand weights on the paired one', async () => {
+      await setup({ lifts: { 'Dumbbell Bench Press': 20 } });
+      await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+      await screen.findByText('Push B');
+      expect(screen.getByText('Rough guess from your Dumbbell Bench Press (20 kg each): about 45 kg. Use the ramp to confirm.')).toBeTruthy();
+    });
+
+    it('labels the paired lift with the type the user set for it', async () => {
+      await setup({ lifts: { 'Dumbbell Bench Press': 20 }, overrides: { 'Dumbbell Bench Press': { type: 'barbell', step_kg: 2.5, rep_low: 6, rep_high: 10 } } });
+      await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+      await screen.findByText('Push B');
+      expect(screen.getByText('Rough guess from your Dumbbell Bench Press (20 kg): about 45 kg. Use the ramp to confirm.')).toBeTruthy();
+    });
+
+    it('shows nothing without a lift of a paired exercise', async () => {
+      await setup({ lifts: { 'Lat Pulldown': 40 } });
+      await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+      await screen.findByText('Push B');
+      expect(screen.queryByText(/Rough guess/)).toBeNull();
+    });
+  });
+
   describe('Learn mode block (#623)', () => {
+    it('opens Setup on the very first session of an exercise', async () => {
+      await setup();
+      await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+      await screen.findByText('Push B');
+      expect(screen.getByLabelText('Setup steps for Overhead Cable Extension').props.accessibilityState).toMatchObject({ expanded: true });
+      expect(screen.getByText(`1. ${getCatalog().cards['Overhead Cable Extension']!.setup[0]}`)).toBeTruthy();
+      await fireEvent.changeText(screen.getByLabelText('Overhead Cable Extension set 1 kg'), '20');
+      await fireEvent.changeText(screen.getByLabelText('Overhead Cable Extension set 1 reps'), '10');
+      await press('Mark Overhead Cable Extension set 1 done');
+      await waitFor(() => expect(screen.getByLabelText('Setup steps for Overhead Cable Extension').props.accessibilityState).toMatchObject({ expanded: false }));
+    });
+
     it('shows on a card in learn mode with Setup closed after earlier sessions, and goes once the sets are done', async () => {
       await setup({ lifts: { 'Overhead Cable Extension': 20 } });
       await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
