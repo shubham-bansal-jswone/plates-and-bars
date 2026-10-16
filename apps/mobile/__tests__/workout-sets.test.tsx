@@ -188,6 +188,41 @@ describe('workout row and sets are written together (#516)', () => {
   });
 });
 
+describe('a set tick writes the set and the workout row together (#545)', () => {
+  // The workout row fails inside the transaction: the set written just before it must not stay.
+  type Day = Awaited<ReturnType<typeof started>>['result']['current'];
+  const failing = async (prep: (d: Day) => void, run: (d: Day) => void) => {
+    const { db, result } = await started();
+    await act(async () => prep(result.current));
+    await settle();
+    const before = await loadWorkout(db, DATE);
+    const sets = await loadSets(db, DATE);
+    const f = failInTxn(db, 'INTO workouts');
+    await act(async () => run(result.current));
+    await settle();
+    f.restore();
+    expect(f.leaked()).toBe(false);
+    expect(await loadWorkout(db, DATE)).toEqual(before);
+    expect(await loadSets(db, DATE)).toEqual(sets);
+  };
+  const ramp = (d: Day) => {
+    d.rampStart(0);
+    d.editSet(0, 'ramp', 0, 'w', '20');
+  };
+
+  it('tick: a failure writing the workout row leaves the set unticked in the store', async () => {
+    await failing((d) => d.editSet(0, 'work', 0, 'w', '40'), (d) => d.tick(0, 0));
+  });
+
+  it('rampTick: a failure writing the workout row leaves the ramp set as it was', async () => {
+    await failing(ramp, (d) => d.rampTick(0, 0));
+  });
+
+  it('rampRated: a failure writing the workout row leaves the ramp rows as they were', async () => {
+    await failing(ramp, (d) => d.rampRated(0, 0, 'right'));
+  });
+});
+
 describe('add and remove exercises (#147)', () => {
   it('a failure between the exercise row and its sets stores neither, and both writes go through the transaction (#492)', async () => {
     const { db, result } = await started();
