@@ -309,7 +309,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 171287 (SR Legacy: Egg, whole, raw, fresh), per 100 g x 50 g (1 large)"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -338,7 +338,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 172183 (SR Legacy: Egg, white, raw, fresh), per 100 g x 33 g (1 large)"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -485,7 +485,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 174275 (SR Legacy: Soy flour, defatted), per 100 g x 50 g; closest SR Legacy item to dry textured soya, not the branded product"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -512,7 +512,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 169705 (SR Legacy: Oats), per 100 g x 40 g"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -715,7 +715,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 172688 (SR Legacy: Bread, whole-wheat, commercially prepared), per 100 g x 28 g (1 slice); added_sugar_g has no SR Legacy field behind it"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -742,7 +742,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 172459 (SR Legacy: Peanut butter, smooth, vitamin and mineral fortified), per 100 g x 16 g (1 tbsp); added_sugar_g has no SR Legacy field behind it"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -771,7 +771,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173944 (SR Legacy: Bananas, raw), per 100 g x 118 g (1 medium)"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -800,7 +800,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 171688 (SR Legacy: Apples, raw, with skin), per 100 g x 182 g (1 medium)"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -829,7 +829,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170567 (SR Legacy: Nuts, almonds), per 100 g x 12 g (10 almonds at 1.2 g each)"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -858,7 +858,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173756 (SR Legacy: Chickpeas, mature seeds, raw), per 100 g x 30 g; values are for the raw seed"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -917,7 +917,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 171314 (SR Legacy: Butter, Clarified butter (ghee)), per 100 g x 4.9 g (1 tsp)"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -1065,7 +1065,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 168484 (SR Legacy: Sweet potato, cooked, boiled, without skin), per 100 g x 150 g"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
@@ -1096,7 +1096,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 172430 (SR Legacy: Peanuts, all types, raw), per 100 g x 30 g; values are for raw peanuts"
       },
       "updated_at": "2026-10-08T00:00:00Z"
     },
