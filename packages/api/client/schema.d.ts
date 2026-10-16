@@ -665,7 +665,7 @@ export interface components {
              *     `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
              *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
              *     the server; use the non-AI fallback. `forbidden` (403, `/auth/*` cookie mode
-             *     only): the request's `Origin` is missing or not an allowed web app origin.
+             *     only): the request's `Origin` is missing or not a cookie-mode origin.
              *     Clients treat an unknown code like `internal`.
              * @enum {string}
              */
@@ -1750,8 +1750,9 @@ export interface components {
         };
         /**
          * @description Cookie mode (`X-Auth-Transport: cookie`) without an allowed `Origin`: the header
-         *     is missing or not one of the configured web app origins. Nothing was read or
-         *     changed (no cookie, session or sign-in). See the `auth` tag, CSRF.
+         *     is missing or not one of the cookie-mode origins (the web app's own origins, a
+         *     list separate from the CORS allow-list). Nothing was read or changed (no cookie,
+         *     session or sign-in). See the `auth` tag, CSRF.
          */
         Forbidden: {
             headers: {
@@ -1814,13 +1815,14 @@ export interface components {
          */
         IfNoneMatch: string;
         /**
-         * @description `cookie` selects cookie mode, which the web app uses: the refresh token travels
-         *     only in the `__Secure-pb_refresh` cookie, never in a body. Requires an allowed
-         *     `Origin` (else 403 `forbidden`). Absent: body mode, which native apps use and
-         *     which is unchanged. See the `auth` tag.
+         * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+         *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+         *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+         *     value (ignored): body mode, which native apps use and which is unchanged. See the
+         *     `auth` tag.
          * @example cookie
          */
-        AuthTransport: "cookie";
+        AuthTransport: string;
         /**
          * @description The refresh token in cookie mode, set by the server and sent by the browser
          *     (`HttpOnly`, so the web app's script never sees it). Read only when
@@ -1866,10 +1868,11 @@ export interface operations {
             query?: never;
             header?: {
                 /**
-                 * @description `cookie` selects cookie mode, which the web app uses: the refresh token travels
-                 *     only in the `__Secure-pb_refresh` cookie, never in a body. Requires an allowed
-                 *     `Origin` (else 403 `forbidden`). Absent: body mode, which native apps use and
-                 *     which is unchanged. See the `auth` tag.
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
                  * @example cookie
                  */
                 "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
@@ -1923,10 +1926,11 @@ export interface operations {
             query?: never;
             header?: {
                 /**
-                 * @description `cookie` selects cookie mode, which the web app uses: the refresh token travels
-                 *     only in the `__Secure-pb_refresh` cookie, never in a body. Requires an allowed
-                 *     `Origin` (else 403 `forbidden`). Absent: body mode, which native apps use and
-                 *     which is unchanged. See the `auth` tag.
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
                  * @example cookie
                  */
                 "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
@@ -1961,10 +1965,11 @@ export interface operations {
             query?: never;
             header?: {
                 /**
-                 * @description `cookie` selects cookie mode, which the web app uses: the refresh token travels
-                 *     only in the `__Secure-pb_refresh` cookie, never in a body. Requires an allowed
-                 *     `Origin` (else 403 `forbidden`). Absent: body mode, which native apps use and
-                 *     which is unchanged. See the `auth` tag.
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
                  * @example cookie
                  */
                 "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
@@ -2024,10 +2029,11 @@ export interface operations {
             query?: never;
             header?: {
                 /**
-                 * @description `cookie` selects cookie mode, which the web app uses: the refresh token travels
-                 *     only in the `__Secure-pb_refresh` cookie, never in a body. Requires an allowed
-                 *     `Origin` (else 403 `forbidden`). Absent: body mode, which native apps use and
-                 *     which is unchanged. See the `auth` tag.
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
                  * @example cookie
                  */
                 "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
