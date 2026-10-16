@@ -34,7 +34,7 @@ npx expo export --platform web   # production web bundle; proves Metro resolves 
 
 ## Notes
 
-- Expo-managed packages move only with the SDK upgrade (#58). `expo`, `expo-*`, `@expo/*`, `react`, `react-dom`, `react-test-renderer`, `react-native`, `react-native-*`, `jest-expo`, `eslint-config-expo`, `@types/react` and `@types/jest` are pinned by the Expo SDK: they must line up with each other, so bumping one alone can pass `npm test` and still break at runtime. Dependabot ignores them (`.github/dependabot.yml`), and their security advisories arrive through that same SDK-upgrade path rather than as individual PRs.
+- Expo-managed packages move only with the SDK upgrade (#58). `expo`, `expo-*`, `@expo/*`, `react`, `react-dom`, `react-native`, `react-native-*`, `jest-expo`, `eslint-config-expo`, `@types/react` and `@types/jest` are pinned by the Expo SDK: they must line up with each other, so bumping one alone can pass `npm test` and still break at runtime. Dependabot ignores them (`.github/dependabot.yml`), and their security advisories arrive through that same SDK-upgrade path rather than as individual PRs.
 - Content bundles: screens read `content/*.json` through lazy, shape-checked getters; see `src/content/README.md`.
 
 - The local database opens on Android, iOS and web (expo-sqlite's wasm build on web, same migrations). It needs a cross-origin isolated page; see "Run it in a browser".
