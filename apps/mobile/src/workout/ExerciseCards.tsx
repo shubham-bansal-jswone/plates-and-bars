@@ -1,11 +1,11 @@
-import { inRange, ladderCard, recoveryCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, type ExInfo, type LiftRecord, type Where } from '@plate-and-bar/core';
+import { inRange, ladderCard, recoveryCard, reentryCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, steadyCard, type ExInfo, type LiftRecord, type SessionLog, type Where } from '@plate-and-bar/core';
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { shortDate } from '../format';
-import { adjOf, answered, endAdj, muted, rangesOf, startDeload } from './adjust';
+import { adjOf, answered, endAdj, muted, rangesOf, startDeload, startReentry } from './adjust';
 import { getCatalog } from './catalog';
-import { LadderCardView, RangeNote, RecheckCard, RecoveryCardView, StallCardView } from './AdjustCards';
+import { LadderCardView, RangeNote, RecheckCard, RecoveryCardView, ReentryCardView, StallCardView, SteadyCardView } from './AdjustCards';
 import type { ExState } from './model';
 import type { useRules } from './useRules';
 
@@ -24,6 +24,8 @@ function guarded(write: ReturnType<typeof useSettings>['update'], loadFailed: bo
   };
 }
 
+const MUTED = 'Got it, no more of these';
+
 interface Props {
   date: string;
   lifts: Readonly<Record<string, LiftRecord>>;
@@ -38,7 +40,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
   const adj = adjOf(settings.adjustments);
   const exclusions = rules.rules.exclusions;
   const dismiss = (key: string, type: string, decline = false) => update((s) => ({ adjustments: answered(s.adjustments, key, decline ? type : undefined) }));
-  const common = (type: string, key: string) => ({ declines: adj.declines[type] ?? 0, onNo: () => dismiss(key, type, true), onMute: () => update((s) => ({ adjustments: muted(s.adjustments, type) })) });
+  const common = (type: string, key: string) => ({ declines: adj.declines[type] ?? 0, onNo: () => dismiss(key, type, true), onMute: () => update((s) => ({ adjustments: muted(s.adjustments, type) })) && notify(MUTED) });
 
   const stall = stallCard(ex, lifts, info, adj);
   const ladder = ladderCard(ex, lifts, info, { date, exclusions, ladderStay: settings.ladder_stay, adj }, getCatalog());
@@ -109,22 +111,42 @@ export function RecheckCards({ date, lifts, rules, notify }: Props) {
   );
 }
 
-/** The recovery-week card, and the note (with its way out) while a recovery week or re-entry period runs. */
-export function RecoveryCards({ date, lifts, notify }: Omit<Props, 'rules'>) {
+/** The adjustment cards from prototype `renderStart()`: "Welcome back", the optional lighter week, the recovery week, and the note while one runs. */
+export function StartCards({ date, lifts, sessions, notify }: Omit<Props, 'rules'> & { sessions: SessionLog }) {
   const { settings, update: write, loadFailed } = useSettings();
   const update = guarded(write, loadFailed, notify);
   const a = settings.adjustments;
   const { deload, reentry } = rangesOf(a);
-  const adj = { ...adjOf(a), deload };
+  const adj = { ...adjOf(a), deload, reentry };
+  const back = reentryCard(sessions, date, adj);
+  const steady = steadyCard(sessions, date, adj);
   const card = recoveryCard(lifts, date, adj);
   return (
     <>
+      {back ? (
+        <ReentryCardView
+          card={back}
+          declines={adj.declines.break ?? 0}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, back.key, 'break') }))}
+          onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'break') })) && notify(MUTED)}
+          onEase={() => update((s) => ({ adjustments: startReentry(s.adjustments, date, back.key, back.pct) }))}
+        />
+      ) : null}
+      {steady ? (
+        <SteadyCardView
+          card={steady}
+          declines={adj.declines['deload-plan'] ?? 0}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, steady.key, 'deload-plan') }))}
+          onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'deload-plan') })) && notify(MUTED)}
+          onStart={() => update((s) => ({ adjustments: startDeload(s.adjustments, date, steady.key) })) && notify('Recovery week started')}
+        />
+      ) : null}
       {card ? (
         <RecoveryCardView
           card={card}
           declines={adj.declines.deload ?? 0}
           onNo={() => update((s) => ({ adjustments: answered(s.adjustments, card.key, 'deload') }))}
-          onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'deload') }))}
+          onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'deload') })) && notify(MUTED)}
           onStart={() => update((s) => ({ adjustments: startDeload(s.adjustments, date, card.key) })) && notify('Recovery week started')}
         />
       ) : null}

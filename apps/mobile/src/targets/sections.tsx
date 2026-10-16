@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
@@ -96,6 +97,7 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
         <>
           <Meter title="Weekly coverage: your plan" rows={rows.planned} />
           <Hint>Approximate hard sets per week from your plan, counting secondary muscles as half. Around 10 is a good target for most muscles; under 6 is flagged.</Hint>
+          <WhyLink id="volume" />
           <Meter title="Done in the last 7 days" rows={rows.done} />
         </>
       ) : null}

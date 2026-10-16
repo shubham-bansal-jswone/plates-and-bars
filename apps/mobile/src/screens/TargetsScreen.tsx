@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
+import { WhyLibrary } from '../why/WhyLibrary';
+import { profileWhyValues } from '../why/values';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -9,6 +12,7 @@ import { listIntro } from '../kitchen/copy';
 import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
+import type { PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -23,7 +27,7 @@ import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
 interface Props {
-  db: WorkoutDb;
+  db: WorkoutDb & PullDb;
   /** Clock, injectable for tests. */
   now?: () => Date;
 }
@@ -75,11 +79,17 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
     );
   }
   const drift = weightDrift(weights, profile.weight_kg);
+  const whyValues = profileWhyValues(profile);
   return (
     <View style={{ flex: 1 }}>
       <Page>
         <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets />
         <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 }}>
+          {/* The numbers are the stored (possibly edited) targets; the burn breakdown is what setup computed. */}
+          <WhyLink id="targets" label="Why these numbers?" values={whyValues} />
+          <WhyLink id="protein" label="Why this much protein?" values={whyValues} />
+        </View>
         {drift ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
@@ -97,6 +107,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           </>
         ) : null}
+        <WhyLibrary values={whyValues} />
         <AiSection />
         {ready ? (
           <View style={{ gap: 8, marginTop: 16 }}>

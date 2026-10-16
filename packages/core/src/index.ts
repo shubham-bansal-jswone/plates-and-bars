@@ -508,6 +508,14 @@ export {
 export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry, WeekDay, WeekSummary } from './progress';
 
 /**
+ * Science cards (#488). The protein card's 1.6 g/kg floor, `Math.round(w * 1.6)` where
+ * `w = latestWeight() || profile.weight`:
+ * - `proteinFloor` mirrors prototype `KB.protein.b`'s `Math.round(w*1.6)` (docs/prototype/plate-and-bar.html line 2792).
+ * - `PROTEIN_PER_KG` mirrors its 1.6. The card shows the weight with `round1`; the floor multiplies the raw weight.
+ */
+export { proteinFloor, PROTEIN_PER_KG } from './protein';
+
+/**
  * Meal ideas. Content is passed in: content/meal-planning.json (`MEAL_W`, `PROT_W`, `MAXQ`, `MINQ`,
  * `ROLE` as `roles`) and content/foods.json `foods`.
  * - `nextMealInfo` mirrors prototype `nextMealInfo()` (date, hour, logs and targets passed in); `mealByTime` mirrors
@@ -551,3 +559,10 @@ export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from '
  * - `CUSTOM_EXERCISES_MAX` (500) is the most custom exercises `Settings.custom_tags` holds (maxProperties).
  */
 export { UNIT_MAX, NOTE_MAX, EXERCISE_NAME_MAX, CUSTOM_EXERCISES_MAX, servingUnitTooLong, kitchenNoteTooLong, exerciseNameTooLong } from './inputLimits';
+
+/**
+ * The feel step after a set in learn mode (#485). `priorSessions`, `isLearning` and `showFeel` mirror prototype
+ * `priorSessions`, `learning` and the gate of `feelHtml`; `feelResult` mirrors its answer branches (state passed in).
+ */
+export { priorSessions, isLearning, showFeel, feelResult } from './feel';
+export type { FeelResult } from './feel';

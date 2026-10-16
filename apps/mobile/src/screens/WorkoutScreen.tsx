@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -18,12 +19,13 @@ import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
 import { CustomTagsSheet } from '../workout/CustomTagsSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
-import { ExerciseCards, RecheckCards, RecoveryCards } from '../workout/ExerciseCards';
+import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
+import { isBlank } from '../text/blank';
 
 interface Props {
   db: WorkoutDb & PullDb;
@@ -63,7 +65,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
   const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
-  const [cantName, setCantName] = useState<{ i: number; name: string } | null>(null);
+  const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
   if (status !== 'ready' || !ready || !day.ready || !rules.ready) return <Page><Hint>Loading…</Hint></Page>;
   if (!profile)
@@ -78,7 +80,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
     day.exs.length === 0 ? (
       <StartView key={w.date} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
-      <SessionView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name) => setCantName({ i, name })} />
+      <SessionView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
     );
   const where = day.workout?.where ?? profile.where;
   const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
@@ -88,6 +90,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       <HowToSheet name={howTo} onClose={() => setHowTo(null)} />
       <CantSheet
         name={cantName?.name ?? null}
+        {...(cantName?.reason ? { reason: cantName.reason } : {})}
         where={where}
         inSession={day.exs.map((e) => e.name)}
         exclusions={rules.exclusions}
@@ -145,7 +148,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   return (
     <Page>
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
-      <RecoveryCards date={date} lifts={day.lifts} notify={notify} />
+      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan
@@ -195,6 +198,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
                   Lighter session suggested. With {flags.reasons.map((r) => REASON_TEXT[r]).join(' and ')}, keep the same exercises with 1 fewer set each and no weight increases today.
                   {flags.swapTo ? ` Or swap with ${flags.swapTo}, which uses different muscles.` : ''}
                 </Note>
+                <WhyLink id={flags.reasons.includes('sore') ? 'soreness' : 'sleep'} />
                 <View style={styles.wrap}>
                   <Chip label="Lighter session" pressed={choice === 'light'} onPress={() => setChoice('light')} />
                   {flags.swapTo ? <Chip label={`Swap with ${flags.swapTo}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}
@@ -236,7 +240,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   );
 }
 
-function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string) => void }) {
+function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const [open, setOpen] = useState(false);
@@ -245,7 +249,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
   const { addCustomTags } = useSettings();
   const addTyped = (raw: string) => {
     const typed = raw.trim();
-    if (!typed) return notify('Type an exercise name.');
+    if (isBlank(typed)) return notify('Type an exercise name.');
     if (exerciseNameTooLong(typed)) return notify('That exercise name is too long. Shorten it.');
     // A name the library knows (any case) is that exercise; a new one needs its muscles first (prototype exCustom).
     const known = Object.keys(getCatalog().tags).find((n) => n.toLowerCase() === typed.toLowerCase());
@@ -291,6 +295,9 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
           rampRate: (j, v) => w.rampRated(i, j, v),
           howTo: () => onHowTo(ex.name),
           cant: () => onCant(i, ex.name),
+          cantPain: () => onCant(i, ex.name, 'pain'),
+          feel: (v) => w.setFeel(i, v),
+          skipRest: () => w.skipRemaining(i),
           addSet: () => w.addSet(i),
           removeSet: () => w.removeSet(i),
           remove: () => {
@@ -300,7 +307,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null}
-            <ExerciseCard ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
+            <ExerciseCard learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
           </View>
         );
       })}

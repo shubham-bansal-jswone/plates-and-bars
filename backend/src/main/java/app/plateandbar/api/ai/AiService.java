@@ -53,7 +53,7 @@ public class AiService {
     public ObjectNode describeMeal(String userId, JsonNode body) {
         return run(userId, AiFeature.DESCRIBE_MEAL, body, "DescribeMealRequest", req -> {
             String text = AiPrompts.sanitize(req.path("text").asText()).trim();
-            if (text.isEmpty()) {
+            if (AiPrompts.isBlank(text)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("text", "pattern")));
             }
             return new Call(AiPrompts.describeMeal(text), json.createObjectNode().put("text", text), replies::describeMeal);
@@ -67,7 +67,7 @@ public class AiService {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("card_id", "unknown")));
             }
             String question = AiPrompts.sanitize(req.path("question").asText()).trim();
-            if (question.isEmpty()) {
+            if (AiPrompts.isBlank(question)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("question", "pattern")));
             }
             return new Call(AiPrompts.askWhy(content.cards(), cardId, question),
@@ -94,7 +94,7 @@ public class AiService {
     public ObjectNode suggestTags(String userId, JsonNode body) {
         return run(userId, AiFeature.SUGGEST_TAGS, body, "SuggestTagsRequest", req -> {
             String name = AiPrompts.sanitize(req.path("name").asText()).trim();
-            if (name.isEmpty()) {
+            if (AiPrompts.isBlank(name)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("name", "pattern")));
             }
             return new Call(AiPrompts.suggestTags(name, schemas.muscles(), schemas.equipment()), json.createObjectNode().put("name", name), replies::suggestTags);

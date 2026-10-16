@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
-import { isFocus, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { a11yState, Heading, Button, Card, Hint, Press } from '../components/ui';
+import { feelResult, isFocus, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
+import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName } from './copy';
@@ -18,6 +19,10 @@ export interface Actions {
   tick(j: number): void;
   rate(j: number, v: Rate | null): void;
   form(v: 'yes' | 'no' | null): void;
+  /** The answer to "Where did you feel that set most?": 'target', 'pain' or a `misplaced_feel` index. */
+  feel(v: string): void;
+  /** After "It hurt": drop the sets not done yet. */
+  skipRest(): void;
   rampStart(): void;
   rampSkip(): void;
   rampAdd(): void;
@@ -26,6 +31,8 @@ export interface Actions {
   howTo(): void;
   /** Open the "Can't do" sheet for this exercise. */
   cant(): void;
+  /** The same sheet, opened with the reason already "pain" (after "It hurt"). */
+  cantPain(): void;
   addSet(): void;
   removeSet(): void;
   /** Take this exercise out of today's session. */
@@ -42,6 +49,8 @@ interface Props {
   act: Actions;
   /** Stall and ladder cards, shown under the warm-up line. */
   cards?: ReactNode;
+  /** Learn mode (core's `isLearning`): the feel question shows once a set is done. */
+  learning?: boolean;
 }
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
@@ -52,6 +61,7 @@ function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: 
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: c.muted, fontSize: 14 }}>How did that feel?</Text>
+      <WhyLink id="rir" />
       <View style={styles.wrap}>
         {RATE_ORDER.map((k) => (
           <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => onRate(k)} />
@@ -81,8 +91,44 @@ function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n:
   );
 }
 
+/** "Where did you feel that set most?" and what each answer shows (prototype `feelHtml`; the rule is core's `feelResult`). */
+function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
+  const c = useTheme();
+  const card = getCatalog().cards[ex.name];
+  if (!card) return null;
+  const r = feelResult(ex.feel, card.misplaced_feel);
+  if (r.kind === 'target') return <Hint>Felt it in the right place. Good.</Hint>;
+  if (r.kind === 'elsewhere') return r.fix ? <Note><Text style={{ fontWeight: '700' }}>Try this: </Text>{r.fix}</Note> : null;
+  if (r.kind === 'pain')
+    return (
+      <View style={{ gap: 8 }}>
+        <View style={{ borderLeftWidth: 3, borderLeftColor: c.danger, borderRadius: radius.md }}>
+          <Note>
+            <Text style={{ fontWeight: '700' }}>Stop this exercise for today.</Text> Pain is different from muscle effort or burning. If it happens again next session, pick a different exercise, and see a physio if it keeps happening.
+          </Note>
+        </View>
+        <View style={styles.wrap}>
+          <Button label="Find an alternative" a11yLabel={`Find an alternative to ${ex.name}`} onPress={act.cantPain} />
+          {ex.sets.some((s) => !s.done) ? <Button label="Skip remaining sets" a11yLabel={`Skip remaining sets of ${ex.name}`} kind="ghost" onPress={act.skipRest} /> : null}
+        </View>
+      </View>
+    );
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={{ color: c.muted, fontSize: 14 }}>Where did you feel that set most?</Text>
+      <View style={styles.wrap}>
+        <Chip label={`${ex.name} felt: ${card.where_to_feel.split(',')[0]}`} text={card.where_to_feel.split(',')[0] ?? ''} onPress={() => act.feel('target')} />
+        {card.misplaced_feel.map(([area], k) => (
+          <Chip key={k} label={`${ex.name} felt: ${area}`} text={area} onPress={() => act.feel(String(k))} />
+        ))}
+        <Chip label={`${ex.name}: It hurt`} text="It hurt" danger onPress={() => act.feel('pain')} />
+      </View>
+    </View>
+  );
+}
+
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning }: Props) {
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
     if (!armed) return;
@@ -163,6 +209,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
           <Text style={{ color: c.ink, fontWeight: '700' }}>Suggested: {sug.text}</Text>
           <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
+          <WhyLink id="progression" />
         </View>
       ) : null}
       {warm ? (
@@ -184,6 +231,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
           );
         })}
       </View>
+
+      {showFeel(!!learning, working) ? <FeelStep ex={ex} act={act} /> : null}
 
       {allDone && !nl ? (
         ex.form ? (

@@ -1,0 +1,60 @@
+import { useEffect, useState } from 'react';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Heading, Hint } from '../components/ui';
+import { Text } from '../components/Text';
+import { localDate } from '../setup/logic';
+import { useOptionalSettings } from '../state/SettingsProvider';
+import { useTheme } from '../theme/useTheme';
+import { withRead } from './learn';
+import { renderBody, whyCard, type WhyValues } from './cards';
+
+const EVIDENCE_NOTE = { Strong: 'Many studies agree.', Moderate: 'Good support, some open questions.', Emerging: 'Early or limited research.' } as const;
+
+/** The card as a sheet: summary, body, how strong the evidence is, and the source. Works offline (the cards are on the device). */
+export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValues; onClose: () => void }) {
+  const c = useTheme();
+  const card = whyCard(id);
+  const settings = useOptionalSettings();
+  const ready = settings?.ready === true;
+  const update = settings?.update;
+  const learn = settings?.settings.learn;
+  // Opening a card marks it read (prototype `openWhy`); the write is local and queued for sync, never waited on.
+  useEffect(() => {
+    const next = card && ready && learn ? withRead(learn, id, localDate(new Date())) : null;
+    if (next && update) update({ learn: next });
+  }, [card, id, ready, learn, update]);
+  if (!card) return null;
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
+        <View style={styles.body}>
+          <Button kind="ghost" label="Close" onPress={onClose} />
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{card.title}</Heading>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{card.summary}</Text>
+          <Text style={{ color: c.ink, lineHeight: 22 }}>{renderBody(card.body, values)}</Text>
+          <Hint>{`Evidence: ${card.evidence}. ${EVIDENCE_NOTE[card.evidence]}`}</Hint>
+          <Hint>{`Source: ${card.source}. Draft card, not yet reviewed by a coach or dietitian. Not medical advice.`}</Hint>
+        </View>
+      </ScrollView>
+    </Modal>
+  );
+}
+
+/** Prototype `whyLink(id, label)`: a "Why?" button that opens the card. Renders nothing for an unknown or held-back card. */
+/** `subject` (an exercise name, say) is spoken after the card title when several links look alike. */
+export function WhyLink({ id, label = 'Why?', values, subject }: { id: string; label?: string; values?: WhyValues; subject?: string }) {
+  const [open, setOpen] = useState(false);
+  const card = whyCard(id);
+  if (!card) return null;
+  return (
+    <>
+      <Button kind="link" label={label} a11yLabel={`${label} ${card.title}${subject ? `, ${subject}` : ''}`} onPress={() => setOpen(true)} />
+      {open ? <WhySheet id={id} values={values} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
+  body: { width: '100%', maxWidth: 560, gap: 10 },
+});

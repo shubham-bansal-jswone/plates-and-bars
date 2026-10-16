@@ -221,12 +221,14 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           ci_choice: ciChoice,
         };
         d.sessions = sessions;
-        d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         commit(d);
-        await enqueue(async () => {
+        // One transaction: the old sets' tombstones, the workout row and the new sets are stored together or not at all (#516).
+        await enqueue(() => inTransaction(db, async (txn) => {
+          const h = txn as WorkoutDb;
           // Started over a session deleted on another device: its sets go with it, so the new session does not
           // pick them up (the contract does not promise that the deleting device tombstoned them).
-          const stored = await loadWorkout(db, date);
+          const stored = await loadWorkout(h, date);
           if (stored && !stored.deleted_at) {
             // A live session is already stored (pulled from another device, or kept after a removal) that this screen
             // has not shown yet: never overwrite it; read it again so it shows instead.
@@ -236,11 +238,11 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           const overTombstone = !!stored?.deleted_at;
           if (overTombstone) {
             const at = stamp(now());
-            for (const s of await loadSets(db, date)) if (!s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
+            for (const s of await loadSets(h, date)) if (!s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
           }
-          await writeWorkout(overTombstone);
-          for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets));
-        });
+          await writeWorkout(overTombstone, h);
+          for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets), h);
+        }));
       } finally {
         building.current = false;
       }
@@ -272,17 +274,19 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           adjustments,
         });
         const first = d.exs.length;
-        const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         const merged = mergeSecondSession({ exercises: d.exs, template: old.template, base: old.base, mods: old.mods }, template, { exercises: builtEx, mods: built.mods });
         const added = merged.exercises.slice(first) as ExState[];
         d.exs = merged.exercises as ExState[];
         d.workout = { ...old, template: merged.template, base: merged.base, mods: merged.mods };
         commit(d);
         notify(`${template} added to today`);
-        await enqueue(async () => {
-          await writeWorkout();
-          for (const ex of added) await writeSets(ex.name, 'work', ids(ex.sets));
-        });
+        await enqueue(() =>
+          inTransaction(db, async (txn) => {
+            await writeWorkout(false, txn as WorkoutDb);
+            for (const ex of added) await writeSets(ex.name, 'work', ids(ex.sets), txn as WorkoutDb);
+          }),
+        );
       } finally {
         building.current = false;
       }
@@ -376,6 +380,36 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
       },
     );
 
+  /** Saves the answer to "Where did you feel that set most?" (prototype `feel`). */
+  const setFeel = (i: number, feel: string) =>
+    change(
+      i,
+      (ex) => {
+        ex.feel = feel;
+      },
+      () => writeWorkout(),
+    );
+
+  /** After "It hurt": drops the sets not done yet (prototype `feel-skip`); their stored rows become tombstones. */
+  const skipRemaining = (i: number) => {
+    let gone: Row[] = [];
+    change(
+      i,
+      (ex) => {
+        gone = ex.sets.filter((s) => !s.done);
+        if (!gone.length) return false;
+        ex.sets = ex.sets.filter((s) => s.done);
+        notify('Skipped the remaining sets');
+      },
+      async (name) => {
+        const at = stamp(now());
+        const goneIds = new Set(gone.map((g) => g.id));
+        for (const stored of (await loadSets(db, date)).filter((s) => goneIds.has(s.id) && !s.deleted_at)) await saveSet(db, date, { ...stored, updated_at: at, deleted_at: at });
+        await writeSets(name, 'work', ids(exNamed(name)?.sets ?? [])); // the rows left move up: set_index is the position
+      },
+    );
+  };
+
   const rampStart = (i: number) => {
     const row = blankRow();
     change(i, (ex) => void (ex.ramp = [row]), (name) => writeSets(name, 'ramp', [row.id]));
@@ -439,7 +473,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     if (!d.workout || d.exs.some((e) => e.name === name)) return false;
     const part = d.exs[d.exs.length - 1]?.part ?? 1;
     const built = newExercise(name, { lifts: d.lifts, date }, part);
-    const ex: ExState = { name, part, bridge: false, form: null, found: null, skipRamp: false, sets: built.sets.map(() => blankRow()), ramp: [] };
+    const ex: ExState = { name, part, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: built.sets.map(() => blankRow()), ramp: [] };
     d.exs = [...d.exs, ex];
     if (!d.workout.template) d.workout = { ...d.workout, template: 'Session' };
     commit(d);
@@ -467,25 +501,35 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     commit(d);
     void enqueue(async () => {
       const at = stamp(now());
-      // Every stored row of the exercise, also ones a pull stored that this screen never loaded.
-      for (const s of await loadSets(db, date)) if (s.exercise === name && !s.deleted_at) await saveSet(db, date, { ...s, updated_at: at, deleted_at: at });
-      if (last) {
-        const stored = await loadWorkout(db, date);
-        if (stored && !stored.deleted_at) {
-          // Exercises another device added since this screen loaded are not this removal's to delete: keep them.
-          const base = synced.current;
-          const elsewhere = stored.exercises.filter((e) => e.name !== name && !base?.exercises.some((b) => b.name === e.name));
-          if (elsewhere.length) {
-            const row = { ...stored, exercises: elsewhere, updated_at: at };
-            await saveWorkout(db, row);
-            synced.current = row;
-            setMerged((n) => n + 1); // show them
-          } else {
-            await saveWorkout(db, { ...stored, updated_at: at, deleted_at: at });
-            synced.current = null;
+      let after: Workout | null | undefined; // the base to keep once the transaction has committed
+      let show = false;
+      // One transaction: the tombstoned sets and the workout row change together or not at all (#516).
+      await inTransaction(db, async (txn) => {
+        const h = txn as WorkoutDb;
+        after = undefined;
+        show = false;
+        // Every stored row of the exercise, also ones a pull stored that this screen never loaded.
+        for (const s of await loadSets(h, date)) if (s.exercise === name && !s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
+        if (last) {
+          const stored = await loadWorkout(h, date);
+          if (stored && !stored.deleted_at) {
+            // Exercises another device added since this screen loaded are not this removal's to delete: keep them.
+            const base = synced.current;
+            const elsewhere = stored.exercises.filter((e) => e.name !== name && !base?.exercises.some((b) => b.name === e.name));
+            if (elsewhere.length) {
+              const row = { ...stored, exercises: elsewhere, updated_at: at };
+              await saveWorkout(h, row);
+              after = row;
+              show = true; // show them
+            } else {
+              await saveWorkout(h, { ...stored, updated_at: at, deleted_at: at });
+              after = null;
+            }
           }
-        }
-      } else await writeWorkout();
+        } else await writeWorkout(false, h);
+      });
+      if (after !== undefined) synced.current = after;
+      if (show) setMerged((n) => n + 1);
       if (gone.sets.some((s) => s.done)) await syncLift(gone.name, gone);
     });
     return true;
@@ -575,7 +619,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
             .filter((s) => s.exercise === x.name && s.kind === kind)
             .sort((a, b) => a.set_index - b.set_index)
             .map((s) => rows.get(s.id) ?? { id: s.id, version: s.version, w: '', r: '', done: false, rate: null, t: null });
-        return { name: x.name, part: x.part, bridge: x.bridge, form: x.form, found: x.found_kg, skipRamp: x.skip_ramp, sets: pick('work'), ramp: pick('ramp') };
+        return { name: x.name, part: x.part, bridge: x.bridge, form: x.form, found: x.found_kg, skipRamp: x.skip_ramp, feel: x.feel ?? null, sets: pick('work'), ramp: pick('ramp') };
       });
       d.workout = { ...w, exercises: ch.exercises };
       commit(d);
@@ -591,5 +635,5 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day, cant, editSet, tick, rate, setForm, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
+  return { date, day, cant, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
 }

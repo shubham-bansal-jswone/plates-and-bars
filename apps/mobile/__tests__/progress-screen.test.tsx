@@ -127,6 +127,7 @@ describe('Progress screen', () => {
     await saveDayNote(db, { id: null, version: 2, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: true, steps: null, sleep: null, fast: true });
     await setup({ db });
     await fireEvent.changeText(screen.getByLabelText('Steps today'), '8200');
+    expect(screen.getByLabelText('Why? Why a lighter session after poor sleep?')).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Hours slept last night'), '7.5');
     await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
     await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ date: DATE, steps: 8200, steps_source: 'manual', sleep: 7.5, fast: true, complete: true, version: 2 })]));
@@ -407,6 +408,8 @@ describe('Progress trends and scale-jump note', () => {
     await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '81');
     await fireEvent.press(screen.getByLabelText('Save weight'));
     expect(await screen.findByText('The scale went up 1 kg')).toBeTruthy();
+    // the weigh-in hint and the jump card each link the scale card
+    expect(screen.getAllByLabelText('Why? Why did the scale jump?')).toHaveLength(2);
     await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '80.2');
     await fireEvent.press(screen.getByLabelText('Save weight'));
     expect(screen.getByText('The scale went up 1 kg')).toBeTruthy();

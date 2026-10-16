@@ -163,3 +163,40 @@ export async function seedConsent(db: StoreDb): Promise<void> {
   await db.runAsync("INSERT INTO consents (key, data) VALUES ('c1', ?)", JSON.stringify({ id: 'c1', version: 1, updated_at: '2026-10-01T00:00:00.000Z', deleted_at: null, kind: 'data_storage', given_at: '2026-10-01T00:00:00.000Z', text_version: '1' }));
   await db.runAsync('DELETE FROM sync_outbox');
 }
+
+/**
+ * Gives transactions their own object, like a device's second connection: a write through `db` while one is open would hang
+ * there, so it throws and sets `leaked()`. A write to `table` through the transaction throws "disk full".
+ * `restore()` puts the db back.
+ */
+export function failInTxn(db: Awaited<ReturnType<typeof openDb>>, table: string) {
+  const run = db.runAsync;
+  const exclusive = db.withExclusiveTransactionAsync;
+  let open = false;
+  let leaked = false;
+  db.runAsync = async (sql: string, ...p: (string | number)[]) => {
+    if (open) {
+      leaked = true;
+      throw new Error('write outside the transaction');
+    }
+    return run(sql, ...p);
+  };
+  db.withExclusiveTransactionAsync = (task) => {
+    open = true;
+    const txn = {
+      ...db,
+      runAsync: async (sql: string, ...p: (string | number)[]) => {
+        if (sql.includes(table)) throw new Error('disk full');
+        return run(sql, ...p);
+      },
+    };
+    return exclusive((raw) => task(txn as typeof raw)).finally(() => void (open = false));
+  };
+  return {
+    leaked: () => leaked,
+    restore: () => {
+      db.runAsync = run;
+      db.withExclusiveTransactionAsync = exclusive;
+    },
+  };
+}

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
+import { DailyRead } from '../why/DailyRead';
+import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
 import { DEFAULT_KCAL_TARGET, round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
@@ -52,6 +55,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <H1>Progress</H1>
             <CheckinCard date={p.date} c={ci} />
             <RapidLossCard c={ci} />
+            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} />
@@ -101,10 +105,12 @@ function WeightSection({ p }: { p: Progress }) {
         </Card>
       ))}
       <Hint>{WEIGHT_HINT}</Hint>
+      <WhyLink id="scale" />
       {p.scaleJump ? (
         <Card accessibilityRole="alert">
           <Text style={{ color: c.ink, fontWeight: '700' }}>{SCALE_JUMP_TITLE(round1(p.scaleJump.kg))}</Text>
           <Hint>{SCALE_JUMP_BODY}</Hint>
+          <WhyLink id="scale" />
           <Button label="Got it" onPress={p.dismissJump} />
         </Card>
       ) : null}
@@ -167,6 +173,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
       {p.today?.steps != null && <Hint>{`Source: ${p.today.steps_source === 'device' ? 'phone step sensor' : 'entered by you'}`}</Hint>}
       <Field label="Hours slept last night" inputMode="decimal" placeholder="Hours" value={sleep} onChangeText={setSleep} />
       <Hint>hours slept last night (aim for 7–9)</Hint>
+      <WhyLink id="sleep" />
       <Button label="Save steps and sleep" onPress={() => p.saveStepsSleep(steps, sleep)} />
     </View>
   );

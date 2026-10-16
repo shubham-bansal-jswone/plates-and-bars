@@ -2,6 +2,8 @@
 // (packages/core/src) is not under node_modules, so it is not ignored by transformIgnorePatterns.
 module.exports = {
   preset: 'jest-expo',
+  // jest 30 (required by #58): jest-expo 58 accepts ^29 || ^30, but Expo's SDK 58 template still pins jest ~29.7.0,
+  // so jest and @types/jest are listed in `expo.install.exclude` in package.json to keep `expo install --check` clean.
   // Dependencies of linked packages/core (e.g. @babel/runtime injected by the transform) resolve
   // from this app's node_modules, since CI installs only apps/mobile.
   moduleDirectories: ['node_modules', '<rootDir>/node_modules'],

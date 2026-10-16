@@ -18,6 +18,8 @@ export interface ExState {
   form: Form;
   found: number | null;
   skipRamp: boolean;
+  /** The answer to "Where did you feel that set most?" ('target', 'pain' or a `misplaced_feel` index). */
+  feel: string | null;
   sets: Row[];
   ramp: Row[];
 }
@@ -27,7 +29,7 @@ export const blankRow = (): Row => ({ id: newId(), version: 0, w: '', r: '', don
 export const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 export function exerciseRecord(e: ExState): WorkoutExercise {
-  return { name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp };
+  return { name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}) };
 }
 
 const text = (n: number | null): string => (n === null ? '' : String(n));
@@ -67,6 +69,7 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
     form: x.form,
     found: x.found_kg,
     skipRamp: x.skip_ramp,
+    feel: x.feel ?? null,
     sets: rows(x.name, 'work'),
     ramp: rows(x.name, 'ramp'),
   }));
