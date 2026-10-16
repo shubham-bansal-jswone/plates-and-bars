@@ -99,7 +99,8 @@ shape (logs with `deleted_at` set are left out). Fibre, added sugar and fruit an
 the log's exact name, as the prototype does (`food_id` is not read): pass the shared foods, then the
 user's foods as `FoodFacts`. Totals come back unrounded; show energy, fibre and sugar with `Math.round`
 and fruit and veg to 0.1, as the prototype does. `dayComplete` takes the settings calorie target, not the
-flexed one, and applies its fallback (3 or more logs, 75% of target) to every day, today included.
+flexed one, and applies its fallback (3 or more logs, 75% of target) only to days before `today`; today
+is complete only by the user's tick (#150).
 `quantityFromGrams` returns `too-small` where the prototype logs 0 servings (#150; the prototype
 follows in the next spec-change batch), and `customFood` returns `name-too-long` for a trimmed name over
 `FOOD_NAME_MAX` (200) characters, the contract limit, and `invalid` for a negative calorie or macro value or

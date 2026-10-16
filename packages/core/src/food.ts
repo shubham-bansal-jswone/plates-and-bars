@@ -189,9 +189,8 @@ export function showAddedSugar(totals: Pick<DayTotals, 'added_sugar_g'>): boolea
  * energy of at least 75% of `kcalTarget`, the settings target (prototype `S.settings.kcal`, not the
  * flexed target). `logs` are that day's logs; `date` and `today` are `YYYY-MM-DD`.
  *
- * Mirrors prototype `dayComplete(d)`, except that today (or a later day) is complete only by the
- * user's tick (decided on #150, as PROTOTYPE_SPEC section 5 says; the prototype applies the fallback
- * to today too and follows in the next spec-change batch).
+ * Mirrors prototype `dayComplete(d, date)` (today is prototype `TODAY()`): today, or a later day, is
+ * complete only by the user's tick (decided on #150, as PROTOTYPE_SPEC section 5 says).
  */
 export function dayComplete(day: CompleteFlag | null | undefined, logs: readonly FoodLogFacts[], kcalTarget: number, date: string, today: string): boolean {
   if (day?.complete) return true;
