@@ -12,7 +12,7 @@ import { renderBody, whyCard, type WhyValues } from './cards';
 const EVIDENCE_NOTE = { Strong: 'Many studies agree.', Moderate: 'Good support, some open questions.', Emerging: 'Early or limited research.' } as const;
 
 /** The card as a sheet: summary, body, how strong the evidence is, and the source. Works offline (the cards are on the device). */
-export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValues; onClose: () => void }) {
+export function WhySheet({ id, values, onClose, now = () => new Date() }: { id: string; values?: WhyValues; onClose: () => void; now?: () => Date }) {
   const c = useTheme();
   const card = whyCard(id);
   const settings = useOptionalSettings();
@@ -20,9 +20,16 @@ export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValu
   const update = settings?.update;
   const learn = settings?.settings.learn;
   // Opening a card marks it read (prototype `openWhy`); the write is local and queued for sync, never waited on.
+  // `learn` here only decides whether there is anything to write; the write reads the latest `learn`, so a sync reload
+  // that landed in between is not overwritten.
   useEffect(() => {
-    const next = card && ready && learn ? withRead(learn, id, localDate(new Date())) : null;
-    if (next && update) update({ learn: next });
+    if (!card || !ready || !learn || !update || !withRead(learn, id, '')) return;
+    update((s) => {
+      const next = withRead(s.learn, id, localDate(now()));
+      return next ? { learn: next } : {};
+    });
+    // `now` is a clock, not state: a new function each render must not re-run the write.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card, id, ready, learn, update]);
   if (!card) return null;
   return (
@@ -44,14 +51,14 @@ export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValu
 
 /** Prototype `whyLink(id, label)`: a "Why?" button that opens the card. Renders nothing for an unknown or held-back card. */
 /** `subject` (an exercise name, say) is spoken after the card title when several links look alike. */
-export function WhyLink({ id, label = 'Why?', values, subject }: { id: string; label?: string; values?: WhyValues; subject?: string }) {
+export function WhyLink({ id, label = 'Why?', values, subject, now }: { id: string; label?: string; values?: WhyValues; subject?: string; now?: () => Date }) {
   const [open, setOpen] = useState(false);
   const card = whyCard(id);
   if (!card) return null;
   return (
     <>
       <Button kind="link" label={label} a11yLabel={`${label} ${card.title}${subject ? `, ${subject}` : ''}`} onPress={() => setOpen(true)} />
-      {open ? <WhySheet id={id} values={values} onClose={() => setOpen(false)} /> : null}
+      {open ? <WhySheet id={id} values={values} now={now} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
