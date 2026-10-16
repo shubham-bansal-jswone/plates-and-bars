@@ -23,6 +23,7 @@ import {
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
+import { parseCardio } from './cardio';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
@@ -383,6 +384,15 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     );
   };
 
+  /** Cardio minutes for today's session, from the field's text (see `parseCardio`). */
+  const setCardio = (text: string) => {
+    const d = clone(ref.current);
+    if (!d.workout) return;
+    d.workout = { ...d.workout, cardio_min: parseCardio(text) };
+    commit(d);
+    void enqueue(() => writeWorkout());
+  };
+
   const setForm = (i: number, form: 'yes' | 'no' | null) =>
     change(
       i,
@@ -653,5 +663,5 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day, cant, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
+  return { date, day, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
 }
