@@ -150,9 +150,16 @@ describe('Targets: Water sizes and My foods', () => {
     await fireEvent.press(screen.getByLabelText('Delete Dal'));
     await rerender(withSync(db, 1));
     expect(JSON.parse(db.rows.get('user_foods:a')!).deleted_at).toBeNull();
+    // while the gate is closed the delete must be a registered pending write, so pendingWrites() must still be waiting
+    let settled = false;
+    const written = pendingWrites().then(() => (settled = true));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(settled).toBe(false);
     release();
     await act(async () => {
-      await pendingWrites();
+      await written;
     });
     expect(JSON.parse(db.rows.get('user_foods:a')!).deleted_at).not.toBeNull();
     await waitFor(() => expect(screen.queryByText('Dal')).toBeNull());
