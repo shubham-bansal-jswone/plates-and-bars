@@ -45,7 +45,7 @@ export function learnList<C extends LearnCard>(cards: readonly C[], sex: string 
 /**
  * The card due today and the progress numbers (prototype `learnCardHtml`): `min(n, 1 + floor(daysBetween(start, today) / 3))`
  * cards are due, counted from `start` (today when it is unset, as the prototype sets it on first show). As in the prototype, a
- * `start` after `today` gives a due count of 0 or less, and `slice(0, due)` with a negative `due` drops cards from the end.
+ * `start` after `today` gives a due count of 0 or less, and `slice(0, due)` with a negative `due` drops cards from the end (#584).
  */
 export function dailyRead<C extends LearnCard>(
   cards: readonly C[],
