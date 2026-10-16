@@ -13,6 +13,8 @@ export interface WhyCard {
   review_status: 'draft' | 'reviewed';
   learn_order?: number | null;
   learn_insert_at?: number;
+  /** Who the card is for (`female`: shown in the daily read only for them); absent means everyone. */
+  audience?: string;
   placeholders?: string[];
   sections?: string[];
 }
