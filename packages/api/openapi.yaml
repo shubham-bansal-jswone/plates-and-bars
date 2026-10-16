@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.13
+  version: 0.1.14
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
