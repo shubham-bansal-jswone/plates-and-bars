@@ -89,5 +89,6 @@ class BlankTextVectorsTest {
                             assertThat(e.details()).containsExactly(new ErrorResponse.Detail(c.field(), "pattern")));
         }
         org.mockito.Mockito.verifyNoInteractions(provider);
+        org.mockito.Mockito.verify(quotas, org.mockito.Mockito.never()).reserve(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 }
