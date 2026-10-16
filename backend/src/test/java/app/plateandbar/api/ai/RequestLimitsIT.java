@@ -83,7 +83,7 @@ class RequestLimitsIT extends AiITBase {
             var body = json.readTree(res.body());
             assertThat(body.path("code").asString()).isEqualTo("invalid_request");
             assertThat(body.path("details")).hasSize(1);
-            assertThat(body.path("details").get(0).path("field").asString()).isEmpty();
+            assertThat(body.path("details").get(0).path("field").stringValue()).isEmpty();
             assertThat(body.path("details").get(0).path("issue").asString()).isEqualTo("too_large");
         }
     }

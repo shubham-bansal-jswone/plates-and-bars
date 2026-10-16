@@ -21,6 +21,8 @@ class AiControllerBodyTest {
 
     static final String USER = "11111111-1111-1111-1111-111111111111";
 
+    static final String OTHER = "22222222-2222-2222-2222-222222222222";
+
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
     @MockitoBean AiQuotaService quotas;
@@ -37,6 +39,22 @@ class AiControllerBodyTest {
                         .content("--x\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nb\r\n--x--\r\n"))
                 .andExpect(status().is4xxClientError())
                 .andExpect(jsonPath("$.code").value("invalid_request"));
+    }
+
+    /** The mapper no longer fails on trailing content (#81), so /ai/* must still refuse it itself: the body reaches the service as unparseable (null). */
+    @Test
+    void contentAfterTheJsonBodyIsStillRefused() throws Exception {
+        // Its own user: the per-user AI limit is shared by every test in this context.
+        when(ai.describeMeal(any(), any())).thenReturn(new tools.jackson.databind.ObjectMapper().createObjectNode());
+        for (String bad : new String[] {"{\"text\":\"a\"} junk", "{\"text\":\"a\"}{\"text\":\"b\"}"}) {
+            mvc.perform(post("/api/v1/ai/describe-meal")
+                            .header("Authorization", "Bearer " + jwt.issue(OTHER).value())
+                            .contentType("application/json")
+                            .content(bad))
+                    .andExpect(status().isOk());
+        }
+        org.mockito.Mockito.verify(ai, org.mockito.Mockito.times(2))
+                .describeMeal(org.mockito.ArgumentMatchers.eq(OTHER), org.mockito.ArgumentMatchers.isNull());
     }
 
     @Test

@@ -218,7 +218,7 @@ class AiEndpointsIT extends AiITBase {
             var res = post(u, DESCRIBE, b);
             assertThat(res.getStatusCode().value()).isEqualTo(400);
             assertThat(body(res).path("code").asString()).isEqualTo("invalid_request");
-            assertThat(body(res).path("details").get(0).path("field").asString()).isEmpty();
+            assertThat(body(res).path("details").get(0).path("field").stringValue()).isEmpty();
             assertThat(body(res).path("details").get(0).path("issue").asString()).isEqualTo("too_large");
         }
         verify(provider, never()).complete(any(), any(), any());
@@ -472,7 +472,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("SuggestTagsResponse", b)).isEmpty();
-        assertThat(b.path("pattern").asString()).isEmpty();
+        assertThat(b.path("pattern").stringValue()).isEmpty();
         assertThat(b.path("equipment").asString()).isEqualTo("machine");
         assertThat(b.path("difficulty").asInt()).isEqualTo(2);
         assertThat(b.path("primary")).hasSize(3);
