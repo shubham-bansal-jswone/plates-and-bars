@@ -133,7 +133,7 @@ describe('dailyRead (prototype learnCardHtml)', () => {
     expect(all).toEqual({ next: null, readN: 10, total: 10 });
     expect(dailyRead([], 'male', { start: null, read: [] }, START)).toEqual({ next: null, readN: 0, total: 0 });
   });
-  it('PINNED QUIRK: a start after today gives 0 due, or a negative count that slices cards off the end', () => {
+  it('PINNED QUIRK (#584): a start after today gives 0 due, or a negative count that slices cards off the end', () => {
     // 1 to 3 days ahead: 1 + floor(-1/3) = 0 due, no card. 6 days ahead: -1, and slice(0, -1) offers the first unread card.
     expect(dailyRead(cards, 'male', { start: START, read: [] }, addDays(START, -1)).next).toBeNull();
     expect(dailyRead(cards, 'male', { start: START, read: [] }, addDays(START, -6)).next?.id).toBe('formfirst');
