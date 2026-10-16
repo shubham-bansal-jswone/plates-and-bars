@@ -191,6 +191,23 @@ describe('photo vault on Android', () => {
     await expect(v.getPhoto('2026-10-01', 'top' as never)).rejects.toThrow('bad photo key');
   });
 
+  it('keeps a kitchen-test serving photo encrypted beside the progress photos, out of the check-in days', async () => {
+    const v = load('android');
+    const id = '6f1c2d3e-aaaa-4bbb-8ccc-000000000001';
+    await v.putKitchenPhoto(id, JPEG);
+    await v.putPhoto('2026-10-01', 'front', JPEG);
+    const stored = mockFiles.get(`doc/photos/kt_${id}.bin`) as Uint8Array;
+    expect(toBase64(stored)).not.toContain(JPEG);
+    expect(await v.getKitchenPhoto(id)).toBe(JPEG);
+    expect(await v.photoDates()).toEqual(['2026-10-01']);
+    await expect(v.putKitchenPhoto('../x', JPEG)).rejects.toThrow('bad photo key');
+    await v.deleteKitchenPhoto(id);
+    expect(await v.getKitchenPhoto(id)).toBeNull();
+    await v.putKitchenPhoto(id, JPEG);
+    await v.wipePhotos();
+    expect(mockFiles.size).toBe(0);
+  });
+
   it('wipe deletes every photo and the key; a new key is made afterwards', async () => {
     const v = load('android');
     await v.putPhoto('2026-10-01', 'front', JPEG);

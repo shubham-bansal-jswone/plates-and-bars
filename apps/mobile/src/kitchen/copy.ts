@@ -33,3 +33,10 @@ export const TABLE_COPY_FAILED = 'Couldn’t copy on this device';
 /** The line under the results (prototype `ktResultHtml` `cmp`). */
 export const compareLine = (c: KitchenComparison): string =>
   `The app’s current value for ${c.food.name} (${c.food.unit}) is ${fmt(c.food.kcal)} kcal; your dish is ${c.diff_kcal >= 0 ? '+' : '−'}${fmt(Math.abs(c.diff_kcal))} kcal per serving.`;
+
+export const PHOTO_ADD = 'Add a photo of the serving';
+export const PHOTO_ADDED = 'Photo added';
+export const PHOTO_SAVE_FAILED = 'The test is saved, but the photo could not be. Try adding it again.';
+export const PHOTO_CAMERA_OFF = 'Camera access is off for this app. Choose a photo instead, or turn it on in Settings.';
+export const PHOTO_HINT = 'The photo stays on this device.';
+export const PHOTO_PICK_FAILED = 'Couldn’t add that photo. Try again.';
