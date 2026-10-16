@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fails if a header in apps/site/public/_headers is missing from, or differs in, infra/caddy/Caddyfile.site
 # (Caddy ignores _headers; the site CSP and security headers are kept in both places), or if the header block of
-# infra/caddy/Caddyfile.api no longer sets Strict-Transport-Security.
+# infra/caddy/Caddyfile.api no longer sets Strict-Transport-Security with a positive max-age (max-age=0 switches HSTS off).
 # Usage: infra/scripts/check-caddy-headers.sh   (from anywhere)
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -20,8 +20,8 @@ have="$(awk '/^[[:space:]]*header[[:space:]]*\{/ {on=1; next} on && /^[[:space:]
 
 status=0
 if ! awk '/^[[:space:]]*header[[:space:]]*\{/ {on=1; next} on && /^[[:space:]]*\}/ {on=0} on {print}' "$caddy_api" \
-  | grep -Eq '^[[:space:]]*Strict-Transport-Security[[:space:]]+"?max-age=[0-9]+'; then
-  echo "::error::infra/caddy/Caddyfile.api no longer sets Strict-Transport-Security in its header block"
+  | grep -Eq '^[[:space:]]*Strict-Transport-Security[[:space:]]+"?max-age=0*[1-9][0-9]*'; then
+  echo "::error::infra/caddy/Caddyfile.api no longer sets Strict-Transport-Security with a positive max-age in its header block"
   status=1
 fi
 while IFS= read -r line; do
