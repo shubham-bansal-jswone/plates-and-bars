@@ -41,7 +41,7 @@ class HealthMigrationIT {
 
         ResponseEntity<String> res = http.getForEntity("/api/v1/health", String.class);
         assertThat(res.getStatusCode().value()).isEqualTo(200);
-        assertThat(res.getBody()).contains("\"status\":\"ok\"").contains("\"version\":\"0.1.0\"");
+        assertThat(res.getBody()).isEqualTo("{\"status\":\"ok\"}");
     }
 
     @Test
