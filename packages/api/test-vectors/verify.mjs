@@ -173,6 +173,12 @@ const yaml11 = [
 for (const [i, line] of spec.split("\n").entries()) {
   if (yaml11.some((re) => re.test(line))) failures.push(`openapi.yaml:${i + 1}: quote the YAML 1.1 boolean or octal in: ${line.trim()}`);
 }
+// WorkoutExercise.feel (#485): which answers the pattern takes.
+const feelPattern = new RegExp(parsed.components.schemas.WorkoutExercise.properties.feel.pattern);
+for (const [v, ok] of [["target", true], ["pain", true], ["0", true], ["12", true], ["", false], ["123", false], ["Pain", false], ["-1", false], ["target\n", false]]) {
+  if (feelPattern.test(v) !== ok) failures.push(`WorkoutExercise.feel pattern: ${JSON.stringify(v)} should ${ok ? "match" : "not match"}`);
+}
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);

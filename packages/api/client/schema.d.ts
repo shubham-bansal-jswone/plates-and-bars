@@ -1303,6 +1303,8 @@ export interface components {
             found_kg: number | null;
             /** @description User skipped the find-your-weight ramp. Prototype: `skipRamp`. */
             skip_ramp: boolean;
+            /** @description Where the user felt the last set: `target`, `pain`, or the index of the guide card's "felt it somewhere else" entry. Null or absent when not answered. Optional so older clients that omit it still validate. Prototype: `ex.feel`. */
+            feel?: string | null;
         };
         /** @description One working or ramp set within a workout. */
         WorkoutSet: components["schemas"]["SyncMeta"] & {
