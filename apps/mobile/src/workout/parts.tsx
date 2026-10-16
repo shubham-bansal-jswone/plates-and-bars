@@ -68,10 +68,10 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
       <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
         <View style={styles.restRow}>
           <View style={{ flexShrink: 1 }}>
-            {/* Announced at start (the label line) and at the end only, not every second. */}
-            <Text accessibilityLiveRegion={left ? 'none' : 'polite'} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
-              {left ? `Rest ${mmss(left)}` : 'Rest done, go!'}
-            </Text>
+            <Text style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>{left ? `Rest ${mmss(left)}` : 'Rest done, go!'}</Text>
+            {/* Screen readers only announce a live region whose text changes after it is mounted. This one is mounted empty with
+                the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second. */}
+            <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : 'Rest done, go!'}</Text>
             <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
           </View>
           <View style={styles.restBtns}>
@@ -162,6 +162,7 @@ const styles = StyleSheet.create({
   chip: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
+  srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden' },
   restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 8, alignItems: 'center' },
   rest: { width: '100%', borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
   restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
