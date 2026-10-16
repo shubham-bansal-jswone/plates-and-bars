@@ -43,7 +43,6 @@ export const ABOUT_COPY = {
   title: 'About and sources',
   intro: 'Where the numbers and content in Plate & Bar come from, and under what licence.',
   privacy: 'Your consent',
-  privacyText: 'Withdrawing your consent means deleting your account. You can delete it at any time from Your data.',
   food: 'Food data',
   fonts: 'Fonts',
   bodyMap: 'Body map',

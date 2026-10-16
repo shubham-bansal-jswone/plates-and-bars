@@ -13,7 +13,7 @@ export const CONSENT = {
     'Progress photos, cycle logs and lab reports stay only on this device.',
     'Meal photos, recipe imports and form-check frames are sent to Claude for analysis and not stored.',
     'You can download or delete everything at any time on the Targets tab.',
-    'Withdrawing your consent means deleting your account, and you can delete it at any time from Your data.',
+    'Withdrawing your consent means deleting your account.',
   ],
   note: 'This app gives general fitness and nutrition guidance. It isn’t medical advice. It’s for adults 18 and over; if you have a medical condition, are pregnant, or are unsure whether exercise is safe for you, check with a doctor first.',
   checkbox: 'I understand and agree to my data being stored as described',
