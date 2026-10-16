@@ -235,6 +235,10 @@ for (const [where, line] of cookieLines) {
   if (attrs.some((a) => /^domain=/i.test(a))) failures.push(`${where}: Set-Cookie must not set Domain`);
 }
 if (!/Max-Age=0(;|$)/.test(parsed.components.headers.ClearRefreshCookie.example)) failures.push("ClearRefreshCookie: Max-Age=0 missing");
+// The cookie that sets the token lives exactly as long as the refresh token: 90 days (refresh_token_expires_at).
+for (const [where, line] of cookieLines.filter(([w]) => w !== "ClearRefreshCookie")) {
+  if (!line.split(";").map((a) => a.trim()).includes(`Max-Age=${90 * 24 * 3600}`)) failures.push(`${where}: Set-Cookie must carry Max-Age=${90 * 24 * 3600} (90 days)`);
+}
 if (parsed.components.responses.TokenPair.content["application/json"].examples.cookie?.value.refresh_token !== "") failures.push("TokenPair cookie example: refresh_token must be empty");
 
 if (failures.length) {

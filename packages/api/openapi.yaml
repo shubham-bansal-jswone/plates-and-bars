@@ -63,8 +63,10 @@ tags:
       app uses a cookie, because a browser has no secure store. It sends the header
       `X-Auth-Transport: cookie` (fetch option `credentials: 'include'`) on
       `POST /auth/google`, `POST /auth/email/verify`, `POST /auth/refresh` and
-      `POST /auth/refresh/revoke`. Without that header the server never reads or sets the
-      cookie, even if the browser sends one, and everything works as in body mode.
+      `POST /auth/refresh/revoke`. Only the exact value `cookie` (case-sensitive) selects
+      cookie mode. Any other value is ignored and treated like an absent header. Without
+      cookie mode the server never reads or sets the cookie, even if the browser sends
+      one, and everything works as in body mode.
 
       **Cookie mode.**
       - A response that issues tokens (200 from sign-in or refresh) sets
@@ -73,8 +75,9 @@ tags:
         lifetime, matching `refresh_token_expires_at`). In the body, `refresh_token` is
         the empty string; everything else is as in body mode.
       - `POST /auth/refresh` and `POST /auth/refresh/revoke` read the token from the
-        cookie only. A `refresh_token` in the body is refused with 400 `invalid_request`.
-        Rotation replaces the cookie.
+        cookie only. A body that carries `refresh_token` is refused with 400
+        `invalid_request` whenever the field is present, whatever its value (including
+        `""`). Rotation replaces the cookie.
       - The cookie is cleared (same name, `Path` and attributes, `Max-Age=0`) by every
         401 from `POST /auth/refresh` and every 204 from `POST /auth/refresh/revoke`.
         Other errors (400, 403, 429, 5xx) leave it unchanged.
@@ -83,27 +86,44 @@ tags:
         `POST /auth/refresh` to get a new one.
 
       **CSRF.** Cookie mode is accepted only when the request carries an `Origin` header
-      exactly equal to one of the configured web app origins (the CORS allow-list). If
-      `Origin` is missing or not allowed, the server answers 403 `forbidden`, and it
-      neither reads nor changes the cookie or the session. This applies to the sign-in
-      endpoints too, which stops a login CSRF from planting someone else's session. It
-      adds to two other defences:
+      exactly equal to one of the cookie-mode origins. That is a server-configured list
+      of the web app's own origins only, separate from the CORS allow-list. Other pages
+      that call the API from a browser (for example the website's account-deletion page)
+      may be in the CORS allow-list but are never cookie-mode origins. They can be on
+      the same site as the API, so `SameSite=Strict` alone would not keep the cookie
+      from them. If `Origin` is missing or not a cookie-mode origin, the server answers
+      403 `forbidden` and neither reads nor changes the cookie or the session. This
+      applies to the sign-in endpoints too, which stops a login CSRF from planting
+      someone else's session.
+
+      Order of checks in cookie mode: body size (400 `too_large`), rate limit (429),
+      `Origin` (403), then request validation (400) and the endpoint's own checks.
+
+      The `Origin` check adds to two other defences:
       - `SameSite=Strict`: the browser never sends the cookie on a request started from
         another site.
       - The custom header: a cross-site form or simple request cannot carry it, and a
         script on another origin must pass a CORS preflight, which only allowed origins
         pass.
 
-      **CORS.** For each configured web app origin (exact match, never `*`), responses
-      on `/auth/*`, including preflights, carry `Access-Control-Allow-Origin: <origin>`,
+      **CORS.** For each cookie-mode origin (exact match, never `*`), responses on
+      `/auth/*`, including preflights, carry `Access-Control-Allow-Origin: <origin>`,
       `Access-Control-Allow-Credentials: true` and `Vary: Origin`. Preflights allow the
-      `X-Auth-Transport` and `Content-Type` request headers. The web app sends
+      `X-Auth-Transport` and `Content-Type` request headers. Other CORS origins get no
+      `Access-Control-Allow-Credentials`, so the browser does not hand them a
+      credentialed response. A browser whose origin is not allowed fails the preflight
+      and never sees the 403: `fetch` rejects with a network error. The web app
+      therefore treats a network-level failure of a cookie-mode call that persists while
+      other requests succeed as a possible configuration error, not as offline, and
+      does not retry it in a loop. The web app sends
       credentials only to the four endpoints above. Other endpoints use the bearer header
       and need not allow credentials.
 
       **Deployment.** The web app and the API must be on the same site (`https` and the
       same registrable domain, for example `app.example.com` and `api.example.com`).
-      Otherwise the browser treats the cookie as third-party and never sends it. The
+      Otherwise the browser treats the cookie as third-party and never sends it. A
+      public-suffix host such as `*.github.io` or `*.pages.dev` is its own site, so the
+      web app cannot be served from one. The
       `__Secure-` prefix and `Secure` need HTTPS. Local development needs HTTPS too, or a
       browser that treats `http://localhost` as a secure context.
 
@@ -1636,13 +1656,14 @@ components:
       in: header
       required: false
       description: |
-        `cookie` selects cookie mode, which the web app uses: the refresh token travels
-        only in the `__Secure-pb_refresh` cookie, never in a body. Requires an allowed
-        `Origin` (else 403 `forbidden`). Absent: body mode, which native apps use and
-        which is unchanged. See the `auth` tag.
+        `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+        refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+        Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+        value (ignored): body mode, which native apps use and which is unchanged. See the
+        `auth` tag.
       schema:
         type: string
-        const: cookie
+        maxLength: 64
       example: cookie
     RefreshCookie:
       name: __Secure-pb_refresh
@@ -1798,8 +1819,9 @@ components:
     Forbidden:
       description: |
         Cookie mode (`X-Auth-Transport: cookie`) without an allowed `Origin`: the header
-        is missing or not one of the configured web app origins. Nothing was read or
-        changed (no cookie, session or sign-in). See the `auth` tag, CSRF.
+        is missing or not one of the cookie-mode origins (the web app's own origins, a
+        list separate from the CORS allow-list). Nothing was read or changed (no cookie,
+        session or sign-in). See the `auth` tag, CSRF.
       content:
         application/json:
           schema:
@@ -1909,7 +1931,7 @@ components:
             `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
             `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
             the server; use the non-AI fallback. `forbidden` (403, `/auth/*` cookie mode
-            only): the request's `Origin` is missing or not an allowed web app origin.
+            only): the request's `Origin` is missing or not a cookie-mode origin.
             Clients treat an unknown code like `internal`.
         message:
           type: string
