@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../db/settings';
+import { inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { CUSTOM_EXERCISES_MAX, type ExerciseTag, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
@@ -34,7 +35,7 @@ const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
  * Holds the local Settings record. A change shows at once and its write is queued (FIFO, each write reads
  * the latest state when it runs), so nothing waits on the network or on an earlier write.
  */
-export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb; /** Changes when records were pulled from the server: the settings are read again (after pending local writes). */ reloadKey?: number; children: ReactNode }) {
+export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb & PullDb; /** Changes when records were pulled from the server: the settings are read again (after pending local writes). */ reloadKey?: number; children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -44,6 +45,10 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   const queue = useRef<Promise<void>>(Promise.resolve());
   /** Counts local changes, so a reload can tell that one started while it was reading (#597). */
   const writes = useRef(0);
+  /** Changes made and not yet finished writing (saved or failed). */
+  const pending = useRef(0);
+  /** Edits whose write failed: the next save applies them again, once each, so a later edit does not drop them. */
+  const unsaved = useRef<((s: Settings) => Settings)[]>([]);
 
   useEffect(() => {
     let live = true;
@@ -59,6 +64,8 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
         if (seen === writes.current) break;
       }
       // Always set, also to none: after a wipe the store is empty and the previous user's custom exercises must go (#448).
+      // Edits whose write failed show on top of the record (the next save writes them): the screen does not drop what is kept.
+      if (s) s = unsaved.current.reduce((x, f) => f(x), s);
       setCustomTags(s?.custom_tags ?? {}); // before the render that reads the catalog
       if (s) {
         ref.current = s;
@@ -80,15 +87,46 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   const change = useCallback(
     (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean => {
       if (blocked.current) return false;
-      const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
+      const at = stamp(new Date());
+      const apply = (s: Settings): Settings => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch), updated_at: at });
+      // The edit shows at once. Its save applies it, once, to the record in the store, not to this copy: a pull may
+      // have replaced the record since (a field another device changed must not be reverted and uploaded, #614).
+      const next = apply(ref.current);
       ref.current = next;
       writes.current += 1;
+      pending.current += 1;
       setCustomTags(next.custom_tags);
       setState(next);
       queue.current = queue.current
-        .then(() => saveSettings(db, ref.current))
-        .then(() => setSaveFailed(false))
-        .catch(() => setSaveFailed(true));
+        .then(async () => {
+          unsaved.current.push(apply);
+          // Read, apply and write in one transaction: a pull cannot store the other device's record in between
+          // (this save would then write the older record back, with its old version). A pull that comes after
+          // finds this save queued and leaves the record for the next push to settle.
+          let saved!: Settings;
+          await inTransaction(db, async (txn) => {
+            saved = unsaved.current.reduce((s, f) => f(s), (await loadSettings(txn)) ?? defaultSettings(at));
+            await saveSettings(txn, saved);
+          });
+          unsaved.current = [];
+          return saved;
+        })
+        .then(
+          (saved) => {
+            setSaveFailed(false);
+            pending.current -= 1;
+            // The last of the queued edits has landed: what shows is what is stored (it keeps the pulled fields and version).
+            if (pending.current === 0) {
+              ref.current = saved;
+              setCustomTags(saved.custom_tags);
+              setState(saved);
+            }
+          },
+          () => {
+            pending.current -= 1;
+            setSaveFailed(true);
+          },
+        );
       return true;
     },
     [db],
