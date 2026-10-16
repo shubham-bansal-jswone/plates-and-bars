@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Deploys the checked-out commit to staging, run ON the VM by .github/workflows/staging-deploy.yml after it has
+# fast-forwarded the checkout (RUNBOOK.md section 2): build the API image tagged with the short commit sha, point
+# API_TAG in .env at it, `docker compose up -d`, poll /api/v1/health, and on failure restore the previous tag.
+# Exit status: 0 deployed and healthy; 1 failed (rolled back, or nothing to roll back to).
+set -euo pipefail
+cd "$(dirname "$0")"
+timeout="${HEALTH_TIMEOUT_SECONDS:-300}"
+
+# .env is read with sed, not sourced: an exported API_TAG would override the line this script rewrites
+env_get() { sed -n "s/^$1=//p" .env | tail -n 1; }
+set_tag() { # rewrite in place (no sed -i: differs between GNU and BSD) and keep .env's mode
+  sed "s/^API_TAG=.*/API_TAG=$1/" .env > .env.new
+  cat .env.new > .env
+  rm -f .env.new
+}
+healthy() {
+  local deadline=$((SECONDS + timeout))
+  until curl -fsS -m 5 -o /dev/null "https://$api_host/api/v1/health"; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 5
+  done
+}
+
+api_host="$(env_get API_HOST)"
+prev="$(env_get API_TAG)"
+[ -n "$api_host" ] || { echo "API_HOST is not set in .env" >&2; exit 1; }
+tag="$(git rev-parse --short=12 HEAD)"
+
+echo "deploying $tag (previous: ${prev:-none})"
+CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" API_TAG="$tag" docker compose build api
+set_tag "$tag" # only after a successful build
+docker compose up -d
+if healthy; then
+  echo "healthy: $tag"
+  exit 0
+fi
+
+echo "health check failed after ${timeout}s" >&2
+docker compose logs --tail 50 api >&2 || true
+if [ -z "$prev" ] || [ "$prev" = "$tag" ] || ! docker image inspect "plateandbar-api:$prev" > /dev/null 2>&1; then
+  echo "no previous image to roll back to (API_TAG was '${prev:-}')" >&2
+  exit 1
+fi
+echo "rolling back to $prev" >&2
+set_tag "$prev"
+docker compose up -d api
+healthy || echo "previous tag $prev is also unhealthy: check the VM" >&2
+exit 1
