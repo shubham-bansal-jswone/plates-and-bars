@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenCompare, kitchenNoteTooLong, kitchenTable, kitchenTest, kitchenTestFood, type KitchenCompareFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -122,7 +122,8 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
       const jpeg = await capturePhoto(source);
       if (jpeg) {
         setD((x) => (x ? { ...x, photo: jpeg } : x));
-        AccessibilityInfo.announceForAccessibility(PHOTO_ADDED);
+        // Web: announceForAccessibility is a no-op in react-native-web; the label below is a live region instead.
+        if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility(PHOTO_ADDED);
       }
     } catch (e) {
       notify(e instanceof CameraDenied ? PHOTO_CAMERA_OFF : PHOTO_PICK_FAILED);
@@ -184,7 +185,7 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           )}
         </View>
         <View style={styles.gap}>
-          <Label>{d.photo ? PHOTO_ADDED : PHOTO_ADD}</Label>
+          <View testID="photo-status" accessibilityLiveRegion={Platform.OS === 'web' ? 'polite' : undefined}><Label>{d.photo ? PHOTO_ADDED : PHOTO_ADD}</Label></View>
           <View style={styles.wrap}>
             <Button label={d.photo ? 'Retake the serving photo' : 'Take a photo of the serving'} kind="ghost" onPress={() => void addPhoto('camera')} />
             <Button label={d.photo ? 'Choose another serving photo' : 'Choose a photo of the serving'} kind="ghost" onPress={() => void addPhoto('library')} />
