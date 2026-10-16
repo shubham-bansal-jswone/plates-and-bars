@@ -7,8 +7,8 @@ import { memoryTokenStore } from '../src/sync/tokens';
 import { CustomTagsSheet } from '../src/workout/CustomTagsSheet';
 import { FALLBACK_TAGS, tagsFromSuggestion } from '../src/workout/suggestTags';
 import * as suggestTags from '../src/workout/suggestTags';
-import blank from './fixtures/blank-text.json';
 
+const blank = require('../../../packages/api/test-vectors/blank-text.json') as { must_fail: string[]; must_pass: string[] };
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 const QUOTA = { limit: 10, remaining: 7, resets_at: '2026-10-09T00:00:00Z' };
 const res = (s: number, h: Record<string, string> = {}) => ({ status: s, headers: { get: (k: string) => h[k] ?? null } }) as unknown as Response;

@@ -14,7 +14,6 @@ import { withSyncPaused } from '../src/sync/guard';
 import { Pressable, Text } from 'react-native';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
-import blank from './fixtures/blank-text.json';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -22,6 +21,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
+const blank = require('../../../packages/api/test-vectors/blank-text.json') as { must_fail: string[]; must_pass: string[] };
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 const QUOTA = { limit: 10, remaining: 7, resets_at: '2026-10-09T00:00:00Z' };
 const status = (f: Partial<Record<'describe_meal' | 'ask_why' | 'weekly_summary', boolean>> = {}, quota = QUOTA) => ({
