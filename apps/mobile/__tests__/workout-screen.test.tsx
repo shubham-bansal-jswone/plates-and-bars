@@ -203,6 +203,8 @@ describe('Workout tab: preview and Start', () => {
     await screen.findByText('Push B day');
     await press('Sleep last night: Poor');
     expect(screen.getByText(/Lighter session suggested/)).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why a lighter session after poor sleep?')).toBeTruthy();
+    expect(screen.queryByLabelText('Why? Is soreness a sign of a good workout?')).toBeNull();
     await press('Lighter session');
     expect(screen.getByText(/2 sets each/)).toBeTruthy();
     await press('Start Push B');
@@ -210,6 +212,14 @@ describe('Workout tab: preview and Start', () => {
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ ci_choice: 'light', mods: { light: true } });
     expect(storedSets(db)).toHaveLength(10);
     expect(screen.getByText(/Today: lighter session/)).toBeTruthy();
+  });
+
+  it('very sore muscles link the soreness card instead of the sleep card', async () => {
+    await setup();
+    await screen.findByText('Push B day');
+    await press('Soreness in today’s muscles: Very sore');
+    expect(screen.getByLabelText('Why? Is soreness a sign of a good workout?')).toBeTruthy();
+    expect(screen.queryByLabelText('Why? Why a lighter session after poor sleep?')).toBeNull();
   });
 
   it('a short check-in time keeps only the main exercises', async () => {
@@ -301,6 +311,7 @@ describe('Workout tab: logging sets', () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.
     expect(screen.getByText('Suggested: 62.5 kg × 6–10 reps')).toBeTruthy();
+    expect(screen.getAllByLabelText('Why? How the suggested weight is chosen').length).toBeGreaterThan(0);
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
     expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
@@ -351,6 +362,7 @@ describe('Workout tab: logging sets', () => {
   it('rating a set stores it and adjusts the next target (Easy adds a step)', async () => {
     const db = await started();
     await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getAllByLabelText('Why? Why rate how each set felt?').length).toBeGreaterThan(0);
     await press('Barbell Bench Press set 1: Easy');
     await waitFor(() => expect(storedSets(db).find((s) => s.rate)?.rate).toBe('easy'));
     expect(placeholder('Barbell Bench Press set 2 kg')).toBe('65');
@@ -364,6 +376,93 @@ describe('Workout tab: logging sets', () => {
     await press('Overhead Cable Extension form: Not really');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'));
     expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no');
+  });
+
+  describe('feel check after a set (#485)', () => {
+    const NAME = 'Overhead Cable Extension';
+    it('shows only once a set is done, then stores the answer and its tip', async () => {
+      const db = await started();
+      expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
+      await press(`Mark ${NAME} set 1 done`);
+      expect(await screen.findByText('Where did you feel that set most?')).toBeTruthy();
+      await press(`${NAME} felt: Shoulders`);
+      expect(await screen.findByText('Use a lighter weight and keep your elbows closer together.', { exact: false })).toBeTruthy();
+      await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('0'));
+    });
+
+    it('the right place is stored as target', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME} felt: Back of the upper arms (triceps)`);
+      expect(await screen.findByText('Felt it in the right place. Good.')).toBeTruthy();
+      await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('target'));
+    });
+
+    it('is not asked once the exercise is out of learn mode', async () => {
+      const db = await setup({ lifts });
+      db.rows.set(`lift_stats:${NAME}`, JSON.stringify({ ...stored<LiftRecord>(db, `lift_stats:${NAME}`), n: 3 }));
+      await screen.unmount();
+      await mount(db);
+      await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+      await screen.findByText('Push B');
+      await press(`Mark ${NAME} set 1 done`);
+      await waitFor(() => expect(storedSets(db).some((x) => x.done)).toBe(true));
+      expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
+    });
+
+    it('It hurt shows the safety note; Skip remaining sets keeps only the done sets', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME}: It hurt`);
+      expect(await screen.findByText('Stop this exercise for today.')).toBeTruthy();
+      expect(screen.getByText(/Pain is different from muscle effort or burning\. If it happens again next session, pick a different exercise, and see a physio if it keeps happening\./)).toBeTruthy();
+      await press(`Skip remaining sets of ${NAME}`);
+      expect(await screen.findByText('Skipped the remaining sets')).toBeTruthy();
+      expect(screen.queryByLabelText(`${NAME} set 2 kg`)).toBeNull();
+      expect(screen.queryByLabelText(`Skip remaining sets of ${NAME}`)).toBeNull();
+      await waitFor(() => expect(storedSets(db).filter((x) => x.exercise === NAME && x.kind === 'work' && !x.deleted_at)).toHaveLength(1));
+      expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('pain');
+    });
+
+    it('the answer is still there after the app is reopened', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME} felt: Back of the upper arms (triceps)`);
+      await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('target'));
+      await screen.unmount();
+      await mount(db);
+      expect(await screen.findByText('Felt it in the right place. Good.')).toBeTruthy();
+      expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
+    });
+
+    it('Skip remaining sets renumbers the sets left, so a set added next gets a free position', async () => {
+      const db = await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`Mark ${NAME} set 3 done`); // done, not done, done
+      await press(`${NAME}: It hurt`);
+      await press(`Skip remaining sets of ${NAME}`);
+      await waitFor(() => expect(screen.queryByLabelText(`${NAME} set 3 kg`)).toBeNull());
+      await press(`Add a set to ${NAME}`);
+      await waitFor(() => expect(screen.getByLabelText(`${NAME} set 3 kg`)).toBeTruthy());
+      await waitFor(() => {
+        const live = storedSets(db).filter((x) => x.exercise === NAME && x.kind === 'work' && !x.deleted_at);
+        expect(live.map((x) => x.set_index).sort()).toEqual([0, 1, 2]);
+      });
+    });
+
+    it('It hurt then Find an alternative opens the can\'t-do sheet at "for how long" with pain', async () => {
+      await started();
+      await press(`Mark ${NAME} set 1 done`);
+      await press(`${NAME}: It hurt`);
+      await press(`Find an alternative to ${NAME}`);
+      expect(await screen.findByText(`Can’t do ${NAME}?`)).toBeTruthy();
+      expect(screen.queryByText('Why not? This decides what the app suggests instead.')).toBeNull();
+      expect(screen.getByText('Pain is a signal to stop, not push through. If it keeps happening or came from an injury, see a physio.')).toBeTruthy();
+      // Pain's default scope is the joint, as in the prototype's defaultScope (the exercise's first joint, the elbow).
+      await press('Permanently');
+      const joint = await screen.findByLabelText(/^Anything that loads the .*elbow/i);
+      expect(joint.props.accessibilityState.checked).toBe(true);
+    });
   });
 
   it('keeps what was ticked after the app is reopened', async () => {
@@ -557,7 +656,7 @@ describe('Workout tab: write ordering and guards', () => {
 });
 
 describe('stored set records', () => {
-  const ex = (): ExState => ({ name: 'Pec Deck Fly', part: 1, bridge: false, form: null, found: null, skipRamp: false, ramp: [], sets: [{ ...blankRow(), w: '-5', r: '-3', done: true }] });
+  const ex = (): ExState => ({ name: 'Pec Deck Fly', part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, ramp: [], sets: [{ ...blankRow(), w: '-5', r: '-3', done: true }] });
 
   it('never stores a negative weight or reps (contract minimum 0)', () => {
     const r = setRecord(ex(), 'work', 0, new Date(2026, 9, 8));

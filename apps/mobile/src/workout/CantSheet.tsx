@@ -23,6 +23,8 @@ interface Props {
   onClose: () => void;
   /** No session is being changed (the avoid picker on Targets), so "Just today" is not offered. */
   noToday?: boolean;
+  /** Why, when already known (prototype `openCant` with a reason): the sheet opens at "for how long". */
+  reason?: ExclusionReason;
 }
 
 type Step = 'why' | 'long' | 'scope' | 'pick';
@@ -33,13 +35,13 @@ export function CantSheet(p: Props) {
   return <Sheet key={p.name} {...p} name={p.name} />;
 }
 
-function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onClose, noToday }: Props & { name: string }) {
+function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onClose, noToday, reason: known }: Props & { name: string }) {
   const c = useTheme();
   const t = getCatalog().tags[name];
-  const [step, setStep] = useState<Step>('why');
-  const [reason, setReason] = useState<ExclusionReason | null>(null);
+  const [step, setStep] = useState<Step>(known ? 'long' : 'why');
+  const [reason, setReason] = useState<ExclusionReason | null>(known ?? null);
   const [dur, setDur] = useState<CantDuration>('perm');
-  const [scope, setScope] = useState<{ scope: CantDraft['scope']; key: string }>({ scope: 'exercise', key: name });
+  const [scope, setScope] = useState<{ scope: CantDraft['scope']; key: string }>(() => (known ? cantDefaultScope(name, known, getCatalog().tags) : { scope: 'exercise', key: name }));
 
   const draft: CantDraft = { name, reason, dur, scope: scope.scope, key: scope.key };
 

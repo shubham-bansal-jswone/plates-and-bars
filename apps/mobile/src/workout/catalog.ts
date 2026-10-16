@@ -11,6 +11,8 @@ export interface ExerciseCard {
   setup: string[];
   key_cues: string[];
   common_mistakes: string[];
+  /** [area, fix] pairs: where else the set may be felt, and what to change (prototype `c.w`). */
+  misplaced_feel: [string, string][];
   breathing?: string;
   easier_version?: string;
   harder_version?: string;

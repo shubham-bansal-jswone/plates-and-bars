@@ -32,7 +32,7 @@ expect() {
 expect content/cards.json "core mobile backend tools content_meta"
 expect content/new-file.json "core mobile backend tools content_meta"
 expect backend/scripts/x.sh "backend"
-expect packages/api/test-vectors/sync-ids.json "api core mobile backend"
+expect packages/api/test-vectors/sync-ids.json "api core mobile backend tools"
 expect packages/api/openapi.yaml "api core mobile backend"
 expect apps/site/src/a.txt "site"
 expect apps/mobile/src/content/bundled.json "mobile content_meta"

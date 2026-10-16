@@ -111,6 +111,7 @@ describe('recovery week on the start screen', () => {
   it('shows the card for 3 stalled lifts, and Start recovery week stores 7 days and dismisses the card', async () => {
     const db = await open({}, ['Pec Deck Fly', 'Cable Lateral Raise', 'Machine Shoulder Press']);
     expect(await screen.findByText('Several lifts have stalled')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why a recovery week?, recovery week')).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Start recovery week, recovery week'));
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ deload: recoveryWeek(DATE), dismissed: { 'deload:2026-10-05': true } }));
     expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
