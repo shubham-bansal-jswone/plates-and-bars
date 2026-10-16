@@ -37,6 +37,13 @@ beforeEach(() => {
 });
 
 describe('data screen (#27)', () => {
+  it('says withdrawing consent means deleting the account, on Data and on the delete confirmation', async () => {
+    await show({ signedIn: true });
+    expect(screen.getByText(DATA_COPY.withdraw)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Delete everything'));
+    expect(screen.getByText(DATA_COPY.withdraw)).toBeTruthy();
+  });
+
   it('exports from the device with no account: the JSON and the food-log CSV, no server option', async () => {
     await show({});
     expect(screen.queryByLabelText('Download from my account')).toBeNull();

@@ -28,6 +28,8 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Button label="Back" kind="link" onPress={onBack} />
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
+      <Label>{t.privacy}</Label>
+      <Hint>{t.privacyText}</Hint>
       <Label>{t.food}</Label>
       <View style={{ gap: 8 }}>{getFoodSources().map((s) => <Source key={sourceKey(s)} s={s} />)}</View>
       <Label>{t.exercises}</Label>

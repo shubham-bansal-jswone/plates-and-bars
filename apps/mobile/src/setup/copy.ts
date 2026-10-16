@@ -2,7 +2,7 @@ import type { Activity, Experience, Goal, Pace, Where } from '@plate-and-bar/cor
 
 // Setup copy, taken from docs/prototype/plate-and-bar.html. Moves into a content bundle once one exists.
 
-export const CONSENT_TEXT_VERSION = '2026-10-07';
+export const CONSENT_TEXT_VERSION = '2026-10-16';
 
 export const CONSENT = {
   title: 'Before you start',
@@ -13,6 +13,7 @@ export const CONSENT = {
     'Progress photos, cycle logs and lab reports stay only on this device.',
     'Meal photos, recipe imports and form-check frames are sent to Claude for analysis and not stored.',
     'You can download or delete everything at any time on the Targets tab.',
+    'Withdrawing your consent means deleting your account, and you can delete it at any time from Your data.',
   ],
   note: 'This app gives general fitness and nutrition guidance. It isn’t medical advice. It’s for adults 18 and over; if you have a medical condition, are pregnant, or are unsure whether exercise is safe for you, check with a doctor first.',
   checkbox: 'I understand and agree to my data being stored as described',
