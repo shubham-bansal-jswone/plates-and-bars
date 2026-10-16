@@ -23,7 +23,16 @@ export function WhyFollowUp({ cardId }: { cardId: string }) {
   const inFlight = useRef(false);
   useEffect(() => () => void (alive.current = false), []);
 
-  if (!ai.available('ask_why')) return null;
+  const available = ai.available('ask_why');
+  // Hidden (switched off, consent withdrawn): drop what was typed and any old message, so it is not there if it comes back.
+  useEffect(() => {
+    if (!available) {
+      setQuestion('');
+      setError(null);
+      setAnswer(null);
+    }
+  }, [available]);
+  if (!available) return null;
   const used = ai.quotaUsed();
 
   const send = async () => {

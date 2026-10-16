@@ -532,6 +532,17 @@ describe('Why sheet follow-up', () => {
     expect(POST).not.toHaveBeenCalled();
   });
 
+  it('shows the failure message when the request fails, and keeps the box', async () => {
+    const { api, POST } = on();
+    POST.mockResolvedValue({ error: { code: 'internal', message: 'x' }, response: res(500) });
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    await fireEvent.changeText(await screen.findByLabelText('Ask a follow-up'), 'Why?');
+    await fireEvent.press(screen.getByLabelText('Ask'));
+    expect(await screen.findByText(/Couldn’t get an answer, try again\. The cards in the app still explain it\./)).toBeTruthy();
+    expect(screen.getByLabelText('Ask a follow-up')).toBeTruthy();
+  });
+
   it('falls back to the cards when the server switches it off mid-use', async () => {
     const get = jest.fn().mockResolvedValueOnce({ data: status({ ask_why: true }), response: res(200) }).mockResolvedValue({ data: status(), response: res(200) });
     const { api, POST } = fakeApi({ get });
