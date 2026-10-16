@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs deploy.sh against stub docker, git, curl and sleep: a healthy deploy moves API_TAG to the new sha; an unhealthy
-# one rolls API_TAG back to the previous tag and exits non-zero; with no previous image it exits non-zero and does
-# not roll back. No Docker, network or VM needed. Run from anywhere: infra/staging/test-deploy.sh
+# one, or a failed `compose up`, rolls API_TAG back to the previous tag and exits non-zero; with no previous image or
+# no API_TAG in .env it exits non-zero and does not roll back; a failed build leaves API_TAG alone. No Docker, network or VM needed. Run from anywhere: infra/staging/test-deploy.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
@@ -15,6 +15,7 @@ cat > "$tmp/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 echo "docker $* [API_TAG=${API_TAG:-}]" >> "$STUB_LOG"
 if [ "$1" = image ] && [ -n "${STUB_NO_PREV_IMAGE:-}" ]; then exit 1; fi
+if [ "$*" = "compose build api" ] && [ -n "${STUB_BUILD_FAIL:-}" ]; then exit 1; fi
 # STUB_UP_FAIL: only `compose up -d` without a service fails (the rollback's `up -d api` works)
 if [ "$*" = "compose up -d" ] && [ -n "${STUB_UP_FAIL:-}" ]; then exit 1; fi
 STUB
@@ -56,7 +57,7 @@ if STUB_HEALTHY=oldtag "$stack/deploy.sh" > /dev/null 2>&1; then fail "unhealthy
 grep -q 'docker compose up -d api' "$STUB_LOG" || fail "api not recreated on rollback"
 
 reset
-if STUB_UP_FAIL=1 STUB_HEALTHY=oldtag "$stack/deploy.sh" > /dev/null 2>&1; then fail "failed compose up exited 0"; fi
+if STUB_UP_FAIL=1 STUB_HEALTHY=abc123def456,oldtag "$stack/deploy.sh" > /dev/null 2>&1; then fail "failed compose up exited 0"; fi
 [ "$(tag_now)" = oldtag ] || fail "failed compose up: API_TAG not restored"
 grep -q 'docker compose up -d api' "$STUB_LOG" || fail "failed compose up: api not recreated on rollback"
 
@@ -69,5 +70,17 @@ HEALTH_TIMEOUT_SECONDS=600 STUB_CURL_FAILS=2 STUB_HEALTHY=abc123def456 "$stack/d
 reset
 if STUB_HEALTHY=none STUB_NO_PREV_IMAGE=1 "$stack/deploy.sh" > /dev/null 2>&1; then fail "deploy without previous image exited 0"; fi
 ! grep -q 'docker compose up -d api' "$STUB_LOG" || fail "rolled back to an image that does not exist"
+
+# no API_TAG in .env: nothing to roll back to, even though an image with an empty tag "exists" for the stub
+reset
+printf 'API_HOST=api.test\nDB_PASSWORD=x\n' > "$stack/.env"
+if STUB_HEALTHY=none "$stack/deploy.sh" > /dev/null 2>&1; then fail "deploy with no API_TAG in .env exited 0 while unhealthy"; fi
+! grep -q 'docker compose up -d api' "$STUB_LOG" || fail "rolled back although .env had no API_TAG"
+
+# a failed build stops the deploy before API_TAG is touched and before anything is started
+reset
+if STUB_BUILD_FAIL=1 STUB_HEALTHY=abc123def456,oldtag "$stack/deploy.sh" > /dev/null 2>&1; then fail "failed build exited 0"; fi
+[ "$(tag_now)" = oldtag ] || fail "failed build changed API_TAG"
+! grep -q 'docker compose up' "$STUB_LOG" || fail "compose up ran after a failed build"
 
 echo "deploy.sh tests passed"
