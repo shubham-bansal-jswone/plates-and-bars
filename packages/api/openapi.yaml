@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.13
+  version: 0.1.14
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -2953,6 +2953,15 @@ components:
         skip_ramp:
           type: boolean
           description: 'User skipped the find-your-weight ramp. Prototype: `skipRamp`.'
+        feel:
+          type: [string, 'null']
+          pattern: '^(target|pain|[0-9]{1,2})$'
+          description: >
+            Where the user felt the last set: `target`, `pain`, or the index of the
+            guide card's "felt it somewhere else" entry. Null or absent when not
+            answered. Optional so older clients that omit it still validate; a client that
+            does not know the field may drop it when it rewrites the exercise.
+            Prototype: `ex.feel`.
 
     WorkoutSet:
       description: One working or ramp set within a workout.

@@ -78,6 +78,8 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         <H1>Your setup</H1>
         <Hint>Answer a few questions and the app works out your calorie burn and targets.</Hint>
         <Button label="Start setup" onPress={() => router.push('/setup' as never)} />
+        <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
+        <Button label="About and sources" kind="ghost" onPress={() => router.push('/about' as never)} />
       </Page>
     );
   }
