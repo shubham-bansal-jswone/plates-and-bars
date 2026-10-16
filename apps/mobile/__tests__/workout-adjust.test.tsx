@@ -148,6 +148,7 @@ describe('ladder cards', () => {
     });
     await press('Stop suggesting this, Machine Shoulder Press');
     await waitFor(() => expect(settingsOf(db2).adjustments).toMatchObject({ muted: { ladder: true } }));
+    expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
     expect(screen.queryByText('Ready to try Seated Dumbbell Press?')).toBeNull();
   });
 
