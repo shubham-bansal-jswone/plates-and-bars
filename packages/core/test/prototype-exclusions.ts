@@ -31,7 +31,8 @@ export interface ProtoCandidate {
 export interface ProtoExclusions {
   S: ProtoExclState;
   resolveSession(names: string[], where: string, lost?: string[]): { name: string; bridge?: boolean }[];
-  resolveName(name: string, where: string): string | null;
+  /** `false`: no candidate left (#143). */
+  resolveName(name: string, where: string): string | null | false;
   candidates(name: string, o: Record<string, unknown>): ProtoCandidate[];
   isExcluded(name: string, extra?: unknown[]): boolean;
   MUSCLE: Record<string, string>;

@@ -1918,31 +1918,46 @@ function homeName(n, where){
 }
 const SCOPE_RANK = { exercise:0, family:1, pattern:2, joint:3 }; // most specific rule first
 // taken: names already in the session, left out of the candidates; null: return undefined where a candidate is needed
+// A swap target or stored pick that ends on a name in taken is passed over: a swapped exercise that isn't excluded takes its
+// best candidate, an excluded one goes on to its pick, then its best candidate. A swap whose bridge is still running is kept.
+// Returns null for a skip the user chose, false when no candidate is left.
 function resolveName(name, where, depth = 0, taken){
   const X = ruleState(); if(depth > 3) return name;
+  const inSession = r => !!taken && !!r && taken.includes(r);
   const rp = X.repl[name], to = rp && rp.to ? homeName(rp.to, where) : null;
-  if(to && !isExcluded(to)) return resolveName(to, where, depth + 1, taken);
-  if(isExcluded(name)){
-    const rs = activeRules().filter(x => ruleMatches(x, name)), r = rs[0];
+  let passed = false;
+  if(to && !isExcluded(to)){
+    const q = resolveName(to, where, depth + 1, taken);
+    if(!inSession(q) || (rp.bridgeUntil && rp.bridgeUntil >= S.date && q === rp.to && !isExcluded(name))) return q;
+    passed = true;
+  }
+  const rs = isExcluded(name) ? activeRules().filter(x => ruleMatches(x, name)) : [], r = rs[0];
+  if(rs.length){
     const pr = rs.sort((a, b) => SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope]).find(x => x.to && x.to[name] !== undefined), pick = pr ? pr.to[name] : undefined;
     if(pick === null) return null;
     const p = pick && homeName(pick, where);
-    if(p && !isExcluded(p)) return resolveName(p, where, depth + 1, taken);
-    if(taken === null) return undefined;
-    const c = candidates(name, { where, joint: r && r.scope === 'joint' ? r.key : null, pain: r && r.reason === 'pain', ignoreSession: true, taken });
-    return c[0] ? c[0].name : null;
-  }
-  return name;
+    if(p && !isExcluded(p)){ const q = resolveName(p, where, depth + 1, taken); if(!inSession(q)) return q; }
+  } else if(!passed) return name;
+  if(taken === null) return undefined;
+  const c = candidates(name, { where, joint: r && r.scope === 'joint' ? r.key : null, pain: r && r.reason === 'pain', ignoreSession: true, taken });
+  return c[0] ? c[0].name : false;
 }
-// lost (optional array): excluded names left out because no replacement outside the session was found
+// lost (optional array): names left out because no replacement outside the session was found: excluded names, and names
+// whose swap target or stored pick is already in the session
 function resolveSession(names, where, lost){
   const X = ruleState(), out = [], seen = new Set();
   const bridged = (n, r) => { const rp = X.repl[n]; return rp && rp.bridgeUntil && rp.bridgeUntil >= S.date && r === rp.to && !isExcluded(n); };
   const first = names.map(n => resolveName(n, where, 0, null)), taken = [];
-  names.forEach((n, i) => { if(first[i]) taken.push(first[i]); if(bridged(n, first[i])) taken.push(n); });
+  // names the template holds as they are come first; then, slot by slot, a swap or pick already taken is passed over
+  names.forEach((n, i) => { if(first[i] === n) taken.push(n); });
+  names.forEach((n, i) => {
+    const f = first[i];
+    if(f && f !== n && names.indexOf(n) === i){ if(taken.includes(f) && !bridged(n, f)) first[i] = undefined; else taken.push(f); }
+    if(bridged(n, first[i])) taken.push(n);
+  });
   names.forEach((n, i) => {
     let r = first[i];
-    if(r === undefined){ r = resolveName(n, where, 0, taken); if(r) taken.push(r); else if(lost) lost.push(n); }
+    if(r === undefined){ r = resolveName(n, where, 0, taken); if(r) taken.push(r); else if(r === false && lost) lost.push(n); } // null: a skip the user chose
     if(r && !seen.has(r)){ seen.add(r); out.push({ name:r }); }
     if(bridged(n, r) && !seen.has(n)){ seen.add(n); out.push({ name:n, bridge:true }); }
   });
