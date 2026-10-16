@@ -5,17 +5,17 @@ import { Text } from '../components/Text';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { chosenCards, whyCard, type WhyValues } from './cards';
+import { cardOffered, chosenCards, whyCard, type WhyValues } from './cards';
 import { readLearn } from './learn';
 import { WhySheet } from './WhyLink';
 
-/** Prototype `libraryHtml`: every card that is not held back, with its evidence and a "read" mark once opened. */
+/** Prototype `libraryHtml`: every card that is not held back or ruled out for this profile (no split card with 0 training days), with its evidence and a "read" mark once opened. */
 export function WhyLibrary({ values }: { values?: WhyValues }) {
   const c = useTheme();
   const settings = useOptionalSettings();
   const [open, setOpen] = useState<string | null>(null);
   const read = readLearn(settings?.settings.learn ?? {}).read;
-  const cards = chosenCards().cards.filter((x) => whyCard(x.id) !== null);
+  const cards = chosenCards().cards.filter((x) => whyCard(x.id) !== null && cardOffered(x.id, values));
   return (
     <View style={styles.box}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Why it works</Heading>
