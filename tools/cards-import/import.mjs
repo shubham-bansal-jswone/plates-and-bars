@@ -14,6 +14,12 @@ export const PLACEHOLDERS = {
   targets: ['kcal', 'protein_g', 'tdee', 'bmr', 'movement', 'training', 'digestion'],
   protein: ['protein_g', 'weight', 'protein_floor'],
   split: ['days', 'split_name', 'minutes'],
+  fibre: ['fibre_g'],
+};
+// Cards whose number is optional: the clause around it is wrapped in a section of the same name, so a screen that
+// has no value drops the whole clause instead of showing a gap. The clause must appear verbatim in the prototype body.
+export const OPTIONAL_CLAUSES = {
+  fibre: { name: 'fibre_g', clause: ', which is about {fibre_g} g for your target' },
 };
 const SPLIT_DAYS = [2, 3, 4, 5, 6];
 
@@ -36,7 +42,9 @@ const grab = (html, re, what) => {
 // Runs the data-literal statements in an empty context. KB bodies are called with stub state whose numbers are
 // placeholder tokens; `profile` is a JS expression for S.settings.profile; `days` is the split's day count.
 function run(html, { profile = 'null', days = 3, bodies = true } = {}) {
-  const kb = grab(html, /^const KB = \{[\s\S]*?^\};$/m, 'KB');
+  const kb0 = grab(html, /^const KB = \{[\s\S]*?^\};$/m, 'KB');
+  // Later `Object.assign(KB, { ... });` blocks add more cards; they run in file order after the base object.
+  const kb = [kb0, ...(html.match(/^Object\.assign\(KB, \{[\s\S]*?\}\s*\);$/gm) ?? [])].join('\n');
   const learn = grab(html, /^const LEARN = \[.*\];$/m, 'LEARN');
   const measures = grab(html, /^const MEASURES = \[.*\];$/m, 'MEASURES');
   const muscle = grab(html, /^const MUSCLE = \{.*\};$/m, 'MUSCLE');
@@ -46,6 +54,7 @@ function run(html, { profile = 'null', days = 3, bodies = true } = {}) {
   // 1000 stands in for the weight so Math.round(w * 1.6) is recognisable as 1600.
   const stub = `const S = { settings: { kcal: '{kcal}', protein: '{protein_g}', profile: ${profile} } };
     const fmt = (x) => x, r1 = (x) => (x === 1000 ? '{weight}' : x), latestWeight = () => null;
+    const fibreTarget = () => '{fibre_g}';
     const calcTargets = () => ({ tdee: '{tdee}', bmr: '{bmr}', movement: '{movement}', training: '{training}', digestion: '{digestion}' });
     const splitFor = () => ({ list: { length: ${days} } });
     const Math = { round: (x) => (x === 1600 ? '{protein_floor}' : x) };`;
@@ -118,6 +127,12 @@ export function renderBody(body, on = [], values = {}) {
 
 const bodyFor = (html, id, names) => {
   const toggles = SECTION_TOGGLES[id];
+  const opt = OPTIONAL_CLAUSES[id];
+  if (opt) {
+    const body = run(html).KB[id].body;
+    if (!body.includes(opt.clause)) throw new Error(`${id}: optional clause no longer matches the prototype`);
+    return body.replace(opt.clause, `{?${opt.name}}${opt.clause}{/${opt.name}}`);
+  }
   if (!toggles) return run(html).KB[id].body;
   const norm = (t, d) => (id === 'split' ? splitNormalise(t, d, names[String(d)]) : t);
   const days = id === 'split' ? SPLIT_DAYS : [3];
@@ -127,6 +142,12 @@ const bodyFor = (html, id, names) => {
   for (const [name, key] of Object.entries(toggles)) variants[name] = norm(run(html, { profile: PROFILES[key], days: 3 }).KB[id].body, 3);
   return sectioned(bases[0], variants);
 };
+
+function sectionNames(id) {
+  if (SECTION_TOGGLES[id]) return Object.keys(SECTION_TOGGLES[id]);
+  if (OPTIONAL_CLAUSES[id]) return [OPTIONAL_CLAUSES[id].name];
+  throw new Error(`card '${id}' has placeholders but neither SECTION_TOGGLES nor OPTIONAL_CLAUSES entry`);
+}
 
 export function importCards(html) {
   const p = extractScience(html);
@@ -145,7 +166,7 @@ export function importCards(html) {
     learn_order: learnIds.includes(id) ? learnIds.indexOf(id) : null,
     // 'bulky' is spliced into the learn list at this index for female profiles only.
     ...(id === 'bulky' ? { audience: 'female', learn_insert_at: Number(m[1]) } : {}),
-    ...(PLACEHOLDERS[id] ? { placeholders: PLACEHOLDERS[id], sections: Object.keys(SECTION_TOGGLES[id]) } : {}),
+    ...(PLACEHOLDERS[id] ? { placeholders: PLACEHOLDERS[id], sections: sectionNames(id) } : {}),
     review_status: 'draft',
   }));
   return { schema_version: 1, origin: 'docs/prototype/plate-and-bar.html (KB, LEARN)', split_names: names, cards };
