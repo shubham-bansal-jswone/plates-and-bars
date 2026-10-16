@@ -83,7 +83,7 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      # Boot 4 migration is a separate piece of work (#82)
+      # Boot 4 migration is a separate piece of work (#81)
       - dependency-name: "org.springframework.boot"
         update-types: ["version-update:semver-major"]
       # json-schema-validator 3.x is built on Jackson 3; the backend is on Jackson 2
