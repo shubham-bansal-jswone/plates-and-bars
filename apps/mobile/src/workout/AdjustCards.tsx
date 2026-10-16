@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { WhyLink } from '../why/WhyLink';
-import { repWord, type ExInfo, type LadderCard, type RecoveryCard, type StallCard } from '@plate-and-bar/core';
+import { repWord, type ExInfo, type LadderCard, type RecoveryCard, type ReentryCard, type StallCard, type SteadyCard } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Card } from '../components/ui';
 import type { ExclusionRecord } from '../db/rules';
@@ -101,6 +101,41 @@ export function RecoveryCardView({ card, onStart, ...c }: { card: RecoveryCard; 
       buttons={[{ label: 'Start recovery week', primary: true, onPress: onStart }, { label: 'Not now', onPress: c.onNo }]}
     >
       {`${named} haven’t moved in 3 sessions. A recovery week usually fixes this: same exercises, fewer sets and about 10% lighter for 7 days.`}
+    </AdjCard>
+  );
+}
+
+/** The "Welcome back" card after a break (prototype `renderStart`, "back after a break" step). */
+export function ReentryCardView({ card, onEase, ...c }: { card: ReentryCard; onEase: () => void } & Common) {
+  return (
+    <AdjCard
+      title={`Welcome back. It’s been ${card.gap} days.`}
+      level={2}
+      subject="re-entry"
+      declines={c.declines}
+      onMute={c.onMute}
+      buttons={[{ label: 'Ease back in', primary: true, onPress: onEase }, { label: 'Train as normal', onPress: c.onNo }]}
+    >
+      {card.long
+        ? 'For the next 2 weeks: about 30% lighter and 1 fewer set per exercise, building back to normal. Your strength returns faster than it took to build.'
+        : 'For this week: start about 15% lighter and build back up over a few sessions.'}
+    </AdjCard>
+  );
+}
+
+/** The "N steady weeks of training" card: an optional lighter week (prototype `renderStart`). */
+export function SteadyCardView({ card, onStart, ...c }: { card: SteadyCard; onStart: () => void } & Common) {
+  return (
+    <AdjCard
+      title={`${card.weeks} steady weeks of training`}
+      why="deload"
+      level={2}
+      subject="lighter week"
+      declines={c.declines}
+      onMute={c.onMute}
+      buttons={[{ label: 'Take a lighter week', primary: true, onPress: onStart }, { label: 'Keep going', onPress: c.onNo }]}
+    >
+      {'Many programmes take a lighter week every 6–8 weeks to let fatigue clear. The research on timing is limited, so this is optional: fewer sets and about 10% lighter for 7 days.'}
     </AdjCard>
   );
 }

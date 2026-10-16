@@ -147,7 +147,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   return (
     <Page>
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
-      <RecoveryCards date={date} lifts={day.lifts} notify={notify} />
+      <RecoveryCards date={date} lifts={day.lifts} sessions={day.sessions} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan
