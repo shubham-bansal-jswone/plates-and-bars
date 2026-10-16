@@ -1,5 +1,6 @@
 import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
+import { DATA_COPY } from '../account/copy';
 import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -28,6 +29,8 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Button label="Back" kind="link" onPress={onBack} />
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
+      <Label>{t.privacy}</Label>
+      <Hint>{DATA_COPY.withdraw}</Hint>
       <Label>{t.food}</Label>
       <View style={{ gap: 8 }}>{getFoodSources().map((s) => <Source key={sourceKey(s)} s={s} />)}</View>
       <Label>{t.exercises}</Label>
