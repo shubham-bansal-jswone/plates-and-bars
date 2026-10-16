@@ -51,6 +51,8 @@ interface Props {
   cards?: ReactNode;
   /** Learn mode (core's `isLearning`): the feel question shows once a set is done. */
   learning?: boolean;
+  /** Earlier sessions of this exercise (core's `priorSessions`): the Setup steps start open on the very first one. */
+  prior?: number;
 }
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
@@ -127,8 +129,32 @@ function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
   );
 }
 
+/** The Learn mode block (prototype `learnHtml`): the tag, the Setup steps (open on the very first session) and the cue for the set about to be done. Demo images are left out until their source is settled (#623). */
+function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: number }) {
+  const c = useTheme();
+  const [shown, setShown] = useState<boolean | null>(null); // null until the user toggles it
+  const card = getCatalog().cards[ex.name];
+  if (!card) return null;
+  const open = shown ?? first;
+  const cue = card.key_cues[done % card.key_cues.length];
+  return (
+    <View style={[styles.learn, { borderColor: c.brand }]}>
+      <Text style={{ color: c.link, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
+      <Button label="Setup" a11yLabel={`Setup steps for ${ex.name}`} kind="link" expanded={open} onPress={() => setShown(!open)} />
+      {open ? (
+        <View style={{ gap: 3 }}>
+          {card.setup.map((x, k) => (
+            <Text key={k} style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{k + 1}. {x}</Text>
+          ))}
+        </View>
+      ) : null}
+      <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}><Text style={{ fontWeight: '700' }}>Focus this set:</Text> {cue}</Text>
+    </View>
+  );
+}
+
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, prior }: Props) {
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
     if (!armed) return;
@@ -141,6 +167,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning 
   const wHead = info.type === 'dumbbell' ? 'kg each' : info.type === 'assisted' ? 'Assist kg' : nl ? '+kg' : 'kg';
   const tag = getCatalog().tags[ex.name];
   const working = ex.sets.some((s) => s.done);
+  const doneCount = ex.sets.filter((s) => s.done).length;
   const allDone = ex.sets.length > 0 && ex.sets.every((s) => s.done);
   const showRamp = sug.mode === 'new' && !working && !ex.skipRamp;
   // Ramp placeholders and the first ramp set's reps come from core's `rampTickFill`.
@@ -173,6 +200,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning 
         <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
         <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
       </View>
+      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
 
       {showRamp ? (
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
@@ -270,6 +298,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning 
 const styles = StyleSheet.create({
   setRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  learn: { borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', padding: 10, gap: 6 },
   guide: { borderRadius: radius.md, borderWidth: 1, padding: 10, gap: 6 },
   set: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: { flex: 1, minWidth: 60 },
