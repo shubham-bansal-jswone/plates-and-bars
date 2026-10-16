@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { WhyLink } from '../why/WhyLink';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
@@ -113,6 +114,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           <View style={styles.gap}>
             <View style={styles.wrap}>
               <Text style={{ color: c.ink }}><Text style={styles.b}>Fibre </Text>{`${fmt(t.fibre_g)} of ${fibreTarget(target)} g`}</Text>
+              <WhyLink id="fibre" values={{ fibre_g: fibreTarget(target) }} />
               <Text style={{ color: c.ink }}><Text style={styles.b}>Fruit & veg </Text>{`${r1(fruitVegServings(f.logs, facts))} of ${FRUIT_VEG_TARGET} servings`}</Text>
               {showAddedSugar(t) ? <Text style={{ color: c.ink }}><Text style={styles.b}>Added sugar </Text>{`${fmt(t.added_sugar_g)} g`}</Text> : null}
             </View>
