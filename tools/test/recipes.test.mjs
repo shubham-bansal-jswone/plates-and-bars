@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRaw, validateRecipes, validatePlanning } from '../validate/recipes.mjs';
-import { extractRecipeData, importAll, serialize, idFor, SOURCE_OVERRIDE } from '../recipes-import/import.mjs';
+import { extractRecipeData, importAll, serialize, idFor, SOURCE_OVERRIDE, FDC_UNMATCHED } from '../recipes-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
@@ -182,4 +182,13 @@ test('fresh cream is a label value; borrowed USDA entries are recorded in the so
   assert.match(by('Moong dal (dry)').name, /mung/);
   assert.match(by('Chicken curry cut (raw)').name, /thigh/);
   assert.doesNotMatch(by('Toor dal (dry)').name, /values match/);
+});
+
+test('every usda_fdc raw row names its FDC id, except the listed generic one; other sources carry none (#98)', () => {
+  for (const i of load('raw-ingredients.json').ingredients) {
+    if (i.source.code !== 'usda_fdc') assert.equal(i.source.reference, null, i.name);
+    else if (FDC_UNMATCHED.includes(i.name)) assert.equal(i.source.reference, null, i.name);
+    else assert.match(i.source.reference, /^FDC \d+ \(SR Legacy: .+\), per 100 g/, i.name);
+  }
+  assert.deepEqual(FDC_UNMATCHED, ['Oil']);
 });
