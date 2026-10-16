@@ -21,6 +21,7 @@ import {
   type Swap,
 } from '@plate-and-bar/core';
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
+import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
@@ -40,7 +41,7 @@ export interface Day {
 }
 
 interface Options {
-  db: WorkoutDb;
+  db: WorkoutDb & PullDb;
   profile: Profile | null;
   now: () => Date;
   focus: readonly string[];
@@ -112,10 +113,10 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
   // These run inside the day queue, so each re-reads the stored row first: a pull (or a rule saved on Targets) may have stored
   // a newer version since the screen loaded its copy. The stored version is kept, and a row the store has tombstoned stays deleted.
   // `overTombstone`: start() already saw the tombstone and is replacing it on purpose, whatever its clock says.
-  const writeWorkout = async (overTombstone = false) => {
+  const writeWorkout = async (overTombstone = false, h: WorkoutDb = db) => {
     const d = ref.current;
     if (!d.workout) return;
-    const stored = await loadWorkout(db, date);
+    const stored = await loadWorkout(h, date);
     if (!overTombstone && stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
     const mine = { ...d.workout, exercises: d.exs.map(exerciseRecord) };
     // Changed since this screen loaded or wrote it (a pull, or a rule saved on Targets): merge rather than overwrite (#410).
@@ -123,7 +124,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     const base = synced.current;
     const elsewhere = !overTombstone && !!base && !!stored && !stored.deleted_at && unversioned(stored) !== unversioned(base);
     const row = { ...(elsewhere ? mergeWorkout(base, mine, stored) : mine), version: stored?.version ?? d.workout.version, updated_at: stamp(now()) };
-    await saveWorkout(db, row);
+    await saveWorkout(h, row);
     // After a merge the base stays as it was until the reload: the screen still shows its old list, so a write queued
     // before the reload has to merge again rather than write that list back.
     if (elsewhere) setMerged((n) => n + 1);
@@ -132,8 +133,8 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
   /** Today's exercise by name when a queued write runs: a can't-do swap or an added exercise may have moved it (#439). */
   const exNamed = (name: string) => ref.current.exs.find((e) => e.name === name);
   /** Writes the rows with these ids of exercise `name`, looked up when the write runs; gone rows are skipped. */
-  const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[]) => {
-    const stored = new Map((await loadSets(db, date)).map((s) => [s.id, s]));
+  const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[], h: WorkoutDb = db) => {
+    const stored = new Map((await loadSets(h, date)).map((s) => [s.id, s]));
     for (const id of ids) {
       const ex = exNamed(name);
       const j = ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
@@ -141,7 +142,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
       const rec = setRecord(ex, kind, j, now());
       const was = stored.get(rec.id);
       if (was?.deleted_at) continue;
-      await saveSet(db, date, { ...rec, version: was?.version ?? rec.version });
+      await saveSet(h, date, { ...rec, version: was?.version ?? rec.version });
     }
   };
 
@@ -442,10 +443,13 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     d.exs = [...d.exs, ex];
     if (!d.workout.template) d.workout = { ...d.workout, template: 'Session' };
     commit(d);
-    void enqueue(async () => {
-      await writeWorkout();
-      await writeSets(name, 'work', ids(ex.sets));
-    });
+    // One transaction: a sync push or pull never sees the exercise without its sets (#492), and a failure stores neither.
+    void enqueue(() =>
+      inTransaction(db, async (txn) => {
+        await writeWorkout(false, txn as WorkoutDb);
+        await writeSets(name, 'work', ids(ex.sets), txn as WorkoutDb);
+      }),
+    );
     return true;
   };
 

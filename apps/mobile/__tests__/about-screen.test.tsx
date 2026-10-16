@@ -34,6 +34,11 @@ describe('about and sources', () => {
     expect(getFoodSources().map(sourceKey)).toEqual(expect.arrayContaining([sourceKey(eo), sourceKey(rw)]));
   });
 
+  it('says withdrawing consent means deleting the account', async () => {
+    await render(<AboutScreen onBack={() => {}} />);
+    expect(screen.getByText(/Withdrawing your consent means deleting your account/)).toBeTruthy();
+  });
+
   it('shows both own_estimate names', async () => {
     await render(<AboutScreen onBack={() => {}} />);
     expect(screen.getByText(/own estimate for a typical restaurant portion/)).toBeTruthy();
