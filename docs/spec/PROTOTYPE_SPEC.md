@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — kept behaviours recorded (spec-change; prototype and golden fixtures unchanged).**
+- Decisions to keep the prototype's behaviour, now written into the sections they belong to; nothing in `docs/prototype/plate-and-bar.html`, `docs/spec/golden/` or core changes. Section 1: setup limits checked before rounding (#131). Section 2: coverage meter simplifications (#155). Section 3: personal-best edge cases (#123), bodyweight rep targets, big-jump wording and returning plus deload stacking (#104). Section 5: food lookups by name, alias joining, `unitGrams` decimals, the unrounded added-sugar check, items counted as meals, Cola's sugar only in the eat-out table (#151), and grams logging by the bracketed weight (#97). Core already pins each one in its tests.
+
 **2026-10-17 — golden fixtures: learn cases, sessions inputs recorded, wider plan cases (spec-change; prototype unchanged).**
 - Regenerated with `tools/golden-gen` (`node golden-gen/cli.mjs`); `docs/prototype/plate-and-bar.html` is not changed in this entry.
 - #552: new `docs/spec/golden/learn.json`, run through the prototype's own `LEARN` and `learnCardHtml`. `order` is the daily-read list for a male profile, a female profile (the card `bulky` inserted at index 6) and no profile. `cases` give, for each of those, the days since the learn start (0, 2, 3, 6, 12, 30) and eight read sets (none, one or three cards, only the female card, ids not in the list, all but the last, all), the number of cards due (`min(n, 1 + floor(days / 3))`: 1, 1, 2, 3, 5, 11 for a male profile), the card offered (`null` when every due card is read) and the "N of M done" numbers. Hidden cards (#212) are an app filter and are not in the fixture. Future starts are not in it either: #584 (a start after today counts as today) is a decided exception to the prototype.
@@ -117,6 +120,8 @@ Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fracti
 
 **Floor and rounding (decided on #41).** A floored target is `min(floor, TDEE)`, then rounded to 10. When TDEE is at or above the floor the target is exactly the floor. When TDEE is below the floor the target is TDEE rounded to the nearest 10: up to 5 kcal above TDEE (TDEE 1,195 gives 1,200) or below it, and below the floor itself (TDEE 1,150 gives 1,150). Kept: such users eat at maintenance, and the rounding gap is at most 5 kcal.
 
+**Limits before rounding (decided on #131).** Setup (`validateStep` step 0) checks height (120–230 cm, from cm or ft/in) and weight (30–300 kg) on the values as typed, then saves height rounded to 0.1 cm and weight to 0.1 kg. So 29.96 kg and 119.96 cm are rejected although they would save as 30.0 kg and 120.0 cm. Kept: the values sit at the edge of the range and the user can type the rounded value.
+
 **Health check:** any "yes" or pregnancy → `needsClearance` until the user taps "My doctor has cleared me": sessions are light (one fewer set, no weight increases) and a card explains why.
 
 ---
@@ -142,9 +147,18 @@ Session build order (`buildSession`):
 
 Weekly coverage meter: planned (from templates) and done (last 7 days of logged sets). Primary muscle = 1 per set, secondary = 0.5. Under 6 is flagged; ~10 is the target, 12–16 for focus muscles.
 
+**Coverage meter simplifications (decided on #155: kept for M0).** The meter is a weekly guide, so the prototype's shortcuts stay:
+- The planned meter (`weeklyCoverage`) counts every exercise of each template at 3 sets (a bridge at 2). It ignores the session-length cap, focus additions, the beginner 2-set fortnight, calf raises at 4, the 60+ balance exercise, and deload or light days, so short sessions are overstated.
+- It maps templates for the profile's `where` (`homeWhere()`), not a day's override.
+- Untagged exercises count nothing.
+- Focus toggling (`focusAction`) checks the whole stored focus list against the limit of 3, while the picker shows its first 3 (`focusList`). The contract caps focus at 3.
+- Front shoulders, forearms and lower back are counted but never shown (`COVER_SHOW`) or offered as focus muscles.
+
+Still open (#155): after M0, the planned count may move to the built session's real set counts. That would be a prototype spec change first.
+
 **Missing training days (decided on #72).** `splitFor` treats `days === 0` as no plan but a missing or null `days` as the full 6-day plan, while `calcTargets` treats null as 0 training days. Kept as is: setup makes days (0 to 7) a required answer, so a set-up profile always has it; the case only arises before setup or with damaged data.
 
-**Rotation counting (decided on #73).** `trimSession` counts every stored session entry for the template, whatever its date. Entries are stored only while at least one work set (not warm-up) is done (`saveDay` deletes the entry when sets return to 0), so empty entries never occur. Today's preview is shown only while today has no exercises, so today's own entry never shifts it; a started workout's exercises are fixed when built on Start. Because counting ignores dates, a past day's preview also counts later sessions, and a second session of the same template counts today's entry. Kept as is.
+**Rotation counting (decided on #73).** `trimSession` counts every stored session entry for the template, whatever its date. Entries are stored only while at least one work set (not warm-up) is done (`saveDay` deletes the entry when sets return to 0), so empty entries never occur. Today's preview is shown only while today has no exercises, so today's own entry never shifts it; a started workout's exercises are fixed when built on Start. Because counting ignores dates, a past day's preview also counts later sessions, and a second session of the same template counts today's entry. Kept as is (and again on #104).
 
 ---
 
@@ -160,6 +174,16 @@ Weekly coverage meter: planned (from templates) and done (last 7 days of logged 
 - Stall: best session score (Epley `w·(1+r/30)`; bodyweight = total reps; assisted = `max(r·max(0, bodyweight − assist))`, or `max(r·2 − assist)` with no profile weight) not beating the earlier best by >1% for 3 sessions. 3+ stalled lifts → recovery-week card.
 - Personal best: new session score > previous best × 1.005 → toast once a day per lift.
 
+**Personal-best edge cases (decided on #123: kept).**
+- A lift whose earlier scores are all 0 never records a best: the check needs a non-zero earlier best.
+- Exactly 0.5% better counts as a best, because `100 × 1.005` is `100.49999…` in floating point.
+- Bodyweight scores are total reps, so one extra easy set counts as a best.
+
+**Kept on #104.**
+- Bodyweight rep targets go up by one rep from last time and are not raised to the bottom of the range (3 reps last time gives a target of 4 on an 8–20 range). Loaded lifts are raised to the bottom of the range.
+- The big-jump fallback says "go back to X kg and add reps instead" with plain "kg", without "each" (dumbbells) or "assist" (assisted machines).
+- Returning (55% of the old top) and deload (−10%) stack, to about 50% of the old top. This errs light.
+
 ---
 
 ## 4. Exclusions, swaps, ladders  → fixture `exercises.json`
@@ -174,10 +198,19 @@ Weekly coverage meter: planned (from templates) and done (last 7 days of logged 
 ## 5. Food  → fixture `foods.json`
 
 - All values per serving; carbs include fibre. Grams entry works for foods whose unit is in grams.
+- Grams logging (decided on #97: kept) reads the grams from the serving label, including a bracketed ingredient or dry weight (`unitGrams`): "1 medium (30 g atta)" is 30 g, rice 50 g raw, dal 35 g, rajma/chole 40 g dry. So typed grams mean that weight, and 60 g of cooked rice logs 1.2 servings. The app says so in the hint under the grams input ("Grams are the weight in the brackets on the serving (the dry or ingredient weight, such as "50 g raw"), not the cooked weight.") and shows each food's own label on its row, such as "1 cup (50 g raw)". No per-food toast: the "Added Rice (60 g)" toast stays as the prototype has it. No content change.
 - Search matches name or alias (`ALIAS`: chawal, anda, dahi, daru…).
 - Fibre target: max(25 g, 15 g per 1,000 kcal of today's target). Fruit & veg servings out of 5. Added sugar shown when ≥10 g.
 - Meal ideas (`combos`): protein shortfall weighted 3× calorie error; caps per food (`MAXQ`), minimum portions (`MINQ`); age 60+ ≥25 g protein per main meal; diet filter any/egg/veg; fasting-day pool.
 - Day complete: user tick, or for older days ≥3 meals and ≥75% of target. Only complete days feed the real-burn estimate.
+
+**Kept on #151.**
+- Fibre, added sugar and fruit and veg are looked up by the logged item's name, not a food id. A custom log named like a shared food gets the shared food's values, and a shared food wins over a user food of the same name. Revisit `food_id` lookups when the sync client lands.
+- Search matches a food's aliases as one string joined with spaces, so a query can span two aliases ("fulka rotli" finds Roti / chapati).
+- `unitGrams` reads whole numbers only: a decimal loses its whole part ("1.5 g" reads 5). No content label has a decimal gram weight.
+- The added-sugar line checks the unrounded total, so 9.6 g is hidden although it would show as 10 g.
+- "≥3 meals" for a complete day counts logged items, not meal slots: three items in one meal count as three.
+- Cola's added sugar (35 g for "Cola (330 ml)") is only in the eat-out table, which is not in M0 content, so a logged cola counts no added sugar until that table ships.
 - Recipes: raw ingredients per 100 g (`RAW`, `RAW_FIB`), cooked yield by katoris (150 g) or pot weight.
 - Kitchen tests: pot weights → cooked weight; per 100 g and per serving; "use for my logging" writes a personal food.
 
