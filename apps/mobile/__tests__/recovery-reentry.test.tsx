@@ -64,6 +64,15 @@ describe('buildSession with a recovery week or re-entry', () => {
     expect(buildSession({ ...base, adjustments: { deload: { from: '2026-09-01', until: '2026-09-07' }, reentry: { until: 5 } } }).mods).toMatchObject({ deload: false, reentry: 0 });
   });
 
+  it('a falsy from is an open-ended start, as the prototype’s inRange treats it', () => {
+    // Prototype `inRange = r => r && r.until >= S.date && (!r.from || r.from <= S.date)` (L1543): an absent or null
+    // `from` has no lower bound, so a pulled period without a start still applies until its `until`.
+    const nullFrom = buildSession({ ...base, adjustments: { deload: { from: null, until: '2026-10-21' }, reentry: { from: null, until: '2026-10-21', pct: 0.3 } } });
+    expect(nullFrom.mods).toMatchObject({ deload: true, reentry: 0.3 });
+    const absentFrom = buildSession({ ...base, adjustments: { reentry: { until: '2026-10-21', pct: 0.15 } } });
+    expect(absentFrom.mods.reentry).toBe(0.15);
+  });
+
   it('a range whose until or from is not a YYYY-MM-DD date counts as none', () => {
     // A pulled `until` that is not a date never ends ('zzz' >= any date) and reads as "Invalid Date"; an array is not
     // a string at all but compares as one ('2026-10-21' >= DATE), so both have to be refused, not just non-strings.
@@ -127,6 +136,12 @@ describe('recovery week on the start screen', () => {
     await screen.findByLabelText('Start Push B');
     expect(screen.queryByText(/Recovery week until/)).toBeNull();
     expect(screen.queryByText(/Invalid Date/)).toBeNull();
+  });
+
+  it('a pulled recovery week with no from is open-ended and still noted', async () => {
+    // The prototype's `inRange` treats a falsy `from` as no lower bound, so the pulled period shows until its `until`.
+    await open({ deload: { from: null, until: '2026-10-21' } });
+    expect(await screen.findByText('Recovery week until 21 Oct.')).toBeTruthy();
   });
 
   it('a running recovery week is noted on the session and can be ended early', async () => {

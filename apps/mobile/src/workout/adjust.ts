@@ -25,9 +25,10 @@ export const muted = (a: Adjustments, type: string): Adjustments => ({ ...a, mut
 /** A date the app stores and compares as text (`YYYY-MM-DD`). */
 const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-// `until` is what `inRange` compares (`until >= date`), so a pulled value that is not a date would run for ever and
-// read as "until Invalid Date". `from` is optional; when present it has to be a date too.
-const isRange = (r: unknown): r is AdjRange => !!r && typeof r === 'object' && isDate((r as AdjRange).until) && ((r as AdjRange).from === undefined || isDate((r as AdjRange).from));
+// `until` is what the prototype's `inRange` compares (`until >= date`), so a pulled value that is not a date would run
+// for ever and read as "until Invalid Date". `from` matches the prototype's `(!r.from || r.from <= date)`: a falsy
+// `from` (absent or null) has no lower bound, but a present, non-date one is refused.
+const isRange = (r: unknown): r is AdjRange => !!r && typeof r === 'object' && isDate((r as AdjRange).until) && (!(r as AdjRange).from || isDate((r as AdjRange).from));
 
 // The contract's `Workout.mods.reentry` is 0 to 1, and core's `applyMods` eases the suggested weight by `1 - pct`.
 // A pulled fraction outside that (0, negative, above 1, NaN...) would fail `/sync` and suggest the wrong way, so it
