@@ -4,6 +4,7 @@ export const DATA_COPY = {
   intro: 'Download a copy of what the app stores, or delete everything.',
   exportDevice: 'Download my data',
   exportServer: 'Download from my account',
+  withdraw: 'Withdrawing your consent means deleting your account, and you can delete it at any time from Your data.',
   exportHint: 'The download works without a connection: it is made from what is on this device. Progress photos, cycle and lab data stay on this device.',
   exportHintAndroid: 'Android does not back up this app, so if you reinstall or move to a new phone, download a copy first.',
   signInToExport: 'Sign in to download from your account',

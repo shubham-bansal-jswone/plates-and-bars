@@ -97,6 +97,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
       <Page>
         <H1>{t.confirmTitle}</H1>
         <Note>{deviceOnly ? t.confirmDeviceOnly : t.confirmDevice}</Note>
+        <Hint>{t.withdraw}</Hint>
         {deviceOnly ? null : <Note>{s.signedIn ? t.confirmAccount : linkedOut ? t.confirmLinkedSignedOut : s.wipePending ? t.localFailed : t.confirmNoAccount}</Note>}
         {error ? <ErrorText>{error}</ErrorText> : null}
         <View style={{ gap: 12 }}>
@@ -126,6 +127,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
+      <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
       {message ? <Note>{message}</Note> : null}
       {error ? <ErrorText>{error}</ErrorText> : null}

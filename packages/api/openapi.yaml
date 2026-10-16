@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.13
+  version: 0.1.14
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -21,6 +21,14 @@ info:
       centimetres (`_cm`), millilitres (`_ml`), minutes (`_min`), kilocalories (`kcal`).
     - Carbohydrate is always total carbohydrate including fibre.
     - Every 4xx and 5xx response uses the shared `Error` schema.
+    - "Blank" text is text made only of Unicode `White_Space` characters (U+0009 to U+000D,
+      U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F,
+      U+3000) and the zero-width characters U+200B to U+200D, U+2060 and U+FEFF. A field
+      that "must not be blank" carries the `pattern` below, which matches any other
+      character. Every class member is spelled out (no `\s` or `\S`), so ECMA-262 (with or
+      without the `u` flag) and `java.util.regex` read it the same way:
+      `[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]`.
+      `test-vectors/blank-text.json` has shared must-fail and must-pass texts.
     - Request bodies are at most 2 MB (2,097,152 bytes) on every endpoint, and at most
       16 KB (16,384 bytes) on the `POST /ai/*` endpoints. A larger body is refused without
       being read in full, with 400 `invalid_request` and one `details` entry whose `field`
@@ -2382,10 +2390,10 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
-          pattern: '\S'
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
           description: |
-            What the user ate, in their own words, with rough amounts if known. Must contain
-            a non-space character. Prototype: the Describe it textarea.
+            What the user ate, in their own words, with rough amounts if known. Must not be
+            blank (see the wire conventions). Prototype: the Describe it textarea.
 
     DescribeMealResponse:
       type: object
@@ -2447,8 +2455,8 @@ components:
           type: string
           minLength: 1
           maxLength: 300
-          pattern: '\S'
-          description: 'The follow-up question. Must contain a non-space character. Prototype: `#askQ`.'
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
+          description: 'The follow-up question. Must not be blank (see the wire conventions). Prototype: `#askQ`.'
 
     AskWhyResponse:
       type: object
@@ -2474,10 +2482,10 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          pattern: '\S'
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
           description: |
             The exercise name as the user typed it, trimmed by the app (the app's name limit,
-            200 characters). Must contain a non-space character. This is the one place a
+            200 characters). Must not be blank (see the wire conventions). This is the one place a
             custom exercise's typed name leaves the device, and only when the user has turned
             AI on; Weekly summary still sends `custom exercise` instead.
 
