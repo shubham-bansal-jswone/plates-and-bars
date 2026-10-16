@@ -1,14 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import cards from '../../../content/cards.json';
-import { fibreTarget } from '@plate-and-bar/core';
+import { dailyRead as coreDailyRead, fibreTarget, learnList as coreLearnList } from '@plate-and-bar/core';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { dailyRead, learnList, readLearn, withRead } from '../src/why/learn';
-import { cardOffered, HIDDEN_CARDS } from '../src/why/cards';
+import { readLearn, withRead } from '../src/why/learn';
+import { cardOffered, chosenCards, HIDDEN_CARDS } from '../src/why/cards';
 import * as SettingsProvider from '../src/state/SettingsProvider';
 import { WhyLink } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
@@ -18,6 +18,9 @@ jest.mock('expo-router', () => ({
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []),
 }));
 
+// The app's cards and hidden list through core, as DailyRead calls it.
+const learnList = (sex?: string) => coreLearnList(chosenCards().cards, sex, HIDDEN_CARDS);
+const dailyRead = (raw: Record<string, unknown>, sex: string | undefined, today: string) => coreDailyRead(chosenCards().cards, sex, readLearn(raw), today, HIDDEN_CARDS);
 const shown = cards.cards.filter((c) => !HIDDEN_CARDS.includes(c.id));
 const profile = (sex: 'male' | 'female' = 'male') =>
   buildProfile({ ...emptyDraft(), sex, age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 9, 8));
@@ -42,6 +45,10 @@ describe('learn order and due card (pure)', () => {
     expect(dailyRead({ start: '2025-01-01', read: [] }, 'male', '2026-10-08').next?.id).toBe('rir');
     expect(dailyRead({ start: '2025-01-01', read: ids.slice(0, -1) }, 'male', '2026-10-08')).toMatchObject({ next: { id: ids[ids.length - 1] }, readN: ids.length - 1, total: ids.length });
     expect(dailyRead({ start: '2025-01-01', read: ids }, 'male', '2026-10-08').next).toBeNull();
+  });
+  it('treats a start after today as today, so the first card shows (clamp)', () => {
+    expect(dailyRead({ start: '2026-10-20', read: [] }, 'male', '2026-10-17')).toMatchObject({ next: { id: 'rir' }, readN: 0, total: 10 });
+    expect(dailyRead({ start: '2026-10-20', read: ['rir'] }, 'male', '2026-10-17').next).toBeNull();
   });
   it('withRead adds an id once, keeps other keys, and starts the clock', () => {
     expect(withRead({}, 'rir', '2026-10-01')).toEqual({ start: '2026-10-01', read: ['rir'] });
