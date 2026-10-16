@@ -40,7 +40,7 @@ export function WeekCard({ date, days, kcalTarget }: Props) {
                 // "restore" the prototype's string here — a test asserts this one.
                 accessibilityLabel={`${dayName(d.date)}${d.trained ? `, ${WEEK_TRAINED}` : ''}, ${d.logged ? `${fmt(d.kcal)} kcal, ${fmt(d.protein_g)} g protein` : WEEK_NOT_LOGGED}`}
               >
-                <View style={[styles.fill, { width: `${d.fillPct}%`, backgroundColor: d.over ? c.caution : c.brand }]} />
+                <View style={[styles.fill, { width: `${d.fillPct}%`, backgroundColor: d.over ? c.caution : c.bar }]} />
                 <View style={[styles.tgt, { left: `${d.targetPct}%`, backgroundColor: c.ink }]} />
                 <View style={styles.txt}>
                   <Text style={{ color: c.ink, fontSize: 13 }}>{d.logged ? `${fmt(d.kcal)} kcal` : WEEK_NOT_LOGGED}</Text>

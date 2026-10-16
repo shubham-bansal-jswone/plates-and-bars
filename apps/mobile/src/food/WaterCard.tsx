@@ -36,9 +36,9 @@ export function WaterCard({ ml, count, target, sizes, profile, onAdd, onUndo }: 
           </Press>
         ) : null}
       </View>
-      {/* Decided on #229: the bar stays `brand` past 100%. Drinking more than the target is not a warning (the prototype keeps one colour), unlike the `caution` colour macro bars use. */}
+      {/* Decided on #229: the bar stays one colour (`bar`, the brand blue that clears 3:1 on `track` in dark, #504) past 100%. Drinking more than the target is not a warning (the prototype keeps one colour), unlike the `caution` colour macro bars use. */}
       <View accessible accessibilityRole="progressbar" accessibilityLabel={`${Math.round(pct)}% of today’s water`} style={[styles.track, { backgroundColor: c.track }]}>
-        <View style={{ height: 8, borderRadius: radius.full, backgroundColor: c.brand, width: `${Math.min(100, pct)}%` }} />
+        <View style={{ height: 8, borderRadius: radius.full, backgroundColor: c.bar, width: `${Math.min(100, pct)}%` }} />
       </View>
       <Button label="Hydration tips" kind="link" expanded={tips} onPress={() => setTips(!tips)} />
       {tips ? (
