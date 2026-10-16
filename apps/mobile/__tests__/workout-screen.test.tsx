@@ -442,6 +442,21 @@ describe('Workout tab: logging sets', () => {
     await type('99999', 9999);
   });
 
+  it('cardio minutes typed one key at a time: 1.5 and 1,5 save 2, -5 saves 0, and the field shows what was typed', async () => {
+    const db = await started();
+    const saved = () => stored<Workout>(db, `workouts:${DATE}`).cardio_min;
+    const keys = async (text: string, want: number | null) => {
+      await fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '');
+      for (const k of text) await fireEvent.changeText(screen.getByLabelText('Cardio minutes'), `${screen.getByLabelText('Cardio minutes').props.value}${k}`);
+      expect(screen.getByLabelText('Cardio minutes').props.value).toBe(text);
+      await waitFor(() => expect(saved()).toBe(want));
+    };
+    await keys('1.5', 2);
+    await keys('1,5', 2);
+    await keys('-5', 0);
+    await keys('45', 45);
+  });
+
   it('refuses to tick a first-time set with nothing to fill from', async () => {
     const db = await setup();
     await press('Start Push B');
