@@ -92,7 +92,13 @@ export default function TabsLayout() {
           options={{
             title: t.title,
             tabBarAccessibilityLabel: t.title,
-            tabBarIcon: ({ focused, color }) => <Ionicons name={focused ? t.on : t.off} size={24} color={color} />,
+            // expo-router 58 types the tab bar colour as RN's ColorValue (null | string | number | OpaqueColorValue),
+            // while @expo/vector-icons takes string | OpaqueColorValue. Cast instead of branching on
+            // `typeof color === 'string'`, which would throw away a real OpaqueColorValue (PlatformColor())
+            // that the icon can render. The tab bar itself always hands us a plain string.
+            tabBarIcon: ({ focused, color }) => (
+              <Ionicons name={focused ? t.on : t.off} size={24} color={color as string | undefined} />
+            ),
           }}
         />
       ))}
