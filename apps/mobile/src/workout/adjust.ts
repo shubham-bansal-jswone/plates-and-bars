@@ -1,4 +1,4 @@
-import { recoveryWeek, type AdjRange, type AdjState, type ReentryRange } from '@plate-and-bar/core';
+import { recoveryWeek, reentryRange, type AdjRange, type AdjState, type ReentryRange } from '@plate-and-bar/core';
 
 // `Settings.adjustments` is an open object; these are the prototype's `settings.adj` fields the exercise cards use:
 // `muted[type]` (the user turned the card type off), `dismissed[key]` (this card was answered) and `declines[type]`
@@ -43,6 +43,9 @@ export function rangesOf(a: Adjustments): { deload: AdjRange | null; reentry: Re
 
 /** "Start recovery week": 7 days from `date`, and this week's card key is answered. */
 export const startDeload = (a: Adjustments, date: string, key: string): Adjustments => ({ ...answered(a, key), deload: recoveryWeek(date) });
+
+/** "Ease back in": 7 days at the card's 15%, 14 at its 30%, and the card's key is answered. */
+export const startReentry = (a: Adjustments, date: string, key: string, pct: number): Adjustments => ({ ...answered(a, key), reentry: reentryRange(date, pct) });
 
 /** "End it early" / "Back to normal" (prototype `adj-end`). */
 export function endAdj(a: Adjustments, kind: 'deload' | 'reentry'): Adjustments {

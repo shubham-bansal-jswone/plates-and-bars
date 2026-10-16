@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { recoveryWeek, type LiftRecord } from '@plate-and-bar/core';
+import { addDays, recoveryWeek, reentryRange, type LiftRecord } from '@plate-and-bar/core';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
@@ -28,11 +28,22 @@ const profile = () =>
   );
 const stalledLift = (): LiftRecord => ({ date: '2026-10-05', sets: [{ w: 40, r: 10, rate: 'right' }], form: 'yes', n: 5, first: '2026-09-01', prev: null, hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })), pbToast: null });
 
-async function open(adjustments: Record<string, unknown>, lifts: string[] = []) {
+/** A finished session on `date`: the workout row and 3 done work sets, which is what `loadSessionLog` counts. */
+function seedSession(db: Db, date: string) {
+  db.rows.set(`workouts:${date}`, JSON.stringify({ date, base: 'Push B', template: 'Push B', deleted_at: null }));
+  for (let i = 0; i < 3; i++) db.sets.set(`${date}-${i}`, { date, kind: 'work', done: 1, deleted: 0, data: '{}' });
+}
+
+/** 3 sessions (Mon, Wed, Fri) in each of the `weeks` weeks before `DATE`'s week, which is core's steady streak. */
+const steadyWeeks = (weeks: number): string[] =>
+  Array.from({ length: weeks }, (_, k) => [0, 2, 4].map((d) => addDays('2026-10-05', -7 * (k + 1) + d))).flat();
+
+async function open(adjustments: Record<string, unknown>, lifts: string[] = [], sessions: string[] = []) {
   const db = memoryDb();
   await saveProfile(db, profile());
   await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), adjustments });
   for (const n of lifts) db.rows.set(`lift_stats:${n}`, JSON.stringify(stalledLift()));
+  for (const d of sessions) seedSession(db, d);
   await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
   return db;
 }
@@ -199,5 +210,84 @@ describe('re-entry on the start screen', () => {
     await open({ reentry: { until: ['2026-10-21'], pct: 0.3 } });
     await screen.findByLabelText('Start Push B');
     expect(screen.queryByText(/Easing back in/)).toBeNull();
+  });
+});
+
+describe('welcome back card after a break', () => {
+  it('shows at a 14-day gap, and Ease back in stores 7 days at 15% and dismisses the key', async () => {
+    const db = await open({}, [], ['2026-09-24']);
+    expect(await screen.findByText('Welcome back. It’s been 14 days.')).toBeTruthy();
+    expect(screen.getByText('For this week: start about 15% lighter and build back up over a few sessions.')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ reentry: reentryRange(DATE, 0.15), dismissed: { 'break:2026-09-24': true } }));
+    expect(await screen.findByText('Easing back in until 14 Oct.')).toBeTruthy();
+    expect(screen.queryByText(/^Welcome back\./)).toBeNull();
+  });
+
+  it('does not show at a 13-day gap', async () => {
+    await open({}, [], ['2026-09-25']);
+    await screen.findByLabelText('Start Push B');
+    expect(screen.queryByText(/^Welcome back\./)).toBeNull();
+  });
+
+  it('the long copy at 28 days eases back in for 2 weeks at 30%', async () => {
+    const db = await open({}, [], ['2026-09-10']);
+    expect(await screen.findByText('Welcome back. It’s been 28 days.')).toBeTruthy();
+    expect(screen.getByText(/^For the next 2 weeks: about 30% lighter and 1 fewer set per exercise, building back to normal\./)).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ reentry: reentryRange(DATE, 0.3), dismissed: { 'break:2026-09-10': true } }));
+    expect(await screen.findByText('Easing back in until 21 Oct.')).toBeTruthy();
+  });
+
+  it('Train as normal dismisses the card and counts a decline', async () => {
+    const db = await open({}, [], ['2026-09-24']);
+    fireEvent.press(await screen.findByLabelText('Train as normal, re-entry'));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ declines: { break: 1 }, dismissed: { 'break:2026-09-24': true } }));
+    expect(screen.queryByText(/^Welcome back\./)).toBeNull();
+  });
+
+  it('after 3 declines it offers to stop suggesting this, which mutes the type', async () => {
+    const db = await open({ declines: { break: 3 } }, [], ['2026-09-24']);
+    fireEvent.press(await screen.findByLabelText('Stop suggesting this, re-entry'));
+    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { break: true } }));
+    expect(screen.queryByText(/^Welcome back\./)).toBeNull();
+  });
+
+  it('a running re-entry period suppresses the card', async () => {
+    await open({ reentry: reentryRange(DATE, 0.3) }, [], ['2026-09-10']);
+    expect(await screen.findByText('Easing back in until 21 Oct.')).toBeTruthy();
+    expect(screen.queryByText(/^Welcome back\./)).toBeNull();
+  });
+});
+
+describe('steady weeks card', () => {
+  it('shows at 6 steady weeks, and Take a lighter week stores a recovery week and dismisses the key', async () => {
+    const db = await open({}, [], steadyWeeks(6));
+    expect(await screen.findByText('6 steady weeks of training')).toBeTruthy();
+    expect(screen.getByText(/^Many programmes take a lighter week every 6–8 weeks to let fatigue clear\./)).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why a recovery week?, lighter week')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Take a lighter week, lighter week'));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ deload: recoveryWeek(DATE), dismissed: { 'dlplan:2026-10-05': true } }));
+    expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
+    expect(screen.queryByText('6 steady weeks of training')).toBeNull();
+  });
+
+  it('does not show at 5 steady weeks', async () => {
+    await open({}, [], steadyWeeks(5));
+    await screen.findByLabelText('Start Push B');
+    expect(screen.queryByText(/steady weeks of training/)).toBeNull();
+  });
+
+  it('Keep going dismisses the card and counts a decline', async () => {
+    const db = await open({}, [], steadyWeeks(6));
+    fireEvent.press(await screen.findByLabelText('Keep going, lighter week'));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ declines: { 'deload-plan': 1 }, dismissed: { 'dlplan:2026-10-05': true } }));
+    expect(screen.queryByText('6 steady weeks of training')).toBeNull();
+  });
+
+  it('a running recovery week suppresses the card', async () => {
+    await open({ deload: recoveryWeek(DATE) }, [], steadyWeeks(6));
+    expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
+    expect(screen.queryByText(/steady weeks of training/)).toBeNull();
   });
 });
