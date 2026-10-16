@@ -44,8 +44,9 @@ export function learnList<C extends LearnCard>(cards: readonly C[], sex: string 
 
 /**
  * The card due today and the progress numbers (prototype `learnCardHtml`): `min(n, 1 + floor(daysBetween(start, today) / 3))`
- * cards are due, counted from `start` (today when it is unset, as the prototype sets it on first show). As in the prototype, a
- * `start` after `today` gives a due count of 0 or less, and `slice(0, due)` with a negative `due` drops cards from the end (#584).
+ * cards are due, counted from `start` (today when it is unset, as the prototype sets it on first show).
+ * Decided exception (#584): a `start` after `today` counts as today (0 days, so 1 card is due). The prototype gives a due count
+ * of 0 or less there, and `slice(0, due)` with a negative `due` drops cards from the end.
  */
 export function dailyRead<C extends LearnCard>(
   cards: readonly C[],
@@ -55,7 +56,7 @@ export function dailyRead<C extends LearnCard>(
   hidden: readonly string[] = [],
 ): DailyRead<C> {
   const list = learnList(cards, sex, hidden);
-  const due = Math.min(list.length, 1 + Math.floor(daysBetween(learn.start ?? today, today) / LEARN_DAYS_PER_CARD));
+  const due = Math.min(list.length, 1 + Math.floor(Math.max(0, daysBetween(learn.start ?? today, today)) / LEARN_DAYS_PER_CARD));
   return {
     next: list.slice(0, due).find((c) => !learn.read.includes(c.id)) ?? null,
     readN: list.filter((c) => learn.read.includes(c.id)).length,
