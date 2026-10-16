@@ -3,6 +3,7 @@ import cards from '../../../content/cards.json';
 import { BUNDLED } from '../src/content/bundled';
 import { loadContent } from '../src/content/loader';
 import { putStored, type ContentDb } from '../src/content/store';
+import { cardTitle } from '../src/ai/cards';
 import { chosenCards, HIDDEN_CARDS, renderBody, whyCard } from '../src/why/cards';
 import { WhyLink } from '../src/why/WhyLink';
 import { openDb } from './sync-helpers';
@@ -39,11 +40,33 @@ describe('Why cards through the content store', () => {
     ['body of 5000+ characters', (b) => { b.cards[0].body = 'x'.repeat(5001); }],
     ['bad id', (b) => { b.cards[1].id = '__proto__'; }],
     ['duplicate title', (b) => { b.cards[1].title = b.cards[0].title; }],
+    ['empty cards', (b) => { b.cards = []; }],
+    ['placeholder named __proto__', (b) => { b.cards[0].placeholders[0] = '__proto__'; }],
+    ['id that is an Object.prototype member', (b) => { b.cards[1].id = 'constructor'; }],
+    ['a placeholder in the body that is not listed', (b) => { b.cards[0].placeholders.pop(); }],
+    ['a listed placeholder the body does not use', (b) => { b.cards[0].placeholders.push('extra'); }],
+    ['section opened inside a section', (b) => { b.cards[0].body = '{?tdee}a {?tdee}b{/tdee}{/tdee}'; b.cards[0].placeholders = []; }],
+    ['two else parts in a section', (b) => { b.cards[0].body = '{?tdee}a{:}b{:}c{/tdee}'; b.cards[0].placeholders = []; }],
+    ['section not closed', (b) => { b.cards[0].body = '{?tdee}a'; b.cards[0].placeholders = []; }],
+    ['section not listed', (b) => { b.cards[0].sections = []; }],
+    ['malformed brace', (b) => { b.cards[0].body += ' {Oops}'; }],
+    ['learn_order not an integer', (b) => { b.cards[1].learn_order = 1.5; }],
+    ['duplicate learn_order', (b) => { b.cards[1].learn_order = b.cards.find((c: Obj) => c.learn_order === 1).learn_order; }],
+    ['learn_insert_at not an integer', (b) => { b.cards[1].learn_insert_at = 'x'; }],
     ['review_status unknown', (b) => { b.cards[0].review_status = 'maybe'; }],
   ];
   it.each(bad)('rejects the whole copy: %s', async (_n, mutate) => {
     await launch(edit(mutate));
     expect(chosenCards()).toBe(cards);
+    expect(cardTitle('targets')).toBe(cards.cards[0]!.title);
+  });
+
+  it('the Ask why title and the Why sheet agree on an accepted copy and on a rejected one', async () => {
+    await launch(edit((b) => { b.cards[0].title = 'Edited title'; }));
+    expect(cardTitle('targets')).toBe('Edited title');
+    expect(cardTitle('ramp')).toBe('ramp');
+    await launch(edit((b) => { b.cards[0].evidence = 'Certain'; b.cards[0].title = 'Edited title'; }));
+    expect(cardTitle('targets')).toBe(cards.cards[0]!.title);
   });
 });
 
@@ -53,6 +76,9 @@ describe('renderBody', () => {
     expect(renderBody(b, { x: 3, y: 'z' })).toBe('A has 3, z.');
     expect(renderBody(b, { y: 'z' })).toBe('A no x, z.');
     expect(renderBody('{?x}on{/x}k', {})).toBe('k');
+    // inherited names are not values
+    expect(renderBody('{?constructor}x{/constructor}{constructor}', {})).toBe('');
+    expect(renderBody('{x}', { x: undefined })).toBe('');
   });
 });
 

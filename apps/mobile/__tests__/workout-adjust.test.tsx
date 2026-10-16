@@ -167,6 +167,7 @@ describe('stall card', () => {
   it('Switch to 6–8 writes the exercise’s override and the card’s range changes', async () => {
     const db = await started((d) => seed(d, 'Pec Deck Fly', stalledLift()));
     expect(await screen.findByText('No progress in 3 sessions')).toBeTruthy();
+    expect(screen.getAllByLabelText('Why? Why change the rep range after a stall?').length).toBeGreaterThan(0);
     expect(screen.getByText(/Try a heavier rep range for the next few weeks: 6–8 reps\./)).toBeTruthy();
     await press('Switch to 6–8, Pec Deck Fly');
     await waitFor(() => expect(settingsOf(db).exercise_overrides['Pec Deck Fly']).toMatchObject({ type: 'machine', rep_low: 6, rep_high: 8 }));

@@ -16,12 +16,12 @@ export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValu
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.body}>
+          <Button kind="ghost" label="Close" onPress={onClose} />
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{card.title}</Heading>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{card.summary}</Text>
           <Text style={{ color: c.ink, lineHeight: 22 }}>{renderBody(card.body, values)}</Text>
           <Hint>{`Evidence: ${card.evidence}. ${EVIDENCE_NOTE[card.evidence]}`}</Hint>
-          <Hint>{`Source: ${card.source}.${card.review_status === 'draft' ? ' Draft card, not yet reviewed by a coach or dietitian.' : ''} Not medical advice.`}</Hint>
-          <Button kind="ghost" label="Close" onPress={onClose} />
+          <Hint>{`Source: ${card.source}. Draft card, not yet reviewed by a coach or dietitian. Not medical advice.`}</Hint>
         </View>
       </ScrollView>
     </Modal>

@@ -53,6 +53,7 @@ function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: 
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: c.muted, fontSize: 14 }}>How did that feel?</Text>
+      <WhyLink id="rir" />
       <View style={styles.wrap}>
         {RATE_ORDER.map((k) => (
           <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => onRate(k)} />

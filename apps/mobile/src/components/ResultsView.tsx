@@ -1,5 +1,4 @@
 import { StyleSheet, View } from 'react-native';
-import { WhyLink } from '../why/WhyLink';
 import { Text } from './Text';
 import { fmt } from '../format';
 import { buildResults, clearanceNote } from '../setup/results';
@@ -54,10 +53,6 @@ export function ResultsView({ profile, onCleared, hideTargets }: { profile: Prof
         </>
       )}
       <Hint>{v.pace}</Hint>
-      <View style={styles.links}>
-        <WhyLink id="targets" label="Why these numbers?" values={{ kcal: fmt(t.kcal), protein_g: t.protein, tdee: fmt(t.tdee), bmr: fmt(t.bmr), movement: fmt(t.movement), training: fmt(t.training), digestion: fmt(t.digestion) }} />
-        <WhyLink id="protein" label="Why this much protein?" values={{ protein_g: t.protein }} />
-      </View>
       {clear ? (
         <View style={[styles.card, { borderColor: c.danger, backgroundColor: c.surface }]}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
@@ -76,7 +71,6 @@ export function ResultsView({ profile, onCleared, hideTargets }: { profile: Prof
 
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
-  links: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexGrow: 1, flexBasis: '45%', alignItems: 'center', gap: 2 },

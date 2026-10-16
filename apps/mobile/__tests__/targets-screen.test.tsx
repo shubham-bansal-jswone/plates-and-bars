@@ -56,16 +56,21 @@ describe('TargetsScreen', () => {
     expect(screen.getByText('You burn about 2,493 kcal a day')).toBeTruthy();
   });
 
-  it('opens the Why card with the person\'s numbers, its evidence and source, and closes it', async () => {
+  it('Why cards state the stored (edited) targets and the computed burn breakdown, and close', async () => {
     const db = memoryDb();
-    await saveProfile(db, goldenProfile());
+    const p = goldenProfile();
+    await saveProfile(db, { ...p, targets: { ...p.targets, kcal: 2100, protein_g: 170 } });
     await render(withProfile(db, <TargetsScreen db={db} />));
     await fireEvent.press(await screen.findByLabelText('Why these numbers? Why these calorie and macro targets?'));
-    expect(screen.getByText(/Your target is 1,990 kcal\./)).toBeTruthy();
+    expect(screen.getByText(/Your estimated burn is about 2,493 kcal a day \(resting \d/)).toBeTruthy();
+    expect(screen.getByText(/Your target is 2,100 kcal\./)).toBeTruthy();
+    expect(screen.getByText(/Protein is set high \(170 g\)/)).toBeTruthy();
     expect(screen.getByText(/^Evidence: Moderate\./)).toBeTruthy();
-    expect(screen.getByText(/^Source: Mifflin et al\., 1990/)).toBeTruthy();
+    expect(screen.getByText(/^Source: Mifflin et al\., 1990.* Draft card, not yet reviewed/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Close'));
     expect(screen.queryByText(/^Evidence: /)).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Why this much protein? Why so much protein?'));
+    expect(screen.getByText(/Your target of 170 g adds a margin/)).toBeTruthy();
   });
 
   it('shows the targets only as the editable fields: the read-only tiles stay off this screen', async () => {
@@ -206,6 +211,7 @@ describe('TargetsScreen', () => {
       await waitFor(async () => expect((await loadSettings(db))?.focus).toEqual(['chest', 'lats', 'abs']));
       expect(await screen.findByText('Focus: chest, lats and abs')).toBeTruthy();
       expect(screen.getByText(/Training abs builds them/)).toBeTruthy();
+      expect(screen.getByLabelText('Why? How many sets per muscle?')).toBeTruthy();
       expect(screen.getByText(/aim for about 12–16 weekly sets/)).toBeTruthy();
       await fireEvent.press(screen.getByLabelText('Hamstrings'));
       expect(await screen.findByText('Up to 3 focus muscles. Remove one first.')).toBeTruthy();

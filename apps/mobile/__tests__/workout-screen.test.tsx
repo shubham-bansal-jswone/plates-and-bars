@@ -203,6 +203,8 @@ describe('Workout tab: preview and Start', () => {
     await screen.findByText('Push B day');
     await press('Sleep last night: Poor');
     expect(screen.getByText(/Lighter session suggested/)).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why a lighter session after poor sleep?')).toBeTruthy();
+    expect(screen.queryByLabelText('Why? Is soreness a sign of a good workout?')).toBeNull();
     await press('Lighter session');
     expect(screen.getByText(/2 sets each/)).toBeTruthy();
     await press('Start Push B');
@@ -210,6 +212,14 @@ describe('Workout tab: preview and Start', () => {
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ ci_choice: 'light', mods: { light: true } });
     expect(storedSets(db)).toHaveLength(10);
     expect(screen.getByText(/Today: lighter session/)).toBeTruthy();
+  });
+
+  it('very sore muscles link the soreness card instead of the sleep card', async () => {
+    await setup();
+    await screen.findByText('Push B day');
+    await press('Soreness in today’s muscles: Very sore');
+    expect(screen.getByLabelText('Why? Is soreness a sign of a good workout?')).toBeTruthy();
+    expect(screen.queryByLabelText('Why? Why a lighter session after poor sleep?')).toBeNull();
   });
 
   it('a short check-in time keeps only the main exercises', async () => {
@@ -296,6 +306,7 @@ describe('Workout tab: logging sets', () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.
     expect(screen.getByText('Suggested: 62.5 kg × 6–10 reps')).toBeTruthy();
+    expect(screen.getAllByLabelText('Why? How the suggested weight is chosen').length).toBeGreaterThan(0);
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
     expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
@@ -346,6 +357,7 @@ describe('Workout tab: logging sets', () => {
   it('rating a set stores it and adjusts the next target (Easy adds a step)', async () => {
     const db = await started();
     await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getAllByLabelText('Why? Why rate how each set felt?').length).toBeGreaterThan(0);
     await press('Barbell Bench Press set 1: Easy');
     await waitFor(() => expect(storedSets(db).find((s) => s.rate)?.rate).toBe('easy'));
     expect(placeholder('Barbell Bench Press set 2 kg')).toBe('65');
