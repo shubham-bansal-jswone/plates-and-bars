@@ -288,10 +288,10 @@ function resolveWith(
  * A swap or pick that ends on a name in `taken` is passed over (#143): a swapped exercise that is not
  * excluded takes its best candidate leaving out `taken`; an excluded one goes on to its pick, then its
  * best candidate. A swap whose bridge is still running is not passed over (the old exercise stays as
- * its bridge, as in the prototype).
+ * its bridge).
  *
- * Mirrors prototype `resolveName(name, where, depth, taken)`, plus the #143 pass-over (decided; the
- * prototype follows in the next spec-change batch); leaving `taken` out ignores the session.
+ * Mirrors prototype `resolveName(name, where, depth, taken)`, with the #143 pass-over (its `false`, no
+ * candidate left, is returned as `null`); leaving `taken` out ignores the session.
  */
 export function resolveName(name: string, where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>, taken: readonly string[] = []): string | null {
   const r = resolveWith(name, where, state, replFromSwaps(state.swaps), catalog, 0, taken);
@@ -322,14 +322,13 @@ export interface ResolvedSession {
  * passed over the same way, and that slot takes the next-best candidate, else is `lost` (#143): a name
  * the template holds as it is wins, then earlier slots. A name repeated in `names` is one exercise. A
  * swap whose bridge is still running is not passed over: its target shows once and the old exercise
- * stays as its bridge, as in the prototype (decided on #143).
+ * stays as its bridge (decided on #143).
  * `catalog.tags` must already include custom-exercise tags (contract `ExerciseTags`), merged in by the
  * caller as prototype `applyCustomTags` does; otherwise a custom exercise only matches `exercise`
  * rules and gets no replacement.
  *
- * Mirrors prototype `resolveSession(names, where, lost)`, `lost` returned instead of filled in, plus
- * the #143 pass-over (decided; the prototype drops such a slot with no note and follows in the next
- * spec-change batch).
+ * Mirrors prototype `resolveSession(names, where, lost)`, `lost` returned instead of filled in, with
+ * the #143 pass-over.
  */
 export function resolveSessionWithLost(names: readonly string[], where: Where, state: ResolveState, catalog: Pick<ExerciseCatalog, 'tags' | 'away_map'>): ResolvedSession {
   const repl = replFromSwaps(state.swaps);

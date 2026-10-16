@@ -68,6 +68,7 @@ On the dark canvas, filled buttons keep `brand` with white text. Any blue used a
 |---|---|---|---|
 | `danger` | `#C81B3A` | `#FF6B81` | Errors, destructive actions (as text or icon, not as a fill) |
 | `caution` | `#C2410C` | `#FB923C` | Over target, low coverage, stale data |
+| `bar` | `#2457E6` | `#6F95FF` | Fill of goal bars on `track` that are not macro bars: water, the Seven-days chart, set volume, the rest timer |
 | `macro-protein` | `#2457E6` | `#6F95FF` | Protein bars, rings, legend dots |
 | `macro-carbs` | `#0E8F8E` | `#2DD4BF` | Carbs bars, rings, legend dots |
 | `macro-fat` | `#C86D06` | `#F5B53D` | Fat bars, rings, legend dots |
@@ -78,6 +79,7 @@ Rules:
 - Macro colours are **data marks only** (bars, ring segments, dots, small icons). Macro numbers and labels are written in `ink` or `body`, with the colour in a dot or bar beside them. Light-mode carbs and fat do not reach 4.5:1 as text and must not be used for it.
 - Colour never carries meaning alone: a status also has a word or an icon ("Over by 120 kcal", a warning glyph), and macros are always labelled.
 - Protein shares the brand blue in light mode on purpose; it is the macro the app pushes hardest.
+- `bar` equals `brand` in light mode. In dark mode `brand` on `track` is only 2.42:1, so goal bars use the lighter `#6F95FF` (the dark protein value) to reach 3:1.
 
 ## 4. Typography
 
@@ -200,7 +202,8 @@ All buttons are pills (`radius-full`), minimum height 48, horizontal padding 24,
 ### 8.5 Progress bars and meters
 
 - Bar height 8, `radius-full`, `track` behind the fill.
-- Fill colour is the macro colour for macro bars, `brand` for other goals, `caution` once a value passes its target.
+- Fill colour is the macro colour for macro bars, `bar` for other goals (water, the Seven-days chart, set volume, the rest timer), `caution` once a value passes its target. These goal bars do not use `brand`, which is below 3:1 on the dark `track`.
+- The Seven-days chart draws its fill at 0.85 opacity; the blended colour still meets 3:1 on `track` (section 11.3).
 - Ring meters: stroke 8, same colours, `track` for the unfilled arc.
 - Always print the numbers next to the bar (`ink` value, `muted` target); the bar is a picture of the number, not a replacement for it.
 
@@ -296,9 +299,13 @@ Changes from issue #179:
 - Macro colours are restricted to non-text marks: light carbs (3.67:1) and fat do not reach 4.5:1 as text.
 - Website breakpoints are given as exact mobile-first `min-width` edges (480, 768, 1024); the hero's 32 step is kept as a hero-only size.
 
+Later changes:
+
+- 2026-10-17: new `bar` token (light `#2457E6`, same as `brand`; dark `#6F95FF`) for goal-bar fills on `track` (#504, #591, #598). Dark `brand` on `track` was 2.42:1 solid and 2.08:1 at 0.85 opacity, below 3:1.
+
 ### 11.3 Results
 
-L = light mode, D = dark mode.
+L = light mode, D = dark mode. A row at 0.85 opacity lists the blended colour (fill over `track`) as its foreground.
 
 | Pair | Foreground | Background | Ratio | Needs | Result |
 |---|---|---|---|---|---|
@@ -325,6 +332,8 @@ L = light mode, D = dark mode.
 | L text: toast, white on ink | `#FFFFFF` | `#000000` | 21.00:1 | 4.5:1 | pass |
 | L text: toast action, link-dark on ink | `#8AB0FF` | `#000000` | 9.73:1 | 4.5:1 | pass |
 | L non-text: protein on track | `#2457E6` | `#E6E8EC` | 4.78:1 | 3:1 | pass |
+| L non-text: bar on track | `#2457E6` | `#E6E8EC` | 4.78:1 | 3:1 | pass |
+| L non-text: bar at 0.85 opacity on track (Seven-days) | `#416DE7` | `#E6E8EC` | 3.75:1 | 3:1 | pass |
 | L non-text: carbs on track | `#0E8F8E` | `#E6E8EC` | 3.21:1 | 3:1 | pass |
 | L non-text: fat on track | `#C86D06` | `#E6E8EC` | 3.03:1 | 3:1 | pass |
 | L non-text: protein on surface | `#2457E6` | `#F5F7FA` | 5.46:1 | 3:1 | pass |
@@ -363,6 +372,8 @@ L = light mode, D = dark mode.
 | D text: toast, black on white | `#000000` | `#FFFFFF` | 21.00:1 | 4.5:1 | pass |
 | D text: toast action, link-light on white | `#1D48C2` | `#FFFFFF` | 7.61:1 | 4.5:1 | pass |
 | D non-text: protein on track | `#6F95FF` | `#2A2B2D` | 5.01:1 | 3:1 | pass |
+| D non-text: bar on track | `#6F95FF` | `#2A2B2D` | 5.01:1 | 3:1 | pass |
+| D non-text: bar at 0.85 opacity on track (Seven-days) | `#6585E0` | `#2A2B2D` | 4.04:1 | 3:1 | pass |
 | D non-text: carbs on track | `#2DD4BF` | `#2A2B2D` | 7.61:1 | 3:1 | pass |
 | D non-text: fat on track | `#F5B53D` | `#2A2B2D` | 7.80:1 | 3:1 | pass |
 | D non-text: protein on surface | `#6F95FF` | `#181818` | 6.27:1 | 3:1 | pass |
@@ -380,4 +391,4 @@ L = light mode, D = dark mode.
 | D non-text: focus (link-dark) on surface-elevated (light and soft bands) | `#8AB0FF` | `#121314` | 8.62:1 | 3:1 | pass |
 | D non-text: focus (white) on blue band / brand fill | `#FFFFFF` | `#2457E6` | 5.86:1 | 3:1 | pass |
 
-77 pairs, 0 failing
+81 pairs, 0 failing
