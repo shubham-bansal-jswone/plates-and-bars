@@ -128,7 +128,7 @@ export interface paths {
          *     device last saw for that record (0 for a record the server has never seen). The
          *     server applies a record only when that version matches the stored one, then stores
          *     it as `version + 1`. Every pushed record appears in exactly one of `applied` or
-         *     `conflicts` in the response.
+         *     `conflicts` in the 200 response. A refused request (any 4xx) applies nothing.
          *
          *     **Conflicts.** On a version mismatch the edit with the later `updated_at` wins for
          *     the whole record (ties go to the server). The losing copy is kept in the server's
@@ -199,6 +199,38 @@ export interface paths {
          *     wire conventions). A `too_large` rejection names no record, so the client keeps
          *     each request under 2 MB, sending fewer records per request when needed.
          *     `updated_at` values more than 5 minutes in the future are clamped to server time.
+         *
+         *     **Account record cap.** Each account stores at most `limit` records across all
+         *     synced tables. Every stored record counts once, tombstones included (they stay
+         *     stored so a delete reaches every device). The conflict log does not count; it is
+         *     bounded on its own (see Conflict log retention). `limit` is server configuration,
+         *     the same for every account and set far above what years of real logging reach. The
+         *     app reads it from the error body and never hard-codes it.
+         *     - A pushed record is new when the server does not store its id yet, whatever
+         *       `version` the device sent. Edits, deletes and idempotent retries of stored
+         *       records never add a record, so a push without new records is never refused
+         *       for the cap, and neither is a pull-only request (`changes: {}`).
+         *     - When the stored count plus the new records in the push would exceed `limit`, the
+         *       server refuses the whole request with 413 `account_full` and a `record_cap` body.
+         *       Nothing is applied, nothing is pulled, the cursor does not move and nothing is
+         *       added to the conflict log. There is no partial apply.
+         *     - Checks run in this order: body size (400 `too_large`), access token (401),
+         *       rate limit (429), request validation including natural-key ids (400), then the
+         *       cap (413). A 413 `account_full` therefore means the request was otherwise valid.
+         *     - The count and the apply happen in one transaction, serialised per account, so
+         *       concurrent pushes from two devices cannot overrun the cap.
+         *
+         *     **App on 413 `account_full`.** The app keeps every pending change on the device
+         *     and never drops one. It tells the user that the account is full and that new
+         *     entries stay on this device and are not backed up. Until the limit changes it keeps
+         *     syncing without the records that would be new: it pushes only pending records with
+         *     `version` greater than 0 (edits and deletes of records already synced), and pulls
+         *     as usual. It may also push up to `limit - stored` of the held records in one
+         *     request. It retries the rest on the next app launch and at most once a day while
+         *     the app stays open, because the limit can be raised without an app release. A 413
+         *     is `account_full` only when its body is an `Error` with that code. A 413 with
+         *     any other body, for example from a proxy that refuses a large body, is the body
+         *     size refusal, handled like `too_large`.
          */
         post: operations["sync"];
         delete?: never;
@@ -617,11 +649,12 @@ export interface components {
              *     or expired. `not_found` (404): the named resource does not exist; today only
              *     `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
              *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
-             *     the server; use the non-AI fallback. Clients treat an unknown code like
-             *     `internal`.
+             *     the server; use the non-AI fallback. `account_full` (413, `POST /sync` only):
+             *     the push would take the account over its record cap; nothing was applied (see
+             *     `record_cap`). Clients treat an unknown code like `internal`.
              * @enum {string}
              */
-            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled";
+            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled" | "account_full";
             /** @description Plain-language message safe to show the user. Never contains health data. */
             message: string;
             /** @description Per-field problems, for `invalid_request`. */
@@ -632,6 +665,23 @@ export interface components {
             }[];
             /** @description The daily AI quota, present only with `quota_exceeded`. */
             quota?: components["schemas"]["AiQuota"];
+            /** @description The account's record cap, present only with `account_full`. */
+            record_cap?: components["schemas"]["RecordCap"];
+        };
+        /**
+         * @description Why a push was refused with `account_full`: `stored + new_records` is over
+         *     `limit`. See `POST /sync`, Account record cap.
+         */
+        RecordCap: {
+            /**
+             * @description The most records one account may store, across all synced tables, tombstones
+             *     included. Server configuration; the app never hard-codes it.
+             */
+            limit: number;
+            /** @description Records the account stores now, tombstones included. */
+            stored: number;
+            /** @description Records in the refused push whose ids the server does not store yet. */
+            new_records: number;
         };
         /**
          * Format: date
@@ -1689,6 +1739,18 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description The push would take the account over its record cap (see `POST /sync`, Account
+         *     record cap). The whole request was refused: nothing applied, nothing pulled.
+         */
+        AccountFull: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Unexpected server error. */
         Internal: {
             headers: {
@@ -1904,6 +1966,7 @@ export interface operations {
             };
             400: components["responses"]["InvalidRequest"];
             401: components["responses"]["Unauthorized"];
+            413: components["responses"]["AccountFull"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
         };
