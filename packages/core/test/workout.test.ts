@@ -18,7 +18,7 @@ import {
   type Where,
 } from '../src/index';
 import { goldenCatalog, metaTable, rng, shortTag } from './prototype-plan';
-import { prototypeSource, sliceBlock, sliceLine } from './helpers';
+import { prototypeSource, sliceBlock, sliceTrimmedLine } from './helpers';
 import { loadWorkout } from './prototype-workout';
 
 // No golden fixture covers these rules; they are checked against the prototype's own functions
@@ -181,7 +181,7 @@ describe('find-your-weight guide after "I know my weight" (#139)', () => {
       'const setTarget = () => ({ w:"", r:"" }), feelHtml = () => "", saveDay = () => {}, render = () => {};',
       sliceBlock(src, 'function exerciseCard(ex, i){', '}'),
       'function act(a, ex){ switch(a){',
-      sliceLine(src, "    case 'ramp-skip': "),
+      sliceTrimmedLine(src, "case 'ramp-skip': "),
       '} }',
       'return { exerciseCard, act };',
     ].join('\n'),
