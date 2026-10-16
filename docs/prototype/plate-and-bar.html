@@ -2675,7 +2675,7 @@ function weightSlope(end, span){
   return { n:e.length, slope: den ? num_/den : 0 };
 }
 function adaptiveBurn(days){
-  const last14 = days.slice(-14), logged = last14.filter(d => d.day.meals.length && dayComplete(d.day));
+  const last14 = days.slice(-14), logged = last14.filter(d => d.day.meals.length && dayComplete(d.day, d.date));
   const ws = weightSlope(S.date, 21);
   const needDays = Math.max(0, 10 - logged.length), needW = Math.max(0, 6 - ws.n);
   if(needDays || needW) return { ready:false, needDays, needW };
@@ -3519,9 +3519,10 @@ function fibreHtml(){
 }
 
 /* ---------- complete days for the real-burn estimate ---------- */
-function dayComplete(d){
+function dayComplete(d, date){
   if(d.complete) return true;
   if(d.complete === false) return false;
+  if(date >= TODAY()) return false; // today (or a later day) is complete only by the tick
   const t = totals(d.meals); return d.meals.length >= 3 && t.kcal >= S.settings.kcal*0.75; // older days: only fairly full logs count
 }
 function completeHtml(){
