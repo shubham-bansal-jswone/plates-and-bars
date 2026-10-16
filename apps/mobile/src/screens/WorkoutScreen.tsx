@@ -7,7 +7,7 @@ import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, Field, H1, Heading, Hint, Note, Page, Press, a11yState } from '../components/ui';
+import { Button, Card, H1, Heading, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
 import { useProfile } from '../state/ProfileProvider';
@@ -22,6 +22,7 @@ import { CustomTagsSheet } from '../workout/CustomTagsSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
+import { CardioField } from '../workout/CardioField';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -358,7 +359,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
       ) : null}
       <Card>
         <Heading level={3} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>Cardio</Heading>
-        <Field label="Cardio minutes" keyboardType="number-pad" maxLength={4} placeholder="0" value={wk.cardio_min == null ? '' : String(wk.cardio_min)} onChangeText={w.setCardio} />
+        <CardioField value={wk.cardio_min} onSave={w.setCardio} />
         <Hint>minutes (walk, cycle, incline treadmill)</Hint>
       </Card>
       <View style={{ height: 120 }} />
