@@ -17,7 +17,7 @@ const profile = buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'c
 /** A built session on screen and stored, then a pull stores a different version of its rows before the hook reloads. */
 async function started() {
   const db = await openDb();
-  const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+  const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
   const view = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
   await waitFor(() => expect(view.result.current.day.ready).toBe(true));
   await act(async () => void (await view.result.current.start('Upper A', {}, null)));
@@ -68,7 +68,7 @@ describe('an edit made before the reload keeps what a sync pull stored (#302)', 
   it('a session started after an older tombstone was pulled is stored live, on the tombstone\'s version', async () => {
     const shape = (await loadWorkout((await started()).db, DATE))!;
     const db = await openDb();
-    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
     await waitFor(() => expect(result.current.day.ready).toBe(true));
     // Pulled after the screen loaded an empty day; deleted a day before the session starts in any timezone.
@@ -86,7 +86,7 @@ describe('a workout deleted on another device (#408)', () => {
     const shape = (await loadWorkout((await started()).db, DATE))!;
     const db = await openDb();
     await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-07T09:00:00Z', updated_at: '2026-10-07T09:00:00Z' });
-    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
     await waitFor(() => expect(result.current.day.ready).toBe(true));
     expect(result.current.day.workout).toBeNull();
@@ -105,7 +105,7 @@ describe('a workout deleted on another device (#408)', () => {
     const db = await openDb();
     await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-07T09:00:00Z', updated_at: '2026-10-07T09:00:00Z' });
     for (const st of oldSets) await saveSet(db, DATE, st); // the deleting device did not tombstone them
-    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const view = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(view.result.current.day.ready).toBe(true));
     await act(async () => void (await view.result.current.start('Upper A', {}, null)));
@@ -149,7 +149,7 @@ describe('a workout deleted on another device (#408)', () => {
     const shape = (await loadWorkout((await started()).db, DATE))!;
     const db = await openDb();
     await saveWorkout(db, { ...shape, version: 6, deleted_at: '2026-10-09T09:59:59Z', updated_at: '2026-10-09T09:59:59Z' });
-    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
     await waitFor(() => expect(result.current.day.ready).toBe(true));
     await act(async () => void (await result.current.start('Upper A', {}, null)));
@@ -260,7 +260,7 @@ describe('a workout row changed elsewhere after the screen loaded (#410)', () =>
 
   it('opened over a stored session (no start here), a rule saved on Targets survives the next write', async () => {
     const { db } = await started();
-    const opts = { db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
     await waitFor(() => expect(result.current.day.exs.length).toBeGreaterThan(0));
     await applyCantToStoredDay({ db, date: DATE, now: NOW, draft: { name: 'Machine Chest Press', reason: 'pain', dur: 'perm', scope: 'joint', key: 'shoulder' }, choice: null, exclusions: [], fallbackWhere: 'gym', onError: jest.fn() });
