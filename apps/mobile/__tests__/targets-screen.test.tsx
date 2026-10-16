@@ -55,6 +55,18 @@ describe('TargetsScreen', () => {
     expect(screen.getByText('You burn about 2,493 kcal a day')).toBeTruthy();
   });
 
+  it('opens the Why card with the person\'s numbers, its evidence and source, and closes it', async () => {
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await fireEvent.press(await screen.findByLabelText('Why these numbers? Why these calorie and macro targets?'));
+    expect(screen.getByText(/Your target is 1,990 kcal\./)).toBeTruthy();
+    expect(screen.getByText(/^Evidence: Moderate\./)).toBeTruthy();
+    expect(screen.getByText(/^Source: Mifflin et al\., 1990/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Close'));
+    expect(screen.queryByText(/^Evidence: /)).toBeNull();
+  });
+
   it('offers the doctor card and notes when a health answer is yes, and home-plan note off the gym', async () => {
     const db = memoryDb();
     const p = { ...goldenProfile(), screen: ['yes', 'no', 'no', 'no', 'no', 'no'] as const, where: 'bodyweight' as const };

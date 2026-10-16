@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
@@ -181,6 +182,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
                   Lighter session suggested. With {flags.reasons.map((r) => REASON_TEXT[r]).join(' and ')}, keep the same exercises with 1 fewer set each and no weight increases today.
                   {flags.swapTo ? ` Or swap with ${flags.swapTo}, which uses different muscles.` : ''}
                 </Note>
+                <WhyLink id={flags.reasons.includes('sore') ? 'soreness' : 'sleep'} />
                 <View style={styles.wrap}>
                   <Chip label="Lighter session" pressed={choice === 'light'} onPress={() => setChoice('light')} />
                   {flags.swapTo ? <Chip label={`Swap with ${flags.swapTo}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}

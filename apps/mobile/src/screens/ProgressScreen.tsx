@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, View } from 'react-native';
 import { round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
@@ -99,10 +100,12 @@ function WeightSection({ p }: { p: Progress }) {
         </Card>
       ))}
       <Hint>{WEIGHT_HINT}</Hint>
+      <WhyLink id="scale" />
       {p.scaleJump ? (
         <Card accessibilityRole="alert">
           <Text style={{ color: c.ink, fontWeight: '700' }}>{SCALE_JUMP_TITLE(round1(p.scaleJump.kg))}</Text>
           <Hint>{SCALE_JUMP_BODY}</Hint>
+          <WhyLink id="scale" />
           <Button label="Got it" onPress={p.dismissJump} />
         </Card>
       ) : null}

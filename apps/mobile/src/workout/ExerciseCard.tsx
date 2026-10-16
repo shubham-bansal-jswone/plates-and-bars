@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
@@ -163,6 +164,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards }: Props) 
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
           <Text style={{ color: c.ink, fontWeight: '700' }}>Suggested: {sug.text}</Text>
           <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
+          <WhyLink id="progression" />
         </View>
       ) : null}
       {warm ? (
