@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { WhyLink } from '../why/WhyLink';
 import { CARDIO_WEEK_MIN, RAPID_LOSS_KCAL, round1 } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Card, Hint } from '../components/ui';
@@ -118,6 +119,7 @@ export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
         <Stat big={String(h.weeks)} label="on-track weeks in a row" />
       </View>
       <Hint>{h.message === 'streak' ? HABIT_MESSAGE.streak(h.weeks, h.goal) : HABIT_MESSAGE[h.message]}</Hint>
+      <WhyLink id="habits" />
     </View>
   );
 }

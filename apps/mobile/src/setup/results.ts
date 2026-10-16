@@ -11,6 +11,8 @@ export interface Results {
   pace: string;
   rows: [label: string, kcal: number][];
   notes: string[];
+  /** Which note each is, so the screen can link a Why card (`home_*`, `older`). */
+  noteKeys: SetupNote[];
 }
 
 export function buildResults(p: Profile): Results {
@@ -45,6 +47,7 @@ export function buildResults(p: Profile): Results {
       ['Digestion', r.digestion],
     ],
     notes: s.notes.map((n) => copy[n]),
+    noteKeys: s.notes,
   };
 }
 

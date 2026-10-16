@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { WhyLink } from '../why/WhyLink';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
@@ -182,6 +183,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
       </Group>
       <View style={layout.field}>
         <Label>Quick health check</Label>
+        <WhyLink id="screening" />
         {SCREEN_Q.map((q, i) => (
           <View key={q} style={{ gap: 6, marginBottom: 8 }}>
             <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{q}</Text>

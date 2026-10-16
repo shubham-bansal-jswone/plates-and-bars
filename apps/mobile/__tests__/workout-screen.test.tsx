@@ -315,6 +315,9 @@ describe('Workout tab: logging sets', () => {
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
     expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Why these exercises? How your sessions are built')).toBeTruthy();
   });
 
   it('ticking an empty set takes the target, writes the set and the lift stat, and starts the rest timer', async () => {
