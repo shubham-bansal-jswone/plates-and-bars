@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
@@ -45,6 +45,7 @@ export interface RestState {
   label: string;
 }
 
+const REST_DONE = 'Rest done, go!';
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 /** Rest timer bar (prototype `#restbar`): counts down, +30 s, skip. */
@@ -61,6 +62,11 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
     return () => clearInterval(id);
   }, []);
   const left = Math.max(0, Math.round((rest.end - nowMs) / 1000));
+  // iOS has no live regions (and skips the transparent text below), so it is told once each time the timer ends, and keeps the visible text.
+  const ended = left === 0;
+  useEffect(() => {
+    if (ended && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(REST_DONE);
+  }, [ended]);
   const pct = Math.min(100, (1 - left / rest.total) * 100);
   return (
     // The outer layer is opaque and runs to the screen edge, so the page behind never shows through the gap around the panel.
@@ -68,13 +74,14 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
       <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
         <View style={styles.restRow}>
           <View style={{ flexShrink: 1 }}>
-            {/* At zero the visible "Rest done, go!" is hidden from assistive tech: the live region below says it, so a swipe through
-                the bar does not read it twice. While counting, the text stays readable. */}
-            <Text testID="rest-title" aria-hidden={left ? undefined : true} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>{left ? `Rest ${mmss(left)}` : 'Rest done, go!'}</Text>
+            {/* At zero on Android and web the visible "Rest done, go!" is hidden from assistive tech: the live region below says it,
+                so a swipe through the bar does not read it twice. On iOS the live region does not speak and its transparent text is
+                skipped, so the visible text stays readable there. While counting, the text stays readable everywhere. */}
+            <Text testID="rest-title" aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>{left ? `Rest ${mmss(left)}` : REST_DONE}</Text>
             {/* Screen readers only announce a live region whose text changes after it is mounted. This one is mounted empty with
                 the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second.
                 srOnly hides it visually only: no display: none and no aria-hidden, which would silence the region. */}
-            <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : 'Rest done, go!'}</Text>
+            <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : REST_DONE}</Text>
             <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
           </View>
           <View style={styles.restBtns}>
