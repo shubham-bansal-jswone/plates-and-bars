@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Fails if a header in apps/site/public/_headers is missing from, or differs in, infra/caddy/Caddyfile.site.
-# (Caddy ignores _headers; the site CSP and security headers are kept in both places.)
+# Fails if a header in apps/site/public/_headers is missing from, or differs in, infra/caddy/Caddyfile.site
+# (Caddy ignores _headers; the site CSP and security headers are kept in both places), or if the header block of
+# infra/caddy/Caddyfile.api no longer sets Strict-Transport-Security.
 # Usage: infra/scripts/check-caddy-headers.sh   (from anywhere)
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 headers="$root/apps/site/public/_headers"
 caddy="$root/infra/caddy/Caddyfile.site"
+caddy_api="$root/infra/caddy/Caddyfile.api"
 
 # "  Name: value" in _headers -> "name|value"
 want="$(sed -n 's/^[[:space:]][[:space:]]*\([A-Za-z-][A-Za-z-]*\):[[:space:]]*\(.*[^[:space:]]\)[[:space:]]*$/\1|\2/p' "$headers" | awk -F'|' '{ n=tolower($1); sub(/^[^|]*\|/, ""); print n "|" $0 }')"
@@ -17,11 +19,16 @@ have="$(awk '/^[[:space:]]*header[[:space:]]*\{/ {on=1; next} on && /^[[:space:]
   | awk -F'|' '{ n=tolower($1); sub(/^[^|]*\|/, ""); v=$0; if (v ~ /^".*"$/) v=substr(v,2,length(v)-2); print n "|" v }')"
 
 status=0
+if ! awk '/^[[:space:]]*header[[:space:]]*\{/ {on=1; next} on && /^[[:space:]]*\}/ {on=0} on {print}' "$caddy_api" \
+  | grep -Eq '^[[:space:]]*Strict-Transport-Security[[:space:]]+"?max-age=[0-9]+'; then
+  echo "::error::infra/caddy/Caddyfile.api no longer sets Strict-Transport-Security in its header block"
+  status=1
+fi
 while IFS= read -r line; do
   if ! printf '%s\n' "$have" | grep -qxF -- "$line"; then
     echo "::error::infra/caddy/Caddyfile.site is missing or differs from apps/site/public/_headers for: ${line%%|*}"
     status=1
   fi
 done <<< "$want"
-[ "$status" = 0 ] && echo "Caddyfile.site matches _headers ($(printf '%s\n' "$want" | wc -l | tr -d ' ') headers)"
+[ "$status" = 0 ] && echo "Caddyfile.site matches _headers, Caddyfile.api sets HSTS ($(printf '%s\n' "$want" | wc -l | tr -d ' ') headers)"
 exit "$status"

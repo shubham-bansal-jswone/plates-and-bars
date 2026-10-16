@@ -20,6 +20,7 @@ on:
       - 'infra/caddy/**'
       - 'apps/site/public/_headers'
       - 'infra/scripts/check-caddy-headers.sh'
+      - 'infra/scripts/test-check-caddy-headers.sh'
       - '.github/workflows/site-deploy.yml'
   workflow_dispatch:
 
@@ -46,8 +47,12 @@ jobs:
             echo "== $f"
             docker run --rm -v "$PWD/infra/caddy:/c:ro" caddy:2.11.7 caddy validate --config "/c/$f" --adapter caddyfile
           done
-      - name: site headers match apps/site/public/_headers
+      - name: site headers match apps/site/public/_headers, API Caddyfile keeps HSTS
         run: infra/scripts/check-caddy-headers.sh
+      - name: header drift check catches drift (test)
+        run: |
+          shellcheck infra/scripts/check-caddy-headers.sh infra/scripts/test-check-caddy-headers.sh
+          infra/scripts/test-check-caddy-headers.sh
 
   build:
     name: build site
