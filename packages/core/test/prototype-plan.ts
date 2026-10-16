@@ -1,4 +1,4 @@
-import type { ExerciseCatalog, ExerciseTag } from '../src/index';
+import type { ExerciseCatalog, ExerciseTag, ExType } from '../src/index';
 import { loadGolden, prototypeSource, sliceBlock, sliceLine } from './helpers';
 
 /** A tag as the prototype and golden/exercises.json write it (prototype `TG`). */
@@ -42,7 +42,7 @@ export function goldenCatalog(): ExerciseCatalog {
   const g = goldenExercises();
   const tags = Object.fromEntries(Object.entries(g.tags).map(([n, t]) => [n, longTag(t)]));
   const metaTable = loadGolden<{ exerciseMeta: MetaTable }>('progression').exerciseMeta;
-  const meta = Object.fromEntries(Object.entries(metaTable).map(([n, [type, rep_low, rep_high]]) => [n, { type, rep_low, rep_high }]));
+  const meta = Object.fromEntries(Object.entries(metaTable).map(([n, [type, rep_low, rep_high]]) => [n, { type: type as ExType, rep_low, rep_high }]));
   return { tags, meta, cards: g.cards, away_map: { dumbbells_bodyweight: g.awayMap_dumbbells_bodyweight } };
 }
 

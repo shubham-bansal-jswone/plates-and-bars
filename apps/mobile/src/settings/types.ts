@@ -1,4 +1,4 @@
-import { DEFAULT_WATER_SIZES, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
+import { DEFAULT_WATER_SIZES, type ExType, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
 /**
@@ -19,7 +19,7 @@ export interface Settings extends Omit<SyncMeta, 'id'> {
   custom_tags: Record<string, unknown>;
   diet: 'any' | 'egg' | 'veg';
   water_sizes: { glass_ml: number; bottle_ml: number };
-  exercise_overrides: Record<string, { type: string; step_kg: number; rep_low: number; rep_high: number }>;
+  exercise_overrides: Record<string, { type: ExType; step_kg: number; rep_low: number; rep_high: number }>;
   flex: FlexEntry[];
   returning: Record<string, { until: string }>;
   ladder_stay: Record<string, string>;
