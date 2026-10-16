@@ -8,6 +8,7 @@ import { quarantine } from './quarantine';
 import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { deleteKitchenPhoto } from '../photos/vault';
 
 export type SyncDb = WorkoutDb & PullDb;
 
@@ -382,10 +383,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           continue;
         }
         conflicts++;
+        let adopted = false;
         await settle(d.db, s.entry, guard, async (txn, clean) => {
-          if (clean) await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
-          else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
+          if (clean) {
+            await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
+            adopted = true;
+          } else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
         });
+        // The server's copy of a kitchen test is a tombstone and now stands here: its vault photo goes too.
+        if (adopted && s.entry.tbl === 'kitchen_tests' && server.deleted_at) await deleteKitchenPhoto(s.entry.key).catch(() => undefined);
       }
       const p = await pull(d.db, res.changes as unknown as Record<string, Doc[]>, ctx, guard);
       pulled += p.stored;
@@ -420,7 +426,11 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
         if (await applyPulled(db, tbl, key, async (txn) => {
           await guard(txn);
           await storeRecord(txn, tbl, rec, setDate);
-        })) stored++;
+        })) {
+          stored++;
+          // A kitchen test deleted on another device: its serving photo (vault only) goes too, whatever the flag said here.
+          if (tbl === 'kitchen_tests' && rec.deleted_at) await deleteKitchenPhoto(key).catch(() => undefined);
+        }
         if (tbl === 'workouts') ctx.dates?.set(String(rec.id), key);
       } catch (e) {
         if (!(e instanceof InvalidRecord)) throw e;

@@ -1,6 +1,8 @@
+import { AccessibilityInfo } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { KitchenTestScreen } from '../src/screens/KitchenTestScreen';
 import { loadKitchenTests } from '../src/db/kitchenTests';
+import { PHOTO_HINT, PHOTO_HINT_WEB } from '../src/kitchen/copy';
 import { CameraDenied, capturePhoto } from '../src/photos/capture';
 import { deleteKitchenPhoto, putKitchenPhoto } from '../src/photos/vault';
 import { memoryDb } from './helpers';
@@ -8,7 +10,14 @@ import { memoryDb } from './helpers';
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 jest.mock('../src/photos/capture', () => ({ capturePhoto: jest.fn(), CameraDenied: class CameraDenied extends Error {} }));
-jest.mock('../src/photos/vault', () => ({ putKitchenPhoto: jest.fn(() => Promise.resolve()), deleteKitchenPhoto: jest.fn(() => Promise.resolve()) }));
+let mockPersistent = true;
+jest.mock('../src/photos/vault', () => ({
+  get persistent() {
+    return mockPersistent;
+  },
+  putKitchenPhoto: jest.fn(() => Promise.resolve()),
+  deleteKitchenPhoto: jest.fn(() => Promise.resolve()),
+}));
 jest.mock('../src/sync/guard', () => ({ withPhotosSettled: (_db: unknown, f: () => Promise<unknown>) => f() }));
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
@@ -28,7 +37,10 @@ async function open() {
   return db;
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockPersistent = true;
+});
 
 describe('Kitchen test serving photo', () => {
   it('goes to the vault on save and only the flag is stored', async () => {
@@ -80,5 +92,58 @@ describe('Kitchen test serving photo', () => {
     const id = (await loadKitchenTests(db))[0]!.id;
     await fireEvent.press(await screen.findByLabelText('Delete Dal'));
     await waitFor(() => expect(deleteKitchenPhoto).toHaveBeenCalledWith(id));
+  });
+
+  it('says the photo stays on this device where the vault is persistent', async () => {
+    await open();
+    expect(screen.getByText(PHOTO_HINT)).toBeTruthy();
+  });
+
+  it('on web, says the photo is for this tab only and does not set has_photo', async () => {
+    mockPersistent = false;
+    capture.mockResolvedValue('JPEG64');
+    const db = await open();
+    expect(screen.getByText(PHOTO_HINT_WEB)).toBeTruthy();
+    expect(screen.queryByText(PHOTO_HINT)).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Take a photo of the serving'));
+    await screen.findByText('Photo added');
+    await fireEvent.press(screen.getByLabelText('Save test'));
+    await waitFor(async () => expect(await loadKitchenTests(db)).toHaveLength(1));
+    expect((await loadKitchenTests(db))[0]?.has_photo).toBe(false);
+  });
+
+  it('deletes the photo whatever the local flag says', async () => {
+    const db = await open();
+    await fireEvent.press(screen.getByLabelText('Save test'));
+    await waitFor(async () => expect((await loadKitchenTests(db))[0]?.has_photo).toBe(false));
+    const id = (await loadKitchenTests(db))[0]!.id;
+    await fireEvent.press(await screen.findByLabelText('Delete Dal'));
+    await waitFor(() => expect(deleteKitchenPhoto).toHaveBeenCalledWith(id));
+  });
+
+  it('announces "Photo added" to screen readers', async () => {
+    capture.mockResolvedValue('JPEG64');
+    const spy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => undefined);
+    await open();
+    await fireEvent.press(screen.getByLabelText('Take a photo of the serving'));
+    await screen.findByText('Photo added');
+    expect(spy).toHaveBeenCalledWith('Photo added');
+    spy.mockRestore();
+  });
+
+  it('removes the new photo when the record save fails afterwards', async () => {
+    capture.mockResolvedValue('JPEG64');
+    const db = await open();
+    const real = db.runAsync.bind(db);
+    jest.spyOn(db, 'runAsync').mockImplementation(async (sql: string, ...a: (string | number)[]) => {
+      if (/INSERT OR REPLACE INTO kitchen_tests/.test(sql)) throw new Error('disk full');
+      return real(sql, ...a);
+    });
+    await fireEvent.press(screen.getByLabelText('Take a photo of the serving'));
+    await screen.findByText('Photo added');
+    await fireEvent.press(screen.getByLabelText('Save test'));
+    await waitFor(() => expect(deleteKitchenPhoto).toHaveBeenCalled());
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(await loadKitchenTests(db)).toHaveLength(0);
   });
 });

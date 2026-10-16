@@ -7,6 +7,7 @@ import { createClient } from '@plate-and-bar/api';
 import { naturalId, uuidv5 } from '../src/sync/ids';
 import { getCursor, setKv, KEY_USER, getLiftVersion } from '../src/sync/store';
 import { saveLift, deleteLift } from '../src/db/workouts';
+import { deleteKitchenPhoto } from '../src/photos/vault';
 import { openDb, fakeServer, memoryTokens, seedConsent } from './sync-helpers';
 // No @types/node in this app: describe the few node:crypto calls used.
 interface Hash { update(d: unknown): Hash; digest(): { subarray(a: number, b: number): { [i: number]: number; toString(enc: string): string } } }
@@ -16,6 +17,7 @@ declare const Buffer: { from(s: string, enc: string): unknown };
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
+jest.mock('../src/photos/vault', () => ({ deleteKitchenPhoto: jest.fn(() => Promise.resolve()) }));
 
 const vectors = require('../../../packages/api/test-vectors/sync-ids.json') as { rfc_example: { namespace: string; name: string; id: string }; cases: { user_id: string; table: string; key: string; id: string }[] };
 
@@ -300,5 +302,26 @@ describe('sync engine', () => {
     expect(set).toMatchObject({ updated_at: '2026-10-09T05:00:00.500Z', t: '2026-10-09T04:59:00.000Z' });
     // a local edit at .500 in the same second now orders after the pulled 00.000 copy
     expect('2026-10-09T05:00:00.500Z' > (log.updated_at as string)).toBe(true);
+  });
+});
+
+describe('kitchen test photos on a pulled delete', () => {
+  const kt = (id: string, deleted_at: string | null) => ({ id, version: 2, updated_at: '2026-10-09T06:00:00Z', deleted_at, name: 'Dal', date: '2026-10-08', note: '', ingredients: [], pot_g: null, pot_full_g: null, cooked_g: null, serving_g: null, serving_name: 'katori', has_photo: false });
+  beforeEach(() => (deleteKitchenPhoto as jest.Mock).mockClear());
+
+  it('removes the vault photo of a test deleted elsewhere, whatever the flag here says', async () => {
+    const { server, deps } = await setup();
+    server.put('kitchen_tests', kt('k1', '2026-10-09T06:00:00Z'));
+    server.put('kitchen_tests', kt('k2', null));
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok', pulled: 2 });
+    expect(deleteKitchenPhoto).toHaveBeenCalledTimes(1);
+    expect(deleteKitchenPhoto).toHaveBeenCalledWith('k1');
+  });
+
+  it('a vault failure does not fail the sync', async () => {
+    const { server, deps } = await setup();
+    (deleteKitchenPhoto as jest.Mock).mockRejectedValueOnce(new Error('disk'));
+    server.put('kitchen_tests', kt('k1', '2026-10-09T06:00:00Z'));
+    expect(await syncOnce(deps)).toMatchObject({ status: 'ok', pulled: 1 });
   });
 });
