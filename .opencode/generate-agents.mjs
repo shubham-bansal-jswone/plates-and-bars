@@ -17,7 +17,7 @@ const LANES = {
   contract: ["packages/api/**", "docs/adr/**"],
   content: ["content/**", "tools/**"],
   website: ["apps/site/**"],
-  infra: ["infra/**", ".github/workflows/**"],
+  infra: ["infra/**", ".github/**", ".gitleaks.toml"],
   qa: ["tests/e2e/**"],
   reviewer: [],
 };
