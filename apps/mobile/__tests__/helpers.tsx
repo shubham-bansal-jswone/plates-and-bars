@@ -2,15 +2,18 @@ import type { ReactNode } from 'react';
 import { ProfileProvider } from '../src/state/ProfileProvider';
 import { SettingsProvider } from '../src/state/SettingsProvider';
 import type { WorkoutDb } from '../src/db/workouts';
+import type { PullDb } from '../src/db/outbox';
 
 /** In-memory stand-in for the two statements the record store uses; rows keyed by table and key. */
-export function memoryDb(): WorkoutDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>; failWrites: boolean; lag?: (sql: string) => number } {
+export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>; failWrites: boolean; lag?: (sql: string) => number } {
   const rows = new Map<string, string>();
   const sets = new Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>();
   const db = {
     rows,
     sets,
     failWrites: false,
+    // No rollback here: the real atomicity is tested against SQLite (workout-sets.test.tsx).
+    withExclusiveTransactionAsync: async (task: (t: WorkoutDb) => Promise<void>) => task(db),
     lag: undefined as undefined | ((sql: string) => number),
     async getAllAsync<T>(sql: string, ...p: (string | number)[]) {
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
