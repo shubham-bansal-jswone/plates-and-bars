@@ -6,6 +6,7 @@ import { localDate } from '../setup/logic';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { withRead } from './learn';
+import { WhyFollowUp } from '../ai/WhyFollowUp';
 import { renderBody, whyCard, type WhyValues } from './cards';
 
 const EVIDENCE_NOTE = { Strong: 'Many studies agree.', Moderate: 'Good support, some open questions.', Emerging: 'Early or limited research.' } as const;
@@ -26,7 +27,7 @@ export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValu
   if (!card) return null;
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
+      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
           <Button kind="ghost" label="Close" onPress={onClose} />
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{card.title}</Heading>
@@ -34,6 +35,7 @@ export function WhySheet({ id, values, onClose }: { id: string; values?: WhyValu
           <Text style={{ color: c.ink, lineHeight: 22 }}>{renderBody(card.body, values)}</Text>
           <Hint>{`Evidence: ${card.evidence}. ${EVIDENCE_NOTE[card.evidence]}`}</Hint>
           <Hint>{`Source: ${card.source}. Draft card, not yet reviewed by a coach or dietitian. Not medical advice.`}</Hint>
+          <WhyFollowUp key={id} cardId={id} />
         </View>
       </ScrollView>
     </Modal>
