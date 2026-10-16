@@ -200,6 +200,9 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
   };
   const ids = (rows: readonly Row[]) => rows.map((r) => r.id);
 
+  /** Cardio minutes to keep: the screen's when the user changed them since `base`, else the stored row's (a pull may have changed them). */
+  const minutes = (screen: number | null, base: Workout | null, stored: Workout): number | null => (screen === (base?.cardio_min ?? null) ? stored.cardio_min : screen);
+
   const start = useCallback(
     async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) => {
       // A cardio-only day (minutes logged, no session) is not a started session: Start turns it into one and keeps the minutes.
@@ -254,6 +257,15 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           if (overTombstone) {
             const at = stamp(now());
             for (const s of await loadSets(h, date)) if (!s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
+          }
+          // A cardio-only row pulled but not shown yet: its minutes carry over unless the user changed them on this screen.
+          const mine = ref.current.workout;
+          if (stored && !stored.deleted_at && mine) {
+            const keep = minutes(mine.cardio_min, synced.current, stored);
+            if (keep !== mine.cardio_min) {
+              ref.current = { ...ref.current, workout: { ...mine, cardio_min: keep } };
+              deferred.current.push(() => setDay(ref.current));
+            }
           }
           await writeWorkout(overTombstone, h);
           for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets), h);
@@ -406,12 +418,16 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         const stored = await loadWorkout(h, date);
         if (stored && !stored.deleted_at) {
           // A session pulled from another device that this screen has not shown yet: the minutes go onto it, never over it.
-          const row = { ...stored, cardio_min: ref.current.workout?.cardio_min ?? cardio_min, updated_at: stamp(now()) };
+          // The screen's latest value, which may be a cleared field (null): not the first keystroke this write was queued with.
+          const row = { ...stored, cardio_min: ref.current.workout ? ref.current.workout.cardio_min : cardio_min, updated_at: stamp(now()) };
           await saveWorkout(h, row);
           const sets = await loadSets(h, date);
-          ref.current = { ...ref.current, workout: row, exs: exercisesFrom(row, sets) };
-          synced.current = row;
-          setDay(ref.current);
+          // Shown once the transaction has committed: a failed save leaves the screen as it was.
+          deferred.current.push(() => {
+            ref.current = { ...ref.current, workout: row, exs: exercisesFrom(row, sets) };
+            synced.current = row;
+            setDay(ref.current);
+          });
           return;
         }
         // Over a session deleted on another device: its sets go with it, as when starting one (the contract does not
@@ -579,10 +595,13 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
               await saveWorkout(h, row);
               after = row;
               show = true; // show them
-            } else if (cardio !== null) {
-              const row = { ...stored, template: null, base: null, where: null, mods: {}, exercises: [], ci_choice: null, cardio_min: cardio, updated_at: at };
+            } else if (minutes(cardio, base, stored) !== null) {
+              // The stored minutes decide, not the screen's copy, when the screen never changed them (a pull may have stored some).
+              const cardio_min = minutes(cardio, base, stored);
+              const row = { ...stored, template: null, base: null, where: null, mods: {}, exercises: [], ci_choice: null, cardio_min, updated_at: at };
               await saveWorkout(h, row);
               after = row;
+              show = cardio_min !== cardio; // pulled minutes the screen did not have: show them
             } else {
               await saveWorkout(h, { ...stored, updated_at: at, deleted_at: at });
               after = null;
