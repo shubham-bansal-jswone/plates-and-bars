@@ -1,4 +1,4 @@
-import { mergeWorkout } from '../src/workout/model';
+import { exerciseRecord, mergeWorkout, type ExState } from '../src/workout/model';
 import type { Workout, WorkoutExercise } from '../src/workout/types';
 
 const ex = (name: string, o: Partial<WorkoutExercise> = {}): WorkoutExercise => ({ name, part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false, ...o });
@@ -44,5 +44,26 @@ describe('mergeWorkout (#410)', () => {
     const out = mergeWorkout(base, mine, theirs);
     expect(out.exercises.map((e) => e.name)).toEqual(['Bench', 'Curl', 'Squat']);
     expect(out.cardio_min).toBe(20);
+  });
+});
+
+describe('exerciseRecord (#527)', () => {
+  const state = (o: Partial<ExState> = {}): ExState => ({ name: 'Bench', part: 1, bridge: false, form: 'yes', found: 40, skipRamp: false, feel: null, sets: [], ramp: [], ...o });
+
+  it('carries keys this client does not know through from the stored exercise', () => {
+    const stored = { ...ex('Bench'), future_key: { a: 1 } } as WorkoutExercise;
+    expect(exerciseRecord(state(), stored)).toEqual({ ...ex('Bench', { form: 'yes', found_kg: 40 }), future_key: { a: 1 } });
+  });
+
+  it('known keys come from the screen, and a cleared feel is not kept', () => {
+    const stored = ex('Bench', { form: 'no', feel: 'pain' });
+    const out = exerciseRecord(state({ feel: null }), stored);
+    expect(out.form).toBe('yes');
+    expect('feel' in out).toBe(false);
+    expect(exerciseRecord(state({ feel: 'target' }), stored).feel).toBe('target');
+  });
+
+  it('without a stored copy it writes the known keys only', () => {
+    expect(exerciseRecord(state())).toEqual(ex('Bench', { form: 'yes', found_kg: 40 }));
   });
 });
