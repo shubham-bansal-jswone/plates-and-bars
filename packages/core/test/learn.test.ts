@@ -64,7 +64,8 @@ describe('dailyRead (prototype learnCardHtml)', () => {
     allButLast: proto.LEARN.slice(0, -1),
     all: [...proto.LEARN, 'bulky'],
   };
-  const offsets = [-7, -6, -4, -3, -2, -1, 0, 1, 2, 3, 5, 6, 17, 18, 21, 30, 33, 36, 100];
+  // Non-future starts only: a start after today is a decided exception (#584), tested below.
+  const offsets = [0, 1, 2, 3, 5, 6, 17, 18, 21, 30, 33, 36, 100];
   const grid = ['male', 'female', undefined].flatMap((sex) =>
     Object.keys(reads).flatMap((r) => offsets.map((o) => [sex ?? 'no profile', r, o] as const)),
   );
@@ -133,11 +134,20 @@ describe('dailyRead (prototype learnCardHtml)', () => {
     expect(all).toEqual({ next: null, readN: 10, total: 10 });
     expect(dailyRead([], 'male', { start: null, read: [] }, START)).toEqual({ next: null, readN: 0, total: 0 });
   });
-  it('PINNED QUIRK (#584): a start after today gives 0 due, or a negative count that slices cards off the end', () => {
-    // 1 to 3 days ahead: 1 + floor(-1/3) = 0 due, no card. 6 days ahead: -1, and slice(0, -1) offers the first unread card.
-    expect(dailyRead(cards, 'male', { start: START, read: [] }, addDays(START, -1)).next).toBeNull();
-    expect(dailyRead(cards, 'male', { start: START, read: [] }, addDays(START, -6)).next?.id).toBe('formfirst');
-    expect(protoRun('male', { start: START, read: [] }, addDays(START, -6))?.next).toBe('formfirst');
-    expect(dailyRead(cards, 'male', { start: START, read: proto.LEARN.slice(0, -1) }, addDays(START, -6)).next).toBeNull();
+  // Decided exception (#584, decided: clamp): the prototype gives 0 due 1 to 3 days ahead and slices cards off the end further
+  // ahead. Core treats a future start as today; the prototype follows in the next spec-change batch.
+  it.each([-1, -2, -3, -4, -6, -7, -30])('decided (#584): a start %i days after today counts as today, so 1 card is due', (o) => {
+    const today = addDays(START, o);
+    for (const sex of ['male', 'female', undefined]) {
+      const asToday = dailyRead(cards, sex, { start: today, read: [] }, today);
+      expect(dailyRead(cards, sex, { start: START, read: [] }, today)).toEqual(asToday);
+      expect(asToday.next?.id).toBe(proto.LEARN[0]);
+      expect(dailyRead(cards, sex, { start: START, read: [proto.LEARN[0] as string] }, today).next).toBeNull();
+    }
+    expect(dailyRead(cards, 'male', { start: START, read: [] }, today, HIDDEN).next?.id).toBe('rir');
+  });
+  it('decided (#584): the prototype still differs for a future start (remove once it follows)', () => {
+    expect(protoRun('male', { start: START, read: [] }, addDays(START, -1))).toBeNull();
+    expect(protoRun('male', { start: START, read: [] }, addDays(START, -6))?.next).toBe(proto.LEARN[0]);
   });
 });
