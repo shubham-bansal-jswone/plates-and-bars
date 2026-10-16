@@ -31,7 +31,7 @@ interface GoldenLearn {
 }
 const golden = loadGolden<GoldenLearn>('learn');
 
-// The fixture has no hidden cards (an app filter, #212) and no future starts (#584 is a decided exception to the prototype).
+// The fixture has no hidden cards (an app filter, #212). Negative days are a start after today, which counts as today (#584).
 describe('learn: golden/learn.json', () => {
   it.each(['male', 'female', 'none'] as const)('order for %s', (key) => {
     expect(ids(learnList(cards, key === 'none' ? undefined : key))).toEqual(golden.order[key]);
@@ -46,9 +46,9 @@ describe('learn: golden/learn.json', () => {
     const list = ids(learnList(cards, sex));
     expect(list.slice(0, output.due).find((id) => !input.read.includes(id)) ?? null).toBe(output.next);
   });
-  it('covers days 0, 2, 3, 6, 12 and 30 for each sex', () => {
-    for (const sex of ['male', 'female', null]) expect([...new Set(golden.cases.filter((c) => c.input.sex === sex).map((c) => c.input.days))]).toEqual([0, 2, 3, 6, 12, 30]);
-    expect(golden.cases.filter((c) => c.input.sex === 'male' && c.input.read.length === 0).map((c) => c.output.due)).toEqual([1, 1, 2, 3, 5, 11]);
+  it('covers days -4, -1, 0, 2, 3, 6, 12 and 30 for each sex', () => {
+    for (const sex of ['male', 'female', null]) expect([...new Set(golden.cases.filter((c) => c.input.sex === sex).map((c) => c.input.days))]).toEqual([-4, -1, 0, 2, 3, 6, 12, 30]);
+    expect(golden.cases.filter((c) => c.input.sex === 'male' && c.input.read.length === 0).map((c) => c.output.due)).toEqual([1, 1, 1, 1, 2, 3, 5, 11]);
   });
 });
 
@@ -92,8 +92,8 @@ describe('dailyRead (prototype learnCardHtml)', () => {
     allButLast: proto.LEARN.slice(0, -1),
     all: [...proto.LEARN, 'bulky'],
   };
-  // Non-future starts only: a start after today is a decided exception (#584), tested below.
-  const offsets = [0, 1, 2, 3, 5, 6, 17, 18, 21, 30, 33, 36, 100];
+  // Negative offsets are a start after today, which counts as today (#584).
+  const offsets = [-30, -7, -6, -4, -3, -2, -1, 0, 1, 2, 3, 5, 6, 17, 18, 21, 30, 33, 36, 100];
   const grid = ['male', 'female', undefined].flatMap((sex) =>
     Object.keys(reads).flatMap((r) => offsets.map((o) => [sex ?? 'no profile', r, o] as const)),
   );
@@ -162,20 +162,20 @@ describe('dailyRead (prototype learnCardHtml)', () => {
     expect(all).toEqual({ next: null, readN: 10, total: 10 });
     expect(dailyRead([], 'male', { start: null, read: [] }, START)).toEqual({ next: null, readN: 0, total: 0 });
   });
-  // Decided exception (#584, decided: clamp): the prototype gives 0 due 1 to 3 days ahead and slices cards off the end further
-  // ahead. Core treats a future start as today; the prototype follows in the next spec-change batch.
-  it.each([-1, -2, -3, -4, -6, -7, -30])('decided (#584): a start %i days after today counts as today, so 1 card is due', (o) => {
+  // #584: a start after today counts as today. Before, 1 to 3 days ahead showed nothing and further ahead cards were sliced off
+  // the end of the due list, so the next card showed at once.
+  it.each([-1, -2, -3, -4, -6, -7, -30])('a start %i days after today counts as today, so 1 card is due (#584)', (o) => {
     const today = addDays(START, o);
     for (const sex of ['male', 'female', undefined]) {
       const asToday = dailyRead(cards, sex, { start: today, read: [] }, today);
       expect(dailyRead(cards, sex, { start: START, read: [] }, today)).toEqual(asToday);
       expect(asToday.next?.id).toBe(proto.LEARN[0]);
       expect(dailyRead(cards, sex, { start: START, read: [proto.LEARN[0] as string] }, today).next).toBeNull();
+      // The prototype agrees: the first card shows, and with it read nothing else does (before #584 it showed nothing 1 to 3
+      // days ahead and the second card from 4 days ahead).
+      expect(protoRun(sex, { start: START, read: [] }, today)?.next).toBe(proto.LEARN[0]);
+      expect(protoRun(sex, { start: START, read: [proto.LEARN[0] as string] }, today)).toBeNull();
     }
     expect(dailyRead(cards, 'male', { start: START, read: [] }, today, HIDDEN).next?.id).toBe('rir');
-  });
-  it('decided (#584): the prototype still differs for a future start (remove once it follows)', () => {
-    expect(protoRun('male', { start: START, read: [] }, addDays(START, -1))).toBeNull();
-    expect(protoRun('male', { start: START, read: [] }, addDays(START, -6))?.next).toBe(proto.LEARN[0]);
   });
 });
