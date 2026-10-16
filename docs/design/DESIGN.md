@@ -292,6 +292,7 @@ Changes from issue #179:
 
 - `macro-fat` light: `#D97706` → `#C86D06` (was 2.60:1 on `track`, needs 3:1).
 - New `outline` token (light `#8B8F9B`, dark `#63656A`) for input borders, which the issue left unspecified; the existing `disabled` and `line` borders are below 3:1 and only acceptable as decoration on labelled buttons.
+- New `bar` token for the fill of goal bars on `track` (water, Seven-days, set-volume, rest timer): light `#2457E6` (same as `brand`), dark `#6F95FF`. Dark `brand` on `track` was 2.42:1 (2.08:1 at the Seven-days fill's 0.85 opacity), under 3:1 (#504). `brand` is unchanged, since white text on it needs its depth.
 - New dark `surface-soft` `#1F1F1F` and dark `disabled` `#5C5C5C`, which the issue did not define.
 - Macro colours are restricted to non-text marks: light carbs (3.67:1) and fat do not reach 4.5:1 as text.
 - Website breakpoints are given as exact mobile-first `min-width` edges (480, 768, 1024); the hero's 32 step is kept as a hero-only size.

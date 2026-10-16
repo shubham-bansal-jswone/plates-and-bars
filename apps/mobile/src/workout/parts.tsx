@@ -80,7 +80,7 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
           </View>
         </View>
         <View style={[styles.track, { backgroundColor: c.track }]}>
-          <View accessibilityLabel={`Rest ${Math.round(pct)}% done`} style={[styles.fill, { backgroundColor: c.brand, width: `${pct}%` }]} />
+          <View accessibilityLabel={`Rest ${Math.round(pct)}% done`} style={[styles.fill, { backgroundColor: c.bar, width: `${pct}%` }]} />
         </View>
       </View>
     </View>
