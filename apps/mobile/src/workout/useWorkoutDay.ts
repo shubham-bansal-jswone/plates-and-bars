@@ -127,7 +127,8 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     if (!d.workout) return;
     const stored = await loadWorkout(h, date);
     if (!overTombstone && stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
-    const mine = { ...d.workout, exercises: d.exs.map(exerciseRecord) };
+    const keep = new Map((stored && !stored.deleted_at ? stored.exercises : d.workout.exercises).map((x) => [x.name, x]));
+    const mine = { ...d.workout, exercises: d.exs.map((e) => exerciseRecord(e, keep.get(e.name))) };
     // Changed since this screen loaded or wrote it (a pull, or a rule saved on Targets): merge rather than overwrite (#410).
     // Compared by content, not by the stamp (whole seconds); a sync push only patches `version`.
     const base = synced.current;
@@ -629,7 +630,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         for (const r of [...e.sets, ...e.ramp]) rows.set(r.id, r);
         return [...e.sets.keys()].map((j) => setRecord(e, 'work', j, now())).concat([...e.ramp.keys()].map((j) => setRecord(e, 'ramp', j, now())));
       });
-      const ch = cantChange({ ...w, exercises: d.exs.map(exerciseRecord) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
+      const ch = cantChange({ ...w, exercises: d.exs.map((e) => exerciseRecord(e, w.exercises.find((x) => x.name === e.name))) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
       d.exs = ch.exercises.map((x) => {
         const pick = (kind: 'work' | 'ramp'): Row[] =>
           ch.sets
