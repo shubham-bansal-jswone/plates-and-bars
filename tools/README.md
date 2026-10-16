@@ -34,7 +34,7 @@ should offer at least one "felt it in the wrong place" fix.
 ## Food rows
 
 `content/foods.json` rows follow `Food` in `packages/api/openapi.yaml` (per-serving values, carbs include fibre).
-`source` is the contract `FoodSource` object, so its `reference` is the source id (null until a USDA FDC id is recorded).
+`source` is the contract `FoodSource` object, so its `reference` is the source id (an FDC id and serving scaling for `usda_fdc` rows, null otherwise).
 
 - `source`: packaged whey, Greek yogurt and makhana are `label_typical`; paneer, curd and toned milk are `fssai`
   (prototype note); single plain foods are `usda_fdc` and composed dishes are `own_recipe` (ADR 005). Chicken breast, cooked (raw value / cooking yield) and buttermilk (80 g curd) are `own_recipe`.
@@ -77,7 +77,7 @@ Everything is derived from the prototype by running its own code with stub state
 
 Three files come from the prototype's recipe builder and meal-idea code (`npm run import:recipes`; a test fails if they drift from `docs/prototype/plate-and-bar.html`). Validate with `npm run validate:recipes`.
 
-- `content/raw-ingredients.json`: `RAW` and `RAW_FIB`, per 100 g raw, carbs include fibre, `fibre_g` 0 where `RAW_FIB` has no entry (the prototype counts it as 0). `fatty` marks `FATTY` (oil, ghee, butter, cream). Source per row: paneer, curd and toned milk are `fssai`; whey protein, Greek yogurt and makhana are `label_typical`; poha (approximated from rice) and the generic mixed-vegetable blend are `own_estimate`; fresh cream is `label_typical`; the rest are `usda_fdc` as the prototype's note says (`SOURCE_OVERRIDE` in `recipes-import/import.mjs`). Rows that borrow another USDA entry (`USDA_PROXY`: chana dal, moong dal, whole moong, chicken curry cut) say so in `source.name`. The USDA FDC ids are not recorded yet, so `source.reference` is null.
+- `content/raw-ingredients.json`: `RAW` and `RAW_FIB`, per 100 g raw, carbs include fibre, `fibre_g` 0 where `RAW_FIB` has no entry (the prototype counts it as 0). `fatty` marks `FATTY` (oil, ghee, butter, cream). Source per row: paneer, curd and toned milk are `fssai`; whey protein, Greek yogurt and makhana are `label_typical`; poha (approximated from rice) and the generic mixed-vegetable blend are `own_estimate`; fresh cream is `label_typical`; the rest are `usda_fdc` as the prototype's note says (`SOURCE_OVERRIDE` in `recipes-import/import.mjs`). Rows that borrow another USDA entry (`USDA_PROXY`: chana dal, moong dal, whole moong, chicken curry cut) say so in `source.name`. Each `usda_fdc` row records its SR Legacy FDC id in `source.reference` (`FDC_RAW` in the importer, per 100 g, with a note where the record is a proxy or has an identical twin); `Oil` is left null because the generic 884 kcal / 100 g fits every refined cooking oil (`FDC_UNMATCHED`).
 - `content/recipes.json`: `library` (the 9 recipes with steps, time, cost and tags) and `presets` (the 8 typical home-style versions). Ingredients use the contract's `Ingredient` shape (`ingredient`, `amount`, `unit`) and every name must be in `raw-ingredients.json`. Source is `own_recipe`. `katori_g` is the prototype's `KATORI_G`.
 - `content/meal-planning.json`: meal and protein weights, per-food portion caps (`MAXQ`) and minimums (`MINQ`), and the grocery map (`GROC`). Every food named in the caps and grocery map must exist in `foods.json`.
 - Every row carries `needs_dietitian_review: true` until a dietitian signs it off; the importer sets it, so clearing it is a deliberate content change.

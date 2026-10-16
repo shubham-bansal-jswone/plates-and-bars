@@ -21,7 +21,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 172436 (SR Legacy: Pigeon peas (red gram), mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -44,7 +44,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 174259 (SR Legacy: Mungo beans, mature seeds, raw), per 100 g - USDA name for black gram (urad)"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -67,7 +67,7 @@
         "name": "USDA FoodData Central (SR Legacy); values match USDA \"mung beans, mature seeds, raw (whole beans used for split dal)\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 174256 (SR Legacy: Mung beans, mature seeds, raw), per 100 g - whole beans used as a proxy for split dal"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -90,7 +90,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 172420 (SR Legacy: Lentils, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -113,7 +113,7 @@
         "name": "USDA FoodData Central (SR Legacy); values match USDA \"chickpeas, mature seeds, raw\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173756 (SR Legacy: Chickpeas (garbanzo beans, bengal gram), mature seeds, raw), per 100 g - proxy: the split-gram dal itself is not an SR Legacy item"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -136,7 +136,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173744 (SR Legacy: Beans, kidney, red, mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -159,7 +159,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173756 (SR Legacy: Chickpeas (garbanzo beans, bengal gram), mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -182,7 +182,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 168877 (SR Legacy: Rice, white, long-grain, regular, raw, enriched), per 100 g - unenriched FDC 169756 has identical values"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -205,7 +205,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 168893 (SR Legacy: Wheat flour, whole-grain), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -228,7 +228,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 174288 (SR Legacy: Chickpea flour (besan)), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -274,7 +274,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 169705 (SR Legacy: Oats), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -297,7 +297,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 174275 (SR Legacy: Soy flour, defatted), per 100 g - proxy: closest SR Legacy item to dry textured soya, not the branded product"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -343,7 +343,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 171077 (SR Legacy: Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -366,7 +366,7 @@
         "name": "USDA FoodData Central (SR Legacy); values match USDA \"chicken, broilers or fryers, thigh, meat only, raw\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173627 (SR Legacy: Chicken, broilers or fryers, dark meat, thigh, meat only, raw), per 100 g - proxy for curry-cut pieces"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -389,7 +389,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 171287 (SR Legacy: Egg, whole, raw, fresh), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -412,7 +412,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170026 (SR Legacy: Potatoes, flesh and skin, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -435,7 +435,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170000 (SR Legacy: Onions, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -458,7 +458,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170457 (SR Legacy: Tomatoes, red, ripe, raw, year round average), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -504,7 +504,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 168462 (SR Legacy: Spinach, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -527,7 +527,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 169260 (SR Legacy: Okra, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -550,7 +550,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 169986 (SR Legacy: Cauliflower, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -573,7 +573,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170419 (SR Legacy: Peas, green, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -619,7 +619,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173412 (SR Legacy: Butter oil, anhydrous), per 100 g - USDA lists no ghee with these values; foods.json Ghee uses FDC 171314 (900 kcal / 100 g), see #576"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -642,7 +642,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 173410 (SR Legacy: Butter, salted), per 100 g - unsalted FDC 173430 has identical values; RAW rounds protein and carbs up"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -734,7 +734,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 169655 (SR Legacy: Sugars, granulated), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -757,7 +757,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170162 (SR Legacy: Nuts, cashew nuts, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -780,7 +780,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170169 (SR Legacy: Nuts, coconut meat, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -803,7 +803,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 169717 (SR Legacy: Tapioca, pearl, dry), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -849,7 +849,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 172430 (SR Legacy: Peanuts, all types, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -895,7 +895,7 @@
         "name": "USDA FoodData Central (SR Legacy); values match USDA \"mung beans, mature seeds, raw\"",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 174256 (SR Legacy: Mung beans, mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -918,7 +918,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 169715 (SR Legacy: Semolina, enriched), per 100 g - unenriched FDC 168933 has identical values"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -941,7 +941,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170427 (SR Legacy: Peppers, sweet, green, raw), per 100 g - green only; other colours differ"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -964,7 +964,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 168409 (SR Legacy: Cucumber, with peel, raw), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
@@ -1010,7 +1010,7 @@
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": null
+        "reference": "FDC 170687 (SR Legacy: Buckwheat flour, whole-groat), per 100 g"
       },
       "needs_dietitian_review": true,
       "updated_at": "2026-10-09T00:00:00Z"
