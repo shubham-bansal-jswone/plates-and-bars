@@ -16,7 +16,8 @@ set_tag() { # rewrite in place (no sed -i: differs between GNU and BSD) and keep
 }
 healthy() {
   local deadline=$((SECONDS + timeout))
-  until curl -fsS -m 5 -o /dev/null "https://$api_host/api/v1/health"; do
+  # through the local Caddy, so a VM that cannot reach its own public address (hairpin NAT) still deploys
+  until curl -fsS -m 5 --resolve "$api_host:443:127.0.0.1" -o /dev/null "https://$api_host/api/v1/health"; do
     [ "$SECONDS" -lt "$deadline" ] || return 1
     sleep 5
   done
@@ -30,13 +31,12 @@ tag="$(git rev-parse --short=12 HEAD)"
 echo "deploying $tag (previous: ${prev:-none})"
 CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" API_TAG="$tag" docker compose build api
 set_tag "$tag" # only after a successful build
-docker compose up -d
-if healthy; then
+if docker compose up -d && healthy; then
   echo "healthy: $tag"
   exit 0
 fi
 
-echo "health check failed after ${timeout}s" >&2
+echo "compose up or the health check failed (health timeout ${timeout}s)" >&2
 docker compose logs --tail 50 api >&2 || true
 if [ -z "$prev" ] || [ "$prev" = "$tag" ] || ! docker image inspect "plateandbar-api:$prev" > /dev/null 2>&1; then
   echo "no previous image to roll back to (API_TAG was '${prev:-}')" >&2

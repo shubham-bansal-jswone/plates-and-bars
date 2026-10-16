@@ -8,7 +8,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
 | `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), `test-deploy.sh` (deploy.sh against stubs: success, rollback, nothing to roll back to), images pinned (including rclone in `backup.sh`) (not a required check) |
-| `.github/workflows/staging-deploy.yml` | push to `main` touching `backend/`, `content/`, `infra/staging/` or the API Caddyfile; manual | SSH to the staging VM, fast-forward to the pushed commit, run `infra/staging/deploy.sh`; skipped until repository variable `STAGING_DEPLOY_ENABLED` is `true` (see Staging deploy) |
+| `.github/workflows/staging-deploy.yml` | push to `main` touching `backend/`, `content/`, `packages/api/openapi.yaml`, `infra/staging/` or the API Caddyfile; manual | SSH to the staging VM, fast-forward to the pushed commit, run `infra/staging/deploy.sh`; skipped until repository variable `STAGING_DEPLOY_ENABLED` is `true` (see Staging deploy) |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
 | `.github/workflows/site-deploy.yml` | push to `main` touching `apps/site`, manual (deploys); PR touching `infra/caddy/` (validate only) | Builds `apps/site` and deploys it; every job is skipped until repository variable `SITE_DEPLOY_TARGET` is set (see below) |
 | `.github/workflows/android-release.yml` | tag `v*`, manual, PR touching the workflow | `expo prebuild` + Gradle `assembleRelease bundleRelease`; uploads APK and AAB as an artifact (see below) |
@@ -151,7 +151,7 @@ Generate the keystore with `keytool -genkeypair -v -storetype PKCS12 -keystore u
 
 ## Staging deploy (#411)
 
-Nothing runs until the owner has a VM (`infra/RUNBOOK.md` section 1) and sets the repository variable `STAGING_DEPLOY_ENABLED` to `true`. Then every push to `main` that touches the backend, content or staging files (and manual runs from `main`) deploys that commit. Needed:
+Nothing runs until the owner has a VM (`infra/RUNBOOK.md` section 1) and sets the repository variable `STAGING_DEPLOY_ENABLED` to `true`. Then every push to `main` that touches the backend, content, `packages/api/openapi.yaml` or staging files (and manual runs from `main`) deploys that commit. Needed:
 
 | What | Name | Where |
 | --- | --- | --- |
