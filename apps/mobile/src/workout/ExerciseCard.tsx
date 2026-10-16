@@ -160,6 +160,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning 
         {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
         {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
       </Text>
+      <WhyLink id="rest" subject={ex.name} />
       {tag ? (
         <Text style={{ color: c.ink, fontSize: 14 }}>
           {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
@@ -213,9 +214,12 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning 
         </View>
       ) : null}
       {warm ? (
+        <View>
         <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
           <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
         </Text>
+        <WhyLink id="warmup" subject={ex.name} />
+        </View>
       ) : null}
       {cards}
 

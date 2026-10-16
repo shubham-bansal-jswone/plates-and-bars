@@ -459,6 +459,7 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText(/Steps: about 8,000 a day\. Sleep: 6\.5 hours a night, under the 7–9 hours/)).toBeTruthy();
     expect(screen.getByText(/Needs 10 more complete days in the last 2 weeks.* and 6 more weigh-ins/)).toBeTruthy();
     expect(screen.getByLabelText('1/7 days with food logged')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Building the habit')).toBeTruthy();
     expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
   });
 

@@ -277,6 +277,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
   return (
     <Page>
       <H1>{wk.template || 'Session'}</H1>
+      <WhyLink id="split" label="Why these exercises?" />
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={{ color: c.muted, fontSize: 14 }}>
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>

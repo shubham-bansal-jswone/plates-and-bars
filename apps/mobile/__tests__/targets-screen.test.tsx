@@ -228,6 +228,7 @@ describe('TargetsScreen', () => {
       expect(await screen.findByText('Focus: chest, lats and abs')).toBeTruthy();
       expect(screen.getByText(/Training abs builds them/)).toBeTruthy();
       expect(screen.getByLabelText('Why? How many sets per muscle?')).toBeTruthy();
+      expect(screen.getByLabelText('Why? How focus muscles work')).toBeTruthy();
       expect(screen.getByText(/aim for about 12–16 weekly sets/)).toBeTruthy();
       await fireEvent.press(screen.getByLabelText('Hamstrings'));
       expect(await screen.findByText('Up to 3 focus muscles. Remove one first.')).toBeTruthy();
