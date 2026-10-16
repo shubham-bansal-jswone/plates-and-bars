@@ -86,6 +86,14 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
   const synced = useRef<Workout | null>(null);
   /** Bumped after a write merged a change made elsewhere, so the screen reloads and shows the merged session. */
   const [merged, setMerged] = useState(0);
+  /** What writeWorkout changes in memory inside a transaction, applied once it has committed (a failed save leaves `synced` alone). */
+  const deferred = useRef<(() => void)[]>([]);
+  /** One transaction over the day's writes; they run through the txn handle `h`. No reads beyond what the writes already do. */
+  const atomic = async (task: (h: WorkoutDb) => Promise<void>) => {
+    deferred.current = [];
+    await inTransaction(db, (txn) => task(txn as WorkoutDb)); // a throw skips the apply below
+    deferred.current.splice(0).forEach((f) => f());
+  };
 
   useEffect(() => {
     let live = true;
@@ -112,6 +120,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
 
   // These run inside the day queue, so each re-reads the stored row first: a pull (or a rule saved on Targets) may have stored
   // a newer version since the screen loaded its copy. The stored version is kept, and a row the store has tombstoned stays deleted.
+  // A txn handle `h` must come from `atomic`: its in-memory update is applied there, after commit.
   // `overTombstone`: start() already saw the tombstone and is replacing it on purpose, whatever its clock says.
   const writeWorkout = async (overTombstone = false, h: WorkoutDb = db) => {
     const d = ref.current;
@@ -128,8 +137,12 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     await saveWorkout(h, row);
     // After a merge the base stays as it was until the reload: the screen still shows its old list, so a write queued
     // before the reload has to merge again rather than write that list back.
-    if (elsewhere) setMerged((n) => n + 1);
-    else synced.current = row;
+    const apply = () => {
+      if (elsewhere) setMerged((n) => n + 1);
+      else synced.current = row;
+    };
+    if (h === db) apply();
+    else deferred.current.push(apply);
   };
   /** Today's exercise by name when a queued write runs: a can't-do swap or an added exercise may have moved it (#439). */
   const exNamed = (name: string) => ref.current.exs.find((e) => e.name === name);
@@ -225,8 +238,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
         commit(d);
         // One transaction: the old sets' tombstones, the workout row and the new sets are stored together or not at all (#516).
-        await enqueue(() => inTransaction(db, async (txn) => {
-          const h = txn as WorkoutDb;
+        await enqueue(() => atomic(async (h) => {
           // Started over a session deleted on another device: its sets go with it, so the new session does not
           // pick them up (the contract does not promise that the deleting device tombstoned them).
           const stored = await loadWorkout(h, date);
@@ -283,9 +295,9 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         commit(d);
         notify(`${template} added to today`);
         await enqueue(() =>
-          inTransaction(db, async (txn) => {
-            await writeWorkout(false, txn as WorkoutDb);
-            for (const ex of added) await writeSets(ex.name, 'work', ids(ex.sets), txn as WorkoutDb);
+          atomic(async (h) => {
+            await writeWorkout(false, h);
+            for (const ex of added) await writeSets(ex.name, 'work', ids(ex.sets), h);
           }),
         );
       } finally {
@@ -345,8 +357,10 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         else if (nx) startRest(ex.name, `Next: ${nx.name}`);
       },
       async (name) => {
-        await writeSets(name, 'work', [id]);
-        await writeWorkout();
+        await atomic(async (h) => {
+          await writeSets(name, 'work', [id], h);
+          await writeWorkout(false, h);
+        });
         await syncLift(name);
       },
     );
@@ -480,9 +494,9 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     commit(d);
     // One transaction: a sync push or pull never sees the exercise without its sets (#492), and a failure stores neither.
     void enqueue(() =>
-      inTransaction(db, async (txn) => {
-        await writeWorkout(false, txn as WorkoutDb);
-        await writeSets(name, 'work', ids(ex.sets), txn as WorkoutDb);
+      atomic(async (h) => {
+        await writeWorkout(false, h);
+        await writeSets(name, 'work', ids(ex.sets), h);
       }),
     );
     return true;
@@ -505,8 +519,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
       let after: Workout | null | undefined; // the base to keep once the transaction has committed
       let show = false;
       // One transaction: the tombstoned sets and the workout row change together or not at all (#516).
-      await inTransaction(db, async (txn) => {
-        const h = txn as WorkoutDb;
+      await atomic(async (h) => {
         after = undefined;
         show = false;
         // Every stored row of the exercise, also ones a pull stored that this screen never loaded.
@@ -566,8 +579,10 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         s.t = stamp(now());
       },
       async (name) => {
-        await writeSets(name, 'ramp', [id]);
-        await writeWorkout();
+        await atomic(async (h) => {
+          await writeSets(name, 'ramp', [id], h);
+          await writeWorkout(false, h);
+        });
       },
     );
   };
@@ -588,8 +603,10 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         rows = ids(ex.ramp); // the rows this action touched, fixed now (not whatever is there when the write runs)
       },
       async (name) => {
-        await writeSets(name, 'ramp', rows);
-        await writeWorkout();
+        await atomic(async (h) => {
+          await writeSets(name, 'ramp', rows, h);
+          await writeWorkout(false, h);
+        });
       },
     );
   };
