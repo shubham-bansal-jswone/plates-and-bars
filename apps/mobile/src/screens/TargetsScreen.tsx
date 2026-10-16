@@ -107,7 +107,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           </>
         ) : null}
-        <WhyLibrary values={whyValues} />
+        <WhyLibrary values={whyValues} now={now} />
         <AiSection />
         {ready ? (
           <View style={{ gap: 8, marginTop: 16 }}>

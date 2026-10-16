@@ -1,13 +1,14 @@
 # Infra
 
-CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `.github/workflows/`). Staging config (Compose, backup script, runbook) is in `infra/staging/` and `infra/RUNBOOK.md` (#36); no deploy workflow exists yet.
+CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `.github/workflows/`). Staging config (Compose, backup script, runbook) is in `infra/staging/` and `infra/RUNBOOK.md` (#36). The staging deploy workflow (#411) is inert until the owner enables it (see Staging deploy).
 
 ## Workflows
 
 | File | Trigger | What it does |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
-| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), images pinned (including rclone in `backup.sh`) (not a required check) |
+| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), `test-deploy.sh` (deploy.sh against stubs: success, rollback, nothing to roll back to), images pinned (including rclone in `backup.sh`) (not a required check) |
+| `.github/workflows/staging-deploy.yml` | push to `main` touching `backend/`, `content/`, `packages/api/openapi.yaml`, `infra/staging/` or the API Caddyfile; manual | SSH to the staging VM, fast-forward to the pushed commit, run `infra/staging/deploy.sh`; skipped until repository variable `STAGING_DEPLOY_ENABLED` is `true` (see Staging deploy) |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
 | `.github/workflows/site-deploy.yml` | push to `main` touching `apps/site`, manual (deploys); PR touching `infra/caddy/` (validate only) | Builds `apps/site` and deploys it; every job is skipped until repository variable `SITE_DEPLOY_TARGET` is set (see below) |
 | `.github/workflows/android-release.yml` | tag `v*`, manual, PR touching the workflow | `expo prebuild` + Gradle `assembleRelease bundleRelease`; uploads APK and AAB as an artifact (see below) |
@@ -147,3 +148,15 @@ How the secrets are protected:
 - Gradle caching uses the MIT `basic` provider of `gradle/actions/setup-gradle`, like `ci.yml`.
 
 Generate the keystore with `keytool -genkeypair -v -storetype PKCS12 -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000` and keep it, with its passwords, somewhere safe outside the repo; losing the upload key is recoverable with Play support, but only if Play App Signing is on.
+
+## Staging deploy (#411)
+
+Nothing runs until the owner has a VM (`infra/RUNBOOK.md` section 1) and sets the repository variable `STAGING_DEPLOY_ENABLED` to `true`. Then every push to `main` that touches the backend, content, `packages/api/openapi.yaml` or staging files (and manual runs from `main`) deploys that commit. Needed:
+
+| What | Name | Where |
+| --- | --- | --- |
+| Variable | `STAGING_DEPLOY_ENABLED` = `true` | repository variables |
+| Variables | `STAGING_SSH_HOST`, `STAGING_SSH_USER`, `STAGING_DIR` (checkout on the VM, for example `/opt/plateandbar`) | environment `staging` |
+| Secrets | `STAGING_SSH_KEY` (private key of a deploy-only user in the `docker` group), `STAGING_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`) | environment `staging`, deployment branches restricted to `main` |
+
+The job runs `git fetch`, `git merge --ff-only <sha>` and `infra/staging/deploy.sh` on the VM. The script builds `plateandbar-api:<12-char sha>`, writes it to `API_TAG` in `.env`, runs `docker compose up -d` and polls `https://$API_HOST/api/v1/health` for up to 5 minutes (`HEALTH_TIMEOUT_SECONDS`). If it never turns healthy it restores the previous `API_TAG`, recreates the API and exits non-zero. The workflow does not re-run CI: branch protection on the PR is what gates the merge. A tagged production release with a pre-deploy backup is not part of this workflow.

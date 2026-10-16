@@ -8,7 +8,7 @@ import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { dailyRead, learnList, readLearn, withRead } from '../src/why/learn';
-import { HIDDEN_CARDS } from '../src/why/cards';
+import { cardOffered, HIDDEN_CARDS } from '../src/why/cards';
 import * as SettingsProvider from '../src/state/SettingsProvider';
 import { WhyLink } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
@@ -68,6 +68,57 @@ describe('Why it works library on Targets', () => {
     await waitFor(async () => expect(readLearn((await loadSettings(db))!.learn).read).toEqual(['fibre']));
     await fireEvent.press(screen.getByLabelText('Close'));
     expect(screen.getByText(' read')).toBeTruthy();
+  });
+});
+
+describe('Split card with no training days (#570)', () => {
+  const noDays = () => ({ ...profile(), days: 0 }) as ReturnType<typeof profile>;
+  it('is not offered in the library for a 0-day profile, and is for 2 or more days', async () => {
+    const split = cards.cards.find((c) => c.id === 'split')!;
+    const db = memoryDb();
+    await saveProfile(db, noDays());
+    const { unmount } = await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText('Why it works');
+    expect(screen.getAllByLabelText(/^Open /)).toHaveLength(shown.length - 1);
+    expect(screen.queryByLabelText(`Open ${split.title}`)).toBeNull();
+    await unmount();
+    const db2 = memoryDb();
+    await saveProfile(db2, { ...profile(), days: 2 } as ReturnType<typeof profile>);
+    await render(withProfile(db2, <TargetsScreen db={db2} />));
+    expect(await screen.findByLabelText(`Open ${split.title}`)).toBeTruthy();
+    expect(screen.getAllByLabelText(/^Open /)).toHaveLength(shown.length);
+  });
+  it('is ruled out by cardOffered for 0 days only, and the daily read never lists it', () => {
+    expect(cardOffered('split', { days: 0 })).toBe(false);
+    expect(cardOffered('split', { days: 2 })).toBe(true);
+    expect(cardOffered('split')).toBe(true);
+    expect(cardOffered('rir', { days: 0 })).toBe(true);
+    // The daily read already leaves split out through content (learn_order null); if content gives it a slot, filter with cardOffered there.
+    expect(learnList('male').map((c) => c.id)).not.toContain('split');
+    expect(learnList('female').map((c) => c.id)).not.toContain('split');
+  });
+});
+
+describe('Why it works library on Targets: the day', () => {
+  const NOW = () => new Date(2026, 9, 8, 10);
+  const fibre = cards.cards.find((c) => c.id === 'fibre')!;
+  it('fills the fibre target from today\'s calorie target, flex included', async () => {
+    const db = memoryDb();
+    const p = profile();
+    await saveProfile(db, p);
+    await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), flex: [{ id: 'f', date: '2026-10-08', kcal_delta: 800 }] });
+    expect(fibreTarget(p.targets.kcal + 800)).not.toBe(fibreTarget(p.targets.kcal));
+    await render(withProfile(db, <TargetsScreen db={db} now={NOW} />));
+    await fireEvent.press(await screen.findByLabelText(`Open ${fibre.title}`));
+    expect(await screen.findByText(new RegExp(`${fibreTarget(p.targets.kcal + 800)} g`))).toBeTruthy();
+  });
+  it('starts the read clock from the screen\'s now when a library card is the first thing opened', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveSettings(db, defaultSettings('2026-10-01T00:00:00Z'));
+    await render(withProfile(db, <TargetsScreen db={db} now={NOW} />));
+    await fireEvent.press(await screen.findByLabelText(`Open ${fibre.title}`));
+    await waitFor(async () => expect(readLearn((await loadSettings(db))!.learn)).toEqual({ start: '2026-10-08', read: ['fibre'] }));
   });
 });
 
