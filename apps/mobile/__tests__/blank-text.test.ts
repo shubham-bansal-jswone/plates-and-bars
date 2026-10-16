@@ -1,7 +1,7 @@
 import { isBlank } from '../src/text/blank';
-import vectors from './fixtures/blank-text.json';
 
-// fixtures/blank-text.json is packages/api/test-vectors/blank-text.json (#510).
+// The contract's vectors (#510), read directly so they cannot drift.
+const vectors = require('../../../packages/api/test-vectors/blank-text.json') as { pattern: string; must_fail: string[]; must_pass: string[] };
 describe('isBlank (#421)', () => {
   it.each(vectors.must_fail.map((t) => [JSON.stringify(t), t]))('is blank: %s', (_n, t) => expect(isBlank(t)).toBe(true));
   it.each(vectors.must_pass.map((t) => [JSON.stringify(t), t]))('is not blank: %s', (_n, t) => expect(isBlank(t)).toBe(false));

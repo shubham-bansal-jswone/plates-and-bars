@@ -275,6 +275,11 @@ describe('Workout tab: logging sets', () => {
     await typeAndAdd('   ');
     expect(await screen.findByText('Type an exercise name.')).toBeTruthy();
     await press('Close');
+    // Zero-width only: trim() keeps it, so it must be the shared blank rule that stops it.
+    await typeAndAdd(String.fromCharCode(0x200b, 0x2060, 0xfeff));
+    expect(await screen.findByText('Type an exercise name.')).toBeTruthy();
+    expect(screen.queryByLabelText(/with these muscles/)).toBeNull();
+    await press('Close');
     await typeAndAdd('goblet squat');
     expect(await screen.findByText('Goblet Squat added')).toBeTruthy();
     await typeAndAdd('x'.repeat(201));

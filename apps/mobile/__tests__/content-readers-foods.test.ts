@@ -3,7 +3,7 @@ import foods from '../../../content/foods.json';
 import { getFoodSources, sourceKey } from '../src/about/sources';
 import { BUNDLED } from '../src/content/bundled';
 import { loadContent } from '../src/content/loader';
-import { contentReader } from '../src/content/reader';
+import { contentReader, isTrimmedText } from '../src/content/reader';
 import { putStored, type ContentDb } from '../src/content/store';
 import { getCuisines, getFoodCatalog, isCatalogFood } from '../src/food/catalog';
 import { openDb } from './sync-helpers';
@@ -28,6 +28,13 @@ const foodsWith = (mutate: (b: Obj) => void): Obj => { const b = clone(shippedFo
 const eatoutWith = (mutate: (b: Obj) => void): Obj => { const b = clone(shippedEatout); mutate(b); return b; };
 const names = () => getFoodCatalog().map((f) => f.name);
 const shippedCount = shippedFoods.foods.length as number;
+
+const blankVectors = require('../../../packages/api/test-vectors/blank-text.json') as { must_fail: string[]; must_pass: string[] };
+
+describe('isTrimmedText follows the contract blank vectors (#421, #513)', () => {
+  it.each(blankVectors.must_fail.map((t) => [JSON.stringify(t), t]))('rejects %s', (_n, t) => expect(isTrimmedText(200)(t)).toBe(false));
+  it.each(blankVectors.must_pass.map((t) => [JSON.stringify(t), t]))('accepts %s', (_n, t) => expect(isTrimmedText(200)(t)).toBe(true));
+});
 
 describe('content reader', () => {
   const valid = (v: unknown): v is { n: number } => typeof v === 'object' && v !== null && 'n' in v;
