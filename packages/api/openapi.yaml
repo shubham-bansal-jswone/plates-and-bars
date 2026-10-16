@@ -481,12 +481,17 @@ paths:
         bounded on its own (see Conflict log retention). `limit` is server configuration,
         the same for every account and set far above what years of real logging reach. The
         app reads it from the error body and never hard-codes it.
-        - A pushed record is new when the server does not store its id yet, whatever
-          `version` the device sent. Edits, deletes and idempotent retries of stored
-          records never add a record, so a push without new records is never refused
-          for the cap, and neither is a pull-only request (`changes: {}`).
-        - When the stored count plus the new records in the push would exceed `limit`, the
-          server refuses the whole request with 413 `account_full` and a `record_cap` body.
+        - A pushed record is new when the server does not store a record with that id in
+          that table for this account, whatever `version` the device sent. The same id
+          in another table or another account does not count. Natural-key ids are checked
+          (400 `natural_key_id`) before the cap, so a natural-key record whose key is
+          already stored always carries the stored id and is never new. Edits, deletes and
+          idempotent retries of stored records never add a record.
+        - The server refuses a request only when it has at least one new record and the
+          stored count plus the new records would exceed `limit`. A push without new
+          records and a pull-only request (`changes: {}`) are never refused for the cap,
+          even when `stored` is already over `limit` (for example after the limit was
+          lowered). A refused request gets 413 `account_full` and a `record_cap` body.
           Nothing is applied, nothing is pulled, the cursor does not move and nothing is
           added to the conflict log. There is no partial apply.
         - Checks run in this order: body size (400 `too_large`), access token (401),
@@ -496,16 +501,32 @@ paths:
           concurrent pushes from two devices cannot overrun the cap.
 
         **App on 413 `account_full`.** The app keeps every pending change on the device
-        and never drops one. It tells the user that the account is full and that new
+        and never drops one, except the never-sent tombstones described below. It tells the user that the account is full and that new
         entries stay on this device and are not backed up. Until the limit changes it keeps
         syncing without the records that would be new: it pushes only pending records with
         `version` greater than 0 (edits and deletes of records already synced), and pulls
-        as usual. It may also push up to `limit - stored` of the held records in one
-        request. It retries the rest on the next app launch and at most once a day while
-        the app stays open, because the limit can be raised without an app release. A 413
-        is `account_full` only when its body is an `Error` with that code. A 413 with
-        any other body, for example from a proxy that refuses a large body, is the body
-        size refusal, handled like `too_large`.
+        as usual. It may also push up to `max(0, limit - stored)` of the held records in
+        one request. It retries the rest on the next app launch and at most once a day
+        while the app stays open, because the limit can be raised without an app release.
+
+        Two kinds of held record may not be new to the server, and the app must not hold
+        them forever:
+        - A record whose first push succeeded but whose response was lost still has
+          `version` 0 on the device, though the server stores it.
+        - A version-0 tombstone (a record created and deleted offline) is on the server
+          only if an earlier push carried it, again with a lost response. Otherwise it
+          never left this device.
+
+        So the retry sends held records in small batches (for example 20). A batch of
+        records the server already stores comes back as idempotent retries
+        (`server_won`) and leaves the queue. Only batches with really new records are
+        refused again. A version-0 tombstone that was never included in any request
+        cannot be on the server or another device. It holds no data, so the app drops it
+        instead of pushing it.
+
+        A 413 is `account_full` only when its body is an `Error` with that code. A 413
+        with any other body, including an empty or non-JSON one from a proxy that refuses
+        a large body, is the body size refusal, handled like `too_large`.
       requestBody:
         required: true
         content:
@@ -1793,7 +1814,9 @@ components:
         new_records:
           type: integer
           minimum: 1
-          description: Records in the refused push whose ids the server does not store yet.
+          description: |
+            New records in the refused push: ids the server does not store in that table
+            for this account (see `POST /sync`, Account record cap).
 
     LocalDate:
       type: string
