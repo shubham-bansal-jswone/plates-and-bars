@@ -425,13 +425,19 @@ describe('weightSlope, adaptiveBurn, targetFromBurn', () => {
     expect(adaptiveBurn(days, ws, DATE, 2000, { week: mondayOf(DATE), prev: 2500, value: 9999 }, NEXT)).toMatchObject({ burn: Math.round(0.6 * 2500 + 0.4 * 2770) });
     expect(adaptiveBurn(days, ws, DATE, 2000, { week: '2026-01-05', prev: 9999, value: 2500 }, NEXT)).toMatchObject({ burn: Math.round(0.6 * 2500 + 0.4 * 2770) });
   });
-  it('today counts only when ticked; the fallback reads days before today (#150: the prototype counts today too)', () => {
+  it('today counts only when ticked; the fallback reads days before today (#150)', async () => {
     const full = (date: string, complete?: boolean): ProgressDay => ({ date, logs: [1, 2, 3].map((k) => ({ name: `x${k}`, qty: 1, kcal: 700, protein_g: 0, carbs_g: 0, fat_g: 0 })), ...(complete === undefined ? {} : { complete }), trained: false });
     const days = Array.from({ length: 10 }, (_, b) => full(addDays(DATE, -b)));
     const ws = Array.from({ length: 7 }, (_, b) => ({ date: addDays(DATE, -b * 3), weight_kg: 80 + b * 0.3 }));
     expect(adaptiveBurn(days, ws, DATE, 2000, null, NEXT)).toMatchObject({ ready: true, logged: 10 });
     expect(adaptiveBurn(days, ws, DATE, 2000, null, DATE)).toEqual({ ready: false, needDays: 1, needW: 0 });
     expect(adaptiveBurn([full(DATE, true), ...days.slice(1)], ws, DATE, 2000, null, DATE)).toMatchObject({ ready: true, logged: 10 });
+    // The prototype agrees: with today untouched it waits for one more day.
+    setDays(days);
+    setWeights(ws);
+    Object.assign(proto.S.settings, { kcal: 2000, adaptive: undefined });
+    proto.setToday(DATE);
+    expect(proto.adaptiveBurn(await proto.loadDays(DATE, 21))).toEqual({ ready: false, needDays: 1, needW: 0 });
   });
   it('nextAdaptive moves last week\'s value to prev on a new week', () => {
     expect(nextAdaptive(null, DATE, 2400)).toEqual({ week: mondayOf(DATE), prev: null, value: 2400 });
@@ -452,8 +458,10 @@ describe('weightSlope, adaptiveBurn, targetFromBurn', () => {
       setProfile(profile);
       Object.assign(proto.S.settings, { kcal, protein, adaptive: AD ? { ...AD } : undefined });
       expect(weightSlope(ws, DATE, 21)).toEqual(proto.weightSlope(DATE, 21));
-      // The day after DATE is today, so every day read is an older day and the fallback applies as in the prototype.
-      expect(adaptiveBurn(days, ws, DATE, kcal, AD, NEXT)).toEqual(proto.adaptiveBurn(await proto.loadDays(DATE, 21)));
+      // Today is DATE (the fallback skips it) or the day after (every day read is an older day).
+      const today = i % 2 ? DATE : NEXT;
+      proto.setToday(today);
+      expect(adaptiveBurn(days, ws, DATE, kcal, AD, today)).toEqual(proto.adaptiveBurn(await proto.loadDays(DATE, 21)));
       const burn = 1200 + Math.floor(r() * 2500);
       expect(targetFromBurn(burn, profile, ws, protein)).toEqual(proto.targetFromBurn(burn));
     }
@@ -551,7 +559,7 @@ describe('weeklyCheckin', () => {
       Object.assign(proto.S.settings, { kcal, protein, adaptive: adaptive ? { ...adaptive } : undefined, adj: { dismissed: { ...dismissed }, muted: { ...muted }, declines: {}, ...(weekPlan ? { weekPlan } : {}) } });
       proto.setToday(DATE);
       proto.S.tab = 'progress'; // startSetup (drift tests) leaves it on 'setup', and renderCheckin then returns early
-      const c = weeklyCheckin({ date: DATE, days, weighIns: ws, lifts, kcal, protein, profile, adaptive, weekPlan, dismissed, muted });
+      const c = weeklyCheckin({ date: DATE, days, weighIns: ws, lifts, kcal, protein, profile, adaptive, weekPlan, dismissed, muted, today: DATE });
       const html = await proto.renderCheckin(), ci = proto.S.ciData as Record<string, unknown>;
       expect({ sessions: c.sessions, plannedN: c.plannedN, logged: c.logged, avgK: c.avgK, avgP: c.avgP, pDays: c.pDays, w1: c.w1, w0: c.w0, improved: c.improved, stalled: c.stalled, burn: c.burn.ready ? c.burn.burn : null }).toEqual({
         sessions: ci['sessions'], plannedN: ci['plannedN'], logged: ci['logged'], avgK: ci['avgK'], avgP: ci['avgP'], pDays: ci['pDays'], w1: ci['w1'], w0: ci['w0'], improved: ci['improved'], stalled: ci['stalled'], burn: ci['burn'],

@@ -485,6 +485,18 @@ describe('Workout tab: logging sets', () => {
     expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no');
   });
 
+  describe('Learn mode block (#623)', () => {
+    it('shows on a card in learn mode with Setup closed after earlier sessions, and goes once the sets are done', async () => {
+      await setup({ lifts: { 'Overhead Cable Extension': 20 } });
+      await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+      await screen.findByText('Push B');
+      expect(screen.getAllByText('Learn mode').length).toBeGreaterThan(0);
+      expect(screen.getByLabelText('Setup steps for Overhead Cable Extension').props.accessibilityState).toMatchObject({ expanded: false });
+      for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
+      expect(screen.queryByLabelText('Setup steps for Overhead Cable Extension')).toBeNull();
+    });
+  });
+
   describe('feel check after a set (#485)', () => {
     const NAME = 'Overhead Cable Extension';
     it('shows only once a set is done, then stores the answer and its tip', async () => {
