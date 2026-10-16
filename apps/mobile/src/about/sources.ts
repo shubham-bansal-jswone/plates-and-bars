@@ -18,6 +18,21 @@ export interface SourceInfo {
 const baseName = (name: string): string => name.split('; values match')[0]!;
 export const sourceKey = (s: { code: string; name: string }): string => `${s.code}|${baseName(s.name)}`;
 
+/**
+ * One entry per source key. A reference belongs to one food, so a merged source keeps it only when every row agrees;
+ * otherwise it is dropped rather than showing one food's reference for the whole source.
+ */
+export function mergeSources(rows: readonly (SourceInfo & { reference?: string | null })[]): readonly SourceInfo[] {
+  const merged = new Map<string, SourceInfo>();
+  for (const s of rows) {
+    const key = sourceKey(s);
+    const prev = merged.get(key);
+    if (!prev) merged.set(key, { code: s.code, name: baseName(s.name), licence: s.licence, url: s.url, reference: s.reference });
+    else if (prev.reference !== s.reference) prev.reference = null;
+  }
+  return [...merged.values()];
+}
+
 /** Food data sources, names and licences exactly as recorded on the content rows (ADR 002 and 005). Resolved at first use after the content load. */
 export const getFoodSources = perLoad(() => {
   const fromContent = [
@@ -25,7 +40,7 @@ export const getFoodSources = perLoad(() => {
     ...chosenEatout().cuisines.flatMap((c) => c.dishes.map((d) => d.source)),
     ...chosenRaw().ingredients.map((i) => i.source),
   ];
-  return [...new Map(fromContent.map((s) => [sourceKey(s), { code: s.code, name: baseName(s.name), licence: s.licence, url: s.url, reference: s.reference }])).values()] as readonly SourceInfo[];
+  return mergeSources(fromContent);
 });
 
 /** Fonts bundled with the app (docs/design/DESIGN.md section 4.1). */
