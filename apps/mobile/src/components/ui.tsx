@@ -68,6 +68,15 @@ export function Label({ children }: { children: ReactNode }) {
   return <Text style={[styles.label, { color: c.ink }]}>{children}</Text>;
 }
 
+/**
+ * A visible caption over a Field that already carries the same spoken label. It is hidden from screen readers so
+ * the label is not read twice. `aria-hidden` is required, not optional: react-native-web 0.21 ignores
+ * accessibilityElementsHidden and importantForAccessibility, so only aria-hidden hides it on web (RN maps it to the native props).
+ */
+export function Caption({ children }: { children: ReactNode }) {
+  return <View aria-hidden><Label>{children}</Label></View>;
+}
+
 export function Note({ children }: { children: ReactNode }) {
   const c = useTheme();
   return <Text style={[styles.note, { color: c.ink, backgroundColor: c.tint, borderColor: c.line }]}>{children}</Text>;

@@ -7,7 +7,7 @@ import { StyleSheet, View } from 'react-native';
 import { DEFAULT_KCAL_TARGET, round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { Heading, Button, Card, Field, H1, Hint, Label, Page } from '../components/ui';
+import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
@@ -138,7 +138,7 @@ function MeasureSection({ p }: { p: Progress }) {
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
       {shown.map((m) => (
         <View key={m.key} style={styles.field}>
-          <Label>{`${m.label} (cm)`}</Label>
+          <Caption>{`${m.label} (cm)`}</Caption>
           <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
         </View>
       ))}

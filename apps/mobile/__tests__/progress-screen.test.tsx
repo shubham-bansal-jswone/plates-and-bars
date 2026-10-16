@@ -97,6 +97,13 @@ describe('Progress screen', () => {
     expect(docs(db, 'weights')[0].weight_kg).toBe(80.5);
   });
 
+  it('hides the visible measurement captions from screen readers; each field speaks its own label', async () => {
+    await setup();
+    expect(screen.getByText('Neck (cm)', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Neck (cm)')).toBeNull();
+    expect(screen.getByLabelText('Neck in cm')).toBeTruthy();
+  });
+
   it('shows the navy body-fat estimate from core once waist and neck are saved', async () => {
     const db = await setup();
     expect(screen.getByText('Add waist and neck for a body-fat estimate.')).toBeTruthy();
