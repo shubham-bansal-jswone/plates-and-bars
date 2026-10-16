@@ -13,7 +13,12 @@ const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'pag
 const levelOnes = (page) => page.evaluate(() => [...document.querySelectorAll('[role=heading][aria-level="1"], h1:not([role])')].filter((h) => !h.closest('[aria-hidden="true"]')).map((h) => h.textContent));
 
 async function scan(page, name, scheme) {
-  expect(await levelOnes(page), `${name} in ${scheme} mode: level-one headings`).toHaveLength(1);
+  // Auto-retrying: under Expo SDK 58 the incoming screen mounts one commit after the outgoing one is marked aria-hidden,
+  // so a single read can land in the ~10–26 ms window with no non-aria-hidden level-one heading (#542). A screen that
+  // genuinely has none still fails, once the retries run out.
+  await expect(async () => {
+    expect(await levelOnes(page), `${name} in ${scheme} mode: level-one headings`).toHaveLength(1);
+  }).toPass({ timeout: 5_000 });
   await page.evaluate(axeSource);
   const { violations } = await page.evaluate((rules) => globalThis.axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, rules: Object.fromEntries(rules.map((r) => [r, { enabled: true }])), checks: { 'page-has-heading-one': { options: { passForModal: false } } } }), RULES);
   const { unexpected, stale } = triage(violations, KNOWN[name]);
@@ -38,14 +43,20 @@ const screens = {
   },
   workout: async (page) => {
     await tab(page, 'Workout');
-    await expect(page.locator('[aria-label^="Start "]').first()).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1, name: /day$/ })).toBeVisible();
+    // "Exercise 1: <name>" is on Workout's planned-session view only. The old waits were also satisfiable by Targets:
+    // `[aria-label^="Start "]` matched its "Start a rest timer after each set" switch and `/day$/` matched its
+    // "You burn about 2,493 kcal a day" level-one headline, so axe could run on Targets, or inside the empty window
+    // after Targets was hidden and before Workout mounted (#542).
+    await expect(page.locator('[aria-label^="Exercise 1: "]')).toBeVisible();
   },
   progress: async (page) => {
     await tab(page, 'Progress');
     await expect(label(page, 'Save weight')).toBeVisible();
   },
-  targets: async (page) => tab(page, 'Targets'),
+  targets: async (page) => {
+    await tab(page, 'Targets');
+    await expect(label(page, 'Redo setup')).toBeVisible(); // only Targets has it, so the scan cannot run on a tab still in transition
+  },
   data: async (page) => {
     await tab(page, 'Targets');
     await label(page, 'Download or delete my data').click();
@@ -59,7 +70,9 @@ const screens = {
   about: async (page) => {
     await tab(page, 'Targets');
     await label(page, 'About and sources').click();
-    await expect(page.getByRole('heading', { name: /about/i })).toBeVisible();
+    // Exact level-one name: Targets' own level-one headline "You burn about 2,493 kcal a day" matches /about/i, so the
+    // loose heading match could be satisfied while still on Targets (#542).
+    await expect(page.getByRole('heading', { level: 1, name: 'About and sources', exact: true })).toBeVisible();
   },
   recipes: async (page) => {
     await tab(page, 'Food');
