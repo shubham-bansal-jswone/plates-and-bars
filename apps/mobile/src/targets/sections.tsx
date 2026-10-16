@@ -106,7 +106,7 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   );
 }
 
-function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
+export function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
   const c = useTheme();
   return (
     <View style={styles.gap} accessibilityLabel={title}>
