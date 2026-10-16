@@ -10,6 +10,7 @@ import { ASK_CARDS, cardTitle } from './cards';
 import { isBlank } from '../text/blank';
 
 const QUESTION_MAX = 300;
+const QUESTION_LABEL = 'Your question';
 
 /**
  * Ask why (AI) about one of the target cards. Only the card id and the typed question are sent; the answer is shown here
@@ -54,8 +55,9 @@ export function AskWhySheet({ onClose }: { onClose: () => void }) {
               </Press>
             ))}
           </View>
-          <Label>Your question</Label>
-          <Field label="Your question" placeholder="Is 150 g of protein too much for me?" multiline maxLength={QUESTION_MAX} value={question} onChangeText={setQuestion} />
+          {/* The caption is visible; the field carries the spoken label, so the caption is hidden from screen readers. */}
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Label>{QUESTION_LABEL}</Label></View>
+          <Field label={QUESTION_LABEL} placeholder="Is 150 g of protein too much for me?" multiline maxLength={QUESTION_MAX} value={question} onChangeText={setQuestion} />
           {ai.quotaUsed() ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.askFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
           {ai.quotaUsed() ? null : <Button label={busy ? 'Asking…' : 'Ask'} a11yLabel="Ask" busy={busy} onPress={() => void send()} />}
           {answer ? (
