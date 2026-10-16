@@ -122,9 +122,10 @@ class SyncEngineIT extends SyncITBase {
         ok(user, req(null).add(SyncTable.lift_stats, rec).build());
         JsonNode back = pulled(ok(user, req(null).build()), "lift_stats", rec.path("id").asText());
 
-        assertThat(back.path("prev")).isEqualTo(prev);
-        // Equal as JSON values; MySQL's JSON column reorders object keys, so the text can differ.
-        assertThat(back.path("prev").path("prev").has("prev")).isFalse();
+        // Compared as JSON values; MySQL's JSON column reorders object keys, so the text can differ.
+        ObjectNode expected = rec.deepCopy();
+        expected.put("version", 1);
+        assertThat(JsonContent.same(back, expected)).isTrue();
     }
 
     @Test
