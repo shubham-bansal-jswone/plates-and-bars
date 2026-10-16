@@ -5,9 +5,9 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, type ExclusionReason } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
+import { Button, Card, H1, Heading, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
 import { useProfile } from '../state/ProfileProvider';
@@ -21,6 +21,8 @@ import { AddExerciseSheet } from '../workout/AddExerciseSheet';
 import { CustomTagsSheet } from '../workout/CustomTagsSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
+import { BurnLine } from '../workout/BurnLine';
+import { CardioField } from '../workout/CardioField';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -81,7 +83,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
     day.exs.length === 0 ? (
       <StartView key={w.date} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
-      <SessionView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+      <SessionView db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
     );
   const where = day.workout?.where ?? profile.where;
   const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
@@ -103,7 +105,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
         }}
         onClose={() => setCantName(null)}
       />
-      <RestBar rest={rest} onAdd={() => setRest((r) => (r ? { ...r, end: r.end + 30000, total: r.total + 30 } : r))} onSkip={() => setRest(null)} />
+      <RestBar rest={rest} onAdd={() => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r))} onSkip={() => setRest(null)} />
       <ToastBar message={toast} />
     </View>
   );
@@ -241,7 +243,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   );
 }
 
-function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
+function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const [open, setOpen] = useState(false);
@@ -282,6 +284,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={{ color: c.muted, fontSize: 14 }}>
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>
+      <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
       {day.exs.map((ex, i) => {
         const { info, sug } = guidance(ex, ctx, wk);
@@ -354,6 +357,11 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
           ) : null}
         </Card>
       ) : null}
+      <Card>
+        <Heading level={3} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>Cardio</Heading>
+        <CardioField value={wk.cardio_min} onSave={w.setCardio} />
+        <Hint>minutes (walk, cycle, incline treadmill)</Hint>
+      </Card>
       <View style={{ height: 120 }} />
     </Page>
   );
