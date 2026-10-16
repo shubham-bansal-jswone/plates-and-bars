@@ -6,8 +6,9 @@ import { Text } from '../components/Text';
 import { Button, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
+import { CameraDenied, capturePhoto } from '../photos/capture';
 import { fmt, shortDate } from '../format';
-import { BAD_DATE, compareLine, COPY_TABLE, LOAD_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem, TABLE_COPIED, TABLE_COPY_FAILED } from '../kitchen/copy';
+import { BAD_DATE, compareLine, COPY_TABLE, LOAD_FAILED, PHOTO_ADD, PHOTO_ADDED, PHOTO_CAMERA_OFF, PHOTO_HINT, PHOTO_PICK_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem, TABLE_COPIED, TABLE_COPY_FAILED } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
 import { getFoodCatalog } from '../food/catalog';
@@ -115,6 +116,14 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
     notify('Kitchen test saved');
     setD(null);
   };
+  const addPhoto = async (source: 'camera' | 'library') => {
+    try {
+      const jpeg = await capturePhoto(source);
+      if (jpeg) setD((x) => (x ? { ...x, photo: jpeg } : x));
+    } catch (e) {
+      notify(e instanceof CameraDenied ? PHOTO_CAMERA_OFF : PHOTO_PICK_FAILED);
+    }
+  };
   const set = (patch: Partial<TestFields>) => setD({ ...d, ...patch });
   const how = showHow ?? store.tests.length === 0;
 
@@ -169,6 +178,14 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           ) : (
             <Hint>{NOT_READY_HINT}</Hint>
           )}
+        </View>
+        <View style={styles.gap}>
+          <Label>{d.photo ? PHOTO_ADDED : PHOTO_ADD}</Label>
+          <View style={styles.wrap}>
+            <Button label={d.photo ? 'Retake the serving photo' : 'Take a photo of the serving'} kind="ghost" onPress={() => void addPhoto('camera')} />
+            <Button label={d.photo ? 'Choose another serving photo' : 'Choose a photo of the serving'} kind="ghost" onPress={() => void addPhoto('library')} />
+          </View>
+          <Hint>{PHOTO_HINT}</Hint>
         </View>
         <View style={styles.wrap}>
           <Button label="Save test" onPress={() => save(false)} />

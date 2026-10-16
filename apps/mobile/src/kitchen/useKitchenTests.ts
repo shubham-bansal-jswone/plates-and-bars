@@ -4,10 +4,13 @@ import { trackWrite } from '../db/pendingWrites';
 import { loadUserFoods } from '../db/food';
 import { loadKitchenTests, saveKitchenTest } from '../db/kitchenTests';
 import type { WorkoutDb } from '../db/workouts';
+import { withPhotosSettled } from '../sync/guard';
+import { deleteKitchenPhoto, putKitchenPhoto } from '../photos/vault';
+import type { PullDb } from '../db/outbox';
 import { saveFood } from '../recipes/useRecipes';
 import type { UserFood } from '../food/types';
 import type { Ingredient } from '../recipes/types';
-import { LOAD_FAILED, SAVE_FAILED } from './copy';
+import { LOAD_FAILED, PHOTO_SAVE_FAILED, SAVE_FAILED } from './copy';
 import type { KitchenTest, ServingName } from './types';
 
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -16,6 +19,11 @@ const compareFood = (f: UserFood): KitchenCompareFood => {
   const u = userFoodFacts(f);
   return { name: u.name, unit: u.serving.label, kcal: u.per_serving.kcal };
 };
+/** The database as one that can run an owed vault wipe first (as in usePhotos); one that cannot fails the photo write, never the test. */
+function wipeable(db: WorkoutDb): WorkoutDb & PullDb {
+  if (typeof (db as Partial<PullDb>).withExclusiveTransactionAsync !== 'function') throw new Error('no transactions');
+  return db as WorkoutDb & PullDb;
+}
 const weight = (s: string): number | null => (s.trim() === '' ? null : num(s));
 
 /** The test as typed: weights stay text until core reads them. */
@@ -30,6 +38,8 @@ export interface TestFields {
   cooked: string;
   serving: string;
   sname: ServingName;
+  /** A serving photo picked in this editor (base64 JPEG), written to the vault on save. Never part of the record. */
+  photo?: string | null;
 }
 
 /**
@@ -88,6 +98,16 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
       const t = stamp(now());
       enqueue(async () => {
         const old = (await loadKitchenTests(db)).find((x) => x.id === f.id);
+        // The photo stays on the device (vault); only the flag syncs. A failed write leaves the test saved without it.
+        let has_photo = old?.has_photo ?? false;
+        if (f.photo) {
+          try {
+            await withPhotosSettled(wipeable(db), () => putKitchenPhoto(f.id, f.photo as string));
+            has_photo = true;
+          } catch {
+            notify(PHOTO_SAVE_FAILED);
+          }
+        }
         // TODO: core's kitchenTest could return the kept rows (amount above 0) so this filter is not repeated here.
         const ingredients: Ingredient[] = f.rows.filter((r) => num(r.amount) > 0).map((r) => ({ ingredient: r.ingredient, amount: num(r.amount), unit: r.unit }));
         await saveKitchenTest(db, {
@@ -104,12 +124,12 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
           cooked_g: weight(f.cooked),
           serving_g: weight(f.serving),
           serving_name: f.sname,
-          has_photo: old?.has_photo ?? false,
+          has_photo,
         });
         if (food) await saveFood(db, food, t);
       });
     },
-    [db, now, enqueue],
+    [db, now, enqueue, notify],
   );
 
   const remove = useCallback(
@@ -119,6 +139,8 @@ export function useKitchenTests({ db, now, notify }: { db: WorkoutDb; now: () =>
       enqueue(async () => {
         const cur = (await loadKitchenTests(db)).find((x) => x.id === id);
         if (cur) await saveKitchenTest(db, { ...cur, deleted_at: t, updated_at: t });
+        // The photo goes with the test; a failure here leaves an orphan file that the next wipe removes.
+        if (cur?.has_photo) await withPhotosSettled(wipeable(db), () => deleteKitchenPhoto(id)).catch(() => undefined);
       });
     },
     [db, now, enqueue],
