@@ -7,6 +7,7 @@ import { memoryTokenStore } from '../src/sync/tokens';
 import { CustomTagsSheet } from '../src/workout/CustomTagsSheet';
 import { FALLBACK_TAGS, tagsFromSuggestion } from '../src/workout/suggestTags';
 import * as suggestTags from '../src/workout/suggestTags';
+import blank from './fixtures/blank-text.json';
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 const QUOTA = { limit: 10, remaining: 7, resets_at: '2026-10-09T00:00:00Z' };
@@ -26,7 +27,7 @@ function kvDb(initial: Record<string, string>) {
 }
 const optedIn = () => kvDb({ [KEY_USER]: 'u1', [KEY_AI_CONSENT]: 'u1' });
 
-async function open(opts: { get?: jest.Mock; post?: jest.Mock; kv?: ReturnType<typeof kvDb> } = {}) {
+async function open(opts: { get?: jest.Mock; post?: jest.Mock; kv?: ReturnType<typeof kvDb>; name?: string } = {}) {
   const GET: jest.Mock = opts.get ?? jest.fn(async () => ({ data: status(true), response: res(200) }));
   const POST: jest.Mock = opts.post ?? jest.fn(async () => ({ data: SUGGESTION, response: res(200) }));
   const t = memoryTokenStore();
@@ -35,7 +36,7 @@ async function open(opts: { get?: jest.Mock; post?: jest.Mock; kv?: ReturnType<t
   const notify = jest.fn();
   const ui: ReactNode = (
     <AiProvider db={(opts.kv ?? optedIn()) as never} api={{ GET, POST } as unknown as ApiClient} tokens={t} signedIn now={NOW}>
-      <CustomTagsSheet name="Pec deck" onSave={onSave} onClose={jest.fn()} notify={notify} />
+      <CustomTagsSheet name={opts.name ?? 'Pec deck'} onSave={onSave} onClose={jest.fn()} notify={notify} />
     </AiProvider>
   );
   await render(ui);
@@ -55,6 +56,12 @@ describe('custom exercise tag suggestion', () => {
     expect(screen.getByLabelText('Muscles worked: chest. Also working: front shoulders')).toBeTruthy();
     await tap('Add Pec deck with these muscles');
     expect(onSave).toHaveBeenCalledWith({ pattern: 'fly', family: 'custom', equipment: 'cable', difficulty: 1, primary: ['chest'], secondary: ['front-delt'], joints: ['shoulder'] });
+  });
+
+  it.each(blank.must_fail.map((t) => [JSON.stringify(t), t]))('never asks for a suggestion for the blank name %s', async (_n, name) => {
+    const { POST } = await open({ name });
+    expect(await screen.findByText(/Tap the muscles this exercise trains/)).toBeTruthy();
+    expect(POST).not.toHaveBeenCalled();
   });
 
   it('lets the user correct the suggestion, and the body map follows', async () => {

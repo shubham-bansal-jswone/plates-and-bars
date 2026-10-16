@@ -9,6 +9,7 @@ import { BodyMap } from './BodyMap';
 import { MUSCLE_CODES, muscleName } from './copy';
 import { Chip } from './parts';
 import { FALLBACK_TAGS, tagsFromSuggestion } from './suggestTags';
+import { isBlank } from '../text/blank';
 
 /**
  * Tags for an exercise the user typed (prototype `tagSheet`): the muscles it trains, so it gets coverage, swaps and weight
@@ -29,7 +30,7 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
   const asked = useRef(false);
   useEffect(() => () => void (alive.current = false), []);
   useEffect(() => {
-    if (asked.current || !ai.available('suggest_tags') || ai.quotaUsed()) return;
+    if (asked.current || isBlank(name) || !ai.available('suggest_tags') || ai.quotaUsed()) return;
     asked.current = true;
     setBusy(true);
     ai.suggestTags(name).then((r) => {
