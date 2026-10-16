@@ -127,9 +127,9 @@ export function formulasFixture(html) {
   const navyBodyFat = {};
   for (const n of C.NAVY) {
     get(`S.settings.profile = ${JSON.stringify({ sex: n.sex, height: n.height })}; S.measures = ${JSON.stringify({ waist: n.waist, neck: n.neck, hips: n.hips })}`);
-    navyBodyFat[n.key] = Math.round(get('navyBF("")') * 10) / 10;
+    navyBodyFat[n.id] = Math.round(get('navyBF("")') * 10) / 10;
   }
-  get(`S.weights.entries = { '2026-10-01': ${C.WEIGHT_KG} }; S.date = '2026-10-07'`);
+  get(`S.weights.entries = { ${JSON.stringify(C.WEIGH_IN_DATE)}: ${C.WEIGHT_KG} }; S.date = ${JSON.stringify(C.TODAY)}`);
   get('S.planned = null');
   const rest = get('waterTarget()').ml;
   get('S.planned = "Push A"');

@@ -39,20 +39,15 @@ function parses(text) {
   try { new vm.Script(text); return true; } catch { return false; }
 }
 
-// Runs `names` (their statements, in the order given) plus any `extra` code, in a fresh context.
+// Runs `names` (their statements, in the order given) in a fresh context.
+// The vm context isolates globals so output is repeatable (no clock, no host state); it is not a security boundary, and the
+// input must be the repo's own prototype, never untrusted HTML.
 // Returns `get(expr)`, which evaluates an expression in that context and returns a plain JSON copy of the result
 // (top-level `const`s are not properties of the context, so they are read this way).
 // `pre` is code run first (helpers the statements use). Dates are the host's, so callers must not depend on "today".
-export function load(html, names, { pre = '', extra = '', globals = {} } = {}) {
-  const ctx = vm.createContext({ ...globals });
-  const code = [pre, ...names.flatMap((n) => statementsOf(html, n)), extra].join('\n');
+export function load(html, names, { pre = '' } = {}) {
+  const ctx = vm.createContext({});
+  const code = [pre, ...names.flatMap((n) => statementsOf(html, n))].join('\n');
   vm.runInContext(code, ctx, { timeout: 5000 });
   return (expr) => JSON.parse(JSON.stringify(vm.runInContext(expr, ctx, { timeout: 5000 })));
-}
-
-// A single top-level line starting with `start` (for the one-line helpers such as `const num = ...`).
-export function lineStarting(html, start) {
-  const line = html.split('\n').find((l) => l.startsWith(start));
-  if (line === undefined) throw new Error(`prototype: no line starting with ${start}`);
-  return line;
 }

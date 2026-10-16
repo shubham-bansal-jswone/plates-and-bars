@@ -46,10 +46,11 @@ export const SESSION_FOCUS = [null, 'glutes'];
 
 // formulas.json: inputs for the one-off formulas.
 export const NAVY = [
-  { key: 'male_165cm_w95_n39', sex: 'male', height: 165, waist: 95, neck: 39 },
-  { key: 'female_158cm_w78_n32_h98', sex: 'female', height: 158, waist: 78, neck: 32, hips: 98 },
+  { id: 'male_165cm_w95_n39', sex: 'male', height: 165, waist: 95, neck: 39 },
+  { id: 'female_158cm_w78_n32_h98', sex: 'female', height: 158, waist: 78, neck: 32, hips: 98 },
 ];
 export const WEIGHT_KG = 82;
+export const WEIGH_IN_DATE = '2026-10-01';
 export const KCAL_TARGET = 2000;
 // A 15-minute span between the first and last ticked set (t in ms; the prototype ignores t = 0), three sets, 10 minutes of cardio, 82 kg.
 export const WORKOUT = { kg: 82, cardio: 10, setTimes: [1000000, 1450000, 1900000] };
