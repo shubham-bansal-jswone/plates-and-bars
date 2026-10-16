@@ -140,6 +140,7 @@ describe('recovery week on the start screen', () => {
     expect(await screen.findByText(/^Pec Deck Fly, Cable Lateral Raise, Machine Shoulder Press and 1 more haven’t moved in 3 sessions\./)).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Stop suggesting this, recovery week'));
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { deload: true } }));
+    expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
     expect(screen.queryByText('Several lifts have stalled')).toBeNull();
   });
 
@@ -250,6 +251,7 @@ describe('welcome back card after a break', () => {
     const db = await open({ declines: { break: 3 } }, [], ['2026-09-24']);
     fireEvent.press(await screen.findByLabelText('Stop suggesting this, re-entry'));
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { break: true } }));
+    expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
     expect(screen.queryByText(/^Welcome back\./)).toBeNull();
   });
 
@@ -269,6 +271,14 @@ describe('steady weeks card', () => {
     fireEvent.press(screen.getByLabelText('Take a lighter week, lighter week'));
     await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ deload: recoveryWeek(DATE), dismissed: { 'dlplan:2026-10-05': true } }));
     expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
+    expect(screen.queryByText('6 steady weeks of training')).toBeNull();
+  });
+
+  it('after 3 declines, Stop suggesting this mutes it and toasts', async () => {
+    const db = await open({ declines: { 'deload-plan': 3 } }, [], steadyWeeks(6));
+    fireEvent.press(await screen.findByLabelText('Stop suggesting this, lighter week'));
+    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { 'deload-plan': true } }));
+    expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
     expect(screen.queryByText('6 steady weeks of training')).toBeNull();
   });
 
