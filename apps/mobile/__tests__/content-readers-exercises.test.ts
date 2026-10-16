@@ -15,6 +15,7 @@ jest.mock('../src/content/reader', () => {
   return { ...actual, contentReader: (n: string, shipped: unknown, valid: (v: unknown) => boolean) => actual.contentReader(n, shipped, (x: unknown) => { mockRuns.push(n); return valid(x); }) };
 });
 
+const blankVectors = require('../../../packages/api/test-vectors/blank-text.json') as { must_fail: string[]; must_pass: string[] };
 const LATER = '2099-01-01T00:00:00Z';
 type Obj = Record<string, any>;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -101,7 +102,14 @@ describe('exercises through the content store', () => {
     expect(getCatalog().ladders.squat!.steps.at(-1)).toEqual([NEW]);
   });
 
+  /** Every spelling of the new exercise's name (tags, meta, cards, library) becomes `to`: valid in every way except possibly the name. */
+  const renameNew = (b: Obj, to: string): void => {
+    const r = JSON.parse(JSON.stringify(b).split(JSON.stringify(NEW)).join(JSON.stringify(to))) as Obj;
+    for (const k of Object.keys(b)) delete b[k];
+    Object.assign(b, r);
+  };
   const cases: [string, (b: Obj) => void][] = [
+    ...blankVectors.must_fail.map((t): [string, (b: Obj) => void] => [`exercise name ${JSON.stringify(t)}`, (b) => renameNew(b, t)]),
     ['bundle tags missing', (b) => { delete b.tags; }],
     ['tags empty', (b) => { b.tags = {}; b.meta = {}; }],
     ['tags a list', (b) => { b.tags = []; }],
@@ -268,6 +276,11 @@ describe('exercises through the content store', () => {
     expect(tagNames()).toHaveLength(shippedCount);
     expect(libNames()).not.toContain(NEW);
     expect(libNames()).toHaveLength(shippedCount);
+  });
+
+  it('control: the same rename to a visible name is accepted, so the blank cases fail only on the name', async () => {
+    await launch(withNew((b) => renameNew(b, 'Renamed test exercise')));
+    expect(tagNames()).toContain('Renamed test exercise');
   });
 
   it.each([[null], [[]], ['text'], [{ tags: {} }], [{ tags: 'x' }], [{ tags: { a: null } }]])('rejects %j', async (value) => {

@@ -25,6 +25,7 @@ import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/
 import { useRules } from '../workout/useRules';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
+import { isBlank } from '../text/blank';
 
 interface Props {
   db: WorkoutDb & PullDb;
@@ -248,7 +249,7 @@ function SessionView({ w, profile, focus, rules, notify, tune, onHowTo, onCant }
   const { addCustomTags } = useSettings();
   const addTyped = (raw: string) => {
     const typed = raw.trim();
-    if (!typed) return notify('Type an exercise name.');
+    if (isBlank(typed)) return notify('Type an exercise name.');
     if (exerciseNameTooLong(typed)) return notify('That exercise name is too long. Shorten it.');
     // A name the library knows (any case) is that exercise; a new one needs its muscles first (prototype exCustom).
     const known = Object.keys(getCatalog().tags).find((n) => n.toLowerCase() === typed.toLowerCase());

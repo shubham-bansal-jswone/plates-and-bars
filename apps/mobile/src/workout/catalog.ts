@@ -3,6 +3,7 @@ import exercises from '../../../../content/exercises.json';
 import { has, isProtoName } from '../content/own';
 import { contentReader, isArrOf, isNum, isNumIn, isObj, isStr, isText, perLoad } from '../content/reader';
 import { MUSCLE_CODES, TYPE_LABEL } from './copy';
+import { isBlank } from '../text/blank';
 
 /** One exercise's how-to card (content/exercises.json `cards`, long keys). */
 export interface ExerciseCard {
@@ -40,7 +41,7 @@ const LINE_MAX = 1000;
 const LIST_MAX = 100;
 const LIBRARY_GROUP_MAX = 1000;
 const REPS_MAX = 200;
-const trimmed = (max: number) => (v: unknown): v is string => isText(max)(v) && v.trim() !== '';
+const trimmed = (max: number) => (v: unknown): v is string => isText(max)(v) && !isBlank(v);
 /** Names and keys are compared exactly, so 'Goblet Squat ' must not become a second exercise: no leading or trailing whitespace. */
 const exact = (max: number) => (v: unknown): v is string => trimmed(max)(v) && v === v.trim();
 const name = exact(NAME_MAX);
