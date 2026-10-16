@@ -31,6 +31,15 @@ const start = async () => {
   await fireEvent.press(screen.getByLabelText('New kitchen test'));
   await screen.findByRole('header', { name: 'Kitchen test' });
 };
+it('hides the visible captions from screen readers; the fields speak the labels', async () => {
+  await setup();
+  await start();
+  for (const [caption, field] of [['Dish', 'Dish'], ['Date', 'Date'], ['Notes (who cooked, region, method)', 'Notes']] as const) {
+    expect(screen.getByText(caption, { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText(caption)).toBeNull();
+    expect(screen.getByLabelText(field)).toBeTruthy();
+  }
+});
 // Dal 150 g dry + ghee 15 g, pot 500 g empty, 1,500 g full, a 250 g serving.
 const fill = async (serving = '250') => {
   await fireEvent.changeText(screen.getByLabelText('Dish'), '  Dal  ');
