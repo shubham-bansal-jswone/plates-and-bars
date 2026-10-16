@@ -42,6 +42,7 @@ export const BODY_MAP_LICENCE =
 export const ABOUT_COPY = {
   title: 'About and sources',
   intro: 'Where the numbers and content in Plate & Bar come from, and under what licence.',
+  privacy: 'Your consent',
   food: 'Food data',
   fonts: 'Fonts',
   bodyMap: 'Body map',

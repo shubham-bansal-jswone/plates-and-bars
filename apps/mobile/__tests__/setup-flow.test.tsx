@@ -21,6 +21,7 @@ async function consent() {
   await screen.findByText('Before you start');
   await press('Continue');
   expect(screen.getByText('Tick the box to continue.')).toBeTruthy();
+  expect(screen.getByText(/Withdrawing your consent means deleting your account/)).toBeTruthy();
   await fireEvent(screen.getByLabelText('I understand and agree to my data being stored as described'), 'valueChange', true);
   await press('Continue');
 }
@@ -123,7 +124,7 @@ describe('setup flow', () => {
       ),
     );
     expect(p!.created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(await loadConsent(db)).toMatchObject({ kind: 'data_storage', text_version: '2026-10-07', version: 0 });
+    expect(await loadConsent(db)).toMatchObject({ kind: 'data_storage', text_version: '2026-10-16', version: 0 });
   });
 
   it('accepts zero training days and stores exp and minutes as null', async () => {
