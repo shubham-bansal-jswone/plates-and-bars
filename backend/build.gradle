@@ -73,6 +73,8 @@ tasks.named('processResources') {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // The blank-text vectors are read by BlankTextVectorsTest: editing them must rerun the tests.
+    inputs.dir('../packages/api/test-vectors')
     // The signing key is environment-only; tests use a throwaway one.
     environment 'JWT_SIGNING_KEY', 'test-only-signing-key-0123456789-abcdefghij'
     environment 'GOOGLE_CLIENT_IDS', 'test-client-id.apps.googleusercontent.com'
