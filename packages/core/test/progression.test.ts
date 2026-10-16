@@ -21,6 +21,7 @@ import {
   type ExerciseCatalog,
   type ExerciseTag,
   type ExerciseOverride,
+  type ExType,
   type LiftRecord,
   type ModsContext,
   type Rate,
@@ -40,7 +41,7 @@ interface GoldenProgression {
 
 const golden = loadGolden<GoldenProgression>('progression');
 // The port reads EX_META from content/exercises.json; content.test.ts checks it equals the fixture's exerciseMeta.
-const catalog: ExerciseCatalog = content;
+const catalog = content as ExerciseCatalog;
 // The fixture does not record S.date. Any date from 2026-10-02 (after last.date) to 2026-10-11 (less
 // than 14 days after first-2-weeks-hold's first) reproduces it; the spec is dated 2026-10-07.
 const DATE = '2026-10-07';
@@ -477,7 +478,8 @@ describe('catalogue meta and custom exercises', () => {
   });
 
   it('overridesFromSettings: an empty type falls back to the catalogue type, as prototype `o.type || m[0]` does', () => {
-    const ov = overridesFromSettings({ 'Hack Squat': { type: '', step_kg: 1, rep_low: 6, rep_high: 8 } });
+    // '' is outside the contract enum; the cast pins the prototype's runtime fallback for a bad stored value.
+    const ov = overridesFromSettings({ 'Hack Squat': { type: '' as ExType, step_kg: 1, rep_low: 6, rep_high: 8 } });
     expect(exInfo('Hack Squat', catalog, ov['Hack Squat'])).toEqual({ type: 'machine', lo: 6, hi: 8, step: 1 });
   });
 });
