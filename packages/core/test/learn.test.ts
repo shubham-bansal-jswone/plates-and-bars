@@ -1,8 +1,9 @@
 import cardsContent from '../../../content/cards.json';
 import { addDays, dailyRead, learnList, type LearnCard } from '../src/index';
+import { loadGolden } from './helpers';
 import { loadLearn, protoDaily } from './prototype-learn';
 
-// Hand-worked cases until the golden generator lands (#99); every other case runs the prototype's own `learnCardHtml`.
+// golden/learn.json (generated from the prototype's `learnCardHtml`), then differential and hand-worked cases.
 const proto = loadLearn();
 const cards: readonly LearnCard[] = cardsContent.cards;
 const HIDDEN = ['ramp', 'ladder', 'formfirst']; // the app's held-back cards (#212)
@@ -23,6 +24,33 @@ function protoOrder(sex: string | undefined): string[] {
   for (let r = protoRun(sex, { start: START, read }, '2027-10-01'); r; r = protoRun(sex, { start: START, read }, '2027-10-01')) read.push(r.next);
   return read;
 }
+
+interface GoldenLearn {
+  order: Record<'male' | 'female' | 'none', string[]>;
+  cases: { id: string; input: { sex: string | null; days: number; read: string[] }; output: { due: number; next: string | null; readN?: number; total?: number } }[];
+}
+const golden = loadGolden<GoldenLearn>('learn');
+
+// The fixture has no hidden cards (an app filter, #212) and no future starts (#584 is a decided exception to the prototype).
+describe('learn: golden/learn.json', () => {
+  it.each(['male', 'female', 'none'] as const)('order for %s', (key) => {
+    expect(ids(learnList(cards, key === 'none' ? undefined : key))).toEqual(golden.order[key]);
+  });
+  it.each(golden.cases.map((c) => [c.id, c] as const))('%s', (_id, { input, output }) => {
+    const sex = input.sex ?? undefined;
+    const c = dailyRead(cards, sex, { start: START, read: input.read }, addDays(START, input.days));
+    expect(c.next?.id ?? null).toBe(output.next);
+    // The prototype shows no progress line when nothing is due, so readN and total are recorded only with a card.
+    if (output.next !== null) expect({ readN: c.readN, total: c.total }).toEqual({ readN: output.readN, total: output.total });
+    // `due` is the number of leading cards of the list that are due: the card offered is the first unread one among them.
+    const list = ids(learnList(cards, sex));
+    expect(list.slice(0, output.due).find((id) => !input.read.includes(id)) ?? null).toBe(output.next);
+  });
+  it('covers days 0, 2, 3, 6, 12 and 30 for each sex', () => {
+    for (const sex of ['male', 'female', null]) expect([...new Set(golden.cases.filter((c) => c.input.sex === sex).map((c) => c.input.days))]).toEqual([0, 2, 3, 6, 12, 30]);
+    expect(golden.cases.filter((c) => c.input.sex === 'male' && c.input.read.length === 0).map((c) => c.output.due)).toEqual([1, 1, 2, 3, 5, 11]);
+  });
+});
 
 describe('learnList (prototype LEARN and the list in learnCardHtml)', () => {
   it('content order gives the prototype list for each sex', () => {

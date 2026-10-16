@@ -34,15 +34,69 @@ export const PROGRESSION = [
 ];
 
 // plan.json: training days per week (profile.days) and the session lengths (profile.minutes) whose exercise cap is recorded.
-export const PLAN_DAYS = [2, 3, 4, 5, 6];
+// 0 days is no plan, 1 clamps to the 2-day split and 7 to the 6-day split (#74).
+export const PLAN_DAYS = [0, 1, 2, 3, 4, 5, 6, 7];
 export const PLAN_MINUTES = [30, 45, 60, 75, 90];
 
-// sessions.json: the profile behind every case (#74 records it). 45 minutes is the exercise cap of 4, no stored
-// sessions is rotation offset 0, and `focus` is S.settings.focus. Key format: "<where>|<template>[|focus=<muscle>]".
+// plan.json `cases` (#74): the week from WEEK_START plus the Monday after (8 dates) under a stored mode, week plan and sessions.
+// `sessions` is S.sessions.entries; a session with n 0 is skipped as the prototype skips it (sessionDates needs n > 0).
+export const PLAN_CASES = [
+  { id: 'sequence-4-days-no-history', days: 4, mode: 'sequence', sessions: {} },
+  { id: 'sequence-4-days-after-upper-a', days: 4, mode: 'sequence', sessions: { '2026-10-05': { t: 'Upper A', n: 12 }, '2026-10-06': { t: 'Lower A', n: 0 } } },
+  { id: 'sequence-3-days-wraps-the-list', days: 3, mode: 'sequence', sessions: { '2026-10-04': { t: 'Full body C', n: 9 } } },
+  { id: 'sequence-0-days', days: 0, mode: 'sequence', sessions: {} },
+  { id: 'week-plan-no-sessions', days: 3, weekPlan: { start: '2026-10-05', list: ['Legs A', 'Push A'] }, sessions: {} },
+  { id: 'week-plan-one-done', days: 3, weekPlan: { start: '2026-10-05', list: ['Legs A', 'Push A'] }, sessions: { '2026-10-05': { t: 'Legs A', n: 10 }, '2026-10-04': { t: 'Pull A', n: 9 } } },
+  { id: 'week-plan-list-used-up', days: 3, weekPlan: { start: '2026-10-05', list: ['Legs A', 'Push A'] }, sessions: { '2026-10-05': { t: 'Legs A', n: 10 }, '2026-10-07': { t: 'Push A', n: 4 } } },
+  { id: 'week-plan-for-next-week-only', days: 3, weekPlan: { start: '2026-10-12', list: ['Pull A'] }, sessions: {} },
+];
+
+// sessions.json: every case records its input (#74): where, template, minutes (the exercise cap), exp, focus (S.settings.focus)
+// and `history`, the number of stored sessions of that template, which sets the rotation offset of the trimmed exercises.
+// The base grid below is 45 minutes, exp "some", history 0, with id "<where>|<template>[|focus=<muscle>]"; SESSION_EXTRA adds more.
 export const SESSION_PROFILE = { minutes: 45, exp: 'some' };
 export const SESSION_WHERE = ['gym', 'dumbbells', 'bodyweight'];
 export const SESSION_TEMPLATES = ['Push A', 'Legs A', 'Full body A'];
 export const SESSION_FOCUS = [null, 'glutes'];
+// Extra cases: a focus muscle the trimmed session lacks (abs on Pull A adds an exercise), a non-zero rotation (history 1, 2, 5),
+// 60, 75 and 90 minutes (caps of 5, 6 and 7 exercises), 30 minutes (cap 3), a new lifter's focus pick, and 60+ profiles (age).
+// `age` 60 and over adds the Single-Leg Balance exercise at the end (buildSession's `older()` line); the base grid has age null.
+export const SESSION_EXTRA = [
+  { where: 'gym', template: 'Push A', minutes: 45, exp: 'some', focus: null, history: 0, age: 59 },
+  { where: 'gym', template: 'Push A', minutes: 45, exp: 'some', focus: null, history: 0, age: 60 },
+  { where: 'dumbbells', template: 'Legs A', minutes: 60, exp: 'some', focus: 'abs', history: 1, age: 65 },
+  { where: 'bodyweight', template: 'Full body A', minutes: 60, exp: 'new', focus: null, history: 0, age: 72 },
+  { where: 'gym', template: 'Pull A', minutes: 45, exp: 'some', focus: 'abs', history: 0 },
+  { where: 'dumbbells', template: 'Pull A', minutes: 45, exp: 'some', focus: 'abs', history: 0 },
+  { where: 'gym', template: 'Legs A', minutes: 45, exp: 'some', focus: null, history: 1 },
+  { where: 'gym', template: 'Legs A', minutes: 45, exp: 'some', focus: null, history: 2 },
+  { where: 'gym', template: 'Legs A', minutes: 45, exp: 'some', focus: null, history: 5 },
+  { where: 'gym', template: 'Legs B', minutes: 45, exp: 'some', focus: 'glutes', history: 3 },
+  { where: 'bodyweight', template: 'Full body A', minutes: 45, exp: 'some', focus: null, history: 1 },
+  { where: 'gym', template: 'Legs A', minutes: 30, exp: 'some', focus: null, history: 0 },
+  { where: 'gym', template: 'Legs A', minutes: 60, exp: 'some', focus: null, history: 0 },
+  { where: 'gym', template: 'Legs A', minutes: 75, exp: 'some', focus: null, history: 0 },
+  { where: 'gym', template: 'Legs A', minutes: 90, exp: 'some', focus: null, history: 0 },
+  { where: 'gym', template: 'Push A', minutes: 60, exp: 'some', focus: 'triceps', history: 0 },
+  { where: 'gym', template: 'Upper A', minutes: 75, exp: 'some', focus: 'abs', history: 2 },
+  { where: 'gym', template: 'Legs A', minutes: 60, exp: 'new', focus: 'glutes', history: 0 },
+  { where: 'gym', template: 'Legs A', minutes: 60, exp: 'some', focus: 'glutes', history: 0 },
+];
+
+// learn.json: the "Why it works" daily read (learnCardHtml). The learn clock starts `days` before TODAY; `read` is S.settings.learn.read;
+// `sex` is the profile's sex (null: no profile). Hidden cards (#212) are an app filter and are not in these cases.
+export const LEARN_SEX = ['male', 'female', null];
+export const LEARN_DAYS = [0, 2, 3, 6, 12, 30];
+export const LEARN_READ = {
+  none: [],
+  'first-only': ['formfirst'],
+  'second-only': ['ramp'],
+  'first-three': ['formfirst', 'ramp', 'rir'],
+  'female-card-only': ['bulky'],
+  'not-in-the-list': ['targets', 'fibre'],
+  'all-but-last': ['formfirst', 'ramp', 'rir', 'protein', 'scale', 'overload', 'spot', 'sleep', 'volume', 'deload', 'soreness'],
+  'all-including-bulky': ['formfirst', 'ramp', 'rir', 'protein', 'scale', 'overload', 'bulky', 'spot', 'sleep', 'volume', 'deload', 'soreness', 'creatine'],
+};
 
 // formulas.json: inputs for the one-off formulas.
 export const NAVY = [

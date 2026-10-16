@@ -172,6 +172,116 @@
  },
  "plans": [
   {
+   "days": 0,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": null
+    },
+    {
+     "date": "2026-10-06",
+     "template": null
+    },
+    {
+     "date": "2026-10-07",
+     "template": null
+    },
+    {
+     "date": "2026-10-08",
+     "template": null
+    },
+    {
+     "date": "2026-10-09",
+     "template": null
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  },
+  {
+   "days": 1,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": null
+    },
+    {
+     "date": "2026-10-07",
+     "template": null
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Full body B"
+    },
+    {
+     "date": "2026-10-09",
+     "template": null
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  },
+  {
    "days": 2,
    "week": [
     {
@@ -443,6 +553,454 @@
     {
      "minutes": 90,
      "cap": 7
+    }
+   ]
+  },
+  {
+   "days": 7,
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Pull A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Push B"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Pull B"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Legs B"
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    }
+   ],
+   "exerciseCapByMinutes": [
+    {
+     "minutes": 30,
+     "cap": 3
+    },
+    {
+     "minutes": 45,
+     "cap": 4
+    },
+    {
+     "minutes": 60,
+     "cap": 5
+    },
+    {
+     "minutes": 75,
+     "cap": 6
+    },
+    {
+     "minutes": 90,
+     "cap": 7
+    }
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "id": "sequence-4-days-no-history",
+   "input": {
+    "days": 4,
+    "mode": "sequence",
+    "sessions": {}
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    },
+    {
+     "date": "2026-10-12",
+     "template": "Upper A"
+    }
+   ]
+  },
+  {
+   "id": "sequence-4-days-after-upper-a",
+   "input": {
+    "days": 4,
+    "mode": "sequence",
+    "sessions": {
+     "2026-10-05": {
+      "t": "Upper A",
+      "n": 12
+     },
+     "2026-10-06": {
+      "t": "Lower A",
+      "n": 0
+     }
+    }
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Upper A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Lower A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Lower A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Lower A"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Lower A"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Lower A"
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    },
+    {
+     "date": "2026-10-12",
+     "template": "Lower A"
+    }
+   ]
+  },
+  {
+   "id": "sequence-3-days-wraps-the-list",
+   "input": {
+    "days": 3,
+    "mode": "sequence",
+    "sessions": {
+     "2026-10-04": {
+      "t": "Full body C",
+      "n": 9
+     }
+    }
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    },
+    {
+     "date": "2026-10-12",
+     "template": "Full body A"
+    }
+   ]
+  },
+  {
+   "id": "sequence-0-days",
+   "input": {
+    "days": 0,
+    "mode": "sequence",
+    "sessions": {}
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": null
+    },
+    {
+     "date": "2026-10-06",
+     "template": null
+    },
+    {
+     "date": "2026-10-07",
+     "template": null
+    },
+    {
+     "date": "2026-10-08",
+     "template": null
+    },
+    {
+     "date": "2026-10-09",
+     "template": null
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    },
+    {
+     "date": "2026-10-12",
+     "template": null
+    }
+   ]
+  },
+  {
+   "id": "week-plan-no-sessions",
+   "input": {
+    "days": 3,
+    "weekPlan": {
+     "start": "2026-10-05",
+     "list": [
+      "Legs A",
+      "Push A"
+     ]
+    },
+    "sessions": {}
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-11",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-12",
+     "template": "Full body A"
+    }
+   ]
+  },
+  {
+   "id": "week-plan-one-done",
+   "input": {
+    "days": 3,
+    "weekPlan": {
+     "start": "2026-10-05",
+     "list": [
+      "Legs A",
+      "Push A"
+     ]
+    },
+    "sessions": {
+     "2026-10-05": {
+      "t": "Legs A",
+      "n": 10
+     },
+     "2026-10-04": {
+      "t": "Pull A",
+      "n": 9
+     }
+    }
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-10",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-11",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-12",
+     "template": "Full body A"
+    }
+   ]
+  },
+  {
+   "id": "week-plan-list-used-up",
+   "input": {
+    "days": 3,
+    "weekPlan": {
+     "start": "2026-10-05",
+     "list": [
+      "Legs A",
+      "Push A"
+     ]
+    },
+    "sessions": {
+     "2026-10-05": {
+      "t": "Legs A",
+      "n": 10
+     },
+     "2026-10-07": {
+      "t": "Push A",
+      "n": 4
+     }
+    }
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Legs A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Push A"
+    },
+    {
+     "date": "2026-10-08",
+     "template": null
+    },
+    {
+     "date": "2026-10-09",
+     "template": null
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    },
+    {
+     "date": "2026-10-12",
+     "template": "Full body A"
+    }
+   ]
+  },
+  {
+   "id": "week-plan-for-next-week-only",
+   "input": {
+    "days": 3,
+    "weekPlan": {
+     "start": "2026-10-12",
+     "list": [
+      "Pull A"
+     ]
+    },
+    "sessions": {}
+   },
+   "week": [
+    {
+     "date": "2026-10-05",
+     "template": "Full body A"
+    },
+    {
+     "date": "2026-10-06",
+     "template": null
+    },
+    {
+     "date": "2026-10-07",
+     "template": "Full body B"
+    },
+    {
+     "date": "2026-10-08",
+     "template": null
+    },
+    {
+     "date": "2026-10-09",
+     "template": "Full body C"
+    },
+    {
+     "date": "2026-10-10",
+     "template": null
+    },
+    {
+     "date": "2026-10-11",
+     "template": null
+    },
+    {
+     "date": "2026-10-12",
+     "template": "Pull A"
     }
    ]
   }
