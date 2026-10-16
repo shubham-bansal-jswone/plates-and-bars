@@ -182,3 +182,10 @@ test('servingGrams agrees with core unitGrams on a label set (0 in core is null 
   assert.equal(servingGrams('1 plate (1,250 g)'), 1250);
   assert.equal(servingGrams('1,5 g'), 5);
 });
+
+test('usda_fdc rows name their FDC id; only Oats, dry has no matching record (#98)', () => {
+  for (const f of out.foods.filter((x) => x.source.code === 'usda_fdc')) {
+    if (f.name === 'Oats, dry') assert.equal(f.source.reference, null);
+    else assert.match(f.source.reference, /^FDC \d+ \(SR Legacy: .+\), per 100 g x [\d.]+ g/, f.name);
+  }
+});
