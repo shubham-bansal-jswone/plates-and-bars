@@ -41,6 +41,14 @@ final class AiPrompts {
         return out.toString();
     }
 
+    /** The contract's "blank" (packages/api/test-vectors/blank-text.json): White_Space plus U+200B-U+200D, U+2060, U+FEFF. */
+    private static final java.util.regex.Pattern NOT_BLANK = java.util.regex.Pattern.compile(
+            "[^\\t-\\r \\u0085\\u00A0\\u1680\\u2000-\\u200D\\u2028\\u2029\\u202F\\u205F\\u2060\\u3000\\uFEFF]");
+
+    static boolean isBlank(String text) {
+        return !NOT_BLANK.matcher(text).find();
+    }
+
     static String delimit(String userText, String marker) {
         return "<<<" + marker + "\n" + sanitize(userText) + "\n" + marker + ">>>";
     }
