@@ -16,6 +16,7 @@ import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
 import { IdeasCard } from '../meals/IdeasCard';
 import { useWater } from '../food/useWater';
+import { BurnCard } from '../food/BurnCard';
 import { WaterCard } from '../food/WaterCard';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -118,7 +119,10 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             {t.withoutFibre ? <Hint>{`${t.withoutFibre} item${t.withoutFibre > 1 ? 's' : ''} without fibre data (photo estimates or custom foods) aren’t counted.`}</Hint> : null}
           </View>
         ) : (
-          <Hint>Nothing logged for this day yet. Add food under a meal.</Hint>
+          <View style={styles.gap}>
+            <Hint>Nothing logged for this day yet. Add food under a meal, or copy the previous day if you ate the same things.</Hint>
+            <Button label="Copy previous day" kind="link" onPress={() => void f.copyPrevious()} />
+          </View>
         )}
         {todaysFlex.length ? (
           <View style={styles.gap}>
@@ -150,6 +154,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           onFlex={plan}
           onPlanWeek={() => router.push('/meal-plan')}
         />
+        {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} kcalEaten={t.kcal} reloadKey={dataVersion} /> : null}
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />

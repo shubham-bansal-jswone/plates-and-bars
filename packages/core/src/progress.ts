@@ -5,7 +5,7 @@ import { planList, splitFor, type PlanProfile, type SessionLog, type WeekPlan } 
 import type { LiftRecord } from './progression';
 import { toTargetsProfile, type SetupProfile } from './setup';
 import { stalledList } from './stalls';
-import { calcTargets, type Sex } from './targets';
+import { ACTIVITY_MULTIPLIER, bmrOf, calcTargets, type Sex } from './targets';
 
 /**
  * Progress formulas (PROTOTYPE_SPEC section 6): body measures and day targets. Weigh-ins come in the
@@ -125,6 +125,20 @@ export interface WaterSizes {
  * not set (`renderTargets`' water card, the Settings screen's water size fields and the `data-wt` handler).
  */
 export const DEFAULT_WATER_SIZES: Readonly<WaterSizes> = Object.freeze({ glass_ml: 250, bottle_ml: 1000 });
+
+/** Smallest and largest glass or bottle size, in ml, that the water size boxes keep (prototype `data-wt` handler). */
+export const WATER_SIZE_MIN_ML = 50;
+export const WATER_SIZE_MAX_ML = 3000;
+
+/**
+ * Reads a water size box (Glass or Bottle, ml): the text rounded to a whole number, or null when it is outside
+ * 50 to 3000 or not a number (the prototype then keeps the stored size). Both bounds are inside the contract's
+ * `Settings.water_sizes` (an integer above 0). Mirrors the `data-wt` step of the prototype's input listener.
+ */
+export function waterSizeEntry(text: string): number | null {
+  const ml = Math.round(num(text));
+  return ml >= WATER_SIZE_MIN_ML && ml <= WATER_SIZE_MAX_ML ? ml : null;
+}
 
 /** What `waterTarget` reads. */
 export interface WaterInput {
@@ -568,6 +582,57 @@ export function habits(date: string, sessions: SessionLog, profile: PlanProfile 
   return { goal, weeks, thisWeek, logged, message: weeks >= 2 ? 'streak' : logged < 4 ? 'missed' : 'steady' };
 }
 
+/** One row of the Progress "Seven days" block. */
+export interface WeekDay {
+  date: string;
+  /** Any food logged that day; false shows "not logged". */
+  logged: boolean;
+  /** The day's totals, unrounded (show with `Math.round`). */
+  kcal: number;
+  protein_g: number;
+  trained: boolean;
+  /** Bar fill, 0 to 100: kcal against 1.3 times the target, capped. */
+  fillPct: number;
+  /** Where the target line sits on the bar, percent from the left. */
+  targetPct: number;
+  /** Calories above the target (the bar turns to the "over" colour). */
+  over: boolean;
+}
+
+/** Result of `weekSummary`. Averages are over days with food logged, unrounded, or null with none. */
+export interface WeekSummary {
+  days: WeekDay[];
+  avgKcal: number | null;
+  avgProtein_g: number | null;
+  sessions: number;
+}
+
+/**
+ * The 7 days ending on `date`, oldest first, with the bar sizes and the averages under them.
+ *
+ * Mirrors the block of prototype `renderProgress()` under "Seven days to <date>".
+ */
+export function weekSummary(days: readonly ProgressDay[], date: string, kcalTarget: number): WeekSummary {
+  const scale = Math.max(kcalTarget * 1.3, 1);
+  let logged = 0, sk = 0, sp = 0, sessions = 0;
+  const rows = daysEnding(days, date, 7).map((d): WeekDay => {
+    const meals = live(d.logs);
+    let kcal = 0, protein_g = 0;
+    for (const m of meals) {
+      kcal += m.kcal * m.qty;
+      protein_g += m.protein_g * m.qty;
+    }
+    if (meals.length) {
+      logged++;
+      sk += kcal;
+      sp += protein_g;
+    }
+    if (d.trained) sessions++;
+    return { date: d.date, logged: meals.length > 0, kcal, protein_g, trained: d.trained, fillPct: Math.min(kcal / scale, 1) * 100, targetPct: (kcalTarget / scale) * 100, over: kcal > kcalTarget };
+  });
+  return { days: rows, avgKcal: logged ? sk / logged : null, avgProtein_g: logged ? sp / logged : null, sessions };
+}
+
 /* ---------- weight and waist trend, scale-jump note, entry limits (#233) ---------- */
 
 /** Prototype `r1`: to the nearest 0.1, as weigh-ins and tape measurements are saved and shown. */
@@ -775,4 +840,41 @@ export function sleepEntry(text: string): SleepEntry {
   if (!Number.isFinite(parseFloat(text.replace(',', '.')))) return { kind: 'bad' };
   const h = num(text);
   return h >= 0 && h <= SLEEP_MAX_H ? { kind: 'save', h } : { kind: 'bad' };
+}
+
+/** Result of `burnToday`: kcal by part, their total, and the rounded step count the details block shows. */
+export interface BurnToday {
+  bmr: number;
+  move: number;
+  train: number;
+  dig: number;
+  total: number;
+  /** `Math.round(num(steps))`, the count the details block's "from N steps" line shows (0 with no steps). */
+  steps: number;
+}
+
+/**
+ * Estimated burn so far today: resting + daily movement (0.04 kcal per step at 70 kg, scaled by weight;
+ * with no steps, the activity level's share of resting) + training over resting + 10% of the food eaten.
+ * `kg` is the latest weigh-in, else the setup weight. The shown range is `total` ± `BURN_RANGE`.
+ * `steps` is the steps box's value as typed, read with `num` and rounded as the prototype does
+ * (`S.day.steps` is text); a fractional value counts its whole steps, and the rounded count comes back as
+ * `steps`, the "from N steps" number the details block shows. The prototype's details block also shows
+ * `sets`/`cardio`; take those from `workoutBurn`, whose result is passed in, rather than duplicating them here.
+ *
+ * Mirrors prototype `burnToday()` (state passed in).
+ */
+export function burnToday(
+  p: Pick<SetupProfile, 'sex' | 'age' | 'height_cm' | 'activity'>,
+  kg: number,
+  steps: string | number | null | undefined,
+  workout: WorkoutBurn,
+  kcalEaten: number,
+): BurnToday {
+  const bmr = bmrOf({ sex: p.sex, age: p.age, height: p.height_cm }, kg);
+  const st = Math.round(num(steps));
+  const move = st > 0 ? (st * 0.04 * kg) / 70 : bmr * ACTIVITY_MULTIPLIER[p.activity];
+  const train = workout.extra;
+  const dig = kcalEaten * 0.1;
+  return { bmr, move, train, dig, total: bmr + move + train + dig, steps: st };
 }

@@ -12,7 +12,7 @@ import { Heading, Button, Card, H1, Hint, Label, Note } from './ui';
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
  * `onCleared` shows the clearance card with its "My doctor has cleared me" button.
  */
-export function ResultsView({ profile, onCleared }: { profile: Profile; onCleared?: () => void }) {
+export function ResultsView({ profile, onCleared, hideTargets }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean }) {
   const c = useTheme();
   const v = buildResults(profile);
   const clear = clearanceNote(profile);
@@ -33,22 +33,26 @@ export function ResultsView({ profile, onCleared }: { profile: Profile; onCleare
           <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(kcal)}</Text>
         </View>
       ))}
-      <Label>Your daily targets</Label>
-      <View style={styles.grid}>
-        {tiles.map(([n, unit, color], i) => (
-          <Card
-            key={unit}
-            testID={`target-${i}`}
-            accessible
-            accessibilityLabel={`${n} ${unit}`}
-            style={styles.tile}
-          >
-            <View style={[styles.dot, { backgroundColor: color }]} />
-            <Text style={[styles.num, { color: c.ink }]}>{n}</Text>
-            <Text style={{ color: c.body, fontSize: 13 }}>{unit}</Text>
-          </Card>
-        ))}
-      </View>
+      {hideTargets ? null : (
+        <>
+          <Label>Your daily targets</Label>
+          <View style={styles.grid}>
+            {tiles.map(([n, unit, color], i) => (
+              <Card
+                key={unit}
+                testID={`target-${i}`}
+                accessible
+                accessibilityLabel={`${n} ${unit}`}
+                style={styles.tile}
+              >
+                <View style={[styles.dot, { backgroundColor: color }]} />
+                <Text style={[styles.num, { color: c.ink }]}>{n}</Text>
+                <Text style={{ color: c.body, fontSize: 13 }}>{unit}</Text>
+              </Card>
+            ))}
+          </View>
+        </>
+      )}
       <Hint>{v.pace}</Hint>
       <View style={styles.links}>
         <WhyLink id="targets" label="Why these numbers?" values={{ kcal: fmt(t.kcal), protein_g: t.protein, tdee: fmt(t.tdee), bmr: fmt(t.bmr), movement: fmt(t.movement), training: fmt(t.training), digestion: fmt(t.digestion) }} />

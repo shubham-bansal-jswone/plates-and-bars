@@ -79,6 +79,16 @@ export const HABIT_MESSAGE = {
 } as const;
 export const SETTINGS_UNREADABLE = 'Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.';
 
+// "Seven days to <date>", the last block of prototype `renderProgress`.
+export const WEEK_TITLE = (date: string): string => `Seven days to ${date}`;
+export const WEEK_LOADING = 'Loading…';
+export const WEEK_TRAINED = 'trained';
+export const WEEK_NOT_LOGGED = 'not logged';
+export const WEEK_AVG_KCAL = 'avg kcal';
+export const WEEK_AVG_PROTEIN = 'avg protein';
+export const WEEK_SESSIONS = 'sessions';
+export const WEEK_TARGET_HINT = 'The dark line on each bar is your calorie target.';
+
 // Rapid-loss card (prototype `calorieCard`).
 export const RAPID_TITLE = 'Weight is dropping fast';
 export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number): string =>

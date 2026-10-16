@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { repWord, type ExInfo, type LadderCard, type StallCard } from '@plate-and-bar/core';
+import { repWord, type ExInfo, type LadderCard, type RecoveryCard, type StallCard } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Card } from '../components/ui';
 import type { ExclusionRecord } from '../db/rules';
@@ -81,6 +81,34 @@ export function LadderCardView({ card, name, onSwitch, onStay, ...c }: { card: L
     >
       {`You’ve reached the top of the rep range with solid form, and you’ve done ${name} for ${card.sessions} sessions (a rule of thumb). For the first 2 weeks, ${card.to} goes first and a lighter ${name} follows.`}
     </AdjCard>
+  );
+}
+
+/** The "Several lifts have stalled" card (prototype `renderStart`, recovery-week step). */
+export function RecoveryCardView({ card, onStart, ...c }: { card: RecoveryCard; onStart: () => void } & Common) {
+  const named = `${card.names.join(', ')}${card.more > 0 ? ` and ${card.more} more` : ''}`;
+  return (
+    <AdjCard
+      title="Several lifts have stalled"
+      level={2}
+      subject="recovery week"
+      declines={c.declines}
+      onMute={c.onMute}
+      buttons={[{ label: 'Start recovery week', primary: true, onPress: onStart }, { label: 'Not now', onPress: c.onNo }]}
+    >
+      {`${named} haven’t moved in 3 sessions. A recovery week usually fixes this: same exercises, fewer sets and about 10% lighter for 7 days.`}
+    </AdjCard>
+  );
+}
+
+/** The note while a recovery week or re-entry period runs, with its way out (prototype `renderStart`). */
+export function RangeNote({ text, action, onEnd }: { text: string; action: string; onEnd: () => void }) {
+  const c = useTheme();
+  return (
+    <View style={styles.row}>
+      <Text style={{ color: c.muted, fontSize: 14 }}>{text}</Text>
+      <Button label={action} kind="link" onPress={onEnd} />
+    </View>
   );
 }
 

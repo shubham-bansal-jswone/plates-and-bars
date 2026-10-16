@@ -6,7 +6,7 @@ import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Card, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -18,7 +18,7 @@ import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
 import { CustomTagsSheet } from '../workout/CustomTagsSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
-import { ExerciseCards, RecheckCards } from '../workout/ExerciseCards';
+import { ExerciseCards, RecheckCards, RecoveryCards } from '../workout/ExerciseCards';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -61,7 +61,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const rulesApi = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const { rules, addRule } = rulesApi;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
-  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
+  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   const [cantName, setCantName] = useState<{ i: number; name: string } | null>(null);
 
@@ -76,7 +76,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
 
   const body =
     day.exs.length === 0 ? (
-      <StartView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+      <StartView key={w.date} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
       <SessionView w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name) => setCantName({ i, name })} />
     );
@@ -105,14 +105,21 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   );
 }
 
+const WHERE_CHOICES: [NonNullable<Workout['where']>, string][] = [['gym', 'Normal gym'], ['dumbbells', 'Dumbbells only'], ['bodyweight', 'Bodyweight only']];
+
 type W = ReturnType<typeof useWorkoutDay>;
 type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 
 function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
   const c = useTheme();
   const { date, day } = w;
+  const { settings } = useSettings();
   const [ci, setCi] = useState<Checkin>({});
   const [choice, setChoice] = useState<Workout['ci_choice']>(null);
+  // Today's "where" override (prototype whereNow): null keeps the profile's. Stored on the workout at Start.
+  const [override, setOverride] = useState<Workout['where']>(null);
+  const [away, setAway] = useState(false);
+  const where = override ?? profile.where;
   const plan = planned(date, { profile, sessions: day.sessions });
   const nextT = plan ? nextInList(plan, profile) : null;
   const flags = checkinFlags(ci, nextT);
@@ -123,16 +130,22 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
     if (!checkinFlags(next, nextT).flagged) setChoice(null);
   };
   const built = startT
-    ? buildSession({ template: startT, date, profile, where: profile.where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps })
+    ? buildSession({ template: startT, date, profile, where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, adjustments: settings.adjustments })
     : null;
   const names = built ? built.exercises.map((e) => e.name) : [];
   const prim = [...new Set(names.flatMap((n) => getCatalog().tags[n]?.primary ?? []))];
   const eachSets = built && built.exercises.length && built.exercises.every((e) => e.sets === built.exercises[0]?.sets) ? built.exercises[0]?.sets : null;
   const others = (planList(profile) as readonly string[]).filter((k) => k !== plan);
 
+  const awayLabel =
+    where === profile.where
+      ? profile.where === 'gym' ? 'Training away from your gym?' : 'Training somewhere else today?'
+      : `Training ${where === 'gym' ? 'at a gym' : `with ${where === 'dumbbells' ? 'dumbbells only' : 'bodyweight only'}`} today`;
+
   return (
     <Page>
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
+      <RecoveryCards date={date} lifts={day.lifts} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan
@@ -194,14 +207,32 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
             ) : null}
             {built?.mods.short ? <Hint>{ci.time} minutes: the main {built.exercises.length} exercises only.</Hint> : null}
           </View>
-          <Button label={`Start ${startT}`} onPress={() => void w.start(startT, ci, choice)} />
+          <Button label={`Start ${startT}`} onPress={() => void w.start(startT, ci, choice, override)} />
         </Card>
       ) : null}
       <View style={styles.wrap}>
         {others.map((k) => (
-          <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice)} />
+          <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice, override)} />
         ))}
       </View>
+      <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
+        <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
+      </Press>
+      {away ? (
+        <View style={styles.wrap}>
+          {WHERE_CHOICES.map(([v, l]) => (
+            <Chip
+              key={v}
+              label={l}
+              pressed={where === v}
+              onPress={() => {
+                setOverride(v === profile.where ? null : v);
+                setAway(false);
+              }}
+            />
+          ))}
+        </View>
+      ) : null}
     </Page>
   );
 }

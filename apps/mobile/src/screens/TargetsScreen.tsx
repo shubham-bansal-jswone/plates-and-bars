@@ -12,11 +12,13 @@ import type { WorkoutDb } from '../db/workouts';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
+import { TargetsEditor } from '../targets/TargetsEditor';
 import { RulesSection } from '../targets/RulesSection';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
+import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
@@ -28,8 +30,8 @@ interface Props {
 
 /** Targets tab: the stored setup's targets, focus muscles and coverage, and the workout settings. */
 export function TargetsScreen({ db, now = () => new Date() }: Props) {
-  const { profile, markCleared } = useProfile();
-  const { ready, settings, saveFailed, loadFailed, setFocus, setRestOff } = useSettings();
+  const { profile, markCleared, setProfile } = useProfile();
+  const { ready, settings, saveFailed, loadFailed, setFocus, setRestOff, update } = useSettings();
   const router = useRouter();
   const c = useTheme();
   const [toast, setToast] = useState<string | null>(null);
@@ -74,7 +76,8 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={{ flex: 1 }}>
       <Page>
-        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} />
+        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets />
+        <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
         {drift ? (
           <View style={{ gap: 8, marginTop: 8 }}>
             <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
@@ -111,12 +114,14 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
           </View>
         ) : null}
-        {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Workout as there; the list itself is on its own screen. */}
+        {ready ? <WaterSizesSection sizes={settings.water_sizes} onChange={(k, ml) => update((s) => ({ water_sizes: { ...s.water_sizes, [k]: ml } }))} /> : null}
+        {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Water sizes and before My foods as there; the list itself is on its own screen. */}
         <View style={{ gap: 8, marginTop: 16 }}>
           <Label>Kitchen tests</Label>
           {kitchen !== null ? <Hint>{listIntro(kitchen)}</Hint> : null}
           <Button label="Kitchen tests" kind="ghost" onPress={() => router.push('/kitchen-test' as never)} />
         </View>
+        <MyFoodsSection db={db} notify={notify} />
       </Page>
       <ToastBar message={toast} />
     </View>
