@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { profileWhyValues } from '../why/values';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, type ExclusionReason } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Card, Field, H1, Heading, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -103,7 +104,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
         }}
         onClose={() => setCantName(null)}
       />
-      <RestBar rest={rest} onAdd={() => setRest((r) => (r ? { ...r, end: r.end + 30000, total: r.total + 30 } : r))} onSkip={() => setRest(null)} />
+      <RestBar rest={rest} onAdd={() => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r))} onSkip={() => setRest(null)} />
       <ToastBar message={toast} />
     </View>
   );
@@ -278,6 +279,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
   return (
     <Page>
       <H1>{wk.template || 'Session'}</H1>
+      <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={{ color: c.muted, fontSize: 14 }}>
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>

@@ -10,6 +10,7 @@ import {
   updateLift,
   newExercise,
   mergeSecondSession,
+  num,
   templateName,
   type CantDraft,
   type CantRule,
@@ -23,6 +24,7 @@ import {
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
+import { isBlank } from '../text/blank';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
@@ -383,12 +385,12 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     );
   };
 
-  /** Cardio minutes for today's session: digits only, empty clears it (contract `cardio_min`, an integer of 0 or more). */
+  /** Cardio minutes for today's session. Blank clears it; otherwise core's `num` (a comma decimal counts) rounded to a whole
+   * minute, 0 to 9999 (contract `cardio_min`, an integer of 0 or more). */
   const setCardio = (text: string) => {
     const d = clone(ref.current);
     if (!d.workout) return;
-    const digits = text.replace(/\D/g, '').slice(0, 4);
-    d.workout = { ...d.workout, cardio_min: digits ? Number(digits) : null };
+    d.workout = { ...d.workout, cardio_min: isBlank(text) ? null : Math.min(9999, Math.max(0, Math.round(num(text)))) };
     commit(d);
     void enqueue(() => writeWorkout());
   };

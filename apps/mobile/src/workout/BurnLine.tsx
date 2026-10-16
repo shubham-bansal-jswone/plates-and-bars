@@ -10,7 +10,8 @@ import type { ExState } from './model';
 
 /** Prototype `renderWorkout` burn lines: "about N kcal burned" and the rough-estimate note. Every number is core's `workoutBurn`. */
 export function BurnLine({ db, date, profileKg, exs, cardio, reloadKey }: { db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; reloadKey: number }) {
-  const [kg, setKg] = useState<number | null>(null);
+  // undefined while the weigh-ins load, so the "add your weight" hint never flashes for someone who has a weight.
+  const [kg, setKg] = useState<number | undefined>(undefined);
   useEffect(() => {
     let live = true;
     loadWeights(db)
@@ -21,6 +22,7 @@ export function BurnLine({ db, date, profileKg, exs, cardio, reloadKey }: { db: 
     };
   }, [db, date, profileKg, reloadKey]);
   const sets = exs.flatMap((e) => e.sets.map((s) => ({ kind: 'work' as const, done: s.done, t: s.t })));
+  if (kg === undefined) return null;
   const wb = kg ? workoutBurn(sets, cardio, kg) : null;
   if (!wb?.sets) return !kg && sets.some((s) => s.done) ? <Hint>Add your weight (setup or Progress tab) to see calories burned.</Hint> : null;
   return (
