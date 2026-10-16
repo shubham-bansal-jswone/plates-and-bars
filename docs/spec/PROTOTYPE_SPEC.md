@@ -198,21 +198,21 @@ Still open (#155): after M0, the planned count may move to the built session's r
 ## 5. Food  → fixture `foods.json`
 
 - All values per serving; carbs include fibre. Grams entry works for foods whose unit is in grams.
-- Grams logging (decided on #97: kept) reads the grams from the serving label, including a bracketed ingredient or dry weight (`unitGrams`): "1 medium (30 g atta)" is 30 g, rice 50 g raw, dal 35 g, rajma/chole 40 g dry. So typed grams mean that weight, and 60 g of cooked rice logs 1.2 servings. The app says so in the hint under the grams input ("Grams are the weight in the brackets on the serving (the dry or ingredient weight, such as "50 g raw"), not the cooked weight.") and shows each food's own label on its row, such as "1 cup (50 g raw)". No per-food toast: the "Added Rice (60 g)" toast stays as the prototype has it. No content change.
+- Grams logging (decided on #97: kept) reads the grams from the serving label, including a bracketed ingredient or dry weight (`unitGrams`): "1 medium (30 g atta)" is 30 g, rice 50 g raw, dal 35 g, rajma/chole 40 g dry. So typed grams mean that weight, and 60 g of cooked rice logs 1.2 servings. The app says so in the hint under the grams input ("Grams are the weight in the brackets on the serving (the dry or ingredient weight, such as "50 g raw"), not the cooked weight.") and shows each food's own label on its row, such as "1 cup (50 g raw)". No per-food toast: the "Added Rice, cooked (60 g)" toast stays as the prototype has it. No content change.
 - Search matches name or alias (`ALIAS`: chawal, anda, dahi, daru…).
 - Fibre target: max(25 g, 15 g per 1,000 kcal of today's target). Fruit & veg servings out of 5. Added sugar shown when ≥10 g.
 - Meal ideas (`combos`): protein shortfall weighted 3× calorie error; caps per food (`MAXQ`), minimum portions (`MINQ`); age 60+ ≥25 g protein per main meal; diet filter any/egg/veg; fasting-day pool.
 - Day complete: user tick, or for older days ≥3 meals and ≥75% of target. Only complete days feed the real-burn estimate.
+- Recipes: raw ingredients per 100 g (`RAW`, `RAW_FIB`), cooked yield by katoris (150 g) or pot weight.
+- Kitchen tests: pot weights → cooked weight; per 100 g and per serving; "use for my logging" writes a personal food.
 
 **Kept on #151.**
-- Fibre, added sugar and fruit and veg are looked up by the logged item's name, not a food id. A custom log named like a shared food gets the shared food's values, and a shared food wins over a user food of the same name. Revisit `food_id` lookups when the sync client lands.
+- Fibre, added sugar and fruit and veg are looked up by the logged item's name, not a food id, so a custom log named like a shared food gets the shared food's values. For fibre and added sugar a shared food's entry wins over a user food of the same name (`fibOf`); for fruit and veg the shared value wins only when it is not 0, so a shared 0 lets the user food's value count (`produceOf`). Revisiting `food_id` lookups when the sync client lands is tracked in #648.
 - Search matches a food's aliases as one string joined with spaces, so a query can span two aliases ("fulka rotli" finds Roti / chapati).
 - `unitGrams` reads whole numbers only: a decimal loses its whole part ("1.5 g" reads 5). No content label has a decimal gram weight.
 - The added-sugar line checks the unrounded total, so 9.6 g is hidden although it would show as 10 g.
 - "≥3 meals" for a complete day counts logged items, not meal slots: three items in one meal count as three.
 - Cola's added sugar (35 g for "Cola (330 ml)") is only in the eat-out table, which is not in M0 content, so a logged cola counts no added sugar until that table ships.
-- Recipes: raw ingredients per 100 g (`RAW`, `RAW_FIB`), cooked yield by katoris (150 g) or pot weight.
-- Kitchen tests: pot weights → cooked weight; per 100 g and per serving; "use for my logging" writes a personal food.
 
 ---
 
