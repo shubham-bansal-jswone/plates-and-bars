@@ -198,6 +198,20 @@ describe('a workout deleted on another device (#408)', () => {
     expect(await loadSets(db, DATE)).toEqual(before);
   });
 
+  it('a "can\'t do" change keeps the unknown keys of the other exercises (#527)', async () => {
+    const { db, result, rerender } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, version: 7, exercises: w.exercises.map((e) => ({ ...e, future_key: 'kept' })) });
+    await rerender({ k: 1 });
+    await waitFor(() => expect(result.current.day.workout?.version).toBe(7));
+    const name = result.current.day.exs[0]!.name;
+    await act(async () => result.current.cant(0, { name, reason: 'dislike', dur: 'today', scope: 'exercise', key: name }, null));
+    await act(async () => void (await dayQueue.current)); // the queued writes finish
+    const stored = (await loadWorkout(db, DATE))!;
+    expect(stored.exercises.length).toBeGreaterThan(0);
+    expect(stored.exercises.every((e) => (e as unknown as Record<string, unknown>).future_key === 'kept')).toBe(true);
+  });
+
   it('starting over a tombstone stamped ahead of this device\'s clock still stores the session live', async () => {
     const shape = (await loadWorkout((await started()).db, DATE))!;
     const db = await openDb();

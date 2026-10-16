@@ -613,7 +613,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
         for (const r of [...e.sets, ...e.ramp]) rows.set(r.id, r);
         return [...e.sets.keys()].map((j) => setRecord(e, 'work', j, now())).concat([...e.ramp.keys()].map((j) => setRecord(e, 'ramp', j, now())));
       });
-      const ch = cantChange({ ...w, exercises: d.exs.map((e) => exerciseRecord(e)) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
+      const ch = cantChange({ ...w, exercises: d.exs.map((e) => exerciseRecord(e, w.exercises.find((x) => x.name === e.name))) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
       d.exs = ch.exercises.map((x) => {
         const pick = (kind: 'work' | 'ramp'): Row[] =>
           ch.sets
