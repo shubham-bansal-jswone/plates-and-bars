@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — prototype fix: a swap target or stored pick already in the session takes the next-best candidate (spec-change; golden fixtures unchanged).**
+- #143 (extends #110): in `resolveSession`, a swap target (mapped for `where`) or a stored replacement pick that ends on a name already in the session is passed over. It is checked after mapping and following swaps. The names the template holds as they are always win, then earlier slots. An excluded exercise goes on to its stored pick, then its best candidate not in the session. A swapped exercise that is not excluded takes the best candidate from its own list (with chained swaps that list comes from the intermediate exercise, so the exercise swapped away from can come back at a lower rank; accepted). If no candidate is left, the slot goes into `lost` and the preview shows the "fewer sets" note. A stored skip still skips with no note. A swap whose ladder bridge is still running is not passed over: its target shows once and the old exercise stays as its 2-set bridge; once the bridge has ended the swap is passed over like any other. Example: Push A at the gym with Incline Dumbbell Press picked for Machine Chest Press now keeps 5 exercises (Push-ups takes the slot), where it dropped to 4 with no note. The settings sheet still offers every candidate. `resolveName` returns `false` (not `null`) when no candidate is left, so a skip and a lost slot are told apart. Core already does this (PR #595).
+
 **2026-10-17 — prototype fix: "I know my weight" hides the find-your-weight guide (spec-change; golden fixtures unchanged).**
 - #139: on a first-time loaded exercise, tapping "I know my weight" (`case 'ramp-skip'`) set `ex.skipRamp` but `exerciseCard` never read it, so the "First time: find your weight" guide came straight back. `exerciseCard` now shows the guide (and the ramp sets) only while `sug.mode === 'new'`, no working set is ticked and `!ex.skipRamp`. After the tap the card shows just the working sets, as the app already does (`ExerciseCard`, `skip_ramp`).
 
@@ -144,7 +147,7 @@ Other fixtures: `plan.json`, `sessions.json` and `exercises.json` hold no fracti
 
 Session build order (`buildSession`):
 1. Template → home mapping (`AWAY` table) if `where` is not gym (day override beats profile).
-2. Exclusions and swaps resolve each name (`resolveSession`; swap targets and picks mapped for `where`, replacements not already in the session); ladder "bridge" exercises appended with 2 sets for 2 weeks.
+2. Exclusions and swaps resolve each name (`resolveSession`; swap targets and picks mapped for `where`; replacements, swap targets and picks not already in the session, else the next-best candidate, else a "fewer sets" note, #110, #143; a swap with a running bridge is kept, its old exercise staying as the 2-set bridge; a stored skip still skips with no note); ladder "bridge" exercises appended with 2 sets for 2 weeks.
 3. Trim to the exercise cap (30 min → 3, 45 → 4, 60 → 5, 75 → 6, 90 → 7). The first 2 lifts always stay; the extras **rotate** by how many times this template was done (`trimSession`).
 4. Focus muscles (`applyFocus`), then the check-in "short session" cut.
 5. Sets: 3 default; 2 for `exp=new` in the first 14 days from profile creation; calf raises at least 4; +1 on focus exercises (max 5). Deload: ~60% of sets. Light day: −1 set.
