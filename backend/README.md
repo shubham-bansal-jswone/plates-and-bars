@@ -3,6 +3,11 @@
 Spring Boot 4.1 (Spring Framework 7, Spring Security 7, Jackson 3; Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contract is
 `packages/api/openapi.yaml`; every route lives under `/api/v1`.
 
+Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turns off Jackson 3's
+`fail-on-trailing-tokens` (so `/sync` and `/auth/*` still accept content after the JSON body; `/ai/*` refuses it in
+`AiController`) and keeps the nesting limit at Jackson 2's 1000 instead of Jackson 3's 500. A duplicate key in an
+`/auth/*` body takes the last value (202); Boot 3 answered 500, a bug, pinned in `AuthControllerTest`.
+
 ## Status (M0)
 
 - `GET /api/v1/health` is public (200 `{status}`, 503 `Error` when the database is unreachable).

@@ -60,6 +60,22 @@ class SyncControllerTest {
         return n.toString();
     }
 
+    /** Spring Boot 4 / Jackson 3 refuses trailing content by default; the API keeps accepting it as before (#81). */
+    @Test
+    void contentAfterTheJsonBodyIsStillAccepted() throws Exception {
+        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
+        send(USER, "{\"cursor\":null,\"changes\":{}} junk").andExpect(status().isOk());
+        send(USER, "{\"cursor\":null,\"changes\":{}}{\"x\":1}").andExpect(status().isOk());
+    }
+
+    /** Jackson 2's nesting limit was 1000, Jackson 3's is 500; application.yml keeps 1000 (#81). */
+    @Test
+    void anExtraPropertyNested700DeepIsStillAccepted() throws Exception {
+        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
+        String deep = "[".repeat(700) + "]".repeat(700);
+        send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + deep + "}").andExpect(status().isOk());
+    }
+
     @Test
     void withoutTokenIs401() throws Exception {
         mvc.perform(post("/api/v1/sync").contentType(MediaType.APPLICATION_JSON).content("{\"cursor\":null,\"changes\":{}}"))

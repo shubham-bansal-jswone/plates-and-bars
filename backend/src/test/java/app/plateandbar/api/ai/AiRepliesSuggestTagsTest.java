@@ -47,8 +47,8 @@ class AiRepliesSuggestTagsTest {
     @Test
     void patternAndJointsAreCutToTheSchemaLimitsButOtherwisePassedThrough() {
         assertThat(ok("{\"pattern\":\"" + "p".repeat(50) + "\"}").path("pattern").asString()).hasSize(50);
-        assertThat(ok("{\"pattern\":\"" + "p".repeat(51) + "\"}").path("pattern").asString()).isEmpty();
-        assertThat(ok("{\"pattern\":12}").path("pattern").asString()).isEmpty();
+        assertThat(ok("{\"pattern\":\"" + "p".repeat(51) + "\"}").path("pattern").stringValue()).isEmpty();
+        assertThat(ok("{\"pattern\":12}").path("pattern").stringValue()).isEmpty();
         assertThat(ok("{\"pattern\":\"made-up\"}").path("pattern").asString()).isEqualTo("made-up");
         StringBuilder many = new StringBuilder("[");
         for (int i = 0; i < 30; i++) {
