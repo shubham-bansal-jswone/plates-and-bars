@@ -83,10 +83,11 @@ export const SESSION_EXTRA = [
   { where: 'gym', template: 'Legs A', minutes: 60, exp: 'some', focus: 'glutes', history: 0 },
 ];
 
-// learn.json: the "Why it works" daily read (learnCardHtml). The learn clock starts `days` before TODAY; `read` is S.settings.learn.read;
-// `sex` is the profile's sex (null: no profile). Hidden cards (#212) are an app filter and are not in these cases.
+// learn.json: the "Why it works" daily read (learnCardHtml). The learn clock starts `days` before TODAY (a negative `days` is a start
+// after today, which counts as today, #584); `read` is S.settings.learn.read; `sex` is the profile's sex (null: no profile).
+// Hidden cards (#212) are an app filter and are not in these cases.
 export const LEARN_SEX = ['male', 'female', null];
-export const LEARN_DAYS = [0, 2, 3, 6, 12, 30];
+export const LEARN_DAYS = [-4, -1, 0, 2, 3, 6, 12, 30];
 export const LEARN_READ = {
   none: [],
   'first-only': ['formfirst'],
