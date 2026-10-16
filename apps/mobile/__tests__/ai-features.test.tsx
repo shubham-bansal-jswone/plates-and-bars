@@ -21,6 +21,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
+const blank = require('../../../packages/api/test-vectors/blank-text.json') as { must_fail: string[]; must_pass: string[] };
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 const QUOTA = { limit: 10, remaining: 7, resets_at: '2026-10-09T00:00:00Z' };
 const status = (f: Partial<Record<'describe_meal' | 'ask_why' | 'weekly_summary', boolean>> = {}, quota = QUOTA) => ({
@@ -138,6 +139,16 @@ describe('Describe a meal', () => {
     await screen.findByLabelText('Describe your meal');
   };
 
+  it.each(blank.must_fail.map((t) => [JSON.stringify(t), t]))('never sends blank text %s or says to shorten it', async (_n, t) => {
+    const { api, POST } = on();
+    await food(optedIn(), api);
+    await openSheet();
+    await fireEvent.changeText(screen.getByLabelText('Describe your meal'), t);
+    await fireEvent.press(screen.getByLabelText('Estimate'));
+    expect(POST).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Shorten it/)).toBeNull();
+  });
+
   it('shows suggestions for review and logs nothing until the user adds, with their edits', async () => {
     const { api, GET, POST } = on();
     POST.mockResolvedValue({ data: { items: [ROTI], quota: QUOTA }, response: res(200) });
@@ -228,6 +239,16 @@ describe('Describe a meal', () => {
 });
 
 describe('Ask why', () => {
+  it.each(blank.must_fail.map((t) => [JSON.stringify(t), t]))('never sends a blank question %s or says to shorten it', async (_n, t) => {
+    const { api, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }), response: res(200) })) });
+    await ai(optedIn(), api, <AiSection />);
+    await fireEvent.press(await screen.findByLabelText('Ask why about your targets'));
+    await fireEvent.changeText(await screen.findByLabelText('Your question'), t);
+    await fireEvent.press(screen.getByLabelText('Ask'));
+    expect(POST).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Shorten it/)).toBeNull();
+  });
+
   it('sends only the card id and the question, and shows the answer with its card', async () => {
     const { api, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }), response: res(200) })) });
     POST.mockResolvedValue({ data: { answer: 'Because protein protects muscle.', card_id: 'protein', quota: QUOTA }, response: res(200) });

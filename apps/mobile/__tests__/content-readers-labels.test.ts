@@ -16,6 +16,7 @@ jest.mock('../src/content/reader', () => {
   return { ...actual, contentReader: (n: string, shipped: unknown, valid: (v: unknown) => boolean) => actual.contentReader(n, shipped, (x: unknown) => { mockRuns.push(n); return valid(x); }) };
 });
 
+const blankVectors = require('../../../packages/api/test-vectors/blank-text.json') as { must_fail: string[]; must_pass: string[] };
 const LATER = '2099-01-01T00:00:00Z';
 type Obj = Record<string, any>;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -93,6 +94,10 @@ describe('labels through the content store', () => {
   });
 
   const cases: [string, (b: Obj) => void][] = [
+    ...blankVectors.must_fail.flatMap((t): [string, (b: Obj) => void][] => [
+      [`muscle label ${JSON.stringify(t)}`, (b) => { b.muscles.abs = t; }],
+      [`muscle key ${JSON.stringify(t)}`, (b) => { b.muscles[t] = 'unique blank-key label'; }],
+    ]),
     ['muscles missing', (b) => { delete b.muscles; }],
     ['muscles a list', (b) => { b.muscles = []; }],
     ['a contract muscle without a label', (b) => { delete b.muscles['lower-back']; }],

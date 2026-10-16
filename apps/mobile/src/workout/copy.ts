@@ -3,6 +3,7 @@ import type { Schemas } from '@plate-and-bar/api';
 import { has, isProtoName, ownOr } from '../content/own';
 import { contentReader, isObj, isText } from '../content/reader';
 import type { ModsNotePart, Checkin, CheckinReason, ExType, Rate } from '@plate-and-bar/core';
+import { isBlank } from '../text/blank';
 
 // Display text from the prototype's workout screen (TYPE_LABEL, MUSCLE, RATES, CI_Q).
 
@@ -42,14 +43,14 @@ const LABEL_MAX = 200;
 const KEYS_MAX = 200;
 const KEY_MAX = 60;
 const shippedLabels = labels as unknown as Labels;
-const label = (v: unknown): v is string => isText(LABEL_MAX)(v) && v.trim() !== '';
+const label = (v: unknown): v is string => isText(LABEL_MAX)(v) && !isBlank(v);
 
 /** A record of at most `KEYS_MAX` own keys (never empty: `must` is not) (1 to 60 characters, not Object.prototype names) with distinct label values, holding every key in `must`. */
 function isLabelMap(v: unknown, must: readonly string[]): boolean {
   if (!isObj(v)) return false;
   const keys = Object.keys(v);
   return (
-    keys.length <= KEYS_MAX && keys.every((k) => isText(KEY_MAX)(k) && k.trim() !== '' && !isProtoName(k) && label(v[k])) &&
+    keys.length <= KEYS_MAX && keys.every((k) => isText(KEY_MAX)(k) && !isBlank(k) && !isProtoName(k) && label(v[k])) &&
     new Set(keys.map((k) => v[k])).size === keys.length && must.every((k) => has(v, k))
   );
 }

@@ -1,4 +1,5 @@
 import { bundle, contentGeneration } from './loader';
+import { isBlank } from '../text/blank';
 
 export const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 export const isStr = (v: unknown): v is string => typeof v === 'string';
@@ -8,10 +9,8 @@ export const isNumOrNull = (v: unknown): v is number | null => v === null || isN
 export const isStrOrNull = (v: unknown): v is string | null => v === null || isStr(v);
 /** A string of 1 to `max` characters. */
 export const isText = (max: number) => (v: unknown): v is string => isStr(v) && v.length >= 1 && v.length <= max;
-/** Whitespace and zero-width characters (U+200B to U+200D, U+2060, U+FEFF), which `trim()` leaves alone. */
-const BLANK_RUN = /^[\s\u200B-\u200D\u2060\uFEFF]*$/;
 /** A string of 1 to `max` characters with something visible in it: spaces, tabs and zero-width characters alone are rejected (as `nonEmpty` in `tools/validate/*`, and stricter for zero-width). */
-export const isTrimmedText = (max: number) => (v: unknown): v is string => isText(max)(v) && !BLANK_RUN.test(v);
+export const isTrimmedText = (max: number) => (v: unknown): v is string => isText(max)(v) && !isBlank(v);
 /** A finite number within [min, max]. */
 export const isNumIn = (min: number, max: number) => (v: unknown): v is number => isNum(v) && v >= min && v <= max;
 export const isUuid = (v: unknown): v is string => isStr(v) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
