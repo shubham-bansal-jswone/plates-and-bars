@@ -100,6 +100,56 @@ class SyncEngineIT extends SyncITBase {
         assertThat(only(r.body().path("applied")).path("version").asInt()).isEqualTo(1);
     }
 
+    // ---- lift_stats nested prev (contract 0.1.2) ----
+
+    private static ObjectNode session(String date) {
+        return SyncFixtures.obj("{'date':'" + date + "','sets':[{'weight_kg':57.5,'reps':8,'rate':'right'}],'form':'yes'}");
+    }
+
+    private ObjectNode liftWithPrev(String user, ObjectNode prev) {
+        ObjectNode rec = SyncFixtures.oneOfEach(user, MID).get(SyncTable.lift_stats);
+        rec.set("prev", prev);
+        return rec;
+    }
+
+    @Test
+    void liftStatsWithANestedPrevComesBackUnchanged() {
+        String user = newUser();
+        ObjectNode prev = session("2026-10-01");
+        prev.set("prev", session("2026-09-24"));
+        ObjectNode rec = liftWithPrev(user, prev);
+
+        ok(user, req(null).add(SyncTable.lift_stats, rec).build());
+        JsonNode back = pulled(ok(user, req(null).build()), "lift_stats", rec.path("id").asText());
+
+        // Compared as JSON values; MySQL's JSON column reorders object keys, so the text can differ.
+        ObjectNode expected = rec.deepCopy();
+        expected.put("version", 1);
+        assertThat(JsonContent.same(back, expected)).isTrue();
+    }
+
+    @Test
+    void liftStatsWithADepthTwoPrevIsRejectedEvenWhenTheDeepestPrevIsNull() {
+        String user = newUser();
+        for (boolean deepestNull : new boolean[] {false, true}) {
+            ObjectNode middle = session("2026-09-24");
+            if (deepestNull) {
+                middle.putNull("prev");
+            } else {
+                middle.set("prev", session("2026-09-17"));
+            }
+            ObjectNode prev = session("2026-10-01");
+            prev.set("prev", middle);
+
+            Resp res = post(user, req(null).add(SyncTable.lift_stats, liftWithPrev(user, prev)).build());
+            assertThat(res.status()).isEqualTo(400);
+            assertThat(res.body().path("code").asText()).isEqualTo("invalid_request");
+            assertThat(res.body().path("details")).isNotEmpty();
+            assertThat(res.body().path("details").get(0).path("field").asText()).startsWith("changes.lift_stats[0].prev");
+        }
+        assertThat(count("SELECT COUNT(*) FROM lift_stats WHERE user_id = ?", user)).isZero();
+    }
+
     // ---- conflicts ----
 
     @Test
