@@ -18,7 +18,7 @@ jest.mock('expo-router', () => ({
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []),
 }));
 
-// The app's cards and hidden list through core, as DailyRead calls it.
+// The app's cards and hidden list through core: checks the bundle and hidden list against core's rule (DailyRead itself is covered by the Progress tests).
 const learnList = (sex?: string) => coreLearnList(chosenCards().cards, sex, HIDDEN_CARDS);
 const dailyRead = (raw: Record<string, unknown>, sex: string | undefined, today: string) => coreDailyRead(chosenCards().cards, sex, readLearn(raw), today, HIDDEN_CARDS);
 const shown = cards.cards.filter((c) => !HIDDEN_CARDS.includes(c.id));
@@ -146,6 +146,14 @@ describe('Daily read card on Progress', () => {
     expect(screen.getByText(rir.summary)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Close'));
     expect(screen.queryByLabelText('Close')).toBeNull();
+  });
+  it('shows the first card when learn.start is after today (clamp)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), learn: { start: '2026-10-20', read: [] } });
+    await render(withProfile(db, <ProgressScreen db={db} now={() => new Date(2026, 9, 17, 9)} />));
+    expect(await screen.findByText('2-minute read, 0 of 10 done')).toBeTruthy();
+    expect(screen.getByText(cards.cards.find((c) => c.id === 'rir')!.title)).toBeTruthy();
   });
   it('starts the clock the first time it shows', async () => {
     const db = memoryDb();
