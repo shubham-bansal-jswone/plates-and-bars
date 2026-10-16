@@ -6,6 +6,7 @@ import { Text } from '../components/Text';
 import { Button, ErrorText, Hint, Label } from '../components/ui';
 import type { ExclusionRecord } from '../db/rules';
 import { loadLifts, type WorkoutDb } from '../db/workouts';
+import type { PullDb } from '../db/outbox';
 import { shortDate } from '../format';
 import type { Profile } from '../setup/types';
 import { useDataVersion } from '../sync/useDataVersion';
@@ -21,7 +22,7 @@ import { useRules } from '../workout/useRules';
  * Exercises avoided and swapped (prototype `rulesSectionHtml`): each can be removed, which stores a tombstone, and
  * "Add an exercise to avoid" (prototype `rule-add`) picks one from the library and asks the can't-do questions.
  */
-export function RulesSection({ db, today, now, notify, profile, weekPlan }: { db: WorkoutDb; today: string; now: () => Date; notify: (msg: string) => void; profile: Profile; weekPlan?: WeekPlan }) {
+export function RulesSection({ db, today, now, notify, profile, weekPlan }: { db: WorkoutDb & PullDb; today: string; now: () => Date; notify: (msg: string) => void; profile: Profile; weekPlan?: WeekPlan }) {
   const c = useTheme();
   // Tab screens stay mounted, so the rules are read again each time the tab is shown.
   const [shown, setShown] = useState(0);
