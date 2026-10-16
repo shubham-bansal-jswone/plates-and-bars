@@ -219,7 +219,7 @@ describe('welcome back card after a break', () => {
     expect(await screen.findByText('Welcome back. It’s been 14 days.')).toBeTruthy();
     expect(screen.getByText('For this week: start about 15% lighter and build back up over a few sessions.')).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ reentry: reentryRange(DATE, 0.15), dismissed: { 'break:2026-09-24': true } }));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ reentry: reentryRange(DATE, 0.15), dismissed: { 'break:2026-09-24': true } }));
     expect(await screen.findByText('Easing back in until 14 Oct.')).toBeTruthy();
     expect(screen.queryByText(/^Welcome back\./)).toBeNull();
   });
@@ -235,14 +235,14 @@ describe('welcome back card after a break', () => {
     expect(await screen.findByText('Welcome back. It’s been 28 days.')).toBeTruthy();
     expect(screen.getByText(/^For the next 2 weeks: about 30% lighter and 1 fewer set per exercise, building back to normal\./)).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ reentry: reentryRange(DATE, 0.3), dismissed: { 'break:2026-09-10': true } }));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ reentry: reentryRange(DATE, 0.3), dismissed: { 'break:2026-09-10': true } }));
     expect(await screen.findByText('Easing back in until 21 Oct.')).toBeTruthy();
   });
 
   it('Train as normal dismisses the card and counts a decline', async () => {
     const db = await open({}, [], ['2026-09-24']);
     fireEvent.press(await screen.findByLabelText('Train as normal, re-entry'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ declines: { break: 1 }, dismissed: { 'break:2026-09-24': true } }));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ declines: { break: 1 }, dismissed: { 'break:2026-09-24': true } }));
     expect(screen.queryByText(/^Welcome back\./)).toBeNull();
   });
 
@@ -267,7 +267,7 @@ describe('steady weeks card', () => {
     expect(screen.getByText(/^Many programmes take a lighter week every 6–8 weeks to let fatigue clear\./)).toBeTruthy();
     expect(screen.getByLabelText('Why? Why a recovery week?, lighter week')).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Take a lighter week, lighter week'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ deload: recoveryWeek(DATE), dismissed: { 'dlplan:2026-10-05': true } }));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ deload: recoveryWeek(DATE), dismissed: { 'dlplan:2026-10-05': true } }));
     expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
     expect(screen.queryByText('6 steady weeks of training')).toBeNull();
   });
@@ -281,7 +281,7 @@ describe('steady weeks card', () => {
   it('Keep going dismisses the card and counts a decline', async () => {
     const db = await open({}, [], steadyWeeks(6));
     fireEvent.press(await screen.findByLabelText('Keep going, lighter week'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ declines: { 'deload-plan': 1 }, dismissed: { 'dlplan:2026-10-05': true } }));
+    await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ declines: { 'deload-plan': 1 }, dismissed: { 'dlplan:2026-10-05': true } }));
     expect(screen.queryByText('6 steady weeks of training')).toBeNull();
   });
 

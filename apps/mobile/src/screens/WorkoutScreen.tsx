@@ -19,7 +19,7 @@ import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
 import { CustomTagsSheet } from '../workout/CustomTagsSheet';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
-import { ExerciseCards, RecheckCards, RecoveryCards } from '../workout/ExerciseCards';
+import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -147,7 +147,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   return (
     <Page>
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
-      <RecoveryCards date={date} lifts={day.lifts} sessions={day.sessions} notify={notify} />
+      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan

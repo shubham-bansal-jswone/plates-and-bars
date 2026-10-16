@@ -110,7 +110,7 @@ export function RecheckCards({ date, lifts, rules, notify }: Props) {
 }
 
 /** The adjustment cards from prototype `renderStart()`: "Welcome back", the optional lighter week, the recovery week, and the note while one runs. */
-export function RecoveryCards({ date, lifts, sessions, notify }: Omit<Props, 'rules'> & { sessions: SessionLog }) {
+export function StartCards({ date, lifts, sessions, notify }: Omit<Props, 'rules'> & { sessions: SessionLog }) {
   const { settings, update: write, loadFailed } = useSettings();
   const update = guarded(write, loadFailed, notify);
   const a = settings.adjustments;
