@@ -18,7 +18,7 @@ import {
   type Where,
 } from '../src/index';
 import { goldenCatalog, metaTable, rng, shortTag } from './prototype-plan';
-import { prototypeSource } from './helpers';
+import { prototypeSource, sliceBlock, sliceLine } from './helpers';
 import { loadWorkout } from './prototype-workout';
 
 // No golden fixture covers these rules; they are checked against the prototype's own functions
@@ -161,5 +161,50 @@ describe('checkinFlags', () => {
               expect(ours.swapTo).toBe(p.swap);
               expect(ours.good).toBe(p.good);
             }
+  });
+});
+
+// #139 (decided: hide it, as the app does): after "I know my weight" the find-your-weight guide does not come back. The app
+// shows the guide only while `sug.mode === 'new' && !working && !ex.skipRamp` (ExerciseCard); this runs the prototype's own
+// `exerciseCard` and its `ramp-skip` action, with the card's other helpers stubbed.
+describe('find-your-weight guide after "I know my weight" (#139)', () => {
+  const src = prototypeSource();
+  type Ex = { name: string; sets: { w: string; r: string; done: boolean }[]; ramp?: unknown; skipRamp?: boolean; found?: number | null };
+  const run = new Function(
+    'sug',
+    [
+      'const info = { type:"machine", lo:8, hi:12, step:2.5 };',
+      'const exInfo = () => info, suggestFor = () => sug, lastFor = () => null, noLoad = () => false, esc = x => String(x ?? "");',
+      'const sampleFn = null, SAMPLE_IMG = null, TYPE_LABEL = { machine:"Machine" }, restLabel = () => "", whyLink = () => "", ladderMeta = () => "";',
+      'const r1 = x => x, repWord = () => "reps", exMusclesLine = () => "", learnHtml = () => "", estimateFor = () => null, kgLabel = w => w + " kg";',
+      'const harder = w => w, rampMsg = () => "", rateRow = () => "", warmupHtml = () => "", stallCard = () => "", ladderCard = () => "";',
+      'const setTarget = () => ({ w:"", r:"" }), feelHtml = () => "", saveDay = () => {}, render = () => {};',
+      sliceBlock(src, 'function exerciseCard(ex, i){', '}'),
+      'function act(a, ex){ switch(a){',
+      sliceLine(src, "    case 'ramp-skip': "),
+      '} }',
+      'return { exerciseCard, act };',
+    ].join('\n'),
+  ) as (sug: { mode: string; reason: string }) => { exerciseCard(ex: Ex, i: number): string; act(a: string, ex: Ex): void };
+  const fresh = (): Ex => ({ name: 'Leg Press', sets: [{ w: '', r: '', done: false }] });
+  const GUIDE = 'First time: find your weight';
+
+  it('a new exercise shows the guide until "I know my weight" is tapped, then never again', () => {
+    const p = run({ mode: 'new', reason: '' });
+    const ex = fresh();
+    expect(p.exerciseCard(ex, 0)).toContain(GUIDE);
+    expect(p.exerciseCard(ex, 0)).toContain('data-act="ramp-skip"');
+    p.act('ramp-skip', ex);
+    expect(ex).toMatchObject({ ramp: null, skipRamp: true, found: null });
+    const html = p.exerciseCard(ex, 0);
+    expect(html).not.toContain(GUIDE);
+    expect(html).not.toContain('Ramp sets');
+    expect(html).not.toContain('Suggested:'); // a new loaded exercise has no suggestion text, as in the app
+    expect(html).toContain('data-act="tick"'); // the working sets stay
+  });
+  it('the guide still hides once a working set is ticked, and for a non-new exercise', () => {
+    const p = run({ mode: 'new', reason: '' });
+    expect(p.exerciseCard({ ...fresh(), sets: [{ w: '50', r: '10', done: true }] }, 0)).not.toContain(GUIDE);
+    expect(run({ mode: 'up', reason: 'Top of the range' }).exerciseCard(fresh(), 0)).not.toContain(GUIDE);
   });
 });
