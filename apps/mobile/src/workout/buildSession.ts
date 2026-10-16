@@ -47,7 +47,7 @@ export interface BuiltSession {
   left: string[];
   /** The exercises `applyFocus` added, for the focus badge. */
   focus: string[];
-  /** Names left out with no replacement: an excluded exercise, or a swapped one whose target was already in the session (#143); the preview says the muscles get fewer sets. */
+  /** Names left out with no replacement: an excluded exercise, or a swapped or picked one whose target was already in the session and has no candidate left (#143); the preview says the muscles get fewer sets. */
   lost: string[];
 }
 
