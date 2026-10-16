@@ -35,6 +35,8 @@ export interface ProtoCoverage {
   focusAction(m: string): { toasts: string[]; saved: boolean };
   MUSCLE: Record<string, string>;
   COVER_SHOW: string[];
+  /** Prototype `sessionItems(t, where)`: the template mapped for `where` and resolved. */
+  sessionItems(t: string, where: string): { name: string; bridge?: boolean }[];
 }
 
 /**
@@ -89,7 +91,7 @@ export function loadCoverage(): ProtoCoverage {
     sliceLine(src, 'const focusList = '),
     sliceBlock(src, 'function focusHtml(){', '}'),
     sliceBlock(src, 'function focusAction(a, b){', '}'),
-    'return { S, weeklyCoverage, coverageHtml, actualCoverage, focusHtml, MUSCLE, COVER_SHOW,',
+    'return { S, weeklyCoverage, coverageHtml, actualCoverage, focusHtml, MUSCLE, COVER_SHOW, sessionItems,',
     '  fillActualCoverage: async () => { EL.innerHTML = ""; await fillActualCoverage(); return EL.innerHTML; },',
     '  focusAction: m => { TOASTS = []; SAVED = false; focusAction("focus", { dataset:{ v:m } }); return { toasts: TOASTS, saved: SAVED }; } };',
   ].join('\n');
