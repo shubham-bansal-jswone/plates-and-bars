@@ -12,6 +12,7 @@ import { memoryTokenStore } from '../src/sync/tokens';
 import { KEY_USER } from '../src/sync/store';
 import { withSyncPaused } from '../src/sync/guard';
 import { Pressable, Text } from 'react-native';
+import { WhyLink } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
 
@@ -261,6 +262,16 @@ describe('Ask why', () => {
     expect(screen.getByText('Based on the card: Why so much protein?')).toBeTruthy();
   });
 
+  it('shows its label as visible text that stays once the user types', async () => {
+    const { api } = fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }), response: res(200) })) });
+    await ai(optedIn(), api, <AiSection />);
+    await fireEvent.press(await screen.findByLabelText('Ask why about your targets'));
+    expect(await screen.findByText('Your question', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Your question')).toBeNull(); // hidden from screen readers: the field speaks the label
+    await fireEvent.changeText(screen.getByLabelText('Your question'), 'Why so much protein?');
+    expect(screen.getByText('Your question', { includeHiddenElements: true })).toBeTruthy();
+  });
+
   it('is hidden when the server has it off', async () => {
     const { api, GET } = fakeApi();
     await ai(optedIn(), api, <AiSection />);
@@ -467,5 +478,99 @@ describe('cold start with an expired token', () => {
     // Once known, later sync runs do not ask again.
     await view.rerender(tree({ status: 'ok' }));
     expect(GET).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Why sheet follow-up', () => {
+  const open = async () => {
+    await fireEvent.press(await screen.findByLabelText(/^Why\? /));
+  };
+  const on = () => fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }), response: res(200) })) });
+
+  it('is not shown without an AI provider, and the card still reads', async () => {
+    await render(<WhyLink id="protein" />);
+    await fireEvent.press(await screen.findByLabelText(/^Why\? /));
+    expect(screen.getByText(/Source: /)).toBeTruthy();
+    expect(screen.queryByLabelText('Ask a follow-up')).toBeNull();
+  });
+
+  it('shows its label as visible text that stays once the user types', async () => {
+    const { api } = on();
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    expect(await screen.findByText('Ask a follow-up', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Ask a follow-up')).toBeNull(); // hidden from screen readers: the field speaks the label
+    await fireEvent.changeText(screen.getByLabelText('Ask a follow-up'), 'Is 150 g too much?');
+    expect(screen.getByText('Ask a follow-up', { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it('is hidden when consent is not given, and nothing is sent', async () => {
+    const { api, GET, POST } = on();
+    await ai(kvDb({ [KEY_USER]: 'u1' }), api, <WhyLink id="protein" />);
+    await open();
+    expect(screen.queryByLabelText('Ask a follow-up')).toBeNull();
+    expect(GET).not.toHaveBeenCalled();
+    expect(POST).not.toHaveBeenCalled();
+  });
+
+  it('is hidden when the server has Ask why off', async () => {
+    const { api, GET } = fakeApi();
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await waitFor(() => expect(GET).toHaveBeenCalled());
+    await open();
+    expect(screen.queryByLabelText('Ask a follow-up')).toBeNull();
+  });
+
+  it.each(blank.must_fail.map((t) => [JSON.stringify(t), t]))('never sends a blank question %s', async (_n, t) => {
+    const { api, POST } = on();
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    await fireEvent.changeText(await screen.findByLabelText('Ask a follow-up'), t);
+    await fireEvent.press(screen.getByLabelText('Ask'));
+    expect(POST).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Shorten it/)).toBeNull();
+  });
+
+  it('sends the card id of the open card and shows the answer', async () => {
+    const { api, POST } = on();
+    POST.mockResolvedValue({ data: { answer: 'Because protein protects muscle.', card_id: 'protein', quota: QUOTA }, response: res(200) });
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    await fireEvent.changeText(await screen.findByLabelText('Ask a follow-up'), 'Is 150 g too much?');
+    await fireEvent.press(screen.getByLabelText('Ask'));
+    expect(await screen.findByText('Because protein protects muscle.')).toBeTruthy();
+    expect(POST.mock.calls[0]).toEqual(['/ai/ask-why', { body: { card_id: 'protein', question: 'Is 150 g too much?' }, signal: expect.anything() }]);
+  });
+
+  it('says so and keeps the card when the quota is used up', async () => {
+    const { api, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ ask_why: true }, { ...QUOTA, remaining: 0 }), response: res(200) })) });
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    expect(await screen.findByText(/You’ve used today’s AI answers/)).toBeTruthy();
+    expect(screen.queryByLabelText('Ask')).toBeNull();
+    expect(screen.getByText(/Source: /)).toBeTruthy();
+    expect(POST).not.toHaveBeenCalled();
+  });
+
+  it('shows the failure message when the request fails, and keeps the box', async () => {
+    const { api, POST } = on();
+    POST.mockResolvedValue({ error: { code: 'internal', message: 'x' }, response: res(500) });
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    await fireEvent.changeText(await screen.findByLabelText('Ask a follow-up'), 'Why?');
+    await fireEvent.press(screen.getByLabelText('Ask'));
+    expect(await screen.findByText(/Couldn’t get an answer, try again\. The cards in the app still explain it\./)).toBeTruthy();
+    expect(screen.getByLabelText('Ask a follow-up')).toBeTruthy();
+  });
+
+  it('falls back to the cards when the server switches it off mid-use', async () => {
+    const get = jest.fn().mockResolvedValueOnce({ data: status({ ask_why: true }), response: res(200) }).mockResolvedValue({ data: status(), response: res(200) });
+    const { api, POST } = fakeApi({ get });
+    POST.mockResolvedValue({ error: { code: 'feature_disabled', message: 'x' }, response: res(503) });
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    await fireEvent.changeText(await screen.findByLabelText('Ask a follow-up'), 'Why?');
+    await fireEvent.press(screen.getByLabelText('Ask'));
+    await waitFor(() => expect(screen.queryByLabelText('Ask a follow-up')).toBeNull());
   });
 });

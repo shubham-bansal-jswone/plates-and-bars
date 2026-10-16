@@ -1,110 +1,681 @@
-{
- "gym|Push A": [
-  "Machine Chest Press",
-  "Incline Dumbbell Press",
-  "Seated Dumbbell Press",
-  "Lateral Raise"
- ],
- "gym|Push A|focus=glutes": [
-  "Machine Chest Press",
-  "Incline Dumbbell Press",
-  "Seated Dumbbell Press",
-  "Lateral Raise"
- ],
- "gym|Legs A": [
-  "Hack Squat",
-  "Lying Leg Curl",
-  "Hip Thrust",
-  "Leg Extension"
- ],
- "gym|Legs A|focus=glutes": [
-  "Hack Squat",
-  "Hip Thrust",
-  "Lying Leg Curl",
-  "Leg Extension"
- ],
- "gym|Full body A": [
-  "Hack Squat",
-  "Machine Chest Press",
-  "Lat Pulldown",
-  "Lateral Raise"
- ],
- "gym|Full body A|focus=glutes": [
-  "Hack Squat",
-  "Machine Chest Press",
-  "Lat Pulldown",
-  "Lateral Raise"
- ],
- "dumbbells|Push A": [
-  "Dumbbell Floor Press",
-  "Incline Dumbbell Press",
-  "Seated Dumbbell Press",
-  "Lateral Raise"
- ],
- "dumbbells|Push A|focus=glutes": [
-  "Dumbbell Floor Press",
-  "Incline Dumbbell Press",
-  "Seated Dumbbell Press",
-  "Lateral Raise"
- ],
- "dumbbells|Legs A": [
-  "Goblet Squat",
-  "Single-Leg Glute Bridge",
-  "Glute Bridge",
-  "Single-Leg Calf Raise"
- ],
- "dumbbells|Legs A|focus=glutes": [
-  "Goblet Squat",
-  "Single-Leg Glute Bridge",
-  "Glute Bridge",
-  "Single-Leg Calf Raise"
- ],
- "dumbbells|Full body A": [
-  "Goblet Squat",
-  "Dumbbell Floor Press",
-  "One-Arm Dumbbell Row",
-  "Lateral Raise"
- ],
- "dumbbells|Full body A|focus=glutes": [
-  "Goblet Squat",
-  "Dumbbell Floor Press",
-  "One-Arm Dumbbell Row",
-  "Lateral Raise"
- ],
- "bodyweight|Push A": [
-  "Push-ups",
-  "Decline Push-ups",
-  "Pike Push-ups",
-  "Bench Dips"
- ],
- "bodyweight|Push A|focus=glutes": [
-  "Push-ups",
-  "Decline Push-ups",
-  "Pike Push-ups",
-  "Bench Dips"
- ],
- "bodyweight|Legs A": [
-  "Bodyweight Squat",
-  "Single-Leg Glute Bridge",
-  "Glute Bridge",
-  "Wall Sit (seconds)"
- ],
- "bodyweight|Legs A|focus=glutes": [
-  "Bodyweight Squat",
-  "Single-Leg Glute Bridge",
-  "Glute Bridge",
-  "Wall Sit (seconds)"
- ],
- "bodyweight|Full body A": [
-  "Bodyweight Squat",
-  "Push-ups",
-  "Backpack Row",
-  "Single-Leg Glute Bridge"
- ],
- "bodyweight|Full body A|focus=glutes": [
-  "Bodyweight Squat",
-  "Single-Leg Glute Bridge",
-  "Push-ups",
-  "Backpack Row"
- ]
-}
+[
+ {
+  "id": "gym|Push A",
+  "input": {
+   "where": "gym",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Machine Chest Press",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "gym|Push A|focus=glutes",
+  "input": {
+   "where": "gym",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Machine Chest Press",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "gym|Legs A",
+  "input": {
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust",
+   "Leg Extension"
+  ]
+ },
+ {
+  "id": "gym|Legs A|focus=glutes",
+  "input": {
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Hack Squat",
+   "Hip Thrust",
+   "Lying Leg Curl",
+   "Leg Extension"
+  ]
+ },
+ {
+  "id": "gym|Full body A",
+  "input": {
+   "where": "gym",
+   "template": "Full body A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Hack Squat",
+   "Machine Chest Press",
+   "Lat Pulldown",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "gym|Full body A|focus=glutes",
+  "input": {
+   "where": "gym",
+   "template": "Full body A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Hack Squat",
+   "Machine Chest Press",
+   "Lat Pulldown",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "dumbbells|Push A",
+  "input": {
+   "where": "dumbbells",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Dumbbell Floor Press",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "dumbbells|Push A|focus=glutes",
+  "input": {
+   "where": "dumbbells",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Dumbbell Floor Press",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "dumbbells|Legs A",
+  "input": {
+   "where": "dumbbells",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Goblet Squat",
+   "Single-Leg Glute Bridge",
+   "Glute Bridge",
+   "Single-Leg Calf Raise"
+  ]
+ },
+ {
+  "id": "dumbbells|Legs A|focus=glutes",
+  "input": {
+   "where": "dumbbells",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Goblet Squat",
+   "Single-Leg Glute Bridge",
+   "Glute Bridge",
+   "Single-Leg Calf Raise"
+  ]
+ },
+ {
+  "id": "dumbbells|Full body A",
+  "input": {
+   "where": "dumbbells",
+   "template": "Full body A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Goblet Squat",
+   "Dumbbell Floor Press",
+   "One-Arm Dumbbell Row",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "dumbbells|Full body A|focus=glutes",
+  "input": {
+   "where": "dumbbells",
+   "template": "Full body A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Goblet Squat",
+   "Dumbbell Floor Press",
+   "One-Arm Dumbbell Row",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "bodyweight|Push A",
+  "input": {
+   "where": "bodyweight",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Push-ups",
+   "Decline Push-ups",
+   "Pike Push-ups",
+   "Bench Dips"
+  ]
+ },
+ {
+  "id": "bodyweight|Push A|focus=glutes",
+  "input": {
+   "where": "bodyweight",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Push-ups",
+   "Decline Push-ups",
+   "Pike Push-ups",
+   "Bench Dips"
+  ]
+ },
+ {
+  "id": "bodyweight|Legs A",
+  "input": {
+   "where": "bodyweight",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Bodyweight Squat",
+   "Single-Leg Glute Bridge",
+   "Glute Bridge",
+   "Wall Sit (seconds)"
+  ]
+ },
+ {
+  "id": "bodyweight|Legs A|focus=glutes",
+  "input": {
+   "where": "bodyweight",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Bodyweight Squat",
+   "Single-Leg Glute Bridge",
+   "Glute Bridge",
+   "Wall Sit (seconds)"
+  ]
+ },
+ {
+  "id": "bodyweight|Full body A",
+  "input": {
+   "where": "bodyweight",
+   "template": "Full body A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Bodyweight Squat",
+   "Push-ups",
+   "Backpack Row",
+   "Single-Leg Glute Bridge"
+  ]
+ },
+ {
+  "id": "bodyweight|Full body A|focus=glutes",
+  "input": {
+   "where": "bodyweight",
+   "template": "Full body A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0,
+   "age": null
+  },
+  "output": [
+   "Bodyweight Squat",
+   "Single-Leg Glute Bridge",
+   "Push-ups",
+   "Backpack Row"
+  ]
+ },
+ {
+  "id": "gym|Push A|45min|exp=some|focus=none|history=0|age=59",
+  "input": {
+   "age": 59,
+   "where": "gym",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0
+  },
+  "output": [
+   "Machine Chest Press",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "gym|Push A|45min|exp=some|focus=none|history=0|age=60",
+  "input": {
+   "age": 60,
+   "where": "gym",
+   "template": "Push A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 0
+  },
+  "output": [
+   "Machine Chest Press",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise",
+   "Single-Leg Balance (seconds)"
+  ]
+ },
+ {
+  "id": "dumbbells|Legs A|60min|exp=some|focus=abs|history=1|age=65",
+  "input": {
+   "age": 65,
+   "where": "dumbbells",
+   "template": "Legs A",
+   "minutes": 60,
+   "exp": "some",
+   "focus": "abs",
+   "history": 1
+  },
+  "output": [
+   "Goblet Squat",
+   "Crunch",
+   "Single-Leg Glute Bridge",
+   "Glute Bridge",
+   "Single-Leg Calf Raise",
+   "Single-Leg Balance (seconds)"
+  ]
+ },
+ {
+  "id": "bodyweight|Full body A|60min|exp=new|focus=none|history=0|age=72",
+  "input": {
+   "age": 72,
+   "where": "bodyweight",
+   "template": "Full body A",
+   "minutes": 60,
+   "exp": "new",
+   "focus": null,
+   "history": 0
+  },
+  "output": [
+   "Bodyweight Squat",
+   "Push-ups",
+   "Backpack Row",
+   "Single-Leg Glute Bridge",
+   "Single-Leg Balance (seconds)"
+  ]
+ },
+ {
+  "id": "gym|Pull A|45min|exp=some|focus=abs|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Pull A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "abs",
+   "history": 0
+  },
+  "output": [
+   "Lat Pulldown",
+   "Cable Crunch",
+   "Seated Cable Row",
+   "Face Pull"
+  ]
+ },
+ {
+  "id": "dumbbells|Pull A|45min|exp=some|focus=abs|history=0",
+  "input": {
+   "age": null,
+   "where": "dumbbells",
+   "template": "Pull A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "abs",
+   "history": 0
+  },
+  "output": [
+   "One-Arm Dumbbell Row",
+   "Crunch",
+   "Rear Delt Fly",
+   "Dumbbell Curl"
+  ]
+ },
+ {
+  "id": "gym|Legs A|45min|exp=some|focus=none|history=1",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 1
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Standing Calf Raise",
+   "Cable Crunch"
+  ]
+ },
+ {
+  "id": "gym|Legs A|45min|exp=some|focus=none|history=2",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 2
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust",
+   "Leg Extension"
+  ]
+ },
+ {
+  "id": "gym|Legs A|45min|exp=some|focus=none|history=5",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 5
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Standing Calf Raise",
+   "Cable Crunch"
+  ]
+ },
+ {
+  "id": "gym|Legs B|45min|exp=some|focus=glutes|history=3",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs B",
+   "minutes": 45,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 3
+  },
+  "output": [
+   "Leg Press",
+   "Seated Leg Curl",
+   "Seated Calf Raise",
+   "Hanging Knee Raise"
+  ]
+ },
+ {
+  "id": "bodyweight|Full body A|45min|exp=some|focus=none|history=1",
+  "input": {
+   "age": null,
+   "where": "bodyweight",
+   "template": "Full body A",
+   "minutes": 45,
+   "exp": "some",
+   "focus": null,
+   "history": 1
+  },
+  "output": [
+   "Bodyweight Squat",
+   "Push-ups",
+   "Backpack Row",
+   "Single-Leg Glute Bridge"
+  ]
+ },
+ {
+  "id": "gym|Legs A|30min|exp=some|focus=none|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 30,
+   "exp": "some",
+   "focus": null,
+   "history": 0
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust"
+  ]
+ },
+ {
+  "id": "gym|Legs A|60min|exp=some|focus=none|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 60,
+   "exp": "some",
+   "focus": null,
+   "history": 0
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust",
+   "Leg Extension",
+   "Standing Calf Raise"
+  ]
+ },
+ {
+  "id": "gym|Legs A|75min|exp=some|focus=none|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 75,
+   "exp": "some",
+   "focus": null,
+   "history": 0
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust",
+   "Leg Extension",
+   "Standing Calf Raise",
+   "Cable Crunch"
+  ]
+ },
+ {
+  "id": "gym|Legs A|90min|exp=some|focus=none|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 90,
+   "exp": "some",
+   "focus": null,
+   "history": 0
+  },
+  "output": [
+   "Hack Squat",
+   "Lying Leg Curl",
+   "Hip Thrust",
+   "Leg Extension",
+   "Standing Calf Raise",
+   "Cable Crunch"
+  ]
+ },
+ {
+  "id": "gym|Push A|60min|exp=some|focus=triceps|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Push A",
+   "minutes": 60,
+   "exp": "some",
+   "focus": "triceps",
+   "history": 0
+  },
+  "output": [
+   "Machine Chest Press",
+   "Rope Pushdown",
+   "Incline Dumbbell Press",
+   "Seated Dumbbell Press",
+   "Lateral Raise"
+  ]
+ },
+ {
+  "id": "gym|Upper A|75min|exp=some|focus=abs|history=2",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Upper A",
+   "minutes": 75,
+   "exp": "some",
+   "focus": "abs",
+   "history": 2
+  },
+  "output": [
+   "Machine Chest Press",
+   "Cable Crunch",
+   "Lat Pulldown",
+   "Seated Dumbbell Press",
+   "Seated Cable Row",
+   "Rope Pushdown"
+  ]
+ },
+ {
+  "id": "gym|Legs A|60min|exp=new|focus=glutes|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 60,
+   "exp": "new",
+   "focus": "glutes",
+   "history": 0
+  },
+  "output": [
+   "Hack Squat",
+   "Hip Thrust",
+   "Lying Leg Curl",
+   "Leg Extension",
+   "Standing Calf Raise"
+  ]
+ },
+ {
+  "id": "gym|Legs A|60min|exp=some|focus=glutes|history=0",
+  "input": {
+   "age": null,
+   "where": "gym",
+   "template": "Legs A",
+   "minutes": 60,
+   "exp": "some",
+   "focus": "glutes",
+   "history": 0
+  },
+  "output": [
+   "Hack Squat",
+   "Hip Thrust",
+   "Lying Leg Curl",
+   "Leg Extension",
+   "Standing Calf Raise"
+  ]
+ }
+]

@@ -5,7 +5,7 @@ Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contr
 
 ## Status (M0)
 
-- `GET /api/v1/health` is public (200 `{status, version}`, 503 `Error` when the database is unreachable).
+- `GET /api/v1/health` is public (200 `{status}`, 503 `Error` when the database is unreachable).
 - Auth (#33, ADR 003 and 004), all public under `/api/v1/auth`:
   - `POST /google`: verifies a Google ID token against Google's JWKS (issuer, audience from `GOOGLE_CLIENT_IDS`,
     expiry). `email_verified` must be true. Identities are keyed by `sub`; the normalised email (trim, lower-case)
@@ -220,7 +220,6 @@ cd backend
 | `DB_PASSWORD` | empty | Database password |
 | `CONTENT_UPDATED_AT` | none, required | `name=timestamp,...` for every `content/*.json`; set it to `"$(backend/scripts/content-updated-at.sh)"`. The app refuses to start without it. Deploys compute it on a full-history checkout of `main` (HEAD of that checkout) and pass it as the Docker build arg |
 | `PORT` | `8080` | HTTP port |
-| `APP_VERSION` | `0.1.0` | Value returned as `version` by `/health` |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
 | `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint, including `/auth/*` (a guard filter, 400 `invalid_request` detail `too_large`; a chunked body is cut off once it passes the limit), and the `POST /sync` cap. The guard runs before security, CORS and rate limiting, so a body declared over the limit gets 400 `too_large` even before a 401 or 429. Multipart is disabled (no endpoint takes it). `/ai/*` bodies are read up to 16,384 bytes (bytes, not characters); a longer one is 400 `invalid_request` with issue `too_large`, field empty, in the validation step (after the feature switch) |
 | `SMTP_HOST` | none, required outside the dev profile | SMTP server host |
@@ -257,12 +256,12 @@ with the list empty, once per resolver instance (a singleton, so once per proces
 sends that header, is unaffected. IPv6 clients are keyed by their /64. The in-memory
 buckets are per process: run one instance, or move them to a shared store before scaling out.
 
-### TLS, HSTS and the health version
+### TLS and HSTS
 
 TLS ends at Caddy, which sets `Strict-Transport-Security` for the API host (`infra/caddy/Caddyfile.api`). The API
 does not: `server.forward-headers-strategy` is `none` on purpose. Enabling it (`native`) would bypass the
 trusted-proxies list, because the container would trust forwarded headers from private-range proxies. The client IP is
-handled only by the trusted-proxy rule above. `GET /api/v1/health` returns `app.version` (`APP_VERSION`) because the contract defines that body; dropping it needs a contract decision (#352).
+handled only by the trusted-proxy rule above. HSTS belongs at Caddy (`infra/caddy/Caddyfile.api` sets it); the app sends none. `GET /api/v1/health` returns exactly `{status}`: contract 0.1.15 removed `version` (#352), so the app no longer reads `APP_VERSION` and a version string is not exposed to unauthenticated callers.
 
 Secrets come from the environment only. Logs must never contain food, weight, health answers or tokens.
 

@@ -296,6 +296,17 @@ describe('Food screen', () => {
     expect(docs(db, 'food_logs')[0]).toMatchObject({ date: DATE, meal: 'Breakfast', name: 'Roti / chapati', qty: 1.5, kcal: 102, deleted_at: null });
   });
 
+  it('the fibre Why card states that day’s target (flex included), the same as the fibre row', async () => {
+    await setup({ flex: 300 });
+    await open();
+    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await screen.findByText('Added Roti / chapati');
+    await fireEvent.press(screen.getByText('Done'));
+    expect(screen.getByText(/of 34 g/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Why? Why track fibre and fruit and veg?'));
+    expect(await screen.findByText(/which is about 34 g/)).toBeTruthy();
+  });
+
   it('logs by grams, with the dry-weight hint, and refuses too-small amounts and non-gram servings', async () => {
     const db = await setup();
     await open('lunch');
@@ -341,7 +352,9 @@ describe('Food screen', () => {
     await open();
     await fireEvent.press(screen.getByLabelText('Eating out'));
     expect(screen.getByText('Smart picks')).toBeTruthy();
+    expect(screen.queryByLabelText('Why? Alcohol and training')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Drinks'));
+    expect(screen.getByLabelText('Why? Alcohol and training')).toBeTruthy();
     const beer = getCuisines().find((c) => c.name === 'Drinks')!.dishes[0]!;
     await fireEvent.press(screen.getByLabelText(new RegExp(`^Add ${beer.name.replace(/[()]/g, '\\$&')}`)));
     await screen.findByText(`Added ${beer.name}`);

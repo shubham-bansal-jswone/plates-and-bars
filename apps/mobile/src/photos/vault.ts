@@ -27,6 +27,13 @@ function fileName(date: string, pose: Pose): string {
   return `${date}_${pose}.bin`;
 }
 
+const ID = /^[A-Za-z0-9-]{1,64}$/;
+/** A kitchen-test serving photo (#284) lives in the same vault under `kt_<id>.bin`; `photoDates` skips it. */
+function kitchenFileName(id: string): string {
+  if (!ID.test(id)) throw new Error('bad photo key');
+  return `kt_${id}.bin`;
+}
+
 const folder = () => new Directory(Paths.document, 'photos');
 
 function deleteDir(make: () => Directory): void {
@@ -68,9 +75,16 @@ async function vaultKey(): Promise<AESEncryptionKey> {
 }
 
 /** Saves (or replaces) the photo for one pose on one day. */
-export function putPhoto(date: string, pose: Pose, jpegBase64: string): Promise<void> {
+export async function putPhoto(date: string, pose: Pose, jpegBase64: string): Promise<void> {
+  return putNamed(fileName(date, pose), jpegBase64);
+}
+/** Saves (or replaces) the serving photo of one kitchen test. */
+export async function putKitchenPhoto(id: string, jpegBase64: string): Promise<void> {
+  return putNamed(kitchenFileName(id), jpegBase64);
+}
+
+function putNamed(name: string, jpegBase64: string): Promise<void> {
   return lock.run(async () => {
-    const name = fileName(date, pose);
     if (!native) {
       memory.set(name, jpegBase64);
       return;
@@ -86,9 +100,15 @@ export function putPhoto(date: string, pose: Pose, jpegBase64: string): Promise<
 }
 
 /** The photo as base64 JPEG, or null when there is none or it does not decrypt. Key store errors are thrown. */
-export function getPhoto(date: string, pose: Pose): Promise<string | null> {
+export async function getPhoto(date: string, pose: Pose): Promise<string | null> {
+  return getNamed(fileName(date, pose));
+}
+export async function getKitchenPhoto(id: string): Promise<string | null> {
+  return getNamed(kitchenFileName(id));
+}
+
+function getNamed(name: string): Promise<string | null> {
   return lock.run(async () => {
-    const name = fileName(date, pose);
     if (!native) return memory.get(name) ?? null;
     const file = new File(folder(), name);
     if (!file.exists) return null;
@@ -101,9 +121,15 @@ export function getPhoto(date: string, pose: Pose): Promise<string | null> {
   });
 }
 
-export function deletePhoto(date: string, pose: Pose): Promise<void> {
+export async function deletePhoto(date: string, pose: Pose): Promise<void> {
+  return deleteNamed(fileName(date, pose));
+}
+export async function deleteKitchenPhoto(id: string): Promise<void> {
+  return deleteNamed(kitchenFileName(id));
+}
+
+function deleteNamed(name: string): Promise<void> {
   return lock.run(async () => {
-    const name = fileName(date, pose);
     if (!native) {
       memory.delete(name);
       return;

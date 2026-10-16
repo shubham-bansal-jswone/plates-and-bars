@@ -69,6 +69,14 @@ describe('Recipes screen: builder', () => {
     expect(rec!.ingredients[0]).toEqual({ ingredient: 'Toor dal (dry)', amount: 150, unit: 'g' });
   });
 
+  it('hides the visible Recipe name caption from screen readers; the field speaks the label', async () => {
+    await setup();
+    await fireEvent.press(screen.getByLabelText('Rajma'));
+    expect(screen.getByText('Recipe name', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Recipe name')).toBeNull();
+    expect(screen.getAllByLabelText('Recipe name')).toHaveLength(1);
+  });
+
   it('Save only does not log, and saving over an edited, renamed recipe tombstones the old food', async () => {
     const db = memoryDb();
     await setup(db);

@@ -24,26 +24,34 @@ const tpl = (t: string): readonly string[] => TEMPLATES[t] as readonly string[];
 const names = (xs: readonly { name: string }[]) => xs.map((x) => x.name);
 
 /** Template → home mapping → trim → focus, with no exclusions, swaps or history. */
-function session(where: Where, t: string, focus: string[], profile: PlanProfile, timesDone = 0): string[] {
+function sessionItems(where: Where, t: string, focus: string[], profile: PlanProfile, timesDone = 0): SessionItem[] {
   const sessions = Object.fromEntries(Array.from({ length: timesDone }, (_, i) => [`2026-09-${String(i + 1).padStart(2, '0')}`, { t, n: 9 }]));
   const trimmed = trimSession(items(mapForWhere(tpl(t), where, catalog)), t, { profile, sessions });
-  return names(applyFocus(trimmed, t, where, { profile, focus }, catalog));
+  return applyFocus(trimmed, t, where, { profile, focus }, catalog);
 }
 
 describe('sessions: golden/sessions.json', () => {
-  const golden = loadGolden<Record<string, string[]>>('sessions');
-  // The fixture pins only 4 exercises, rotation offset 0: it does not record a profile, history or
-  // exclusions. 45 minutes gives the 4-exercise cap; no sessions logged gives offset 0.
-  const profile: PlanProfile = { minutes: 45 };
+  interface GoldenSession {
+    id: string;
+    input: { where: Where; template: string; minutes: number; exp: string; focus: string | null; history: number; age: number | null };
+    output: string[];
+  }
+  // Each case records its profile (#74): minutes set the exercise cap, `history` is the number of stored sessions of the template
+  // (the rotation offset), and `focus` the one focus muscle. No exclusions or swaps.
+  const golden = loadGolden<GoldenSession[]>('sessions');
 
-  it('has 18 cases', () => {
-    expect(Object.keys(golden)).toHaveLength(18);
+  it('has the base grid and the extra cases, with unique ids', () => {
+    expect(golden).toHaveLength(37);
+    expect(new Set(golden.map((c) => c.id)).size).toBe(golden.length);
   });
 
-  it.each(Object.entries(golden))('%s', (key, expected) => {
-    const [where, t, f] = key.split('|') as [Where, string, string | undefined];
-    const focus = f ? [f.replace('focus=', '')] : [];
-    expect(session(where, t, focus, profile)).toEqual(expected);
+  it.each(golden.map((c) => [c.id, c] as const))('%s', (_id, { input, output }) => {
+    const { where, template, minutes, exp, focus, history, age } = input;
+    const profile = { minutes, exp, age } as PlanProfile;
+    const items = sessionItems(where, template, focus ? [focus] : [], profile, history);
+    // core's sessionSets adds the balance exercise for a profile aged 60 or over (the last step of the prototype's buildSession).
+    const built = sessionSets(items, { profile, date: '2026-10-07', focus: focus ? [focus] : [], tags });
+    expect(built.map((e) => e.name)).toEqual(output);
   });
 });
 

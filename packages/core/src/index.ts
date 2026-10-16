@@ -273,7 +273,7 @@ export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInpu
  * - `fibreTarget` mirrors prototype `fibreTarget()` (today's calorie target passed in).
  * - `fruitVegServings` mirrors the `veg` part of prototype `fibreTotals(meals)` (`produceOf`); `FRUIT_VEG_TARGET` its "of 5".
  * - `showAddedSugar` mirrors the `t.sug >= 10` check in prototype `fibreHtml()`.
- * - `dayComplete` mirrors prototype `dayComplete(d)` (settings calorie target passed in).
+ * - `dayComplete` mirrors prototype `dayComplete(d)` (settings calorie target, date and today passed in), except today counts only when ticked (#150).
  */
 export { searchFoods, unitGrams, quantityFromGrams, logTotals, fibreTarget, fruitVegServings, showAddedSugar, dayComplete, FRUIT_VEG_TARGET } from './food';
 export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, CompleteFlag, GramsQuantity } from './food';
@@ -566,3 +566,13 @@ export { UNIT_MAX, NOTE_MAX, EXERCISE_NAME_MAX, CUSTOM_EXERCISES_MAX, servingUni
  */
 export { priorSessions, isLearning, showFeel, feelResult } from './feel';
 export type { FeelResult } from './feel';
+
+/**
+ * The "Why it works" daily read (#552). Cards are content/cards.json `cards`; `hidden` lists held-back card ids (#212).
+ * - `learnList` mirrors prototype `LEARN` and the list `learnCardHtml` builds (`learn_order`, then audience cards set in at
+ *   `learn_insert_at`), with hidden cards left out after the splice.
+ * - `dailyRead` mirrors `learnCardHtml`'s due rule (`LEARN_DAYS_PER_CARD`: one more card every 3 days), next card and
+ *   "N of M done" numbers (stored `learn` and today passed in).
+ */
+export { learnList, dailyRead, LEARN_DAYS_PER_CARD } from './learn';
+export type { LearnCard, LearnState, DailyRead } from './learn';

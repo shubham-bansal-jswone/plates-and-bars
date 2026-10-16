@@ -23,6 +23,11 @@ interface GoldenPlan {
     week: { date: string; template: string | null }[];
     exerciseCapByMinutes: { minutes: number; cap: number }[];
   }[];
+  cases: {
+    id: string;
+    input: { days: number; mode?: 'sequence'; weekPlan?: { start: string; list: string[] }; sessions: SessionLog };
+    week: { date: string; template: string | null }[];
+  }[];
 }
 
 const golden = loadGolden<GoldenPlan>('plan');
@@ -34,8 +39,16 @@ describe('plan: golden/plan.json', () => {
     expect(JSON.parse(JSON.stringify(SPLITS))).toEqual(golden.splits);
   });
 
-  it('covers 2, 3, 4, 5 and 6 days', () => {
-    expect(golden.plans.map((p) => p.days)).toEqual([2, 3, 4, 5, 6]);
+  it('covers 0 to 7 days', () => {
+    expect(golden.plans.map((p) => p.days)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  // Stored mode, week plan and sessions (#74): 8 dates from the Monday of the plan week.
+  describe.each(golden.cases.map((c) => [c.id, c] as const))('%s', (_id, c) => {
+    it.each(c.week.map((d) => [d.date, d.template] as const))('planned(%s) = %p', (date, template) => {
+      const s: PlanState = { ...state({ days: c.input.days }, c.input.sessions), ...(c.input.mode ? { mode: c.input.mode } : {}), ...(c.input.weekPlan ? { weekPlan: c.input.weekPlan } : {}) };
+      expect(planned(date, s)).toBe(template);
+    });
   });
 
   describe.each(golden.plans.map((p) => [p.days, p] as const))('%i days', (days, p) => {

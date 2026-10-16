@@ -96,6 +96,29 @@ describe('TargetsScreen', () => {
     expect(screen.getByText(/^Home plan: bodyweight/)).toBeTruthy();
   });
 
+  it('links each result note to its own Why card, right after that note (home, then older)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, { ...goldenProfile(), age: 62, where: 'bodyweight' });
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText(/^Home plan: bodyweight/);
+    const tree = JSON.stringify(screen.toJSON());
+    const at = (s: string) => tree.indexOf(s);
+    expect(at('Home plan: bodyweight')).toBeGreaterThan(0);
+    expect(at('Why? Building muscle at home')).toBeGreaterThan(at('Home plan: bodyweight'));
+    expect(at('For 60 and over')).toBeGreaterThan(at('Why? Building muscle at home'));
+    expect(at('Why? Training and eating after 60')).toBeGreaterThan(at('For 60 and over'));
+    expect(screen.getAllByLabelText(/^Why\? (Building muscle at home|Training and eating after 60)$/)).toHaveLength(2);
+  });
+
+  it('a gym profile under 60 has no home or older link', async () => {
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText('Why these numbers?');
+    expect(screen.queryByLabelText('Why? Building muscle at home')).toBeNull();
+    expect(screen.queryByLabelText('Why? Training and eating after 60')).toBeNull();
+  });
+
   it('with no profile offers Start setup, which opens the setup route', async () => {
     mockPush.mockClear();
     const db = memoryDb();
@@ -228,6 +251,7 @@ describe('TargetsScreen', () => {
       expect(await screen.findByText('Focus: chest, lats and abs')).toBeTruthy();
       expect(screen.getByText(/Training abs builds them/)).toBeTruthy();
       expect(screen.getByLabelText('Why? How many sets per muscle?')).toBeTruthy();
+      expect(screen.getByLabelText('Why? How focus muscles work')).toBeTruthy();
       expect(screen.getByText(/aim for about 12–16 weekly sets/)).toBeTruthy();
       await fireEvent.press(screen.getByLabelText('Hamstrings'));
       expect(await screen.findByText('Up to 3 focus muscles. Remove one first.')).toBeTruthy();
