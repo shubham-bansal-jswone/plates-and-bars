@@ -42,13 +42,22 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
   const [settings, setState] = useState<Settings>(() => defaultSettings(stamp(new Date())));
   const ref = useRef(settings);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  /** Counts local changes, so a reload can tell that one started while it was reading (#597). */
+  const writes = useRef(0);
 
   useEffect(() => {
     let live = true;
     (async () => {
-      await queue.current; // local edits still being written land first, so a reload never reads around them
-      const s = await loadSettings(db);
-      if (!live) return;
+      // Local edits still being written land first, so a reload never reads around them. An edit made while the
+      // read was running is newer than what was read (and its save may not have landed yet): read again after it.
+      let s: Settings | null;
+      for (;;) {
+        const seen = writes.current;
+        await queue.current;
+        s = await loadSettings(db);
+        if (!live) return;
+        if (seen === writes.current) break;
+      }
       // Always set, also to none: after a wipe the store is empty and the previous user's custom exercises must go (#448).
       setCustomTags(s?.custom_tags ?? {}); // before the render that reads the catalog
       if (s) {
@@ -73,6 +82,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb;
       if (blocked.current) return false;
       const next = { ...ref.current, ...(typeof patch === 'function' ? patch(ref.current) : patch), updated_at: stamp(new Date()) };
       ref.current = next;
+      writes.current += 1;
       setCustomTags(next.custom_tags);
       setState(next);
       queue.current = queue.current
