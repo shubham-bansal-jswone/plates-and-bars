@@ -46,7 +46,8 @@ describe('about and sources', () => {
   });
 
   it('opens the USDA link', async () => {
-    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    // RN 0.88 types Linking.openURL as Promise<void>.
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     await render(<AboutScreen onBack={() => {}} />);
     await fireEvent.press(screen.getByRole('link', { name: 'Open https://fdc.nal.usda.gov/' }));
     expect(open).toHaveBeenCalledWith('https://fdc.nal.usda.gov/');
