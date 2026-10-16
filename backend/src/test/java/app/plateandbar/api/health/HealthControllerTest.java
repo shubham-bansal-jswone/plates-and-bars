@@ -2,6 +2,7 @@ package app.plateandbar.api.health;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,8 +44,7 @@ class HealthControllerTest {
     void healthIsPublicAndMatchesContract() throws Exception {
         mvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ok"))
-                .andExpect(jsonPath("$.version").value("0.1.0"));
+                .andExpect(content().json("{\"status\":\"ok\"}", true));
     }
 
     @Test
