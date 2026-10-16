@@ -569,10 +569,8 @@ describe('Weekly check-in, burn and habits', () => {
       return read(sql, ...p);
     };
     await setup({ db });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 500));
-    });
-    expect(settingsDoc(db)).toMatchObject({ focus: ['Chest'], diet: 'veg', checkin_seen: '2026-10-05', adjustments: { declines: { checkin: 2 } } });
+    // Every settings read takes 300 ms (and a save reads the record too): wait for the write to land, not a fixed time.
+    await waitFor(() => expect(settingsDoc(db)).toMatchObject({ focus: ['Chest'], diet: 'veg', checkin_seen: '2026-10-05', adjustments: { declines: { checkin: 2 } } }), { timeout: 3000 });
   });
 
   it('saves the real-burn state and that this week\'s check-in was seen', async () => {
