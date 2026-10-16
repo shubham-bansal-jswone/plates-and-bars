@@ -382,27 +382,35 @@ describe('dayComplete', () => {
     expect(dayComplete(undefined, three.slice(0, 2), 1000, OLD, TODAY)).toBe(false);
     expect(dayComplete({}, [...three.slice(0, 2), { ...three[2]!, deleted_at: '2026-10-08T10:00:00Z' }], 1000, OLD, TODAY)).toBe(false);
   });
-  it('today, or a later day, is complete only by the tick (#150: the prototype applies the fallback to today)', () => {
+  it('today, or a later day, is complete only by the tick (#150)', () => {
     expect(dayComplete({ complete: null }, three, 1000, TODAY, TODAY)).toBe(false);
     expect(dayComplete(undefined, three, 1000, '2026-10-09', TODAY)).toBe(false);
     proto.S.settings.kcal = 1000;
-    expect(proto.dayComplete({ meals: three.map((l) => ({ name: l.name, qty: l.qty, kcal: l.kcal, p: l.protein_g, c: l.carbs_g, f: l.fat_g })) })).toBe(true);
+    proto.setToday(TODAY);
+    const meals = three.map((l) => ({ name: l.name, qty: l.qty, kcal: l.kcal, p: l.protein_g, c: l.carbs_g, f: l.fat_g }));
+    expect(proto.dayComplete({ meals }, TODAY)).toBe(false);
+    expect(proto.dayComplete({ meals }, OLD)).toBe(true);
   });
   const breakfast = [logOf(byName('Egg, whole'), 10), logOf(byName('Roti / chapati'), 4), logOf(byName('Toned milk'), 2)];
   it('PINNED QUIRK (#151): three items in one meal count as three meals', () => {
     expect(dayComplete({ complete: null }, breakfast, 1500, OLD, TODAY)).toBe(true);
   });
-  it(`matches prototype dayComplete over ${RUNS} random days`, () => {
+  it(`matches prototype dayComplete over ${RUNS} random days, before, on and after today`, () => {
     const r = rng(75);
+    const seen = { before: 0, today: 0, after: 0 };
     for (let i = 0; i < RUNS; i++) {
       const meals = randomMeals(r, []);
       const complete = pickOf(r, [true, false, undefined, null]);
       const kcal = pickOf(r, [1000, 1500, 2000, 2500, Math.round(r() * 3000)]);
+      const date = pickOf(r, ['2026-09-30', '2026-10-07', TODAY, '2026-10-09']);
       proto.S.settings.kcal = kcal;
+      proto.setToday(TODAY);
       const d: { meals: ProtoMeal[]; complete?: boolean } = { meals };
       if (complete !== undefined) (d as { complete?: boolean | null }).complete = complete;
-      expect(dayComplete({ complete }, meals.map(toLog), kcal, '2026-10-07', '2026-10-08')).toBe(proto.dayComplete(d));
+      expect(dayComplete({ complete }, meals.map(toLog), kcal, date, TODAY)).toBe(proto.dayComplete(d, date));
+      seen[date < TODAY ? 'before' : date === TODAY ? 'today' : 'after']++;
     }
+    for (const n of Object.values(seen)) expect(n).toBeGreaterThan(RUNS / 10);
   });
 });
 
