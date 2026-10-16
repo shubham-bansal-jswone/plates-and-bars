@@ -39,4 +39,5 @@ export const PHOTO_ADDED = 'Photo added';
 export const PHOTO_SAVE_FAILED = 'The test is saved, but the photo could not be. Try adding it again.';
 export const PHOTO_CAMERA_OFF = 'Camera access is off for this app. Choose a photo instead, or turn it on in Settings.';
 export const PHOTO_HINT = 'The photo stays on this device.';
+export const PHOTO_HINT_WEB = 'This browser can’t keep the photo. It stays in this tab only and is gone when you close the page.';
 export const PHOTO_PICK_FAILED = 'Couldn’t add that photo. Try again.';
