@@ -91,12 +91,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
   /** One transaction over the day's writes; they run through the txn handle `h`. No reads beyond what the writes already do. */
   const atomic = async (task: (h: WorkoutDb) => Promise<void>) => {
     deferred.current = [];
-    try {
-      await inTransaction(db, (txn) => task(txn as WorkoutDb));
-    } catch (e) {
-      deferred.current = [];
-      throw e;
-    }
+    await inTransaction(db, (txn) => task(txn as WorkoutDb)); // a throw skips the apply below
     deferred.current.splice(0).forEach((f) => f());
   };
 
@@ -125,6 +120,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
 
   // These run inside the day queue, so each re-reads the stored row first: a pull (or a rule saved on Targets) may have stored
   // a newer version since the screen loaded its copy. The stored version is kept, and a row the store has tombstoned stays deleted.
+  // A txn handle `h` must come from `atomic`: its in-memory update is applied there, after commit.
   // `overTombstone`: start() already saw the tombstone and is replacing it on purpose, whatever its clock says.
   const writeWorkout = async (overTombstone = false, h: WorkoutDb = db) => {
     const d = ref.current;

@@ -221,6 +221,20 @@ describe('a set tick writes the set and the workout row together (#545)', () => 
   it('rampRated: a failure writing the workout row leaves the ramp rows as they were', async () => {
     await failing(ramp, (d) => d.rampRated(0, 0, 'right'));
   });
+
+  it('after addExercise fails on its sets, the next tick writes the screen as is (no merge against a row never stored)', async () => {
+    const { db, result } = await started();
+    const f = failInTxn(db, 'workout_sets');
+    await act(async () => void result.current.addExercise('Goblet Squat'));
+    await settle();
+    f.restore();
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).not.toContain('Goblet Squat');
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '40'));
+    await act(async () => result.current.tick(0, 0));
+    await settle();
+    expect((await loadWorkout(db, DATE))!.exercises.map((e) => e.name)).toEqual(result.current.day.exs.map((e) => e.name));
+    expect(result.current.day.exs.map((e) => e.name)).toContain('Goblet Squat');
+  });
 });
 
 describe('add and remove exercises (#147)', () => {
