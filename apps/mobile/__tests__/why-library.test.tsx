@@ -8,7 +8,7 @@ import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { dailyRead, learnList, readLearn, withRead } from '../src/why/learn';
-import { HIDDEN_CARDS } from '../src/why/cards';
+import { cardOffered, HIDDEN_CARDS } from '../src/why/cards';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({
@@ -59,6 +59,34 @@ describe('Why it works library on Targets', () => {
     await waitFor(async () => expect(readLearn((await loadSettings(db))!.learn).read).toEqual(['fibre']));
     fireEvent.press(screen.getByLabelText('Close'));
     expect(screen.getByText(' read')).toBeTruthy();
+  });
+});
+
+describe('Split card with no training days (#570)', () => {
+  const noDays = () => ({ ...profile(), days: 0 }) as ReturnType<typeof profile>;
+  it('is not offered in the library for a 0-day profile, and is for 2 or more days', async () => {
+    const split = cards.cards.find((c) => c.id === 'split')!;
+    const db = memoryDb();
+    await saveProfile(db, noDays());
+    const { unmount } = await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText('Why it works');
+    expect(screen.getAllByLabelText(/^Open /)).toHaveLength(shown.length - 1);
+    expect(screen.queryByLabelText(`Open ${split.title}`)).toBeNull();
+    await unmount();
+    const db2 = memoryDb();
+    await saveProfile(db2, { ...profile(), days: 2 } as ReturnType<typeof profile>);
+    await render(withProfile(db2, <TargetsScreen db={db2} />));
+    expect(await screen.findByLabelText(`Open ${split.title}`)).toBeTruthy();
+    expect(screen.getAllByLabelText(/^Open /)).toHaveLength(shown.length);
+  });
+  it('is ruled out by cardOffered for 0 days only, and the daily read never lists it', () => {
+    expect(cardOffered('split', { days: 0 })).toBe(false);
+    expect(cardOffered('split', { days: 2 })).toBe(true);
+    expect(cardOffered('split')).toBe(true);
+    expect(cardOffered('rir', { days: 0 })).toBe(true);
+    // The daily read already leaves split out through content (learn_order null); if content gives it a slot, filter with cardOffered there.
+    expect(learnList('male').map((c) => c.id)).not.toContain('split');
+    expect(learnList('female').map((c) => c.id)).not.toContain('split');
   });
 });
 
