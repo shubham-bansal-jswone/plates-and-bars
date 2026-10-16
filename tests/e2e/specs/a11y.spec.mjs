@@ -1,12 +1,12 @@
 import { triage } from '../support/axe.mjs';
-import { axeSource, completeSetup, expect, label, openApp, tab, test } from '../support/app.mjs';
+import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, tab, test } from '../support/app.mjs';
 
 // axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
 // the landmark and heading best-practice rules. Every violation fails the test. A failure caused by a filed bug goes in
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
-const KNOWN = Object.fromEntries(['consent', 'setup', 'food', 'workout', 'progress', 'targets', 'data', 'library', 'about', 'recipes'].map((n) => [n, []]));
+const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
@@ -26,6 +26,13 @@ async function scan(page, name, scheme) {
   expect(unexpected, `${name} in ${scheme} mode`).toEqual([]);
 }
 
+// A Why link by its card title: the accessible name is "<link text> <card title>[, <exercise>]" (apps/mobile/src/why/WhyLink.tsx).
+// By role, so the other tabs (mounted but aria-hidden, e.g. the Why library on Targets) do not count.
+const why = (page, title) => page.getByRole('button', { name: title });
+
+// Today's planned session, or the first other template on a rest day.
+const startSession = (page) => page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"])').first().click();
+
 const screens = {
   consent: async (page) => {
     await openApp(page);
@@ -36,6 +43,17 @@ const screens = {
     await label(page, 'I understand and agree to my data being stored as described').click();
     await label(page, 'Continue').click();
     await expect(label(page, 'Male')).toBeVisible();
+  },
+  // The goal step, which carries the "Quick health check" Why link (screening).
+  'setup-screening': async (page) => {
+    await answerSetup(page, { stop: 'screening' });
+    await expect(why(page, 'Why a health check before training?')).toHaveCount(1);
+  },
+  // The results with both note links (home, older): a 62-year-old training at home with dumbbells.
+  'setup-results': async (page) => {
+    await answerSetup(page, { age: '62', where: 'At home with dumbbells. Adjustable dumbbells or a few pairs' });
+    await expect(why(page, 'Building muscle at home')).toHaveCount(1);
+    await expect(why(page, 'Training and eating after 60')).toHaveCount(1);
   },
   food: async (page) => {
     await tab(page, 'Food');
@@ -48,6 +66,30 @@ const screens = {
     // "You burn about 2,493 kcal a day" level-one headline, so axe could run on Targets, or inside the empty window
     // after Targets was hidden and before Workout mounted (#542).
     await expect(page.locator('[aria-label^="Exercise 1: "]')).toBeVisible();
+  },
+  // A started session: the split link on the page header, then the rest and warm-up links on the exercise cards.
+  'workout-session': async (page) => {
+    // The warm-up line (and its Why link) needs a suggested weight, so the first lift must have been logged on an earlier
+    // day: log it one week before the pinned Monday, then come back to the pinned day (the same template is planned).
+    await page.clock.setFixedTime(new Date('2026-10-05T09:00:00+05:30'));
+    await reloadTo(page, 'Workout');
+    await startSession(page);
+    const mark = page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]').first();
+    const markLabel = await mark.getAttribute('aria-label');
+    const exercise = markLabel.slice('Mark '.length, -' set 1 done'.length);
+    await page.locator(`[aria-label=${JSON.stringify(`I know my weight for ${exercise}`)}]`).click();
+    const inputs = page.locator(`input[aria-label^=${JSON.stringify(`${exercise} set 1 `)}]`);
+    await inputs.nth(0).fill('40');
+    await inputs.nth(1).fill('9');
+    await saved(page, () => label(page, markLabel).click());
+    await expect(label(page, markLabel)).toHaveAttribute('aria-checked', 'true');
+    await page.clock.setFixedTime(new Date('2026-10-12T09:00:00+05:30'));
+    await reloadTo(page, 'Workout');
+    await startSession(page);
+    await expect(page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]').first()).toBeVisible();
+    await expect(why(page, 'How your sessions are built')).toHaveCount(1);
+    await expect(why(page, 'Why rest 2–3 minutes on big lifts?').first()).toBeVisible();
+    await expect(why(page, 'Why warm up before the first big lift?').first()).toBeVisible();
   },
   progress: async (page) => {
     await tab(page, 'Progress');
@@ -86,7 +128,7 @@ for (const scheme of ['light', 'dark']) {
     test.use({ colorScheme: scheme });
     for (const [name, open] of Object.entries(screens)) {
       test(`axe: ${name}`, async ({ page }) => {
-        if (name === 'consent' || name === 'setup') await open(page);
+        if (name === 'consent' || name.startsWith('setup')) await open(page);
         else {
           await completeSetup(page);
           await open(page);
