@@ -18,6 +18,7 @@ import {
 } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
 import { getCatalog } from './catalog';
+import { rangesOf } from './adjust';
 
 
 export interface BuildInput {
@@ -34,6 +35,8 @@ export interface BuildInput {
   /** Saved exercise rules and swaps (contract `Exclusion` and `Swap` records). */
   exclusions: readonly Exclusion[];
   swaps: readonly Swap[];
+  /** Contract `Settings.adjustments`: holds the recovery week and re-entry period. */
+  adjustments: Readonly<Record<string, unknown>>;
 }
 
 export interface BuiltSession {
@@ -51,7 +54,7 @@ export interface BuiltSession {
 /**
  * Today's session for a template, in the prototype's `buildSession` order: home mapping, swaps and
  * exclusions, trim to the session length, focus, the check-in short cut, then set counts. Every step is core's.
- * Recovery weeks are a setting the app does not store yet.
+ * The recovery week and re-entry period come from the stored adjustments.
  */
 export function buildSession(i: BuildInput): BuiltSession {
   const names = mapForWhere([...(TEMPLATES[i.template] ?? [])], i.where, getCatalog());
@@ -60,8 +63,8 @@ export function buildSession(i: BuildInput): BuiltSession {
   const state = { profile: i.profile, sessions: i.sessions };
   let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, getCatalog());
   items = shortSession(items, i.checkin.time);
-  // Recovery week and re-entry are settings the app does not store yet. TODO(recovery issue): pass them here.
-  const { setsLight, mods } = sessionMods({ date: i.date, ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile, deload: null, reentry: null });
+  const { deload, reentry } = rangesOf(i.adjustments);
+  const { setsLight, mods } = sessionMods({ date: i.date, ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile, deload, reentry });
   const sets = sessionSets(items, {
     profile: i.profile,
     date: i.date,
@@ -69,6 +72,7 @@ export function buildSession(i: BuildInput): BuiltSession {
     tags: getCatalog().tags,
     lastSets: (n) => lastFor(n, i.lifts, i.date)?.sets.length,
     light: setsLight,
+    deload: mods.deload,
   });
   const kept = new Set(items.map((x) => x.name));
   return {

@@ -1,10 +1,11 @@
-import { ladderCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, type ExInfo, type LiftRecord, type Where } from '@plate-and-bar/core';
+import { inRange, ladderCard, recoveryCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, type ExInfo, type LiftRecord, type Where } from '@plate-and-bar/core';
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
-import { adjOf, answered, muted } from './adjust';
+import { shortDate } from '../format';
+import { adjOf, answered, endAdj, muted, rangesOf, startDeload } from './adjust';
 import { getCatalog } from './catalog';
-import { LadderCardView, RecheckCard, StallCardView } from './AdjustCards';
+import { LadderCardView, RangeNote, RecheckCard, RecoveryCardView, StallCardView } from './AdjustCards';
 import type { ExState } from './model';
 import type { useRules } from './useRules';
 
@@ -104,6 +105,31 @@ export function RecheckCards({ date, lifts, rules, notify }: Props) {
           />
         );
       })}
+    </>
+  );
+}
+
+/** The recovery-week card, and the note (with its way out) while a recovery week or re-entry period runs. */
+export function RecoveryCards({ date, lifts, notify }: Omit<Props, 'rules'>) {
+  const { settings, update: write, loadFailed } = useSettings();
+  const update = guarded(write, loadFailed, notify);
+  const a = settings.adjustments;
+  const { deload, reentry } = rangesOf(a);
+  const adj = { ...adjOf(a), deload };
+  const card = recoveryCard(lifts, date, adj);
+  return (
+    <>
+      {card ? (
+        <RecoveryCardView
+          card={card}
+          declines={adj.declines.deload ?? 0}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, card.key, 'deload') }))}
+          onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'deload') }))}
+          onStart={() => update((s) => ({ adjustments: startDeload(s.adjustments, date, card.key) })) && notify('Recovery week started')}
+        />
+      ) : null}
+      {deload && inRange(deload, date) ? <RangeNote text={`Recovery week until ${shortDate(deload.until)}.`} action="End it early" onEnd={() => update((s) => ({ adjustments: endAdj(s.adjustments, 'deload') }))} /> : null}
+      {reentry && inRange(reentry, date) ? <RangeNote text={`Easing back in until ${shortDate(reentry.until)}.`} action="Back to normal" onEnd={() => update((s) => ({ adjustments: endAdj(s.adjustments, 'reentry') }))} /> : null}
     </>
   );
 }

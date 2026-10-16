@@ -48,7 +48,7 @@ function holding(db: Db) {
 const OFFSETS = [0, 1, 5, 25, -1, -5];
 
 async function setupDay(real: Db, h: ReturnType<typeof holding>) {
-  const opts = { db: h.db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+  const opts = { db: h.db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
   const hook = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
   await waitFor(() => expect(hook.result.current.day.ready).toBe(true));
   return hook;
@@ -105,7 +105,7 @@ describe("the can't-do answer when the rules could not be saved", () => {
   it('stops: today’s session is unchanged and nothing is written', async () => {
     const real = await openDb();
     const h = holding(real);
-    const opts = { db: h.db, profile, now: NOW, focus: [], notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(() => null), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const opts = { db: h.db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(() => null), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result } = await renderHook(() => useWorkoutDay(opts));
     await waitFor(() => expect(result.current.day.ready).toBe(true));
     await act(async () => void (await result.current.start('Upper A', {}, null)));

@@ -44,6 +44,8 @@ interface Options {
   profile: Profile | null;
   now: () => Date;
   focus: readonly string[];
+  /** Contract `Settings.adjustments` (recovery week, re-entry). */
+  adjustments: Readonly<Record<string, unknown>>;
   /** Short message for the toast. */
   notify: (msg: string) => void;
   /** A set was ticked: start the rest timer for `name`, then show `next`. */
@@ -65,7 +67,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, profile, now, focus, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
+export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
   const date = localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
   const ref = useRef(day);
@@ -201,6 +203,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
           focus,
           exclusions,
           swaps,
+          adjustments,
         });
         d.workout = {
           id: null,
@@ -242,7 +245,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, exclusions, swaps, commit, enqueue],
+    [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue],
   );
 
   const addSecond = useCallback(
@@ -265,6 +268,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
           focus,
           exclusions,
           swaps,
+          adjustments,
         });
         const first = d.exs.length;
         const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
@@ -283,7 +287,7 @@ export function useWorkoutDay({ db, profile, now, focus, notify, startRest, excl
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, exclusions, swaps, commit, enqueue, notify],
+    [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue, notify],
   );
 
   const editSet = (i: number, kind: 'work' | 'ramp', j: number, field: 'w' | 'r', value: string) => {
