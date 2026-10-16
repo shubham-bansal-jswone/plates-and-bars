@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — prototype fix: the day-complete fallback reads days before today only (spec-change; golden fixtures unchanged).**
+- #150: `dayComplete(d, date)` now takes the day's date. A day the user has not ticked counts as complete by the fallback (3 or more items and at least 75% of the settings calorie target) only when it is before today (`TODAY()`); today, or a later day, is complete only by the tick, as section 5 says. `adaptiveBurn` passes each day's date, so the real-burn estimate no longer counts a half-logged today. Core already does this (`dayComplete(..., date, today)`, PR #594). No golden fixture covers `dayComplete`. The rest of #150 (grams that round to 0 servings, and the custom-food checks) is not in this change.
+
 **2026-10-17 — golden fixtures: learn cases, sessions inputs recorded, wider plan cases (spec-change; prototype unchanged).**
 - Regenerated with `tools/golden-gen` (`node golden-gen/cli.mjs`); `docs/prototype/plate-and-bar.html` is not changed in this entry.
 - #552: new `docs/spec/golden/learn.json`, run through the prototype's own `LEARN` and `learnCardHtml`. `order` is the daily-read list for a male profile, a female profile (the card `bulky` inserted at index 6) and no profile. `cases` give, for each of those, the days since the learn start (0, 2, 3, 6, 12, 30) and eight read sets (none, one or three cards, only the female card, ids not in the list, all but the last, all), the number of cards due (`min(n, 1 + floor(days / 3))`: 1, 1, 2, 3, 5, 11 for a male profile), the card offered (`null` when every due card is read) and the "N of M done" numbers. Hidden cards (#212) are an app filter and are not in the fixture. Future starts are not in it either: #584 (a start after today counts as today) is a decided exception to the prototype.

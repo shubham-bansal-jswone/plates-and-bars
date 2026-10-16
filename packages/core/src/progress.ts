@@ -447,7 +447,7 @@ export interface CheckinInput {
   muted?: Readonly<Record<string, boolean>> | undefined;
   /**
    * The real date, `YYYY-MM-DD` (prototype `TODAY()`): the real-burn line counts it only when ticked
-   * (#150). Omitted: every day up to `date` counts as an older day, as in the prototype.
+   * (#150), as the prototype does. Omitted: every day up to `date` counts as an older day.
    */
   today?: string | undefined;
 }
