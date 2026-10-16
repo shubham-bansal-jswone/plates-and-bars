@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenCompare, kitchenNoteTooLong, kitchenTable, kitchenTest, kitchenTestFood, type KitchenCompareFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -7,8 +7,9 @@ import { Button, ErrorText, Field, H1, Hint, Label, Page, Press } from '../compo
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { CameraDenied, capturePhoto } from '../photos/capture';
+import { persistent } from '../photos/vault';
 import { fmt, shortDate } from '../format';
-import { BAD_DATE, compareLine, COPY_TABLE, LOAD_FAILED, PHOTO_ADD, PHOTO_ADDED, PHOTO_CAMERA_OFF, PHOTO_HINT, PHOTO_PICK_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem, TABLE_COPIED, TABLE_COPY_FAILED } from '../kitchen/copy';
+import { BAD_DATE, compareLine, COPY_TABLE, LOAD_FAILED, PHOTO_ADD, PHOTO_ADDED, PHOTO_CAMERA_OFF, PHOTO_HINT, PHOTO_HINT_WEB, PHOTO_PICK_FAILED, HOW_TO, HOW_TO_HINT, listIntro, NO_SERVING_HINT, NOT_READY_HINT, NOTE_TOO_LONG, problem, TABLE_COPIED, TABLE_COPY_FAILED } from '../kitchen/copy';
 import { SERVING_NAMES } from '../kitchen/types';
 import { useKitchenTests, type TestFields } from '../kitchen/useKitchenTests';
 import { getFoodCatalog } from '../food/catalog';
@@ -119,7 +120,11 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
   const addPhoto = async (source: 'camera' | 'library') => {
     try {
       const jpeg = await capturePhoto(source);
-      if (jpeg) setD((x) => (x ? { ...x, photo: jpeg } : x));
+      if (jpeg) {
+        setD((x) => (x ? { ...x, photo: jpeg } : x));
+        // Web: announceForAccessibility is a no-op in react-native-web; the label below is a live region instead.
+        if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility(PHOTO_ADDED);
+      }
     } catch (e) {
       notify(e instanceof CameraDenied ? PHOTO_CAMERA_OFF : PHOTO_PICK_FAILED);
     }
@@ -180,12 +185,12 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           )}
         </View>
         <View style={styles.gap}>
-          <Label>{d.photo ? PHOTO_ADDED : PHOTO_ADD}</Label>
+          <View testID="photo-status" accessibilityLiveRegion={Platform.OS === 'web' ? 'polite' : undefined}><Label>{d.photo ? PHOTO_ADDED : PHOTO_ADD}</Label></View>
           <View style={styles.wrap}>
             <Button label={d.photo ? 'Retake the serving photo' : 'Take a photo of the serving'} kind="ghost" onPress={() => void addPhoto('camera')} />
             <Button label={d.photo ? 'Choose another serving photo' : 'Choose a photo of the serving'} kind="ghost" onPress={() => void addPhoto('library')} />
           </View>
-          <Hint>{PHOTO_HINT}</Hint>
+          <Hint>{persistent ? PHOTO_HINT : PHOTO_HINT_WEB}</Hint>
         </View>
         <View style={styles.wrap}>
           <Button label="Save test" onPress={() => save(false)} />
