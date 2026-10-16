@@ -139,17 +139,29 @@ describe('Targets: Water sizes and My foods', () => {
     db.rows.set('user_foods:a', JSON.stringify(food('a', 'Dal')));
     const { rerender } = await render(withSync(db, 0));
     await screen.findByText('Dal');
-    db.lag = (sql) => (sql.includes('user_foods') ? 150 : 0);
+    // hold the delete write until released, so the test does not depend on how long the machine takes
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const write = db.runAsync.bind(db);
+    db.runAsync = async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('user_foods')) await gate;
+      return write(sql, ...p);
+    };
     await fireEvent.press(screen.getByLabelText('Delete Dal'));
     await rerender(withSync(db, 1));
     expect(JSON.parse(db.rows.get('user_foods:a')!).deleted_at).toBeNull();
+    // while the gate is closed the delete must be a registered pending write, so pendingWrites() must still be waiting
+    let settled = false;
+    const written = pendingWrites().then(() => (settled = true));
     await act(async () => {
-      await pendingWrites();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(settled).toBe(false);
+    release();
+    await act(async () => {
+      await written;
     });
     expect(JSON.parse(db.rows.get('user_foods:a')!).deleted_at).not.toBeNull();
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
-    expect(screen.queryByText('Dal')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('Dal')).toBeNull());
   });
 });
