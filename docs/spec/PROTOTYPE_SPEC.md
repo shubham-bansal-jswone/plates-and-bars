@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — prototype fix: "I know my weight" hides the find-your-weight guide (spec-change; golden fixtures unchanged).**
+- #139: on a first-time loaded exercise, tapping "I know my weight" (`case 'ramp-skip'`) set `ex.skipRamp` but `exerciseCard` never read it, so the "First time: find your weight" guide came straight back. `exerciseCard` now shows the guide (and the ramp sets) only while `sug.mode === 'new'`, no working set is ticked and `!ex.skipRamp`. After the tap the card shows just the working sets, as the app already does (`ExerciseCard`, `skip_ramp`).
+
 **2026-10-17 — prototype fix: a learn start after today counts as today (spec-change; golden fixtures regenerated).**
 - #584: the daily read (`learnCardHtml`) counts the days since `learn.start` as `max(0, daysBetween(start, TODAY()))`, so a start after today (device clock moved back, or a start synced from a later time zone) gives 1 card due, as on the first day. Before, 1 to 3 days ahead showed nothing (0 due) and further ahead `slice(0, due)` with a negative due dropped cards off the end, so the next unread card showed at once. Core already does this (`dailyRead`, PR #605), and the app reads core's `dailyRead`.
 - `learn.json` regenerated with `tools/golden-gen` (`node golden-gen/cli.mjs`): the cases now also cover starts 4 days and 1 day after today (`days` -4 and -1) for each profile and read set, all with 1 card due. This replaces the note in the learn-fixture entry below that future starts are left out.
