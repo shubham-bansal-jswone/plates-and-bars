@@ -217,6 +217,18 @@ if (JSON.stringify(Object.keys(health.properties)) !== '["status"]' || JSON.stri
 for (const [name, ex] of Object.entries(parsed.paths["/health"].get.responses["200"].content["application/json"].examples)) {
   if (JSON.stringify(Object.keys(ex.value)) !== '["status"]') failures.push(`/health 200 example ${name}: only "status" allowed, found ${JSON.stringify(Object.keys(ex.value))}`);
 }
+// Account record cap (#353): /sync answers 413 with code account_full and a record_cap body, and every example is
+// a real refusal (stored + new_records over limit).
+const syncFull = parsed.paths["/sync"].post.responses["413"];
+const fullExamples = syncFull?.$ref ? parsed.components.responses[syncFull.$ref.split("/").pop()]?.content?.["application/json"]?.examples : undefined;
+if (!fullExamples || Object.keys(fullExamples).length === 0) failures.push("/sync: no 413 account_full response with examples");
+if (!parsed.components.schemas.Error.properties.code.enum.includes("account_full")) failures.push("Error.code: account_full missing");
+for (const [name, ex] of Object.entries(fullExamples ?? {})) {
+  const v = ex.value;
+  if (v.code !== "account_full") failures.push(`/sync 413 example ${name}: code must be account_full`);
+  const cap = v.record_cap;
+  if (!cap || !(cap.stored + cap.new_records > cap.limit)) failures.push(`/sync 413 example ${name}: record_cap.stored + new_records must exceed limit`);
+}
 
 if (failures.length) {
   console.error(failures.join("\n"));
