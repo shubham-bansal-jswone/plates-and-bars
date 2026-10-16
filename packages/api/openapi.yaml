@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.14
+  version: 0.1.15
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -690,7 +690,7 @@ paths:
     get:
       tags: [system]
       operationId: getHealth
-      summary: Liveness and version
+      summary: Liveness
       security: []
       responses:
         '200':
@@ -703,7 +703,6 @@ paths:
                 default:
                   value:
                     status: ok
-                    version: 0.1.0
         '503':
           description: The API is up but cannot serve requests (for example, the database is unreachable).
           content:
@@ -1829,14 +1828,14 @@ components:
     # ---------- health ----------
     Health:
       type: object
-      required: [status, version]
+      required: [status]
+      description: |
+        Liveness only. The body does not carry the deployed build version (or any other
+        build or host detail), so an unauthenticated caller cannot fingerprint the build.
       properties:
         status:
           type: string
           const: ok
-        version:
-          type: string
-          description: Deployed API build version.
 
     # ---------- content ----------
     ContentBundleName:
