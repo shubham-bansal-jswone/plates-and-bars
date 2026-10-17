@@ -6,6 +6,7 @@ import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET } from
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { getCuisines } from '../src/food/catalog';
+import { toastMs } from '../src/food/copy';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
 
@@ -57,7 +58,11 @@ const open = async (meal = 'breakfast') => {
 // Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
 // fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
 beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
-afterEach(() => jest.useRealTimers());
+// Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
+afterEach(() => {
+  jest.runOnlyPendingTimers();
+  jest.useRealTimers();
+});
 
 describe('Food screen', () => {
   it('shows the kcal target from core, with flex, and no macro bars without a profile', async () => {
@@ -585,7 +590,7 @@ describe('Food screen', () => {
       expect(await screen.findByText(says)).toBeTruthy();
       // Let the first toast go, so the second press has to speak for itself: were the copy left in flight (a stuck
       // `copying` ref), the day is still empty, the button is still offered, and this press would be silent.
-      await act(async () => void jest.advanceTimersByTime(10_000));
+      await act(async () => void jest.advanceTimersByTime(toastMs(says) + 1));
       expect(screen.queryByText(says)).toBeNull();
       await fireEvent.press(screen.getByLabelText('Copy previous day'));
       expect(await screen.findByText(says)).toBeTruthy();
@@ -648,6 +653,8 @@ describe('Food screen', () => {
       await open();
       await fireEvent.press(screen.getByLabelText(/^Add Roti/));
       await fireEvent.press(screen.getByText('Done'));
+      // The just-added food shows while the stale read is still held.
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
       slow = false;
       await act(async () => release());
       await flush();
