@@ -3,7 +3,7 @@ import { SYNC_TABLES, inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_PHOTOS_WIPE, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
+import { KEY_PHOTOS_WIPE, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { announceWipe, wipePhotos } from '../photos/vault';
 
@@ -51,6 +51,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     for (const local of Object.values(SYNC_TABLES)) await txn.runAsync(`DELETE FROM ${local}`);
     await txn.runAsync('DELETE FROM sync_outbox');
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
+    await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", KEY_PHOTOS_WIPE);
     pending = 0;

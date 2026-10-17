@@ -5,6 +5,7 @@ import type { StoreDb } from '../db/records';
 import { CUSTOM_EXERCISES_MAX, type ExerciseTag, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 import { exerciseNamed, setCustomTags } from '../workout/catalog';
+import { clearKept, persistKept, readKept, replayKept, type KeptEdit } from './keptEdits';
 
 interface SettingsState {
   ready: boolean;
@@ -47,8 +48,19 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
   const writes = useRef(0);
   /** Changes made and not yet finished writing (saved or failed). */
   const pending = useRef(0);
-  /** Edits whose write failed: the next save applies them again, once each, so a later edit does not drop them. */
-  const unsaved = useRef<((s: Settings) => Settings)[]>([]);
+  /** Edits whose write failed: the next save applies them again, once each, so a later edit does not drop them. A field a pull changed since is not applied (#651). Kept on the device too, so a restart does not lose them. */
+  const unsaved = useRef<KeptEdit[]>([]);
+  /** True while the kept edits are written down in the device store. */
+  const persisted = useRef(false);
+  const booted = useRef(false);
+  if (!booted.current) {
+    booted.current = true;
+    // First in the queue: no save or reload runs before the edits kept from an earlier run are known.
+    queue.current = readKept(db).then((k) => {
+      unsaved.current = [...k, ...unsaved.current];
+      persisted.current = k.length > 0;
+    });
+  }
 
   useEffect(() => {
     let live = true;
@@ -65,7 +77,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       }
       // Always set, also to none: after a wipe the store is empty and the previous user's custom exercises must go (#448).
       // Edits whose write failed show on top of the record (the next save writes them): the screen does not drop what is kept.
-      if (s) s = unsaved.current.reduce((x, f) => f(x), s);
+      if (s) s = replayKept(s, unsaved.current);
       setCustomTags(s?.custom_tags ?? {}); // before the render that reads the catalog
       if (s) {
         ref.current = s;
@@ -99,16 +111,18 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       setState(next);
       queue.current = queue.current
         .then(async () => {
-          unsaved.current.push(apply);
+          unsaved.current.push({ f: apply, at });
           // Read, apply and write in one transaction: a pull cannot store the other device's record in between
           // (this save would then write the older record back, with its old version). A pull that comes after
           // finds this save queued and leaves the record for the next push to settle.
           let saved!: Settings;
           await inTransaction(db, async (txn) => {
-            saved = unsaved.current.reduce((s, f) => f(s), (await loadSettings(txn)) ?? defaultSettings(at));
+            saved = replayKept((await loadSettings(txn)) ?? defaultSettings(at), unsaved.current);
             await saveSettings(txn, saved);
+            if (persisted.current) await clearKept(txn);
           });
           unsaved.current = [];
+          persisted.current = false;
           return saved;
         })
         .then(
@@ -122,9 +136,13 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
               setState(saved);
             }
           },
-          () => {
+          async () => {
             pending.current -= 1;
             setSaveFailed(true);
+            // Written down so an app restart does not lose them; if this fails too they stay in memory.
+            await inTransaction(db, (txn) => persistKept(txn, unsaved.current))
+              .then(() => void (persisted.current = true))
+              .catch(() => undefined);
           },
         );
       return true;
