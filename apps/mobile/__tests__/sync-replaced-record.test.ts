@@ -255,6 +255,66 @@ describe('server_won after the pre-pull (#792)', () => {
     expect(workoutPushes(server)).toHaveLength(3); // the first push, the cardio edit and the one that lost
   });
 
+  it('a pre-pull base is not used after a push of the merged day was stored but its answer lost', async () => {
+    const { server, a, b, id } = await devices();
+    await saveWorkout(b.db, cardioDay(30, '2026-10-08T10:00:00.000Z'));
+    await b.sync();
+    await saveWorkout(a.db, sessionDay('2026-10-08T10:30:00.000Z'));
+    await saveSet(a.db, DATE, benchSet('2026-10-08T10:30:00.000Z'));
+    server.losePushResponses = 1;
+    await a.sync(); // merged at v1 with the base kept; stored as v2, answer lost
+    await b.sync();
+    await saveWorkout(b.db, { ...(await load(b.db)), template: null, base: null, where: null, mods: {}, exercises: [], ci_choice: null, updated_at: '2026-10-08T12:00:00.000Z' });
+    await b.sync(); // v3
+    await a.sync(); // server_won against v3
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ template: null, exercises: [] });
+  });
+
+  it('a base is cleared when the push settles', async () => {
+    const { a, beforePush } = await devices();
+    await saveWorkout(a.db, sessionDay('2026-10-08T10:00:00.000Z'));
+    await a.sync();
+    await saveWorkout(a.db, { ...(await load(a.db)), cardio_min: 30, updated_at: '2026-10-08T10:30:00.000Z' });
+    beforePush(() => setBase(a.db, DATE, { ...sessionDay('2026-10-08T10:00:00.000Z'), version: 1 })); // written while the push is in flight
+    await a.sync();
+    expect(await getKv(a.db, `sync.base.workouts.${DATE}`)).toBeNull();
+  });
+
+  it('a second race on the merged day is merged too: the stored copy is its base', async () => {
+    const { server, a, id, beforePush } = await racing(cardioDay(30, '2026-10-08T10:00:00.000Z'), sessionDay('2026-10-08T10:30:00.000Z'), { cardio_min: 40, updated_at: '2026-10-08T12:00:00Z' });
+    await a.sync(); // pre-pull merge (v1); the push ends server_won against v2; the merged day is queued at v2
+    expect(await getKv(a.db, `sync.base.workouts.${DATE}`)).not.toBeNull();
+    beforePush(() => server.seed('workouts', { ...cardioDay(50, '2026-10-08T13:00:00Z'), id, version: 3 })); // a later edit, again before the push
+    await a.sync(); // server_won again
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ cardio_min: 50, template: 'Upper A', version: 4 });
+  });
+
+  it('a second race after a lost answer does not bring a removed session back', async () => {
+    const { server, a, id } = await racing(cardioDay(30, '2026-10-08T10:00:00.000Z'), sessionDay('2026-10-08T10:30:00.000Z'), { cardio_min: 40, updated_at: '2026-10-08T12:00:00Z' });
+    await a.sync(); // merged day queued at v2 with the stored copy as its base
+    server.losePushResponses = 1;
+    await a.sync(); // stored as v3, answer lost (the base went with the request)
+    server.seed('workouts', { ...cardioDay(50, '2026-10-08T13:00:00Z'), id, version: 4 }); // the session is removed elsewhere
+    await a.sync();
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ template: null, exercises: [] });
+  });
+
+  it('a base is put back when the request is refused whole', async () => {
+    const { server, a, b, id, beforePush } = await devices();
+    await saveWorkout(b.db, cardioDay(30, '2026-10-08T10:00:00.000Z'));
+    await b.sync();
+    await saveWorkout(a.db, sessionDay('2026-10-08T10:30:00.000Z'));
+    await saveSet(a.db, DATE, benchSet('2026-10-08T10:30:00.000Z'));
+    beforePush(() => void server.force400.push(undefined));
+    await a.sync(); // pre-pull merge keeps the base; the push is refused (400, nothing stored)
+    expect(await getKv(a.db, `sync.base.workouts.${DATE}`)).not.toBeNull();
+    await a.sync(); // pushed
+    expect(server.get('workouts', id)).toMatchObject({ cardio_min: 30, template: 'Upper A' });
+  });
+
   it('the account changed while the push was in flight: nothing is merged or queued', async () => {
     const { a, beforePush, server, id } = await devices();
     await saveWorkout(a.db, cardioDay(30, '2026-10-08T10:00:00.000Z'));

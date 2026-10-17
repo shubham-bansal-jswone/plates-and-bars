@@ -7,7 +7,7 @@ import type { StoreDb } from '../db/records';
 import { InvalidRecord, buildRecord, normalizeTimestamps, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
 import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
 import { quarantine } from './quarantine';
-import { forgetBase, getBase, setBase } from './base';
+import { forgetBase, restoreBases, setBase, takeBases } from './base';
 import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, markSent, setAccountFull, stampOf, touchHeld, unmarkSent, wasSent } from './held';
 import { withTimeout, REFRESH_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
@@ -326,6 +326,26 @@ async function settle(db: PullDb, e: OutboxEntry, guard: Guard, write: (txn: Wor
   });
 }
 
+/** Takes the kept bases of the days a request carries out of the store (see `takeBases`), under the owner guard. */
+async function holdBases(db: PullDb, dates: string[], guard: Guard): Promise<Map<string, Workout>> {
+  if (dates.length === 0) return new Map();
+  let taken = new Map<string, Workout>();
+  await inTransaction(db, async (txn) => {
+    await guard(txn);
+    taken = await takeBases(txn, dates);
+  });
+  return taken;
+}
+
+/** The server stored nothing of the request: its bases are good for the next one. */
+async function putBackBases(db: PullDb, bases: Map<string, Workout>, guard: Guard): Promise<void> {
+  if (bases.size === 0) return;
+  await inTransaction(db, async (txn) => {
+    await guard(txn);
+    await restoreBases(txn, bases);
+  });
+}
+
 let running: Promise<SyncResult> | null = null;
 /** When held records were last retried in this app run, per user: due on launch (nothing yet), then at most once a day. */
 let heldTried: { user: string; at: number } | null = null;
@@ -470,7 +490,11 @@ async function run(d: SyncDeps): Promise<SyncResult> {
       // A version-0 record in a request may be stored even if the answer is lost: mark it, so a tombstone made of it is retried, not dropped.
       const unsent = [...sent.values()].filter((s) => !s.record.version).map((s) => s.entry);
       const fresh = unsent.length > 0 ? await markSent(d.db, unsent, guard) : [];
+      // A base is only good for the first request that carries the day: if this one is stored and its answer lost, the base is stale.
+      // It leaves the store for this request and comes back only when the server refused the request whole (#792).
+      const bases = await holdBases(d.db, [...sent.values()].filter((s) => s.entry.tbl === 'workouts').map((s) => s.entry.key), guard);
       const out = await post(d, { cursor, changes: changes as Schemas['SyncChanges'] }, guard, userId);
+      if (!out.ok && (out.refused || out.accountFull)) await putBackBases(d.db, bases, guard);
       // The server answered a batch with some records it stores and some it does not: the stored ones are behind the new ones. Halve it.
       const refused = out.ok ? undefined : out.accountFull;
       // Only the records actually sent count (the byte budget or a gone record can leave some of the loaded ones out).
@@ -582,10 +606,13 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         let merged: Workout | null = null;
         // Another device's day against this device's: keep what this one added (see `mergedWorkout`); written after the clear, so it is pushed again.
         const merge = async (txn: WorkoutDb, clean: boolean) => {
-          if (clean && other && s.entry.tbl === 'workouts') merged = await mergedWorkout(txn, s.entry.key, other, server, c.server_version, neverSeen);
+          if (clean && other && s.entry.tbl === 'workouts') merged = await mergedWorkout(txn, s.entry.key, other, server, c.server_version, neverSeen, bases.get(s.entry.key));
         };
         const requeue = async (txn: WorkoutDb) => {
-          if (merged) await saveWorkout(txn, merged);
+          if (!merged) return;
+          await saveWorkout(txn, merged);
+          // The merged day is the stored copy plus what this device added: the stored copy is the base for a second race (it is taken when the day is next sent).
+          await setBase(txn, s.entry.key, normalizeTimestamps(server) as Workout);
         };
         if (same) {
           // The server's copy is this push as stored (an idempotent retry, or `client_won`): adopt the stored version and time, nothing else changes.
@@ -712,11 +739,11 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
  * nothing to keep. The result carries `version` (the server's version of the day, so pushing it is an ordinary edit) and is
  * null when it adds nothing to `server`, the copy about to be stored. Only where no removal can come back:
  *  - the row never saw a server copy (`neverSeen`: version 0, and no earlier request carried it): `unionWorkout`;
- *  - the copy the row grew from is known (`getBase`, the version it holds): a three-way `mergeWorkout`.
+ *  - the copy the row grew from is known (`base`, kept by the pre-pull and taken for this request, and the version it holds): a three-way `mergeWorkout`.
  * Otherwise both sides had a common base this merge does not have, and a removal would come back. A tombstone on either
  * side is never merged: a deletion is not resurrected.
  */
-async function mergedWorkout(db: StoreDb, date: string, other: Doc, server: Doc, version: number, neverSeen: boolean): Promise<Workout | null> {
+async function mergedWorkout(db: StoreDb, date: string, other: Doc, server: Doc, version: number, neverSeen: boolean, base: Workout | undefined): Promise<Workout | null> {
   const mine = await loadWorkout(db, date);
   const theirs = normalizeTimestamps(other) as Workout;
   if (!mine || mine.deleted_at || theirs.deleted_at) return null;
@@ -725,7 +752,6 @@ async function mergedWorkout(db: StoreDb, date: string, other: Doc, server: Doc,
     if (!neverSeen) return null;
     out = unionWorkout(mine, theirs);
   } else {
-    const base = await getBase(db, date);
     if (!base || base.deleted_at || base.version !== mine.version) return null;
     out = mergeWorkout(base, mine, theirs);
   }
