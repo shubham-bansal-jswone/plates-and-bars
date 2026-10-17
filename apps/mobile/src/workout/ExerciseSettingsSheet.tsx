@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -27,17 +27,6 @@ export function ExerciseSettings({ name, info, notify }: { name: string; info: E
 function Gear({ name, info, notify }: { name: string; info: ExInfo; notify?: (msg: string) => void }) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
-  const { saveFailed, settings } = useOptionalSettings()!;
-  // The edit shows at once and is written in the background. Track this sheet's own save: 'new' until the render that shows the edit,
-  // 'shown' until the saved record replaces it (the write worked: nothing more to say), or the write fails and it is reported once.
-  const awaiting = useRef<'none' | 'new' | 'shown'>('none');
-  useEffect(() => {
-    if (awaiting.current === 'none') return;
-    if (saveFailed) {
-      awaiting.current = 'none';
-      notify?.(NOT_STORED);
-    } else awaiting.current = awaiting.current === 'new' ? 'shown' : 'none';
-  }, [saveFailed, settings, notify]);
   return (
     <>
       <Press
@@ -54,12 +43,10 @@ function Gear({ name, info, notify }: { name: string; info: ExInfo; notify?: (ms
         <Sheet
           name={name}
           info={info}
+          notify={notify}
           onClose={(done) => {
             setOpen(false);
-            if (done) {
-              awaiting.current = 'new';
-              notify?.(done);
-            }
+            if (done) notify?.(done);
           }}
         />
       ) : null}
@@ -68,7 +55,7 @@ function Gear({ name, info, notify }: { name: string; info: ExInfo; notify?: (ms
 }
 
 /** Mounted per opening, so it always starts from the exercise's current type, step and range (prototype `ES.v = { ...info }`). */
-function Sheet({ name, info, onClose }: { name: string; info: ExInfo; onClose: (done?: string) => void }) {
+function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; notify?: (msg: string) => void; onClose: (done?: string) => void }) {
   const c = useTheme();
   const { update, settings } = useOptionalSettings()!;
   const [type, setType] = useState<ExType>(info.type);
@@ -77,16 +64,29 @@ function Sheet({ name, info, onClose }: { name: string; info: ExInfo; onClose: (
   const [hi, setHi] = useState(String(info.hi));
   const [error, setError] = useState<string | null>(null);
 
+  // Each save learns whether it was stored: a failed write is said so once, whatever other writes failed or worked.
+  const stored = (stored: boolean) => {
+    if (!stored) notify?.(NOT_STORED);
+  };
   const save = () => {
     const r = exerciseOverrideEntry({ type, step, lo, hi });
     if (r.kind !== 'ok') return setError(r.kind === 'invalid-range' ? RANGE_INVALID : STEP_INVALID);
     if (exerciseOverridesWouldExceed(settings.exercise_overrides, name)) return setError(OVERRIDES_FULL);
-    // The edit is applied to the stored record when it is written. Refused when the stored settings could not be read: the values stay here.
-    if (!update((s) => ({ exercise_overrides: withOverride(s.exercise_overrides, name, r.entry) }))) return setError(SETTINGS_UNREADABLE);
+    // The edit is applied to the stored record when it is written (so the override and the cap use that record, not this screen's copy).
+    // Refused when the stored settings could not be read: the values stay here.
+    let full = false;
+    const ok = update((s) => {
+      if (exerciseOverridesWouldExceed(s.exercise_overrides, name)) {
+        full = true;
+        return {};
+      }
+      return { exercise_overrides: withOverride(s.exercise_overrides, name, r.entry) };
+    }, (done) => (full ? notify?.(OVERRIDES_FULL) : stored(done)));
+    if (!ok) return setError(SETTINGS_UNREADABLE);
     onClose(SAVED);
   };
   const reset = () => {
-    if (!update((s) => ({ exercise_overrides: withoutOverride(s.exercise_overrides, name) }))) return setError(SETTINGS_UNREADABLE);
+    if (!update((s) => ({ exercise_overrides: withoutOverride(s.exercise_overrides, name) }), stored)) return setError(SETTINGS_UNREADABLE);
     onClose(RESET);
   };
 

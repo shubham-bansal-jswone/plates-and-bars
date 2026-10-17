@@ -25,7 +25,7 @@ interface SettingsState {
   /** Saves a custom exercise's tags (prototype `tg-save`); false when the record cannot be written or the limit is reached. */
   addCustomTags(name: string, tags: ExerciseTag): boolean;
   /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
-  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean;
+  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>), done?: (stored: boolean) => void): boolean;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -85,7 +85,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
   }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean => {
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>), done?: (stored: boolean) => void): boolean => {
       if (blocked.current) return false;
       const at = stamp(new Date());
       const apply = (s: Settings): Settings => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch), updated_at: at });
@@ -115,6 +115,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
           (saved) => {
             setSaveFailed(false);
             pending.current -= 1;
+            done?.(true);
             // The last of the queued edits has landed: what shows is what is stored (it keeps the pulled fields and version).
             if (pending.current === 0) {
               ref.current = saved;
@@ -125,6 +126,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
           () => {
             pending.current -= 1;
             setSaveFailed(true);
+            done?.(false);
           },
         );
       return true;
