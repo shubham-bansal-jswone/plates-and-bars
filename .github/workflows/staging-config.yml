@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'infra/staging/**'
+      - 'infra/journald/**'
       - 'infra/caddy/**'
       - '.github/workflows/staging-config.yml'
   workflow_dispatch:
@@ -47,3 +48,10 @@ jobs:
             echo "::error::unpinned image"; exit 1
           fi
           grep -Eq '^rclone_image="rclone/rclone:[0-9]+\.[0-9]+\.[0-9]+"$' backup.sh
+      - name: every service logs to journald
+        run: |
+          test "$(docker compose --env-file .env.example config | grep -c -E '^      driver: journald$')" = 3
+      - name: journald drop-in and installer
+        run: |
+          shellcheck ../journald/install.sh ../journald/test-install.sh
+          ../journald/test-install.sh

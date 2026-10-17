@@ -7,10 +7,19 @@
 # Nothing here deploys anything: see RUNBOOK.md.
 name: plateandbar-staging
 
+# Container logs go to journald (the VM's age and size bounds are the drop-in infra/journald/plate-and-bar.conf,
+# installed once per VM with infra/journald/install.sh). `docker compose logs` still works with this driver.
+x-logging: &logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+    labels: com.docker.compose.service
+
 services:
   mysql:
     image: mysql:8.4.11
     restart: unless-stopped
+    logging: *logging
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: plateandbar
@@ -38,6 +47,7 @@ services:
         # (backend/README.md). Not `:?` here: that would make every compose command (exec, stop, backup.sh) need it.
         CONTENT_UPDATED_AT: ${CONTENT_UPDATED_AT:-}
     restart: unless-stopped
+    logging: *logging
     depends_on:
       mysql:
         condition: service_healthy
@@ -68,6 +78,7 @@ services:
   caddy:
     image: caddy:2.11.7
     restart: unless-stopped
+    logging: *logging
     depends_on: [api]
     ports:
       - "80:80"
