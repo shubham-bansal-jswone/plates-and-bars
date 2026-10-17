@@ -71,7 +71,7 @@ Notes on judgement calls:
 | Change | Update |
 | --- | --- |
 | Release build without `EXPO_PUBLIC_API_URL` (no server) | Answer "No" to collection: nothing leaves the device, and there is no account to delete. On 2026-10-17 nothing in the repository sets this variable, including `.github/workflows/android-release.yml`, so check which case the uploaded build is |
-| AI never switched on in production (all `AI_*_ENABLED` false) | Remove the AI-only items (Describe a meal and Ask why text, weekly summary inputs). Everything else stays because sync collects it |
+| AI never switched on in production (all `AI_*_ENABLED` false), or no real AI provider deployed. Today `StubAiProvider` is the only provider, so `GET /ai/status` reports every feature off and the app sends no AI request | Remove the AI-only items (Describe a meal and Ask why text, weekly summary inputs). Everything else stays because sync collects it |
 | AI switched on | As written above. Confirm the [AI provider] terms (service provider or third party) and update the privacy page placeholder |
 | GlitchTip or another crash SDK added (`infra/OBSERVABILITY.md`) | Add App info and performance > Crash logs and Diagnostics, purpose App functionality (and Analytics if used for that); add User IDs if events carry the account id |
 | Health Connect steps (v1 plan) | Fitness info already covers steps. Also complete the Health Connect permission declaration in Play Console |
@@ -92,7 +92,7 @@ All apps on any track must file it; options and wording are from Google's help p
 | Health and fitness > Stress Management, Relaxation, Mental Acuity | No | |
 | Medical (all items) | No | The six health-check questions are a safety screen that tells the user to see a doctor; the app gives no diagnosis or treatment. **Owner:** confirm with the medical and legal review that this is not Clinical Decision Support |
 | Medical Device Apps | No | Not a regulated medical device |
-| Health subjects research | No | |
+| Health subjects research > Research studies, clinical trials, and patient communities | No | Labels as on the help page [G3], fetched 2026-10-17 |
 
 ## Before submitting
 
