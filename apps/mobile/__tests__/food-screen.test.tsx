@@ -47,10 +47,17 @@ async function setup(opts: { flex?: number; withProfile?: boolean; db?: Db; now?
   return db;
 }
 const docs = (db: Db, table: string) => [...db.rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => JSON.parse(v));
+/** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
+const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
 const open = async (meal = 'breakfast') => {
   await fireEvent.press(screen.getByLabelText(`+ Add to ${meal}`));
   await screen.findByLabelText('Search foods');
 };
+
+// Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
+// fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
+beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
+afterEach(() => jest.useRealTimers());
 
 describe('Food screen', () => {
   it('shows the kcal target from core, with flex, and no macro bars without a profile', async () => {
@@ -509,8 +516,8 @@ describe('Food screen', () => {
       await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
       await screen.findByText(/Added Roti/);
       await fireEvent.press(screen.getByText('Done'));
-      release();
-      await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+      await act(async () => release());
+      await flush();
       expect(docs(db, 'food_logs').filter((l) => l.date === DATE).map((l) => l.name)).toEqual(['Roti / chapati']);
       expect(screen.queryByText('Copied the previous day’s meals')).toBeNull();
       restore();
@@ -547,7 +554,7 @@ describe('Food screen', () => {
         fireEvent.press(btn);
       });
       await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1));
-      await new Promise((r) => setTimeout(r, 30));
+      await flush();
       expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1);
       // The ref drops the second tap before it reads, so yesterday is read once.
       expect(prevReads).toBe(1);
@@ -578,7 +585,8 @@ describe('Food screen', () => {
       expect(await screen.findByText(says)).toBeTruthy();
       // Let the first toast go, so the second press has to speak for itself: were the copy left in flight (a stuck
       // `copying` ref), the day is still empty, the button is still offered, and this press would be silent.
-      await waitFor(() => expect(screen.queryByText(says)).toBeNull(), { timeout: 4_000 });
+      await act(async () => void jest.advanceTimersByTime(10_000));
+      expect(screen.queryByText(says)).toBeNull();
       await fireEvent.press(screen.getByLabelText('Copy previous day'));
       expect(await screen.findByText(says)).toBeTruthy();
       expect(docs(db, 'food_logs')).toHaveLength(0);
@@ -598,7 +606,7 @@ describe('Food screen', () => {
       let release!: () => void;
       trackWrite(new Promise<void>((r) => (release = r)).then(() => void db.rows.set('food_logs:l9', JSON.stringify(log('l9', 'Late dal')))));
       await refocus(db);
-      await new Promise((r) => setTimeout(r, 30));
+      await flush();
       expect(screen.queryByText('Late dal')).toBeNull();
       release();
       expect(await screen.findByText('Late dal')).toBeTruthy();
@@ -606,25 +614,34 @@ describe('Food screen', () => {
 
     it('keeps a food just added when the tab is shown while its write is still queued', async () => {
       const db = await setup();
-      db.lag = () => 60;
+      // The write stays queued until the test opens the gate, so the read cannot see the row before then.
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      db.hold = () => gate;
       await open();
       await fireEvent.press(screen.getByLabelText(/^Add Roti/));
       await fireEvent.press(screen.getByText('Done'));
-      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
       await refocus(db);
-      await new Promise((r) => setTimeout(r, 200));
+      await flush();
       // Without waiting for the queue, the read would not have seen the row and would replace the day with an empty one.
-      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
+      await act(async () => release());
+      await flush();
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
       expect(docs(db, 'food_logs')).toHaveLength(1);
     });
 
     it('drops an older read when the user wrote while it ran', async () => {
       const db = await setup();
       const real = db.getAllAsync.bind(db);
+      // Reads that start while `slow` hold their (by then stale) result until the test opens the gate.
       let slow = true;
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
       db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
         const out = await real(sql, ...p);
-        if (slow && sql.includes('FROM food_logs')) await new Promise((r) => setTimeout(r, 80));
+        if (slow && sql.includes('FROM food_logs')) await gate;
         return out;
       }) as typeof db.getAllAsync;
       await refocus(db);
@@ -632,7 +649,8 @@ describe('Food screen', () => {
       await fireEvent.press(screen.getByLabelText(/^Add Roti/));
       await fireEvent.press(screen.getByText('Done'));
       slow = false;
-      await new Promise((r) => setTimeout(r, 300));
+      await act(async () => release());
+      await flush();
       expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
     });
 

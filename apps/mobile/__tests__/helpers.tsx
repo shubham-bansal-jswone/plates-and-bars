@@ -5,7 +5,7 @@ import type { WorkoutDb } from '../src/db/workouts';
 import type { PullDb } from '../src/db/outbox';
 
 /** In-memory stand-in for the two statements the record store uses; rows keyed by table and key. */
-export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>; failWrites: boolean; lag?: (sql: string) => number } {
+export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>; failWrites: boolean; lag?: (sql: string) => number; hold?: (sql: string) => Promise<void> | undefined } {
   const rows = new Map<string, string>();
   const sets = new Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>();
   const db = {
@@ -15,6 +15,8 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     // No rollback here: the real atomicity is tested against SQLite (workout-sets.test.tsx).
     withExclusiveTransactionAsync: async (task: (t: WorkoutDb) => Promise<void>) => task(db),
     lag: undefined as undefined | ((sql: string) => number),
+    // A write waits on the promise this returns: a test opens it when ready, so no wall-clock delay models a slow write.
+    hold: undefined as undefined | ((sql: string) => Promise<void> | undefined),
     async getAllAsync<T>(sql: string, ...p: (string | number)[]) {
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
       if (sql.includes('GROUP BY workout_date')) {
@@ -41,6 +43,7 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     },
     async runAsync(sql: string, ...p: (string | number)[]) {
       if (db.failWrites) throw new Error('disk full');
+      await db.hold?.(sql);
       const lag = db.lag;
       if (lag) await new Promise((r) => setTimeout(r, lag(sql)));
       if (sql.startsWith('DELETE FROM settings WHERE key')) {
