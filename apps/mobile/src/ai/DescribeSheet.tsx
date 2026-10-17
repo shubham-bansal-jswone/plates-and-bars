@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { customFood } from '@plate-and-bar/core';
 import { Heading, Button, Card, ErrorText, Field, Hint, Label } from '../components/ui';
 import { CUSTOM_MESSAGE } from '../food/copy';
@@ -66,7 +67,7 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
   };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={AI_COPY.describeTitle(meal)} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.describeTitle(meal)}</Heading>
@@ -106,7 +107,7 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
           <Button kind="ghost" label="Close" onPress={onClose} />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 

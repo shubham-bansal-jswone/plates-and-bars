@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Input } from '../components/Input';
@@ -91,7 +92,7 @@ function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; no
   };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={() => onClose()}>
+    <SheetModal title={name} onClose={() => onClose()}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
           <View style={styles.head}>
@@ -151,7 +152,7 @@ function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; no
           </View>
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 
