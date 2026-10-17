@@ -54,8 +54,12 @@ The backup heartbeat needs one `curl` line at the end of the backup script in `i
 ## Mobile app wiring (#687)
 
 - SDK: `@sentry/react-native` (MIT, checked 2026-10-17; the version Expo SDK 58 pins). Initialised in `apps/mobile/app/_layout.tsx` only when `EXPO_PUBLIC_SENTRY_DSN` is set at build time; with no DSN the SDK is not started and sends nothing. Put the `mobile` project DSN in a GitHub secret and pass it to the release build.
-- Scrubbing is in `apps/mobile/src/telemetry/scrub.ts` (`beforeSend`, `beforeBreadcrumb`) and tested on a worst-case event (`apps/mobile/__tests__/error-tracking.test.ts`): user reduced to a random install id, no request data, no console or network breadcrumbs, values under food/meal/weight/measurement/health/answer/token/email keys filtered.
-- Not done: source-map upload (the Sentry Expo plugin is not added), Git-tag releases and the backend side of #687.
+- `@sentry/cli` (a hard dependency of the SDK) is FSL-1.1-MIT, which is not open source. It is replaced by an empty MIT stub through npm `overrides`, and a test fails if any FSL package reaches the lockfile.
+- Tracing is off (no sample rate, empty `tracePropagationTargets`, transactions dropped), so no `sentry-trace` or `baggage` header leaves the app.
+- Scrubbing is fail-closed, in `apps/mobile/src/telemetry/scrub.ts` and tested on a probe event carrying a food name and a weight in every field (`apps/mobile/__tests__/error-tracking.test.ts`): the event is rebuilt from an allowlist; exception values, message, `logentry`, `extra`, `tags`, request, transaction and fingerprint never leave; breadcrumbs carry no message or data; the user is a random install id.
+- Native Android crashes are sent by the native SDK and skip the JS `beforeSend`; they carry stack frames, device data, the install id and the scrubbed breadcrumbs only.
+- The SDK adds `ACCESS_NETWORK_STATE` to the Android manifest. List it and crash reporting in the privacy notice and the Play data-safety answers (docs follow-up).
+- Not done: source-map upload (needs the CLI; not wanted), Git-tag releases and the backend side of #687.
 
 ## Install outline (do not run yet)
 
