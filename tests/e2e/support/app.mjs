@@ -87,8 +87,8 @@ export async function answerSetup(page, { age = '30', where = 'At a gym. Machine
 }
 
 /** Runs the whole setup flow and lands on Targets. */
-export async function completeSetup(page, answers) {
-  await answerSetup(page, answers);
+export async function completeSetup(page) {
+  await answerSetup(page);
   await label(page, 'Use these targets').click();
   await expect(label(page, 'Redo setup')).toBeVisible(); // only Targets has it
   // Targets shows the editable "Daily targets" fields, not the read-only tiles (#483), so read the field's value.

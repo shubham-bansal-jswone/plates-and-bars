@@ -1,8 +1,10 @@
-import { completeSetup, expect, label, saved, tab, test } from '../support/app.mjs';
+import { answerSetup, expect, label, saved, tab, test } from '../support/app.mjs';
 
 // #819: a user with no training days has no template to start, so "Pick exercises" on the Workout start screen is how a session begins.
 test('a 0-day user picks an exercise from the start screen and logs a set, offline', async ({ page }) => {
-  await completeSetup(page, { days: 'None yet' });
+  await answerSetup(page, { days: 'None yet' });
+  await label(page, 'Use these targets').click();
+  await expect(label(page, 'Redo setup')).toBeVisible();
   await tab(page, 'Workout');
   await expect(page.getByText('Rest day', { exact: true })).toBeVisible();
   await page.context().setOffline(true);
