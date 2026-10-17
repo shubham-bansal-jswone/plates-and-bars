@@ -69,23 +69,30 @@ export function replayKept(stored: Settings, kept: KeptEdit[]): Settings {
   return run;
 }
 
+/** The version of the saved format. A copy of another (or no) version reads as none, rather than being guessed at. */
+const KEPT_VERSION = 1;
+
+/** The kept edits that are plain data, in the saved format. */
+export const keptCopy = (kept: KeptEdit[]): string => JSON.stringify({ v: KEPT_VERSION, edits: kept.filter((k) => k.base && k.value).map(({ at, base, value }) => ({ at, base, value })) });
+
 /** Writes the kept edits that are plain data, so a restart does not lose them. */
 export async function persistKept(db: StoreDb, kept: KeptEdit[]): Promise<void> {
-  const data = kept.filter((k) => k.base && k.value).map(({ at, base, value }) => ({ at, base, value }));
-  await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', KEY_SETTINGS_KEPT, JSON.stringify(data));
+  await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', KEY_SETTINGS_KEPT, keptCopy(kept));
 }
 
 export async function clearKept(db: StoreDb): Promise<void> {
   await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
 }
 
-/** The persisted kept edits; anything unreadable counts as none. */
+const isPlain = (v: unknown): v is Fields => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The persisted kept edits; anything unreadable, of another version or in the wrong shape counts as none. */
 export async function readKept(db: StoreDb): Promise<KeptEdit[]> {
   try {
     const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
-    const list = row ? (JSON.parse(row.value) as unknown) : [];
-    if (!Array.isArray(list)) return [];
-    return list.filter((k): k is KeptEdit => typeof k?.at === 'string' && typeof k.base === 'object' && k.base !== null && typeof k.value === 'object' && k.value !== null);
+    const saved = row ? (JSON.parse(row.value) as unknown) : null;
+    if (!isPlain(saved) || saved.v !== KEPT_VERSION || !Array.isArray(saved.edits)) return [];
+    return saved.edits.filter((k): k is KeptEdit => isPlain(k) && typeof k.at === 'string' && isPlain(k.base) && isPlain(k.value));
   } catch {
     return [];
   }

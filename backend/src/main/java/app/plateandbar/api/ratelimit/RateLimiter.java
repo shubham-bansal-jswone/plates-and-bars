@@ -74,7 +74,7 @@ public class RateLimiter {
         ConsumptionProbe probe = entry.bucket().tryConsumeAndReturnRemaining(1);
         if (!probe.isConsumed()) {
             long nanos = probe.getNanosToWaitForRefill();
-            throw new RateLimitedException(Math.ceilDiv(nanos, 1_000_000_000L));
+            throw new RateLimitedException(scope, Math.ceilDiv(nanos, 1_000_000_000L));
         }
     }
 

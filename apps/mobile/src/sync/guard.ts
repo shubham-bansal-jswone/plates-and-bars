@@ -6,6 +6,7 @@ import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
 import { KEY_PHOTOS_WIPE, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { markSignOutPending } from './webSession';
 import { announceWipe, wipePhotos } from '../photos/vault';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
@@ -45,6 +46,8 @@ export class OwnerChanged extends Error {}
 
 export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser?: string | null } = {}): Promise<number> {
   let pending = 0;
+  // Read before the write lock is taken. That is safe only because every caller holds the account lock (`withSyncPaused`), so no
+  // other wipe can bump the epoch between this read and the transaction; a revert below then restores exactly the value read here.
   const epochBefore = storeEpoch();
   await inTransaction(db, async (txn) => {
     if (opts.expectUser !== undefined && (await getUserId(txn)) !== opts.expectUser) throw new OwnerChanged();
@@ -132,6 +135,7 @@ export async function signOut(db: Db, tokens: TokenStore, opts: { discard?: bool
   return withSyncPaused(async () => {
     const pending = await wipeLocalStoreIf(db, opts.discard === true);
     if (pending > 0) return pending;
+    markSignOutPending(); // web: set before the token goes, so a reload before the revoke call cannot sign the user back in
     await tokens.clear();
     return 0;
   });
@@ -151,6 +155,7 @@ async function wipeLocalStoreIf(db: Db, discard: boolean): Promise<number> {
 export async function discardAll(db: Db, tokens: TokenStore): Promise<void> {
   await withSyncPaused(async () => {
     await wipeLocalStore(db, { force: true });
+    markSignOutPending();
     await tokens.clear();
   });
 }

@@ -20,6 +20,7 @@ Rules for every agent working on Plate & Bar. Read this, the issue, the contract
 ## Rules
 
 - Read the issue, the contract and the prototype behaviour before writing code.
+- Before starting any work, run `git fetch origin` and base the work on the latest `origin/main`: new work starts in a fresh worktree from `origin/main` (`git worktree add <dir> -b <lane>/<name> origin/main`), and an existing branch gets `git merge origin/main` first (merge only, never rebase or force-push). Fetch again and merge again before every push and before review.
 - Never commit secrets, change another agent's folder, or edit the contract outside a contract PR.
 - Contract changes land first, alone, after review. Prefer additive changes; flag any breaking change in the PR title.
 - Backend and app code are built against the merged `packages/api/openapi.yaml` on `main`, never against an open contract PR.

@@ -5,6 +5,7 @@ import { Button, ErrorText, Field, H1, Hint, Note, Page } from '../components/ui
 import { useProfile } from '../state/ProfileProvider';
 import { useSync } from '../sync/SyncProvider';
 import { SIGN_IN_COPY as t } from '../sync/copy';
+import { cookieMode } from '../sync/transport';
 
 type Step = 'email' | 'code' | 'refused' | 'confirm-discard' | 'confirm-stop';
 
@@ -163,7 +164,7 @@ export function SignInScreen() {
     return (
       <Page>
         <H1>{t.title}</H1>
-        <Note>{t.refused(pending)}</Note>
+        <Note>{cookieMode() ? `${t.refused(pending)} ${t.refusedWeb}` : t.refused(pending)}</Note>
         <View style={{ gap: 12 }}>
           <Button
             label={t.signInAsPrevious}

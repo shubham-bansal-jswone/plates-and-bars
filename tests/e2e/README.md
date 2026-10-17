@@ -28,4 +28,23 @@ npx playwright test specs/data.spec.mjs          # one suite
 
 `CHROME_PATH=<chromium executable>` overrides the installed Chromium (CI sets it; CI fails if it is missing). Google Chrome is not used. If port 4173 is taken, set `E2E_PORT`.
 
+## Sync tests (real backend)
+
+`sync-specs/sync.spec.mjs`: sign in by emailed code, log a meal offline (badge says not synced), go online (badge clears), a second browser context signs in and sees the meal, delete the account on the first (the second is signed out on its next sync). It needs Docker and runs in CI as the "e2e (sync, Playwright)" job; the fast suite above never needs it.
+
+```
+cd tests/e2e/stack
+CONTENT_UPDATED_AT="$(../../../backend/scripts/content-updated-at.sh)" docker compose build api   # needs a full-history checkout
+docker compose up -d --wait            # MySQL, the API on 127.0.0.1:18080, Mailpit (the sign-in codes) on 18025
+cd ../../../apps/mobile && EXPO_PUBLIC_API_URL=http://127.0.0.1:18080/api/v1 npx expo export --platform web --output-dir ../../tests/e2e/.sync-dist
+cd ../../tests/e2e && npm run test:sync
+cd stack && docker compose down -v
+```
+
+The web build needs the API URL compiled in, so it is a second export into `.sync-dist` (ignored by git). Two origins are reachable: the web server on 4174 (`E2E_SYNC_PORT`) and the API.
+
+## Android (Maestro)
+
+`maestro/smoke.yaml` covers setup, one meal and one set on Android. Maestro (Apache-2.0) needs an emulator or phone with the release-candidate APK installed: `maestro test maestro/smoke.yaml`. It has not been run on a device yet (none was available when it was written), so expect to adjust selectors on the first run; until it is green the Android column of `RELEASE_CHECKLIST.md` stays manual. It is not in CI (no emulator on the hosted runners).
+
 Licences: `@playwright/test` Apache-2.0, `@puppeteer/browsers` Apache-2.0, Chromium BSD-3-Clause, axe-core MPL-2.0. Playwright's own browser download (`npx playwright install`) is not used; it fetches builds from Microsoft's CDN. Any local Chromium or Chrome works through `CHROME_PATH`.

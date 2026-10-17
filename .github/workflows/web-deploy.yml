@@ -27,6 +27,8 @@ on:
       - 'infra/scripts/check-web-root.sh'
       - 'infra/scripts/test-check-web-root.sh'
       - 'infra/scripts/test-web-caddy.sh'
+      - 'infra/scripts/check-sentry-origin.sh'
+      - 'infra/scripts/test-check-sentry-origin.sh'
       - 'infra/scripts/check-caddy-headers.sh'
       - '.github/workflows/web-deploy.yml'
   workflow_dispatch:
@@ -50,11 +52,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-web-root.sh infra/scripts/test-check-web-root.sh infra/scripts/test-web-caddy.sh
-      - name: API URL and web root checks (test)
+        run: shellcheck infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-web-root.sh infra/scripts/test-check-web-root.sh infra/scripts/check-sentry-origin.sh infra/scripts/test-check-sentry-origin.sh infra/scripts/test-web-caddy.sh
+      - name: API URL, web root and error-tracking origin checks (test)
         run: |
           infra/scripts/test-check-api-url.sh
           infra/scripts/test-check-web-root.sh
+          infra/scripts/test-check-sentry-origin.sh
       - name: Caddyfile.web serves the isolation headers, caching and SPA fallback (official Caddy image, Apache-2.0)
         run: infra/scripts/test-web-caddy.sh
 
