@@ -33,6 +33,12 @@ public final class ContractSchemas {
         return COMPONENTS.path("schemas").path(name);
     }
 
+    /** The {@code default} example of a named response, for example {@code AccountFull}. */
+    static JsonNode responseExample(String name) {
+        return COMPONENTS.path("responses").path(name).path("content").path("application/json")
+                .path("examples").path("default").path("value");
+    }
+
     /** Validation problems for {@code value} against {@code components.schemas.<name>}; empty when it conforms. */
     public static List<com.networknt.schema.Error> validate(String name, JsonNode value) {
         ObjectNode wrapper = new ObjectMapper().createObjectNode();
