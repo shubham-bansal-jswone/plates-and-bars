@@ -112,6 +112,8 @@ Safety rails: deploys run only from `main`, even when started manually; the `cad
 
 ### API host (`infra/caddy/Caddyfile.api`, #398)
 
+Running this file alone (not through `Caddyfile.stack`): copy the global `log errors` block from `Caddyfile.stack` to its top, or Caddy's error lines, which carry the request, are written unfiltered (#714). The access log in the file is already filtered.
+
 Template for the API's Caddy: HSTS (`max-age=31536000`), `nosniff`, `X-Frame-Options`, `Referrer-Policy`, a deny-all CSP, only `/api/*` proxied (everything else 404), `request_body max_size 4MiB` (above the backend's default `SYNC_MAX_BODY_BYTES` of 2097152, so oversized requests get the backend's 400 `too_large` contract error rather than Caddy's 413; keep it above that variable if you raise it), and an active health check on `/api/v1/health`. Hostnames are placeholders: `API_HOST` (default `api.example.com`) and `API_UPSTREAM` (default `api:8080`).
 
 `APP_RATELIMIT_TRUSTEDPROXIES` on the API must be the address or network the API sees Caddy connect from (the proxy directly in front of it), not Caddy's `trusted_proxies`:
