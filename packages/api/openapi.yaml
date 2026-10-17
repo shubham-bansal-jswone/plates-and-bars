@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.17
+  version: 0.1.18
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -35,14 +35,29 @@ info:
       is empty and whose `issue` is `too_large`. The 2 MB check runs before anything
       else, sign-in included; the 16 KB AI check is the request-validation step of the
       `ai` tag's order of checks.
+    - A JSON request body is exactly one JSON value. On every endpoint that takes one
+      (`/auth/*`, `/sync`, `/ai/*`) the server refuses these with 400 `invalid_request`,
+      as it does a body that is not JSON, and names no key or value in `details`:
+      content after the value other than whitespace (`{...} junk`, `{...}{...}`); an
+      object that has the same key twice, at any depth, comparing keys after unescaping
+      (`{"a":1,"\u0061":2}` repeats `a`); and arrays and objects nested more than 1,000
+      deep. Bodies built with `JSON.stringify` never have the first two.
+      `test-vectors/strict-json.json` has shared must-refuse and must-accept bodies.
     - Record schemas bound every string (`maxLength`) and array (`maxItems`), and the
       key count (`maxProperties`) of every object that declares `additionalProperties`,
-      with generous headroom over real use. Only those top-level bounds are covered:
-      nested record objects without `additionalProperties`, and the contents of the
-      core-owned open objects (`Settings.adjustments`, `adaptive`, `learn`, `meal_plan`,
-      `prep` items), are limited only by the request body size. The app keeps what it
-      stores locally within these bounds, because a record that breaks one fails the
-      `/sync` request with 400 `invalid_request` naming that record.
+      with generous headroom over real use. Every object nested in a record whose fields
+      the contract lists is closed (`additionalProperties: false`, or
+      `unevaluatedProperties: false` where it is put together with `allOf`): a key it
+      does not list fails validation. Two kinds of nested object stay open.
+      `WorkoutExercise` keeps keys written by newer clients: at most 20 keys, and an
+      unlisted key's value is a boolean, number, string of at most 200 characters or
+      null. The objects whose shape `packages/core` owns (`Settings.adjustments`,
+      `adaptive`, `learn`, `meal_plan` and each `prep` item) are bounded by
+      `maxProperties` and by `x-max-json-bytes`: the most UTF-8 bytes the object may take
+      written as compact JSON (as `JSON.stringify` writes it). The top level of a record
+      is not closed: keys its schema does not list are accepted, ignored and not stored.
+      The app keeps what it stores locally within these bounds, because a record that
+      breaks one fails the `/sync` request with 400 `invalid_request` naming that record.
     - Each account stores at most a server-configured number of synced records. A push
       that would go over it is refused whole with 413 `account_full` (see `POST /sync`,
       Account record cap).
@@ -509,12 +524,14 @@ paths:
         Any refresh token the server knows revokes its session, whether current, already
         rotated or expired. An unknown token, or no cookie in cookie mode, revokes
         nothing. The answer is 204 in every one of these cases, so a retry is safe. In
-        cookie mode the 204 also clears the cookie.
+        cookie mode the 204 also clears the cookie. When the server cannot complete the
+        revoke right now it answers 503 `unavailable`: nothing is revoked and the cookie is
+        not cleared, so retry shortly.
 
         **Web app.** It must call this to sign out, because script cannot delete an
         httpOnly cookie. Until the call succeeds, the cookie would sign the user back in
-        on the next reload. If the call does not complete (for example offline), the app
-        keeps a "sign-out pending" flag, which holds no token and may sit in
+        on the next reload. If the call does not complete (for example offline, or a 503),
+        the app keeps a "sign-out pending" flag, which holds no token and may sit in
         `localStorage`. While the flag is set the app does not call `POST /auth/refresh`,
         and it retries this call first. After `DELETE /me` it also calls this endpoint,
         only to clear the cookie (the session is already revoked).
@@ -555,6 +572,21 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/Internal'
+        '503':
+          description: |
+            The revoke could not be completed right now (for example, a database lock
+            conflict that persisted after one server-side retry). Nothing was revoked and,
+            in cookie mode, the cookie is not cleared; retry shortly. The web app keeps its
+            "sign-out pending" flag until a retry answers 204.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: unavailable
+                    message: Service temporarily unavailable.
 
   /sync:
     post:
@@ -667,7 +699,7 @@ paths:
           concurrent pushes from two devices cannot overrun the cap.
 
         **App on 413 `account_full`.** The app keeps every pending change on the device
-        and never drops one, except the never-sent tombstones described below. It tells the user that the account is full and that new
+        and never drops one, except the never-sent random-id tombstones described below. It tells the user that the account is full and that new
         entries stay on this device and are not backed up. Until the limit changes it keeps
         syncing without the records that would be new: it pushes only pending records with
         `version` greater than 0 (edits and deletes of records already synced), and pulls
@@ -686,9 +718,18 @@ paths:
         So the retry sends held records in small batches (for example 20). A batch of
         records the server already stores comes back as idempotent retries
         (`server_won`) and leaves the queue. Only batches with really new records are
-        refused again. A version-0 tombstone that was never included in any request
-        cannot be on the server or another device. It holds no data, so the app drops it
-        instead of pushing it.
+        refused again.
+
+        A version-0 tombstone that was never included in any request is dropped only in a
+        table with random UUIDv4 ids (`consents`, `food_logs`, `water_logs`, `workout_sets`,
+        `user_foods`, `recipes`, `kitchen_tests`, `exclusions`): its id cannot be on the
+        server or another device, and it holds no data, so the app drops it instead of
+        pushing it. A never-sent tombstone in a natural-key table (`profiles`, `settings`,
+        `day_notes`, `workouts`, `weights`, `measurements`, `lift_stats`, `swaps`) is held
+        and retried like any held record, because another device can already have stored
+        a record with the same UUIDv5 id. When the server stores that id the push is not
+        new, so it is never refused for the cap; it comes back in `conflicts`, settled by
+        `updated_at` like any conflict, and the app adopts `server_record`.
 
         A 413 is `account_full` only when its body is an `Error` with that code. A 413
         with any other body, including an empty or non-JSON one from a proxy that refuses
@@ -3079,6 +3120,7 @@ components:
       type: object
       description: 'Daily targets. Prototype: `settings.kcal`, `.protein`, `.carbs`, `.fat`.'
       required: [kcal, protein_g, carbs_g, fat_g]
+      additionalProperties: false
       properties:
         kcal:
           type: integer
@@ -3280,7 +3322,19 @@ components:
 
     WorkoutExercise:
       type: object
+      description: |
+        One exercise of a workout. Open on purpose: the app keeps keys it does not know,
+        written by a newer client, when it rewrites the exercise (#527). At most 20 keys;
+        an unlisted key's name is at most 50 characters and its value is a boolean,
+        number, string of at most 200 characters or null, so its size is bounded by these
+        limits. A field a later contract adds is listed here with its own shape.
       required: [name, part, bridge, form, found_kg, skip_ramp]
+      maxProperties: 20
+      propertyNames:
+        maxLength: 50
+      additionalProperties:
+        type: [boolean, number, string, 'null']
+        maxLength: 200
       properties:
         name:
           type: string
@@ -3358,6 +3412,7 @@ components:
     LiftSet:
       type: object
       required: [weight_kg, reps, rate]
+      additionalProperties: false
       properties:
         weight_kg:
           type: number
@@ -3371,7 +3426,10 @@ components:
 
     LiftSession:
       type: object
-      description: 'An earlier session in a lift record. Prototype: `L.prev`.'
+      description: |
+        An earlier session in a lift record. Prototype: `L.prev`. Used only inside
+        `LiftStat.prev`, which closes it with `unevaluatedProperties: false` (it adds `prev`
+        one level deep, so it cannot use `additionalProperties: false` here).
       required: [date, sets, form]
       properties:
         date:
@@ -3416,7 +3474,8 @@ components:
             prev:
               description: The session before the latest.
               oneOf:
-                - allOf:
+                - unevaluatedProperties: false
+                  allOf:
                     - $ref: '#/components/schemas/LiftSession'
                     - type: object
                       properties:
@@ -3427,7 +3486,8 @@ components:
                             a nested `prev` that has its own `prev` key (even null) fails validation.
                             Older records may omit it.
                           oneOf:
-                            - allOf:
+                            - unevaluatedProperties: false
+                              allOf:
                                 - $ref: '#/components/schemas/LiftSession'
                                 - not: { required: [prev] }
                             - type: 'null'
@@ -3439,6 +3499,7 @@ components:
               items:
                 type: object
                 required: [date, score]
+                additionalProperties: false
                 properties:
                   date:
                     $ref: '#/components/schemas/LocalDate'
@@ -3537,6 +3598,7 @@ components:
     Ingredient:
       type: object
       required: [ingredient, amount, unit]
+      additionalProperties: false
       properties:
         ingredient:
           type: string
@@ -3696,6 +3758,7 @@ components:
       type: object
       description: 'Tags for a custom exercise, same meaning as content tags (`p`, `f`, `eq`, `d`, `m`, `s`, `j`).'
       required: [pattern, family, equipment, difficulty, primary, secondary, joints]
+      additionalProperties: false
       properties:
         pattern:
           type: string
@@ -3731,6 +3794,7 @@ components:
     Reminder:
       type: object
       required: [kind, time, days, 'on']
+      additionalProperties: false
       properties:
         kind:
           type: string
@@ -3792,6 +3856,7 @@ components:
               type: object
               description: 'Prototype: `water`.'
               required: [glass_ml, bottle_ml]
+              additionalProperties: false
               properties:
                 glass_ml:
                   type: integer
@@ -3808,6 +3873,7 @@ components:
               additionalProperties:
                 type: object
                 required: [type, step_kg, rep_low, rep_high]
+                additionalProperties: false
                 properties:
                   type:
                     type: string
@@ -3832,6 +3898,7 @@ components:
               items:
                 type: object
                 required: [id, date, kcal_delta]
+                additionalProperties: false
                 properties:
                   id:
                     type: string
@@ -3854,6 +3921,7 @@ components:
               additionalProperties:
                 type: object
                 required: [until]
+                additionalProperties: false
                 properties:
                   until:
                     $ref: '#/components/schemas/LocalDate'
@@ -3872,31 +3940,36 @@ components:
               description: 'Monday of the last weekly check-in seen. Prototype: `checkinSeen`.'
             adjustments:
               type: object
-              description: 'Plan adjustment state (declines, muted, dismissed, deload, reentry). Prototype: `adj`. Shape owned by packages/core.'
+              description: 'Plan adjustment state (declines, muted, dismissed, deload, reentry). Prototype: `adj`. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`).'
               maxProperties: 50
+              x-max-json-bytes: 65536
               additionalProperties: true
             adaptive:
               type: object
-              description: Real-burn estimate state. Shape owned by packages/core.
+              description: Real-burn estimate state. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`).
               maxProperties: 50
+              x-max-json-bytes: 65536
               additionalProperties: true
             learn:
               type: object
-              description: Science-card progress. Shape owned by packages/core.
+              description: Science-card progress. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`).
               maxProperties: 50
+              x-max-json-bytes: 65536
               additionalProperties: true
             meal_plan:
               type: [object, 'null']
-              description: 'Saved meal plan. Prototype: `mealPlan`. Shape owned by packages/core.'
+              description: 'Saved meal plan. Prototype: `mealPlan`. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`).'
               maxProperties: 50
+              x-max-json-bytes: 65536
               additionalProperties: true
             prep:
               type: array
               maxItems: 100
-              description: Meal-prep batches still being eaten. Shape owned by packages/core.
+              description: Meal-prep batches still being eaten. Shape owned by packages/core; each batch at most 4 KB as compact JSON (`x-max-json-bytes`).
               items:
                 type: object
                 maxProperties: 50
+                x-max-json-bytes: 4096
                 additionalProperties: true
             reminders:
               type: array

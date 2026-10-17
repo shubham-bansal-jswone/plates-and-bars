@@ -16,7 +16,7 @@ const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".svg":
 // add per-path handling before adding a second block. Served with those headers, a CSP that breaks a page fails here.
 const headerLines = (await readFile(join(root, "_headers"), "utf8")).split("\n").map((l) => l.trim());
 const prodHeaders = Object.fromEntries(headerLines.filter((l) => /^[A-Za-z-]+: /.test(l)).map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 2)]));
-const pages = ["/", "/privacy/", "/terms/", "/delete-account/"];
+const pages = ["/", "/privacy/", "/terms/", "/delete-account/", "/licenses/"];
 const viewports = [{ width: 1280, height: 800 }, { width: 360, height: 740 }, { width: 320, height: 640 }];
 
 const chrome = [

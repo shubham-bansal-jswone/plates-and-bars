@@ -31,7 +31,7 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
 - CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
   `Authorization`, `Content-Type`, `Accept` and `If-None-Match` request headers, `Retry-After` and `ETag` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   Empty means every cross-origin call is refused.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter).
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
@@ -83,6 +83,7 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
     and the export omits it (`AccountRightsIT` lists it as the one table without an owner column, on purpose).
     V6 backfills it from `ai_usage` once. Rolling back to an image without V6 and then forward again under-counts: spend
     recorded in between is only in `ai_usage`, not in the ledger (and is lost from it if accounts were deleted).
+  - Budget alert (#689): when a month's recorded tokens reach 80% of `AI_MONTHLY_BUDGET_TOKENS`, `AiQuotaService` logs exactly one WARN for that month (month and budget only, no user data). The "already fired" flag is `ai_spend_monthly.alert_sent` (V9), claimed with one conditional UPDATE, so it is restart-safe and race-safe. The WARN is the hook for a notifier later.
   - Limits: `app.rate-limit.ai-per-user` (5 per minute, the four POSTs) and `ai-per-ip` (60 per minute, all four).
   - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`, `/ai/suggest-tags` (contract 0.1.11). Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
@@ -161,7 +162,18 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   (400), then the cap. `stored` is `sync_state.records`, a per-user counter (V8, backfilled from the 16 tables) that
   the sync transaction raises by the number of new ids under the same `FOR UPDATE` lock that serialises the account's
   syncs, so two devices cannot overrun the cap and no push counts 16 tables. It is kept even while the cap is off, so
-  turning the cap on needs no recount. The only log line is the refusal: user id and the three counts.
+  the counter should already be right; as a safety net (#667) the app recounts it from the 16 tables in the background at
+  every start while the cap is on (see "Record recount" below). The only log line of a refusal is the user id and the three counts.
+- **Record recount** (#667). `RecordRecount` runs in a background thread after start whenever the cap is on (a limit
+  change needs a restart, so it runs then too). It walks `sync_state` in batches of 200 users by key; each user is one
+  short transaction that takes the same `FOR UPDATE` lock on its `sync_state` row that a sync holds, counts the 16 tables
+  for that user, and writes only if the counter differs. A push in flight either finishes first (and is counted) or
+  waits and adds to the corrected number, so no increment is lost and no lock lasts longer than one user's counts. It
+  is idempotent and safe to interrupt (restart repeats it). It logs only how many accounts were checked and corrected,
+  never user data. With the cap off it does nothing. **Enable order:** deploy this version (cap still off), then set
+  `SYNC_MAX_RECORDS_PER_ACCOUNT` and restart the API; the recount starts with that restart. Until it finishes (seconds
+  for thousands of accounts) a drifted counter could let one push through or refuse one wrongly, which only matters if the
+  counters had drifted, and the next push or restart fixes it. Enabling the cap itself waits for the app's `account_full` handling (app PR #662).
 - **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
   2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before
   anything else (detail `too_many_records`), then the body is validated against the schemas in the contract
@@ -222,7 +234,7 @@ cd backend
 ./gradlew test
 ```
 
-`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`, `SyncRecordCapIT`, `SyncRecordCountIT`) use Testcontainers to start MySQL 8, so Docker must be running.
+`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`, `SyncRecordCapIT`, `SyncRecordCountIT`, `RecordRecountIT`) use Testcontainers to start MySQL 8, so Docker must be running.
 `SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
 `ContentBundlesTest` (loads `content-hash.json`), `ContentControllerTest`, `ContentRealFilesTest` and `ContentRateLimitTest` (WebMvc), `UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
