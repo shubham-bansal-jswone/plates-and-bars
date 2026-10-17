@@ -1,0 +1,34 @@
+Plate & Bar (plates-and-bars)
+Copyright 2026 The Plate & Bar authors
+
+The code is licensed under the Apache License, Version 2.0 (see LICENSE).
+Our own written content (the cards, recipe text and exercise notes in
+content/, and user-facing app and website copy) is licensed under the
+Creative Commons Attribution 4.0 International licence (see CONTENT-LICENSE).
+
+This product includes or is derived from the following third-party material,
+each under its own licence. THIRD_PARTY.md has the full list with paths and
+links.
+
+- Body map polygons in apps/mobile/src/workout/bodyMapData.ts and
+  docs/prototype/plate-and-bar.html, adapted from react-body-highlighter.
+  MIT License, Copyright (c) 2020 GV79. The full MIT notice is kept in both
+  files and shown on the app's About screen.
+- Inter font: Copyright The Inter Project Authors
+  (https://github.com/rsms/inter). SIL Open Font License 1.1.
+- Roboto font: Copyright 2011 The Roboto Project Authors
+  (https://github.com/googlefonts/roboto-classic). SIL Open Font License 1.1.
+- Ionicons tab icons (via @expo/vector-icons), Copyright (c) 2015-present
+  Ionic (http://ionic.io/). MIT License.
+- Placeholder app icon and splash images in apps/mobile/assets from the
+  Expo project template,
+  Copyright (c) 2015-present 650 Industries, Inc. (aka Expo). MIT License.
+- Food composition values from USDA FoodData Central (SR Legacy),
+  U.S. Department of Agriculture, Agricultural Research Service.
+  Public domain (CC0 1.0).
+- Exercise photos embedded in docs/prototype/plate-and-bar.html from
+  Free Exercise DB (https://github.com/yuhonas/free-exercise-db).
+  Public domain (The Unlicense).
+- Gradle wrapper (backend/gradlew, backend/gradlew.bat,
+  backend/gradle/wrapper/gradle-wrapper.jar), Copyright 2015 the original
+  authors. Apache License, Version 2.0.
