@@ -67,6 +67,16 @@ describe('pruneDismissed', () => {
     expect(Object.keys(out)).toEqual(order);
   });
 
+  it('when a cap binds, keeps the newest key of each group before older keys of other groups', () => {
+    const d: Record<string, boolean> = { 'break:2025-01-01': true, 'up:Old Lift:2025-02-01': true };
+    for (let i = 0; i < 4; i++) for (let k = 0; k <= 90; k++) d[`stall:Lift ${i}:${addDays(TODAY, -k)}`] = true;
+    const out = pruneDismissed(d, TODAY);
+    expect(Object.keys(out)).toHaveLength(DISMISSED_MAX_KEYS);
+    expect(out['break:2025-01-01']).toBe(true);
+    expect(out['up:Old Lift:2025-02-01']).toBe(true);
+    for (let i = 0; i < 4; i++) expect(out[`stall:Lift ${i}:${TODAY}`]).toBe(true);
+  });
+
   it('keeps the compact JSON within 32 KB with 200-character and non-ASCII names', () => {
     const long = 'x'.repeat(200), hindi = 'स्क्वाट'.repeat(28).slice(0, 200), emoji = '💪'.repeat(100);
     const d: Record<string, boolean> = {};
