@@ -55,7 +55,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const dataVersion = useDataVersion();
   const f = useFoodDay({ db, now, notify, reloadKey: dataVersion });
-  const water = useWater({ db, date: f.date, now, profile, notify, reloadKey: dataVersion });
+  const water = useWater({ db, date: f.date, now, profile, adjustments: settings.adjustments, notify, reloadKey: dataVersion });
 
   if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
   if (status !== 'ready' || !settingsReady || !f.ready) return <Page><Hint>Loading…</Hint></Page>;

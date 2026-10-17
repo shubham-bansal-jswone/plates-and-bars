@@ -1,0 +1,4 @@
+# Entry point of the Compose stack (infra/staging/docker-compose.yml): the API host and the web app host.
+# Both files stay usable alone (Caddyfile.api for an API-only layout). Imports resolve relative to this file.
+import Caddyfile.api
+import Caddyfile.web

@@ -79,6 +79,16 @@ export function fakeServer(userId: string) {
     maxBytes: 2_097_152,
     /** What an over-limit body is answered with: the contract's 400, or 413 as a proxy in front of the API may. */
     tooLargeStatus: 400 as 400 | 413,
+    /** When set, a body over the limit is answered with this text instead of JSON, as a proxy does (an empty string is an empty body). */
+    proxyText: null as null | string,
+    /** The per-account record cap (contract 0.1.16): a push with a new record that takes the stored count over it gets 413 `account_full`, and nothing is applied. */
+    recordCap: null as null | number,
+    /** Every /sync request is refused with 413 `account_full`, even a pull-only one (a faulty server or proxy). */
+    refuseAll: false,
+    /** The 413 `account_full` body leaves out `record_cap` (the contract makes it optional for clients to rely on). */
+    bareAccountFull: false,
+    /** The next /sync requests are applied and then the answer is lost (the client sees a network error). */
+    loseResponses: 0,
     /** Resolution to apply to every version mismatch. */
     conflictResolution: null as null | 'server_won',
     put(table: string, rec: Rec) {
@@ -104,6 +114,7 @@ export function fakeServer(userId: string) {
       const json = (status: number, b: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', ...headers } });
       // The size check runs before anything else (contract wire conventions): before forced statuses, auth and holds.
       if (path === '/sync') s.sizes.push(bytes);
+      if (bytes > s.maxBytes && s.proxyText !== null) return new Response(s.proxyText || null, { status: 413, headers: s.proxyText ? { 'Content-Type': 'text/plain' } : {} });
       if (bytes > s.maxBytes) return json(s.tooLargeStatus, s.tooLargeStatus === 413 ? { code: 'too_large', message: 'x' } : { code: 'invalid_request', message: 'The request is too large.', details: [{ field: '', issue: 'too_large' }] });
       if (s.hold && (!s.holdPath || s.holdPath === path)) {
         // A held request ends with an AbortError when its signal fires, like a real fetch.
@@ -140,6 +151,11 @@ export function fakeServer(userId: string) {
         }));
         if (details.length) return json(400, { code: 'invalid_request', message: 'Some fields are invalid.', details });
       }
+      if (s.refuseAll) return json(413, { code: 'account_full', message: 'x', record_cap: { limit: 1, stored: 1, new_records: 1 } });
+      if (s.recordCap !== null) {
+        const fresh = Object.entries(body.changes ?? {}).flatMap(([table, recs]) => recs.filter((r) => !store.has(`${table}:${r.id}`)));
+        if (fresh.length > 0 && store.size + fresh.length > s.recordCap) return json(413, { code: 'account_full', message: 'Your account is full. New entries stay on this device and are not backed up.', ...(s.bareAccountFull ? {} : { record_cap: { limit: s.recordCap, stored: store.size, new_records: fresh.length } }) });
+      }
       const applied: unknown[] = [];
       const conflicts: unknown[] = [];
       for (const [table, recs] of Object.entries(body.changes ?? {})) {
@@ -153,6 +169,10 @@ export function fakeServer(userId: string) {
             conflicts.push({ table, id: r.id, client_version: r.version, server_version: cur.version, resolution: s.conflictResolution ?? 'server_won', server_record: cur });
           }
         }
+      }
+      if (s.loseResponses > 0) {
+        s.loseResponses--;
+        throw new TypeError('network down');
       }
       const changes = { ...pending };
       for (const k of Object.keys(pending)) delete pending[k];
