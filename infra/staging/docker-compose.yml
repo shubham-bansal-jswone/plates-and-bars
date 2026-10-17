@@ -71,7 +71,7 @@ services:
     environment:
       API_HOST: ${API_HOST:?set API_HOST}
       API_UPSTREAM: api:8080
-      # Web app host (same site as API_HOST). Unset: plain HTTP on loopback in the container only, so nothing is served.
+      # Web app host (same site as API_HOST). Unset: plain HTTP on port 8081 inside the container, which is not published, so nothing is reachable.
       WEB_HOST: ${WEB_HOST:-http://127.0.0.1:8081}
     # Caddyfile.stack imports Caddyfile.api and Caddyfile.web from the mounted directory.
     command: caddy run --config /etc/caddy/sites/Caddyfile.stack --adapter caddyfile
