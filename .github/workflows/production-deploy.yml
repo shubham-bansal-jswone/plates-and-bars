@@ -84,7 +84,8 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
       - name: Back up, deploy, health check (rolls back on failure)
         run: |
-          # check out exactly the tag on the VM, then run the tag's own release.sh: it refuses a checkout that is not
-          # the tag's commit, runs backup.sh (a failed backup stops the release), then deploy.sh
+          # check out exactly the commit verified above (not the tag, which could have moved while the run waited for
+          # approval), then run that commit's release.sh: it refuses if the tag no longer points at it, runs backup.sh
+          # (a failed backup stops the release), then deploy.sh
           ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -- "$SSH_USER@$SSH_HOST" \
-            "cd '$DIR' && git fetch --quiet --force --tags origin && git checkout --quiet --detach 'refs/tags/$TAG' && infra/staging/release.sh '$TAG'"
+            "cd '$DIR' && git fetch --quiet --force --tags origin && git checkout --quiet --detach '$SHA' && infra/staging/release.sh '$TAG' '$SHA'"
