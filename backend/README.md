@@ -8,6 +8,11 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
 `AiController`) and keeps the nesting limit at Jackson 2's 1000 instead of Jackson 3's 500. A duplicate key in an
 `/auth/*` body takes the last value (202); Boot 3 answered 500, a bug, pinned in `AuthControllerTest`.
 
+`POST /sync` also enforces `x-max-json-bytes` (`CompactJsonSizes`): each annotated value (`Settings.adjustments`,
+`adaptive`, `learn`, `meal_plan`, each `prep` item) is measured on the raw request bytes as compact UTF-8 JSON with
+number text as sent, and a value over its limit is 400 `invalid_request` (issue `max_json_bytes`) at its path. The
+keyword is registered with the schema library as a non-validation keyword so it does not log "Unknown keyword".
+
 ## Status (M0)
 
 - `GET /api/v1/health` is public (200 `{status}`, 503 `Error` when the database is unreachable).
