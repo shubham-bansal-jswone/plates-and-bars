@@ -41,8 +41,9 @@ class SentryWiringTest {
 
         @Bean
         ITransportFactory transportFactory() {
-            FACTORIES.incrementAndGet();
-            return (options, details) -> new ITransport() {
+            return (options, details) -> {
+                FACTORIES.incrementAndGet();
+                return new ITransport() {
                 @Override
                 public void send(SentryEnvelope envelope, Hint hint) throws java.io.IOException {
                     for (SentryEnvelopeItem item : envelope.getItems()) {
@@ -72,6 +73,7 @@ class SentryWiringTest {
 
                 @Override
                 public void close(boolean isRestarting) {}
+                };
             };
         }
     }
@@ -94,6 +96,7 @@ class SentryWiringTest {
             Sentry.flush(1000);
             assertThat(Sentry.isEnabled()).isFalse();
             assertThat(SENT).isEmpty();
+            assertThat(FACTORIES.get()).isZero(); // no transport was even created
         });
     }
 

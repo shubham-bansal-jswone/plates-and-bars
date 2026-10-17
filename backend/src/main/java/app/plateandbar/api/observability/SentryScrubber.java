@@ -25,13 +25,19 @@ import org.springframework.stereotype.Component;
  * values), no breadcrumbs, one opaque user id, and no tag, extra or context named like food, weight, health or a token.
  */
 @Component
-public class SentryScrubber implements SentryOptions.BeforeSendCallback {
+public class SentryScrubber implements SentryOptions.BeforeSendCallback, SentryOptions.BeforeSendTransactionCallback {
 
     private static final Set<String> SAFE_HEADERS = Set.of("user-agent", "content-type", "accept");
     private static final Pattern SENSITIVE = Pattern.compile(
             "(?i).*(food|meal|weight|health|answer|calorie|macro|token|email|password|secret|cookie|auth|session|code|note).*");
     private static final Pattern UUID_SEGMENT = Pattern.compile(
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    /** Performance data is never sent, even when a client's sentry-trace header asks to sample the request. */
+    @Override
+    public io.sentry.protocol.SentryTransaction execute(io.sentry.protocol.SentryTransaction transaction, Hint hint) {
+        return null;
+    }
 
     @Override
     public SentryEvent execute(SentryEvent event, Hint hint) {

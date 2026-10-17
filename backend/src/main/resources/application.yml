@@ -41,10 +41,10 @@ logging:
 # Error tracking (#687). Off, with no network use, unless SENTRY_DSN is set. SentryScrubber runs on every event.
 sentry:
   dsn: ${SENTRY_DSN:}
-  environment: ${SENTRY_ENVIRONMENT:production}
+  environment: ${SENTRY_ENVIRONMENT:${spring.profiles.active:dev}}
   send-default-pii: false
   max-request-body-size: none
-  traces-sample-rate: 0.0
+  max-breadcrumbs: 0
   attach-server-name: false
   enable-external-configuration: false
 
