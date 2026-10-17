@@ -13,6 +13,8 @@ Where to find things. The prototype is the behaviour specification; everything e
     INCIDENT-RESPONSE.md           personal data breach runbook (DPDP notification, templates)
     ACCOUNT-DELETION-RUNBOOK.md    deleting an account on an emailed request (code check, DELETE /me, replies)
     PLAY-DATA-SAFETY.md            Play Console Data safety and Health apps declaration answers
+    PLAY-STORE-LISTING.md          Play store listing drafts, store settings, audience and content rating answers
+    check-play-listing.mjs         checks the listing's lengths, disclaimer and placeholders (node docs/check-play-listing.mjs)
 
 When the prototype changes, follow "When the prototype changes" in AGENTS.md.
 
