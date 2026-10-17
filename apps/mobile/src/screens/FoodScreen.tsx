@@ -4,13 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, planForMeal, showAddedSugar, undoFlex, type FoodFacts, type PlanItem } from '@plate-and-bar/core';
+import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logPrep, logTotals, planFlex, planForMeal, prepFor, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type PrepEntry } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { PLAN_ITEM_GONE, plannedLogged, toastMs } from '../food/copy';
+import { PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, toastMs } from '../food/copy';
 import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
@@ -41,7 +41,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const c = useTheme();
   const router = useRouter();
   const { profile, status } = useProfile();
-  const { ready: settingsReady, settings, loadFailed, setFlex, setDiet } = useSettings();
+  const { ready: settingsReady, settings, loadFailed, setFlex, setDiet, update } = useSettings();
   const [toast, setToast] = useState<string | null>(null);
   const [adding, setAdding] = useState<Meal | null>(null);
   const [describing, setDescribing] = useState<Meal | null>(null);
@@ -96,6 +96,22 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
       else skipped.push(n); // a plan item holds no nutrition of its own, so one gone from the catalog cannot be logged
     }
     notify(plannedLogged(meal, skipped, items.length - skipped.length));
+  };
+
+  /** "Log 1 katori": logs one portion of the batch and takes it off the batch, in the settings write queue (nothing waits on the network). */
+  const logPrepared = (meal: Meal, id: string) => {
+    if (blocked()) return;
+    let done: PrepEntry | undefined;
+    // The updater also runs when the write is made, on the stored record: only its first run, here, decides what is logged.
+    const ok = update((s) => {
+      const r = logPrep(s.prep, id);
+      if (!r) return {};
+      done ??= r.entry;
+      return { prep: r.prep };
+    });
+    if (!ok || !done) return;
+    f.add(meal, { name: done.name, qty: 1, kcal: done.food.kcal, protein_g: done.food.protein_g, carbs_g: done.food.carbs_g, fat_g: done.food.fat_g });
+    notify(prepLogged(done.name));
   };
 
   return (
@@ -159,7 +175,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} kcalEaten={t.kcal} reloadKey={dataVersion} /> : null}
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} prep={prepFor(settings.prep, m, f.date)} onLogPrep={(id) => logPrepared(m, id)} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
           <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" {...a11yState({ checked: complete })} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -189,7 +205,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   );
 }
 
-function MealSection({ meal, items, facts, planned, onLogPlanned, known, onRemove, onAdd, onDescribe, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; known: (name: string) => boolean; onRemove: (id: string) => void; onAdd: () => void; onDescribe?: () => void; onRecipes: () => void }) {
+function MealSection({ meal, items, facts, prep, onLogPrep, planned, onLogPlanned, known, onRemove, onAdd, onDescribe, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; prep: PrepEntry[]; onLogPrep: (id: string) => void; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; known: (name: string) => boolean; onRemove: (id: string) => void; onAdd: () => void; onDescribe?: () => void; onRecipes: () => void }) {
   const c = useTheme();
   const kcal = logTotals(items, facts).kcal;
   return (
@@ -215,6 +231,12 @@ function MealSection({ meal, items, facts, planned, onLogPlanned, known, onRemov
           {planned.some(([n]) => known(n)) ? <Button label="Log it" a11yLabel={`Log your planned ${meal.toLowerCase()}`} kind="ghost" onPress={() => onLogPlanned(meal, planned)} /> : null}
         </View>
       ) : null}
+      {prep.map((p) => (
+        <View key={p.id} style={styles.between}>
+          <Text style={{ color: c.ink, flex: 1 }}>{prepLine(p.name, p.left)}</Text>
+          <Button label="Log 1 katori" a11yLabel={`Log 1 katori of ${p.name} to ${meal.toLowerCase()}`} kind="ghost" onPress={() => onLogPrep(p.id)} />
+        </View>
+      ))}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
       {onDescribe ? <Button label={AI_COPY.describeButton} a11yLabel={`Describe your ${meal.toLowerCase()} in words, AI estimate`} onPress={onDescribe} kind="ghost" /> : null}
       <Button label="Recipes" a11yLabel={`Recipes for ${meal.toLowerCase()}: build a recipe, the library and cooking mode`} onPress={onRecipes} kind="link" />

@@ -1,9 +1,9 @@
-import { DEFAULT_WATER_SIZES, type ExType, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
+import { DEFAULT_WATER_SIZES, type ExType, type FlexEntry, type MealPlan, type PrepEntry } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
 /**
  * Contract `Settings`, snake_case as in packages/api/openapi.yaml. Shapes that the contract leaves to
- * packages/core (`adjustments`, `adaptive`, `learn`, `prep`) stay open objects here.
+ * packages/core (`adjustments`, `adaptive`, `learn`) stay open objects here; `prep` is core's `PrepEntry`.
  */
 export interface Settings extends Omit<SyncMeta, 'id'> {
   /**
@@ -29,7 +29,8 @@ export interface Settings extends Omit<SyncMeta, 'id'> {
   learn: Record<string, unknown>;
   /** Core's `MealPlan`: the shape the contract leaves to packages/core. */
   meal_plan: MealPlan | null;
-  prep: Record<string, unknown>[];
+  /** Meal-prep batches (core's `PrepEntry`; core's prep rules read and write them). */
+  prep: PrepEntry[];
 }
 
 /** A fresh Settings record: every required contract field present, nothing chosen yet. */

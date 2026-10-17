@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { fitSuggestions, OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
+import { addPrep, fitSuggestions, OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
+import { localDate } from '../setup/logic';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { Button, Caption, ErrorText, Field, Hint, H1, Label, Page, Press } from '../components/ui';
 import { fmt } from '../format';
+import { newId } from '../db/records';
+import { useSettings } from '../state/SettingsProvider';
 import type { WorkoutDb } from '../db/workouts';
 import { MEALS, type Meal } from '../food/types';
 import { getKatoriG, getLibrary, getPresets, getRawIngredients, unknownIngredients } from '../recipes/content';
 import { CookMode } from '../recipes/CookMode';
-import { FIT_LABEL, fitLine, LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, problem, RB_INTRO, UNITS_HINT, unknownBlock } from '../recipes/copy';
+import { FIT_LABEL, fitLine, LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, PREP_NOT_SAVED, prepSet, problem, RB_INTRO, UNITS_HINT, unknownBlock } from '../recipes/copy';
 import { blankDraft, fromLibrary, fromPreset, fromRecipe, withFit, type Draft } from '../recipes/draft';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { useRecipes } from '../recipes/useRecipes';
@@ -44,6 +47,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
+  const { update, loadFailed } = useSettings();
   const store = useRecipes({ db, now, notify, reloadKey: useDataVersion() });
   const [d, setD] = useState<Draft>(() => blankDraft(meal));
   const leaving = useRef(false);
@@ -69,6 +73,21 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
     if (log) return leave(onBack);
     notify(`Saved ${r.name} to your foods`);
     setD(blankDraft(d.meal));
+  };
+  /** "Save as meal prep" (prototype `rb-prep`): saves the recipe as Save only does, then sets the batch; nothing is set when the recipe does not save. */
+  const savePrep = () => {
+    const unknown = unknownIngredients(d.rows);
+    if (unknown.length) return notify(unknownBlock(unknown));
+    const r = recipeFood({ name: d.name, ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
+    if (r.kind !== 'ok' || !t.perKatori) return notify(r.kind !== 'ok' ? problem(r) : NO_YIELD_HINT);
+    if (loadFailed) return notify(PREP_NOT_SAVED);
+    const entryId = newId();
+    const batch = { id: entryId, name: r.name, meal: d.meal, katoris: t.katoris, perKatori: t.perKatori, today: localDate(now()) };
+    store.save({ result: r, yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams, oil: d.oil, editing: d.editing, log: null });
+    // The updater runs on the shown copy and again on the stored record: a batch already there (a replay) is not added twice.
+    update((s) => (s.prep.some((p) => p.id === entryId) ? {} : { prep: addPrep(s.prep, batch) }));
+    notify(prepSet(Math.round(t.katoris), d.meal));
+    leave(onBack);
   };
   const steps = d.lib?.steps ?? [];
 
@@ -173,6 +192,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
         <View style={styles.wrap}>
           <Button label={`Save and add to ${d.meal.toLowerCase()}`} onPress={() => save(true)} />
           <Button label="Save only" kind="ghost" onPress={() => save(false)} />
+          <Button label="Save as meal prep" a11yLabel={`Save as meal prep for ${d.meal.toLowerCase()}`} kind="ghost" onPress={savePrep} />
           <Button label="Kitchen tests" kind="ghost" onPress={() => leave(onKitchen)} />
           <Button label="Back" kind="link" onPress={() => leave(onBack)} />
         </View>
