@@ -14,11 +14,12 @@ Inputs: `packages/api/openapi.yaml` (what the server accepts), `apps/mobile/src/
 | Sync | Signed in **and** the user taps "Agree and sync" (data_storage consent) | Every record in the `SyncTable` list (below) | `apps/mobile/src/sync/engine.ts` (`consent_required`), `SyncTable` in the contract |
 | AI features | Signed in, AI switched on by the user (off by default), and the feature switched on on the server | Only the fields listed on the privacy page; the server passes them to [AI provider] and may hold the answer in memory for 24 hours | `apps/mobile/src/ai/AiProvider.tsx`, `apps/mobile/src/ai/copy.ts`, `/ai/*` in the contract |
 | Export | User taps download in "Your data" | Server copy comes down to the device; the user saves or shares the file with the system share sheet | `apps/mobile/src/account/`, `GET /me/export` |
+| Crash and error reports | Build has a DSN (`EXPO_PUBLIC_SENTRY_DSN`); no user switch | Error type, stack frames, device model, OS and app version, release and environment, a random install id (not tied to an account), breadcrumbs with type, category, level and time only. No food, weight, health answers, messages, tokens or photos | `apps/mobile/src/telemetry/scrub.ts`, `apps/mobile/README.md` |
 | Delete | User taps "Delete everything" | Deletion request; server deletes the account and its data | `apps/mobile/src/account/server.ts`, `DELETE /me` |
 
 Never leaves the device: progress photos and kitchen-test photos (AES-256-GCM in an on-device vault, `apps/mobile/src/photos/vault.ts`; only `has_photo` syncs), and the local database (Android backup and device transfer are excluded, `apps/mobile/plugins/with-no-backup.js`, `allowBackup: false`). Cycle and lab data are not built yet and are device-only by design (`docs/development-plan.md`).
 
-No SDKs collect data: the mobile dependencies (`apps/mobile/package.json`) include no analytics, advertising, crash reporting or Google sign-in SDK. Fonts are bundled.
+The only SDK that sends data is `@sentry/react-native` (MIT), and only in a build made with `EXPO_PUBLIC_SENTRY_DSN` set; with no DSN it is not started and sends nothing (`apps/mobile/src/telemetry/errors.ts`). It sends crash and error reports to our self-hosted GlitchTip. The mobile dependencies include no analytics, advertising or Google sign-in SDK. Fonts are bundled.
 
 ## Data safety form answers
 
@@ -36,7 +37,7 @@ Form categories, data types, purposes and the definitions of "collected", "share
 
 ### Data types
 
-Every collected type is **optional**: signing in, syncing and AI are each the user's choice, and the app works without them (Google: optional means users can choose whether to provide it [G1]). Nothing is **shared**: the SMTP provider, host, backup storage and AI provider process data for us as service providers, which Google excludes from sharing [G1]. **Owner:** that holds only if the [AI provider] terms make it a processor that does not use the data for itself; if not, declare the AI inputs as shared. Nothing is collected for analytics, advertising, marketing or personalisation.
+Every collected type is **optional**: signing in, syncing and AI are each the user's choice, and the app works without them (Google: optional means users can choose whether to provide it [G1]). Nothing is **shared**: the SMTP provider, host, backup storage, error-tracking service and AI provider process data for us as service providers, which Google excludes from sharing [G1]. **Owner:** that holds only if the [AI provider] terms make it a processor that does not use the data for itself; if not, declare the AI inputs as shared. Nothing is collected for analytics, advertising, marketing or personalisation.
 
 | Category > type | Collected | What, specifically | Purposes | Source |
 | --- | --- | --- | --- | --- |
@@ -46,6 +47,8 @@ Every collected type is **optional**: signing in, syncing and AI are each the us
 | Health and fitness > Health info | Yes | Height, weight at setup, weigh-ins, body measurements, pregnancy or breastfeeding status, the six health-check answers, the date a doctor cleared the user, exclusions with reason `pain` and joints, food and water logs, user foods, recipes and kitchen tests (nutrition), calorie and macro targets, fasting days, sleep hours. AI weekly summary inputs: average weight, average calories and protein, targets, estimated burn | App functionality | `Profile`, `Weight`, `Measurement`, `Exclusion`, `FoodLog`, `WaterLog`, `UserFood`, `Recipe`, `KitchenTest`, `DayNote`, `WeeklySummaryRequest` |
 | Health and fitness > Fitness info | Yes | Activity level, training days and session length, experience, goal and pace, workouts, sets, lift history, steps (typed in), swaps, exercise preferences and reminders in settings. AI weekly summary inputs: sessions done and planned, lifts improved or stalled | App functionality | `Profile`, `Workout`, `WorkoutSet`, `LiftStat`, `DayNote`, `Swap`, `Settings`, `WeeklySummaryRequest` |
 | App activity > Other user-generated content | Yes | Free text the user writes: kitchen-test notes, names of own foods, recipes and custom exercises; text typed into Describe a meal, Ask why questions | App functionality | `KitchenTest.note`, `UserFood`, `Recipe`, `Settings.custom_tags`, `DescribeMealRequest`, `AskWhyRequest`, `SuggestTagsRequest` |
+| App info and performance > Crash logs | Yes, only if the build has a DSN | Error type, stack frames, release, environment, random install id | Analytics is not selected; choose App functionality (fixing bugs), not shared, not ephemeral | `apps/mobile/src/telemetry/scrub.ts` |
+| App info and performance > Diagnostics | Yes, only if the build has a DSN | Device model, OS and app version sent with a crash report | App functionality | `apps/mobile/src/telemetry/scrub.ts` |
 | App activity > App interactions | Yes (recommended) | In-app state that syncs: science-card progress, last weekly check-in seen, dismissed suggestions | App functionality | `Settings.learn`, `checkin_seen`, `adjustments` |
 
 Notes on judgement calls:
@@ -63,8 +66,12 @@ Notes on judgement calls:
 | Photos and videos | Photos stay in the on-device vault; camera and gallery permissions are for that only (`apps/mobile/app.json`) |
 | Files and docs | Exports are saved or shared by the user from the device; nothing is uploaded |
 | Device or other IDs | No advertising id or device id; record ids are per record (`SyncMeta.id`) |
-| App info and performance | No crash or diagnostics SDK today |
+| App info and performance > Other app performance data | No launch times, scrolling or battery data; only crash logs and diagnostics above |
 | Personal info (name, address, phone, race, beliefs, orientation), Financial info, Messages, Audio, Calendar, Contacts, Web browsing | Not asked for or sent anywhere |
+
+## Permissions
+
+`@sentry/react-native` adds `android.permission.ACCESS_NETWORK_STATE` to the manifest, which lets it tell whether the phone is online. The Data safety form asks about data, not permissions, so this is a note for the owner: the privacy page lists it. **Owner:** check the built manifest, because the permission is merged in at build time.
 
 ## What changes the answers
 
@@ -73,7 +80,8 @@ Notes on judgement calls:
 | Release build without `EXPO_PUBLIC_API_URL` (no server) | Answer "No" to collection: nothing leaves the device, and there is no account to delete. On 2026-10-17 nothing in the repository sets this variable, including `.github/workflows/android-release.yml`, so check which case the uploaded build is |
 | AI never switched on in production (all `AI_*_ENABLED` false), or no real AI provider deployed. Today `StubAiProvider` is the only provider, so `GET /ai/status` reports every feature off and the app sends no AI request | Remove the AI-only items (Describe a meal and Ask why text, weekly summary inputs). Everything else stays because sync collects it |
 | AI switched on | As written above. Confirm the [AI provider] terms (service provider or third party) and update the privacy page placeholder |
-| GlitchTip or another crash SDK added (`infra/OBSERVABILITY.md`) | Add App info and performance > Crash logs and Diagnostics, purpose App functionality (and Analytics if used for that); add User IDs if events carry the account id |
+| Release built without `EXPO_PUBLIC_SENTRY_DSN` | Remove Crash logs and Diagnostics, and the `ACCESS_NETWORK_STATE` note below if the manifest no longer has it |
+| Backend `SENTRY_DSN` set | Backend events carry one hashed account id and no health data, so no new type; User IDs is already declared. Set `SENTRY_ENVIRONMENT=production` with the DSN |
 | Health Connect steps (v1 plan) | Fitness info already covers steps. Also complete the Health Connect permission declaration in Play Console |
 | Google sign-in added to the app | Add Google as an account creation method; the email and user id answers stay |
 | Cycle log (v1.1) | If it stays on the device, no Data safety change; add Period Tracking to the Health apps declaration |
@@ -97,6 +105,7 @@ All apps on any track must file it; options and wording are from Google's help p
 ## Before submitting
 
 - Privacy policy and deletion pages are drafts pending lawyer review; publish final versions at `https://[site host]/privacy/` and `/delete-account/` first.
+- The error-tracking DSN (`EXPO_PUBLIC_SENTRY_DSN`, backend `SENTRY_DSN` with `SENTRY_ENVIRONMENT=production`) goes in only after the privacy page with the "Crash and error reports" section is published, and the retention placeholder `[error report retention period]` is filled in.
 - Fill `[AI provider]`, `[SMTP provider]`, `[hosting provider]` and the backup terms on the privacy page so it matches these answers.
 
 ## Sources
