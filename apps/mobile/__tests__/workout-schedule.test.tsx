@@ -65,6 +65,12 @@ describe('missed day', () => {
     await waitFor(() => expect(adj(db)).toMatchObject({ declines: { missed: 1 }, dismissed: { 'missed:2026-10-07': true } }));
   });
 
+  it('answering a card prunes dismissed keys older than 90 days before today (#721)', async () => {
+    const db = await open({ dismissed: { 'missed:2025-01-06': true, 'missed:2025-01-13': true, 'ci:2026-10-05': true } });
+    await fireEvent.press(await screen.findByLabelText('Shift the week, missed day'));
+    await waitFor(() => expect(adj(db).dismissed).toEqual({ 'ci:2026-10-05': true, 'missed:2026-10-07': true }));
+  });
+
   it('is not shown in sequence mode', async () => {
     await open({ mode: 'sequence' });
     await screen.findByText(/ day$/);

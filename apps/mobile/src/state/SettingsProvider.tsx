@@ -6,7 +6,7 @@ import type { StoreDb } from '../db/records';
 import { CUSTOM_EXERCISES_MAX, type ExerciseTag, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 import { exerciseNamed, setCustomTags } from '../workout/catalog';
-import { clearKept, persistKept, readKept, replayKept, type KeptEdit } from './keptEdits';
+import { clearKept, keptCopy, persistKept, readKept, replayKept, type KeptEdit } from './keptEdits';
 
 interface SettingsState {
   ready: boolean;
@@ -106,7 +106,22 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       }
       // Always set, also to none: after a wipe the store is empty and the previous user's custom exercises must go (#448).
       // Edits whose write failed show on top of the record (the next save writes them): the screen does not drop what is kept.
-      if (s) s = replayKept(s, unsaved.current);
+      if (s) {
+        const before = persisted.current ? keptCopy(unsaved.current) : null;
+        s = replayKept(s, unsaved.current);
+        // A field a pull changed was dropped from the kept edits: the saved copy drops it too, or a restart would read it again.
+        if (before !== null && keptCopy(unsaved.current) !== before) {
+          // On the queue, like the saves: one that ran meanwhile has already cleared the kept edits, and this does not write them back.
+          queue.current = queue.current.then(() =>
+            inTransaction(db, async (txn) => {
+              if (stale()) throw new Dropped();
+              if (persisted.current) await persistKept(txn, unsaved.current);
+            }).catch(() => undefined),
+          );
+          await queue.current;
+          if (!live) return;
+        }
+      }
       setCustomTags(s?.custom_tags ?? {}); // before the render that reads the catalog
       if (s) {
         ref.current = s;
@@ -138,6 +153,17 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       pending.current += 1;
       setCustomTags(next.custom_tags);
       setState(next);
+      // A callback that throws must not reject the save queue: the next write would be skipped and reported as failed.
+      const tell = (ok: boolean) => {
+        try {
+          done?.(ok);
+        } catch (e) {
+          // Reported outside the save queue, so the dev error screen and Sentry still see it.
+          setTimeout(() => {
+            throw e;
+          });
+        }
+      };
       queue.current = queue.current
         .then(async () => {
           if (stale()) throw new Dropped();
@@ -161,7 +187,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         })
         .then(
           (saved) => {
-            done?.(true); // told also when this provider has gone: the record was written
+            tell(true); // told also when this provider has gone: the record was written
             if (!mounted.current) return;
             setSaveFailed(false);
             pending.current -= 1;
@@ -174,10 +200,10 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
           },
           async (e) => {
             // The account is gone: nothing to show, keep or write; the caller is told nothing was stored.
-            if (e instanceof Dropped) return done?.(false);
+            if (e instanceof Dropped) return tell(false);
             pending.current -= 1;
             setSaveFailed(true);
-            done?.(false);
+            tell(false);
             // Written down so an app restart does not lose them; if this fails too they stay in memory.
             // With the lock held, and not for an account that a sign-out or wipe has meanwhile removed: that wipe took the lock
             // first and deleted the kept edits, so writing them now would hand them to the next account (#645).

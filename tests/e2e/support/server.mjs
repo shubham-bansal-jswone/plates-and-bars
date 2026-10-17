@@ -6,7 +6,9 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = fileURLToPath(new URL('../../../apps/mobile/dist/', import.meta.url));
+const root = process.env.E2E_DIST
+  ? fileURLToPath(new URL(`../${process.env.E2E_DIST}/`, import.meta.url))
+  : fileURLToPath(new URL('../../../apps/mobile/dist/', import.meta.url));
 // The Content-Security-Policy is read from _headers, so the suite runs under the policy that ships (#749).
 const csp = readFileSync(new URL('../../../apps/mobile/public/_headers', import.meta.url), 'utf8').match(/^\s*Content-Security-Policy:\s*(.+)$/m)?.[1];
 if (!csp) throw new Error('no Content-Security-Policy in apps/mobile/public/_headers');
