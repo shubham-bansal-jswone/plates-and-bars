@@ -188,6 +188,13 @@ class AuthCookieIT {
         }
     }
 
+    /** Reuse lines (order-independent: filtered by content, counted, never indexed). */
+    private List<ILoggingEvent> reuseLines() {
+        return logs.list.stream()
+                .filter(e -> e.getFormattedMessage().startsWith("Refresh token reuse"))
+                .toList();
+    }
+
     private static String sha256(String v) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(v.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
@@ -237,6 +244,27 @@ class AuthCookieIT {
         ResponseEntity<Map> bad = web("/google", null, "{\"id_token\":\"g-bad\"}");
         assertThat(bad.getStatusCode().value()).isEqualTo(401);
         assertThat(bad.getHeaders().get(HttpHeaders.SET_COOKIE)).isNull();
+    }
+
+    @Test
+    void cookieModeReuseLogsOneWarnWithoutTokenMaterial() {
+        ResponseEntity<Map> in = signInWeb(uniq());
+        String first = cookieValue(in);
+        String second = cookieValue(web("/refresh", first, "{}"));
+        clock.advance(Duration.ofSeconds(61));
+        assertThat(reuseLines()).isEmpty();
+
+        assertThat(web("/refresh", first, "{}").getStatusCode().value()).isEqualTo(401);
+        assertThat(web("/refresh", first, "{}").getStatusCode().value()).isEqualTo(401); // replay: same family
+
+        assertThat(reuseLines()).hasSize(1);
+        ILoggingEvent line = reuseLines().get(0);
+        assertThat(line.getLevel()).isEqualTo(Level.WARN);
+        String text = line.getFormattedMessage();
+        assertThat(text).contains("reason=rotated_token_reused", "user=" + userId(in), "family=");
+        for (String token : List.of(first, second)) {
+            assertThat(text).doesNotContain(token).doesNotContain(token.substring(3, 12));
+        }
     }
 
     @Test
