@@ -90,7 +90,7 @@ import Base from "../layouts/Base.astro";
     <li>Backups: [planned policy to confirm: nightly backups kept for 30 days; after you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later].</li>
     <li>Crash and error reports: kept for [error report retention period], then deleted. A report holds no health data and only an opaque id, so deleting your account does not remove it. [Lawyer review: the hashed account id in server reports is a pseudonym that we can recompute while your account exists, so confirm whether reports must be deleted with the account.]</li>
     <li>Access logs of the web servers: kept for at most about 15 days, then deleted.</li>
-    <li>Server logs record opaque user ids and are kept for a bounded period. Retention: the API's own logs and the web server's error lines are each kept until about 50 MB per service is reached, which is usually a few days and never more than 14 days.</li>
+    <li>Server logs record opaque user ids and are kept for a bounded period. Retention: the API's own logs and the web server's error lines are kept for at most 14 days, and for less if the logs reach about 200 MB on the server.</li>
   </ul>
 
   <h2>Your choices</h2>
