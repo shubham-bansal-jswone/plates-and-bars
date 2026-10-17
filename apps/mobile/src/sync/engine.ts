@@ -9,6 +9,8 @@ import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, 
 import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { authInit, cookieMode, refreshBody } from './transport';
+import { signOutPending, withTabLock } from './webSession';
 import { deleteKitchenPhoto } from '../photos/vault';
 import { NATURAL_KEY_TABLES } from './ids';
 
@@ -152,14 +154,15 @@ export const refreshJoinCount = () => joins;
  */
 async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal): Promise<boolean> {
   const t = await d.tokens.load();
-  if (!t) return false;
-  const key = JSON.stringify([owner, t.refresh]);
+  // Web: the cookie is the session, so a refresh can run with no access token in memory (cold reload), unless a sign-out is pending.
+  if (cookieMode() ? signOutPending() : !t) return false;
+  const key = JSON.stringify([owner, t?.refresh ?? '']);
   const inflight = refreshing.get(key);
   if (inflight) {
     joins++;
     return raceAbort(inflight, signal);
   }
-  const promise: Promise<boolean> = rotate(d, owner, t, signal).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
+  const promise: Promise<boolean> = (cookieMode() ? withTabLock(() => rotate(d, owner, '', signal)) : rotate(d, owner, t?.refresh ?? '', signal)).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
   refreshing.set(key, promise);
   return promise;
 }
@@ -175,13 +178,13 @@ function raceAbort<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
   });
 }
 
-async function rotate(d: SyncDeps, owner: string | null, t: { refresh: string }, signal?: AbortSignal): Promise<boolean> {
+async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, signal?: AbortSignal): Promise<boolean> {
   const sameOwner = async () => {
     if ((await getUserId(d.db)) !== owner) throw new Aborted(); // a wipe and another sign-in happened meanwhile: do not touch their tokens
   };
   let result;
   try {
-    result = await net(() => d.api.POST('/auth/refresh', { body: { refresh_token: t.refresh }, signal }));
+    result = await net(() => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal, ...authInit() }));
   } catch (e) {
     // Aborted by the caller that started this request (its timeout): joiners must not read that as "offline".
     if (e instanceof NetworkError && signal?.aborted) throw new TransientError(fail('unavailable'));
@@ -190,6 +193,11 @@ async function rotate(d: SyncDeps, owner: string | null, t: { refresh: string },
   const { data, response } = result;
   if (data) {
     await sameOwner();
+    // A cookie that belongs to another account than this store's must not carry this store's records to it (ADR 004).
+    if (cookieMode() && owner && data.user.id !== owner) {
+      await d.tokens.clear();
+      return false;
+    }
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
     return true;
   }
@@ -297,7 +305,7 @@ export function syncOnce(d: SyncDeps): Promise<SyncResult> {
 
 async function run(d: SyncDeps): Promise<SyncResult> {
   const userId = await getUserId(d.db);
-  if (!userId || !(await d.tokens.load())) return { status: 'signed_out', conflicts: 0 };
+  if (!userId || (!cookieMode() && !(await d.tokens.load()))) return { status: 'signed_out', conflicts: 0 };
   if (!(await hasConsent(d.db))) return { status: 'consent_required', conflicts: 0 };
   const ctx: PullCtx = { userId, dates: null };
   // Checked inside every write: stop when paused, or when the store belongs to someone else now (a wipe and new sign-in).
@@ -323,6 +331,8 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let pushBlocked = false; // a full account refused a request of records it should store: the rest of the run only pulls
   const heldDue = () => full && !heldDone && !pushBlocked && (!heldTried || heldTried.user !== userId || now() - heldTried.at >= DAY_MS);
   try {
+    // Web after a reload (or a refresh that could not finish): no access token in memory, so restore it from the cookie first.
+    if (cookieMode() && !(await d.tokens.load()) && !(await refresh(d, userId))) return { status: 'signed_out', conflicts: 0 };
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const entries = pushBlocked ? [] : phase === 'held' ? (heldPlan.shift() ?? (await heldEntries(d.db, HELD_BATCH, sessionStamp))) : await pendingChanges(d.db, MAX_PUSH);
       if (phase === 'held' && entries.length === 0) {

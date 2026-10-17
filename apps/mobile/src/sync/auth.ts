@@ -4,6 +4,8 @@ import type { StoreDb } from '../db/records';
 import type { PullDb } from '../db/outbox';
 import { acceptTokenPair, type SignInOutcome } from './guard';
 import type { TokenStore } from './tokens';
+import { authInit, cookieMode } from './transport';
+import { clearSignOutPending, markSignOutPending, revokeCookie } from './webSession';
 
 /** Server root with the version path, e.g. https://host/api/v1. Unset means this build has no server: the app stays offline. */
 export const API_URL: string | undefined = process.env.EXPO_PUBLIC_API_URL || undefined;
@@ -32,8 +34,19 @@ export async function startEmailSignIn(api: ApiClient, email: string): Promise<S
 /** Exchanges the emailed code, then applies the device-ownership guard before the tokens are kept. */
 export async function verifyEmailCode(db: StoreDb & PullDb, api: ApiClient, tokens: TokenStore, email: string, code: string): Promise<VerifyResult> {
   try {
-    const { data, response } = await api.POST('/auth/email/verify', { body: { email, code } });
-    if (data) return await acceptTokenPair(db, tokens, data);
+    const { data, response } = await api.POST('/auth/email/verify', { body: { email, code }, ...authInit() });
+    if (data) {
+      const outcome = await acceptTokenPair(db, tokens, data);
+      if (cookieMode()) {
+        if (outcome.kind === 'signed_in') clearSignOutPending();
+        else {
+          // The tokens were refused (another account, unsynced changes) but the server already set the cookie: end that session.
+          markSignOutPending();
+          void revokeCookie(api);
+        }
+      }
+      return outcome;
+    }
     if (response.status === 401 || response.status === 400) return { kind: 'error', reason: 'invalid_code' };
     if (response.status === 429) return { kind: 'error', reason: 'rate_limited', retryAfterSec: Number(response.headers.get('Retry-After')) || 60 };
     return { kind: 'error', reason: 'unavailable' };
