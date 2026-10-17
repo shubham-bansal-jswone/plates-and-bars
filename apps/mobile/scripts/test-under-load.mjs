@@ -5,7 +5,8 @@
 //   --burners N    CPU burner processes running for the whole run (default: one per CPU, so the jest workers share
 //                  the machine with as many busy loops as there are cores)
 //   --stall-ms MS  also block the event loop for MS milliseconds on every turn inside each test file
-//                  (scripts/load-stall-setup.cjs): a slow machine on demand, even on an idle runner (default: off)
+//                  (scripts/load-stall-setup.cjs): a slow machine on demand, even on an idle runner. It slows a
+//                  file many times over, so use it on single files, not the whole suite (default: off)
 //   --dry-run      print the plan as JSON and exit without running anything
 //
 // Everything else goes to jest; with none, `--maxWorkers=2` is used. The exit code is jest's. It is meant to be run by
