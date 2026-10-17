@@ -81,7 +81,7 @@ Free tiers: nothing here adds a paid service; it reuses the bucket and VM limits
 
 ## 5. Monitoring
 
-Add an Uptime Kuma (MIT, self-hosted; the host is an **Owner** decision) HTTP(s) monitor on `https://<API_HOST>/api/v1/health` with an e-mail alert. `/health` answers 503 when the database is unreachable, so one monitor covers API and database. Check that the cron backup ran: the newest object in the bucket should be less than 25 hours old; the log is `~/plateandbar-backup.log` of the user whose crontab runs it.
+Add an Uptime Kuma (MIT, self-hosted; the host is an **Owner** decision) HTTP(s) monitor on `https://<API_HOST>/api/v1/health` with an e-mail alert. `/health` answers 503 when the database is unreachable, so one monitor covers API and database. Check that the cron backup ran: the newest object in the bucket should be less than 25 hours old; the log is `~/plateandbar-backup.log` of the user whose crontab runs it. Better, let the job report in: add an Uptime Kuma **Push** monitor with a heartbeat interval of 25 hours and put its push URL in `.env` as `BACKUP_HEARTBEAT_URL`, **in single quotes** because the URL holds `&` (`BACKUP_HEARTBEAT_URL='https://<kuma-host>/api/push/<token>?status=up&msg=OK&ping='`; `.env` is sourced by the shell, unquoted `&` would run the line in the background and cut the URL). `backup.sh` requests it after each successful run (dump, upload and retention), also for the backup taken before a production release, and sends nothing when a run fails, so the monitor alerts on the missing ping. Empty or unset = off. A failing monitor never fails the backup. The URL is a secret: it goes to curl on stdin, never on a command line.
 
 ## 6. Turning on the per-account record cap (#349, #667)
 
