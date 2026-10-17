@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
@@ -126,7 +127,7 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
   if (!name) return null;
   const card = getCatalog().cards[name];
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose} transparent={false}>
+    <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.sheetBody}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
@@ -164,7 +165,7 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
           <Button label="Close" onPress={onClose} />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 
