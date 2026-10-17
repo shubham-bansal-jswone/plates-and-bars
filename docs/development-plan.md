@@ -190,6 +190,7 @@ The app handles health data, so the launch checklist below is a gate, not a wish
 - [ ] In-app consent with a stored, dated record; withdraw consent = delete account
 - [ ] Account deletion in the app and on a web page (Google Play requires both)
 - [ ] Play Console: Data safety form, health apps declaration, 18+ content rating
+- [ ] Error-tracking DSN (app and backend, with `SENTRY_ENVIRONMENT=production`) set only after the privacy page's crash-reporting section is published and the Play data-safety answers include crash logs and `ACCESS_NETWORK_STATE`
 - [ ] Medical disclaimer in setup and the store listing; health check and doctor-clearance flow
 - [ ] Coach review of exercise cards and plans; dietitian review of recipes, portions and food guidance
 - [ ] Attribution screen: USDA FoodData Central, Open Food Facts (when added), Free Exercise DB, react-body-highlighter (MIT)
