@@ -8,8 +8,9 @@ import { fmt } from '../format';
 import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { useAi } from '../ai/AiProvider';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
-import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
+import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, noMatch, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
 
 import type { UserFood } from './types';
@@ -80,6 +81,7 @@ function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress:
 
 function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
   const c = useTheme();
+  const ai = useAi();
   const [q, setQ] = useState('');
   const [serv, setServ] = useState(1);
   const [grams, setGrams] = useState('');
@@ -106,7 +108,7 @@ function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; m
       <Hint>{GRAMS_HINT}</Hint>
       <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={styles.search} />
       {list.length ? <Hint>{SOURCE_HINT}</Hint> : null}
-      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>No match. Use Custom to enter it yourself.</Hint>}
+      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>{noMatch(ai.available('describe_meal'))}</Hint>}
     </View>
   );
 }
