@@ -10,6 +10,7 @@ import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { deleteKitchenPhoto } from '../photos/vault';
+import { NATURAL_KEY_TABLES } from './ids';
 
 export type SyncDb = WorkoutDb & PullDb;
 
@@ -318,10 +319,12 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let sessionStamp = '';
   let heldBatches = 0;
   let heldPlan: OutboxEntry[][] = []; // halves of a refused batch that held some records the server already stores, still to send
-  const heldDue = () => full && (!heldTried || heldTried.user !== userId || now() - heldTried.at >= DAY_MS);
+  let heldDone = false; // the held phase runs at most once per run
+  let pushBlocked = false; // a full account refused a request of records it should store: the rest of the run only pulls
+  const heldDue = () => full && !heldDone && !pushBlocked && (!heldTried || heldTried.user !== userId || now() - heldTried.at >= DAY_MS);
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const entries = phase === 'held' ? (heldPlan.shift() ?? (await heldEntries(d.db, HELD_BATCH, sessionStamp))) : await pendingChanges(d.db, MAX_PUSH);
+      const entries = pushBlocked ? [] : phase === 'held' ? (heldPlan.shift() ?? (await heldEntries(d.db, HELD_BATCH, sessionStamp))) : await pendingChanges(d.db, MAX_PUSH);
       if (phase === 'held' && entries.length === 0) {
         // Every held record was tried this session: one more main round pulls what is left, then the run ends.
         heldTried = { user: userId, at: now() };
@@ -341,13 +344,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         const record = await buildRecord(d.db, userId, e);
         if (!record) {
           await clearPushed(d.db, e);
+          await forgetSent(d.db, e);
           consumed++;
           continue;
         }
         if (full && phase === 'main' && !record.version) {
           // The account is full: a new record would be refused, and refusing the request would hold up the edits with it.
           // A tombstone no request ever carried never left this device and holds no data: it is dropped. Anything else stays held.
-          if (record.deleted_at && !(await wasSent(d.db, e))) await clearPushed(d.db, e);
+          // Not in a natural-key table: another device may have made the same id on the server, and the held push settles it (server_won).
+          if (record.deleted_at && !NATURAL_KEY_TABLES.has(e.tbl) && !(await wasSent(d.db, e))) await clearPushed(d.db, e);
           else hold.push(e);
           consumed++;
           continue;
@@ -381,11 +386,13 @@ async function run(d: SyncDeps): Promise<SyncResult> {
       const out = await post(d, { cursor, changes: changes as Schemas['SyncChanges'] }, guard, userId);
       // The server answered a batch with some records it stores and some it does not: the stored ones are behind the new ones. Halve it.
       const refused = out.ok ? undefined : out.accountFull;
-      const mixed = phase === 'held' && !!refused && entries.length > 1 && (refused.newRecords ?? entries.length) < entries.length;
+      // Only the records actually sent count (the byte budget or a gone record can leave some of the loaded ones out).
+      const sentEntries = [...sent.values()].map((s) => s.entry);
+      const mixed = phase === 'held' && !!refused && sentEntries.length > 1 && (refused.newRecords ?? sentEntries.length) < sentEntries.length;
       if (phase === 'held' && (out.ok || refused)) {
         heldTried = { user: userId, at: now() };
         // This batch counts as tried, so the session moves on to other records even if these stay queued.
-        if (!mixed) await touchHeld(d.db, entries, sessionStamp, guard);
+        if (!mixed) await touchHeld(d.db, sentEntries, sessionStamp, guard);
       }
       if (!out.ok) {
         if (out.accountFull) {
@@ -393,7 +400,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           await unmarkSent(d.db, fresh, guard);
           if (phase === 'held') {
             // Really new records in this batch: they stay held. A mixed batch is halved, so the ones the server stores are found.
-            if (mixed) heldPlan.unshift(entries.slice(0, Math.ceil(entries.length / 2)), entries.slice(Math.ceil(entries.length / 2)));
+            if (mixed) heldPlan.unshift(sentEntries.slice(0, Math.ceil(sentEntries.length / 2)), sentEntries.slice(Math.ceil(sentEntries.length / 2)));
+            else if (sentEntries.length > 0 && (refused?.newRecords ?? 0) === sentEntries.length) {
+              // None of these is stored: their marks go, and a tombstone that is not in a natural-key table is dropped (it holds no data).
+              for (const s of sent.values()) {
+                if (s.record.version) continue;
+                if (s.record.deleted_at && !NATURAL_KEY_TABLES.has(s.entry.tbl)) await clearPushed(d.db, s.entry);
+                await forgetSent(d.db, s.entry);
+              }
+            }
             if (++heldBatches >= MAX_HELD_BATCHES) phase = 'main';
             round--;
             continue;
@@ -404,8 +419,11 @@ async function run(d: SyncDeps): Promise<SyncResult> {
             round--; // the same records again, now holding the new ones back
             continue;
           }
-          // Full already and still refused: the batch holds a version above 0 that the server does not store. Nothing to split or loop on.
-          return { ...out.result, conflicts, pulled, pushed, skipped, accountFull: true, ...(quarantined ? { quarantined } : {}) };
+          // Full already and still refused: the batch holds a record the server does not store although it has a version. Nothing to
+          // split: stop pushing for this run and keep pulling.
+          pushBlocked = true;
+          round--;
+          continue;
         }
         if (out.tooLarge && sent.size > 0) {
           // The 400 names no record. Send half as many; one record alone that is still too large is set aside.
@@ -500,6 +518,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         if (heldDue()) {
           // Everything else is pushed and pulled: now the held records, once per launch and then once a day.
           phase = 'held';
+          heldDone = true;
           sessionStamp = stampOf(now());
           heldBatches = 0;
           heldPlan = [];
