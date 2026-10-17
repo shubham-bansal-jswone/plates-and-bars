@@ -87,7 +87,6 @@ export async function clearKept(db: StoreDb): Promise<void> {
 const isPlain = (v: unknown): v is Fields => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** The persisted kept edits; anything unreadable, of another version or in the wrong shape counts as none. */
-
 export async function readKept(db: StoreDb): Promise<KeptEdit[]> {
   try {
     const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);

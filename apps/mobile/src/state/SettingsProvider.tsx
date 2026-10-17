@@ -111,10 +111,14 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         s = replayKept(s, unsaved.current);
         // A field a pull changed was dropped from the kept edits: the saved copy drops it too, or a restart would read it again.
         if (before !== null && keptCopy(unsaved.current) !== before) {
-          await inTransaction(db, async (txn) => {
-            if (stale()) throw new Dropped();
-            await persistKept(txn, unsaved.current);
-          }).catch(() => undefined);
+          // On the queue, like the saves: one that ran meanwhile has already cleared the kept edits, and this does not write them back.
+          queue.current = queue.current.then(() =>
+            inTransaction(db, async (txn) => {
+              if (stale()) throw new Dropped();
+              if (persisted.current) await persistKept(txn, unsaved.current);
+            }).catch(() => undefined),
+          );
+          await queue.current;
           if (!live) return;
         }
       }

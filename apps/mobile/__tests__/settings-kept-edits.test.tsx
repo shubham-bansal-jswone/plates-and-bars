@@ -4,10 +4,10 @@ import { applyPulled } from '../src/db/outbox';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings, type Settings } from '../src/settings/types';
 import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
-import { wipeLocalStore } from '../src/sync/guard';
+import { signOut, wipeLocalStore } from '../src/sync/guard';
 import { readKept } from '../src/state/keptEdits';
 import { getKv, KEY_SETTINGS_KEPT, setKv } from '../src/sync/store';
-import { openDb } from './sync-helpers';
+import { memoryTokens, openDb } from './sync-helpers';
 
 const PULLED_VERSION = 7;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -170,6 +170,39 @@ describe('kept settings edits survive an app restart (#651)', () => {
     await reload(r); // the pulled diet wins: the kept edit has nothing left for that field
     expect(r.result.current.settings.diet).toBe('egg');
     expect(await saved()).toEqual([[]]);
+  });
+
+  it('a sign-out that wipes the store while a reload is between its read and the rewrite leaves no kept edits for the next account (#645)', async () => {
+    const { db, writes, launch, reload, pull } = await setup();
+    const r = await launch();
+    writes.failing = true;
+    await act(async () => r.result.current.setDiet('veg'));
+    await waitFor(() => expect(r.result.current.saveFailed).toBe(true));
+    writes.failing = false;
+    await pull({ diet: 'egg' }); // the reload will drop the kept diet edit and rewrite the saved copy
+    // Hold the reload's read of the record: it has read, and the sign-out runs before the rewrite.
+    let reached!: () => void;
+    let open!: () => void;
+    const got = new Promise<void>((res) => (reached = res));
+    const release = new Promise<void>((res) => (open = res));
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      const row = await read(sql, ...p);
+      if (sql.includes('user_settings')) {
+        db.getFirstAsync = read as typeof db.getFirstAsync; // only this read is held
+        reached();
+        await release;
+      }
+      return row;
+    }) as typeof db.getFirstAsync;
+    const reloading = reload(r);
+    await got;
+    expect(await signOut(db, memoryTokens({ access: 'a', refresh: 'r' }), { discard: true })).toBe(0);
+    expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull();
+    open();
+    await reloading;
+    await sleep(30);
+    expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull(); // the rewrite found the wipe and wrote nothing
   });
 
   it('a saved copy of another version, an old list, or edits with array fields read as none', async () => {
