@@ -7,11 +7,13 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import app.plateandbar.api.sync.SyncExporter;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,7 +30,15 @@ class AccountServiceDeleteTest {
             accounts, mock(SyncExporter.class), JsonMapper.builder().build(), Clock.fixed(AT, ZoneOffset.UTC), ledger);
 
     @Test
+    void anAccountThatIsAlreadyGoneAppendsNothingMore() {
+        when(accounts.find(USER)).thenReturn(Optional.empty());
+        service.delete(USER);
+        verify(ledger, never()).record(any(), any());
+    }
+
+    @Test
     void recordsTheErasureOnceAndBeforeDeleting() {
+        when(accounts.find(USER)).thenReturn(Optional.of(new AccountRepository.Account(USER, "a@example.com", AT)));
         service.delete(USER);
         InOrder order = inOrder(ledger, accounts);
         order.verify(ledger).record(USER, AT);
@@ -38,6 +48,7 @@ class AccountServiceDeleteTest {
 
     @Test
     void aFailedLedgerWriteDeletesNothing() {
+        when(accounts.find(USER)).thenReturn(Optional.of(new AccountRepository.Account(USER, "a@example.com", AT)));
         doThrow(new ErasureLedgerException("erasure ledger not writable", null)).when(ledger).record(USER, AT);
         assertThatThrownBy(() -> service.delete(USER)).isInstanceOf(ErasureLedgerException.class);
         verify(accounts, never()).deleteAll(any());

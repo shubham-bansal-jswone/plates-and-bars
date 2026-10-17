@@ -109,12 +109,15 @@ public class AccountService {
      * other order could delete the rows and then lose the record a restore needs. The reverse failure (ledger
      * written, deletion rolled back) is harmless: the retry succeeds, and replaying a ledgered id that still
      * exists only deletes an account its owner asked to delete. A retry may append the same id twice; replay is
-     * by id, so duplicates are harmless.
+     * by id, so duplicates are harmless. Once the account row is gone the ledger is not appended to again.
      */
     @Transactional
     public void delete(String userId) {
         Instant at = clock.instant();
-        ledger.record(userId, at);
+        // A repeat call (the access token outlives the account by up to 15 minutes) has nothing new to ledger.
+        if (accounts.find(userId).isPresent()) {
+            ledger.record(userId, at);
+        }
         accounts.deleteAll(userId);
         log.info("Account deleted: user {} at {}", userId, at);
     }
