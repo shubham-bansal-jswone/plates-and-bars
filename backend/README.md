@@ -1,7 +1,12 @@
 # Plate & Bar backend
 
-Spring Boot 3 (Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contract is
+Spring Boot 4.1 (Spring Framework 7, Spring Security 7, Jackson 3; Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contract is
 `packages/api/openapi.yaml`; every route lives under `/api/v1`.
+
+Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turns off Jackson 3's
+`fail-on-trailing-tokens` (so `/sync` and `/auth/*` still accept content after the JSON body; `/ai/*` refuses it in
+`AiController`) and keeps the nesting limit at Jackson 2's 1000 instead of Jackson 3's 500. A duplicate key in an
+`/auth/*` body takes the last value (202); Boot 3 answered 500, a bug, pinned in `AuthControllerTest`.
 
 ## Status (M0)
 
@@ -148,7 +153,7 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
 - **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
   2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before
   anything else (detail `too_many_records`), then the body is validated against the schemas in the contract
-  (`SyncRequestValidator`, networknt json-schema-validator). The validator reads the one
+  (`SyncRequestValidator`, networknt json-schema-validator 3, which runs on Jackson 3). The validator reads the one
   `packages/api/openapi.yaml`: Gradle's `processResources` copies it onto the classpath, so there is no second
   copy to drift. Any problem is 400 `invalid_request` for the whole request with `details` naming the field and the
   failed keyword, never the value. Beyond the schema: no id twice in one request, ids lower-cased (stored, and echoed

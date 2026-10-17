@@ -70,8 +70,9 @@ describe('re-check card for a timed rule that ended', () => {
     await openSession((db) => saveExclusion(db, ended()));
     await screen.findByText('Ready to try Pec Deck Fly again?');
     const heads = screen.getAllByRole('header');
-    expect(heads.map((h) => h.props['aria-level'])).toEqual([2, 1]);
-    expect(heads.map((h) => (h.children as unknown[]).join(''))).toEqual(['Ready to try Pec Deck Fly again?', 'Push B day']);
+    // The Cardio block (#619, prototype h3) now also shows on the start view, after them.
+    expect(heads.map((h) => h.props['aria-level'])).toEqual([2, 1, 3]);
+    expect(heads.map((h) => (h.children as unknown[]).join(''))).toEqual(['Ready to try Pec Deck Fly again?', 'Push B day', 'Cardio']);
   });
 
   it('does not show before the check-again day', async () => {

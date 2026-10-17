@@ -26,6 +26,12 @@ export interface ExState {
 
 export const blankRow = (): Row => ({ id: newId(), version: 0, w: '', r: '', done: false, rate: null, t: null });
 
+/**
+ * A day with cardio minutes but no session: a workout row with no template, no base and no exercises (the contract allows
+ * all three; the prototype's blank `day.workout` is the same). Starting a session fills it in and keeps the minutes.
+ */
+export const isCardioOnly = (w: Workout): boolean => w.template === null && w.base === null && w.exercises.length === 0;
+
 export const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /**

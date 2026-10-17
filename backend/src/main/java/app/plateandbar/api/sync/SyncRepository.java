@@ -1,8 +1,8 @@
 package app.plateandbar.api.sync;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -207,7 +207,7 @@ class SyncRepository {
                                 rs.getInt("winner_version"),
                                 rs.getObject("logged_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),
                                 losing);
-                    } catch (JsonProcessingException e) {
+                    } catch (JacksonException e) {
                         throw new IllegalStateException("stored record is not valid JSON", e);
                     }
                 },
@@ -225,7 +225,7 @@ class SyncRepository {
                             : rs.getObject("deleted_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),
                     rs.getLong("seq"),
                     json.readTree(rs.getString("data")));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("stored record is not valid JSON", e);
         }
     }
@@ -233,7 +233,7 @@ class SyncRepository {
     private String text(JsonNode data) {
         try {
             return json.writeValueAsString(data);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException(e);
         }
     }

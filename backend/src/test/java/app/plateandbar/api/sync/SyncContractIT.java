@@ -6,8 +6,8 @@ import static app.plateandbar.api.sync.SyncFixtures.id;
 import static app.plateandbar.api.sync.SyncFixtures.waterLog;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,12 +33,12 @@ class SyncContractIT extends SyncITBase {
         assertConforms("SyncResponse", r.body());
         // The envelope's SyncChanges and SyncConflict.server_record are validated by their own table's schema,
         // since SyncRecord is an anyOf that several tables satisfy.
-        r.body().path("changes").fields().forEachRemaining(e -> {
+        r.body().path("changes").properties().forEach(e -> {
             SyncTable t = SyncTable.byName(e.getKey()).orElseThrow();
             e.getValue().forEach(rec -> assertConforms(ContractSchemas.schemaNameOf(t), rec));
         });
         r.body().path("conflicts").forEach(c -> {
-            SyncTable t = SyncTable.byName(c.path("table").asText()).orElseThrow();
+            SyncTable t = SyncTable.byName(c.path("table").asString()).orElseThrow();
             assertConforms(ContractSchemas.schemaNameOf(t), c.path("server_record"));
         });
     }
@@ -46,7 +46,7 @@ class SyncContractIT extends SyncITBase {
     @Test
     void syncTableEnumMatchesTheContract() {
         List<String> contract = new ArrayList<>();
-        ContractSchemas.schema("SyncTable").path("enum").forEach(n -> contract.add(n.asText()));
+        ContractSchemas.schema("SyncTable").path("enum").forEach(n -> contract.add(n.asString()));
         List<String> ours = new ArrayList<>();
         for (SyncTable t : SyncTable.values()) {
             ours.add(t.name());
@@ -96,7 +96,7 @@ class SyncContractIT extends SyncITBase {
         Resp conflicted = post(user, stale.build());
         assertSyncResponse(conflicted);
         assertThat(conflicted.body().path("conflicts")).hasSize(all.size());
-        assertThat(conflicted.body().path("conflicts").findValuesAsText("resolution")).containsOnly("server_won");
+        assertThat(conflicted.body().path("conflicts").findValuesAsString("resolution")).containsOnly("server_won");
 
         // client_won, retry, tombstone, paging.
         String rid = id();
@@ -123,7 +123,7 @@ class SyncContractIT extends SyncITBase {
         Resp page1 = post(user, Req.of(null).build());
         assertSyncResponse(page1);
         assertThat(page1.body().path("has_more").asBoolean()).isTrue();
-        Resp page2 = post(user, Req.of(page1.body().path("cursor").asText()).build());
+        Resp page2 = post(user, Req.of(page1.body().path("cursor").asString()).build());
         assertSyncResponse(page2);
         assertThat(page2.body().path("has_more").asBoolean()).isFalse();
     }
