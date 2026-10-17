@@ -326,12 +326,12 @@ describe('web provider', () => {
       latest = useSync();
       return null;
     };
-    await render(
+    const view = await render(
       <SyncProvider db={db} tokens={tokens} api={createClient(API, async () => (await tokens.load())?.access ?? null)}>
         <Grab />
       </SyncProvider>,
     );
-    return { sync: () => latest };
+    return { sync: () => latest, unmount: () => view.unmount() };
   }
 
   it('a sign-out in another tab shows this tab signed out and clears its tokens', async () => {
@@ -425,12 +425,12 @@ describe('web provider', () => {
     };
     (globalThis as { fetch: unknown }).fetch = srv.fetch;
     setup(srv);
-    const { sync } = await mount(webTokenStore());
+    const { sync, unmount } = await mount(webTokenStore());
     const advance = async (ms: number) => void (await act(async () => void (await jest.advanceTimersByTimeAsync(ms))));
     await advance(0);
     await waitFor(() => expect(sync().signedIn).toBe(true));
     await advance(0);
-    return { sent, advance, expire, now: sync };
+    return { sent, advance, expire, now: sync, unmount };
   }
 
   it('a failed refresh request is retried 20 s after the failure by its own timer, not on the next interval tick (#809)', async () => {
@@ -442,11 +442,78 @@ describe('web provider', () => {
     await advance(1);
     expect(sent.length).toBe(n + 1);
     expect((sent[n] ?? 0) - (sent[n - 1] ?? 0)).toBe(REFRESH_RETRY_MS);
-    await advance(REFRESH_RETRY_MS);
-    expect(sent.length).toBe(n + 2); // every 20 s while it keeps failing, never backed off
   });
 
-  it('a run started meanwhile replaces the scheduled retry: one retry is pending at a time, never two', async () => {
+  it('after the second refresh failure in a row the normal backoff applies, not a retry every 20 s', async () => {
+    const { sent, advance } = await timedRefreshes((srv) => srv.down.add('/auth/refresh'));
+    const n = sent.length;
+    await advance(REFRESH_RETRY_MS);
+    expect(sent.length).toBe(n + 1); // the fast retry, which fails too
+    await advance(REFRESH_RETRY_MS * 3); // 60 s on: no 20 s retries
+    expect(sent.length).toBe(n + 2); // only the normal backoff run (30 s after the second failure)
+    await advance(60_000);
+    expect(sent.length).toBe(n + 3); // then 1 min
+  });
+
+  it('a successful run resets the count, so the next refresh failure gets the fast retry again', async () => {
+    const h = { srv: undefined as undefined | ReturnType<typeof setupServer> };
+    const { sent, advance, expire } = await timedRefreshes((srv) => {
+      h.srv = srv;
+      srv.down.add('/auth/refresh');
+    });
+    const srv = h.srv as ReturnType<typeof setupServer>;
+    await advance(REFRESH_RETRY_MS); // failure 2: now on the normal backoff
+    srv.down.delete('/auth/refresh');
+    await advance(SYNC_INTERVAL_MS * 2); // a backoff run gets its refresh through: a clean run
+    srv.down.add('/auth/refresh');
+    expire.syncs = 2; // the run and its retry
+    const n = sent.length;
+    await advance(SYNC_INTERVAL_MS + 2_000); // the run at +10 s needs a refresh, which fails (failure 1 again) and is retried at +30 s
+    expect(sent.length).toBe(n + 2); // without the reset it would be on the normal backoff: one send only
+  });
+
+  /** Answers every /auth/refresh with `status`, counting them; everything else goes to the fake server. */
+  const refreshAnswers = (status: number, hits: { n: number }) => () => {
+    const inner = globalThis.fetch;
+    (globalThis as { fetch: unknown }).fetch = async (input: Request) => {
+      if (!new URL(input.url).pathname.endsWith('/auth/refresh')) return inner(input);
+      hits.n++;
+      return new Response(JSON.stringify({ code: 'x', message: 'x' }), { status, headers: { 'Content-Type': 'application/json' } });
+    };
+  };
+
+  it('a definite refusal of the refresh (a 403, as for a wrong Origin) is not retried at 20 s: it follows the normal schedule', async () => {
+    const hits = { n: 0 };
+    const { advance } = await timedRefreshes(refreshAnswers(403, hits));
+    const n = hits.n;
+    expect(n).toBeGreaterThan(0);
+    await advance(REFRESH_RETRY_MS + 5_000); // no 20 s retry; the next run is 30 s after the refusal (t = 30 s, not 20 s)
+    expect(hits.n).toBe(n);
+  });
+
+  it('a 5xx on the refresh gets the fast retry', async () => {
+    const hits = { n: 0 };
+    const { advance } = await timedRefreshes(refreshAnswers(503, hits));
+    const n = hits.n;
+    expect(n).toBeGreaterThan(0); // the mount run's refresh
+    await advance(REFRESH_RETRY_MS);
+    expect(hits.n).toBe(n + 1);
+  });
+
+  it('two runs joined to one failing sync leave one tracked retry: unmounting cancels it, nothing goes out 20 s later (#813 review)', async () => {
+    const h = { srv: undefined as undefined | ReturnType<typeof setupServer> };
+    const { sent, advance, now, unmount, expire } = await timedRefreshes((srv) => void (h.srv = srv));
+    (h.srv as ReturnType<typeof setupServer>).down.add('/auth/refresh');
+    expire.syncs = 2; // the run behind both calls is answered 401 and needs a refresh, which fails; a stray retry would be answered 401 too
+    await act(async () => void (await Promise.all([now().syncNow(), now().syncNow()])));
+    expect(now().last?.viaRefresh).toBe(true);
+    const n = sent.length;
+    await act(async () => unmount());
+    await advance(REFRESH_RETRY_MS * 2); // also what pins "clear the retry on unmount"
+    expect(sent.length).toBe(n);
+  });
+
+  it('a run started meanwhile cancels the scheduled retry: the old timer does not fire', async () => {
     const { sent, advance, now } = await timedRefreshes((srv) => srv.down.add('/auth/refresh'));
     const n = sent.length;
     await advance(5_000);
@@ -454,8 +521,8 @@ describe('web provider', () => {
     expect(sent.length).toBe(n + 1);
     await advance(REFRESH_RETRY_MS - 1); // the first timer's moment is past (t = 20 s): it must not fire
     expect(sent.length).toBe(n + 1);
-    await advance(1); // the replacement is due 20 s after the manual run
-    expect(sent.length).toBe(n + 2);
+    await advance(1); // the manual run was the second failure in a row: normal backoff, no timer 20 s after it
+    expect(sent.length).toBe(n + 1);
   });
 
   it('the retry timer does not run while a confirm dialog holds the schedule', async () => {
