@@ -458,6 +458,13 @@ class AuthFlowIT {
         clock.advance(Duration.ofSeconds(10));
         assertThat(refresh(t1.get("refresh_token")).getStatusCode().value()).isEqualTo(401); // the thief's next refresh
         assertThat(refresh(t2.get("refresh_token")).getStatusCode().value()).isEqualTo(401); // the whole session is dead
+        // the thief's token was the one a grace retry replaced: logged once, with its own reason and no token material
+        assertThat(reuseLines()).hasSize(1);
+        String text = reuseLines().get(0).getFormattedMessage();
+        assertThat(text).contains("reason=replaced_token_presented", "user=" + user(t0).get("id"));
+        for (Object token : List.of(t0.get("refresh_token"), t1.get("refresh_token"), t2.get("refresh_token"))) {
+            assertThat(text).doesNotContain(token.toString()).doesNotContain(token.toString().substring(3, 12));
+        }
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
                         Integer.class,

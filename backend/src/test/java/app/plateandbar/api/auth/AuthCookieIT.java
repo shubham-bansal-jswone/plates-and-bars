@@ -262,7 +262,7 @@ class AuthCookieIT {
         assertThat(line.getLevel()).isEqualTo(Level.WARN);
         String text = line.getFormattedMessage();
         assertThat(text).contains("reason=rotated_token_reused", "user=" + userId(in), "family=");
-        for (String token : List.of(first, second)) {
+        for (String token : List.of(first, second, in.getBody().get("access_token").toString())) {
             assertThat(text).doesNotContain(token).doesNotContain(token.substring(3, 12));
         }
     }
