@@ -9,10 +9,11 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 fail() { echo "FAIL: $*"; exit 1; }
 fresh() {
-  rm -rf "$tmp/t"; mkdir -p "$tmp/t/infra/scripts" "$tmp/t/infra/caddy" "$tmp/t/apps/site/public"
+  rm -rf "$tmp/t"; mkdir -p "$tmp/t/infra/scripts" "$tmp/t/infra/caddy" "$tmp/t/apps/site/public" "$tmp/t/apps/mobile/public"
   cp "$here/check-caddy-headers.sh" "$tmp/t/infra/scripts/"
   cp "$root"/infra/caddy/Caddyfile.* "$tmp/t/infra/caddy/"
   cp "$root/apps/site/public/_headers" "$tmp/t/apps/site/public/"
+  cp "$root/apps/mobile/public/_headers" "$tmp/t/apps/mobile/public/"
 }
 check() { "$tmp/t/infra/scripts/check-caddy-headers.sh" > "$tmp/out" 2>&1; }
 
@@ -42,5 +43,20 @@ if check; then fail "passed with HSTS only outside the header block"; fi
 fresh
 sed 's/nosniff/sniff/' "$tmp/t/infra/caddy/Caddyfile.site" > "$tmp/site" && cat "$tmp/site" > "$tmp/t/infra/caddy/Caddyfile.site"
 if check; then fail "passed with Caddyfile.site drifted from _headers"; fi
+
+# web app: COOP and COEP from apps/mobile/public/_headers must be in Caddyfile.web with the same values
+fresh
+sed 's/require-corp/credentialless/' "$tmp/t/infra/caddy/Caddyfile.web" > "$tmp/web" && cat "$tmp/web" > "$tmp/t/infra/caddy/Caddyfile.web"
+if check; then fail "passed with COEP drifted in Caddyfile.web"; fi
+grep -q 'Caddyfile.web is missing or differs from apps/mobile/public/_headers for: cross-origin-embedder-policy' "$tmp/out" || fail "wrong error: $(cat "$tmp/out")"
+
+fresh
+grep -v 'Cross-Origin-Opener-Policy' "$tmp/t/infra/caddy/Caddyfile.web" > "$tmp/web" && cat "$tmp/web" > "$tmp/t/infra/caddy/Caddyfile.web"
+if check; then fail "passed with COOP removed from Caddyfile.web"; fi
+
+# a header added to the mobile _headers (for example a new CSP) must reach Caddyfile.web
+fresh
+printf '  X-New-Header: 1\n' >> "$tmp/t/apps/mobile/public/_headers"
+if check; then fail "passed with a new _headers entry missing from Caddyfile.web"; fi
 
 echo "check-caddy-headers.sh tests passed"

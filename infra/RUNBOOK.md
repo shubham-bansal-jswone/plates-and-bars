@@ -68,3 +68,15 @@ Rehearsal: the dump and restore commands (not the bucket transfer) were run on 2
 ## 5. Monitoring
 
 Add an Uptime Kuma (MIT, self-hosted; the host is an **Owner** decision) HTTP(s) monitor on `https://<API_HOST>/api/v1/health` with an e-mail alert. `/health` answers 503 when the database is unreachable, so one monitor covers API and database. Check that the cron backup ran: the newest object in the bucket should be less than 25 hours old; the log is `~/plateandbar-backup.log` of the user whose crontab runs it.
+
+## 6. Web app (#683)
+
+The Expo web export is served by the same Caddy as the API (`infra/caddy/Caddyfile.web`); `.github/workflows/web-deploy.yml` publishes it. Off until you set `WEB_DEPLOY_ENABLED=true` (details in `infra/README.md`, Web app deploy). **Owner** steps, once per VM:
+
+1. Choose `WEB_HOST` on the same site as `API_HOST` (`app.example.com` next to `api.example.com`; the refresh cookie is `SameSite=Strict`) and point its DNS record at the VM.
+2. As the deploy user: `mkdir -p /opt/plateandbar/infra/staging/web` (Compose mounts it read-only at `/srv/web`; create it first or Docker makes it root-owned and rsync cannot write). Create a deploy-only SSH user or key limited to that directory (for example an rsync-restricted `authorized_keys` entry), separate from the `docker` user of the API deploy.
+3. In `.env` set `WEB_HOST=app.example.com` (and `WEB_DIR` if the directory is elsewhere), add `https://app.example.com` to `CORS_ALLOWED_ORIGINS` and `AUTH_COOKIE_ORIGINS`, then `docker compose up -d` (recreates Caddy and the API) and watch `docker compose logs caddy` for the certificate.
+4. In GitHub, add the environment variables and secrets listed in `infra/README.md` to environments `staging` and `production`, then set `WEB_DEPLOY_ENABLED=true`.
+5. Check: `curl -sI https://$WEB_HOST/` shows `cross-origin-opener-policy: same-origin`, `cross-origin-embedder-policy: require-corp` and `cache-control: no-cache`; a hashed file under `/_expo/static/` shows `immutable`.
+
+A change to a Caddyfile is not picked up by `docker compose up -d` (the file is a bind mount): run `docker compose restart caddy`. Roll the web app back by re-running the workflow on the older commit or tag (Actions, Re-run) or by rsyncing a previous `dist/` into `WEB_ROOT`.
