@@ -5,7 +5,7 @@ import { BODY_BUDGET_BYTES, MAX_BODY_BYTES, utf8Length } from '../src/sync/batch
 import { syncOnce } from '../src/sync/engine';
 import { listQuarantined, retryQuarantined } from '../src/sync/quarantine';
 import { KEY_CURSOR, KEY_USER, getCursor, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb, seedConsent, turns, until } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, until } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
