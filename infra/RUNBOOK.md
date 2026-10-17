@@ -18,7 +18,8 @@ Any S3-compatible bucket works: `backup.sh` only needs `BACKUP_S3_*` variables, 
 3. Install Docker Engine and the Compose plugin from Docker's apt repository (<https://docs.docker.com/engine/install/ubuntu/>).
 4. `git clone` the repository to `/opt/plateandbar` (full history: the API needs `CONTENT_UPDATED_AT`).
 5. `cd /opt/plateandbar/infra/staging && cp .env.example .env && chmod 600 .env`, then fill every value. `APP_RATELIMIT_TRUSTEDPROXIES` is fixed in `docker-compose.yml` to the pinned Compose subnet `172.28.0.0/24`, which is where Caddy connects from; see `infra/caddy/Caddyfile.api` and `infra/README.md` for why.
-6. First start:
+6. **Owner:** before the first start, `sudo /opt/plateandbar/infra/journald/install.sh` (once per VM; idempotent). It bounds container logs (the API's and Caddy's error lines) to 14 days; without it journald keeps them under its distribution defaults (`infra/OBSERVABILITY.md`, "Container logs"). On an existing VM, run it, then `docker compose up -d` so the containers use the journald log driver.
+7. First start:
    ```
    tag="$(git rev-parse --short HEAD)"
    CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" API_TAG="$tag" docker compose build api
@@ -27,10 +28,11 @@ Any S3-compatible bucket works: `backup.sh` only needs `BACKUP_S3_*` variables, 
    curl -fsS https://$API_HOST/api/v1/health
    ```
    The first request makes Caddy fetch the certificate; it needs ports 80 and 443 reachable from the internet.
+8. **Owner:** once, after the first deploy, check that logs come back through journald: `docker compose logs --tail 5 api` must print lines (and `journalctl CONTAINER_NAME=plateandbar-staging-api-1 -n 5` too).
 
 ## 2. Update and rollback
 
-Update: `git pull`, then repeat the commands of step 6. Each build tags the image `plateandbar-api:<API_TAG>`, so earlier tags stay on the VM. `API_TAG` lives in `.env`, so any later plain `docker compose up -d` runs the same tag.
+Update: `git pull`, then repeat the commands of step 7. Each build tags the image `plateandbar-api:<API_TAG>`, so earlier tags stay on the VM. `API_TAG` lives in `.env`, so any later plain `docker compose up -d` runs the same tag.
 
 Rollback = previous image tag: `docker image ls plateandbar-api`, set `API_TAG=<previous tag>` in `.env`, then `docker compose up -d api` (no `build`). Flyway migrations are forward-only: if the bad release added a migration, restore the last backup (section 4) as well, or ship a fix forward.
 
