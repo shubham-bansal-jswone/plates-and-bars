@@ -63,6 +63,14 @@ describe('full account notice', () => {
   });
 });
 
+describe('live region', () => {
+  it('stays mounted while the account is not full, so a notice that appears is announced', async () => {
+    await render(withSync({ signedIn: true, pending: 2 }, <SignInScreen />));
+    expect(screen.getByTestId('account-full-live').props.accessibilityLiveRegion).toBe('polite');
+    expect(screen.queryByText(/Your account is full/)).toBeNull();
+  });
+});
+
 describe('refused records', () => {
   it('shows how many were set aside and offers retry and discard', async () => {
     const retryQuarantined = jest.fn(async () => undefined);

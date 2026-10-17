@@ -83,6 +83,8 @@ export function fakeServer(userId: string) {
     proxyText: null as null | string,
     /** The per-account record cap (contract 0.1.16): a push with a new record that takes the stored count over it gets 413 `account_full`, and nothing is applied. */
     recordCap: null as null | number,
+    /** Every /sync request is refused with 413 `account_full`, even a pull-only one (a faulty server or proxy). */
+    refuseAll: false,
     /** The 413 `account_full` body leaves out `record_cap` (the contract makes it optional for clients to rely on). */
     bareAccountFull: false,
     /** The next /sync requests are applied and then the answer is lost (the client sees a network error). */
@@ -149,6 +151,7 @@ export function fakeServer(userId: string) {
         }));
         if (details.length) return json(400, { code: 'invalid_request', message: 'Some fields are invalid.', details });
       }
+      if (s.refuseAll) return json(413, { code: 'account_full', message: 'x', record_cap: { limit: 1, stored: 1, new_records: 1 } });
       if (s.recordCap !== null) {
         const fresh = Object.entries(body.changes ?? {}).flatMap(([table, recs]) => recs.filter((r) => !store.has(`${table}:${r.id}`)));
         if (fresh.length > 0 && store.size + fresh.length > s.recordCap) return json(413, { code: 'account_full', message: 'Your account is full. New entries stay on this device and are not backed up.', ...(s.bareAccountFull ? {} : { record_cap: { limit: s.recordCap, stored: store.size, new_records: fresh.length } }) });

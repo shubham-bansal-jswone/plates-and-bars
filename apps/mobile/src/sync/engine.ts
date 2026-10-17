@@ -398,11 +398,16 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         if (out.accountFull) {
           // Refused whole: nothing was stored, so this request's marks are undone. Not a too-large body: the batch is not split.
           await unmarkSent(d.db, fresh, guard);
+          // Nothing was sent (a pull-only request) or pushing is already off for this run: the server cannot be refusing records,
+          // so this is a fault; end the run instead of asking again.
+          if (sent.size === 0 || pushBlocked) return { ...out.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
           if (phase === 'held') {
             // Really new records in this batch: they stay held. A mixed batch is halved, so the ones the server stores are found.
+            // (A mixed batch is judged and halved by the records sent, in order: the first half then the second.)
             if (mixed) heldPlan.unshift(sentEntries.slice(0, Math.ceil(sentEntries.length / 2)), sentEntries.slice(Math.ceil(sentEntries.length / 2)));
             else if (sentEntries.length > 0 && (refused?.newRecords ?? 0) === sentEntries.length) {
               // None of these is stored: their marks go, and a tombstone that is not in a natural-key table is dropped (it holds no data).
+              // A natural-key one stays: another device may hold that id, and its held push settles it (server_won).
               for (const s of sent.values()) {
                 if (s.record.version) continue;
                 if (s.record.deleted_at && !NATURAL_KEY_TABLES.has(s.entry.tbl)) await clearPushed(d.db, s.entry);
