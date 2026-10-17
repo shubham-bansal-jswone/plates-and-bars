@@ -1,7 +1,8 @@
 package app.plateandbar.api.ai;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -45,16 +46,16 @@ public class AiContent {
     public AiContent(ObjectMapper json) {
         JsonNode c = read(json, "/content/cards.json");
         for (JsonNode n : c.path("cards")) {
-            cards.put(n.path("id").asText(), new Card(
-                    n.path("id").asText(),
-                    render(n.path("title").asText()),
-                    render(n.path("summary").asText()),
-                    render(n.path("body").asText()),
-                    n.path("evidence").asText(),
-                    n.path("source").asText()));
+            cards.put(n.path("id").asString(), new Card(
+                    n.path("id").asString(),
+                    render(n.path("title").asString()),
+                    render(n.path("summary").asString()),
+                    render(n.path("body").asString()),
+                    n.path("evidence").asString(),
+                    n.path("source").asString()));
         }
         List<String> ids = new ArrayList<>();
-        read(json, "/content/exercises.json").path("tags").fieldNames().forEachRemaining(ids::add);
+        read(json, "/content/exercises.json").path("tags").propertyNames().forEach(ids::add);
         this.exerciseIds = Set.copyOf(ids);
         if (cards.isEmpty() || exerciseIds.isEmpty()) {
             throw new IllegalStateException("content/cards.json or content/exercises.json is empty");
@@ -67,7 +68,7 @@ public class AiContent {
                 throw new IllegalStateException(resource + " is not on the classpath (see backend/README.md)");
             }
             return json.readTree(in);
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             throw new IllegalStateException(resource + " cannot be read", e);
         }
     }

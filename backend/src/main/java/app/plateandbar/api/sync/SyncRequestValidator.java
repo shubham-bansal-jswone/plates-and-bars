@@ -2,10 +2,11 @@ package app.plateandbar.api.sync;
 
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SchemaRegistryConfig;
@@ -52,7 +53,7 @@ public class SyncRequestValidator {
         JsonNode components;
         try (InputStream in = SyncRequestValidator.class.getResourceAsStream("/openapi.yaml")) {
             components = new YAMLMapper().readTree(in).path("components");
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             throw new IllegalStateException("openapi.yaml cannot be read", e);
         }
         ObjectMapper json = new ObjectMapper();
@@ -87,7 +88,7 @@ public class SyncRequestValidator {
             throw invalid(problems);
         }
 
-        String cursor = body.path("cursor").isNull() ? null : body.path("cursor").asText();
+        String cursor = body.path("cursor").isNull() ? null : body.path("cursor").asString();
         if (cursor != null && Cursor.parse(cursor).isEmpty()) {
             throw invalid(List.of(new ErrorResponse.Detail("cursor", "format")));
         }
@@ -111,7 +112,7 @@ public class SyncRequestValidator {
     }
 
     private Incoming parse(SyncTable table, JsonNode rec, String path, UUID namespace, Set<String> seen) {
-        String id = rec.path("id").asText().toLowerCase(java.util.Locale.ROOT);
+        String id = rec.path("id").asString().toLowerCase(java.util.Locale.ROOT);
         if (!Uuids.isCanonical(id)) {
             throw invalid(List.of(new ErrorResponse.Detail(path + ".id", "format")));
         }
@@ -141,7 +142,7 @@ public class SyncRequestValidator {
 
     private static Instant instant(JsonNode node, String path) {
         try {
-            return OffsetDateTime.parse(node.asText()).toInstant();
+            return OffsetDateTime.parse(node.asString()).toInstant();
         } catch (DateTimeParseException e) {
             throw invalid(List.of(new ErrorResponse.Detail(path, "format")));
         }
@@ -242,10 +243,10 @@ public class SyncRequestValidator {
 
     private static void collect(JsonNode schemas, JsonNode schema, Set<String> names) {
         if (schema.has("$ref")) {
-            String ref = schema.get("$ref").asText();
+            String ref = schema.get("$ref").asString();
             collect(schemas, schemas.path(ref.substring(ref.lastIndexOf('/') + 1)), names);
         }
-        schema.path("properties").fieldNames().forEachRemaining(names::add);
+        schema.path("properties").propertyNames().forEach(names::add);
         for (JsonNode part : schema.path("allOf")) {
             collect(schemas, part, names);
         }
