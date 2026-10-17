@@ -14,8 +14,10 @@ import { SyncBadge } from '../src/sync/SyncBadge';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider } from '../src/sync/SyncProvider';
 import { initErrorTracking } from '../src/telemetry/errors';
+import { registerServiceWorker } from '../src/web/registerServiceWorker';
 
 initErrorTracking(); // no-op unless EXPO_PUBLIC_SENTRY_DSN is set
+registerServiceWorker(); // production web only: offline start (#718)
 
 async function initDb(db: SQLiteDatabase): Promise<void> {
   const version = await migrate(db);

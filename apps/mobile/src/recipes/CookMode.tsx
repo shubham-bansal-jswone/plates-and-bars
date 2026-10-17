@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Vibration, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, Vibration, View } from 'react-native';
 import { stepMinutes } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Hint } from '../components/ui';
@@ -50,7 +51,7 @@ export function CookMode({ name, steps, onClose, onDone }: { name: string; steps
   };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={name || 'Cooking'} onClose={onClose}>
       <View style={[styles.fill, { backgroundColor: c.bg }]}>
         <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.head}>
@@ -67,7 +68,7 @@ export function CookMode({ name, steps, onClose, onDone }: { name: string; steps
         </ScrollView>
         <ToastBar message={toast} />
       </View>
-    </Modal>
+    </SheetModal>
   );
 }
 

@@ -1,4 +1,4 @@
-import { inRange, ladderCard, missed as missedDay, recoveryCard, reentryCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, steadyCard, type ExInfo, type LiftRecord, type PlanProfile, type SessionLog, type Where, type WeekPlan } from '@plate-and-bar/core';
+import { exerciseOverridesWouldExceed, inRange, ladderCard, missed as missedDay, recoveryCard, reentryCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, steadyCard, type ExInfo, type LiftRecord, type PlanProfile, type SessionLog, type Where, type WeekPlan } from '@plate-and-bar/core';
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
@@ -7,6 +7,7 @@ import { localDate } from '../setup/logic';
 import { shortDate, weekdayLong } from '../format';
 import { adjOf, answered, endAdj, muted, rangesOf, shiftWeek, startDeload, startReentry } from './adjust';
 import { getCatalog } from './catalog';
+import { OVERRIDES_FULL } from './exerciseSettings';
 import { LadderCardView, MissedCardView, RangeNote, RecheckCard, RecoveryCardView, ReentryCardView, StallCardView, SteadyCardView } from './AdjustCards';
 import type { ExState } from './model';
 import type { useRules } from './useRules';
@@ -16,9 +17,9 @@ type Rules = ReturnType<typeof useRules>;
 const NOT_SAVED = SETTINGS_UNREADABLE;
 
 /** The settings writer, refusing (with a message) when the stored settings could not be read, so nothing looks saved that is not. */
-function guarded(write: ReturnType<typeof useSettings>['update'], loadFailed: boolean, notify: (msg: string) => void): (p: Parameters<typeof write>[0]) => boolean {
-  return (p) => {
-    if (loadFailed || !write(p)) {
+function guarded(write: ReturnType<typeof useSettings>['update'], loadFailed: boolean, notify: (msg: string) => void): (p: Parameters<typeof write>[0], done?: Parameters<typeof write>[1]) => boolean {
+  return (p, done) => {
+    if (loadFailed || !write(p, done)) {
       notify(NOT_SAVED);
       return false;
     }
@@ -67,8 +68,19 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where, now
           {...common('stall', stall.key)}
           onRange={() => {
             const [lo, hi] = stall.range;
-            if (update((s) => ({ exercise_overrides: withEntry(s.exercise_overrides, ex.name, stallRangeOverride(ownGet(s.exercise_overrides, ex.name), info, stall.range)), adjustments: answered(s.adjustments, stall.key, today) })))
-              notify(`${ex.name}: now ${lo}–${hi} reps`);
+            // Judged against the stored record inside the save (a pull may have filled the list), like the exercise settings sheet:
+            // past the contract's cap the override is refused, and the card stays.
+            let full = false;
+            update(
+              (s) => {
+                if (exerciseOverridesWouldExceed(s.exercise_overrides, ex.name)) {
+                  full = true;
+                  return {};
+                }
+                return { exercise_overrides: withEntry(s.exercise_overrides, ex.name, stallRangeOverride(ownGet(s.exercise_overrides, ex.name), info, stall.range)), adjustments: answered(s.adjustments, stall.key, today) };
+              },
+              (stored) => (full ? notify(OVERRIDES_FULL) : stored && notify(`${ex.name}: now ${lo}–${hi} reps`)),
+            );
           }}
           onSide={() => side && switchTo('side', side, stall.key, `Switched to ${side}`)}
         />
