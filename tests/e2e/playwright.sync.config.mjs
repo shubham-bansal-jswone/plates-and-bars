@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { getInstalledBrowsers } from '@puppeteer/browsers';
 import { defineConfig } from '@playwright/test';
+import { API } from './support/sync.mjs';
 
 // The sync tests: a real backend (tests/e2e/stack, docker compose) and a web build with its URL compiled in. Separate from
 // playwright.config.mjs so the fast web suite never needs Docker. Run with `npm run test:sync` (README.md, "Sync tests").
@@ -27,7 +28,9 @@ export default defineConfig({
     command: 'node support/server.mjs',
     url: `http://127.0.0.1:${port}/`,
     reuseExistingServer: !process.env.CI,
-    env: { E2E_PORT: String(port), E2E_DIST: '.sync-dist' },
+    // E2E_API_URL lets the static server allow this build's API origin in the CSP connect-src (the export is compiled
+    // against it; apps/mobile/public/_headers names the production host instead).
+    env: { E2E_PORT: String(port), E2E_DIST: '.sync-dist', E2E_API_URL: API },
   },
   use: {
     baseURL: `http://127.0.0.1:${port}/`,

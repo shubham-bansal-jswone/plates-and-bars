@@ -1,5 +1,12 @@
 # Cloudflare Pages: copied into dist/ by `npx expo export --platform web`.
 # expo-sqlite on web needs cross-origin isolation (SharedArrayBuffer).
+# The CSP is the same as in infra/caddy/Caddyfile.web, where the API host and the error-tracking origin come from
+# API_HOST and SENTRY_ORIGIN; here api.example.com stands for the API host and the error-tracking origin is left out.
+# Pages cannot template it: edit the host if you use Pages. infra/scripts/check-caddy-headers.sh keeps the two in step.
+# img-src blob: and worker-src blob: are needed on web (not removable): expo-image-picker and expo-image-manipulator
+# load the photo-capture path (#429) from blob: URLs the libraries create, and wa-sqlite starts its worker from one;
+# data: covers the base64 photo previews. connect-src has no blob: (the export files are Base64 + an <a download>).
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.example.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
