@@ -44,6 +44,69 @@ export function markSignOutPending(): void {
   } catch {
     memoryPending = true; // storage blocked
   }
+  announceSignOut();
+}
+
+// Cross-tab sign-out (#762). All tabs share one cookie but each keeps its own access token in memory, so a sign-out (or any
+// end of the session) in one tab must tell the others to drop theirs at once. BroadcastChannel carries it; where there is
+// none, the `storage` event of the pending flag does (it fires in every other tab when the flag is written). The message
+// holds no token and no user data.
+const CHANNEL_NAME = 'pb-session';
+const SIGNOUT_MESSAGE = 'signout';
+const remoteListeners = new Set<() => void>();
+let channel: BroadcastChannel | null | undefined; // undefined: not tried yet; null: not available
+let storageHooked = false;
+
+function tellListeners(): void {
+  for (const f of [...remoteListeners]) {
+    try {
+      f();
+    } catch {
+      // one listener failing must not stop the others
+    }
+  }
+}
+
+function openChannel(): BroadcastChannel | null {
+  if (channel !== undefined) return channel;
+  channel = null;
+  try {
+    const C = (globalThis as { BroadcastChannel?: typeof BroadcastChannel }).BroadcastChannel;
+    if (C) {
+      const c = new C(CHANNEL_NAME);
+      c.addEventListener('message', (e: MessageEvent) => {
+        if ((e.data as { type?: string } | null)?.type === SIGNOUT_MESSAGE) tellListeners();
+      });
+      (c as unknown as { unref?: () => void }).unref?.(); // Node (tests): an open channel must not keep the process alive
+      channel = c;
+    }
+  } catch {
+    channel = null;
+  }
+  return channel;
+}
+
+function announceSignOut(): void {
+  try {
+    openChannel()?.postMessage({ type: SIGNOUT_MESSAGE });
+  } catch {
+    // the storage event still reaches the other tabs when there is no channel
+  }
+}
+
+/**
+ * Calls `f` when another tab of this browser ends the session (not when this tab does). Returns the unsubscribe function.
+ * Web only; a no-op elsewhere.
+ */
+export function onRemoteSignOut(f: () => void): () => void {
+  remoteListeners.add(f);
+  if (!openChannel() && !storageHooked) {
+    storageHooked = true;
+    (globalThis as { addEventListener?: (t: string, h: (e: { key?: string | null; newValue?: string | null }) => void) => void }).addEventListener?.('storage', (e) => {
+      if (e.key === PENDING_KEY && e.newValue === '1') tellListeners();
+    });
+  }
+  return () => void remoteListeners.delete(f);
 }
 
 export function clearSignOutPending(): void {

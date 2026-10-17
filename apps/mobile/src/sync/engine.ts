@@ -6,7 +6,7 @@ import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, 
 import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
 import { quarantine } from './quarantine';
 import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, markSent, setAccountFull, stampOf, touchHeld, unmarkSent, wasSent } from './held';
-import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
+import { withTimeout, REFRESH_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { authInit, cookieMode, refreshBody } from './transport';
@@ -58,6 +58,8 @@ export interface SyncDeps {
   db: SyncDb;
   api: ApiClient;
   tokens: TokenStore;
+  /** How long one refresh request may take before it is given up (default `REFRESH_TIMEOUT_MS`). Tests only. */
+  refreshTimeoutMs?: number;
   /** The clock in ms (tests set it); the held-record retry is once a day by this clock. */
   now?: () => number;
 }
@@ -168,6 +170,19 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
   return promise;
 }
 
+/** A signal that aborts when either of the two does (AbortSignal.any is not in every runtime the app runs on). */
+function either(a: AbortSignal | undefined, b: AbortSignal): AbortSignal {
+  if (!a) return b;
+  const c = new AbortController();
+  const fire = () => c.abort();
+  if (a.aborted || b.aborted) c.abort();
+  else {
+    a.addEventListener('abort', fire, { once: true });
+    b.addEventListener('abort', fire, { once: true });
+  }
+  return c.signal;
+}
+
 /** Rejects when `signal` aborts before `p` settles (the shared request itself keeps going for its leader). */
 function raceAbort<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return p;
@@ -185,7 +200,11 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
   };
   let result;
   try {
-    result = await net(() => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal, ...authInit() }));
+    // Its own timeout, started here: inside the cross-tab lock, so the lock is held until this request settles or the timeout
+    // fires (never longer), and a refresh made from a sync run is bounded too (#762).
+    const timed = await withTimeout(d.refreshTimeoutMs ?? REFRESH_TIMEOUT_MS, (own) => net(() => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal: either(signal, own), ...authInit() })));
+    if (timed.timedOut) throw new TransientError(fail('unavailable'));
+    result = timed.value;
   } catch (e) {
     // Aborted by the caller that started this request (its timeout): joiners must not read that as "offline".
     if (e instanceof NetworkError && signal?.aborted) throw new TransientError(fail('unavailable'));
@@ -194,6 +213,9 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
   const { data, response } = result;
   if (data) {
     await sameOwner();
+    // Web: another tab ended the session while this request was in flight. Its revoke waits for the lock, so the new cookie is
+    // cleared right after; this tab must not bring an access token back for it.
+    if (cookieMode() && signOutPending()) return false;
     // A cookie that belongs to another account than this store's must not carry this store's records to it (ADR 004).
     if (cookieMode() && owner && data.user.id !== owner) {
       await d.tokens.clear();
@@ -222,7 +244,7 @@ export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
  * while the request was in flight the answer is dropped and no tokens are saved or cleared: 'ended'. Otherwise 'ended'
  * means the session is over and the tokens are cleared; transient failures keep the tokens.
  */
-export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
+export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens' | 'refreshTimeoutMs'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
   const owner = await getUserId(d.db);
   try {
     // A stalled request is given up after the timeout, so the account lock is never held for long.
