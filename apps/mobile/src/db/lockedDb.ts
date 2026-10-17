@@ -19,7 +19,14 @@ export function onStoreWrite(f: () => void): () => void {
 export function lockedDb(db: SQLiteDatabase): SQLiteDatabase {
   const written = <A extends unknown[], R>(f: (...a: A) => Promise<R>) => async (...a: A) => {
     const r = await f(...a);
-    writeListeners.forEach((l) => l());
+    // Only after the write committed: a listener that throws must not reject a write that already happened.
+    for (const l of writeListeners) {
+      try {
+        l();
+      } catch {
+        // the store write is done; a bad listener is its own problem
+      }
+    }
     return r;
   };
   const locked = <A extends unknown[], R>(f: (...a: A) => Promise<R>) => (...a: A) => writeLock.run(() => f.apply(db, a));

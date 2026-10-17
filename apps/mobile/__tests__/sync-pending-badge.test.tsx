@@ -13,7 +13,8 @@ jest.mock('expo-sqlite', () => ({ useSQLiteContext: () => null }));
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 describe('the pending count after a local write (#767)', () => {
-  it('rises as soon as a store writes, without waiting for the next sync tick', async () => {
+  /** A mounted provider over a fresh db; `latest()` reads its current value. */
+  async function mount() {
     const db = await openDb();
     const server = fakeServer(USER);
     (globalThis as { fetch: unknown }).fetch = server.fetch;
@@ -33,9 +34,37 @@ describe('the pending count after a local write (#767)', () => {
       </SyncProvider>,
     );
     await waitFor(() => expect(latest.last?.status).toBe('ok'));
-    expect(latest.pending).toBe(0);
-    const w = { id: null, version: 0, updated_at: '2026-10-09T06:00:00.000Z', deleted_at: null, date: '2026-10-08', weight_kg: 80 };
-    await act(async () => saveWeightDoc(lockedDb(db as never) as unknown as typeof db, w));
-    await waitFor(() => expect(latest.pending).toBe(1)); // well before the 30 s tick
+    return { db: lockedDb(db as never) as unknown as typeof db, latest: () => latest };
+  }
+  const weight = { id: null, version: 0, updated_at: '2026-10-09T06:00:00.000Z', deleted_at: null, date: '2026-10-08', weight_kg: 80 };
+
+  it('rises as soon as a store writes, without waiting for the next sync tick', async () => {
+    const { db, latest } = await mount();
+    expect(latest().pending).toBe(0);
+    await act(async () => saveWeightDoc(db, weight));
+    await waitFor(() => expect(latest().pending).toBe(1)); // well before the 30 s tick
+  });
+
+  // The listener runs only once the write has committed, so a rejected statement and a rolled-back transaction both
+  // leave the count at 0: "Not synced" must never appear for a write that did not happen.
+  it('does not rise when the statement throws', async () => {
+    const { db, latest } = await mount();
+    await act(async () => {
+      await expect(db.runAsync('insert into no_such_table (x) values (1)')).rejects.toThrow();
+    });
+    expect(latest().pending).toBe(0);
+  });
+
+  it('does not rise when a transaction writes and then throws (it rolls back)', async () => {
+    const { db, latest } = await mount();
+    await act(async () => {
+      await expect(
+        db.withExclusiveTransactionAsync(async (txn) => {
+          await saveWeightDoc(txn as never, weight);
+          throw new Error('rollback');
+        }),
+      ).rejects.toThrow('rollback');
+    });
+    expect(latest().pending).toBe(0);
   });
 });
