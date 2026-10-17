@@ -1,5 +1,6 @@
 import {
   nextMealInfo,
+  proteinUpgrade,
   mealByTime,
   combos,
   combosFast,
@@ -26,6 +27,7 @@ import { loadMeals, type ProtoCombo, type ProtoMealState } from './prototype-mea
 import { rng } from './prototype-plan';
 
 const proto = loadMeals();
+const fmtN = (n: number): string => Math.round(n).toLocaleString('en-IN');
 const RUNS = 3000;
 
 // content is passed in as is; these assignments are the type check.
@@ -257,5 +259,78 @@ describe('helpers', () => {
     expect(src).toContain('if(info.kcalLeft <= 120){');
     expect(src).toContain('pages = Math.max(1, Math.ceil(all.length / 3)), pg = (S.ui.gpage || 0) % pages, cs = all.slice(pg*3, pg*3 + 3);');
     expect(src).toContain("cs.length && cs[0].p < info.p*0.85 ?");
+  });
+});
+
+describe('proteinUpgrade (prototype upgradeHtml)', () => {
+  const foodsFull = foodsContent.foods;
+  const day = (diet: MealDiet | undefined, kcal: number, meals: { meal: string; name: string; qty: number; kcal: number; protein_g: number }[]) => ({
+    protoMeals: meals.map((m) => ({ name: m.name, qty: m.qty, kcal: m.kcal, p: m.protein_g, c: 0, f: 0, meal: m.meal })),
+    kcalLeft: kcal - meals.reduce((a, m) => a + m.kcal * m.qty, 0),
+    diet,
+    kcal,
+  });
+  const NAMES = ['Roti / chapati', 'Rice, cooked', 'Dal', 'Curd / dahi', 'Egg white', 'Whey protein', 'Greek yogurt, plain', 'Sprouts salad', 'Poha', 'Banana', 'Paneer'];
+
+  it('matches the prototype on random days: pick, quantity, wording and numbers', () => {
+    const rand = rng(691);
+    let shown = 0;
+    let eggs = 0;
+    for (let i = 0; i < 4000; i++) {
+      const meals = Array.from({ length: Math.floor(rand() * 6) }, () => ({
+        meal: pick(rand, MEAL_ORDER as readonly string[]),
+        name: pick(rand, NAMES),
+        qty: pick(rand, [0.5, 1, 1.5, 2]),
+        kcal: Math.floor(rand() * 250),
+        protein_g: Math.floor(rand() * 90) / 10,
+      }));
+      const meal = pick(rand, MEAL_ORDER as readonly string[]) as Meal;
+      const d = day(pick(rand, DIETS), pick(rand, [300, 800, 1200, 1800, 2400]), meals);
+      const today = '2026-10-08';
+      const date = rand() < 0.9 ? today : '2026-10-07';
+      const items = meals.filter((m) => m.meal === meal);
+      const want = proto.upgrade({ date, today, diet: d.diet, kcal: d.kcal, meals: d.protoMeals }, meal, items.map((m) => ({ name: m.name, qty: m.qty, kcal: m.kcal, p: m.protein_g, c: 0, f: 0 })));
+      const got = proteinUpgrade({ meal, date, today, items, kcalLeft: d.kcalLeft, foods: foodsFull, planning, diet: d.diet });
+      if (!want) {
+        expect(got).toBeNull();
+        continue;
+      }
+      shown++;
+      if (want.qty > 1) eggs++;
+      expect(got).not.toBeNull();
+      expect({ name: got!.food.name, qty: got!.qty, label: got!.label, protein: fmtN(got!.protein_g), kcal: fmtN(got!.kcal) }).toEqual(want);
+    }
+    expect(shown).toBeGreaterThan(300);
+    expect(eggs).toBeGreaterThan(20);
+  });
+
+  const base = { meal: 'Lunch' as Meal, date: '2026-10-08', today: '2026-10-08', items: [{ name: 'Roti / chapati', qty: 2, protein_g: 4 }], kcalLeft: 900, foods: foodsFull, planning };
+
+  it('picks the most protein that fits the calories left plus 50', () => {
+    // 900 left: whey (24 g, 120 kcal) beats 3 egg whites (10.8 g) and yogurt (9 g)
+    expect(proteinUpgrade(base)).toMatchObject({ qty: 1, protein_g: 24, kcal: 120 });
+    expect(proteinUpgrade(base)?.food.name).toBe('Whey protein');
+    // 69 left: whey (120 kcal) is over 69 + 50, so 3 egg whites (51 kcal, 10.8 g) lead
+    expect(proteinUpgrade({ ...base, kcalLeft: 69 })?.food.name).toBe('Egg white');
+    expect(proteinUpgrade({ ...base, kcalLeft: 69 })).toMatchObject({ qty: 3, label: '3 egg whites' });
+  });
+
+  it('falls back to the first suitable food when nothing fits', () => {
+    expect(proteinUpgrade({ ...base, kcalLeft: -400 })?.food.name).toBe('Greek yogurt, plain');
+    expect(proteinUpgrade({ ...base, kcalLeft: -400 })?.label).toBe('greek yogurt, plain (100 g)');
+  });
+
+  it('is not shown for Snacks, another day, an empty meal, 20 g or more, or with the food already in the meal', () => {
+    expect(proteinUpgrade({ ...base, meal: 'Snacks' })).toBeNull();
+    expect(proteinUpgrade({ ...base, date: '2026-10-07' })).toBeNull();
+    expect(proteinUpgrade({ ...base, items: [] })).toBeNull();
+    expect(proteinUpgrade({ ...base, items: [{ name: 'Paneer', qty: 1, protein_g: 20 }] })).toBeNull();
+    expect(proteinUpgrade({ ...base, items: [{ name: 'Paneer', qty: 1, protein_g: 19.9 }] })).not.toBeNull();
+    const all = ['Greek yogurt, plain', 'Egg white', 'Dal', 'Sprouts salad', 'Curd / dahi', 'Whey protein'].map((name) => ({ name, qty: 0.1, protein_g: 1 }));
+    expect(proteinUpgrade({ ...base, items: all })).toBeNull();
+  });
+
+  it('keeps to the diet: no egg for veg', () => {
+    expect(proteinUpgrade({ ...base, diet: 'veg', kcalLeft: 69 })?.food.name).not.toBe('Egg white');
   });
 });
