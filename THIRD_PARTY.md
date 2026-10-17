@@ -34,14 +34,33 @@ The `source` field on each card in `content/cards.json` (for example "Mifflin et
 
 The prototype (`docs/prototype/plate-and-bar.html`) also loads the Bricolage Grotesque font from Google Fonts (SIL Open Font License 1.1) and pdf.js from cdnjs (Apache-2.0) at runtime. Neither is stored in this repository.
 
-## Tools used in tests and builds
+## Dependencies not under MIT, BSD, ISC or Apache-2.0
 
-These are dependencies, not shipped in the app or the website. They are listed here because their licence is not MIT, BSD, ISC or Apache-2.0.
+Dependencies are installed from npm and Maven Central and are not stored in this repository. This table lists every dependency in the six npm lockfiles and in the backend's Gradle runtime and test classpaths whose licence is not MIT, BSD, ISC, 0BSD, CC0 or Apache-2.0, as of this file's last change. "Ships in" says where the dependency ends up:
 
-| Package | Licence | Where |
-|---|---|---|
-| [axe-core](https://github.com/dequelabs/axe-core) | MPL-2.0 (accepted as open source; used unmodified) | Accessibility checks: `tests/e2e` (`specs/a11y.spec.mjs`) and `apps/site/scripts/a11y.mjs` |
+- **Build or test only**: the dependency runs on a developer machine or in CI and does not end up in anything we distribute.
+- **Web bundle**: the dependency is in the JavaScript bundle or assets that we serve.
+- **Backend jar**: the dependency is inside the Spring Boot jar and its container image.
+
+The website ships HTML, CSS and fonts only, with no npm JavaScript. Its build in `apps/site` (Astro) uses the `apps/site` packages below. Source maps from `npx expo export --platform web` show that the app's JavaScript bundle contains only MIT, BSD, ISC and Apache-2.0 packages, plus the OFL fonts listed above. The Android build also adds native libraries through Gradle (React Native and Expo modules). This file does not cover those libraries.
+
+| Dependency | Licence | Used by | Ships in |
+|---|---|---|---|
+| [axe-core](https://github.com/dequelabs/axe-core) | MPL-2.0 (used unmodified) | Accessibility checks: `tests/e2e` (`specs/a11y.spec.mjs`), `apps/site/scripts/a11y.mjs` | Build or test only |
+| `lightningcss` and its platform binaries | MPL-2.0 | CSS processing in the Astro (`apps/site`) and Expo/Metro (`apps/mobile`) builds | Build or test only |
+| `@img/sharp-libvips-*`, `@img/sharp-wasm32`, `@img/sharp-win32-*` | LGPL-3.0-or-later (libvips), with Apache-2.0 and MIT parts | Optional image processing for the Astro build (`apps/site`) | Build or test only (optional; the site has no processed images) |
+| `caniuse-lite` | CC-BY-4.0 | Browser data for the build tools (`apps/mobile`, `packages/core` tests) | Build or test only |
+| `glob`, `jackspeak`, `lru-cache`, `minimatch`, `minipass`, `package-json-from-dist`, `path-scurry`, `sax`, `common-ancestor-path` | BlueOak-1.0.0 | Build and test tooling (`apps/mobile`, `apps/site`, `packages/core`) | Build or test only |
+| `argparse` | Python-2.0 | YAML tooling (`packages/api`, `apps/mobile`) | Build or test only |
+| `node-forge` | BSD-3-Clause OR GPL-2.0 (used under BSD-3-Clause) | Expo CLI dev server (`apps/mobile`) | Build or test only |
+| `com.mysql:mysql-connector-j` | GPL-2.0 with the Universal FOSS Exception 1.0 | MySQL driver (`backend`) | Backend jar |
+| `ch.qos.logback:logback-classic`, `logback-core` | EPL-2.0 OR LGPL-2.1 | Logging (Spring Boot default; `backend`) | Backend jar |
+| `jakarta.annotation:jakarta.annotation-api`, `jakarta.mail:jakarta.mail-api`, `org.eclipse.angus:angus-mail` | EPL-2.0 OR GPL-2.0 with the Classpath Exception | Spring and sign-in code email (`backend`) | Backend jar |
+| `jakarta.activation:jakarta.activation-api`, `org.eclipse.angus:angus-activation` | EDL 1.0 (BSD-3-Clause) | Email (`backend`) | Backend jar |
+| JUnit (`org.junit.*`, `junit:junit`) | EPL-2.0 (JUnit 5/6), EPL-1.0 (JUnit 4, through Testcontainers) | Backend tests | Build or test only |
+| `net.java.dev.jna:jna` | LGPL-2.1-or-later OR Apache-2.0 (used under Apache-2.0) | Testcontainers (`backend` tests) | Build or test only |
+| `jakarta.xml.bind:jakarta.xml.bind-api`, `org.eclipse.angus:jakarta.mail` | EDL 1.0; EPL-2.0 OR GPL-2.0 with the Classpath Exception | GreenMail (`backend` tests) | Build or test only |
 
 The Gradle wrapper (`backend/gradlew`, `backend/gradlew.bat`, `backend/gradle/wrapper/gradle-wrapper.jar`) is Apache-2.0, Copyright 2015 the original authors.
 
-All other npm and Gradle dependencies are installed from their registries under their own licences and are not stored in this repository. Check the licence before adding any dependency, data source or image.
+Check the licence before adding any dependency, data source or image, and add a row here if it is not MIT, BSD, ISC, 0BSD, CC0 or Apache-2.0.
