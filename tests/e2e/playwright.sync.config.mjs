@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { getInstalledBrowsers } from '@puppeteer/browsers';
 import { defineConfig } from '@playwright/test';
+import { API } from './support/sync.mjs';
 
 // The sync tests: a real backend (tests/e2e/stack, docker compose) and a web build with its URL compiled in. Separate from
 // playwright.config.mjs so the fast web suite never needs Docker. Run with `npm run test:sync` (README.md, "Sync tests").
