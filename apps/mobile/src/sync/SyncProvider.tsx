@@ -314,7 +314,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         return afterDelete(r);
       },
     }),
-    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, accountFull, signInUnavailable, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
+    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, accountFull, signInUnavailable, syncing, last, epoch, dataVersion, runSync, api, db, tokens, refreshPending],
   );
   // AI features sit inside the sync provider: they reuse its client and tokens (kept inside) and its signed-in state.
   return (
