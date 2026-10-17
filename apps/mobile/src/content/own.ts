@@ -6,3 +6,17 @@ export const ownOr = (map: Readonly<Record<string, string>>, k: string): string 
 
 /** True for `__proto__` and every `Object.prototype` member name (`toString`, `constructor`, `hasOwnProperty`, ...): not allowed as a content key. */
 export const isProtoName = (k: string): boolean => k in Object.prototype;
+
+/**
+ * `all` with `k` set to `value`, in a new object. Not a spread: a computed `__proto__` key in an object literal sets the
+ * prototype (and `{ ...all }` drops an own `__proto__` entry), so the copy is built with `fromEntries` and `defineProperty`,
+ * which keep a user-named entry such as `__proto__` as data.
+ */
+export function withEntry<V>(all: Readonly<Record<string, V>>, k: string, value: V): Record<string, V> {
+  const out: Record<string, V> = Object.fromEntries(Object.entries(all));
+  Object.defineProperty(out, k, { value, enumerable: true, writable: true, configurable: true });
+  return out;
+}
+
+/** `all[k]` when `k` is an own key, else undefined (`all['__proto__']` would read the prototype). */
+export const ownGet = <V,>(all: Readonly<Record<string, V>>, k: string): V | undefined => (has(all, k) ? all[k] : undefined);

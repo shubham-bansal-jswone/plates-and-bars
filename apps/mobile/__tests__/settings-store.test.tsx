@@ -114,6 +114,22 @@ describe('settings store', () => {
       await waitFor(async () => expect((await loadSettings(db))?.custom_tags.E0).toMatchObject({ primary: ['glutes'] }));
     });
 
+    it('addCustomTags keeps a name like __proto__ as data, keeps an existing one, and leaves the prototype alone (#715)', async () => {
+      const db = memoryDb();
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      let ok = false;
+      await act(async () => void (ok = await result.current.addCustomTags('__proto__', tag)));
+      expect(ok).toBe(true);
+      await act(async () => void (ok = await result.current.addCustomTags('Mine', tag)));
+      expect(ok).toBe(true);
+      const saved = (await loadSettings(db))!.custom_tags;
+      expect(Object.keys(saved).sort()).toEqual(['Mine', '__proto__']);
+      expect(Object.getOwnPropertyDescriptor(saved, '__proto__')?.value).toEqual(tag);
+      expect(Object.getPrototypeOf(saved)).toBe(Object.prototype);
+      expect(Object.getPrototypeOf(result.current.settings.custom_tags)).toBe(Object.prototype);
+    });
+
     it('addCustomTags refuses a name that is a known exercise in another letter case, built-in or custom (#450)', async () => {
       const db = memoryDb();
       const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });

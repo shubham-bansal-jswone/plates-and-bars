@@ -2,6 +2,7 @@ import { inRange, ladderCard, missed as missedDay, recoveryCard, reentryCard, la
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
+import { ownGet, withEntry } from '../content/own';
 import { shortDate, weekdayLong } from '../format';
 import { adjOf, answered, endAdj, muted, rangesOf, shiftWeek, startDeload, startReentry } from './adjust';
 import { getCatalog } from './catalog';
@@ -64,7 +65,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
           {...common('stall', stall.key)}
           onRange={() => {
             const [lo, hi] = stall.range;
-            if (update((s) => ({ exercise_overrides: { ...s.exercise_overrides, [ex.name]: stallRangeOverride(s.exercise_overrides[ex.name], info, stall.range) }, adjustments: answered(s.adjustments, stall.key) })))
+            if (update((s) => ({ exercise_overrides: withEntry(s.exercise_overrides, ex.name, stallRangeOverride(ownGet(s.exercise_overrides, ex.name), info, stall.range)), adjustments: answered(s.adjustments, stall.key) })))
               notify(`${ex.name}: now ${lo}–${hi} reps`);
           }}
           onSide={() => side && switchTo('side', side, stall.key, `Switched to ${side}`)}
@@ -76,7 +77,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
           name={ex.name}
           {...common('ladder', ladder.key)}
           onSwitch={() => switchTo(ladder.kind, ladder.to, ladder.key, ladder.kind === 'up' ? `${ladder.to} starts next session` : `Switched to ${ladder.to}`)}
-          onStay={() => update((s) => ({ ladder_stay: { ...s.ladder_stay, [ex.name]: ladderStayUntil(date) }, adjustments: answered(s.adjustments, ladder.key) }))}
+          onStay={() => update((s) => ({ ladder_stay: withEntry(s.ladder_stay, ex.name, ladderStayUntil(date)), adjustments: answered(s.adjustments, ladder.key) }))}
         />
       ) : null}
     </>
