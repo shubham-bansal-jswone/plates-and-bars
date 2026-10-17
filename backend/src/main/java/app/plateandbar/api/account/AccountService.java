@@ -30,12 +30,15 @@ public class AccountService {
     private final SyncExporter sync;
     private final ObjectMapper json;
     private final Clock clock;
+    private final ErasureLedger ledger;
 
-    AccountService(AccountRepository accounts, SyncExporter sync, ObjectMapper json, Clock clock) {
+    AccountService(
+            AccountRepository accounts, SyncExporter sync, ObjectMapper json, Clock clock, ErasureLedger ledger) {
         this.accounts = accounts;
         this.sync = sync;
         this.json = json;
         this.clock = clock;
+        this.ledger = ledger;
     }
 
     /** The account row, or 401 when it is gone. Checked before the response starts, while a status can still be sent. */
@@ -100,10 +103,19 @@ public class AccountService {
         }
     }
 
-    /** Idempotent: deleting an account that is already gone succeeds. */
+    /**
+     * Idempotent: deleting an account that is already gone succeeds. The erasure ledger is written first and fails
+     * closed: if it cannot be written nothing is deleted and the call fails (500, the app retries), because the
+     * other order could delete the rows and then lose the record a restore needs. The reverse failure (ledger
+     * written, deletion rolled back) is harmless: the retry succeeds, and replaying a ledgered id that still
+     * exists only deletes an account its owner asked to delete. A retry may append the same id twice; replay is
+     * by id, so duplicates are harmless.
+     */
     @Transactional
     public void delete(String userId) {
+        Instant at = clock.instant();
+        ledger.record(userId, at);
         accounts.deleteAll(userId);
-        log.info("Account deleted: user {} at {}", userId, clock.instant());
+        log.info("Account deleted: user {} at {}", userId, at);
     }
 }

@@ -20,7 +20,8 @@ RUN ./gradlew --no-daemon bootJar -x test
 FROM eclipse-temurin:21-jre
 ARG CONTENT_UPDATED_AT
 ENV CONTENT_UPDATED_AT=$CONTENT_UPDATED_AT
-RUN useradd --system --uid 10001 app
+RUN useradd --system --uid 10001 app \
+    && install -d -o app -g app /var/lib/plateandbar/erasure
 WORKDIR /app
 COPY --from=build /src/backend/build/libs/*.jar app.jar
 USER app

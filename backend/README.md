@@ -333,6 +333,7 @@ cd backend
 | `DB_USER` | `plateandbar` | Database user |
 | `DB_PASSWORD` | empty | Database password |
 | `CONTENT_UPDATED_AT` | none, required | `name=timestamp,...` for every `content/*.json`; set it to `"$(backend/scripts/content-updated-at.sh)"`. The app refuses to start without it. Deploys compute it on a full-history checkout of `main` (HEAD of that checkout) and pass it as the Docker build arg |
+| `ERASURE_LEDGER_PATH` | empty (off) | File that `DELETE /me` appends `<user id><TAB><UTC time>` to before it deletes (erasure ledger, #850). The image has `/var/lib/plateandbar/erasure` owned by the app user, meant to be a volume. Set, a ledger write failure makes `DELETE /me` fail (500) with nothing deleted. See Erasure ledger below |
 | `PORT` | `8080` | HTTP port |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
 | `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint, including `/auth/*` (a guard filter, 400 `invalid_request` detail `too_large`; a chunked body is cut off once it passes the limit), and the `POST /sync` cap. The guard runs before security, CORS and rate limiting, so a body declared over the limit gets 400 `too_large` even before a 401 or 429. Multipart is disabled (no endpoint takes it). `/ai/*` bodies are read up to 16,384 bytes (bytes, not characters); a longer one is 400 `invalid_request` with issue `too_large`, field empty, in the validation step (after the feature switch) |
@@ -404,3 +405,19 @@ token, email, password, secret, cookie or auth; masks UUID path segments; and di
 Data protection (DPDP): the error-tracking service (self-hosted GlitchTip, or Sentry if a hosted DSN is used) is a data
 processor for these events. They hold exception types, stack traces, the method and path (UUIDs masked) and one hashed
 opaque account id, never health or food data. Record it in the privacy notice's processor list when a DSN is set in production.
+
+## Erasure ledger (#850)
+
+A backup restore brings back every account deleted after the dump was taken. To keep erased accounts erased (DPDP),
+`DELETE /me` first appends one line to the file at `ERASURE_LEDGER_PATH`: the opaque user id, a tab and the UTC time
+(`ErasureLedger`). Nothing else is ever written (no email, no content); an id that is not hex and dashes is refused.
+The file is append-only (`O_APPEND`) and forced to disk before the delete runs. With the variable empty the ledger is off.
+
+- Order: ledger first, then the database delete, in the same request. If the ledger cannot be written, nothing is
+  deleted and the answer is 500 `internal` (the contract's failure answer for this endpoint: nothing is deleted, the
+  app retries). The other order could remove the rows and then lose the record a restore needs, with the user told
+  it worked. The opposite failure (ledger written, delete rolled back) is harmless: the retry succeeds, and the
+  user wanted the account gone anyway. A retry can append the same id twice; replay is by id.
+- The file lives on a dedicated volume, not in MySQL. Getting it off the VM (upload to the backup bucket under a
+  prefix that retention never prunes) and replaying it after a restore are infra work, see #850.
+- Tests: `ErasureLedgerTest`, `AccountServiceDeleteTest` (ordering, fail closed), `ErasureLedgerIT` (real file and MySQL).
