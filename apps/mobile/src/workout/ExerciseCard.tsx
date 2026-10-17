@@ -10,6 +10,7 @@ import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName } from './copy';
 import type { ExState, Row } from './model';
+import { ExerciseSettings } from './ExerciseSettingsSheet';
 import { Chip } from './parts';
 
 const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
@@ -57,6 +58,8 @@ interface Props {
   infoOf?: (name: string) => ExInfo;
   /** Earlier sessions of this exercise (core's `priorSessions`): the Setup steps start open on the very first one. */
   prior?: number;
+  /** Shows the short message at the bottom of the screen (the settings sheet's "Saved for this exercise"). */
+  notify?: (msg: string) => void;
 }
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
@@ -158,7 +161,7 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
 }
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify }: Props) {
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
     if (!armed) return;
@@ -185,9 +188,14 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
 
   return (
     <Card>
-      <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>
-        {ex.name}
-      </Heading>
+      <View style={styles.head}>
+        <View style={{ flex: 1 }}>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>
+            {ex.name}
+          </Heading>
+        </View>
+        <ExerciseSettings name={ex.name} info={info} notify={notify} />
+      </View>
       <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
         {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
         {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
@@ -303,6 +311,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
 }
 
 const styles = StyleSheet.create({
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   setRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   learn: { borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', padding: 10, gap: 6 },
