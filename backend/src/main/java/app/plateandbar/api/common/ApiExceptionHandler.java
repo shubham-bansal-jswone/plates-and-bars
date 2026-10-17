@@ -41,7 +41,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(RateLimitedException.class)
     ResponseEntity<ErrorResponse> rateLimited(RateLimitedException e, jakarta.servlet.http.HttpServletRequest request) {
-        request.setAttribute(SecuritySignalFilter.BUCKET, "address"); // the per-address caps in AuthService
+        request.setAttribute(SecuritySignalFilter.BUCKET, e.scope()); // the limit that refused, e.g. ai-user
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", Long.toString(e.retryAfterSeconds()))
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
