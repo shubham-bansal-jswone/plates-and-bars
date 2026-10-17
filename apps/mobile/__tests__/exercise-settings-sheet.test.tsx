@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { LiftRecord } from '@plate-and-bar/core';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -285,13 +286,61 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
+  it('a retry that is stored after a failed save is not reported as failed', async () => {
+    const db = await open();
+    db.failWrites = true;
+    await press(`${BENCH} settings`);
+    await press(`Save settings for ${BENCH}`);
+    expect(await screen.findByText(NOT_STORED)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(NOT_STORED)).toBeNull(), { timeout: 4000 });
+    db.failWrites = false;
+    await press(`${BENCH} settings`);
+    await fireEvent.changeText(input('Range high'), '12');
+    await press(`Save settings for ${BENCH}`);
+    await waitFor(() => expect(settingsOf(db).exercise_overrides[BENCH]?.rep_high).toBe(12));
+    await act(async () => {});
+    expect(screen.queryByText(NOT_STORED)).toBeNull();
+  });
+
+  it('says nothing for a gear mounted after another screen’s failed write', async () => {
+    const notify = jest.fn();
+    const db = memoryDb();
+    function Host() {
+      const { update } = useSettings();
+      const [show, setShow] = useState(false);
+      return (
+        <>
+          <Button label="Other write" onPress={() => void update({ rest_off: true })} />
+          <Button label="Show" onPress={() => setShow(true)} />
+          {show ? <ExerciseSettings name={BENCH} info={{ type: 'barbell', lo: 6, hi: 10, step: 2.5 }} notify={notify} /> : null}
+        </>
+      );
+    }
+    await render(withProfile(db, <Host />));
+    db.failWrites = true;
+    await press('Other write');
+    await act(async () => {});
+    await press('Show');
+    await act(async () => {});
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('writes the override onto the stored record, not the screen’s copy', async () => {
+    const db = await open();
+    // Another device’s override reached the store after the screen read it.
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: { 'Pec Deck Fly': { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 } } });
+    await press(`${BENCH} settings`);
+    await press(`Save settings for ${BENCH}`);
+    await waitFor(() => expect(Object.keys(settingsOf(db).exercise_overrides).sort()).toEqual([BENCH, 'Pec Deck Fly']));
+  });
+
   const full = () => Object.fromEntries(Array.from({ length: OVERRIDES_MAX }, (_, i) => [`Custom ${i}`, { type: 'machine' as const, step_kg: 5, rep_low: 8, rep_high: 12 }]));
 
   it('refuses a new name past the 500-entry cap and keeps the sheet, but still changes an existing entry', async () => {
     const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: full() }));
     await press(`${BENCH} settings`);
     await press(`Save settings for ${BENCH}`);
-    expect(screen.getByText(/most exercises that can be changed \(500\)/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`most exercises that can be changed \\(${OVERRIDES_MAX}\\)`))).toBeTruthy();
     expect(screen.getByLabelText(`Close ${BENCH} settings`)).toBeTruthy();
     await act(async () => {});
     expect(Object.keys(settingsOf(db).exercise_overrides)).toHaveLength(OVERRIDES_MAX);
@@ -322,5 +371,12 @@ describe('withOverride and withoutOverride', () => {
   it('withoutOverride drops only the named entry, also a name like __proto__', () => {
     expect(withoutOverride({ a: one, b: one }, 'a')).toEqual({ b: one });
     expect(Object.keys(withoutOverride(withOverride({ b: one }, '__proto__', one), 'b'))).toEqual(['__proto__']);
+  });
+  it('keeps an existing own __proto__ entry when another is set', () => {
+    const stored = JSON.parse('{"__proto__":{"type":"machine","step_kg":5,"rep_low":6,"rep_high":8}}');
+    const out = withOverride(stored, 'b', two);
+    expect(Object.keys(out).sort()).toEqual(['__proto__', 'b']);
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(Object.keys(withoutOverride(out, 'b'))).toEqual(['__proto__']);
   });
 });
