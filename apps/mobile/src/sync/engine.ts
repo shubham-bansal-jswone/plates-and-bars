@@ -1,12 +1,13 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
-import { applyPulled, clearPushed, hasPending, inTransaction, isQueued, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
+import { applyPulled, clearPushed, hasPending, inTransaction, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
 import { loadWorkout, saveWorkout, type WorkoutDb } from '../db/workouts';
-import { unionWorkout } from '../workout/model';
+import { mergeWorkout, unionWorkout } from '../workout/model';
 import type { Workout } from '../workout/types';
 import type { StoreDb } from '../db/records';
 import { InvalidRecord, buildRecord, normalizeTimestamps, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
 import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
 import { quarantine } from './quarantine';
+import { forgetBase, getBase, setBase } from './base';
 import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, markSent, setAccountFull, stampOf, touchHeld, unmarkSent, wasSent } from './held';
 import { withTimeout, REFRESH_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
@@ -94,7 +95,7 @@ const MAX_HELD_BATCHES = 50;
 const DAY_MS = 86_400_000;
 
 type Guard = (db: StoreDb) => Promise<void>;
-type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean; /** A 413 whose body is the `account_full` error (a 413 with any other body is a proxy refusing the size). */ accountFull?: { /** `record_cap.new_records`: how many records in the refused request the server does not store; unknown when absent. */ newRecords?: number } };
+type Failure = { ok: false; result: SyncResult; /** A 400, or a 413 that is not `account_full`: the request was refused whole and nothing in it was stored. */ refused?: true; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean; /** A 413 whose body is the `account_full` error (a 413 with any other body is a proxy refusing the size). */ accountFull?: { /** `record_cap.new_records`: how many records in the refused request the server does not store; unknown when absent. */ newRecords?: number } };
 type Outcome<T> = { ok: true; data: T } | Failure;
 const fail = (status: SyncStatus, retryAfterSec?: number): Failure => ({ ok: false, result: { status, conflicts: 0, ...(retryAfterSec ? { retryAfterSec } : {}) } });
 
@@ -109,10 +110,11 @@ function failFrom(res: Response, body?: unknown): Failure {
   if (res.status === 400 && error?.code === 'invalid_request' && Array.isArray(error.details)) {
     const fields = error.details.flatMap((d) => (typeof d?.field === 'string' ? [d.field] : []));
     const tooLarge = error.details.some((d) => (d as { issue?: unknown } | null)?.issue === 'too_large');
-    return { ...fail('rejected'), fields, ...(tooLarge ? { tooLarge } : {}) };
+    return { ...fail('rejected'), refused: true, fields, ...(tooLarge ? { tooLarge } : {}) };
   }
   // Any other 413: a proxy in front of the API refusing a large body before the server sees it, the same as `too_large`.
-  if (res.status === 413) return { ...fail('rejected'), tooLarge: true };
+  if (res.status === 413) return { ...fail('rejected'), refused: true, tooLarge: true };
+  if (res.status === 400) return { ...fail('rejected'), refused: true };
   if (res.status === 429) return fail('rate_limited', Math.max(1, Number(res.headers.get('Retry-After')) || DEFAULT_RETRY_SEC));
   return res.status >= 500 ? fail('unavailable') : fail('rejected');
 }
@@ -306,16 +308,20 @@ class TransientError extends Error {
 /**
  * Runs `write` for a pushed entry without queuing it again. `clean` is true when the record was not edited while the
  * request was in flight; if it was edited, the newer edit stays queued and the write must only touch sync fields.
+ * `after` runs last, only for a clean entry, and its writes stay queued (the merged workout day of #818).
  */
-async function settle(db: PullDb, e: OutboxEntry, guard: Guard, write: (txn: WorkoutDb, clean: boolean) => Promise<void>): Promise<void> {
+async function settle(db: PullDb, e: OutboxEntry, guard: Guard, write: (txn: WorkoutDb, clean: boolean) => Promise<void>, after?: (txn: WorkoutDb) => Promise<void>): Promise<void> {
   await inTransaction(db, async (txn) => {
     const seqOf = async () => (await txn.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', e.tbl, e.key))?.seq ?? null;
     const clean = (await seqOf()) === e.seq;
     await guard(txn);
     await write(txn as WorkoutDb, clean);
     await forgetSent(txn, e);
-    const after = await seqOf();
-    if (clean && after !== null) await clearPushed(txn, { tbl: e.tbl, key: e.key, seq: after });
+    if (e.tbl === 'workouts') await forgetBase(txn, e.key);
+    const left = await seqOf();
+    if (clean && left !== null) await clearPushed(txn, { tbl: e.tbl, key: e.key, seq: left });
+    // After the clear, so what it writes stays queued. Same transaction and owner guard as the write above (ADR 004).
+    if (clean) await after?.(txn as WorkoutDb);
   });
 }
 
@@ -510,6 +516,8 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           round--;
           continue;
         }
+        // A 400 (and a proxy's 413) stores nothing: this request's marks are undone, so a version-0 day it carried counts as never seen again (#792).
+        if (out.refused) await unmarkSent(d.db, fresh, guard);
         if (out.tooLarge && sent.size > 0) {
           // The 400 names no record. Send half as many; one record alone that is still too large is set aside.
           if (sent.size > 1) {
@@ -564,25 +572,49 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           if (err instanceof InvalidRecord) continue; // stays queued; the server's copy cannot be stored
           throw err;
         }
+        // Only a day this request sent for the first time never saw a server copy; one an earlier lost answer may have stored did.
+        const neverSeen = !!fresh.some((f) => f.tbl === 'workouts' && f.key === s.entry.key);
+        // What the other device stored for the day. On `server_won` that is `server_record`. On `client_won` it is the copy this push
+        // replaced, which the server sends back (contract 0.1.20) unless it is an older server; and a retry whose first answer was lost
+        // is an idempotent `server_won` with no copy at all (the same content as this push): nothing to merge, the stored copy is adopted.
+        const other = c.resolution === 'client_won' ? (c.replaced_record as unknown as Doc | undefined) : same ? undefined : server;
+        let merged: Workout | null = null;
+        // Another device's day against this device's: keep what this one added (see `mergedWorkout`); written after the clear, so it is pushed again.
+        const merge = async (txn: WorkoutDb, clean: boolean) => {
+          if (clean && other && s.entry.tbl === 'workouts') merged = await mergedWorkout(txn, s.entry.key, other, server, c.server_version, neverSeen);
+        };
+        const requeue = async (txn: WorkoutDb) => {
+          if (merged) await saveWorkout(txn, merged);
+        };
         if (same) {
-          // An idempotent retry (see POST /sync): adopt the stored version and time, nothing else changes.
-          await settle(d.db, s.entry, guard, (txn) => patchMeta(txn, s.entry.tbl, s.entry.key, { version: server.version as number, updated_at: server.updated_at as string }));
+          // The server's copy is this push as stored (an idempotent retry, or `client_won`): adopt the stored version and time, nothing else changes.
+          await settle(
+            d.db,
+            s.entry,
+            guard,
+            async (txn, clean) => {
+              await merge(txn, clean);
+              await patchMeta(txn, s.entry.tbl, s.entry.key, { version: server.version as number, updated_at: server.updated_at as string });
+            },
+            requeue,
+          );
           continue;
         }
         conflicts++;
         let adopted = false;
-        // Only a day this request sent for the first time never saw a server copy; one an earlier lost answer may have stored did.
-        const priorSend = (key: string) => !fresh.some((f) => f.tbl === 'workouts' && f.key === key);
-        let union: Workout | null = null;
-        await settle(d.db, s.entry, guard, async (txn, clean) => {
-          if (clean) {
-            // Another device's day against this device's: keep what this one added (see `unionWorkout`), pushed again below.
-            if (s.entry.tbl === 'workouts' && !priorSend(s.entry.key)) union = await unionOf(txn, s.entry.key, server);
-            await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
-            adopted = true;
-          } else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
-        });
-        if (union) await requeueUnion(d.db, s.entry.key, server, union, guard);
+        await settle(
+          d.db,
+          s.entry,
+          guard,
+          async (txn, clean) => {
+            if (clean) {
+              await merge(txn, clean);
+              await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
+              adopted = true;
+            } else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
+          },
+          requeue,
+        );
         // The server's copy of a kitchen test is a tombstone and now stands here: its vault photo goes too.
         if (adopted && s.entry.tbl === 'kitchen_tests' && server.deleted_at) await deleteKitchenPhoto(s.entry.key).catch(() => undefined);
       }
@@ -674,22 +706,30 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
   return { stored, skipped };
 }
 
-/** The union of this device's never-synced live workout row and the server's, when they differ; null when there is nothing to keep (or either is a tombstone). */
-async function unionOf(db: StoreDb, date: string, server: Doc): Promise<Workout | null> {
+/**
+ * This device's workout row for `date` merged with `other`, the same day as another device stored it, or null when there is
+ * nothing to keep. The result carries `version` (the server's version of the day, so pushing it is an ordinary edit) and is
+ * null when it adds nothing to `server`, the copy about to be stored. Only where no removal can come back:
+ *  - the row never saw a server copy (`neverSeen`: version 0, and no earlier request carried it): `unionWorkout`;
+ *  - the copy the row grew from is known (`getBase`, the version it holds): a three-way `mergeWorkout`.
+ * Otherwise both sides had a common base this merge does not have, and a removal would come back. A tombstone on either
+ * side is never merged: a deletion is not resurrected.
+ */
+async function mergedWorkout(db: StoreDb, date: string, other: Doc, server: Doc, version: number, neverSeen: boolean): Promise<Workout | null> {
   const mine = await loadWorkout(db, date);
-  const theirs = normalizeTimestamps(server) as Workout;
-  if (!mine || mine.version !== 0 || mine.deleted_at || theirs.deleted_at) return null;
-  const merged = unionWorkout(mine, theirs);
-  return sameContent(merged as unknown as Doc, theirs as unknown as Doc) ? null : merged;
-}
-
-/** Writes the union over the server's copy just stored for `date`, so it is queued and pushed again. Skipped when the row changed meanwhile. */
-async function requeueUnion(db: SyncDb, date: string, server: Doc, union: Workout, guard: Guard): Promise<void> {
-  await inTransaction(db, async (txn) => {
-    await guard(txn);
-    const cur = await loadWorkout(txn, date);
-    if (cur && !(await isQueued(txn, 'workouts', date)) && sameContent(cur as unknown as Doc, normalizeTimestamps(server) as Doc)) await saveWorkout(txn, union);
-  });
+  const theirs = normalizeTimestamps(other) as Workout;
+  if (!mine || mine.deleted_at || theirs.deleted_at) return null;
+  let out: Workout;
+  if (mine.version === 0) {
+    if (!neverSeen) return null;
+    out = unionWorkout(mine, theirs);
+  } else {
+    const base = await getBase(db, date);
+    if (!base || base.deleted_at || base.version !== mine.version) return null;
+    out = mergeWorkout(base, mine, theirs);
+  }
+  out = { ...out, version };
+  return sameContent(out as unknown as Doc, server) ? null : out;
 }
 
 /**
@@ -706,6 +746,7 @@ async function unionPulled(db: SyncDb, date: string, rec: Doc, guard: Guard): Pr
     // Only a day that never saw a server copy: otherwise both sides had a common base this merge does not have, and a removal would come back.
     if (!mine || mine.version !== 0 || (await wasSent(txn, { tbl: 'workouts', key: date })) || mine.deleted_at || theirs.deleted_at) return;
     await saveWorkout(txn, unionWorkout(mine, theirs));
+    await setBase(txn, date, theirs); // the copy this row grew from, for a merge if another device stores a later edit before the push (#818)
     done = true;
   });
   return done;

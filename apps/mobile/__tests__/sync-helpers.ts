@@ -104,6 +104,8 @@ export function fakeServer(userId: string) {
     conflictResolution: null as null | 'server_won',
     /** Settles a version mismatch like the contract: the later `updated_at` wins the whole record (a tie goes to the server). */
     byUpdatedAt: false,
+    /** A `client_won` conflict leaves out `replaced_record`, as a server built against contract 0.1.19 does. */
+    omitReplaced: false,
     /** Several devices share this server: a stored record comes back as a change to every other request, by cursor (`s<n>`). */
     relay: false,
     /** Every /sync answer says `has_more` (a faulty server or proxy). */
@@ -188,7 +190,7 @@ export function fakeServer(userId: string) {
             const next = { ...r, version: cur.version + 1 };
             store.set(`${table}:${r.id}`, next);
             s.log.push({ n: s.log.length + 1, table, rec: next });
-            conflicts.push({ table, id: r.id, client_version: r.version, server_version: next.version, resolution: 'client_won', server_record: next });
+            conflicts.push({ table, id: r.id, client_version: r.version, server_version: next.version, resolution: 'client_won', server_record: next, ...(s.omitReplaced ? {} : { replaced_record: cur }) });
           } else {
             conflicts.push({ table, id: r.id, client_version: r.version, server_version: cur.version, resolution: s.conflictResolution ?? 'server_won', server_record: cur });
           }
