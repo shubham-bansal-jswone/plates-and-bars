@@ -5,7 +5,8 @@ import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings, type Settings } from '../src/settings/types';
 import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { wipeLocalStore } from '../src/sync/guard';
-import { getKv, KEY_SETTINGS_KEPT } from '../src/sync/store';
+import { readKept } from '../src/state/keptEdits';
+import { getKv, KEY_SETTINGS_KEPT, setKv } from '../src/sync/store';
 import { openDb } from './sync-helpers';
 
 const PULLED_VERSION = 7;
@@ -153,6 +154,36 @@ describe('kept settings edits survive an app restart (#651)', () => {
     await act(async () => second.result.current.setFocus(['chest']));
     await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] }));
     expect((await loadSettings(db))!.diet).toBe('egg');
+  });
+
+  it('a reload that drops a kept field rewrites the saved copy too, so a restart does not read it again', async () => {
+    const { db, writes, launch, reload, pull } = await setup();
+    const r = await launch();
+    writes.failing = true;
+    await act(async () => r.result.current.setDiet('veg'));
+    await waitFor(() => expect(r.result.current.saveFailed).toBe(true));
+    await sleep(20);
+    const saved = async () => JSON.parse((await getKv(db, KEY_SETTINGS_KEPT)) as string).edits.map((e: { value: Record<string, unknown> }) => Object.keys(e.value));
+    expect(await saved()).toEqual([['diet']]);
+    writes.failing = false;
+    await pull({ diet: 'egg' });
+    await reload(r); // the pulled diet wins: the kept edit has nothing left for that field
+    expect(r.result.current.settings.diet).toBe('egg');
+    expect(await saved()).toEqual([[]]);
+  });
+
+  it('a saved copy of another version, an old list, or edits with array fields read as none', async () => {
+    const { db } = await setup();
+    const edit = { at: '2026-10-08T10:00:00Z', base: { diet: 'any' }, value: { diet: 'veg' } };
+    const read = async (saved: unknown) => {
+      await setKv(db, KEY_SETTINGS_KEPT, JSON.stringify(saved));
+      return readKept(db);
+    };
+    expect(await read({ v: 1, edits: [edit] })).toEqual([edit]);
+    expect(await read([edit])).toEqual([]); // the format before it had a version
+    expect(await read({ v: 2, edits: [edit] })).toEqual([]);
+    expect(await read({ v: 1, edits: [{ ...edit, base: ['diet'] }, { ...edit, value: [] }] })).toEqual([]);
+    expect(await read({ v: 1, edits: 'x' })).toEqual([]);
   });
 
   it('a store wipe removes the kept edits', async () => {

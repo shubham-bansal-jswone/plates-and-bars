@@ -45,6 +45,8 @@ export class OwnerChanged extends Error {}
 
 export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser?: string | null } = {}): Promise<number> {
   let pending = 0;
+  // Read before the write lock is taken. That is safe only because every caller holds the account lock (`withSyncPaused`), so no
+  // other wipe can bump the epoch between this read and the transaction; a revert below then restores exactly the value read here.
   const epochBefore = storeEpoch();
   await inTransaction(db, async (txn) => {
     if (opts.expectUser !== undefined && (await getUserId(txn)) !== opts.expectUser) throw new OwnerChanged();
