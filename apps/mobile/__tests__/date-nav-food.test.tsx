@@ -39,7 +39,7 @@ const log = (id: string, date: string, over: Record<string, unknown> = {}) => ({
 const addRoti = async () => {
   await fireEvent.press(screen.getByLabelText('+ Add to breakfast'));
   await screen.findByLabelText('Search foods');
-  await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+  await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
   await screen.findByText(/Added Roti/);
   await fireEvent.press(screen.getByText('Done'));
 };
