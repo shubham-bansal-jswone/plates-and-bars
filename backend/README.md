@@ -70,7 +70,34 @@ keyword is registered with the schema library as a non-validation keyword so it 
 - Account rights (#192), package `account`:
   - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
     the 16 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
-    One read-only transaction. `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
+    Streamed (#349): the body is written with a Jackson `JsonGenerator` from a `StreamingResponseBody`, reading each
+    table in keyset pages of `app.export.page-size` rows (default 500, ordered by `(seq, id)`), so memory is bounded
+    by one page whatever the account holds. All pages come from one read-only transaction (InnoDB repeatable read),
+    opened on the thread that writes the body. Rate limits, the user's existence (401) and the headers are decided
+    before the first byte; the response has no `Content-Length` (chunked). The security chain keeps the user in a
+    `RequestAttributeSecurityContextRepository` (saved by `JwtAuthFilter`), so the ASYNC dispatch that writes the
+    body is authenticated again; there is no blanket permit for async dispatches.
+    Bounds: `spring.mvc.async.request-timeout` is 10 minutes (Tomcat's 30 s default would cut every export, download
+    time included), the transaction is read-only REPEATABLE_READ with a 600 s timeout, and at most
+    `app.export.max-concurrent` (env `EXPORT_MAX_CONCURRENT`, default 2) exports stream at once, because each holds a
+    database connection and a thread for the whole download. A third gets 429 `rate_limited` with `Retry-After: 30`
+    (the contract's existing answer for this endpoint; no new response). The place is given back when the body ends,
+    fails or never runs.
+    Known and accepted: a timed-out writer thread may keep running for a moment after its place is given back, so two
+    exports can briefly overlap (its next write fails, and its transaction ends at 600 s); an account deleted between
+    the 401 check and the writer gives 500 instead of 401; and with the default cap of 2, two slow downloads can block
+    other exports for up to 10 minutes (raise `EXPORT_MAX_CONCURRENT` if that matters). The capacity check runs before
+    the IP and user limits, so a refusal for capacity spends neither allowance.
+    A failure after streaming starts: nothing in the contract fixes this, so the rule is that a client must never get
+    a complete-looking document from a failed export. Before the response buffer (8 KB) is flushed the failure is an
+    ordinary 500 `Error`. After that the 200 is already sent, so the generator does not auto-close open arrays and
+    objects (`AUTO_CLOSE_CONTENT` off) and `ApiExceptionHandler` rethrows when the response is committed instead of
+    appending an `Error` object, and `ApiErrorController` (the container's `/error` page, in the contract `Error` shape) writes nothing on a committed response; the container then aborts the connection, with no final chunk, so the client sees an
+    unterminated chunked body (an I/O error) and truncated, invalid JSON. The stream throws a fixed-message
+    `ExportAbortedException` without a cause (a timeout is turned into the same exception), so the container's log line holds no row or message; the server logs the
+    original exception class, user id and time only. A client treats any error or unparsable body as a failed export
+    and retries (5 per hour).
+    `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
     Limited to 5 per hour per user and 20 per hour per IP (`app.rate-limit.export-per-user`, `export-per-ip`);
     429 `rate_limited` with `Retry-After`. Credentials (tokens, codes) are not included. Not compressed by the app.
   - `DELETE /me`: one transaction removes the user's email-keyed rows (`email_sign_in_codes`, `email_verify_failures`
