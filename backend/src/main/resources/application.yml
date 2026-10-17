@@ -38,6 +38,16 @@ logging:
     # Tomcat's HTTP/1.1 processor can print raw request bytes at DEBUG or TRACE.
     org.apache.coyote.http11: INFO
 
+# Error tracking (#687). Off, with no network use, unless SENTRY_DSN is set. SentryScrubber runs on every event.
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:${spring.profiles.active:dev}}
+  send-default-pii: false
+  max-request-body-size: none
+  max-breadcrumbs: 0
+  attach-server-name: false
+  enable-external-configuration: false
+
 server:
   port: ${PORT:8080}
   # Deliberately off (#352). Forwarded headers are not trusted by the servlet container: the client IP comes from
@@ -60,6 +70,9 @@ app:
     jwt-signing-key: ${JWT_SIGNING_KEY:}
     # Comma-separated OAuth client ids (audiences) accepted in Google ID tokens.
     google-client-ids: ${GOOGLE_CLIENT_IDS:}
+    # Comma-separated exact origins of the web app itself, the only ones allowed to use cookie mode for the refresh token
+    # (X-Auth-Transport: cookie, ADR 006). Separate from CORS_ALLOWED_ORIGINS on purpose; empty refuses cookie mode.
+    cookie-origins: ${AUTH_COOKIE_ORIGINS:}
   mail:
     # Environment only. Host and from are required unless the dev profile (LoggingMailSender) is active.
     host: ${SMTP_HOST:}

@@ -10,6 +10,8 @@ Where to find things. The prototype is the behaviour specification; everything e
     spec/PROTOTYPE_SPEC.md         behaviour spec; section 0 lists what changed and when
     spec/golden/*.json             fixtures generated from the prototype; never edit by hand
     spec/ISSUES.md                 work items from the 2026-10-07 handoff, with acceptance criteria
+    INCIDENT-RESPONSE.md           personal data breach runbook (DPDP notification, templates)
+    PLAY-DATA-SAFETY.md            Play Console Data safety and Health apps declaration answers
 
 When the prototype changes, follow "When the prototype changes" in AGENTS.md.
 

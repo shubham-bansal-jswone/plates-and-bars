@@ -63,4 +63,15 @@ class AiUsageRepository {
                 Long.class, from, to);
         return n == null ? 0 : n;
     }
+
+    /**
+     * Marks the month's 80% alert as fired if the ledger has reached {@code percent} of the budget and it has not
+     * fired yet. One conditional UPDATE, so of any number of concurrent callers exactly one gets true, and the flag
+     * survives a restart.
+     */
+    boolean markAlertSent(LocalDate month, long budgetTokens, int percent) {
+        return jdbc.update(
+                "UPDATE ai_spend_monthly SET alert_sent = 1 WHERE month = ? AND alert_sent = 0 AND tokens * 100 >= ?",
+                month, budgetTokens * percent) == 1;
+    }
 }

@@ -72,7 +72,7 @@ export type GramsQuantity =
   | { kind: 'grams'; qty: number }
   /** Grams entered but the serving has no gram weight: log nothing ("… is measured in …, not grams. Use servings."). */
   | { kind: 'not-in-grams' }
-  /** Grams round to 0 servings: log nothing and ask for a larger amount (#150; the prototype logs qty 0). */
+  /** Grams round to 0 servings: log nothing and ask for a larger amount (#150). */
   | { kind: 'too-small' };
 
 /** Fruit and veg servings goal shown as "of 5 servings" (prototype `fibreHtml`). */
@@ -109,10 +109,9 @@ export function unitGrams(label: string): number {
 /**
  * Servings to log for grams typed in the food list's grams box. `grams` is the raw input, parsed with
  * `num` (comma decimals accepted). For bracketed weights the grams are the dry or ingredient weight (#97).
- * The quantity is rounded to 0.1. When that gives 0 the result is `too-small` (decided on #150; the
- * prototype logs qty 0 and follows in the next spec-change batch).
+ * The quantity is rounded to 0.1. When that gives 0 the result is `too-small` (decided on #150).
  *
- * Mirrors the `ug`, `g`, `qty` and "not grams" steps of prototype `case 'pick'`, except `too-small`.
+ * Mirrors the `ug`, `g`, `qty`, "not grams" and "too small" steps of prototype `case 'pick'`.
  */
 export function quantityFromGrams(food: GramsFood, grams: number | string): GramsQuantity {
   const ug = food.serving.grams ?? 0;
@@ -452,9 +451,9 @@ export interface UserFoodFields {
 export type CustomFoodResult =
   /** No name: "Give the food a name." */
   | { kind: 'no-name' }
-  /** The trimmed name is longer than `FOOD_NAME_MAX` (200) characters, the contract limit (#150; the prototype logs it). */
+  /** The trimmed name is longer than `FOOD_NAME_MAX` (200) characters, the contract limit (#150). */
   | { kind: 'name-too-long' }
-  /** A negative calorie or macro value, or a quantity at or below 0 (#150; the prototype logs it). */
+  /** A negative calorie or macro value, or a quantity at or below 0 (#150). */
   | { kind: 'invalid' }
   /** No calories and no macros: "Enter calories or at least one macro." */
   | { kind: 'no-kcal' }
@@ -469,10 +468,9 @@ export const FOOD_NAME_MAX = 200;
  * entered calories and macros are kept unrounded. The saved food has no fibre, sugar or fruit and veg data.
  * A quantity left empty or 0 is 1. A trimmed name longer than 200 characters (the contract limit) gives
  * `name-too-long` (decided on #150). After the name checks, a negative calorie or macro value, or a
- * quantity still at or below 0, gives `invalid` (decided on #150; the prototype logs it and follows in
- * the next spec-change batch).
+ * quantity still at or below 0, gives `invalid` (decided on #150).
  *
- * Mirrors prototype `case 'addcustom'` (checks, log and saved food), except `name-too-long` and `invalid`.
+ * Mirrors prototype `case 'addcustom'` (checks, log and saved food).
  */
 export function customFood(input: CustomFoodInput): CustomFoodResult {
   const name = input.name.trim();

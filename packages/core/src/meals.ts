@@ -165,7 +165,7 @@ export function ideasPage<T extends MealFood>(
 }
 
 /** Food lookups shared by both combo builders: first food of a name, role and diet filter. */
-function context<T extends MealFood>(input: MealIdeasInput<T>) {
+function context<T extends MealFood>(input: { foods: readonly T[]; planning: Pick<MealPlanningContent, 'roles'>; diet?: MealDiet | null | undefined }) {
   const byName = new Map<string, T>();
   for (const f of input.foods) if (!byName.has(f.name)) byName.set(f.name, f);
   const roles = new Map<string, MealRole>();
@@ -369,4 +369,54 @@ export function combosFast<T extends MealFood>(info: MealTarget, input: Pick<Mea
       seen.add(k);
       return true;
     });
+}
+
+/** A meal with less protein than this gets a "Low on protein" add-on. Mirrors the 20 in prototype `upgradeHtml`. */
+export const UPGRADE_PROTEIN_BELOW_G = 20;
+/** An add-on may go this far over the calories left. Mirrors the 50 in prototype `upgradeHtml`. */
+export const UPGRADE_KCAL_SLACK = 50;
+/** The foods tried as add-ons, in the prototype's order (it breaks ties). */
+const UPGRADE_FOODS: readonly string[] = ['Greek yogurt, plain', 'Egg white', 'Dal', 'Sprouts salad', 'Curd / dahi', 'Whey protein'];
+
+export interface ProteinUpgradeInput<T extends MealFood & { serving: { label: string } }> {
+  meal: Meal;
+  /** The day shown and today: the add-on is for today only. */
+  date: string;
+  today: string;
+  /** What is logged under `meal` (not deleted). */
+  items: readonly { name: string; qty: number; protein_g: number }[];
+  /** Calories left today: the target minus everything logged, over all meals. */
+  kcalLeft: number;
+  foods: readonly T[];
+  planning: Pick<MealPlanningContent, 'roles'>;
+  diet?: MealDiet | null | undefined;
+}
+
+export interface ProteinUpgrade<T extends MealFood> {
+  food: T;
+  qty: number;
+  /** What to add, as the prototype words it: "3 egg whites" or "dal (1 katori (35 g dal))". */
+  label: string;
+  protein_g: number;
+  kcal: number;
+}
+
+/**
+ * One add-on for a main meal that has food but under 20 g protein: of dal, curd, yogurt, egg whites, sprouts and
+ * whey that suit the diet and are not already in the meal, the one with most protein that fits the calories left
+ * plus 50, else the first of them. Null on another day, for Snacks, an empty meal, 20 g or more, or when none is left.
+ * Egg whites come three at a time. Mirrors prototype `upgradeHtml(meal, items)`.
+ */
+export function proteinUpgrade<T extends MealFood & { serving: { label: string } }>(input: ProteinUpgradeInput<T>): ProteinUpgrade<T> | null {
+  if (!input.items.length || input.meal === 'Snacks' || input.date !== input.today) return null;
+  if (input.items.reduce((a, m) => a + m.protein_g * m.qty, 0) >= UPGRADE_PROTEIN_BELOW_G) return null;
+  const { F, ok } = context(input);
+  const opts = UPGRADE_FOODS.filter((n) => ok(n) && !input.items.some((m) => m.name === n)).map((n) => F(n) as T);
+  const kcalOf = (f: T): number => f.per_serving.kcal * sideQty(f.name);
+  const proteinOf = (f: T): number => f.per_serving.protein_g * sideQty(f.name);
+  const fits = opts.filter((f) => kcalOf(f) <= Math.max(input.kcalLeft, 0) + UPGRADE_KCAL_SLACK).sort((a, b) => proteinOf(b) - proteinOf(a));
+  const pick = fits[0] ?? opts[0];
+  if (!pick) return null;
+  const qty = sideQty(pick.name);
+  return { food: pick, qty, label: qty > 1 ? `${qty} egg whites` : `${pick.name.toLowerCase()} (${pick.serving.label})`, protein_g: proteinOf(pick), kcal: kcalOf(pick) };
 }
