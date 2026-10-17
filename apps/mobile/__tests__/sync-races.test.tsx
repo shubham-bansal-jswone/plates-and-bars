@@ -31,9 +31,18 @@ const gate = () => {
 };
 
 // Nothing may leave the engine paused or a run in flight: a later syncOnce/pauseSync in this module would hang or say 'paused'.
+// Raced against a short timer so one stuck run fails here with a clear message instead of costing every later test the full test timeout.
 afterEach(async () => {
   const deps = { db: await openDb(), api: createClient(API, async () => null), tokens: memoryTokens({ access: 'a', refresh: 'r' }) };
-  expect((await syncOnce(deps)).status).toBe('signed_out'); // 'paused' if the pause counter is not back to 0
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stuck = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('The engine still has a run in flight after the test: a held fake-server request was never released.')), 2000);
+  });
+  try {
+    expect((await Promise.race([syncOnce(deps), stuck])).status).toBe('signed_out'); // 'paused' if the pause counter is not back to 0
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 async function setup(tokens = memoryTokens({ access: 'access-1', refresh: 'refresh-1' })) {
@@ -261,13 +270,18 @@ describe('a full account in the provider', () => {
   });
 });
 
-describe('after a restart with a held server', () => {
-  it('a later sync in the same module still completes', async () => {
+describe('a held fake-server request', () => {
+  it('lets the run end once released, so a later sync and pause in the same module complete', async () => {
     const { deps, server } = await setup();
     server.accessValid = 'access-1';
     await saveWeightDoc(deps.db, w('2026-10-07', 80));
+    const release = server.block();
+    const held = syncOnce(deps); // waits on the server
+    await waitFor(() => expect(server.calls.length).toBeGreaterThan(0));
+    release();
+    expect((await held).status).toBe('ok');
     expect((await syncOnce(deps)).status).toBe('ok');
-    await pauseSync(); // would never resolve while an earlier run is stuck
+    await pauseSync(); // would never resolve while the held run was stuck
     resumeSync();
   });
 });
