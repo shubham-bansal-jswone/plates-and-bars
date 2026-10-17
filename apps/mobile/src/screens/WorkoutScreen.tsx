@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -128,7 +128,8 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   const [override, setOverride] = useState<Workout['where']>(null);
   const [away, setAway] = useState(false);
   const where = override ?? profile.where;
-  const plan = planned(date, { profile, sessions: day.sessions });
+  const weekPlan = settings.adjustments.weekPlan as WeekPlan | undefined;
+  const plan = planned(date, { profile, sessions: day.sessions, weekPlan, mode: settings.adjustments.mode as string | undefined });
   const nextT = plan ? nextInList(plan, profile) : null;
   const flags = checkinFlags(ci, nextT);
   const startT = choice === 'swap' && nextT ? nextT : plan;
@@ -143,7 +144,8 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   const names = built ? built.exercises.map((e) => e.name) : [];
   const { primary: prim, secondary: sec } = musclesOf(names);
   const eachSets = built && built.exercises.length && built.exercises.every((e) => e.sets === built.exercises[0]?.sets) ? built.exercises[0]?.sets : null;
-  const others = (planList(profile) as readonly string[]).filter((k) => k !== plan);
+  // This week's hand-picked plan replaces the usual list while it is the current week (prototype chipList).
+  const others = (coverageTemplates(date, profile, weekPlan) as readonly string[]).filter((k) => k !== plan);
 
   const awayLabel =
     where === profile.where
@@ -157,7 +159,9 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan
-          ? 'Start with the planned exercises, then swap or add anything you like.'
+          ? weekPlan && weekPlan.start === mondayOf(date)
+            ? `This week’s ${weekPlan.list.length}-day plan.`
+            : 'Start with the planned exercises, then swap or add anything you like.'
           : 'Rest and recovery today. A walk and enough protein count. You can still log a session.'}
       </Hint>
       {plan && built && startT ? (
