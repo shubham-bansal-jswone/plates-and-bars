@@ -4,6 +4,7 @@ import type { ApiClient } from '@plate-and-bar/api';
 import { deleteEverything, exportFromServer, wipePending as readWipePending, type DeleteResult, type ServerExportResult } from '../account/server';
 import { RECENT_EXPORT_MS, clearOldExports } from '../account/saveFile';
 import { AiProvider } from '../ai/AiProvider';
+import { onStoreWrite } from '../db/lockedDb';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
 import { refreshSession, syncOnce, type SyncDb, type SyncResult } from './engine';
@@ -175,6 +176,9 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       live = false;
     };
   }, [db, tokens, api, refreshPending, afterDelete]);
+
+  // A store write queues a change at once: show it without waiting for the next tick.
+  useEffect(() => onStoreWrite(() => void refreshPending().catch(() => undefined)), [refreshPending]);
 
   // Schedule: now, every 30 s, when the app comes back to the foreground, and when the browser reports it is online.
   useEffect(() => {
