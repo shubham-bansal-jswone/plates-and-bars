@@ -8,7 +8,8 @@ import { checkinBannerDue, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PRO
 import { fmt } from '../format';
 import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
-import { localDate } from '../setup/logic';
+import { DateBar } from '../components/DateBar';
+import { useViewedDate } from '../state/ViewedDate';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
 import { CHECKIN_READY, CHECKIN_SEE, lowProtein, PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, toastMs, upgradeAdded } from '../food/copy';
@@ -56,7 +57,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const dataVersion = useDataVersion();
-  const f = useFoodDay({ db, now, notify, reloadKey: dataVersion });
+  const v = useViewedDate(now);
+  const f = useFoodDay({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const water = useWater({ db, date: f.date, now, profile, adjustments: settings.adjustments, notify, reloadKey: dataVersion });
 
   if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
@@ -77,7 +79,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   };
   const plan = (extra: number) => {
     if (blocked()) return;
-    const r = planFlex({ extra, date: f.date, today: f.date, id: newId(), flex: settings.flex }, profile);
+    const r = planFlex({ extra, date: f.date, today: v.today, id: newId(), flex: settings.flex }, profile);
     setFlex(r.flex);
     notify(flexToast(extra, r));
   };
@@ -120,14 +122,15 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   // The add-on's room is the base target less what is eaten (prototype `S.settings.kcal`), not the shown target with flex days and the lab hold.
   const baseTarget = kcalTarget(f.date, { flex: [] }, profile);
-  // The Food tab shows today only, so the day shown is today (core's add-on is for today only).
+  // Core's add-on is for today only: on a past day it returns null.
   const upgradeFor = (meal: Meal): ProteinUpgrade<CatalogFood> | null =>
-    proteinUpgrade({ meal, date: f.date, today: f.date, items: f.logs.filter((l) => l.meal === meal), kcalLeft: baseTarget - t.kcal, foods: getFoodCatalog(), planning: getMealPlanning(), diet: settings.diet });
+    proteinUpgrade({ meal, date: f.date, today: v.today, items: f.logs.filter((l) => l.meal === meal), kcalLeft: baseTarget - t.kcal, foods: getFoodCatalog(), planning: getMealPlanning(), diet: settings.diet });
 
   return (
     <View style={styles.fill}>
       <Page>
         <H1>Food</H1>
+        <DateBar v={v} />
         <View accessibilityRole="summary" accessibilityLabel={`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`} style={styles.gap}>
           <Text style={{ color: left < 0 ? c.caution : c.ink, fontSize: 40, fontWeight: '300' }}>{fmt(Math.abs(left))}</Text>
           <Text style={{ color: c.body }}>{left < 0 ? 'kcal over' : 'kcal left'}</Text>
@@ -158,14 +161,15 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             {todaysPlan ? <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysPlan.id)} /> : null}
           </View>
         ) : null}
-        {checkinBannerDue({ date: f.date, today: localDate(now()), seen: settings.checkin_seen }) ? (
+        {checkinBannerDue({ date: f.date, today: v.today, seen: settings.checkin_seen }) ? (
           <View style={[styles.banner, { backgroundColor: c.tint }]}>
             <Text style={{ color: c.ink, flex: 1 }}>{CHECKIN_READY}</Text>
             <Button label={CHECKIN_SEE} a11yLabel="See it: your weekly check-in" onPress={() => router.navigate('/progress' as never)} />
           </View>
         ) : null}
         <IdeasCard
-          today={f.date}
+          date={f.date}
+          today={v.today}
           hour={now().getHours()}
           logs={f.logs}
           totals={t}

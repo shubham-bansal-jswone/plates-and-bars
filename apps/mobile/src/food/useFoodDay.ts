@@ -5,7 +5,6 @@ import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFo
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { freshRead } from '../state/freshRead';
-import { localDate } from '../setup/logic';
 import type { CatalogFood } from './catalog';
 import type { DayNote, FoodLog, Meal, UserFood } from './types';
 
@@ -13,6 +12,8 @@ const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 interface Options {
   db: WorkoutDb;
+  /** The day shown (the viewed day, which may be a past one): every read and write is for it. */
+  date: string;
   now: () => Date;
   /** Short message for the toast. */
   notify: (msg: string) => void;
@@ -35,11 +36,10 @@ export const logOf = (f: CatalogFood, qty: number): NewLog => ({
 });
 
 /**
- * Today's food: loads logs, the day note and my foods from SQLite. Every action shows at once and its write
+ * The shown day's food: loads logs, the day note and my foods from SQLite. Every action shows at once and its write
  * goes through one FIFO queue (nothing waits on the network, and writes finish in the order the user acted).
  */
-export function useFoodDay({ db, now, notify, reloadKey = 0 }: Options) {
-  const date = localDate(now());
+export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
   const [ready, setReady] = useState(false);
   const [logs, setLogs] = useState<FoodLog[]>([]);
   const [note, setNote] = useState<DayNote | null>(null);
