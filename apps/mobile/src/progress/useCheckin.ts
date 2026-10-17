@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { addDays, addKcal, habits, mondayOf, nextAdaptive, RAPID_LOSS_KCAL, rapidLoss, SPLITS, stalledList, weeklyCheckin, type AdaptiveState, type LiftRecord, type ProgressDay, type SessionLog, type WeekPlan } from '@plate-and-bar/core';
+import { addDays, addKcal, dismissKey, habits, mondayOf, nextAdaptive, RAPID_LOSS_KCAL, rapidLoss, SPLITS, stalledList, weeklyCheckin, type AdaptiveState, type LiftRecord, type ProgressDay, type SessionLog, type WeekPlan } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs } from '../db/food';
 import { loadLifts, loadSessionLog, loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
 import { freshRead } from '../state/freshRead';
@@ -121,7 +121,7 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   const dismiss = (key: string, extra: (a: Adjustments) => Partial<Adjustments> = () => ({})) =>
     update((s) => {
       const a = s.adjustments as Adjustments;
-      return { adjustments: { ...s.adjustments, ...extra(a), dismissed: { ...a.dismissed, [key]: true } } };
+      return { adjustments: { ...s.adjustments, ...extra(a), dismissed: dismissKey(a.dismissed, key, today) } };
     });
 
   return {
