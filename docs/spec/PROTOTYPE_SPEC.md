@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — custom exercise names match case-insensitively (deliberate difference; prototype and golden fixtures unchanged).**
+- #665 (from #450, decided): the prototype checks a typed exercise name with exact case (`!TAGS[name]`), so "bench press" opens the tag sheet and makes a custom exercise. The app compares the typed name with every known exercise, built-in and custom, ignoring letter case (`exerciseNamed` in `apps/mobile/src/workout/catalog.ts`): typing "bench press" adds the built-in "Bench Press", and a custom exercise whose name is a known exercise in another letter case is refused at save. This avoids near-duplicate custom exercises. Only case is ignored: spaces and spelling still count, and when two known names differ only by case the first in catalog order wins.
+
 **2026-10-17 — prototype copy: the health-check questions in our own words (spec-change; golden fixtures unchanged).**
 - #716: `SCREEN_Q` in `docs/prototype/plate-and-bar.html` and `apps/mobile/src/setup/copy.ts` no longer paraphrase the PAR-Q+ (copyright of the PAR-Q+ Collaboration). Still six yes/no answers in the same slots, so the stored answers, `screenFlag`, the light-sessions rule and every result are identical. Old slot to new question: (1) heart condition or high blood pressure -> "Have you ever been diagnosed with a heart problem or high blood pressure?"; (2) chest pain -> "Does your chest hurt when you are resting or being active?"; (3) dizziness or loss of consciousness -> "In the last year, have you fainted, or felt so dizzy that you fell or nearly fell?"; (4) long-term condition or medicine for one -> "Do you live with a long-term health condition, or take regular medication for one?"; (5) bone, joint or muscle problem that more activity could make worse -> "Do you have a back, knee, shoulder or other bone, joint or muscle problem that being more active could make worse?"; (6) supervised exercise only -> "Has a doctor or other health professional said you should only exercise with supervision?".
 - Pregnancy is not a seventh question: it stays the separate "Are you pregnant or breastfeeding?" field (`special`), which already triggers the same clearance rule.
@@ -224,7 +227,7 @@ Still open (#155): after M0, the planned count may move to the built session's r
 - Exclusion scope: exercise, family, movement pattern, or joint; duration: today, 2 weeks, 4 weeks, permanent. Re-check card when a timed rule ends.
 - Replacement scoring (`candidates`): shared primary muscles ×10, shared secondary ×2, same pattern +6, joint-stress and difficulty penalties, history +2, equipment filter by `where`.
 - Ladders (`LADDERS`): step-up card after ≥4 sessions at the top of the range with good ratings and solid form; 2-week bridge; step-down after two bad sessions; "stay" re-asks after 6 weeks.
-- Custom exercises: Claude suggests tags (pattern, equipment, muscles, joints); user confirms on a body map; stored per user.
+- Custom exercises: Claude suggests tags (pattern, equipment, muscles, joints); user confirms on a body map; stored per user. A typed name that matches a known exercise in any letter case is that exercise, not a new custom one (differs from the prototype's exact-case check, #665).
 
 ---
 
