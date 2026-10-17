@@ -39,6 +39,7 @@ export function signOutPending(): boolean {
 export function markSignOutPending(): void {
   if (!cookieMode()) return;
   try {
+    if (!globalThis.localStorage) memoryPending = true; // no storage at all (some embedded webviews)
     globalThis.localStorage?.setItem(PENDING_KEY, '1');
   } catch {
     memoryPending = true; // storage blocked

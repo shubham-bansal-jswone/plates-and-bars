@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { ProfileProvider } from '../src/state/ProfileProvider';
 import { memoryDb } from './helpers';
@@ -145,6 +146,24 @@ describe('sign-in screen', () => {
     expect(await screen.findByText(/deletes 4 unsynced changes/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Discard and sign out'));
     await waitFor(() => expect(discardAndSignOut).toHaveBeenCalled());
+  });
+
+  it.each([
+    ['web', true],
+    ['ios', false],
+  ] as const)('a refused account switch on %s %s the "this browser is signed out" sentence', async (os, shown) => {
+    const restore = jest.replaceProperty(Platform, 'OS', os);
+    try {
+      await render(withSync({ verifyCode: async () => ({ kind: 'refused' as const, pending: 4 }) }, <SignInScreen />));
+      await fireEvent.changeText(screen.getByLabelText('Email address'), 'b@example.com');
+      await fireEvent.press(screen.getByLabelText('Send code'));
+      await fireEvent.changeText(await screen.findByLabelText('6-digit code'), '111111');
+      await fireEvent.press(screen.getByLabelText('Sign in'));
+      await screen.findByLabelText('Sign in as the previous user to sync');
+      expect(!!screen.queryByText(/This browser is now signed out/)).toBe(shown);
+    } finally {
+      restore.restore();
+    }
   });
 
   it('sign-out with unsynced changes offers sync first or a confirmed discard, never a plain sign-out', async () => {

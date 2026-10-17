@@ -569,6 +569,15 @@ describe('web: tab lock and storage edge cases', () => {
     expect(held).toEqual(['pb-refresh-cookie']);
   });
 
+  it('no localStorage at all (embedded webview): the sign-out flag still holds for this page', () => {
+    setPlatform('web');
+    delete (globalThis as Record<string, unknown>).localStorage;
+    markSignOutPending();
+    expect(signOutPending()).toBe(true);
+    clearSignOutPending();
+    expect(signOutPending()).toBe(false);
+  });
+
   it('blocked localStorage: the sign-out flag still holds for this page', () => {
     setPlatform('web');
     local.setItem = () => {
