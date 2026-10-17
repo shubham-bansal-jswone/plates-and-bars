@@ -15,7 +15,7 @@ import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
-import { getCatalog } from '../workout/catalog';
+import { exerciseNamed, getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
@@ -26,6 +26,7 @@ import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
 import { CardioBlock } from '../workout/CardioBlock';
+import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -158,7 +159,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
     <Page>
       <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
-      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} notify={notify} />
+      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan
@@ -232,6 +233,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
           <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice, override)} />
         ))}
       </View>
+      <WeekTools date={date} notify={notify} />
       <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
         <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
       </Press>
@@ -250,6 +252,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
           ))}
         </View>
       ) : null}
+      <ModeNote notify={notify} />
       <CardioBlock value={day.workout?.cardio_min ?? null} onSave={w.setCardio} />
     </Page>
   );
@@ -269,7 +272,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
     if (isBlank(typed)) return notify('Type an exercise name.');
     if (exerciseNameTooLong(typed)) return notify('That exercise name is too long. Shorten it.');
     // A name the library knows (any case) is that exercise; a new one needs its muscles first (prototype exCustom).
-    const known = Object.keys(getCatalog().tags).find((n) => n.toLowerCase() === typed.toLowerCase());
+    const known = exerciseNamed(typed);
     setAdding(false);
     if (known) {
       if (w.addExercise(known)) notify(`${known} added`);
@@ -355,10 +358,11 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
           name={tagging}
           notify={notify}
           onClose={() => setTagging(null)}
-          onSave={(tags) => {
+          onSave={async (tags) => {
             const name = tagging;
             setTagging(null);
-            if (!addCustomTags(name, tags)) return notify('Couldn’t save that exercise. Try again.');
+            // Only after the save has decided: a name it refuses (a near-duplicate a pull stored meanwhile) must not reach the workout.
+            if (!(await addCustomTags(name, tags))) return notify('Couldn’t save that exercise. Try again.');
             notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
           }}
         />

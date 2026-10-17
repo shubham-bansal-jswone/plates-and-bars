@@ -1,4 +1,4 @@
-import { recoveryWeek, reentryRange, type AdjRange, type AdjState, type ReentryRange } from '@plate-and-bar/core';
+import { CONDENSED, mondayOf, recoveryWeek, reentryRange, type AdjRange, type AdjState, type ReentryRange } from '@plate-and-bar/core';
 
 // `Settings.adjustments` is an open object; these are the prototype's `settings.adj` fields the exercise cards use:
 // `muted[type]` (the user turned the card type off), `dismissed[key]` (this card was answered) and `declines[type]`
@@ -51,4 +51,22 @@ export const startReentry = (a: Adjustments, date: string, key: string, pct: num
 export function endAdj(a: Adjustments, kind: 'deload' | 'reentry'): Adjustments {
   const { [kind]: _gone, ...rest } = a;
   return rest;
+}
+
+/** "Shift the week": the plan runs in order from here (prototype `adj-shift`); the card's key is answered and its declines reset. */
+export const shiftWeek = (a: Adjustments, key: string): Adjustments => {
+  const adj = answered(a, key);
+  return { ...adj, mode: 'sequence', declines: { ...adjOf(a).declines, missed: 0 } };
+};
+
+/** "Go back to fixed weekdays" (prototype `adj-mode`). */
+export const fixedWeekdays = (a: Adjustments): Adjustments => ({ ...a, mode: 'weekday' });
+
+/** "N days" sets this week's condensed plan; 0 is "Back to the normal week" (prototype `adj-week`). */
+export function weekPlanFor(a: Adjustments, date: string, n: 0 | 3 | 4 | 5): Adjustments {
+  if (n === 0) {
+    const { weekPlan: _gone, ...rest } = a;
+    return rest;
+  }
+  return { ...a, weekPlan: { start: mondayOf(date), list: CONDENSED[n] } };
 }
