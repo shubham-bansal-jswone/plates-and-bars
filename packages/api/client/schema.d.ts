@@ -102,8 +102,54 @@ export interface paths {
          *     counts as reuse: the whole session is revoked. So if someone else used the window,
          *     the device's next refresh ends the session. After 60 seconds, or once the newer token has been
          *     presented, reuse is theft as above.
+         *
+         *     **Web (cookie mode).** With `X-Auth-Transport: cookie` the token comes from the
+         *     `__Secure-pb_refresh` cookie and the body is `{}`; see the `auth` tag. The rules
+         *     above are the same. The browser holds the token, so "retry with the token it still
+         *     holds" means retrying with whatever cookie the browser has.
          */
         post: operations["refreshTokens"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign out (end the session and clear the refresh cookie)
+         * @description Ends the session the presented refresh token belongs to. Every token descended
+         *     from the same sign-in is revoked, so this browser or device is signed out. Other
+         *     devices have their own sessions and stay signed in. Access tokens already issued
+         *     stay valid until they expire (at most 15 minutes), so the app discards its own.
+         *
+         *     Any refresh token the server knows revokes its session, whether current, already
+         *     rotated or expired. An unknown token, or no cookie in cookie mode, revokes
+         *     nothing. The answer is 204 in every one of these cases, so a retry is safe. In
+         *     cookie mode the 204 also clears the cookie.
+         *
+         *     **Web app.** It must call this to sign out, because script cannot delete an
+         *     httpOnly cookie. Until the call succeeds, the cookie would sign the user back in
+         *     on the next reload. If the call does not complete (for example offline), the app
+         *     keeps a "sign-out pending" flag, which holds no token and may sit in
+         *     `localStorage`. While the flag is set the app does not call `POST /auth/refresh`,
+         *     and it retries this call first. After `DELETE /me` it also calls this endpoint,
+         *     only to clear the cookie (the session is already revoked).
+         *
+         *     **Native apps** may call it in body mode on sign-out. They delete their stored
+         *     tokens whatever the result.
+         *
+         *     Rate-limited per IP like every endpoint. The token is never logged.
+         */
+        post: operations["revokeSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -388,7 +434,8 @@ export interface paths {
          *     15 minutes but are refused by every endpoint with 401 `unauthorized`, except
          *     this one (see Idempotency). Other signed-in devices therefore get 401 on their
          *     next request and must sign in again; no request made with a pre-deletion token
-         *     can write data. The server cannot erase data stored on other devices; the app
+         *     can write data. The web app then calls `POST /auth/refresh/revoke` in cookie mode
+         *     to clear its refresh cookie. The server cannot erase data stored on other devices; the app
          *     deletes the local store on the device that made the request.
          *
          *     **Idempotency.** Deleting an account that is already deleted succeeds: a repeat
@@ -672,10 +719,12 @@ export interface components {
              *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
              *     the server; use the non-AI fallback. `account_full` (413, `POST /sync` only):
              *     the push would take the account over its record cap; nothing was applied (see
-             *     `record_cap`). Clients treat an unknown code like `internal`.
+             *     `record_cap`). `forbidden` (403, `/auth/*` cookie mode only): the request's
+             *     `Origin` is missing or not a cookie-mode origin. Clients treat an unknown code
+             *     like `internal`.
              * @enum {string}
              */
-            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled" | "account_full";
+            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled" | "account_full" | "forbidden";
             /** @description Plain-language message safe to show the user. Never contains health data. */
             message: string;
             /** @description Per-field problems, for `invalid_request`. */
@@ -737,8 +786,15 @@ export interface components {
             email: string;
             code: string;
         };
+        /**
+         * @description Body mode (native apps): `refresh_token` is required, and a request without it
+         *     is 400 `invalid_request`. Cookie mode (`X-Auth-Transport: cookie`, the web app):
+         *     send `{}`. The token comes from the cookie, and a body that carries
+         *     `refresh_token` is 400 `invalid_request`.
+         */
         RefreshRequest: {
-            refresh_token: string;
+            /** @description The current refresh token. Body mode only. */
+            refresh_token?: string;
         };
         TokenPair: {
             /** @constant */
@@ -748,6 +804,9 @@ export interface components {
             access_token_expires_at: components["schemas"]["Timestamp"];
             /**
              * @description Opaque, single-use. Store in secure storage; replace on every refresh.
+             *     Cookie mode (`X-Auth-Transport: cookie`, the web app): always the empty
+             *     string. The token is only in the httpOnly `__Secure-pb_refresh` cookie (see
+             *     the `auth` tag). The field stays required so both modes share one shape.
              *     Lifetime 90 days, extended on rotation: every `/auth/refresh` returns a new
              *     refresh token valid for 90 days from that refresh, so a device that opens the
              *     app at least once every 90 days stays signed in. Presenting an already-rotated
@@ -755,7 +814,7 @@ export interface components {
              *     rotation while the newer token has never been presented (see `/auth/refresh`).
              */
             refresh_token: string;
-            /** @description When `refresh_token` expires, 90 days after it was issued. */
+            /** @description When the refresh token expires (in body or cookie), 90 days after it was issued. */
             refresh_token_expires_at: components["schemas"]["Timestamp"];
             user: components["schemas"]["User"];
             /** @description True when this sign-in created the account. */
@@ -1725,9 +1784,10 @@ export interface components {
             };
             content?: never;
         };
-        /** @description Signed in; a new token pair. */
+        /** @description Signed in; a new token pair. In cookie mode the refresh token is in the cookie and the body's `refresh_token` is empty. */
         TokenPair: {
             headers: {
+                "Set-Cookie": components["headers"]["SetRefreshCookie"];
                 [name: string]: unknown;
             };
             content: {
@@ -1768,6 +1828,20 @@ export interface components {
          *     record cap). The whole request was refused: nothing applied, nothing pulled.
          */
         AccountFull: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /**
+         * @description Cookie mode (`X-Auth-Transport: cookie`) without an allowed `Origin`: the header
+         *     is missing or not one of the cookie-mode origins (the web app's own origins, a
+         *     list separate from the CORS allow-list). Nothing was read or changed (no cookie,
+         *     session or sign-in). See the `auth` tag, CSRF.
+         */
+        Forbidden: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1827,9 +1901,35 @@ export interface components {
          * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
          */
         IfNoneMatch: string;
+        /**
+         * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+         *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+         *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+         *     value (ignored): body mode, which native apps use and which is unchanged. See the
+         *     `auth` tag.
+         * @example cookie
+         */
+        AuthTransport: string;
+        /**
+         * @description The refresh token in cookie mode, set by the server and sent by the browser
+         *     (`HttpOnly`, so the web app's script never sees it). Read only when
+         *     `X-Auth-Transport: cookie` is present, and ignored otherwise.
+         * @example rt_9f2c1e6b7a8d4c3b9e0f1a2b3c4d5e6f
+         */
+        RefreshCookie: string;
     };
     requestBodies: never;
     headers: {
+        /**
+         * @description Cookie mode only: sets or rotates the refresh token cookie. Absent in body mode.
+         * @example __Secure-pb_refresh=rt_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d; Path=/api/v1/auth/refresh; Max-Age=7776000; HttpOnly; Secure; SameSite=Strict
+         */
+        SetRefreshCookie: string;
+        /**
+         * @description Cookie mode only: clears the refresh token cookie. Absent in body mode.
+         * @example __Secure-pb_refresh=; Path=/api/v1/auth/refresh; Max-Age=0; HttpOnly; Secure; SameSite=Strict
+         */
+        ClearRefreshCookie: string;
         /** @description Always `no-store`. */
         NoStore: "no-store";
         /**
@@ -1853,7 +1953,17 @@ export interface operations {
     signInWithGoogle: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
+                 * @example cookie
+                 */
+                "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1866,6 +1976,7 @@ export interface operations {
             200: components["responses"]["TokenPair"];
             400: components["responses"]["InvalidRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
         };
@@ -1900,7 +2011,17 @@ export interface operations {
     verifyEmailSignIn: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
+                 * @example cookie
+                 */
+                "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1921,6 +2042,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
         };
@@ -1928,9 +2050,27 @@ export interface operations {
     refreshTokens: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
+                 * @example cookie
+                 */
+                "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
+            };
             path?: never;
-            cookie?: never;
+            cookie?: {
+                /**
+                 * @description The refresh token in cookie mode, set by the server and sent by the browser
+                 *     (`HttpOnly`, so the web app's script never sees it). Read only when
+                 *     `X-Auth-Transport: cookie` is present, and ignored otherwise.
+                 * @example rt_9f2c1e6b7a8d4c3b9e0f1a2b3c4d5e6f
+                 */
+                "__Secure-pb_refresh"?: components["parameters"]["RefreshCookie"];
+            };
         };
         requestBody: {
             content: {
@@ -1940,15 +2080,20 @@ export interface operations {
         responses: {
             200: components["responses"]["TokenPair"];
             400: components["responses"]["InvalidRequest"];
-            /** @description Refresh token unknown, expired, revoked or reused. */
+            /**
+             * @description Refresh token unknown, expired, revoked or reused, or (cookie mode) no cookie.
+             *     In cookie mode the response also clears the cookie.
+             */
             401: {
                 headers: {
+                    "Set-Cookie": components["headers"]["ClearRefreshCookie"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
             /**
@@ -1964,6 +2109,51 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    revokeSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description `cookie` (exact, case-sensitive) selects cookie mode, which the web app uses: the
+                 *     refresh token travels only in the `__Secure-pb_refresh` cookie, never in a body.
+                 *     Requires a cookie-mode `Origin` (else 403 `forbidden`). Absent, or any other
+                 *     value (ignored): body mode, which native apps use and which is unchanged. See the
+                 *     `auth` tag.
+                 * @example cookie
+                 */
+                "X-Auth-Transport"?: components["parameters"]["AuthTransport"];
+            };
+            path?: never;
+            cookie?: {
+                /**
+                 * @description The refresh token in cookie mode, set by the server and sent by the browser
+                 *     (`HttpOnly`, so the web app's script never sees it). Read only when
+                 *     `X-Auth-Transport: cookie` is present, and ignored otherwise.
+                 * @example rt_9f2c1e6b7a8d4c3b9e0f1a2b3c4d5e6f
+                 */
+                "__Secure-pb_refresh"?: components["parameters"]["RefreshCookie"];
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed out (or there was nothing to revoke). In cookie mode the cookie is cleared. */
+            204: {
+                headers: {
+                    "Set-Cookie": components["headers"]["ClearRefreshCookie"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
         };
     };
     sync: {
