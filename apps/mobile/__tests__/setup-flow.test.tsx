@@ -141,7 +141,7 @@ describe('setup flow', () => {
       ),
     );
     expect(p!.created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(await loadConsent(db)).toMatchObject({ kind: 'data_storage', text_version: '2026-10-16', version: 0 });
+    expect(await loadConsent(db)).toMatchObject({ kind: 'data_storage', text_version: '2026-10-17', version: 0 });
   });
 
   it('accepts zero training days and stores exp and minutes as null', async () => {
