@@ -201,8 +201,8 @@ All buttons are pills (`radius-full`), minimum height 48, horizontal padding 24,
 
 ### 8.5 Progress bars and meters
 
-- Bar height 8, `radius-full`, `track` behind the fill.
-- Fill colour is the macro colour for macro bars, `bar` for other goals (water, the Seven-days chart, set volume, the rest timer), `caution` once a value passes its target. These goal bars do not use `brand`, which is below 3:1 on the dark `track`.
+- Bar height 8, `radius-full`, `track` behind the fill. Exception: the Seven-days chart draws day columns (32 high, radius 8), not a single bar.
+- Fill colour is the macro colour for macro bars, `bar` for other goals (water, the Seven-days chart, set volume, the rest timer), `caution` once a value passes its target, or, for set volume, when coverage is low (section 3). These goal bars do not use `brand`, which is below 3:1 on the dark `track`.
 - The Seven-days chart draws its fill at 0.85 opacity; the blended colour still meets 3:1 on `track` (section 11.3).
 - Ring meters: stroke 8, same colours, `track` for the unfilled arc.
 - Always print the numbers next to the bar (`ink` value, `muted` target); the bar is a picture of the number, not a replacement for it.
