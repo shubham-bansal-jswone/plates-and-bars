@@ -6,6 +6,7 @@ import type { StoreDb } from '../db/records';
 import { CUSTOM_EXERCISES_MAX, type ExerciseTag, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 import { exerciseNamed, setCustomTags } from '../workout/catalog';
+import { withEntry } from '../content/own';
 import { clearKept, persistKept, readKept, replayKept, type KeptEdit } from './keptEdits';
 
 interface SettingsState {
@@ -212,7 +213,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         let refused = false;
         const queued = change(
           (s) => {
-            if (!customRefused(s.custom_tags, name)) return { custom_tags: { ...s.custom_tags, [name]: tags } };
+            if (!customRefused(s.custom_tags, name)) return { custom_tags: withEntry<unknown>(s.custom_tags, name, tags) };
             refused = true;
             return {};
           },
