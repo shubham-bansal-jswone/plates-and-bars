@@ -36,7 +36,8 @@ function jsonBytes(s: string): number {
  * or `down:` key carries the date of the last session or lift record, which can be any age while the user is
  * away, so the newest one may still be the one the card shows. Keys without a date are kept. Then at most
  * `DISMISSED_MAX_KEYS` (300) keys and `DISMISSED_MAX_BYTES` (32 KB) are kept: `keep` first, then the newest
- * dates, keys without a date last. Kept keys stay in their order. `today` is the real date, `YYYY-MM-DD`.
+ * key of each group, then the other keys by newest date, keys without a date last. Kept keys stay in their
+ * order. `today` is the real date, `YYYY-MM-DD`.
  *
  * Not in the prototype, which never prunes (#721).
  */
@@ -59,8 +60,10 @@ export function pruneDismissed(dismissed: Readonly<Record<string, unknown>> | nu
     return k === keep || date === undefined || date >= cutoff || newest.get(groupOf.get(k) as string) === date;
   });
   const order = new Map(live.map((k, i) => [k, i]));
+  const head = (k: string): boolean => dateOf.has(k) && newest.get(groupOf.get(k) as string) === dateOf.get(k);
   const ranked = [...live].sort((a, b) => {
     if (a === keep || b === keep) return a === keep ? -1 : 1;
+    if (head(a) !== head(b)) return head(a) ? -1 : 1;
     const da = dateOf.get(a) ?? '', db = dateOf.get(b) ?? '';
     if (da !== db) return da < db ? 1 : -1;
     return (order.get(b) as number) - (order.get(a) as number);
