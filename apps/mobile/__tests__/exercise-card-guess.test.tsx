@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import { exInfo, type LiftRecord, type Suggestion } from '@plate-and-bar/core';
+import { exInfo, type ExInfo, type LiftRecord, type Suggestion } from '@plate-and-bar/core';
 import { ExerciseCard, type Actions } from '../src/workout/ExerciseCard';
 import { getCatalog } from '../src/workout/catalog';
 import { blankRow, type ExState } from '../src/workout/model';
@@ -14,9 +14,9 @@ function state(name: string, o: Partial<ExState> = {}): ExState {
   return { name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, ramp: [], sets: [{ ...blankRow() }], ...o };
 }
 
-async function card(name: string, o: { lifts?: Record<string, LiftRecord>; ex?: Partial<ExState>; sug?: Suggestion } = {}) {
+async function card(name: string, o: { lifts?: Record<string, LiftRecord>; ex?: Partial<ExState>; sug?: Suggestion; infoOf?: (n: string) => ExInfo } = {}) {
   const info = exInfo(name, getCatalog());
-  await render(<ExerciseCard ex={state(name, o.ex)} info={info} sug={o.sug ?? NEW} focus={[]} warm={null} act={act} lifts={o.lifts} />);
+  await render(<ExerciseCard ex={state(name, o.ex)} info={info} sug={o.sug ?? NEW} focus={[]} warm={null} act={act} lifts={o.lifts} infoOf={o.infoOf ?? ((n) => exInfo(n, getCatalog()))} />);
 }
 
 describe('first-time rough guess', () => {
@@ -28,6 +28,12 @@ describe('first-time rough guess', () => {
   it('goes the other way too, with each-hand weights on the target', async () => {
     await card('Dumbbell Bench Press', { lifts: { 'Barbell Bench Press': lift(60) } });
     expect(screen.getByText('Rough guess from your Barbell Bench Press (60 kg): about 25 kg each. Use the ramp to confirm.')).toBeTruthy();
+  });
+
+  it("labels the paired lift with the caller's info, so the user's overrides show", async () => {
+    const infoOf = (n: string): ExInfo => ({ ...exInfo(n, getCatalog()), type: 'barbell' });
+    await card('Barbell Bench Press', { lifts: { 'Dumbbell Bench Press': lift(20) }, infoOf });
+    expect(screen.getByText(/Rough guess from your Dumbbell Bench Press \(20 kg\):/)).toBeTruthy();
   });
 
   it('shows nothing without a related lift', async () => {
