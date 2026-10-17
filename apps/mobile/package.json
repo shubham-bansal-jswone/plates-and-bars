@@ -19,6 +19,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@plate-and-bar/api": "file:../../packages/api",
     "@plate-and-bar/core": "file:../../packages/core",
+    "@sentry/cli": "file:./stubs/sentry-cli",
     "@sentry/react-native": "~8.28.0",
     "expo": "~58.0.13",
     "expo-clipboard": "~58.0.3",
@@ -57,11 +58,11 @@
   },
   "expo": {
     "install": {
-      "exclude": [
-        "jest",
-        "@types/jest"
-      ]
+      "exclude": ["jest", "@types/jest"]
     }
+  },
+  "overrides": {
+    "@sentry/cli": "$@sentry/cli"
   },
   "engines": {
     "node": ">=22.13"

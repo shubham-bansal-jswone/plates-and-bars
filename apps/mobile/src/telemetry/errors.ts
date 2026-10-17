@@ -28,7 +28,11 @@ export function initErrorTracking(dsn: string | undefined = process.env.EXPO_PUB
     attachScreenshot: false,
     attachViewHierarchy: false,
     enableCaptureFailedRequests: false,
-    tracesSampleRate: 0,
+    // Tracing is off for real: with no tracesSampleRate or tracesSampler the SDK adds no tracing integrations, and no
+    // sentry-trace or baggage header is added to outgoing requests (the empty list matches no URL).
+    enableAutoPerformanceTracing: false,
+    tracePropagationTargets: [],
+    beforeSendTransaction: () => null,
     // The default breadcrumbs integration records console and network calls; the scrubber drops those too, as a second guard.
     integrations: (defaults) => defaults.filter((i) => i.name !== 'Breadcrumbs'),
     beforeBreadcrumb: scrubBreadcrumb,
