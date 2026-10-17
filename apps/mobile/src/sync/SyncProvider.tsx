@@ -13,11 +13,14 @@ import { discardQuarantined, quarantineCount, retryQuarantined } from './quarant
 import { isAccountFull } from './held';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
+import { allowOneAttempt, cancelAttempt, clearSignInUnavailable, onSignInUnavailable, signInUnavailable as readSignInUnavailable, takeAttempt } from './cookieHealth';
 import { cookieMode } from './transport';
-import { dropLegacyWebTokens, markSignOutPending, revokeCookie, signOutPending } from './webSession';
+import { dropLegacyWebTokens, markSignOutPending, onRemoteSignOut, revokeCookie, signOutPending } from './webSession';
 
 /** How often a signed-in device syncs, besides on app start, on returning to the app and when the network is back. */
 export const SYNC_INTERVAL_MS = 30_000;
+/** While sign-in is flagged unavailable (#744), one refresh is tried this often, in case the site was fixed. */
+export const SIGN_IN_RECHECK_MS = 600_000;
 const MAX_BACKOFF_MS = 300_000;
 
 export interface SyncState {
@@ -37,6 +40,8 @@ export interface SyncState {
   quarantined: number;
   /** The server said the account is full: new entries stay on this device and are not backed up (edits and deletes still sync). Kept across restarts; clears when a push of new records succeeds. */
   accountFull: boolean;
+  /** Web only: sign-in and session refresh cannot work from this site (ADR 006, #744). Nothing retries by itself; a reload tries again. */
+  signInUnavailable: boolean;
   syncing: boolean;
   /** Last run's outcome; null before the first run. */
   last: SyncResult | null;
@@ -86,6 +91,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const [pending, setPending] = useState(0);
   const [quarantined, setQuarantined] = useState(0);
   const [accountFull, setAccountFull] = useState(false);
+  const [signInUnavailable, setSignInUnavailable] = useState(readSignInUnavailable);
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -133,9 +139,15 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       if ((r.pulled ?? 0) > 0) setDataVersion((v) => v + 1);
       if (r.status === 'ok') backoff.current = SYNC_INTERVAL_MS;
       else if (r.status === 'rate_limited') holdUntil.current = Date.now() + (r.retryAfterSec ?? 60) * 1000;
-      else if (r.status === 'unavailable' || r.status === 'rejected') {
-        holdUntil.current = Date.now() + backoff.current;
-        backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
+      else if (r.status === 'unavailable' || r.status === 'rejected' || r.status === 'offline') {
+        // Offline backs off like a server problem (30 s, 1 min, 2 min, up to 5 min) so a long outage is not retried every 30 s.
+        // A failed refresh request is the exception: the server may have rotated the token, and a retry must land inside its 60 s
+        // grace window or it is read as reuse and ends the session, so wait 30 s at most and do not escalate (#762).
+        if (r.viaRefresh) holdUntil.current = Date.now() + SYNC_INTERVAL_MS;
+        else {
+          holdUntil.current = Date.now() + backoff.current;
+          backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
+        }
       } else if (r.status === 'signed_out') setSignedIn(false);
       return r;
     } finally {
@@ -190,9 +202,16 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     };
     tick();
     const timer = setInterval(tick, SYNC_INTERVAL_MS);
-    const app = AppState.addEventListener('change', (s) => s === 'active' && tick());
+    const app = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') return;
+      // Back in the app (native has no `online` event): the user is here now, so start from the short wait again.
+      holdUntil.current = 0;
+      backoff.current = SYNC_INTERVAL_MS;
+      tick();
+    });
     const online = () => {
       holdUntil.current = 0;
+      backoff.current = SYNC_INTERVAL_MS; // the network is back: start again from the short wait
       tick();
     };
     if (Platform.OS === 'web' && typeof window !== 'undefined') window.addEventListener('online', online);
@@ -203,10 +222,37 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     };
   }, [configured, signedIn, syncNow, refreshPending]);
 
-  // Web: a sign-out that did not reach the server is retried until it does (the cookie would otherwise sign the user back in).
+  // Web: another tab signed out (all tabs share one cookie). Drop this tab's access token and show signed out at once, instead
+  // of keeping it until it expires (#762). Local data stays.
+  useEffect(() => {
+    if (!cookieMode()) return;
+    return onRemoteSignOut(() => {
+      void tokens.clear();
+      setSignedIn(false);
+    });
+  }, [tokens]);
+
+  // Web: cookie-mode calls fail while the API answers (#744): say so. The runs themselves send nothing meanwhile (the engine
+  // ends them `sign_in_unavailable` before any request), and carry on by themselves once a cookie-mode call gets through.
+  useEffect(() => onSignInUnavailable(setSignInUnavailable), []);
+  // The browser coming back online forgets the verdict (the cause may have been the network); a slow timer lets one refresh
+  // through in case the site was fixed while the page stayed open.
+  useEffect(() => {
+    if (!cookieMode()) return;
+    const online = () => clearSignInUnavailable();
+    if (typeof window !== 'undefined') window.addEventListener('online', online);
+    const timer = setInterval(allowOneAttempt, SIGN_IN_RECHECK_MS);
+    return () => {
+      clearInterval(timer);
+      if (typeof window !== 'undefined') window.removeEventListener('online', online);
+    };
+  }, []);
+
+  // Web: a sign-out that did not reach the server is retried until it does (the cookie would otherwise sign the user back in),
+  // unless sign-in is known to be unavailable from this site: the call cannot work and is not retried in a loop.
   useEffect(() => {
     if (!api || !cookieMode()) return;
-    const timer = setInterval(() => signOutPending() && void revokeCookie(api), SYNC_INTERVAL_MS);
+    const timer = setInterval(() => signOutPending() && (!readSignInUnavailable() || takeAttempt()) && void revokeCookie(api), SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [api]);
 
@@ -221,6 +267,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       pending,
       quarantined,
       accountFull,
+      signInUnavailable,
       syncing,
       last,
       epoch,
@@ -236,7 +283,15 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         await discardQuarantined(db);
         await refreshPending();
       },
-      syncNow,
+      // A user pressed Sync now: while sign-in is flagged unavailable this may try one refresh (the scheduler's runs may not).
+      syncNow: async () => {
+        allowOneAttempt();
+        try {
+          return await runSync(false);
+        } finally {
+          cancelAttempt();
+        }
+      },
       startSignIn: async (email) => (api ? startEmailSignIn(api, email) : { ok: false, reason: 'unavailable' }),
       verifyCode: async (email, code) => {
         if (!api) return { kind: 'error', reason: 'unavailable' };
@@ -282,7 +337,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         return afterDelete(r);
       },
     }),
-    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, accountFull, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
+    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, accountFull, signInUnavailable, syncing, last, epoch, dataVersion, runSync, api, db, tokens, refreshPending],
   );
   // AI features sit inside the sync provider: they reuse its client and tokens (kept inside) and its signed-in state.
   return (
