@@ -151,6 +151,7 @@ are unchanged: the refresh token stays in the JSON body.
 - **Deployment.** The web app and the API must be on the same site over HTTPS (`__Secure-` and `Secure`), for example
   `app.example.com` and `api.example.com`, not a public-suffix host such as `*.github.io`. Set `AUTH_COOKIE_ORIGINS` to the
   web app's exact origin(s) before the web app sends the header.
+- **Sibling subdomains.** A page on any sibling subdomain of the site can set a cookie with the same name (the `__Secure-` prefix does not stop that, `Domain` cookies from a sibling are allowed), which would plant a session. Host the web app and the API on hosts you control and keep no untrusted sibling subdomains (no user-content or third-party hosting under the same registrable domain).
 - **Logs.** Nothing logs a token, the cookie or the `Origin` value; `AuthFlowIT`-style log capture covers cookie mode in `AuthCookieIT`.
 
 ## Content bundles

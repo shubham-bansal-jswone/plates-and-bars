@@ -131,6 +131,27 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void aPercentEncodedPathStillHitsItsOwnBucket() throws Exception {
+        // The router decodes the path, so the limiter must too: these are all /auth/email/verify (3 per hour).
+        for (String path : new String[] {"/api/v1/auth/email/%76erify", "/api/v1/auth/%65mail/verify", "/api/v1/auth/email/ver%69fy"}) {
+            mvc.perform(from("203.0.113.140", post(new java.net.URI(path)).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"asha@example.com\",\"code\":\"123456\"}")))
+                    .andExpect(status().is(org.hamcrest.Matchers.not(429)));
+        }
+        mvc.perform(from("203.0.113.140", post("/api/v1/auth/email/verify").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"asha@example.com\",\"code\":\"123456\"}")))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("rate_limited"));
+        // And an encoded email/start counts against the start bucket (2 per hour).
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(from("203.0.113.141", post(new java.net.URI("/api/v1/auth/email/%73tart")).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"asha@example.com\"}")))
+                    .andExpect(status().isAccepted());
+        }
+        mvc.perform(start("203.0.113.141")).andExpect(status().isTooManyRequests());
+    }
+
+    @Test
     void emailVerifyHasItsOwnPerIpLimit() throws Exception {
         MockHttpServletRequestBuilder verify = from("203.0.113.30", post("/api/v1/auth/email/verify")
                 .contentType(MediaType.APPLICATION_JSON)

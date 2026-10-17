@@ -460,6 +460,32 @@ class AuthCookieIT {
     // ---- logs ----
 
     @Test
+    void aBodyModeTokenIsNeverPrintedEvenWithSpringsBodyLoggersAtTrace() {
+        List<String> bodyLoggers = List.of(
+                "org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor",
+                "org.springframework.web.servlet.mvc.method.annotation.HttpEntityMethodProcessor",
+                "org.springframework.web.servlet.DispatcherServlet");
+        bodyLoggers.forEach(n -> ((Logger) LoggerFactory.getLogger(n)).setLevel(Level.TRACE));
+        try {
+            ResponseEntity<Map> in = signInBody(uniq());
+            String token = (String) in.getBody().get("refresh_token");
+            ResponseEntity<Map> rotated = call("/refresh", null, null, null, "{\"refresh_token\":\"" + token + "\"}");
+            String second = (String) rotated.getBody().get("refresh_token");
+            call("/refresh/revoke", null, null, null, "{\"refresh_token\":\"" + second + "\"}");
+            call("/refresh", "cookie", ORIGIN, null, "{\"refresh_token\":\"rt_body_in_cookie_mode\"}");
+            for (ILoggingEvent event : logs.list) {
+                if ("Test worker".equals(event.getThreadName())) {
+                    continue;
+                }
+                String text = event.getFormattedMessage();
+                assertThat(text).doesNotContain(token).doesNotContain(second).doesNotContain("rt_body_in_cookie_mode");
+            }
+        } finally {
+            bodyLoggers.forEach(n -> ((Logger) LoggerFactory.getLogger(n)).setLevel(null));
+        }
+    }
+
+    @Test
     void noTokenCookieOrCodeReachesTheLogs() {
         String email = uniq();
         ResponseEntity<Map> in = signInWeb(email);

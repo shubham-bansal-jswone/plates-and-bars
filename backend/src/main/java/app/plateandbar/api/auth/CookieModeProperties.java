@@ -16,8 +16,9 @@ public record CookieModeProperties(List<String> cookieOrigins) {
         cookieOrigins = cookieOrigins == null
                 ? List.of()
                 : cookieOrigins.stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
-        if (cookieOrigins.contains("*")) {
-            throw new IllegalStateException("AUTH_COOKIE_ORIGINS must list exact origins, not *");
+        if (cookieOrigins.contains("*") || cookieOrigins.contains("null")) {
+            // "null" is what sandboxed frames and file pages send as Origin: allowing it would trust any of them.
+            throw new IllegalStateException("AUTH_COOKIE_ORIGINS must list exact origins, not * or null");
         }
     }
 }
