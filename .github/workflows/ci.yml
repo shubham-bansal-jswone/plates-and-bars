@@ -261,3 +261,59 @@ jobs:
           name: e2e-traces
           path: tests/e2e/test-results/
           retention-days: 7
+
+  e2e-sync:
+    name: e2e (sync, Playwright + backend stack)
+    needs: changes
+    if: needs.changes.outputs.run_e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # content-updated-at.sh reads each bundle's commit date
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            apps/mobile/package-lock.json
+            tests/e2e/package-lock.json
+      - name: Start the backend stack (MySQL, API, Mailpit)
+        working-directory: tests/e2e/stack
+        run: |
+          export CONTENT_UPDATED_AT="$(../../../backend/scripts/content-updated-at.sh)"
+          docker compose build api
+          docker compose up -d --wait
+      - name: Build the web app with the API URL
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: 1
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:18080/api/v1
+        run: |
+          npm ci
+          npx expo export --platform web --output-dir ../../tests/e2e/.sync-dist
+      - name: Install test dependencies
+        working-directory: tests/e2e
+        run: npm ci
+      - name: Install Chromium
+        working-directory: tests/e2e
+        run: |
+          out="$(npx --no-install @puppeteer/browsers install chromium@latest --path "$RUNNER_TEMP/browsers")"
+          echo "$out"
+          echo "CHROME_PATH=${out##* }" >> "$GITHUB_ENV"
+      - name: Allow Chromium sandbox (unprivileged user namespaces)
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Sync tests
+        working-directory: tests/e2e
+        run: npm run test:sync
+      - name: Stack logs
+        if: failure()
+        working-directory: tests/e2e/stack
+        run: docker compose logs --no-color api | tail -200
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-sync-traces
+          path: tests/e2e/test-results/
+          retention-days: 7
