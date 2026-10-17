@@ -69,6 +69,21 @@ describe('a kept settings edit and a pull of the same field (#651)', () => {
     expect(r.result.current.settings).toMatchObject({ diet: 'egg', focus: ['chest'] });
   });
 
+  it('a pull that stores an object field with its keys in another order does not drop the kept edit of that field', async () => {
+    const { db, writes, launch, pull } = await setup();
+    await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), focus: ['abs'], adjustments: { zz: 1, a: 1 } });
+    await db.runAsync('DELETE FROM sync_outbox');
+    const r = await launch();
+    writes.failing = true;
+    await act(async () => r.result.current.update(inc));
+    await waitFor(() => expect(r.result.current.saveFailed).toBe(true));
+    writes.failing = false;
+    await pull({ diet: 'egg', adjustments: { a: 1, zz: 1 } }); // the server's JSON column returns the keys in its own order
+    await act(async () => r.result.current.setFocus(['chest']));
+    await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] }));
+    expect(await loadSettings(db)).toMatchObject({ diet: 'egg', adjustments: { a: 1, zz: 1, n: 1 } });
+  });
+
   it('a kept edit for another field still applies when a pull changed a different one', async () => {
     const { db, writes, launch, pull } = await setup();
     const r = await launch();
@@ -107,6 +122,22 @@ describe('kept settings edits survive an app restart (#651)', () => {
     expect(count((await loadSettings(db))!)).toBe(2); // not applied again
     expect(await loadSettings(db)).toMatchObject({ diet: 'egg', version: PULLED_VERSION });
     expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull();
+  });
+
+  it('two failed edits of the same field both survive a restart', async () => {
+    const { db, writes, launch } = await setup();
+    const first = await launch();
+    writes.failing = true;
+    await act(async () => first.result.current.update(inc));
+    await act(async () => first.result.current.update(inc));
+    await waitFor(() => expect(first.result.current.saveFailed).toBe(true));
+    await sleep(30);
+    writes.failing = false;
+    await first.unmount();
+    const second = await launch();
+    await act(async () => second.result.current.setFocus(['chest']));
+    await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] }));
+    expect(count((await loadSettings(db))!)).toBe(2); // the second edit builds on the first, not on the stored base
   });
 
   it('a restart drops the kept edit for a field a pull changed while the app was closed', async () => {
