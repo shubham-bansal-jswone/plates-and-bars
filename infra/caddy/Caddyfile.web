@@ -6,7 +6,8 @@
 # The COOP/COEP headers mirror apps/mobile/public/_headers (Cloudflare Pages format, which Caddy ignores): expo-sqlite
 # on web needs cross-origin isolation (SharedArrayBuffer). infra/scripts/check-caddy-headers.sh fails CI on drift.
 # Environment: WEB_HOST, default http://127.0.0.1:8081 so the file validates as is and, until WEB_HOST is set, serves
-# plain HTTP on loopback only (no certificate is requested; nothing is reachable).
+# plain HTTP on port 8081 inside the container (no certificate is requested; Compose does not publish 8081, so
+# nothing is reachable).
 {$WEB_HOST:http://127.0.0.1:8081} {
 	root * /srv/web
 	encode zstd gzip
@@ -31,7 +32,16 @@
 	}
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
 
-	# Single-page app (web.output "single"): any path that is not a file serves index.html.
-	try_files {path} /index.html
-	file_server
+	# A missing hashed file is a real 404 (a stale tab asking for a chunk the new build no longer has), not index.html.
+	handle /_expo/static/* {
+		file_server
+	}
+	handle /assets/* {
+		file_server
+	}
+	# Single-page app (web.output "single"): any other path that is not a file serves index.html.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
 }

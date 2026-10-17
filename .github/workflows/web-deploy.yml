@@ -4,9 +4,11 @@ name: Web app deploy
 # the web app must be on the same site as the API for the refresh cookie, #644). Disabled until the owner sets the
 # repository variable WEB_DEPLOY_ENABLED to 'true' (Settings > Secrets and variables > Actions > Variables).
 # Unset or any other value: the deploy job is skipped. Push to main deploys to the `staging` environment, a v* tag to
-# `production` (protect it with required reviewers); manual runs from main use `staging`.
+# `production` (protect it with required reviewers) only for vMAJOR.MINOR.PATCH tags whose commit is on main (the
+# same rule as production-deploy.yml); manual runs from main use `staging`.
 # Each environment holds:
-#   variables  EXPO_PUBLIC_API_URL (https://<API_HOST>/api/v1, baked into the bundle), WEB_SSH_HOST, WEB_SSH_USER,
+#   variables  EXPO_PUBLIC_API_URL (https://<API_HOST>/api/v1, baked into the bundle; define it in each environment and
+#              never as a repository variable, so one environment can never inherit another's API), WEB_SSH_HOST, WEB_SSH_USER,
 #              WEB_ROOT (the VM directory mounted at /srv/web, for example /opt/plateandbar/infra/staging/web)
 #   secrets    WEB_SSH_KEY (private key of a user that can write only WEB_ROOT), WEB_SSH_KNOWN_HOSTS (ssh-keyscan -t ed25519 host)
 # See infra/README.md (Web app deploy) and infra/RUNBOOK.md section 6.
@@ -32,7 +34,9 @@ permissions:
 
 concurrency:
   # PR validation must never cancel a queued deploy
-  group: ${{ github.event_name == 'pull_request' && format('web-validate-{0}', github.ref) || 'web-deploy' }}
+  # one group per environment: a staging run never replaces a pending production run, and a production run waiting for
+  # approval does not hold up staging
+  group: ${{ github.event_name == 'pull_request' && format('web-validate-{0}', github.ref) || format('web-deploy-{0}', startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging') }}
   cancel-in-progress: false
 
 jobs:
@@ -65,14 +69,34 @@ jobs:
       WEB_ROOT: ${{ vars.WEB_ROOT }}
     steps:
       - uses: actions/checkout@v7
-      - name: Check the settings before building
+        with:
+          fetch-depth: 0 # the tag check needs origin/main
+      - name: Check the tag and the settings before building
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then
+            if ! printf '%s' "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::release tags must be vMAJOR.MINOR.PATCH, got '$REF_NAME'"
+              exit 1
+            fi
+            # a release comes from main, never from a side branch
+            if ! git merge-base --is-ancestor "$SHA" origin/main; then
+              echo "::error::$REF_NAME ($SHA) is not on main: tag a commit that was merged to main"
+              exit 1
+            fi
+          fi
           infra/scripts/check-api-url.sh "$EXPO_PUBLIC_API_URL"
           : "${SSH_HOST:?WEB_SSH_HOST is not set}" "${SSH_USER:?WEB_SSH_USER is not set}" "${WEB_ROOT:?WEB_ROOT is not set}"
-          # rsync --delete: only a directory under /srv, /var/www or /opt (never / or a home directory)
-          case "$WEB_ROOT" in
-            *..*|*[[:space:]]*) echo "::error::WEB_ROOT must not contain '..' or spaces"; exit 1 ;;
-          esac
+          # the values end up in ssh and rsync arguments and in a remote path: plain characters only
+          printf '%s' "$SSH_USER" | grep -Eq '^[A-Za-z_][A-Za-z0-9_-]*$' || { echo "::error::WEB_SSH_USER must be a plain user name"; exit 1; }
+          printf '%s' "$SSH_HOST" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9.-]*$' || { echo "::error::WEB_SSH_HOST must be a plain host name or IPv4 address"; exit 1; }
+          # rsync --delete: a plain absolute path under /srv, /var/www or /opt (never / or a home directory)
+          if ! printf '%s' "$WEB_ROOT" | grep -Eq '^/[A-Za-z0-9_./-]+$' || printf '%s' "$WEB_ROOT" | grep -Fq '..'; then
+            echo "::error::WEB_ROOT must be a plain absolute path without '..', for example /opt/plateandbar/infra/staging/web"
+            exit 1
+          fi
           if ! printf '%s' "$WEB_ROOT" | grep -Eq '^/(srv|opt|var/www)/[^/]+'; then
             echo "::error::WEB_ROOT must be a directory under /srv, /var/www or /opt, for example /opt/plateandbar/infra/staging/web"
             exit 1
@@ -105,6 +129,6 @@ jobs:
         run: |
           ssh_cmd="ssh -i $HOME/.ssh/id_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes"
           # _headers is for Cloudflare Pages; Caddy ignores it. First everything but index.html (new hashed files are in
-          # place before any page refers to them), then index.html, deleting what the new build no longer has.
-          rsync -az --exclude index.html --exclude _headers -e "$ssh_cmd" dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"
-          rsync -az --delete --exclude _headers -e "$ssh_cmd" dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"
+          # place before any page refers to them), then everything again, deleting only after the transfer (so index.html is replaced before any old file goes).
+          rsync -az --exclude index.html --exclude _headers -e "$ssh_cmd" -- dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"
+          rsync -az --delete-after --exclude _headers -e "$ssh_cmd" -- dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"

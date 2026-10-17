@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Runs the pinned official Caddy image with infra/caddy/Caddyfile.web over a fixture export and asserts what a browser
 # gets: COOP same-origin and COEP require-corp on every response (including the SPA fallback), a long immutable cache
-# for hashed assets, no-cache for index.html and everything else, index.html for unknown routes, and that a missing
-# hashed asset is not cached as immutable. Needs Docker. Run from anywhere: infra/scripts/test-web-caddy.sh
+# for hashed assets, no-cache for index.html and everything else, index.html for unknown routes, and a 404 (not index.html, not
+# immutable) for a missing hashed asset. Needs Docker. Run from anywhere: infra/scripts/test-web-caddy.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 image="caddy:2.11.7" # keep in step with infra/staging/docker-compose.yml
@@ -47,7 +47,10 @@ path=/licenses/a.txt; get "$path"; [ "$status" = 200 ] || fail "$path: status $s
 # SPA fallback: deep link serves index.html with the isolation headers and revalidates
 path=/workout/today; get "$path"; [ "$status" = 200 ] || fail "$path: status $status"
 grep -q index "$tmp/b" || fail "$path: no SPA fallback"; iso; hdr cache-control no-cache
-# a missing hashed asset falls back to index.html and must not be cached for a year
-path=/assets/missing.png; get "$path"; hdr cache-control no-cache
-path=/_expo/static/js/web/entry-gone.js; get "$path"; hdr cache-control no-cache
+# a missing hashed asset is a 404 (not index.html) and must not be cached for a year
+for path in /assets/missing.png /_expo/static/js/web/entry-gone.js; do
+  get "$path"; [ "$status" = 404 ] || fail "$path: status $status, expected 404"
+  ! grep -q index "$tmp/b" || fail "$path: served index.html"
+  ! grep -q immutable "$tmp/h" || fail "$path: 404 marked immutable"
+done
 echo "Caddyfile.web serving tests passed"
