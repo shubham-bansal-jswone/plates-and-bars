@@ -2,6 +2,7 @@ package app.plateandbar.api.auth;
 
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
+import app.plateandbar.api.common.SecuritySignalFilter;
 import app.plateandbar.api.ratelimit.RateLimitFilter;
 import app.plateandbar.api.ratelimit.RateLimitedException;
 import tools.jackson.databind.ObjectMapper;
@@ -95,6 +96,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 return;
             } catch (ApiException e) {
                 SecurityContextHolder.clearContext();
+                request.setAttribute(SecuritySignalFilter.REASON, e.code());
                 try {
                     onRejectedToken.accept(request);
                 } catch (RateLimitedException limited) {

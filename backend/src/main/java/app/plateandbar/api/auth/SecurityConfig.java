@@ -2,6 +2,7 @@ package app.plateandbar.api.auth;
 
 import app.plateandbar.api.common.CorsProperties;
 import app.plateandbar.api.common.ErrorResponse;
+import app.plateandbar.api.common.SecuritySignalFilter;
 import app.plateandbar.api.ratelimit.ClientIpResolver;
 import app.plateandbar.api.ratelimit.RateLimitFilter;
 import app.plateandbar.api.ratelimit.RateLimitProperties;
@@ -42,10 +43,17 @@ public class SecurityConfig {
             ClientIpResolver clientIps,
             RateLimitProperties limits,
             UserExistenceCheck users,
-            CookieModeProperties cookieMode)
+            CookieModeProperties cookieMode,
+            java.time.Clock clock)
             throws Exception {
-        AuthenticationEntryPoint unauthorized = (request, response, ex) -> writeUnauthorized(mapper, response);
-        AccessDeniedHandler denied = (request, response, ex) -> writeUnauthorized(mapper, response);
+        AuthenticationEntryPoint unauthorized = (request, response, ex) -> {
+            request.setAttribute(SecuritySignalFilter.REASON, "missing_token");
+            writeUnauthorized(mapper, response);
+        };
+        AccessDeniedHandler denied = (request, response, ex) -> {
+            request.setAttribute(SecuritySignalFilter.REASON, "access_denied");
+            writeUnauthorized(mapper, response);
+        };
         RateLimitFilter rateLimitFilter = new RateLimitFilter(limiter, clientIps, limits, mapper);
         // A rejected bearer token is answered before the rate-limit filter runs, so it is counted here.
         JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtService, mapper, rateLimitFilter::limitByIp, users);
@@ -60,6 +68,8 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(denied))
                 .addFilterBefore(jwtFilter, AnonymousAuthenticationFilter.class)
                 .addFilterAfter(rateLimitFilter, JwtAuthFilter.class)
+                // Outermost of ours, so it sees the status of every refusal below it (#714).
+                .addFilterBefore(new SecuritySignalFilter(clock, clientIps, limits.getMaxTrackedKeys()), JwtAuthFilter.class)
                 // Cookie mode's Origin check: after the rate limit (429 before 403), before the body is read (403 before 400).
                 .addFilterAfter(new CookieModeOriginFilter(cookieMode, mapper), RateLimitFilter.class)
                 .cors(Customizer.withDefaults());
