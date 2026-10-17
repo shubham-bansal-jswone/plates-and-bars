@@ -25,9 +25,9 @@ Checked against `AccountService.delete`, `AccountRepository.deleteAll`, the fore
 - **Not deleted:** the anonymous monthly AI token total (month and count only, no user id); server logs, which hold an opaque user id and never food, weight, health answers or tokens (API logs and web server error lines at most 14 days, access logs with masked IPs and no user id at most about 15 days); crash reports, if crash reporting is on ([error report retention period], see the privacy page).
 - **Backups:** nightly dumps are not edited. The deleted data disappears from them when they expire, at most 30 days after the deletion (`infra/RUNBOOK.md` section 3; still "[Planned policy to confirm …]" on the deletion and privacy pages).
 - **Outside the server:** data on the requester's own devices stays there until they clear it (a signed-in device is signed out the next time it contacts the server). Progress and kitchen-test photos never reach the server.
-- **Kept by this process:** the request email thread in [privacy contact email] (it holds the address and a used, expired code) and the request log. **Counsel:** confirm how long to keep both.
+- **Kept by this process:** the request email thread in [privacy contact email] (it holds the address and a used, expired code), the request log, and the SMTP provider's delivery record of each code email (address, subject, time, for the provider's retention period). **Counsel:** confirm how long to keep both.
 
-Known gap, not specific to this runbook: restoring a backup brings back every account deleted after that backup was taken, whichever way it was deleted. Do not restore production from a backup older than the newest deletion without deciding with **Counsel** how to redo those deletions.
+Known gap, not specific to this runbook: restoring a backup brings back every account deleted after that backup was taken, whichever way it was deleted. Tracked in #850 (an erasure ledger kept outside the database and replayed after a restore); until it lands, do not restore production from a backup older than the newest deletion without deciding with **Counsel** how to redo those deletions.
 
 ## Before you start
 
@@ -51,7 +51,7 @@ A code expires **10 minutes** after it is sent (`AuthService.CODE_TTL`) and a ne
 ```sh
 API="https://$API_HOST/api/v1"
 printf 'Account email address: '; read -r EMAIL
-jq -n --arg email "$EMAIL" '{email: $email}' |
+printf '%s' "$EMAIL" | jq -cRs '{email: .}' |
   curl -sS -i -w '\n' -X POST "$API/auth/email/start" -H 'Content-Type: application/json' --data-binary @-
 ```
 
@@ -66,7 +66,7 @@ Run this as soon as the reply with the code arrives, in the same terminal (it ne
 
 ```sh
 printf 'Code from the reply: '; read -r CODE
-RESP=$(jq -n --arg email "$EMAIL" --arg code "$CODE" '{email: $email, code: $code}' |
+RESP=$(printf '%s\n%s\n' "$EMAIL" "$CODE" | jq -cRn '{email: input, code: input}' |
   curl -sS -w '\n%{http_code} %header{retry-after}' -X POST "$API/auth/email/verify" \
     -H 'Content-Type: application/json' --data-binary @-)
 LAST=$(printf '%s\n' "$RESP" | tail -n 1); BODY=$(printf '%s\n' "$RESP" | sed '$d')
@@ -77,7 +77,7 @@ if [ "${LAST%% *}" = 200 ]; then
   REFRESH=$(printf '%s\n' "$BODY" | jq -r .refresh_token)
   printf 'Authorization: Bearer %s\n' "$ACCESS" |
     curl -sS -o /dev/null -w 'delete: HTTP %{http_code}\n' -X DELETE "$API/me" -H @-
-  jq -n --arg t "$REFRESH" '{refresh_token: $t}' |
+  printf '%s' "$REFRESH" | jq -cRs '{refresh_token: .}' |
     curl -sS -o /dev/null -w 'session check: HTTP %{http_code}\n' -X POST "$API/auth/refresh" \
       -H 'Content-Type: application/json' --data-binary @-
 else
@@ -93,6 +93,7 @@ Read the result:
 | `verify: HTTP 200`, `"new_user": false`, `delete: HTTP 204`, `session check: HTTP 401` | The account existed and is deleted. | Template C. Log it as done. |
 | `verify: HTTP 200`, `"new_user": true`, `delete: HTTP 204`, `session check: HTTP 401` | There was **no account** for this address: verify created one (it creates the account on first sign-in, by contract) and the delete removed it again at once. | Template D. Log it as "no account". |
 | `delete:` anything but 204 | Nothing was deleted (a 429 or 500 rolls back); the account is still there, including one verify just created. | Wait out any `Retry-After`, then send a new code (step 2) and run step 3 again. Verify then says `"new_user": false` because the account exists; use the template for what the first run showed (D if it said `true`). |
+| `verify: HTTP 400`, `invalid_request` | The code is not exactly 6 digits (the contract pattern is `^[0-9]{6}$`): typed with a space, as in `482 913`, or with any stray character. The request was refused before the code was checked, so it is not counted as a wrong try. | Remove the spaces or stray characters and run step 3 again with the same code, if it is still inside its 10 minutes. |
 | `verify: HTTP 401`, `invalid_code` | Code wrong, expired (over 10 minutes), already used, or 5 wrong tries on it. Every wrong try counts against the address. | Do not guess or retype variants. Check the reply for a typo once; otherwise send a new code (step 2) and template B again. |
 | `verify: HTTP 429 <seconds>` | Too many wrong codes for this address, or too many verify calls from your IP. | See Rate limits. |
 
@@ -130,7 +131,7 @@ Keep it private (not in this repository, not in a GitHub issue), one row per req
 
 ## Reply templates
 
-Drafts pending the lawyer review. Send from [privacy contact email], in the same thread, to the requester's address only.
+Drafts pending the lawyer review. Send from [privacy contact email], in the same thread, and always to the account's own address (the one the code goes to), never to a Reply-To or CC address: a `From` line can be forged, and the account's owner is the person who must see these replies.
 
 ### A. Request received
 
@@ -142,7 +143,7 @@ Drafts pending the lawyer review. Send from [privacy contact email], in the same
 >
 > If you can still open the app, "Your data" > "Delete everything" deletes your account straight away.
 >
-> We only ask for a code by email in reply to a deletion request you sent us.
+> We only ask for a code by email in reply to a deletion request you sent us. If you did not ask us to delete your account, ignore this email and send no code. Nothing will be deleted.
 >
 > [operator name], Plate & Bar
 
@@ -153,6 +154,8 @@ Drafts pending the lawyer review. Send from [privacy contact email], in the same
 > We have just sent a 6-digit code to this address from [SMTP from address] ("Your Plate & Bar sign-in code"). Please reply to this email with the code within 10 minutes. Once we have it, we delete your account and confirm.
 >
 > If it has not arrived, check your spam folder, then reply and we will send a new one.
+>
+> If you did not ask us to delete your account, ignore this email and send no code. Nothing will be deleted.
 
 ### C. Done
 
@@ -160,7 +163,7 @@ Drafts pending the lawyer review. Send from [privacy contact email], in the same
 >
 > Your Plate & Bar account has been deleted, on [date]. On our server, your account, your sign-in, your sessions, all your synced records and the conflict log were deleted immediately and cannot be recovered.
 >
-> What remains for a limited time: copies in our nightly backups, which expire at most 30 days from now [planned policy to confirm]; server logs, which hold only an opaque id and no food, weight or health answers, for at most 14 days; and one anonymous monthly AI usage total that cannot be linked to you. Details are at [site URL]/delete-account/.
+> What remains for a limited time: copies in our nightly backups, which expire at most 30 days from now [planned policy to confirm]; server logs, which hold only an opaque id and no food, weight or health answers, for at most 14 days; if crash reporting is on, error reports that hold only an opaque id, for [error report retention period]; and one anonymous monthly AI usage total that cannot be linked to you. Details are at [site URL]/delete-account/.
 >
 > Data still on your phone or browser stays there until you remove it: uninstall the app or clear its data. If you sign in again later, a new, empty account is created; nothing from the deleted account comes back.
 >
