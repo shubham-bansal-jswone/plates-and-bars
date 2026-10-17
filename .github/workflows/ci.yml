@@ -27,6 +27,7 @@ jobs:
       run_mobile: ${{ steps.d.outputs.run_mobile }}
       run_backend: ${{ steps.d.outputs.run_backend }}
       run_tools: ${{ steps.d.outputs.run_tools }}
+      run_golden: ${{ steps.d.outputs.run_golden }}
       run_site: ${{ steps.d.outputs.run_site }}
       run_content_meta: ${{ steps.d.outputs.run_content_meta }}
       run_e2e: ${{ steps.d.outputs.run_e2e }}
@@ -160,6 +161,22 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: node validate/cli.mjs
+
+  # docs/spec/golden is generated from docs/prototype/plate-and-bar.html by tools/golden-gen and never edited by hand.
+  # This fails when either side changed without regenerating (the other half, core's golden tests drifting from the
+  # fixtures, is the `core` job). tools/golden-gen has no dependencies, so there is no install step.
+  golden:
+    name: golden (fixtures match prototype)
+    needs: changes
+    if: needs.changes.outputs.run_golden == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node golden-gen/cli.mjs --check
+        working-directory: tools
 
   backend:
     name: backend (gradle build)

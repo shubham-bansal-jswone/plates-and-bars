@@ -37,6 +37,10 @@ CI runs exactly these commands from the folder. Match them; do not expect other 
 
 Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (needed by `npm ci` and the npm cache), and the scripts `lint`, `typecheck`, `test` in `package.json`. For `backend`: a committed Gradle wrapper (`gradlew`, executable) and tests wired into `build`. If the lane needs different commands or a Node/JDK version, change them via an Infra issue.
 
+### Golden fixtures check (`golden`, #29)
+
+`docs/spec/golden/*.json` is generated from `docs/prototype/plate-and-bar.html` by `tools/golden-gen` and is never edited by hand. The `golden (fixtures match prototype)` job runs `node golden-gen/cli.mjs --check` in `tools` (no install, no dependencies) when `docs/spec/golden/`, `docs/prototype/` or `tools/golden-gen/` change, and fails if a fixture differs from what the prototype produces, so a hand edit, or a prototype change without regeneration, cannot merge. The other half, `packages/core` golden tests no longer matching the fixtures, is the `core` job (it also runs on those paths). `tools` re-checks the same thing through `golden-gen.test.mjs`; the separate job gives it its own name to require. Required checks for branch protection are listed below.
+
 ### Content record check (`content-meta`)
 
 `apps/mobile/src/content/bundled.json` records each content file's sha256, `schema_version` and `updated_at`. The `content-meta (bundled.json)` job runs `node scripts/content-meta.mjs --check` in `apps/mobile` when `content/`, `apps/mobile/src/content/` or the script change. The checkout is always shallow, so the script cannot recompute dates: it compares hashes and schema versions exactly, and checks only that each `updated_at` is a well-formed UTC time no later than HEAD's commit. A PR cannot know its own squash-merge date, and comparing exact dates on `main` would turn it red after every content merge. A stale `updated_at` is normally older than the real merge date. That costs nothing on a device with no stored server copy (refresh compares hashes first). A device holding a server copy dated between the stale date and the merge date keeps that older copy for one launch, then downloads bytes the build already ships. Regenerate with `node scripts/content-meta.mjs` on a full-history `main` and commit the result before each mobile release build. A malformed or future date fails the check (#412), because the app would reject every server copy of that bundle.
@@ -67,6 +71,10 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 - `core (lint, types, tests)`
 - `mobile (lint, types, tests)`
 - `tools (lint, tests, validate)`
+- `golden (fixtures match prototype)`
+- `content-meta (bundled.json)`
+- `e2e (web, Playwright)`
+- `e2e (sync, Playwright + backend stack)`
 - `site (build, check, a11y)`
 - `backend (gradle build)`
 - `gitleaks`
@@ -79,7 +87,7 @@ The `site` job installs open-source Chromium (BSD-3-Clause) with `@puppeteer/bro
 
 `chromium@latest` floats on purpose: puppeteer-core's `PUPPETEER_REVISIONS` lists only Chrome, Chrome Headless Shell and Firefox, not a Chromium build ID, so there is nothing to pin to. The a11y step also runs `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` so the Chromium sandbox stays on (no `--no-sandbox`). If a runner image drops or renames that sysctl, a red `site` job is the intended signal; fix it rather than disabling the sandbox.
 
-The `e2e` job (`tests/e2e`, #344) builds `apps/mobile` for web and runs Playwright (`@playwright/test`, Apache-2.0) against it with the same open-source Chromium install and AppArmor sysctl step as `site`; Playwright's own browser download is never run, the Chromium path is passed as `executablePath` (`CHROME_PATH`). axe-core is MPL-2.0 (already used by `site`). It runs when `tests/e2e`, `apps/mobile`, `packages/core`, `packages/api` or `content` change (`detect-changes.sh`). Add `e2e (web, Playwright)` to the required checks if wanted.
+The `e2e` job (`tests/e2e`, #344) builds `apps/mobile` for web and runs Playwright (`@playwright/test`, Apache-2.0) against it with the same open-source Chromium install and AppArmor sysctl step as `site`; Playwright's own browser download is never run, the Chromium path is passed as `executablePath` (`CHROME_PATH`). axe-core is MPL-2.0 (already used by `site`). It runs when `tests/e2e`, `apps/mobile`, `packages/core`, `packages/api` or `content` change (`detect-changes.sh`). Both e2e jobs are in the required list above.
 
 Pins: `gradle/actions/setup-gradle` is pinned to the full commit SHA of v6.4.0 with `cache-provider: basic`; other actions use major version tags. Dependabot proposes bumps, except `gradle/actions/*` majors (ignored, so a human re-checks the licence). Container images are pinned by exact version tag (`caddy:2.11.7` in `site-deploy.yml`); bump it by hand when a new Caddy release is wanted. gitleaks is pinned by version and a hard-coded SHA-256 in `security.yml`.
 

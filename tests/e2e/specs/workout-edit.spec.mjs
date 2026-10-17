@@ -37,8 +37,8 @@ async function savedWithToast(page, action, text) {
   await saved(page, action);
   await toast;
 }
-// The name of an exercise card's remove chip. One place, so a rename (#804) is one line; the "Tap again to remove ..." name is separate.
-const removeLabel = (name) => `Remove ${name} from today`;
+// The name of an exercise card's remove chip. One place, so a rename (#800) is one line; the "Tap again to remove ..." name is separate.
+const removeLabel = (name) => `Remove exercise ${name} from today`;
 const mark = (name) => `Mark ${name} set 1 done`;
 
 test('Add exercise: a library exercise goes at the end, can be removed, and both survive a reload', async ({ page }) => {
