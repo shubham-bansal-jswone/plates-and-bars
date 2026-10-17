@@ -19,6 +19,13 @@ describe('RestBar live region', () => {
     expect(screen.getByTestId('rest-announce').props.accessibilityLiveRegion).toBe('polite');
   });
 
+  it('draws the track and the fill 8 high, the DESIGN.md 8.5 bar height', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const fill = screen.getByLabelText(/^Rest \d+% done$/);
+    expect(StyleSheet.flatten(fill.props.style).height).toBe(8);
+    expect(StyleSheet.flatten(fill.parent?.props.style).height).toBe(8);
+  });
+
   it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
     const live = screen.getByTestId('rest-announce');

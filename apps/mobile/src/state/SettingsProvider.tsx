@@ -31,7 +31,7 @@ interface SettingsState {
    */
   addCustomTags(name: string, tags: ExerciseTag): Promise<boolean>;
   /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
-  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean;
+  update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>), done?: (stored: boolean) => void): boolean;
 }
 
 const Ctx = createContext<SettingsState | null>(null);
@@ -126,7 +126,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
   }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>), settled?: (dropped: boolean) => void): boolean => {
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>), done?: (stored: boolean) => void): boolean => {
       if (blocked.current) return false;
       const at = stamp(new Date());
       const apply = (s: Settings): Settings => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch), updated_at: at });
@@ -161,7 +161,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         })
         .then(
           (saved) => {
-            settled?.(false);
+            done?.(true); // told also when this provider has gone: the record was written
             if (!mounted.current) return;
             setSaveFailed(false);
             pending.current -= 1;
@@ -173,10 +173,11 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
             }
           },
           async (e) => {
-            if (e instanceof Dropped) return settled?.(true); // the account is gone: nothing to show, keep or write
-            settled?.(false);
+            // The account is gone: nothing to show, keep or write; the caller is told nothing was stored.
+            if (e instanceof Dropped) return done?.(false);
             pending.current -= 1;
             setSaveFailed(true);
+            done?.(false);
             // Written down so an app restart does not lose them; if this fails too they stay in memory.
             // With the lock held, and not for an account that a sign-out or wipe has meanwhile removed: that wipe took the lock
             // first and deleted the kept edits, so writing them now would hand them to the next account (#645).
@@ -215,7 +216,8 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
             refused = true;
             return {};
           },
-          (dropped) => resolve(!refused && !dropped),
+          // Not stored is a refusal, a write that failed (accepted all the same, as offline) or a save dropped with its account (not accepted).
+          (stored) => resolve(!refused && (stored || !stale())),
         );
         if (!queued) resolve(false);
       });

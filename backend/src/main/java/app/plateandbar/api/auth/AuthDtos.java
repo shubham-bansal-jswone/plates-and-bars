@@ -1,6 +1,8 @@
 package app.plateandbar.api.auth;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import tools.jackson.databind.JsonNode;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -45,10 +47,17 @@ final class AuthDtos {
         }
     }
 
-    record RefreshRequest(@JsonProperty("refresh_token") @NotBlank String refreshToken) {
+    /**
+     * The body of the refresh and revoke endpoints, read as a tree (absent and null must be told apart). The tree can hold a
+     * refresh token, so {@code toString} is redacted: no logger can print it.
+     */
+    record TokenBody(JsonNode tree) {
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        TokenBody {}
+
         @Override
         public String toString() {
-            return "RefreshRequest[redacted]";
+            return "TokenBody[redacted]";
         }
     }
 
@@ -67,6 +76,11 @@ final class AuthDtos {
             @JsonProperty("refresh_token_expires_at") Instant refreshTokenExpiresAt,
             UserDto user,
             @JsonProperty("new_user") boolean newUser) {
+        /** Cookie mode: the token is only in the cookie, so the body's {@code refresh_token} is the empty string. */
+        TokenPair withoutRefreshToken() {
+            return new TokenPair(tokenType, accessToken, accessTokenExpiresAt, "", refreshTokenExpiresAt, user, newUser);
+        }
+
         // Spring logs bodies at DEBUG via toString; never let tokens through.
         @Override
         public String toString() {

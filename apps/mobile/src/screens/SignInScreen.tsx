@@ -53,6 +53,7 @@ export function SignInScreen() {
       <Page>
         <H1>{t.title}</H1>
         <Hint>{unsynced > 0 ? t.unsynced(unsynced) : t.allSynced}</Hint>
+        <View testID="account-full-live" accessibilityLiveRegion="polite">{s.accountFull ? <Note>{t.accountFull}</Note> : null}</View>
         {s.last?.status === 'unavailable' || s.last?.status === 'offline' ? <Note>{t.retrying}</Note> : null}
         {s.last?.status === 'rejected' ? <Note>{rejectedText(s.last)}</Note> : null}
         {s.last?.status === 'error' ? <Note>{t.failed}</Note> : null}
