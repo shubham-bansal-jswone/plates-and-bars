@@ -6,36 +6,52 @@ import { createServer } from 'node:net';
 
 export const reuseRequested = (env = process.env) => env.E2E_REUSE === '1';
 
-function listenOn(port) {
+function listenOn(port, host) {
   return new Promise((resolve, reject) => {
     const probe = createServer();
     probe.once('error', reject);
-    probe.listen(port, '127.0.0.1', () => {
+    const onListening = () => {
       const { port: bound } = probe.address();
       probe.close(() => resolve(bound));
-    });
+    };
+    if (host) probe.listen(port, host, onListening);
+    else probe.listen(port, onListening);
   });
 }
 
-export const freePort = () => listenOn(0);
+export const freePort = () => listenOn(0, '127.0.0.1');
 
+// A bind on 127.0.0.1 alone succeeds on macOS while a wildcard listener (a stale `npx serve`, an Expo dev server) holds
+// the port, so probe the wildcard and `::` too. A machine without IPv6 answers EADDRNOTAVAIL/EAFNOSUPPORT: not a listener.
 export async function isPortTaken(port) {
-  try {
-    await listenOn(port);
-    return false;
-  } catch (error) {
-    if (error.code === 'EADDRINUSE' || error.code === 'EACCES') return true;
-    throw error;
+  for (const host of ['127.0.0.1', undefined, '::']) {
+    try {
+      await listenOn(port, host);
+    } catch (error) {
+      if (error.code === 'EADDRINUSE' || error.code === 'EACCES') return true;
+      if (error.code === 'EADDRNOTAVAIL' || error.code === 'EAFNOSUPPORT') continue;
+      throw error;
+    }
   }
+  return false;
 }
 
-export const takenMessage = (port, name = 'E2E_PORT') =>
-  `Port ${port} is already in use, so the e2e web server cannot start. Something else (a stale server from another session, ` +
-  `or another run) is listening there and could serve an old build. Stop it, set ${name}=0 to pick a free port, ` +
-  `or set E2E_REUSE=1 to reuse that server on purpose.`;
+export const takenMessage = (port, name = 'E2E_PORT') => {
+  const head =
+    `Port ${port} is already in use, so the e2e web server cannot start. Something else (a stale server from another session, ` +
+    `or another run) is listening there and could serve an old build. Stop it, `;
+  if (name === 'E2E_SYNC_PORT') {
+    return (
+      head +
+      `set E2E_REUSE=1 to reuse that server on purpose, or set ${name}=<n> and add http://127.0.0.1:<n> to ` +
+      `CORS_ALLOWED_ORIGINS and AUTH_COOKIE_ORIGINS in tests/e2e/stack/docker-compose.yml.`
+    );
+  }
+  return head + `set ${name}=0 to pick a free port, or set E2E_REUSE=1 to reuse that server on purpose.`;
+};
 
 /**
- * Resolve the port for `name` (E2E_PORT or E2E_SYNC_PORT). Unset or 0 means `fallback`, or a free port when there is no
+ * Resolve the port for `name` (E2E_PORT or E2E_SYNC_PORT). Unset or 0 means `fallback` (E2E_SYNC_PORT is always 4174 unless set to a port), or a free port when there is no
  * fallback. Unless E2E_REUSE=1, throws if the port is taken. The result is written back to env[name]: Playwright re-reads
  * the config in every worker process, and they must see the same port, not pick another one.
  */

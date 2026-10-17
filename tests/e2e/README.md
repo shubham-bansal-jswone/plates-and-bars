@@ -36,7 +36,7 @@ The web server port is resolved once, in `support/port.mjs`, and the Playwright 
 - `E2E_PORT` unset or `0`: a free port is picked, so parallel local runs (two reviewers, two sessions) never collide. CI keeps 4173.
 - `E2E_PORT=<n>`: that port. If something already listens there the run fails at once with a message; it never silently reuses that server, which may be a stale build.
 - `E2E_REUSE=1`: reuse the server on that port on purpose (for example one you started with `node support/server.mjs` after a fresh export). Only `1` counts; CI does not set it.
-- Sync tests: `E2E_SYNC_PORT` works the same way but defaults to 4174, the origin the API's CORS list names. With `E2E_SYNC_PORT=0` add that origin to the API's CORS list yourself.
+- Sync tests: `E2E_SYNC_PORT` is always 4174 (0 or unset gives 4174), the origin `stack/docker-compose.yml` names in `CORS_ALLOWED_ORIGINS` and `AUTH_COOKIE_ORIGINS`. It never picks a free port. To use another port, set `E2E_SYNC_PORT=<n>` and add `http://127.0.0.1:<n>` to both lists.
 
 `npm run test:port` checks this (taken port fails fast, `E2E_REUSE=1` reuses, `0` picks a free port); CI runs it before the browser tests.
 

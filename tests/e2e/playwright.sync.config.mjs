@@ -16,7 +16,7 @@ async function findChromium() {
 const chrome = await findChromium();
 
 // Not 4173: the API's CORS allow-list in stack/docker-compose.yml names this origin.
-// E2E_SYNC_PORT=0 picks a free port, but then the API must be started with that origin in its CORS list.
+// Another port needs E2E_SYNC_PORT=<n> and that origin added to CORS_ALLOWED_ORIGINS and AUTH_COOKIE_ORIGINS in the compose file.
 const port = await resolvePort({ name: 'E2E_SYNC_PORT', fallback: 4174 });
 
 export default defineConfig({

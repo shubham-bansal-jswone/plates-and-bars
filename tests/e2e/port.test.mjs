@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { freePort, resolvePort } from './support/port.mjs';
+import { freePort, isPortTaken, resolvePort, takenMessage } from './support/port.mjs';
 
 const holder = () => new Promise((resolve) => {
   const server = createServer();
@@ -70,5 +70,73 @@ test('support/server.mjs exits non-zero with the message when its port is taken'
     assert.match(stderr, /already in use/);
   } finally {
     await close(server);
+  }
+});
+
+test('the sync port error gives sync advice (no free-port claim) and a taken sync port fails fast', async () => {
+  const { server, port } = await holder();
+  try {
+    await assert.rejects(resolvePort({ name: 'E2E_SYNC_PORT', fallback: port, env: {} }), (error) => {
+      assert.match(error.message, new RegExp(`Port ${port} is already in use`));
+      assert.match(error.message, /E2E_REUSE=1/);
+      assert.match(error.message, /E2E_SYNC_PORT=<n>/);
+      assert.match(error.message, /CORS_ALLOWED_ORIGINS and AUTH_COOKIE_ORIGINS/);
+      assert.doesNotMatch(error.message, /=0/);
+      return true;
+    });
+  } finally {
+    await close(server);
+  }
+  assert.doesNotMatch(takenMessage(1, 'E2E_SYNC_PORT'), /free port/);
+});
+
+test('a wildcard listener (no host, as npx serve or Expo bind) counts as taken', async () => {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+  try {
+    assert.equal(await isPortTaken(port), true);
+    await assert.rejects(resolvePort({ env: { E2E_PORT: String(port) } }), /already in use/);
+  } finally {
+    await close(server);
+  }
+  assert.equal(await isPortTaken(port), false);
+});
+
+test('an IPv6 wildcard listener counts as taken', async (t) => {
+  const server = createServer();
+  const listening = await new Promise((resolve) => {
+    server.once('error', () => resolve(false));
+    server.listen(0, '::', () => resolve(true));
+  });
+  if (!listening) return t.skip('no IPv6 on this machine');
+  try {
+    assert.equal(await isPortTaken(server.address().port), true);
+  } finally {
+    await close(server);
+  }
+});
+
+// Pins the one-line revert that #810 fixed: reuse must be opt-in, never `!process.env.CI`. The configs read CHROME_PATH at
+// import, so point it at any file; nothing launches here.
+test('both configs reuse a server only with E2E_REUSE=1 (and not because CI is unset)', async () => {
+  const saved = { ...process.env };
+  const configs = ['./playwright.config.mjs', './playwright.sync.config.mjs'];
+  try {
+    for (const [index, reuse] of [undefined, '1'].entries()) {
+      for (const config of configs) {
+        for (const key of ['E2E_PORT', 'E2E_PORT_RESOLVED', 'E2E_SYNC_PORT', 'E2E_SYNC_PORT_RESOLVED', 'E2E_REUSE', 'CI']) delete process.env[key];
+        process.env.CHROME_PATH = process.execPath;
+        process.env.E2E_PORT = '0';
+        if (reuse) process.env.E2E_REUSE = reuse;
+        // The sync port is fixed at 4174; skip the case if something already holds it (the config would refuse to load).
+        if (config.includes('sync') && !reuse && (await isPortTaken(4174))) continue;
+        const { default: loaded } = await import(`${config}?case=${index}`);
+        assert.equal(loaded.webServer.reuseExistingServer, Boolean(reuse), `${config} with E2E_REUSE=${reuse}`);
+      }
+    }
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
   }
 });
