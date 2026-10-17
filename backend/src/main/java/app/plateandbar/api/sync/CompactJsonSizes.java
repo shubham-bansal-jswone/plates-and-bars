@@ -8,8 +8,7 @@ import java.util.List;
 import java.util.Map;
 import tools.jackson.core.JsonParser;
 import tools.jackson.core.JsonToken;
-import tools.jackson.core.ObjectReadContext;
-import tools.jackson.core.json.JsonFactory;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Measures values of a {@code POST /sync} body the way {@code x-max-json-bytes} defines it: UTF-8 bytes of the value
@@ -26,24 +25,21 @@ final class CompactJsonSizes {
     /** Limit for one field of a table: the whole value, or each item of the array the field holds. */
     record Limit(long bytes, boolean perItem) {}
 
-    private static final JsonFactory FACTORY = new JsonFactory();
-
     private CompactJsonSizes() {}
 
     /**
      * Paths (as the contract writes them, {@code changes.settings[0].learn}) of the measured values over their limit,
-     * in document order. {@code limits} is by table name, then field name. A body that does not parse gives none:
-     * the caller has already parsed it.
+     * in document order. {@code limits} is by table name, then field name. The parser comes from {@code mapper}, the
+     * one that parsed the request, so its limits (nesting depth) are the same and cannot drift. A body that does not
+     * parse throws: the caller refuses the request, so an oversized value can never pass by making this fail.
      */
-    static List<String> overLimit(byte[] raw, Map<String, Map<String, Limit>> limits) {
+    static List<String> overLimit(ObjectMapper mapper, byte[] raw, Map<String, Map<String, Limit>> limits) {
         List<String> over = new ArrayList<>();
         if (limits.isEmpty()) {
             return over;
         }
-        try (JsonParser p = FACTORY.createParser(ObjectReadContext.empty(), raw)) {
+        try (JsonParser p = mapper.createParser(raw)) {
             walk(p, limits, over);
-        } catch (RuntimeException e) {
-            return over; // the message may quote the body; the request was parsed already, so this does not happen
         }
         return over;
     }
@@ -85,6 +81,9 @@ final class CompactJsonSizes {
                     enter(stack, path);
                     finish(stack, path, scalarSize(p, t), limits, over);
                 }
+            }
+            if (stack.isEmpty()) {
+                return; // the root value is complete; what follows is the request parser's business, not measured
             }
         }
     }

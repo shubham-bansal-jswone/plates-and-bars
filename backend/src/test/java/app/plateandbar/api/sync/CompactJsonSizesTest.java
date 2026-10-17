@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 class CompactJsonSizesTest {
 
     private static List<String> over(String json, long bytes) {
-        return CompactJsonSizes.overLimit(json.getBytes(StandardCharsets.UTF_8),
+        return CompactJsonSizes.overLimit(new tools.jackson.databind.ObjectMapper(), json.getBytes(StandardCharsets.UTF_8),
                 Map.of("settings", Map.of("learn", new Limit(bytes, false), "prep", new Limit(bytes, true))));
     }
 

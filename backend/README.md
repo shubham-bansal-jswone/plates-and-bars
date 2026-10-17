@@ -11,7 +11,7 @@ answer. The nesting limit stays at Jackson 2's 1000 instead of Jackson 3's 500 (
 
 `POST /sync` also enforces `x-max-json-bytes` (`CompactJsonSizes`): each annotated value (`Settings.adjustments`,
 `adaptive`, `learn`, `meal_plan`, each `prep` item) is measured on the raw request bytes as compact UTF-8 JSON with
-number text as sent, and a value over its limit is 400 `invalid_request` (issue `max_json_bytes`) at its path. The
+number text exactly as sent (`1e2` is 3 bytes; not as JavaScript or Jackson would write the number again), and a value over its limit is 400 `invalid_request` (issue `max_json_bytes`) at its path. The
 keyword is registered with the schema library as a non-validation keyword so it does not log "Unknown keyword".
 
 ## Status (M0)
