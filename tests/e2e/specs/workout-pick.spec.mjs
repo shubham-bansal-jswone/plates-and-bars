@@ -11,10 +11,11 @@ test('a 0-day user picks an exercise from the start screen and logs a set, offli
   await label(page, 'Pick exercises').click();
   const sheet = page.locator('[role="dialog"][aria-label="Add exercise"]');
   await expect(sheet).toBeVisible();
-  const chip = sheet.locator('[aria-label^="Add "]:not([aria-label^="Add the exercise"])').first();
-  const name = (await chip.getAttribute('aria-label')).slice('Add '.length);
+  const name = 'Barbell Bench Press';
+  const chip = label(page, `Add ${name}`);
   await saved(page, () => chip.click());
   await expect(page.getByText('Session', { exact: true })).toBeVisible();
+  await label(page, `${name} set 1 kg`).fill('40');
   await label(page, `${name} set 1 reps`).fill('8');
   await saved(page, () => label(page, `Mark ${name} set 1 done`).click());
   await expect(label(page, `Mark ${name} set 1 done`)).toBeVisible();
