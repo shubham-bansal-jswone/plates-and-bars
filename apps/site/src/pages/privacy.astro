@@ -64,16 +64,19 @@ import Base from "../layouts/Base.astro";
   <p>The app also fetches shared reference content (foods, exercises, cards and similar) from our server. This content is the same for everyone and contains none of your data.</p>
 
   <h2>Crash and error reports</h2>
-  <p>Crash and error reporting is built in but stays off until we switch it on for a release. When it is on, the app and our server send error reports to [error-tracking service host], an error-tracking service we run ourselves that accepts Sentry-compatible reports. It acts as a data processor for us. We use reports only to find and fix bugs.</p>
+  <p>Crash and error reporting is built in but stays off until we switch it on for a release. When it is on, the app and our server send error reports to [error-tracking service host], an error-tracking service we run ourselves on [hosting provider] that accepts Sentry-compatible reports. We use reports only to find and fix bugs.</p>
   <p>From the app, a report contains:</p>
   <ul>
     <li>the type of error and the stack frames (function name, file name without any query, line number);</li>
-    <li>device model, operating system and app version, plus the release and environment names;</li>
-    <li>a random install id kept on your device. It is not tied to your account, and it is different if you reinstall;</li>
+    <li>device model, manufacturer and brand, operating system and app version, plus the release and environment names;</li>
+    <li>your language and time zone (which can hint at your region), and technical device details such as memory and storage size and free space, screen size, density and orientation, whether the device is rooted, the app identifier, build and start time, and the list of libraries in the app;</li>
+    <li>a random install id kept on your device. It is not tied to your account, and on Android it is different if you reinstall;</li>
     <li>the type, category, level and time of earlier app events, with no message or content.</li>
   </ul>
+  <p>The error-reporting library also sends a short session report each time the app is used, which holds the start time, how long the session lasted, whether it ended in a crash, the app release and the same install id. This is sent even when nothing went wrong.</p>
+  <p>Crashes in Android system code (native crashes) are sent by the library directly and are not filtered by the app's own scrubbing. They can include the system's error message, the list of running threads and the library's full device details, such as battery level. These crashes are rare.</p>
   <p>From our server, a report contains the error type, the stack trace, the request method and path (ids in the path are masked) and one hashed account id that does not reveal your email, name or IP address.</p>
-  <p>Reports never contain food, weight, health answers, messages, email addresses, sign-in tokens, photos, or the text of the error. Request bodies, cookies and most headers are removed before a report leaves the app or the server. The error text is blanked because it can echo what you typed. No usage analytics, advertising or screenshots are sent.</p>
+  <p>Reports from the app's own code and from our server never contain food, weight, health answers, messages, email addresses, sign-in tokens or photos, and the text of the error is blanked because it can echo what you typed. Request bodies, cookies and most headers are removed before such a report leaves the app or the server. Native Android crashes are the exception described above. No advertising or screenshots are sent, and nothing else about how you use the app is sent apart from the session report above.</p>
   <p>The Android app declares the "network state" permission (ACCESS_NETWORK_STATE). The error-reporting library uses it to tell whether the phone is online when it sends a report.</p>
 
   <h2>Server logs</h2>
@@ -84,7 +87,7 @@ import Base from "../layouts/Base.astro";
     <li>Your account and records stay until you delete your account. The conflict log is bounded as described above.</li>
     <li>The anonymous monthly AI token total has no user id and stays when an account is deleted, so deleting an account does not give its AI use back to the shared budget.</li>
     <li>Backups: [planned policy to confirm: nightly backups kept for 30 days; after you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later].</li>
-    <li>Crash and error reports: kept for [error report retention period], then deleted. A report holds no health data and only an opaque id, so deleting your account does not remove it.</li>
+    <li>Crash and error reports: kept for [error report retention period], then deleted. A report holds no health data and only an opaque id, so deleting your account does not remove it. [Lawyer review: the hashed account id in server reports is a pseudonym that we can recompute while your account exists, so confirm whether reports must be deleted with the account.]</li>
     <li>Server logs record opaque user ids and are kept for a bounded period. Log retention: [log retention period].</li>
   </ul>
 
