@@ -41,7 +41,7 @@ One person may hold every role while the team is small. Write names and contacts
 
 Open an incident (start the log at the end of this file) as soon as any of these is seen; triage happens inside the incident, not before it.
 
-- **Server logs** (`docker compose logs api` on the VM). They hold no food, weight, health answers or tokens, only opaque user ids with events. What is logged today: `Unhandled exception`, `Service unavailable`, `Request failed with …` (Spring framework errors only, from `ApiExceptionHandler`), `Export built: user …`, `Account deleted: user …`, `AI call: user …` and `Sync refused, account full`. Unexpected bursts of export or deletion lines are the main signal.
+- **Server logs** (`docker compose logs api` on the VM). They hold no food, weight, health answers or tokens, only opaque user ids with events. What is logged today: `Unhandled exception`, `Service unavailable`, `Request failed with …` (Spring framework errors only, from `ApiExceptionHandler`), `Export built: user …`, `Account deleted: user …`, `AI call: user …`, `AI provider failed`, `AI reply unusable`, `Sync refused, account full`, `Sign-in code delivery failed (…)` (`AuthService`) and the `ClientIpResolver` error `Requests arrive from a private address with X-Forwarded-For …`. Unexpected bursts of export or deletion lines are the main signal; a burst of sign-in code delivery failures can mean the SMTP credentials were abused or revoked.
 - **Not logged today** (follow-up #714 and #709): refused requests (401 and 403 are written by `JwtAuthFilter` and `SecurityConfig` without a log line), rate-limit hits (`RateLimitFilter` logs them at debug, below the default level), reuse of a rotated refresh token (`AuthService` revokes the session silently), and individual requests (`infra/caddy/Caddyfile.api` has no access log). So there is no per-request record; if one is needed, turn on the temporary Caddy log in Contain step 1.
 - **Error tracking**: GlitchTip once installed (`infra/OBSERVABILITY.md`, proposal only today). A new exception type in auth, sync or export is a signal.
 - **Uptime**: Uptime Kuma on `/api/v1/health` (`infra/RUNBOOK.md` section 5). An unexplained outage, database loss or restore is an availability incident.
@@ -53,7 +53,9 @@ Open an incident (start the log at the end of this file) as soon as any of these
 
 Aim: stop further access without destroying evidence. Work from `infra/staging` (or the production equivalent) on the VM.
 
-1. **Preserve evidence first**: `docker compose logs --timestamps > ~/incident-<date>.log` before any restart or recreate (recreating a container loses its logs). Note the running image: `docker compose images`. Copy the hosting provider's records if it has them. Do not delete anything. If request-level evidence is needed, add a temporary access log inside the site block of the Caddyfile the `caddy` service mounts (`infra/caddy/Caddyfile.api`), then `docker compose restart caddy`; it goes to `docker compose logs caddy`. Caddy logs `Authorization` and `Cookie` as `REDACTED` by default ([caddyserver.com/docs/caddyfile/directives/log](https://caddyserver.com/docs/caddyfile/directives/log)); the filter below also drops query strings and headers (checked with `caddy validate`, caddy 2.11.7). Remove it when the incident closes, and treat the log as personal data (it holds client IP addresses).
+1. **Preserve evidence first**: `docker compose logs --timestamps > ~/incident-<date>.log` before any restart or recreate (recreating a container loses its logs). Note the running image: `docker compose images`. Copy the hosting provider's records if it has them. Do not delete anything, and stop the backup job from deleting for you: the nightly `backup.sh` writes a new dump (possibly of altered data) and then runs `rclone delete --min-age 30d` on everything under `BACKUP_S3_PREFIX`, which would remove the last clean restore point.
+   - Pause the backup cron: comment out the `backup.sh` line with `crontab -e` and note the time in the incident log.
+   - Copy every existing dump to a prefix outside `BACKUP_S3_PREFIX`, which the retention step does not touch. With the `.env` and `RCLONE_CONFIG_BK_*` set-up from `infra/RUNBOOK.md` section 4 step 1, run the same `docker run … rclone/rclone:1.74.0` command with `copy "bk:$BACKUP_S3_BUCKET/$BACKUP_S3_PREFIX" "bk:$BACKUP_S3_BUCKET/incident-<date>"` in place of `copyto …`. If `BACKUP_S3_PREFIX` is empty, retention covers the whole bucket, so copy to another private bucket instead. If request-level evidence is needed, add a temporary access log inside the site block of the Caddyfile the `caddy` service mounts (`infra/caddy/Caddyfile.api`), then `docker compose restart caddy`; it goes to `docker compose logs caddy`. Caddy logs `Authorization` and `Cookie` as `REDACTED` by default ([caddyserver.com/docs/caddyfile/directives/log](https://caddyserver.com/docs/caddyfile/directives/log)); the filter below also drops query strings and headers (checked with `caddy validate`, caddy 2.11.7). Remove it when the incident closes, and treat the log as personal data (it holds client IP addresses).
    ```
    log {
    	output stderr
@@ -64,7 +66,7 @@ Aim: stop further access without destroying evidence. Work from `infra/staging` 
    	}
    }
    ```
-2. **Stop automatic deploys**: set the repository variable `STAGING_DEPLOY_ENABLED` to `false` (Settings > Secrets and variables > Actions > Variables) and pause merges to `main`. Otherwise a merge that touches the backend runs `deploy.sh`, whose `docker compose up -d` restarts a stopped API. Do the same for any production deploy switch once one exists (none today; the site deploy, `SITE_DEPLOY_TARGET`, does not touch the API).
+2. **Stop automatic deploys**: set the repository variable `STAGING_DEPLOY_ENABLED` to `false` (Settings > Secrets and variables > Actions > Variables) and pause merges to `main`. Otherwise a merge that touches the backend runs `deploy.sh`, whose `docker compose up -d` restarts a stopped API. When present, also set `PRODUCTION_DEPLOY_ENABLED` (production releases from `v*` tags, #711; they also end in `docker compose up -d`) and `WEB_DEPLOY_ENABLED` (the web app, #706) to `false`, and do not push release tags. Note which switches were `true` so Recover turns back on only those. The site deploy (`SITE_DEPLOY_TARGET`) does not touch the API or the web app.
 3. **Stop the leak**: if the API itself is leaking (wrong user's data, auth bypass), `docker compose stop api`. The app keeps working offline and queues changes, but sync, sign-in, AI, server export, in-app "Delete everything" (`DELETE /me`) and content refresh all fail while it is stopped. Point users who want their account deleted to the email route on `/delete-account/` and handle those requests once the API is back. The API stays stopped until step 7.
 4. **End every session**: put a new `JWT_SIGNING_KEY` in `.env`. Access tokens signed with the old key stop working, and so do pending sign-in codes, whose hash key is derived from it (`AuthService`). If the API is stopped (step 3), leave it stopped: it reads the new key when it comes back in step 7. If step 3 was skipped, `docker compose up -d api` now. Refresh tokens are SHA-256 hashes that do not depend on that key, so revoke them all; this needs only the `mysql` container:
    ```
@@ -72,15 +74,19 @@ Aim: stop further access without destroying evidence. Work from `infra/staging` 
    ```
    Users sign in again with an email code; their data on the device is untouched.
 5. **Rotate any secret that might be exposed**:
-   - Database passwords, in this order. `mysql:8.4` applies `MYSQL_ROOT_PASSWORD` and `DB_PASSWORD` only when it first creates its data volume, and the healthcheck and `backup.sh` read the root password from the container's environment, so changing `.env` alone breaks the stack. First change them inside MySQL while the container still has the old root password:
+   - Database passwords, in this order. `mysql:8.4` applies `MYSQL_ROOT_PASSWORD` and `DB_PASSWORD` only when it first creates its data volume, and the healthcheck and `backup.sh` read the root password from the container's environment, so changing `.env` alone breaks the stack. Generate the new passwords with `openssl rand -hex 32` (hex only, so no quote or backslash can break the SQL or `sed`), and keep them in shell variables so they are never typed and never saved in shell history; only the variable names reach history. Change them inside MySQL while the container still has the old root password, then write them to `.env`:
      ```
-     docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot' <<'SQL'
-     ALTER USER 'plateandbar'@'%' IDENTIFIED BY '<new app password>';
-     ALTER USER 'root'@'%' IDENTIFIED BY '<new root password>';
-     ALTER USER 'root'@'localhost' IDENTIFIED BY '<new root password>';
+     new_app="$(openssl rand -hex 32)"; new_root="$(openssl rand -hex 32)"
+     if [ ${#new_app} -eq 64 ] && [ ${#new_root} -eq 64 ]; then
+     docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot' <<SQL && sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$new_app/; s/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=$new_root/" .env && echo "rotated; .env updated"
+     ALTER USER 'plateandbar'@'%' IDENTIFIED BY '$new_app';
+     ALTER USER 'root'@'%' IDENTIFIED BY '$new_root';
+     ALTER USER 'root'@'localhost' IDENTIFIED BY '$new_root';
      SQL
+     else echo "openssl gave no password: nothing changed"; fi
+     unset new_app new_root
      ```
-     (use the `DB_USER` value if it is not `plateandbar`). Then put the new values in `.env` as `DB_PASSWORD` and `MYSQL_ROOT_PASSWORD`, and run `docker compose up -d mysql` so the container's environment (and its healthcheck) gets the new root password. If the API is running, `docker compose up -d` recreates it with the new `DB_PASSWORD`; if it is stopped, it picks it up in step 7. Run `./backup.sh` once to check backups still work.
+     (`.env` changes only if every `ALTER USER` succeeded. Use the `DB_USER` value if it is not `plateandbar`. The heredoc delimiter is unquoted on purpose so the variables expand, while `$MYSQL_ROOT_PASSWORD` stays inside the single-quoted `sh -c` and is read in the container.) Then run `docker compose up -d mysql` so the container's environment (and its healthcheck) gets the new root password. If the API is running, `docker compose up -d` recreates it with the new `DB_PASSWORD`; if it is stopped, it picks it up in step 7. Run `./backup.sh` once to check backups still work, only after the backup copy in step 1 is done (it runs the retention delete too).
    - `SMTP_PASSWORD` at the email provider, then `.env`.
    - `BACKUP_S3_*`: create a new bucket token, put it in `.env`, delete the old token.
    - Deploy access: the repository secrets `STAGING_SSH_KEY` and `SITE_SSH_KEY` (new key pairs), and remove the old public keys from `~/.ssh/authorized_keys` of the deploy-only users on the VMs.
@@ -128,7 +134,7 @@ Order: Board intimation and user notices without delay once the breach is confir
 
 ## 5. Recover
 
-Fix the cause, ship it through the normal PR and review path, restore data if needed, bring the API back with the fixed tag (`docker compose up -d api`, check `/api/v1/health`), process the deletion requests that came in by email, remove the temporary Caddy log, set `STAGING_DEPLOY_ENABLED` back to `true` if it was on before, and watch logs and error tracking closely for 7 days.
+Fix the cause, ship it through the normal PR and review path, restore data if needed, bring the API back with the fixed tag (`docker compose up -d api`, check `/api/v1/health`), process the deletion requests that came in by email, and watch logs and error tracking closely for 7 days. Before turning deploys back on, remove the temporary Caddy log by restoring the tracked file on the VM (`git checkout -- infra/caddy/Caddyfile.api`, then `docker compose restart caddy`); a modified tracked file makes the deploy's `git merge --ff-only` fail when a later change touches it. Then set back to `true` only the deploy switches that were on before (step 2), uncomment the backup cron line, and delete the `incident-<date>` backup copy when counsel agrees it is no longer needed.
 
 ## 6. Post-incident review
 
