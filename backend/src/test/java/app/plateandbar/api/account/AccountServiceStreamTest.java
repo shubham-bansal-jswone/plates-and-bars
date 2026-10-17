@@ -91,4 +91,14 @@ class AccountServiceStreamTest {
                 .isInstanceOf(app.plateandbar.api.common.ApiException.class);
         assertThat(out.size()).isZero();
     }
+
+    @Test
+    void theExportTransactionIsReadOnlyRepeatableReadAndTimeBounded() throws Exception {
+        var tx = AccountService.class
+                .getMethod("writeExport", String.class, Instant.class, java.io.OutputStream.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertThat(tx.readOnly()).isTrue();
+        assertThat(tx.isolation()).isEqualTo(org.springframework.transaction.annotation.Isolation.REPEATABLE_READ);
+        assertThat(tx.timeout()).isEqualTo(600);
+    }
 }

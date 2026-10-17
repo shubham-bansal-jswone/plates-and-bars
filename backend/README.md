@@ -74,14 +74,24 @@ keyword is registered with the schema library as a non-validation keyword so it 
     table in keyset pages of `app.export.page-size` rows (default 500, ordered by `(seq, id)`), so memory is bounded
     by one page whatever the account holds. All pages come from one read-only transaction (InnoDB repeatable read),
     opened on the thread that writes the body. Rate limits, the user's existence (401) and the headers are decided
-    before the first byte; the response has no `Content-Length` (chunked). The security chain permits the container's
-    ASYNC dispatch that writes the body (the request was authorized on its first dispatch; see `SecurityConfig`).
+    before the first byte; the response has no `Content-Length` (chunked). The security chain keeps the user in a
+    `RequestAttributeSecurityContextRepository` (saved by `JwtAuthFilter`), so the ASYNC dispatch that writes the
+    body is authenticated again; there is no blanket permit for async dispatches.
+    Bounds: `spring.mvc.async.request-timeout` is 10 minutes (Tomcat's 30 s default would cut every export, download
+    time included), the transaction is read-only REPEATABLE_READ with a 600 s timeout, and at most
+    `app.export.max-concurrent` (env `EXPORT_MAX_CONCURRENT`, default 2) exports stream at once, because each holds a
+    database connection and a thread for the whole download. A third gets 429 `rate_limited` with `Retry-After: 30`
+    (the contract's existing answer for this endpoint; no new response). The place is given back when the body ends,
+    fails or never runs.
     A failure after streaming starts: nothing in the contract fixes this, so the rule is that a client must never get
     a complete-looking document from a failed export. Before the response buffer (8 KB) is flushed the failure is an
-    ordinary 500 `Error`; after that the 200 is already sent, so the generator does not auto-close open arrays and
-    objects (`AUTO_CLOSE_CONTENT` off), the exception aborts the connection and the client sees an unterminated chunked
-    body (an I/O error) and truncated, invalid JSON. The server logs the exception class, user id and time, never a
-    message or row. A client treats any error or unparsable body as a failed export and retries (5 per hour).
+    ordinary 500 `Error`. After that the 200 is already sent, so the generator does not auto-close open arrays and
+    objects (`AUTO_CLOSE_CONTENT` off) and `ApiExceptionHandler` rethrows when the response is committed instead of
+    appending an `Error` object; the container then aborts the connection, with no final chunk, so the client sees an
+    unterminated chunked body (an I/O error) and truncated, invalid JSON. The stream throws a fixed-message
+    `ExportAbortedException` without a cause, so the container's log line holds no row or message; the server logs the
+    original exception class, user id and time only. A client treats any error or unparsable body as a failed export
+    and retries (5 per hour).
     `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
     Limited to 5 per hour per user and 20 per hour per IP (`app.rate-limit.export-per-user`, `export-per-ip`);
     429 `rate_limited` with `Retry-After`. Credentials (tokens, codes) are not included. Not compressed by the app.

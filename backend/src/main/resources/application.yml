@@ -1,4 +1,9 @@
 spring:
+  mvc:
+    async:
+      # GET /me/export streams its body (#349); Tomcat's 30 s default would cut every export, download time included.
+      # Bounded in time by this and in number by app.export.max-concurrent.
+      request-timeout: 10m
   application:
     name: plate-and-bar-api
   datasource:
@@ -59,6 +64,9 @@ server:
   forward-headers-strategy: none
 
 app:
+  export:
+    # Exports streaming at once (each holds a database connection and a thread for the whole download); more is 429.
+    max-concurrent: ${EXPORT_MAX_CONCURRENT:2}
   sync:
     # Largest accepted POST /sync body in bytes; bigger is 400 invalid_request.
     max-body-bytes: ${SYNC_MAX_BODY_BYTES:2097152}

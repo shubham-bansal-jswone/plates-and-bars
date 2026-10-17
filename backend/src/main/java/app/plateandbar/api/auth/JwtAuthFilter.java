@@ -18,7 +18,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -29,6 +32,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    private final SecurityContextRepository contexts = new RequestAttributeSecurityContextRepository();
     private final JwtService jwt;
     private final ObjectMapper mapper;
     private final Consumer<HttpServletRequest> onRejectedToken;
@@ -84,8 +88,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 if (!isDeleteAccount(request) && !userExists(userId)) {
                     throw ApiException.sessionEnded();
                 }
-                SecurityContextHolder.getContext()
-                        .setAuthentication(UsernamePasswordAuthenticationToken.authenticated(userId, null, List.of()));
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(userId, null, List.of()));
+                SecurityContextHolder.setContext(context);
+                // Kept on the request so the ASYNC dispatch of a streamed body (GET /me/export) re-loads the user,
+                // as BearerTokenAuthenticationFilter does; the chain's repository is the same one (SecurityConfig).
+                contexts.saveContext(context, request, response);
             } catch (UserLookupFailedException e) {
                 // The database cannot tell us whether the account exists: say so, never claim 401.
                 SecurityContextHolder.clearContext();

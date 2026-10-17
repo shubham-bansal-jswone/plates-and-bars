@@ -157,6 +157,16 @@ class AccountControllerTest {
     }
 
     @Test
+    void anAsyncDispatchWithoutAnAuthenticatedRequestIsRefused() throws Exception {
+        mvc.perform(get("/api/v1/me/export").with(r -> {
+                    r.setDispatcherType(jakarta.servlet.DispatcherType.ASYNC);
+                    return r;
+                }))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void deleteIs204AndNeedsAToken() throws Exception {
         mvc.perform(delete("/api/v1/me").header("Authorization", bearer(USER))).andExpect(status().isNoContent());
         verify(service).delete(USER);

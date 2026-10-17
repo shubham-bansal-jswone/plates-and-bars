@@ -14,6 +14,7 @@ import java.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Export and deletion of one user's data. Logs that each happened (user id), never any content. */
@@ -21,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountService {
 
     private static final Logger log = LoggerFactory.getLogger(AccountService.class);
+
+    /** Matches {@code spring.mvc.async.request-timeout}: no export transaction outlives its response. */
+    static final int EXPORT_TX_SECONDS = 600;
 
     private final AccountRepository accounts;
     private final SyncExporter sync;
@@ -48,7 +52,7 @@ public class AccountService {
      * arrays and objects, so a truncated body is never repaired into valid-looking JSON (see {@code backend/README.md}).
      * Returns the number of bytes written.
      */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = AccountService.EXPORT_TX_SECONDS)
     public long writeExport(String userId, Instant at, OutputStream out) throws IOException {
         AccountRepository.Account a = accounts.find(userId).orElseThrow(ApiException::unauthorized);
         CountingOutputStream counted = new CountingOutputStream(out);

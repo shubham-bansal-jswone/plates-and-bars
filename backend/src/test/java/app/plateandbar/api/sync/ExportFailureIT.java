@@ -1,11 +1,9 @@
 package app.plateandbar.api.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,8 +42,29 @@ class ExportFailureIT extends SyncITBase {
         assertThat(mapper.readTree(res.body()).path("code").asString()).isEqualTo("internal");
     }
 
+    /** Raw HTTP/1.1 over a socket, so the chunked framing is visible: everything the server sent until it closed. */
+    private String raw(String user) throws Exception {
+        try (java.net.Socket sock = new java.net.Socket("localhost", port)) {
+            sock.setSoTimeout(20000);
+            sock.getOutputStream()
+                    .write(("GET /api/v1/me/export HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer "
+                                    + jwt.issue(user).value() + "\r\nConnection: close\r\n\r\n")
+                            .getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+            java.io.ByteArrayOutputStream all = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            try {
+                for (int n; (n = sock.getInputStream().read(buf)) > 0; ) {
+                    all.write(buf, 0, n);
+                }
+            } catch (java.net.SocketException reset) {
+                // an abort may surface as a reset; what arrived before it is still in `all`
+            }
+            return all.toString(java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
+
     @Test
-    void aFailureAfterBytesWereSentAbortsTheResponseInsteadOfEndingValidJson() throws Exception {
+    void aFailureAfterBytesWereSentAbortsTheConnectionWithoutAFinalChunkOrAnErrorBody() throws Exception {
         String user = newUser();
         for (int i = 1; i <= 400; i++) { // well over the 8 KB the server buffers before the 200 is committed
             jdbc.update(
@@ -54,12 +73,10 @@ class ExportFailureIT extends SyncITBase {
                     user, ExportGoldenIT.rid(i), i, "{\"date\":\"2026-10-08\",\"ml\":250,\"t\":\"2026-10-08T11:00:00Z\"}");
         }
         doThrow(new IllegalStateException("boom")).when(exporter).writeConflictLog(any(), any());
-        try {
-            HttpResponse<String> res = export(user);
-            assertThat(res.statusCode()).isEqualTo(200);
-            assertThatThrownBy(() -> mapper.readTree(res.body())).isInstanceOf(Exception.class);
-        } catch (IOException aborted) {
-            assertThat(aborted).isNotNull(); // the usual outcome: connection closed before the final chunk
-        }
+        String wire = raw(user);
+        assertThat(wire).startsWith("HTTP/1.1 200");
+        assertThat(wire).contains("\"tables\""); // the stream really had started
+        assertThat(wire).doesNotContain("\r\n0\r\n\r\n"); // no terminating chunk: the client sees an aborted transfer
+        assertThat(wire).doesNotContain("\"code\":\"internal\""); // and no Error object appended to the document
     }
 }
