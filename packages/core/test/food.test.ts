@@ -55,6 +55,8 @@ const golden = loadGolden<GoldenFoods>('foods');
 const proto = loadFood();
 const foods: Food[] = content.foods;
 const RUNS = 4000;
+/** The prototype's `case 'pick'` toast for grams that round to 0 servings (#150; the app's wording, apps/mobile/src/food/copy.ts). */
+const TOO_SMALL_TOAST = 'That amount is too small to log. Enter more grams or use servings.';
 
 /** The prototype's tables as content-shaped foods (FOODS rows, then FIB-only names such as eat-out "Cola (330 ml)"). */
 const protoCatalog: Food[] = [
@@ -272,13 +274,15 @@ describe('unitGrams and quantityFromGrams', () => {
     expect(quantityFromGrams(byName('Idli'), 50)).toEqual({ kind: 'not-in-grams' });
     expect(quantityFromGrams(byName('Idli'), 'abc')).toEqual({ kind: 'servings' });
   });
-  it('grams that round to 0 servings are too small (#150: the prototype logs qty 0)', () => {
+  it('grams that round to 0 servings are too small, in the prototype too (#150)', () => {
     expect(quantityFromGrams(byName('Paneer'), 4)).toEqual({ kind: 'too-small' });
     expect(quantityFromGrams(byName('Paneer'), 5)).toEqual({ kind: 'grams', qty: 0.1 });
-    expect(proto.pick('Paneer', '4', 1)).toEqual({ qty: 0 });
+    expect(proto.pick('Paneer', '4', 1)).toEqual({ toast: TOO_SMALL_TOAST });
+    expect(proto.pick('Paneer', '5', 1)).toEqual({ qty: 0.1 });
   });
   it(`matches prototype case 'pick' over ${RUNS} random foods and inputs`, () => {
     const r = rng(97);
+    let small = 0;
     for (let i = 0; i < RUNS; i++) {
       const my = randomMyFoods(r, false);
       proto.S.settings.myFoods = my;
@@ -287,11 +291,13 @@ describe('unitGrams and quantityFromGrams', () => {
       const g = pickOf(r, ['', '0', '-5', 'abc', '0,4', '1', '4', '15', '35', '49.95', '2,5', ' 120 ', String(Math.round(r() * 5000) / 10), String(r() * 1000)]);
       const serv = pickOf(r, [0.5, 1, 1.5, 2, 10]);
       const p = proto.pick(f.name, g, serv);
-      // The one exception to the prototype: qty 0 from grams is `too-small` (#150).
-      const want = 'err' in p ? { kind: 'not-in-grams' } : num(g) > 0 ? (p.qty === 0 ? { kind: 'too-small' } : { kind: 'grams', qty: p.qty }) : { kind: 'servings' };
+      const want = 'toast' in p ? { kind: p.toast === TOO_SMALL_TOAST ? 'too-small' : 'not-in-grams' } : num(g) > 0 ? { kind: 'grams', qty: p.qty } : { kind: 'servings' };
       expect([f.name, g, quantityFromGrams(f, g)]).toEqual([f.name, g, want]);
-      if (!('err' in p) && !(num(g) > 0)) expect(p.qty).toBe(serv);
+      if ('toast' in p && want.kind === 'not-in-grams') expect(p.toast).toBe(`${f.name} is measured in ${f.serving.label}, not grams. Use servings.`);
+      if (!('toast' in p) && !(num(g) > 0)) expect(p.qty).toBe(serv);
+      if (want.kind === 'too-small') small++;
     }
+    expect(small).toBeGreaterThan(0);
     proto.S.settings.myFoods = [];
   });
 });
@@ -952,6 +958,9 @@ describe('stepServings and highProtein', () => {
 
 describe('customFood and saveMyFood', () => {
   const base = { name: 'Office thali', kcal: '', protein: '20', carbs: '90', fat: '25', qty: '', unit: '' };
+  // The prototype's toasts for the #150 checks (the app's wording, apps/mobile/src/food/copy.ts).
+  const NAME_TOO_LONG_TOAST = 'That name is too long. Shorten it.';
+  const INVALID_TOAST = 'Calories, macros and servings can’t be negative, and servings must be more than 0.';
   it('kcal from macros when empty, quantity 1 when empty or 0, unit "1 serving" when empty', () => {
     const r = customFood(base);
     expect(r).toEqual({
@@ -967,16 +976,16 @@ describe('customFood and saveMyFood', () => {
     expect(customFood({ ...base, protein: '', carbs: '', fat: '' })).toEqual({ kind: 'no-kcal' });
     expect(customFood({ ...base, name: '', protein: '', carbs: '', fat: '' })).toEqual({ kind: 'no-name' });
   });
-  it('a negative quantity, calorie or macro value is invalid (#150: the prototype logs it)', () => {
+  it('a negative quantity, calorie or macro value is invalid, in the prototype too (#150)', () => {
     expect(customFood({ ...base, qty: '-2' })).toEqual({ kind: 'invalid' });
     expect(customFood({ ...base, kcal: '-100' })).toEqual({ kind: 'invalid' });
     expect(customFood({ ...base, fat: '-1' })).toEqual({ kind: 'invalid' });
     expect(customFood({ ...base, protein: '-5', carbs: '5', fat: '' })).toEqual({ kind: 'invalid' }); // kcal 0 too: invalid first
     expect(customFood({ ...base, name: '', qty: '-2' })).toEqual({ kind: 'no-name' });
     expect(customFood({ ...base, qty: '0' })).toMatchObject({ kind: 'ok', log: { qty: 1 } });
-    expect(proto.addCustom({ cfName: 'Thali', cfK: '-100', cfQ: '-2' }, false, []).meal).toMatchObject({ qty: -2, kcal: -100 });
+    expect(proto.addCustom({ cfName: 'Thali', cfK: '-100', cfQ: '-2' }, false, [])).toMatchObject({ toast: INVALID_TOAST, meal: null });
   });
-  it('a trimmed name over 200 characters is too long (#150: the contract limit; the prototype logs it)', () => {
+  it('a trimmed name over 200 characters is too long, in the prototype too (#150: the contract limit)', () => {
     const n200 = 'a'.repeat(200);
     expect(FOOD_NAME_MAX).toBe(200);
     expect(customFood({ ...base, name: n200 })).toMatchObject({ kind: 'ok', log: { name: n200 }, food: { name: n200 } });
@@ -984,7 +993,8 @@ describe('customFood and saveMyFood', () => {
     expect(customFood({ ...base, name: 'a'.repeat(201) })).toEqual({ kind: 'name-too-long' });
     expect(customFood({ ...base, name: 'a'.repeat(201), qty: '-2', protein: '', carbs: '', fat: '' })).toEqual({ kind: 'name-too-long' }); // before invalid and no-kcal
     expect(customFood({ ...base, name: '   ' })).toEqual({ kind: 'no-name' });
-    expect(proto.addCustom({ cfName: 'a'.repeat(201), cfK: '100' }, false, []).meal).toMatchObject({ name: 'a'.repeat(201) });
+    expect(proto.addCustom({ cfName: 'a'.repeat(201), cfK: '100' }, false, [])).toMatchObject({ toast: NAME_TOO_LONG_TOAST, meal: null });
+    expect(proto.addCustom({ cfName: ` ${'a'.repeat(200)} `, cfK: '100' }, false, []).meal).toMatchObject({ name: 'a'.repeat(200) });
   });
   it('saving puts the food first, drops the same name and keeps 60', () => {
     const list = Array.from({ length: 60 }, (_, i) => ({ name: `F${i}` }));
@@ -995,6 +1005,7 @@ describe('customFood and saveMyFood', () => {
   it(`matches prototype case addcustom over ${RUNS} random forms`, () => {
     const r = rng(60);
     const vals = ['', '0', '-3', 'abc', '1,5', '12', '250', ' 7.25 ', String(Math.round(r() * 1000) / 10)];
+    const seen = new Set<string>();
     for (let i = 0; i < RUNS; i++) {
       const v = {
         cfName: pickOf(r, ['', '  ', 'Thali', ' Lassi ', ...NEW_NAMES, 'a'.repeat(200), ` ${'b'.repeat(201)} `]),
@@ -1009,22 +1020,12 @@ describe('customFood and saveMyFood', () => {
       const my = Array.from({ length: pickOf(r, [0, 3, 59, 60, 61]) }, (_, k) => ({ name: k < 8 ? (NEW_NAMES[k] as string) : `F${k}`, unit: '1 serving', kcal: 1, p: 0, c: 0, f: 0 }));
       const p = proto.addCustom(v, save, my);
       const got = customFood({ name: v.cfName, kcal: v.cfK, protein: v.cfP, carbs: v.cfC, fat: v.cfF, qty: v.cfQ, unit: v.cfU });
-      // Exception to the prototype (#150): a trimmed name over 200 characters is `name-too-long`.
-      if (v.cfName.trim().length > 200) {
-        expect(got).toEqual({ kind: 'name-too-long' });
-        continue;
-      }
-      expect(got.kind).not.toBe('name-too-long');
-      // Exception to the prototype (#150): negative values or a quantity at or below 0 are `invalid`.
-      const bad = !!v.cfName.trim() && ([v.cfK, v.cfP, v.cfC, v.cfF].some((x) => num(x) < 0) || (num(v.cfQ) || 1) <= 0);
-      if (bad) {
-        expect(got).toEqual({ kind: 'invalid' });
-        continue;
-      }
-      expect(got.kind).not.toBe('invalid');
+      seen.add(got.kind);
       if (got.kind === 'no-name') expect(p.toast).toBe('Give the food a name.');
+      else if (got.kind === 'name-too-long') expect(p.toast).toBe(NAME_TOO_LONG_TOAST);
+      else if (got.kind === 'invalid') expect(p.toast).toBe(INVALID_TOAST);
       else if (got.kind === 'no-kcal') expect(p.toast).toBe('Enter calories or at least one macro.');
-      else if (got.kind === 'ok') {
+      else {
         const m = p.meal!;
         expect(got.log).toEqual({ name: m.name, qty: m.qty, kcal: m.kcal, protein_g: m.p, carbs_g: m.c, fat_g: m.f });
         if (save) {
@@ -1032,8 +1033,9 @@ describe('customFood and saveMyFood', () => {
           expect(saved).toEqual(p.myFoods);
         } else expect(p.myFoods).toBe(my);
       }
-      if (got.kind !== 'ok') expect(p.meal).toBeNull();
+      if (got.kind !== 'ok') expect([p.meal, p.myFoods]).toEqual([null, my]);
     }
+    expect([...seen].sort()).toEqual(['invalid', 'name-too-long', 'no-kcal', 'no-name', 'ok']);
   });
 });
 
@@ -1064,7 +1066,7 @@ describe('userFoodFacts', () => {
       for (const [k, u2] of users.entries()) {
         if (protoCatalog.some((c) => c.name === u2.name)) continue; // prototype pick finds the user food first by name only when names differ
         const p = proto.pick(my[k]!.name, g, 1);
-        const want = 'err' in p ? 'not-in-grams' : num(g) > 0 ? (p.qty === 0 ? 'too-small' : 'grams') : 'servings';
+        const want = 'toast' in p ? (p.toast === TOO_SMALL_TOAST ? 'too-small' : 'not-in-grams') : num(g) > 0 ? 'grams' : 'servings';
         expect(quantityFromGrams(u2, g).kind).toBe(want);
       }
     }

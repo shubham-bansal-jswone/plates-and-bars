@@ -10,6 +10,14 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — prototype fix: grams too small to log, and the custom-food, recipe and kitchen-test checks (spec-change; golden fixtures unchanged).**
+- #150, the parts left after the day-complete fix. Each check stops the log or save and shows a toast; nothing is logged or saved. The toasts are the wording the app already shows for core's results (`apps/mobile/src/food/copy.ts`, `recipes/copy.ts`, `kitchen/copy.ts`; decided 2026-10-17, decisions delegated to Claude Code). Core already does each check (PRs #149, #156, #594), and its prototype tests now compare exactly.
+- `case 'pick'`: grams that round to 0 servings (such as 4 g paneer) are not logged: "That amount is too small to log. Enter more grams or use servings." Before, the prototype logged quantity 0, which the contract rejects (core `too-small`).
+- `case 'addcustom'`, after the empty-name check: a trimmed name longer than 200 characters (the contract limit) gives "That name is too long. Shorten it." (core `name-too-long`). Then a negative calorie or macro value, or a quantity at or below 0, gives "Calories, macros and servings can’t be negative, and servings must be more than 0." (core `invalid`). Both come before "Enter calories or at least one macro.".
+- `case 'rb-save'`, after the empty-name check: a name over 200 characters gives "That name is too long. Keep it under 200 characters.", then an ingredient amount below 0 gives "An amount can’t be below 0." (core `recipeFood`).
+- `ktSave` (both "Save test" and "Save and use for my logging"), after the empty-name check: a name over 200 characters gives "That name is too long. Keep it under 200 characters.", then an ingredient amount, empty-pot, pot-with-food, cooked or serving weight below 0 gives "An amount or weight can’t be below 0." (core `kitchenTestFood`).
+- No golden fixture covers these steps; `node golden-gen/cli.mjs` gives no diff. "Save as meal prep" (`case 'rb-prep'`) still saves the prep after `rb-save` refuses, as it already did for its other checks; it is not ported, so it is left as is.
+
 **2026-10-17 — kept behaviours recorded (spec-change; prototype and golden fixtures unchanged).**
 - Decisions to keep the prototype's behaviour, now written into the sections they belong to; nothing in `docs/prototype/plate-and-bar.html`, `docs/spec/golden/` or core changes. Section 1: setup limits checked before rounding (#131). Section 2: coverage meter simplifications (#155). Section 3: personal-best edge cases (#123), bodyweight rep targets, big-jump wording and returning plus deload stacking (#104). Section 5: food lookups by name, alias joining, `unitGrams` decimals, the unrounded added-sugar check, items counted as meals, Cola's sugar only in the eat-out table (#151), and grams logging by the bracketed weight (#97). Core already pins each one in its tests.
 
@@ -218,6 +226,7 @@ Still open (#155): after M0, the planned count may move to the built session's r
 - Day complete: user tick, or for older days ≥3 meals and ≥75% of target. Only complete days feed the real-burn estimate.
 - Recipes: raw ingredients per 100 g (`RAW`, `RAW_FIB`), cooked yield by katoris (150 g) or pot weight.
 - Kitchen tests: pot weights → cooked weight; per 100 g and per serving; "use for my logging" writes a personal food.
+- Logging and saving checks (#150): grams that round to 0 servings are not logged; a custom food, recipe or kitchen test with a trimmed name over 200 characters, or a negative amount or value (a custom-food quantity at or below 0), is not saved.
 
 **Kept on #151.**
 - Fibre, added sugar and fruit and veg are looked up by the logged item's name, not a food id, so a custom log named like a shared food gets the shared food's values. For fibre and added sugar a shared food's entry wins over a user food of the same name (`fibOf`); for fruit and veg the shared value wins only when it is not 0, so a shared 0 lets the user food's value count (`produceOf`). Revisiting `food_id` lookups when the sync client lands is tracked in #648.

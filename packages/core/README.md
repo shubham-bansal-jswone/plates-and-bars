@@ -101,10 +101,9 @@ user's foods as `FoodFacts`. Totals come back unrounded; show energy, fibre and 
 and fruit and veg to 0.1, as the prototype does. `dayComplete` takes the settings calorie target, not the
 flexed one, and applies its fallback (3 or more logs, 75% of target) only to days before `today`; today
 is complete only by the user's tick (#150).
-`quantityFromGrams` returns `too-small` where the prototype logs 0 servings (#150; the prototype
-follows in the next spec-change batch), and `customFood` returns `name-too-long` for a trimmed name over
-`FOOD_NAME_MAX` (200) characters, the contract limit, and `invalid` for a negative calorie or macro value or
-a quantity at or below 0 (#150). `MY_FOODS_MAX` (60) caps the my-foods list only; recipe and kitchen-test
+`quantityFromGrams` returns `too-small` for grams that round to 0 servings (#150), and `customFood`
+returns `name-too-long` for a trimmed name over `FOOD_NAME_MAX` (200) characters, the contract limit, and
+`invalid` for a negative calorie or macro value or a quantity at or below 0 (#150), as the prototype does. `MY_FOODS_MAX` (60) caps the my-foods list only; recipe and kitchen-test
 saves keep the prototype's 80. Turn a contract `UserFood` into the food-maths inputs with
 `userFoodFacts`. A log takes fibre from the first food with its name *and* fibre data, where the
 prototype takes the first user food with its name and then checks its fibre; the two differ only when
@@ -120,7 +119,7 @@ Ingredients come in the contract's `Ingredient` shape, recipes and kitchen tests
 `KitchenTest` fields; amounts and weights are read with `num`, as the prototype reads its text boxes.
 `recipeFood` and `kitchenTestFood` return contract `UserFood` fields (origin `recipe` or `kitchen_test`)
 and, like `customFood` (#150), `name-too-long` for a trimmed name over 200 characters and `invalid` for an
-ingredient amount, pot, cooked or serving weight below 0, where the prototype saves. An empty pot weighed
+ingredient amount, pot, cooked or serving weight below 0, as the prototype does. An empty pot weighed
 as 0 g counts (a tared scale, #214); a blank empty pot does not. Tests
 check content against golden `raw100g` and `rawFibre100g` and the prototype's `FATTY`, `KATORI_G` and
 `PRESETS`, then run the port on content against the prototype.
