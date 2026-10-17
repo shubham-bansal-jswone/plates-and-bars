@@ -15,7 +15,7 @@ const steps = () => getCatalog().cards[NAME]!.setup;
 function card(o: { learning?: boolean; prior?: number; done?: number; sets?: number } = {}) {
   const sets = Array.from({ length: o.sets ?? 3 }, (_, j) => ({ ...blankRow(), w: '40', r: '8', done: j < (o.done ?? 0) }));
   const ex: ExState = { name: NAME, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets };
-  return render(<ExerciseCard ex={ex} info={exInfo(NAME, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} learning={o.learning ?? true} prior={o.prior} />);
+  return render(<ExerciseCard ex={ex} info={exInfo(NAME, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} infoOf={(n) => exInfo(n, getCatalog())} learning={o.learning ?? true} prior={o.prior} />);
 }
 const setup = () => screen.getByRole('button', { name: `Setup steps for ${NAME}` });
 

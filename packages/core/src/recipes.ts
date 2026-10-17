@@ -180,9 +180,9 @@ export interface RecipeInput extends RecipeYield {
 export type RecipeFoodResult =
   /** "Give the recipe a name." */
   | { kind: 'no-name' }
-  /** The trimmed name is over `FOOD_NAME_MAX` (200), the contract limit (as `customFood`, #150; the prototype saves it). */
+  /** The trimmed name is over `FOOD_NAME_MAX` (200), the contract limit (as `customFood`, #150). */
   | { kind: 'name-too-long' }
-  /** An ingredient amount below 0 (contract `Ingredient.amount`; as `customFood`, #150; the prototype saves it). */
+  /** An ingredient amount below 0 (contract `Ingredient.amount`; as `customFood`, #150). */
   | { kind: 'invalid' }
   /** "Add at least one ingredient with an amount." */
   | { kind: 'no-ingredients' }
@@ -200,7 +200,7 @@ export type RecipeFoodResult =
  * rows ÷ 80) per katori, each to 0.1. Sugar and fruit and veg are read by ingredient name, whether or not
  * the name is in `raw`, as the prototype does. After the name checks, an amount below 0 gives `invalid`.
  *
- * Mirrors prototype `case 'rb-save'` (checks, `rec.rows` and `food`), plus `name-too-long` and `invalid` (#150).
+ * Mirrors prototype `case 'rb-save'` (checks, `name-too-long` and `invalid` included, #150; `rec.rows` and `food`).
  */
 export function recipeFood(recipe: RecipeInput, raw: readonly RawIngredient[], katoriG: number): RecipeFoodResult {
   const table = indexRaw(raw);
@@ -349,9 +349,9 @@ export interface KitchenTestFoodInput extends KitchenTestInput {
 export type KitchenTestFoodResult =
   /** "Name the dish." Nothing saved. */
   | { kind: 'no-name' }
-  /** The trimmed name is over `FOOD_NAME_MAX` (200), the contract limit (as `customFood`, #150; the prototype saves it). Nothing saved. */
+  /** The trimmed name is over `FOOD_NAME_MAX` (200), the contract limit (as `customFood`, #150). Nothing saved. */
   | { kind: 'name-too-long' }
-  /** An ingredient amount, pot, cooked or serving weight below 0 (contract minimums; as `customFood`, #150; the prototype saves it). Nothing saved. */
+  /** An ingredient amount, pot, cooked or serving weight below 0 (contract minimums; as `customFood`, #150). Nothing saved. */
   | { kind: 'invalid' }
   /** "Add the raw ingredients with their weights." Nothing saved. */
   | { kind: 'no-ingredients' }
@@ -369,7 +369,7 @@ export type KitchenTestFoodResult =
  *
  * After the name checks, an amount or weight below 0 gives `invalid`.
  *
- * Mirrors prototype `ktSave(true)` (checks and `food`), plus `name-too-long` and `invalid` (#150). Plain
+ * Mirrors prototype `ktSave(true)` (checks, `name-too-long` and `invalid` included, #150; and `food`). Plain
  * "Save test" is the same checks without the serving one.
  */
 export function kitchenTestFood(test: KitchenTestFoodInput, raw: readonly RawIngredient[]): KitchenTestFoodResult {

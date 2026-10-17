@@ -134,12 +134,14 @@ export interface paths {
          *     Any refresh token the server knows revokes its session, whether current, already
          *     rotated or expired. An unknown token, or no cookie in cookie mode, revokes
          *     nothing. The answer is 204 in every one of these cases, so a retry is safe. In
-         *     cookie mode the 204 also clears the cookie.
+         *     cookie mode the 204 also clears the cookie. When the server cannot complete the
+         *     revoke right now it answers 503 `unavailable`: nothing is revoked and the cookie is
+         *     not cleared, so retry shortly.
          *
          *     **Web app.** It must call this to sign out, because script cannot delete an
          *     httpOnly cookie. Until the call succeeds, the cookie would sign the user back in
-         *     on the next reload. If the call does not complete (for example offline), the app
-         *     keeps a "sign-out pending" flag, which holds no token and may sit in
+         *     on the next reload. If the call does not complete (for example offline, or a 503),
+         *     the app keeps a "sign-out pending" flag, which holds no token and may sit in
          *     `localStorage`. While the flag is set the app does not call `POST /auth/refresh`,
          *     and it retries this call first. After `DELETE /me` it also calls this endpoint,
          *     only to clear the cookie (the session is already revoked).
@@ -272,7 +274,7 @@ export interface paths {
          *       concurrent pushes from two devices cannot overrun the cap.
          *
          *     **App on 413 `account_full`.** The app keeps every pending change on the device
-         *     and never drops one, except the never-sent tombstones described below. It tells the user that the account is full and that new
+         *     and never drops one, except the never-sent random-id tombstones described below. It tells the user that the account is full and that new
          *     entries stay on this device and are not backed up. Until the limit changes it keeps
          *     syncing without the records that would be new: it pushes only pending records with
          *     `version` greater than 0 (edits and deletes of records already synced), and pulls
@@ -291,9 +293,18 @@ export interface paths {
          *     So the retry sends held records in small batches (for example 20). A batch of
          *     records the server already stores comes back as idempotent retries
          *     (`server_won`) and leaves the queue. Only batches with really new records are
-         *     refused again. A version-0 tombstone that was never included in any request
-         *     cannot be on the server or another device. It holds no data, so the app drops it
-         *     instead of pushing it.
+         *     refused again.
+         *
+         *     A version-0 tombstone that was never included in any request is dropped only in a
+         *     table with random UUIDv4 ids (`consents`, `food_logs`, `water_logs`, `workout_sets`,
+         *     `user_foods`, `recipes`, `kitchen_tests`, `exclusions`): its id cannot be on the
+         *     server or another device, and it holds no data, so the app drops it instead of
+         *     pushing it. A never-sent tombstone in a natural-key table (`profiles`, `settings`,
+         *     `day_notes`, `workouts`, `weights`, `measurements`, `lift_stats`, `swaps`) is held
+         *     and retried like any held record, because another device can already have stored
+         *     a record with the same UUIDv5 id. When the server stores that id the push is not
+         *     new, so it is never refused for the cap; it comes back in `conflicts`, settled by
+         *     `updated_at` like any conflict, and the app adopts `server_record`.
          *
          *     A 413 is `account_full` only when its body is an `Error` with that code. A 413
          *     with any other body, including an empty or non-JSON one from a proxy that refuses
@@ -1419,6 +1430,13 @@ export interface components {
              */
             ci_choice: "light" | "swap" | "orig" | null;
         };
+        /**
+         * @description One exercise of a workout. Open on purpose: the app keeps keys it does not know,
+         *     written by a newer client, when it rewrites the exercise (#527). At most 20 keys;
+         *     an unlisted key's name is at most 50 characters and its value is a boolean,
+         *     number, string of at most 200 characters or null, so its size is bounded by these
+         *     limits. A field a later contract adds is listed here with its own shape.
+         */
         WorkoutExercise: {
             /** @description Exercise name; unique within a workout. */
             name: string;
@@ -1440,6 +1458,8 @@ export interface components {
             skip_ramp: boolean;
             /** @description Where the user felt the last set: `target`, `pain`, or the index of the guide card's "felt it somewhere else" entry. Null or absent when not answered. Optional so older clients that omit it still validate; a client that does not know the field may drop it when it rewrites the exercise. Prototype: `ex.feel`. */
             feel?: string | null;
+        } & {
+            [key: string]: boolean | number | string | null;
         };
         /** @description One working or ramp set within a workout. */
         WorkoutSet: components["schemas"]["SyncMeta"] & {
@@ -1473,7 +1493,11 @@ export interface components {
             /** @enum {string|null} */
             rate: "easy" | "right" | "hard" | "fail" | null;
         };
-        /** @description An earlier session in a lift record. Prototype: `L.prev`. */
+        /**
+         * @description An earlier session in a lift record. Prototype: `L.prev`. Used only inside
+         *     `LiftStat.prev`, which closes it with `unevaluatedProperties: false` (it adds `prev`
+         *     one level deep, so it cannot use `additionalProperties: false` here).
+         */
         LiftSession: {
             date: components["schemas"]["LocalDate"];
             sets: components["schemas"]["LiftSet"][];
@@ -1741,23 +1765,23 @@ export interface components {
             };
             /** @description Monday of the last weekly check-in seen. Prototype: `checkinSeen`. */
             checkin_seen: components["schemas"]["LocalDate"] | null;
-            /** @description Plan adjustment state (declines, muted, dismissed, deload, reentry). Prototype: `adj`. Shape owned by packages/core. */
+            /** @description Plan adjustment state (declines, muted, dismissed, deload, reentry). Prototype: `adj`. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`). */
             adjustments: {
                 [key: string]: unknown;
             };
-            /** @description Real-burn estimate state. Shape owned by packages/core. */
+            /** @description Real-burn estimate state. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`). */
             adaptive: {
                 [key: string]: unknown;
             };
-            /** @description Science-card progress. Shape owned by packages/core. */
+            /** @description Science-card progress. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`). */
             learn: {
                 [key: string]: unknown;
             };
-            /** @description Saved meal plan. Prototype: `mealPlan`. Shape owned by packages/core. */
+            /** @description Saved meal plan. Prototype: `mealPlan`. Shape owned by packages/core; at most 64 KB as compact JSON (`x-max-json-bytes`). */
             meal_plan: {
                 [key: string]: unknown;
             } | null;
-            /** @description Meal-prep batches still being eaten. Shape owned by packages/core. */
+            /** @description Meal-prep batches still being eaten. Shape owned by packages/core; each batch at most 4 KB as compact JSON (`x-max-json-bytes`). */
             prep: {
                 [key: string]: unknown;
             }[];
@@ -2154,6 +2178,20 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
+            /**
+             * @description The revoke could not be completed right now (for example, a database lock
+             *     conflict that persisted after one server-side retry). Nothing was revoked and,
+             *     in cookie mode, the cookie is not cleared; retry shortly. The web app keeps its
+             *     "sign-out pending" flag until a retry answers 204.
+             */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     sync: {

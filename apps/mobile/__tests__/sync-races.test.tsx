@@ -222,3 +222,31 @@ describe('refused records in the provider', () => {
     expect(latest.pending).toBe(0);
   });
 });
+
+describe('a full account in the provider', () => {
+  it('shows the notice flag once the server says full, and keeps it across a restart', async () => {
+    const { db, server, tokens, api } = await setup();
+    server.accessValid = 'access-1';
+    server.recordCap = 0;
+    await saveWeightDoc(db, w('2026-10-07', 80));
+    let latest!: ReturnType<typeof useSync>;
+    const Grab = ({ onSync }: { onSync: (s: ReturnType<typeof useSync>) => void }) => {
+      onSync(useSync());
+      return null;
+    };
+    const ui = () => (
+      <SyncProvider db={db} tokens={tokens} api={api}>
+        <Grab onSync={(s) => (latest = s)} />
+      </SyncProvider>
+    );
+    const first = await render(ui());
+    await waitFor(() => expect(latest.accountFull).toBe(true));
+    expect(latest.pending).toBe(1); // kept, not dropped
+    await first.unmount();
+    // After a restart the flag is read from the device before any request answers.
+    server.hold = new Promise<void>(() => undefined);
+    await render(ui());
+    await waitFor(() => expect(latest.accountFull).toBe(true));
+    server.hold = null;
+  });
+});

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCards, validateLabels, validateMeasures } from '../validate/cards.mjs';
-import { extractScience, importCards, importLabels, importMeasures, prototypeBody, renderBody, serialize } from '../cards-import/import.mjs';
+import { CARD_OVERRIDES, extractScience, importCards, importLabels, importMeasures, prototypeBody, renderBody, serialize } from '../cards-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
@@ -27,8 +27,23 @@ test('all 30 KB cards carry over in prototype order with title, summary, evidenc
   assert.deepEqual(cards.map((c) => c.id), Object.keys(p.KB));
   for (const c of cards) {
     const k = p.KB[c.id];
-    assert.deepEqual([c.title, c.summary, c.evidence, c.source], [k.t, k.s, k.ev, k.src]);
+    // The five #549 cards differ from the prototype on purpose (CARD_OVERRIDES); every other field is unchanged.
+    const o = CARD_OVERRIDES[c.id]?.set ?? {};
+    assert.deepEqual([c.title, c.summary, c.evidence, c.source], [k.t, k.s, o.evidence ?? k.ev, o.source ?? k.src]);
   }
+});
+
+test('#549 overrides: exactly the five weak-source cards, honest evidence labels, drift against the prototype is caught', () => {
+  assert.deepEqual(Object.keys(CARD_OVERRIDES).sort(), ['fibre', 'focus', 'older', 'screening', 'warmup']);
+  const byId = Object.fromEntries(load('cards.json').cards.map((c) => [c.id, c]));
+  assert.deepEqual(['warmup', 'focus'].map((id) => byId[id].evidence), ['Emerging', 'Emerging']);
+  assert.ok(byId.older.source.includes('PROT-AGE') && byId.older.source.includes('expert consensus'));
+  assert.ok(byId.fibre.source.includes('ICMR-NIN') && byId.fibre.source.includes('Institute of Medicine') && byId.fibre.body.includes('14 g per 1,000 kcal'));
+  assert.ok(!byId.fibre.body.includes('many guidelines'));
+  assert.ok(byId.screening.source.includes('Health & Fitness Journal of Canada 2011;4(2):3-23') && byId.screening.body.includes('eparmedx.com'));
+  for (const id of Object.keys(CARD_OVERRIDES)) assert.equal(byId[id].review_status, 'draft');
+  // Changing a prototype value that an override replaces fails the import instead of silently shipping stale text.
+  assert.throws(() => importCards(html.replace('Warburton et al., PAR-Q+ (Physical Activity Readiness Questionnaire for Everyone)', 'Warburton et al., PAR-Q+')), /screening.*changed/);
 });
 
 const NUM = { kcal: '{kcal}', protein_g: '{protein_g}', tdee: '{tdee}', bmr: '{bmr}', movement: '{movement}', training: '{training}', digestion: '{digestion}', weight: '{weight}', protein_floor: '{protein_floor}', minutes: '{minutes}' };
@@ -37,7 +52,7 @@ test('static card bodies are identical to the prototype text', () => {
   const p = extractScience(html);
   for (const c of load('cards.json').cards) {
     if (c.placeholders) continue;
-    assert.equal(c.body, p.KB[c.id].body, c.id);
+    assert.equal(c.body, CARD_OVERRIDES[c.id]?.set.body ?? p.KB[c.id].body, c.id);
   }
 });
 
@@ -51,7 +66,9 @@ test('personalised bodies: all sections off equals the prototype with no profile
   }
   // fibre: the prototype body carries the figure as {fibre_g}; off drops exactly the clause around it.
   const fibre = byId.fibre;
-  const fibreProto = prototypeBody(html, 'fibre', 'none');
+  // The shipped fibre body is the #549 override (the prototype's own clause wording is unchanged).
+  const fibreProto = CARD_OVERRIDES.fibre.set.body.replace(/\{\?fibre_g\}(.*?)\{\/fibre_g\}/, '$1');
+  assert.ok(prototypeBody(html, 'fibre', 'none').includes('{fibre_g}'));
   const clause = ', which is about {fibre_g} g for your target';
   assert.ok(fibreProto.includes(clause));
   assert.equal(renderBody(fibre.body, ['fibre_g'], { fibre_g: 31 }), fibreProto.replace('{fibre_g}', '31'), 'fibre on');
