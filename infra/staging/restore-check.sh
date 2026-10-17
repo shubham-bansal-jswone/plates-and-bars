@@ -46,9 +46,20 @@ trap 'exit 1' INT TERM
 
 fail() { echo "restore-check FAILED: $*" >&2; exit 1; }
 
+# A run killed by SIGKILL, the OOM killer or a reboot leaves its throwaway container (and its volume, which holds user
+# data) behind; every throwaway carries this label, so the next run removes any it finds first.
+label="plateandbar-restore-check=1"
+stale="$(docker ps -aq --filter "label=$label")" || fail "cannot list containers"
+for id in $stale; do
+  echo "removing a stale throwaway container from an earlier run: $id"
+  docker rm -fv "$id" > /dev/null 2>&1 || true
+done
+
 # newest object by name (the name holds the UTC time); .partial files never match
 dest="bk:$BACKUP_S3_BUCKET/$prefix"
-newest="$(rclone lsf --files-only "$dest" | grep -E '^plateandbar-[0-9]{8}T[0-9]{6}Z\.sql\.gz$' | sort | tail -1 || true)"
+# a failed listing (bad key, bucket unreachable) is not the same as "no backup": say which
+listing="$(rclone lsf --files-only "$dest")" || fail "cannot list $dest (check the BACKUP_S3_* values and the bucket); this is not a missing backup"
+newest="$(printf '%s\n' "$listing" | grep -E '^plateandbar-[0-9]{8}T[0-9]{6}Z\.sql\.gz$' | sort | tail -1 || true)"
 [ -n "$newest" ] || fail "no backup object under $dest"
 
 stamp="${newest#plateandbar-}"; stamp="${stamp%.sql.gz}"
@@ -58,13 +69,14 @@ age=$(($(date -u +%s) - dump_epoch))
 echo "newest backup: $newest (age $((age / 3600)) h $((age % 3600 / 60)) min)"
 [ "$age" -le "$max_age_seconds" ] || fail "the newest dump is older than 25 hours: the nightly backup is not running"
 
-rclone cat "$dest/$newest" > "$work/dump.sql.gz"
+rclone cat "$dest/$newest" > "$work/dump.sql.gz" || fail "the download of $newest failed"
 gzip -t "$work/dump.sql.gz" || fail "the dump is not a valid gzip file"
 
 # Random root password, passed by name so it is on no command line. No published port and no network at all.
 MYSQL_ROOT_PASSWORD="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 export MYSQL_ROOT_PASSWORD
-docker run -d --name "$name" --network none -e MYSQL_ROOT_PASSWORD -e MYSQL_DATABASE=plateandbar "$mysql_image" > /dev/null
+# Memory-capped: next to the live stack (about 2 GB on the VM) an OOM must stay inside this container's cgroup.
+docker run -d --name "$name" --label "$label" --memory 1g --memory-swap 1g --network none -e MYSQL_ROOT_PASSWORD -e MYSQL_DATABASE=plateandbar "$mysql_image" > /dev/null
 sql() { docker exec -i "$name" sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -N -B plateandbar'; }
 
 ready=0
