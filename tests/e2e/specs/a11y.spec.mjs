@@ -1,4 +1,4 @@
-import { triage } from '../support/axe.mjs';
+import { htmlHas, triage } from '../support/axe.mjs';
 import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, tab, test } from '../support/app.mjs';
 
 // axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
@@ -7,6 +7,17 @@ import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
 const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
+// Label in name (#800): the app names these controls differently from their visible text. One entry per kind of control.
+const LABEL_IN_NAME = 'label-content-name-mismatch';
+const sessionChips = [
+  { rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Add a set to ') },
+  { rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Remove the last set of ') },
+  { rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Remove .+ from today"/.test(node.html) },
+];
+KNOWN['sheet-food-add'] = [{ rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Add ') }];
+KNOWN['sheet-workout-settings'] = [{ rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Reset ') }];
+KNOWN['sheet-workout-add'] = sessionChips;
+KNOWN['sheet-workout-custom'] = sessionChips;
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
@@ -126,6 +137,12 @@ const screens = {
 // Screens with a sheet open (#661). Each opens the sheet through its real opener and waits for the named dialog; scan() then
 // runs its usual auto-retrying level-one precondition and the same axe rules on the page with the sheet on top.
 const dialog = (page, name) => page.locator(`[role="dialog"][aria-label=${JSON.stringify(name)}]`);
+// The exercise-card openers (settings, Can't do, How to do, Add exercise) exist only in a started session.
+const openSession = async (page) => {
+  await tab(page, 'Workout');
+  await startSession(page);
+  await expect(page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]').first()).toBeVisible();
+};
 const sheets = {
   'sheet-food-add': async (page) => {
     await tab(page, 'Food');
@@ -134,35 +151,34 @@ const sheets = {
   },
   // The exercise settings sheet (the gear on an exercise card), titled by the exercise.
   'sheet-workout-settings': async (page) => {
-    await tab(page, 'Workout');
-    await expect(page.locator('[aria-label^="Exercise 1: "]')).toBeVisible();
+    await openSession(page);
     const gear = page.getByRole('button', { name: / settings$/ }).first();
     const name = (await gear.getAttribute('aria-label')).slice(0, -' settings'.length);
     await gear.click();
     await expect(dialog(page, name)).toBeVisible();
   },
   'sheet-workout-cant': async (page) => {
-    await tab(page, 'Workout');
+    await openSession(page);
     const opener = page.getByRole('button', { name: /^Can’t do / }).first();
     const name = (await opener.getAttribute('aria-label')).slice('Can’t do '.length);
     await opener.click();
     await expect(dialog(page, `Can’t do ${name}?`)).toBeVisible();
   },
   'sheet-workout-howto': async (page) => {
-    await tab(page, 'Workout');
+    await openSession(page);
     const opener = page.getByRole('button', { name: /^How to do / }).first();
     const name = (await opener.getAttribute('aria-label')).slice('How to do '.length);
     await opener.click();
     await expect(dialog(page, name)).toBeVisible();
   },
   'sheet-workout-add': async (page) => {
-    await tab(page, 'Workout');
+    await openSession(page);
     await label(page, 'Add exercise').click();
     await expect(dialog(page, 'Add exercise')).toBeVisible();
   },
   // The custom exercise sheet: a typed name the library does not know asks for its muscles first.
   'sheet-workout-custom': async (page) => {
-    await tab(page, 'Workout');
+    await openSession(page);
     await label(page, 'Add exercise').click();
     await page.getByRole('textbox', { name: 'Your own exercise' }).fill('Zercher carry');
     await label(page, 'Add the exercise you typed').click();
@@ -171,7 +187,7 @@ const sheets = {
   'sheet-progress-checkin': async (page) => {
     await tab(page, 'Progress');
     await label(page, 'New photo check-in').click();
-    await expect(dialog(page, 'Weekly check-in')).toBeVisible();
+    await expect(dialog(page, 'Photo check-in')).toBeVisible();
   },
   'sheet-targets-avoid': async (page) => {
     await tab(page, 'Targets');
