@@ -78,6 +78,9 @@ services:
       API_UPSTREAM: api:8080
       # Web app host (same site as API_HOST). Unset: plain HTTP on port 8081 inside the container, which is not published, so nothing is reachable.
       WEB_HOST: ${WEB_HOST:-http://127.0.0.1:8081}
+      # Origin of the app's error-tracking ingest (the host of EXPO_PUBLIC_SENTRY_DSN, for example https://errors.example.com): added to the web CSP connect-src. Empty = app has no DSN.
+      # A bare https origin only: check it with infra/scripts/check-sentry-origin.sh "$WEB_SENTRY_ORIGIN" "$EXPO_PUBLIC_SENTRY_DSN" (a scheme-only or wildcard value would open connect-src to any host).
+      SENTRY_ORIGIN: ${WEB_SENTRY_ORIGIN:-}
     # Caddyfile.stack imports Caddyfile.api and Caddyfile.web from the mounted directory.
     command: caddy run --config /etc/caddy/sites/Caddyfile.stack --adapter caddyfile
     volumes:

@@ -102,7 +102,7 @@ class SyncByteLimitsTest {
         ApiException e = catchThrowableOfType(ApiException.class,
                 () -> VALIDATOR.validate(USER, parsed, "{\"changes\":".getBytes(StandardCharsets.UTF_8)));
         assertThat(e).isNotNull();
-        assertThat(e.details()).containsExactly(new ErrorResponse.Detail("", "invalid_json"));
+        assertThat(e.details()).containsExactly(new ErrorResponse.Detail("", "type"));
     }
 
     /** The library logs a warning once per JVM for a keyword it does not know; registering it stops that. */

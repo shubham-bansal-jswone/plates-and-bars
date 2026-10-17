@@ -1,4 +1,4 @@
-import { CONDENSED, mondayOf, recoveryWeek, reentryRange, type AdjRange, type AdjState, type ReentryRange } from '@plate-and-bar/core';
+import { CONDENSED, dismissKey, mondayOf, recoveryWeek, reentryRange, type AdjRange, type AdjState, type ReentryRange } from '@plate-and-bar/core';
 
 // `Settings.adjustments` is an open object; these are the prototype's `settings.adj` fields the exercise cards use:
 // `muted[type]` (the user turned the card type off), `dismissed[key]` (this card was answered) and `declines[type]`
@@ -13,10 +13,13 @@ export const adjOf = (a: Adjustments): AdjState & { declines: Record<string, num
   declines: (a.declines as Record<string, number> | undefined) ?? {},
 });
 
-/** The answer to a card: its key is dismissed, and "Not now" also counts a decline for the card type. */
-export function answered(a: Adjustments, key: string, decline?: string): Adjustments {
+/**
+ * The answer to a card: its key is dismissed (core `dismissKey` also prunes old keys, so the object stays under its
+ * size cap), and "Not now" also counts a decline for the card type. `today` is the real date, not the day being viewed.
+ */
+export function answered(a: Adjustments, key: string, today: string, decline?: string): Adjustments {
   const adj = adjOf(a);
-  return { ...a, dismissed: { ...adj.dismissed, [key]: true }, ...(decline ? { declines: { ...adj.declines, [decline]: (adj.declines[decline] ?? 0) + 1 } } : {}) };
+  return { ...a, dismissed: dismissKey(adj.dismissed, key, today), ...(decline ? { declines: { ...adj.declines, [decline]: (adj.declines[decline] ?? 0) + 1 } } : {}) };
 }
 
 /** "Stop suggesting this": the card type is muted. */
@@ -42,10 +45,10 @@ export function rangesOf(a: Adjustments): { deload: AdjRange | null; reentry: Re
 }
 
 /** "Start recovery week": 7 days from `date`, and this week's card key is answered. */
-export const startDeload = (a: Adjustments, date: string, key: string): Adjustments => ({ ...answered(a, key), deload: recoveryWeek(date) });
+export const startDeload = (a: Adjustments, date: string, key: string, today: string): Adjustments => ({ ...answered(a, key, today), deload: recoveryWeek(date) });
 
 /** "Ease back in": 7 days at the card's 15%, 14 at its 30%, and the card's key is answered. */
-export const startReentry = (a: Adjustments, date: string, key: string, pct: number): Adjustments => ({ ...answered(a, key), reentry: reentryRange(date, pct) });
+export const startReentry = (a: Adjustments, date: string, key: string, pct: number, today: string): Adjustments => ({ ...answered(a, key, today), reentry: reentryRange(date, pct) });
 
 /** "End it early" / "Back to normal" (prototype `adj-end`). */
 export function endAdj(a: Adjustments, kind: 'deload' | 'reentry'): Adjustments {
@@ -54,8 +57,8 @@ export function endAdj(a: Adjustments, kind: 'deload' | 'reentry'): Adjustments 
 }
 
 /** "Shift the week": the plan runs in order from here (prototype `adj-shift`); the card's key is answered and its declines reset. */
-export const shiftWeek = (a: Adjustments, key: string): Adjustments => {
-  const adj = answered(a, key);
+export const shiftWeek = (a: Adjustments, key: string, today: string): Adjustments => {
+  const adj = answered(a, key, today);
   return { ...adj, mode: 'sequence', declines: { ...adjOf(a).declines, missed: 0 } };
 };
 

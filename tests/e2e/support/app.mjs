@@ -33,7 +33,11 @@ export const test = base.extend({
     await page.addInitScript(trackDbWrites);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    // The server sends the shipped Content-Security-Policy (#749); a blocked load or script shows up as a console error.
+    const csp = [];
+    page.on('console', (m) => /Content Security Policy|Content-Security-Policy/i.test(m.text()) && csp.push(m.text()));
     await use(page);
+    expect(csp, 'Content-Security-Policy violations').toEqual([]);
     expect(errors, 'uncaught page errors').toEqual([]);
     // Checked for every test: an app that calls out and swallows the failure must not pass.
     expect(blocked, 'requests to anything but localhost').toEqual([]);

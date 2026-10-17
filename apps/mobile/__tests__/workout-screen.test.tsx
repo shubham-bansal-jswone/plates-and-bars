@@ -322,7 +322,7 @@ describe('Workout tab: logging sets', () => {
     await press('Add the exercise you typed');
     await press('Main muscle: quads');
     await press('Add COSSACK SQUAT with these muscles');
-    expect(await screen.findByText('Couldn’t save that exercise. Try again.')).toBeTruthy();
+    expect(await screen.findByText('That name matches Cossack Squat. Use that name instead.')).toBeTruthy();
     const names = stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name);
     expect(names).not.toContain('COSSACK SQUAT');
     expect(Object.keys(JSON.parse(db.rows.get('user_settings:me')!).custom_tags)).toEqual(['Cossack Squat']);

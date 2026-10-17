@@ -56,7 +56,7 @@ function gated(db: Db) {
 describe('a pull makes the screens read SQLite again (dataVersion)', () => {
   it('Food shows a log that arrived from another device, and keeps its own queued log', async () => {
     const db = await openDb();
-    const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db, now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
+    const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db, date: '2026-10-08', now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(result.current.ready).toBe(true));
     await act(async () => result.current.add('Lunch', { name: 'mine', qty: 1, kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }));
     await saveLog(db, food('pulled', 'from phone'));
@@ -67,7 +67,7 @@ describe('a pull makes the screens read SQLite again (dataVersion)', () => {
   it('Food: a log added while the reload is reading is not dropped by the older read', async () => {
     const real = await openDb();
     const { g, db } = gated(real);
-    const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db, now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
+    const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db, date: '2026-10-08', now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(result.current.ready).toBe(true));
     g.arm();
     await rerender({ k: 1 });
@@ -130,7 +130,7 @@ describe('the wait for queued writes and the write counter matter', () => {
         return real.runAsync(...a);
       },
     });
-    const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db: slow, now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
+    const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db: slow, date: '2026-10-08', now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(result.current.ready).toBe(true));
     await act(async () => result.current.add('Lunch', { name: 'still writing', qty: 1, kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }));
     await rerender({ k: 1 });
