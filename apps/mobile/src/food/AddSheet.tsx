@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { SheetModal } from '../components/Sheet';
 import { WhyLink } from '../why/WhyLink';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
@@ -32,7 +33,7 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   const say = (text: string, error = false) => setStatus({ text, error });
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={`Add to ${meal.toLowerCase()}`} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
@@ -51,7 +52,7 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 

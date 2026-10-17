@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { onRemoteSignOut } from './webSession';
 import { clearTokens, loadTokens, saveTokens, type Tokens } from '../secure/tokens';
 
 /** Where tokens live (expo-secure-store in the app; a fake in tests). */
@@ -17,9 +18,11 @@ export function memoryTokenStore(): TokenStore {
 /**
  * Web (ADR 006): the access token in memory only, never in web storage. The refresh token is not kept at all: it is an
  * httpOnly cookie that script cannot read, so `save` drops the (empty) one it is given and `load` returns an empty one.
+ * A sign-out in another tab drops the access token here at once (#762); it lives as long as the page, like the store.
  */
 export function webTokenStore(): TokenStore {
   let access: string | null = null;
+  onRemoteSignOut(() => void (access = null));
   return {
     load: async () => (access ? { access, refresh: '' } : null),
     save: async (t) => void (access = t.access),

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { candidates, cantAfterDuration, cantDefaultScope, cantScopeOptions, type CantDraft, type CantDuration, type Exclusion, type ExclusionReason, type LiftRecord, type Where } from '@plate-and-bar/core';
 import { Heading, Button, Choice, Group, Hint, Note } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
@@ -63,7 +64,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
   const prim = t ? t.primary : [];
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={`Can’t do ${name}?`} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
@@ -134,7 +135,7 @@ function Sheet({ name, where, inSession, exclusions, lifts, setsFor, onPick, onC
           <Button label="Close" kind="ghost" onPress={onClose} />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Heading, Hint } from '../components/ui';
 import { Text } from '../components/Text';
 import { localDate } from '../setup/logic';
@@ -33,7 +34,7 @@ export function WhySheet({ id, values, onClose, now = () => new Date() }: { id: 
   }, [card, id, ready, learn, update]);
   if (!card) return null;
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={card.title} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
           <Button kind="ghost" label="Close" onPress={onClose} />
@@ -45,7 +46,7 @@ export function WhySheet({ id, values, onClose, now = () => new Date() }: { id: 
           <WhyFollowUp key={id} cardId={id} />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 

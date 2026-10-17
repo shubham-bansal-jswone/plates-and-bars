@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { profileWhyValues } from '../why/values';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
@@ -33,6 +33,8 @@ import { useRules } from '../workout/useRules';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 import { isBlank } from '../text/blank';
+import { DateAnnouncer, DateBar } from '../components/DateBar';
+import { useViewedDate, type ViewedDate } from '../state/ViewedDate';
 
 interface Props {
   db: WorkoutDb & PullDb;
@@ -70,46 +72,60 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const rulesApi = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const { rules, addRule } = rulesApi;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
-  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
+  const v = useViewedDate(now);
+  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
+  const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
-  if (status !== 'ready' || !ready || !day.ready || !rules.ready) return <Page><Hint>Loading…</Hint></Page>;
-  if (!profile)
-    return (
+  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />;
+  // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,
+  // which would repeat "Rest done, go!" and re-read the toast) while a day is read. They sit outside it as the prototype's #restbar and #toast sit outside #view.
+  let content: ReactNode;
+  if (status !== 'ready' || !ready || !day.ready || !rules.ready) content = <Page><DateBar v={v} /><Hint>Loading…</Hint></Page>;
+  else if (!profile)
+    content = (
       <Page>
         <H1>Workout</H1>
+        <DateBar v={v} />
         <Hint>Finish setup first, so the app can plan your sessions.</Hint>
       </Page>
     );
-
-  const body =
-    day.exs.length === 0 ? (
-      <StartView key={w.date} now={now} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
-    ) : (
-      <SessionView key={w.date} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+  else {
+    const body =
+      day.exs.length === 0 ? (
+        <StartView key={w.date} v={v} now={now} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+      ) : (
+        <SessionView key={w.date} v={v} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+      );
+    const where = day.workout?.where ?? profile.where;
+    const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
+    content = (
+      <>
+        {body}
+        <HowToSheet name={howTo} onClose={() => setHowTo(null)} />
+        <CantSheet
+          name={cantName?.name ?? null}
+          {...(cantName?.reason ? { reason: cantName.reason } : {})}
+          where={where}
+          inSession={day.exs.map((e) => e.name)}
+          exclusions={rules.exclusions}
+          lifts={day.lifts}
+          setsFor={(m) => planned()[m] ?? 0}
+          onPick={(draft, choice) => {
+            w.cant(cantName ? cantName.i : null, draft, choice);
+            setCantName(null);
+          }}
+          onClose={() => setCantName(null)}
+        />
+      </>
     );
-  const where = day.workout?.where ?? profile.where;
-  const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
+  }
   return (
     <View style={styles.fill}>
-      {body}
-      <HowToSheet name={howTo} onClose={() => setHowTo(null)} />
-      <CantSheet
-        name={cantName?.name ?? null}
-        {...(cantName?.reason ? { reason: cantName.reason } : {})}
-        where={where}
-        inSession={day.exs.map((e) => e.name)}
-        exclusions={rules.exclusions}
-        lifts={day.lifts}
-        setsFor={(m) => planned()[m] ?? 0}
-        onPick={(draft, choice) => {
-          w.cant(cantName ? cantName.i : null, draft, choice);
-          setCantName(null);
-        }}
-        onClose={() => setCantName(null)}
-      />
-      <RestBar rest={rest} onAdd={() => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r))} onSkip={() => setRest(null)} />
+      <DateAnnouncer v={v} />
+      {content}
+      {restBar}
       <ToastBar message={toast} />
     </View>
   );
@@ -120,7 +136,7 @@ const WHERE_CHOICES: [NonNullable<Workout['where']>, string][] = [['gym', 'Norma
 type W = ReturnType<typeof useWorkoutDay>;
 type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 
-function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () => Date; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
+function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: ViewedDate; now: () => Date; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
@@ -157,6 +173,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
 
   return (
     <Page>
+      <DateBar v={v} />
       <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
       <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} now={now} />
@@ -258,7 +275,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
   );
 }
 
-function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
+function SessionView({ v, now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { v: ViewedDate; now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const [open, setOpen] = useState(false);
@@ -298,6 +315,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
 
   return (
     <Page>
+      <DateBar v={v} />
       <H1>{wk.template || 'Session'}</H1>
       <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={{ color: c.muted, fontSize: 14 }}>

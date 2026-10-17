@@ -17,15 +17,26 @@ if [ "$1" = compose ]; then
   echo "-- dump"
 elif [[ " $* " == *" rcat "* ]]; then
   cat > /dev/null
+elif [[ " $* " == *" delete "* ]]; then
+  [ -z "${STUB_DELETE_FAIL:-}" ] || exit 1
 fi
 STUB
-chmod +x "$tmp/bin/docker"
+# curl stub: records its arguments and the config read from stdin (-K -); STUB_CURL_FAIL makes it fail
+cat > "$tmp/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+echo "curl $*" >> "$STUB_CURL_LOG"
+[[ " $* " != *" -K - "* ]] || cat >> "$STUB_CURL_LOG"
+[ -z "${STUB_CURL_FAIL:-}" ] || exit 22
+STUB
+chmod +x "$tmp/bin/docker" "$tmp/bin/curl"
 
 fail() { echo "FAIL: $*"; cat "$STUB_LOG"; exit 1; }
-export PATH="$tmp/bin:$PATH" STUB_LOG="$tmp/log"
+export PATH="$tmp/bin:$PATH" STUB_LOG="$tmp/log" STUB_CURL_LOG="$tmp/curl"
 
 : > "$STUB_LOG"
+: > "$STUB_CURL_LOG"
 "$tmp/stack/backup.sh" > /dev/null || fail "good dump: backup.sh exited non-zero"
+[ ! -s "$STUB_CURL_LOG" ] || fail "heartbeat sent although BACKUP_HEARTBEAT_URL is unset: $(cat "$STUB_CURL_LOG")"
 grep -Eq ' rcat bk:plateandbar-backups/staging/plateandbar-[0-9]{8}T[0-9]{6}Z\.sql\.gz\.partial$' "$STUB_LOG" || fail "no .partial upload"
 grep -q ' moveto .*\.partial bk:.*\.sql\.gz$' "$STUB_LOG" || fail "upload not renamed"
 grep -q ' delete --min-age 30d bk:plateandbar-backups/staging$' "$STUB_LOG" || fail "no 30-day retention delete"
@@ -39,5 +50,32 @@ grep -q 'mysqldump .*--single-transaction' "$STUB_LOG" || fail "mysqldump withou
 : > "$STUB_LOG"
 if STUB_DUMP_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2>&1; then fail "failed dump: backup.sh exited 0"; fi
 ! grep -Eq ' (moveto|delete) ' "$STUB_LOG" || fail "failed dump was renamed or followed by a delete"
+
+# heartbeat: with the URL set it is requested once after success, from stdin (not on a command line or the docker log)
+hb='https://kuma.test/api/push/tok3n-s3cret?status=up&msg=OK&ping='
+echo "BACKUP_HEARTBEAT_URL='$hb'" >> "$tmp/stack/.env"
+: > "$STUB_LOG"; : > "$STUB_CURL_LOG"
+"$tmp/stack/backup.sh" > /dev/null || fail "heartbeat set: backup.sh exited non-zero"
+[ "$(grep -c '^curl ' "$STUB_CURL_LOG")" = 1 ] || fail "expected one heartbeat request: $(cat "$STUB_CURL_LOG")"
+grep -qF "url = \"$hb\"" "$STUB_CURL_LOG" || fail "heartbeat URL not given to curl on stdin"
+grep -q -- ' -m 10 ' "$STUB_CURL_LOG" || fail "heartbeat curl has no 10 s timeout (-m 10)"
+! grep -q 'tok3n' <(grep '^curl ' "$STUB_CURL_LOG") || fail "heartbeat token on the curl command line"
+! grep -q 'tok3n' "$STUB_LOG" || fail "heartbeat token on a docker command line"
+
+# a failing monitor does not fail a good backup
+: > "$STUB_LOG"; : > "$STUB_CURL_LOG"
+STUB_CURL_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2> "$tmp/err" || fail "failing heartbeat made the backup fail"
+grep -q 'heartbeat ping failed' "$tmp/err" || fail "no warning for a failed heartbeat"
+! grep -q 'tok3n' "$tmp/err" || fail "heartbeat token printed on failure"
+
+# a failed retention step (after the upload) sends no heartbeat either
+: > "$STUB_LOG"; : > "$STUB_CURL_LOG"
+if STUB_DELETE_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2>&1; then fail "failed retention: backup.sh exited 0"; fi
+[ ! -s "$STUB_CURL_LOG" ] || fail "heartbeat sent after a failed retention step"
+
+# a failed dump sends no heartbeat (the missing ping is the alert)
+: > "$STUB_LOG"; : > "$STUB_CURL_LOG"
+if STUB_DUMP_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2>&1; then fail "failed dump with heartbeat: exited 0"; fi
+[ ! -s "$STUB_CURL_LOG" ] || fail "heartbeat sent after a failed dump"
 
 echo "backup.sh tests passed"

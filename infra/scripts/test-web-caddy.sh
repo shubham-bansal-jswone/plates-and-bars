@@ -8,7 +8,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 image="caddy:2.11.7" # keep in step with infra/staging/docker-compose.yml
 tmp="$(mktemp -d)"
 cid=""
-cleanup() { [ -z "$cid" ] || docker rm -f "$cid" > /dev/null 2>&1 || true; rm -rf "$tmp"; }
+ecid=""
+cleanup() { [ -z "$cid" ] || docker rm -f "$cid" > /dev/null 2>&1 || true; [ -z "$ecid" ] || docker rm -f "$ecid" > /dev/null 2>&1 || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 fail() { echo "FAIL: $*"; exit 1; }
 
@@ -61,4 +62,50 @@ for path in /assets/missing.png /_expo/static/js/web/entry-gone.js; do
   ! grep -q index "$tmp/b" || fail "$path: served index.html"
   ! grep -q immutable "$tmp/h" || fail "$path: 404 marked immutable"
 done
+# Access log (#714): a request carrying a query string, Authorization, Cookie and X-Forwarded-For leaves one JSON line with
+# the path but none of those values, and the client IP is masked (the last IPv4 octet is 0)
+# (the headers come from a file so the fixture value is not a curl -H literal that secret scanners flag)
+printf 'Authorization: Bearer sekrit-token\nCookie: refresh=sekrit-cookie\nX-Forwarded-For: 203.0.113.77\n' > "$tmp/req-headers"
+curl -s -o /dev/null -H "@$tmp/req-headers" "http://127.0.0.1:$port/probe-path?email=sekrit%40example.com"
+line=""
+for _ in $(seq 1 10); do
+  line="$(docker exec "$cid" grep probe-path /data/web_access.log 2> /dev/null | head -n 1 || true)"
+  [ -z "$line" ] || break
+  sleep 1
+done
+[ -n "$line" ] || fail "access log: no line for /probe-path in /data/web_access.log"
+case "$line" in "{"*"}") ;; *) fail "access log line is not JSON: $line" ;; esac
+case "$line" in *'"uri":"/probe-path"'*) ;; *) fail "access log: uri is not the bare path: $line" ;; esac
+for secret in sekrit 203.0.113 'Bearer' 'refresh='; do
+  case "$line" in *"$secret"*) fail "access log leaks '$secret': $line" ;; esac
+done
+printf '%s' "$line" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "access log: remote_ip not masked: $line"
+# Error log (#714): the stack file, with the API upstream down, answers a probe with 502 or 503; Caddy's own error line for it
+# (stderr) must not hold the raw IP, the query string, or the User-Agent and X-Forwarded-For headers
+ecid="$(docker run -d -p 127.0.0.1::8082 -e 'API_HOST=http://:8082' -e 'WEB_HOST=http://:8081' -e API_UPSTREAM=127.0.0.1:9 \
+  -v "$here/../caddy:/etc/caddy/sites:ro" -v "$tmp/web:/srv/web:ro" "$image" caddy run --config /etc/caddy/sites/Caddyfile.stack --adapter caddyfile)"
+eport="$(docker port "$ecid" 8082/tcp | head -n 1 | sed 's/.*://')"
+for _ in $(seq 1 30); do
+  curl -s -o /dev/null "http://127.0.0.1:$eport/nothing" && break
+  sleep 1
+done
+printf 'User-Agent: sekrit-agent\nX-Forwarded-For: 203.0.113.77\n' > "$tmp/err-headers"
+estatus="$(curl -s -o /dev/null -w '%{http_code}' -H "@$tmp/err-headers" "http://127.0.0.1:$eport/api/v1/probe-err?email=sekrit%40example.com")"
+case "$estatus" in 502|503) ;; *) fail "error probe: status $estatus, expected 502 or 503 (upstream down)" ;; esac
+elines=""
+for _ in $(seq 1 10); do
+  elines="$(docker logs "$ecid" 2>&1 | grep '"level":"error"' | grep probe-err || true)"
+  [ -z "$elines" ] || break
+  sleep 1
+done
+[ -n "$elines" ] || fail "error log: no error line for /api/v1/probe-err in docker logs"
+# every matching line is checked, not only the first
+while IFS= read -r eline; do
+  case "$eline" in *'"uri":"/api/v1/probe-err"'*) ;; *) fail "error log: uri is not the bare path: $eline" ;; esac
+  for secret in sekrit 203.0.113 sekrit-agent; do
+    case "$eline" in *"$secret"*) fail "error log leaks '$secret': $eline" ;; esac
+  done
+  printf '%s' "$eline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "error log: remote_ip not masked: $eline"
+done <<< "$elines"
+echo "Caddyfile.stack error log tests passed"
 echo "Caddyfile.web serving tests passed"

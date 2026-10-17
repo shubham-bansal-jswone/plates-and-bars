@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FlatList, Modal, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { UNIT_GRAMS } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { a11yState, Heading, Button, ErrorText, Field, Press } from '../components/ui';
@@ -60,7 +61,7 @@ function Picker({ names, current, onPick, onClose }: { names: () => readonly str
   const [q, setQ] = useState('');
   const shown = names().filter((n) => n.toLowerCase().includes(q.trim().toLowerCase()));
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title="Choose an ingredient" onClose={onClose}>
       <View style={[styles.sheet, { backgroundColor: c.bg }]}>
         <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>Choose an ingredient</Heading>
         <Field label="Search ingredients" placeholder="Search" value={q} onChangeText={setQ} />
@@ -77,7 +78,7 @@ function Picker({ names, current, onPick, onClose }: { names: () => readonly str
         />
         <Button label="Cancel" kind="ghost" onPress={onClose} />
       </View>
-    </Modal>
+    </SheetModal>
   );
 }
 

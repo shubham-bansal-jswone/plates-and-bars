@@ -63,7 +63,7 @@ Notes on judgement calls:
 
 | Category | Why not |
 | --- | --- |
-| Location | No location permission. The IP address is held only in memory for rate limiting (ephemeral, not used to locate the user); Caddy has no access log configured (`infra/caddy/Caddyfile.api`) |
+| Location | No location permission. The full IP address is held only in memory for rate limiting (ephemeral, not used to locate the user). Caddy's access and error logs (`infra/caddy/Caddyfile.api`, `Caddyfile.web`, `Caddyfile.stack`) keep only a masked IP (/24 for IPv4, /48 for IPv6), no query string and no headers, for 14 days |
 | Photos and videos | Photos stay in the on-device vault; camera and gallery permissions are for that only (`apps/mobile/app.json`) |
 | Files and docs | Exports are saved or shared by the user from the device; nothing is uploaded |
 | Device or other IDs (other than the crash-report install id declared above) | No advertising id or hardware device id; record ids are per record (`SyncMeta.id`) |
