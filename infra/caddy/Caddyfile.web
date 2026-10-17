@@ -8,6 +8,11 @@
 # Environment: WEB_HOST, default http://127.0.0.1:8081 so the file validates as is and, until WEB_HOST is set, serves
 # plain HTTP on port 8081 inside the container (no certificate is requested; Compose does not publish 8081, so
 # nothing is reachable).
+# img-src blob: and worker-src blob: are needed on web (not removable): expo-image-picker and expo-image-manipulator
+# load the photo-capture path (#429) from blob: URLs the libraries create, and wa-sqlite starts its worker from one;
+# data: covers the base64 photo previews. SENTRY_ORIGIN must be a bare https origin: check it with
+# infra/scripts/check-sentry-origin.sh "$SENTRY_ORIGIN" "$EXPO_PUBLIC_SENTRY_DSN" (a scheme-only or wildcard value
+# would open connect-src to any host).
 {$WEB_HOST:http://127.0.0.1:8081} {
 	root * /srv/web
 	encode zstd gzip
