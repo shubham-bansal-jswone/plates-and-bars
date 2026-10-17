@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Input } from '../components/Input';
 import { radius } from '../theme/tokens';
 import { Text } from '../components/Text';
-import { estimateFor, exInfo, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
+import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
 import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
@@ -53,8 +53,8 @@ interface Props {
   learning?: boolean;
   /** Last sessions by exercise: the first-time guide reads them for a rough weight guess from a related lift (core's `estimateFor`). */
   lifts?: Readonly<Record<string, LiftRecord>>;
-  /** Type, range and step of another exercise as the user has set it (the screen's `exInfo` with their overrides); the paired lift in the rough guess is labelled with it. Defaults to the catalogue's. */
-  infoOf?: (name: string) => ExInfo;
+  /** Type, range and step of another exercise as the user has set it (the screen's `exInfo` with their overrides); the paired lift in the rough guess is labelled with it. Required: a catalogue fallback would ignore the user's overrides. */
+  infoOf: (name: string) => ExInfo;
   /** Earlier sessions of this exercise (core's `priorSessions`): the Setup steps start open on the very first one. */
   prior?: number;
 }
@@ -213,7 +213,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           <Text style={{ color: c.ink, fontWeight: '700' }}>First time: find your weight</Text>
           {ex.ramp.length === 0 ? (
             <>
-              {est ? <Hint>Rough guess from your {est.from} ({kgLabel(est.fromW, infoOf ? infoOf(est.from) : exInfo(est.from, getCatalog()))}): about {kgLabel(est.w, info)}. Use the ramp to confirm.</Hint> : null}
+              {est ? <Hint>Rough guess from your {est.from} ({kgLabel(est.fromW, infoOf(est.from))}): about {kgLabel(est.w, info)}. Use the ramp to confirm.</Hint> : null}
               <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>
                 1. Do {firstRampReps} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
               </Text>
