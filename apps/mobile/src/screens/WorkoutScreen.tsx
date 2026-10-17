@@ -348,10 +348,11 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
           name={tagging}
           notify={notify}
           onClose={() => setTagging(null)}
-          onSave={(tags) => {
+          onSave={async (tags) => {
             const name = tagging;
             setTagging(null);
-            if (!addCustomTags(name, tags)) return notify('Couldn’t save that exercise. Try again.');
+            // Only after the save has decided: a name it refuses (a near-duplicate a pull stored meanwhile) must not reach the workout.
+            if (!(await addCustomTags(name, tags))) return notify('Couldn’t save that exercise. Try again.');
             notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
           }}
         />

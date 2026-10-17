@@ -24,8 +24,12 @@ interface SettingsState {
   setDiet(diet: Settings['diet']): void;
   /** Saves the weekly meal plan. */
   setMealPlan(plan: MealPlan): void;
-  /** Saves a custom exercise's tags (prototype `tg-save`); false when the record cannot be written or the limit is reached. */
-  addCustomTags(name: string, tags: ExerciseTag): boolean;
+  /**
+   * Saves a custom exercise's tags (prototype `tg-save`). Resolves once the save has decided: false when the name is refused (a
+   * known exercise in another letter case, or the limit is reached, judged against the stored record) or the record cannot be
+   * written at all; true when it is accepted, also if the write itself fails later (the edit is kept and shows, as offline).
+   */
+  addCustomTags(name: string, tags: ExerciseTag): Promise<boolean>;
   /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
   update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean;
 }
@@ -122,7 +126,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
   }, [db, reloadKey]);
 
   const change = useCallback(
-    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>)): boolean => {
+    (patch: Partial<Settings> | ((s: Settings) => Partial<Settings>), settled?: (dropped: boolean) => void): boolean => {
       if (blocked.current) return false;
       const at = stamp(new Date());
       const apply = (s: Settings): Settings => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch), updated_at: at });
@@ -157,6 +161,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         })
         .then(
           (saved) => {
+            settled?.(false);
             if (!mounted.current) return;
             setSaveFailed(false);
             pending.current -= 1;
@@ -168,7 +173,8 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
             }
           },
           async (e) => {
-            if (e instanceof Dropped) return; // the account is gone: nothing to show, keep or write
+            if (e instanceof Dropped) return settled?.(true); // the account is gone: nothing to show, keep or write
+            settled?.(false);
             pending.current -= 1;
             setSaveFailed(true);
             // Written down so an app restart does not lose them; if this fails too they stay in memory.
@@ -196,11 +202,23 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
   const setMealPlan = useCallback((meal_plan: MealPlan) => change({ meal_plan }), [change]);
 
   const addCustomTags = useCallback(
-    (name: string, tags: ExerciseTag) => {
+    (name: string, tags: ExerciseTag): Promise<boolean> => {
       // Refused at once against what is shown, and again inside the save against the record re-read there: a pull may have
-      // stored a name this copy does not have yet (#664), and the save is where the record is known.
-      if (customRefused(ref.current.custom_tags, name)) return false;
-      return change((s) => (customRefused(s.custom_tags, name) ? {} : { custom_tags: { ...s.custom_tags, [name]: tags } }));
+      // stored a name this copy does not have yet (#664), and the save is where the record is known. The caller waits for
+      // that decision, so a refused name is not added to the workout either.
+      if (customRefused(ref.current.custom_tags, name)) return Promise.resolve(false);
+      return new Promise<boolean>((resolve) => {
+        let refused = false;
+        const queued = change(
+          (s) => {
+            if (!customRefused(s.custom_tags, name)) return { custom_tags: { ...s.custom_tags, [name]: tags } };
+            refused = true;
+            return {};
+          },
+          (dropped) => resolve(!refused && !dropped),
+        );
+        if (!queued) resolve(false);
+      });
     },
     [change],
   );
