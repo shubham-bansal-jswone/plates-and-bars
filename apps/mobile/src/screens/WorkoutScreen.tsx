@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
@@ -15,11 +15,10 @@ import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
-import { exerciseNamed, getCatalog } from '../workout/catalog';
+import { getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
-import { AddExerciseSheet } from '../workout/AddExerciseSheet';
-import { CustomTagsSheet } from '../workout/CustomTagsSheet';
+import { AddExerciseFlow } from '../workout/AddExerciseFlow';
 import { BodyMap } from '../workout/BodyMap';
 import { musclesOf } from '../workout/muscles';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
@@ -32,7 +31,6 @@ import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/
 import { useRules } from '../workout/useRules';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
-import { isBlank } from '../text/blank';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate, type ViewedDate } from '../state/ViewedDate';
 
@@ -146,6 +144,7 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
   // Today's "where" override (prototype whereNow): null keeps the profile's. Stored on the workout at Start.
   const [override, setOverride] = useState<Workout['where']>(null);
   const [away, setAway] = useState(false);
+  const [picking, setPicking] = useState(false);
   const where = override ?? profile.where;
   const weekPlan = settings.adjustments.weekPlan as WeekPlan | undefined;
   const plan = planned(date, { profile, sessions: day.sessions, weekPlan, mode: settings.adjustments.mode as string | undefined });
@@ -249,7 +248,12 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
         {others.map((k) => (
           <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice, override)} />
         ))}
+        <Chip label="Pick exercises" onPress={() => setPicking(true)} />
       </View>
+      <AddExerciseFlow open={picking} onClose={() => setPicking(false)} inSession={[]} quiet add={(n) => {
+          void w.startPicked(n, override, choice);
+          return true;
+        }} notify={notify} />
       <WeekTools date={date} notify={notify} />
       <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
         <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
@@ -282,20 +286,6 @@ function SessionView({ v, now, db, reloadKey, w, profile, focus, rules, notify, 
   // The muscle map is open until the first set is ticked (prototype sessionMapHtml); once the user taps it, their choice stays.
   const [mapOpen, setMapOpen] = useState<boolean | null>(null);
   const [adding, setAdding] = useState(false);
-  const [tagging, setTagging] = useState<string | null>(null);
-  const { addCustomTags } = useSettings();
-  const addTyped = (raw: string) => {
-    const typed = raw.trim();
-    if (isBlank(typed)) return notify('Type an exercise name.');
-    if (exerciseNameTooLong(typed)) return notify('That exercise name is too long. Shorten it.');
-    // A name the library knows (any case) is that exercise; a new one needs its muscles first (prototype exCustom).
-    const known = exerciseNamed(typed);
-    setAdding(false);
-    if (known) {
-      if (w.addExercise(known)) notify(`${known} added`);
-      else notify(`${known} is already in today’s session.`);
-    } else setTagging(typed);
-  };
   const wk = day.workout as Workout;
   const ctx = progressionContext(date, day.lifts, profile, wk, tune);
   let done = 0;
@@ -360,35 +350,7 @@ function SessionView({ v, now, db, reloadKey, w, profile, focus, rules, notify, 
         );
       })}
       <Button label="Add exercise" kind="ghost" onPress={() => setAdding(true)} />
-      {adding ? (
-        <AddExerciseSheet
-          inSession={day.exs.map((e) => e.name)}
-          onClose={() => setAdding(false)}
-          onPick={(n) => {
-            setAdding(false);
-            if (w.addExercise(n)) notify(`${n} added`);
-          }}
-          onCustom={addTyped}
-        />
-      ) : null}
-      {tagging ? (
-        <CustomTagsSheet
-          name={tagging}
-          notify={notify}
-          onClose={() => setTagging(null)}
-          onSave={async (tags) => {
-            const name = tagging;
-            setTagging(null);
-            // Only after the save has decided: a name it refuses (a near-duplicate a pull stored meanwhile) must not reach the workout.
-            if (!(await addCustomTags(name, tags))) {
-              // The refused name is the one the app has by now (what showed is what is stored): say which exercise it matches.
-              const known = exerciseNamed(name);
-              return notify(known && known !== name ? `That name matches ${known}. Use that name instead.` : 'Couldn’t save that exercise. Try again.');
-            }
-            notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
-          }}
-        />
-      ) : null}
+      <AddExerciseFlow open={adding} onClose={() => setAdding(false)} inSession={day.exs.map((e) => e.name)} add={w.addExercise} notify={notify} />
       <Hint>Tap the tick with a field empty to use the suggested number. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
       {choices ? (
         <Card>
