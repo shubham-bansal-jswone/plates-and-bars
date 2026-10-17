@@ -172,7 +172,12 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
             pending.current -= 1;
             setSaveFailed(true);
             // Written down so an app restart does not lose them; if this fails too they stay in memory.
-            await inTransaction(db, (txn) => persistKept(txn, unsaved.current))
+            // With the lock held, and not for an account that a sign-out or wipe has meanwhile removed: that wipe took the lock
+            // first and deleted the kept edits, so writing them now would hand them to the next account (#645).
+            await inTransaction(db, async (txn) => {
+              if (stale()) throw new Dropped();
+              await persistKept(txn, unsaved.current);
+            })
               .then(() => void (persisted.current = true))
               .catch(() => undefined);
           },
