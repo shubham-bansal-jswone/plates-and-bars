@@ -3,6 +3,7 @@ import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
 import { DATA_COPY } from '../account/copy';
 import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
+import { LegalLinks } from '../legal/LegalLinks';
 import { LicencesScreen } from './LicencesScreen';
 import { LICENCES_COPY as lc, REPO_FILES } from './licences';
 import { type } from '../theme/tokens';
@@ -37,6 +38,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Hint>{t.intro}</Hint>
       <Label>{t.privacy}</Label>
       <Hint>{DATA_COPY.withdraw}</Hint>
+      <LegalLinks />
       <Label>{t.food}</Label>
       <View style={{ gap: 8 }}>{getFoodSources().map((s) => <Source key={sourceKey(s)} s={s} />)}</View>
       <Label>{t.exercises}</Label>
