@@ -25,6 +25,9 @@ class SyncRepository {
     /** A stored record. {@code data} holds every field except id, version, updated_at and deleted_at. */
     record Stored(String id, int version, Instant updatedAt, Instant deletedAt, long seq, JsonNode data) {}
 
+    /** The user's bookkeeping row: the last change number and the number of stored rows over all 16 tables. */
+    record State(long seq, long records) {}
+
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
 
@@ -42,19 +45,22 @@ class SyncRepository {
     }
 
     /**
-     * Locks the user's change counter until the transaction ends (creating it on the first sync) and
-     * returns the current change number. The upsert takes the row's exclusive lock straight away, so two
+     * Locks the user's bookkeeping row until the transaction ends (creating it on the first sync) and
+     * returns the current change number and stored record count. The upsert takes the row's exclusive lock straight away, so two
      * first syncs of one user queue instead of deadlocking on a shared-to-exclusive upgrade. Throws a
      * {@link org.springframework.dao.DataIntegrityViolationException} (foreign key) when the user does not exist.
      */
-    long lockState(String userId) {
+    State lockState(String userId) {
         jdbc.update("INSERT INTO sync_state (user_id, seq) VALUES (?, 0) ON DUPLICATE KEY UPDATE seq = seq", userId);
-        Long seq = jdbc.queryForObject("SELECT seq FROM sync_state WHERE user_id = ? FOR UPDATE", Long.class, userId);
-        return seq == null ? 0 : seq;
+        return jdbc.queryForObject(
+                "SELECT seq, records FROM sync_state WHERE user_id = ? FOR UPDATE",
+                (rs, n) -> new State(rs.getLong("seq"), rs.getLong("records")),
+                userId);
     }
 
-    void saveSeq(String userId, long seq) {
-        jdbc.update("UPDATE sync_state SET seq = ? WHERE user_id = ?", seq, userId);
+    void saveState(String userId, State state) {
+        jdbc.update(
+                "UPDATE sync_state SET seq = ?, records = ? WHERE user_id = ?", state.seq(), state.records(), userId);
     }
 
     Map<String, Stored> find(SyncTable table, String userId, Collection<String> ids) {
