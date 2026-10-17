@@ -153,6 +153,17 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       pending.current += 1;
       setCustomTags(next.custom_tags);
       setState(next);
+      // A callback that throws must not reject the save queue: the next write would be skipped and reported as failed.
+      const tell = (ok: boolean) => {
+        try {
+          done?.(ok);
+        } catch (e) {
+          // Reported outside the save queue, so the dev error screen and Sentry still see it.
+          setTimeout(() => {
+            throw e;
+          });
+        }
+      };
       queue.current = queue.current
         .then(async () => {
           if (stale()) throw new Dropped();
@@ -176,7 +187,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         })
         .then(
           (saved) => {
-            done?.(true); // told also when this provider has gone: the record was written
+            tell(true); // told also when this provider has gone: the record was written
             if (!mounted.current) return;
             setSaveFailed(false);
             pending.current -= 1;
@@ -189,10 +200,10 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
           },
           async (e) => {
             // The account is gone: nothing to show, keep or write; the caller is told nothing was stored.
-            if (e instanceof Dropped) return done?.(false);
+            if (e instanceof Dropped) return tell(false);
             pending.current -= 1;
             setSaveFailed(true);
-            done?.(false);
+            tell(false);
             // Written down so an app restart does not lose them; if this fails too they stay in memory.
             // With the lock held, and not for an account that a sign-out or wipe has meanwhile removed: that wipe took the lock
             // first and deleted the kept edits, so writing them now would hand them to the next account (#645).
