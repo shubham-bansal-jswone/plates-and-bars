@@ -65,13 +65,14 @@ export type { HealthProfile, ScreenAnswer, ScreenAnswers } from './health';
 
 /**
  * Plan engine: which template a day gets.
- * - `planned` mirrors prototype `planned(date)` (state passed in).
+ * - `planned` mirrors prototype `planned(date)` (state passed in); `missed` mirrors `missed(date)` the same way.
+ * - `CONDENSED` mirrors the prototype table of the same name.
  * - `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `older` mirror the prototype functions of the same name.
  * - `beginnerRamp` mirrors the beginner check inline in prototype `setsFor`.
  * - `TEMPLATES`, `ORDER`, `SPLITS` mirror the prototype tables of the same name.
  * - `mondayOf`, `daysBetween` mirror the prototype date helpers; `weekdayOf` mirrors `parseYmd(date).getDay()`.
  */
-export { planned, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS } from './plan';
+export { planned, missed, CONDENSED, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS } from './plan';
 export type { PlanProfile, PlanState, SessionEntry, SessionLog, Split, WeekPlan, Where, Experience } from './plan';
 export { mondayOf, daysBetween, weekdayOf } from './dates';
 
@@ -268,7 +269,7 @@ export type { CiChoice, ReentryRange, SessionMods, ModsNotePart, SessionModsInpu
  * contract's `FoodLog` shape; logs with `deleted_at` set are left out.
  * - `searchFoods` mirrors the query and `foodMatch(f, q)` filter of prototype `foodListHtml()` (list order kept).
  * - `unitGrams` mirrors prototype `unitGrams(f)` (label passed in; content carries it as `serving.grams`; reads "1,250 g", #213).
- * - `quantityFromGrams` mirrors the grams steps of prototype `case 'pick'` (`serving.grams`, #97), plus `too-small` (#150).
+ * - `quantityFromGrams` mirrors the grams steps of prototype `case 'pick'` (`serving.grams`, #97), `too-small` included (#150).
  * - `logTotals` mirrors prototype `totals(meals)` plus the fibre, added sugar and unknown parts of `fibreTotals(meals)`.
  * - `fibreTarget` mirrors prototype `fibreTarget()` (today's calorie target passed in).
  * - `fruitVegServings` mirrors the `veg` part of prototype `fibreTotals(meals)` (`produceOf`); `FRUIT_VEG_TARGET` its "of 5".
@@ -288,8 +289,8 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  *   `flexPlanFor` mirrors prototype `flexPlanFor(date)`, the plan the note shows and Undo removes (#178).
  * - `stepServings` mirrors prototype `case 'serv'`; `SERVINGS_MIN`, `SERVINGS_MAX`, `SERVINGS_STEP` its limits.
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
- * - `customFood` mirrors prototype `case 'addcustom'`, plus `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
- *   contract limit) and `invalid` (#150); `saveMyFood` its save step, `MY_FOODS_MAX` its 60 (the my-foods list only;
+ * - `customFood` mirrors prototype `case 'addcustom'`, `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
+ *   contract limit) and `invalid` included (#150); `saveMyFood` its save step, `MY_FOODS_MAX` its 60 (the my-foods list only;
  *   recipe and kitchen-test saves keep the prototype's 80).
  * - `userFoodFacts` mirrors the `myFoods` mapping of prototype `allFoods()`, `fibOf` and `produceOf` (contract `UserFood` in).
  */
@@ -380,9 +381,9 @@ export type { WeighIn, MeasurementFacts, MeasureKey, StepsDay, BurnSet, NavyProf
  * - `recipeTotals` mirrors prototype `rbTotals()` (whole pot, katoris made, per katori; grams mode is cooked g ÷ `katori_g`).
  * - `presetIngredients` mirrors the rows step of prototype `rbFromPreset(k)` (oil level applied to `fatty` ingredients).
  * - `stepRecipeLog` mirrors prototype `case 'rb-log'`; `RECIPE_LOG_MIN`, `RECIPE_LOG_MAX`, `RECIPE_LOG_STEP` its limits.
- * - `recipeFood` mirrors prototype `case 'rb-save'` (checks, kept rows, saved food), plus `name-too-long` and `invalid` (contract limits, as #150).
+ * - `recipeFood` mirrors prototype `case 'rb-save'` (checks, kept rows, saved food), `name-too-long` and `invalid` included (contract limits, #150).
  * - `kitchenTest` mirrors prototype `ktCalc(d)` (cooked weight from pot weights, per 100 g, per serving; a 0 g empty pot counts, #214).
- * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), plus `name-too-long` and `invalid`.
+ * - `kitchenTestFood` mirrors prototype `ktSave(true)` ("Save and use for my logging"), `name-too-long` and `invalid` included (#150).
  * - `saveBuiltFood` mirrors the `myFoods` step of `case 'rb-save'` and `ktSave`; `BUILT_FOODS_MAX` its 80.
  * - `ingredientGrams` mirrors the grams step of `rbTotals` and `ktCalc`; `UNIT_GRAMS` mirrors `UNIT_G`.
  * - `OIL_LEVEL` mirrors `OIL_LEVEL`; `RECIPE_VEG_INGREDIENTS`,

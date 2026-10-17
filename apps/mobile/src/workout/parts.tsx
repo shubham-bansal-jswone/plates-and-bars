@@ -177,8 +177,8 @@ const styles = StyleSheet.create({
   rest: { width: '100%', borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
   restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
   restBtns: { flexDirection: 'row', gap: 8 },
-  track: { height: 6, borderRadius: radius.full, overflow: 'hidden' },
-  fill: { height: 6 },
+  track: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
+  fill: { height: 8 },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },
 });

@@ -2,6 +2,8 @@
 
 Staging runs from `infra/staging/` on one VM: Caddy (HTTPS), the API and MySQL 8.4 in Docker Compose. This file covers set-up, backups, restore, rollback and monitoring. Backups are not automated until you add the cron line (section 3). The merge-to-`main` deploy exists but stays off until you enable it (section 2); no account has been created. Steps marked **Owner** need an account or a decision from Shubham.
 
+Suspected personal data breach (leaked data, keys or backups, one user seeing another's records, data loss): follow [`docs/INCIDENT-RESPONSE.md`](../docs/INCIDENT-RESPONSE.md) before anything in this file, and preserve the API logs before any restart or rollback.
+
 ## Free-tier limits (checked 2026-10-12)
 
 - Cloudflare R2: free tier of 10 GB-month of Standard storage, 1 million Class A and 10 million Class B requests per month (developers.cloudflare.com/r2/pricing, fetched 2026-10-12). One dump a day kept 30 days stays far below that unless the compressed dump grows past roughly 300 MB.
@@ -32,7 +34,7 @@ Update: `git pull`, then repeat the commands of step 6. Each build tags the imag
 
 Rollback = previous image tag: `docker image ls plateandbar-api`, set `API_TAG=<previous tag>` in `.env`, then `docker compose up -d api` (no `build`). Flyway migrations are forward-only: if the bad release added a migration, restore the last backup (section 4) as well, or ship a fix forward.
 
-Automatic staging deploy (#411): `.github/workflows/staging-deploy.yml` does the update above on every merge to `main` that touches the backend, content, `packages/api/openapi.yaml` or staging files, using `infra/staging/deploy.sh`. The script tags the image with the 12-character commit sha, polls `/api/v1/health` for up to 5 minutes and, if it fails, sets `API_TAG` back to the previous tag and recreates the API (rollback by hand is the same). The checkout stays on `main` (the workflow uses `git merge --ff-only`), so keep the VM checkout clean and do not commit on it. **Owner:** to switch it on, create the VM and the deploy-only SSH user, then set the repository variable `STAGING_DEPLOY_ENABLED=true` and the `staging` environment values listed in `infra/README.md` (Staging deploy). The health poll goes through the local Caddy (`curl --resolve <API_HOST>:443:127.0.0.1`), so a VM that cannot reach its own public address still deploys. Re-running an old workflow run is intended to deploy the current checkout HEAD (the fast-forward to the old sha is a no-op), not the old sha; to run an older build use the manual rollback above. Tagged production releases are not wired up yet.
+Automatic staging deploy (#411): `.github/workflows/staging-deploy.yml` does the update above on every merge to `main` that touches the backend, content, `packages/api/openapi.yaml` or staging files, using `infra/staging/deploy.sh`. The script tags the image with the 12-character commit sha, polls `/api/v1/health` for up to 5 minutes and, if it fails, sets `API_TAG` back to the previous tag and recreates the API (rollback by hand is the same). The checkout stays on `main` (the workflow uses `git merge --ff-only`), so keep the VM checkout clean and do not commit on it. **Owner:** to switch it on, create the VM and the deploy-only SSH user, then set the repository variable `STAGING_DEPLOY_ENABLED=true` and the `staging` environment values listed in `infra/README.md` (Staging deploy). The health poll goes through the local Caddy (`curl --resolve <API_HOST>:443:127.0.0.1`), so a VM that cannot reach its own public address still deploys. Re-running an old workflow run is intended to deploy the current checkout HEAD (the fast-forward to the old sha is a no-op), not the old sha; to run an older build use the manual rollback above. Tagged production releases are section 4a.
 
 ## 3. Nightly backup
 
@@ -65,6 +67,34 @@ Use a scratch database first if you are only checking a backup.
 
 Rehearsal: the dump and restore commands (not the bucket transfer) were run on 2026-10-12 against a throwaway `mysql:8.4.11` container with a table and a trigger; the row count matched after restore. **Owner:** the full rehearsal against the real bucket, as required by #36, still has to be done once the bucket exists. Record the date here when done.
 
+## 4a. Production release (#685)
+
+Production is a second stack on its own VM (set up with section 1, with its own `.env`; staging and production cannot share one VM because both need ports 80 and 443). Differences in the production `.env`: `API_HOST` is the production host, `BACKUP_S3_PREFIX=production`, real values for the secrets, `CORS_ALLOWED_ORIGINS` and `AUTH_COOKIE_ORIGINS` set to the exact web app origin (for example `https://app.example.com`; `AUTH_COOKIE_ORIGINS` empty refuses the web refresh cookie, so the web app cannot stay signed in), and `SYNC_MAX_RECORDS_PER_ACCOUNT` set to a number if you want a per-account storage cap (empty or 0 is no cap; the app must handle the 413 `account_full` first). Schedule the nightly backup (section 3) there too.
+
+**Owner**, once: create the GitHub environment `production` with required reviewers and deployment tags `v*`, add its variables and secrets (`infra/README.md`, Production deploy), do the first start by hand (section 1, step 6), then set the repository variable `PRODUCTION_DEPLOY_ENABLED=true`.
+
+Release: tag a commit that is on `main` (`git tag v1.2.3 <sha> && git push origin v1.2.3`; only `vMAJOR.MINOR.PATCH`). After you approve the `production` environment the workflow checks out the tag's verified commit on the VM and runs `infra/staging/release.sh v1.2.3 <sha>` (it fails if the tag was moved after the run started): backup, then `deploy.sh` (image `plateandbar-api:v1.2.3`, health poll through local Caddy for up to 5 minutes, automatic return to the previous `API_TAG` if it fails). A red run means either the backup failed (nothing was deployed; read the log, fix the bucket or credentials, re-run) or the deploy failed and was rolled back (the log shows the API's last 50 lines).
+
+Rollback by hand = previous image tag: `docker image ls plateandbar-api`, set `API_TAG=<previous tag>` in the production `.env`, `docker compose up -d api`. Flyway migrations are forward-only: if the bad release added one, also restore the pre-release backup (section 4; the newest object in the `production/` prefix is the one taken just before that release) or ship a fix forward under a new tag. Re-running a workflow run for an old tag deploys that tag again, backing up first. If that re-run is unhealthy and the tag was already the deployed one, there is nothing to roll back to (previous and new tag are the same): use the manual rollback above.
+
+Free tiers: nothing here adds a paid service; it reuses the bucket and VM limits recorded at the top of this file (checked 2026-10-12; the Oracle A1 numbers still need the owner's check).
+
 ## 5. Monitoring
 
 Add an Uptime Kuma (MIT, self-hosted; the host is an **Owner** decision) HTTP(s) monitor on `https://<API_HOST>/api/v1/health` with an e-mail alert. `/health` answers 503 when the database is unreachable, so one monitor covers API and database. Check that the cron backup ran: the newest object in the bucket should be less than 25 hours old; the log is `~/plateandbar-backup.log` of the user whose crontab runs it.
+
+## 6. Turning on the per-account record cap (#349, #667)
+
+The cap is off by default (`SYNC_MAX_RECORDS_PER_ACCOUNT` empty). Do not set it until the mobile app handles 413 `account_full` (app PR #662). Order: (1) deploy a version that contains the recount (`RecordRecount`) with the cap still off; (2) set `SYNC_MAX_RECORDS_PER_ACCOUNT` (the contract suggests 200000) in `.env` and run `docker compose up -d api`; the restart starts the recount in the background, which re-checks every account's `sync_state.records` against the 16 tables, in short per-account transactions beside live traffic. (3) Check the log for `record recount done, counters corrected: N` (N is normally 0; the log has counts only). If the API restarts mid-run the next start repeats it; changing the limit needs the same restart, so it recounts then too. To switch the cap off, empty the variable and restart; nothing needs undoing.
+
+## 7. Web app (#683)
+
+The Expo web export is served by the same Caddy as the API (`infra/caddy/Caddyfile.web`); `.github/workflows/web-deploy.yml` publishes it. Off until you set `WEB_DEPLOY_ENABLED=true` (details in `infra/README.md`, Web app deploy). **Owner** steps, once per VM:
+
+1. Choose `WEB_HOST` on the same site as `API_HOST` (`app.example.com` next to `api.example.com`; the refresh cookie is `SameSite=Strict`) and point its DNS record at the VM.
+2. As the deploy user: `mkdir -p /opt/plateandbar/infra/staging/web` (Compose mounts it read-only at `/srv/web`; create it first or Docker makes it root-owned and rsync cannot write; if a `docker compose up -d` already ran and created it, fix it with `sudo chown <deploy-user> /opt/plateandbar/infra/staging/web`). Create a deploy-only SSH user or key limited to that directory (for example an rsync-restricted `authorized_keys` entry), separate from the `docker` user of the API deploy.
+3. In `.env` set `WEB_HOST=app.example.com` (and `WEB_DIR` if the directory is elsewhere), add `https://app.example.com` to `CORS_ALLOWED_ORIGINS` and `AUTH_COOKIE_ORIGINS`, then `docker compose up -d` (recreates Caddy and the API) and watch `docker compose logs caddy` for the certificate.
+4. In GitHub, add the environment variables and secrets listed in `infra/README.md` to environments `staging` and `production`, then set `WEB_DEPLOY_ENABLED=true`.
+5. Check: `curl -sI https://$WEB_HOST/` shows `cross-origin-opener-policy: same-origin`, `cross-origin-embedder-policy: require-corp` and `cache-control: no-cache`; a hashed file under `/_expo/static/` shows `immutable`.
+
+A change to a Caddyfile is not picked up by `docker compose up -d` (the file is a bind mount): run `docker compose restart caddy`. Roll the web app back by re-running the workflow on the older commit or tag (Actions, Re-run) or by rsyncing a previous `dist/` into `WEB_ROOT`.
