@@ -17,7 +17,7 @@ const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweig
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
  * `onCleared` shows the clearance card with its "My doctor has cleared me" button.
  */
-export function ResultsView({ profile, onCleared, hideTargets, showWhy }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
+export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, showWhy }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean; hideHeadline?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
   const c = useTheme();
   const [whyOpen, setWhyOpen] = useState(false);
   const v = buildResults(profile);
@@ -30,7 +30,7 @@ export function ResultsView({ profile, onCleared, hideTargets, showWhy }: { prof
   ];
   return (
     <View style={styles.wrap}>
-      <H1>{v.headline}</H1>
+      {hideHeadline ? null : <H1>{v.headline}</H1>}
       <Hint>{v.range}</Hint>
       {v.rows.map(([label, kcal]) => (
         <View key={label} style={[styles.row, { borderColor: c.line }]} accessible accessibilityLabel={`${label}, ${fmt(kcal)} kilocalories`}>
