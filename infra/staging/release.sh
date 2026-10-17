@@ -20,7 +20,7 @@ tag_sha="$(git rev-parse "refs/tags/$tag^{commit}")"
 [ "$tag_sha" = "$sha" ] || { echo "tag $tag now points at $tag_sha, not the verified commit $sha: the tag was moved, refusing" >&2; exit 1; }
 
 # an API with error tracking on must not report production events as staging (the compose default): refuse before any change
-env_get() { [ -f .env ] && sed -n "s/^$1=//p" .env | tail -n 1 || true; }
+env_get() { if [ -f .env ]; then sed -n "s/^$1=//p" .env | tail -n 1; fi; }
 if [ -n "$(env_get SENTRY_DSN)" ] && [ "$(env_get SENTRY_ENVIRONMENT)" != production ]; then
   echo "SENTRY_DSN is set but SENTRY_ENVIRONMENT is not 'production' in .env: set it, then release again" >&2
   exit 1
