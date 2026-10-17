@@ -29,6 +29,16 @@ async function consent() {
 describe('setup flow', () => {
   beforeEach(() => mockReplace.mockClear());
 
+  it('consent screen describes on-device storage, server storage after sign-in and opt-in AI, with no Claude', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await screen.findByText('Before you start');
+    expect(
+      screen.getByText(/Your data stays on this device\. If you sign in, it is also stored on our own server so it syncs between your devices\./),
+    ).toBeTruthy();
+    expect(screen.getByText(/AI features are off by default and need their own opt-in\. No photos are sent anywhere\./)).toBeTruthy();
+    expect(screen.queryByText(/Claude/)).toBeNull();
+  });
+
   it('hides the visible Age caption from screen readers; the field speaks the label', async () => {
     await render(withProfile(memoryDb(), <SetupScreen />));
     await consent();
