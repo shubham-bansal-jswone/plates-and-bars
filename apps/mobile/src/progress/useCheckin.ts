@@ -42,7 +42,9 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   const { settings, update, ready: settingsReady, loadFailed } = useSettings();
   // Settings feed the suggestion and are written back, so nothing runs until the stored record has loaded.
   const usable = settingsReady && !loadFailed;
-  const [days, setDays] = useState<ProgressDay[] | null>(null);
+  // The days belong to the date they were read for: while another day is being read, none are shown (and none are used for a card's key).
+  const [daysRead, setDaysRead] = useState<{ date: string; days: ProgressDay[] } | null>(null);
+  const days = daysRead && daysRead.date === date ? daysRead.days : null;
   const [lifts, setLifts] = useState<Record<string, LiftRecord>>({});
   const [sessions, setSessions] = useState<SessionLog>({});
   // Tab screens stay mounted, so the days are read again each time the tab is shown.
@@ -70,7 +72,7 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
         },
         () => live,
         ({ read, l, s }) => {
-          setDays(read);
+          setDaysRead({ date, days: read });
           setLifts(l);
           setSessions(s);
         },

@@ -327,10 +327,20 @@ Merged this session (verdict comments verified, nits confirmed on the head, CI g
 - **#754** sheets dialog name + title focus (#661) — conflict resolved in `ExerciseCards.tsx` + `workout-adjust.test.tsx` (keep the cap check with `withEntry`/`ownGet` + `answered(..., today)`, keep **both** tests), nits applied (retry ~2 s, title through a ref — sync it in an effect, the `react-hooks/refs` rule forbids writing a ref in render), body/checklist aligned. All 6 checks green.
 - **#771** service worker offline start (#718) — nits applied: `assetPaths` also matches backtick (template-literal) paths; the "two builds at once" test now counts concurrent `/` reads so it *fails* when the build queue is removed (verified by mutation); `README.md` + `scripts/web-reload.mjs` no longer claim an offline reload cannot load. Skipped on purpose: a timeout before the navigation fallback (documented in the PR body). Green.
 
-Main is now `0000c33` and **every PR that was open when this stretch began is merged**.
+Main is now `597b941` and **every PR that was open during this stretch is merged**, including **#776** (App: date navigation on Workout and Progress, closes #682) — that one was merged by the app session at 20:08 while its review was finishing, at the same head the reviewer checked (`0266615`, 104 suites / 2310 tests green).
 
-Open PRs at this update:
-- **#776** App: date navigation on Workout and Progress (closes #682) — app lane, 7 files, +433/−25 (about 65 lines of source, the rest tests), MERGEABLE CLEAN, opened 19:50 by the app session, **no verdict yet**. A reviewer subagent was started for it (`../rv776`) at this update. If you are reading this and it is still unmerged, that review is the next action: check its verdict comment, apply any nits, re-merge `origin/main` and merge on green.
+No open PRs at that moment — but the parallel sessions opened eight more within the hour, **all with no verdict yet**, and this session started one reviewer subagent per group to get them through the gate:
+- **#779** app (web): "sign-in is unavailable" on a misconfigured site instead of "offline", and stop retrying (#744) **and #777** app (web): cross-tab sign-out, bounded refresh under the tab lock, offline backoff (#762) — one reviewer; both are the web refresh path, so check them against each other and against #742.
+- **#781**, **#782**, **#783** — the #660 series (Progress/Kitchen/Recipes; Food/AI/photos; workout/recovery/targets toasts). Test-only; the risk is a gate that is too loose and stops catching the bug.
+- **#786** app: iOS announces a date change once, from the focused tab only (#780) — this is finding 1 of #787 — **and #785** infra: backup heartbeat to an uptime monitor (#687) — one reviewer.
+- **#784** infra: Caddy JSON access log, privacy-filtered (#714) — one reviewer (the kept field map is the privacy surface; check rotation too).
+
+When a verdict lands: apply the nits (or say why one is deliberately skipped, in the PR body), merge `origin/main`, and merge with one `gh pr merge N --squash --delete-branch` once the checks are green. Then update this file.
+
+What is left after those, as follow-up work rather than review:
+- **#787** — the four nits from the #776 review: one `‹` tap announces three times when Food, Workout and Progress are all mounted (each screen has its own `DateAnnouncer`, and iOS tabs stay mounted — reproduced: two screens under one `ViewedDateProvider` → 2 identical announcements); `useCheckin.ts:47`'s `daysRead.date === date` gate and `ProgressScreen.tsx:69`'s `PhotosSection date={v.today}` are not pinned by any test (removing either leaves all 2310 green); and `RestBar`/`ToastBar` hide for the whole read on a day change while the prototype keeps `#restbar`/`#toast` outside `#view`. The #776 review also found there is no e2e/device date-bar spec at all.
+- **#775** — `sync-races.test.tsx` hangs a later test in its own module (cause and fix shape in the issue).
+- #660 remains the umbrella for taking tests off the wall clock.
 
 Issues filed this session:
 - **#773** `settings-store.test.tsx:272` raced a 0 ms timer (a bare `expect(reported)` instead of `waitFor`); it reddened #766's mobile job though #766 touches infra only, and #770's mobile job too. Fixed by #774.
@@ -341,3 +351,5 @@ Watchpoints: main moves quickly — merge `origin/main` into any branch right be
 ## Claude Code claims (2026-10-18, ~01:15 IST; OpenCode keeps #754 and #771)
 
 Claude Code (coordinator session) resumed after its usage limit. It leaves #754 and #771 to OpenCode and takes these, one agent each, with the 7-agent / 80% load rules: #682 Workout/Progress half (resume `scratchpad/dn`), #660 tests off the wall clock (start from the `pb-l660-*` diffs), #775 sync-races test leak, #744 + #762 web session follow-ups, #714 Caddy access-log half (infra). OpenCode: please leave these; everything else open is unclaimed.
+Claude Code also claims (01:40 IST): #647 (two devices editing one workout day), #780 (iOS triple date announcement), #687 backup-heartbeat half, and an open-issue audit (closing issues already done by merged PRs, with evidence comments).
+- #776 merged (date navigation on Workout and Progress; closes #682). Review nits applied: break test tells real vs viewed date, start/addSecond skip the commit when the viewed date changes mid-read. Follow-up #780 (iOS triple announcement).
