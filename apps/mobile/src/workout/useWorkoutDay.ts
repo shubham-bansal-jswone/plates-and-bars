@@ -214,8 +214,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Cardio minutes to keep: the screen's when the user changed them since `base`, else the stored row's (a pull may have changed them). A tombstoned base counts as no minutes: the screen showed none. */
   const minutes = (screen: number | null, base: Workout | null, stored: Workout): number | null => (screen === (base && !base.deleted_at ? base.cardio_min : null) ? stored.cardio_min : screen);
 
-  const start = useCallback(
-    async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) => {
+  /** Starts the day's session from what `make` builds out of the stored history; shared by Start and the hand-picked start. */
+  const begin = async (make: (sessions: SessionLog, d: Day) => { workout: Omit<Workout, 'cardio_min'>; exs: ExState[] }) => {
       // A cardio-only day (minutes logged, no session) is not a started session: Start turns it into one and keeps the minutes.
       if (!profile || building.current || (ref.current.workout && !isCardioOnly(ref.current.workout))) return;
       building.current = true;
@@ -223,36 +223,10 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         const sessions = await loadSessionLog(db);
         if (dateRef.current !== date) return; // the day changed while the history was read
         const d = clone(ref.current);
-        const built = buildSession({
-          template,
-          date,
-          profile,
-          where: override ?? profile.where,
-          sessions,
-          lifts: d.lifts,
-          ciChoice,
-          checkin,
-          focus,
-          exclusions,
-          swaps,
-          adjustments,
-        });
-        d.workout = {
-          id: null,
-          version: 0,
-          updated_at: stamp(now()),
-          deleted_at: null,
-          date,
-          template: templateName(template, override ?? profile.where),
-          base: template,
-          where: override,
-          cardio_min: d.workout?.cardio_min ?? null,
-          mods: built.mods,
-          exercises: [],
-          ci_choice: ciChoice,
-        };
+        const made = make(sessions, d);
+        d.workout = { ...made.workout, cardio_min: d.workout?.cardio_min ?? null };
         d.sessions = sessions;
-        d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        d.exs = made.exs;
         commit(d);
         // One transaction: the old sets' tombstones, the workout row and the new sets are stored together or not at all (#516).
         await enqueue(() => atomic(async (h) => {
@@ -286,10 +260,30 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       } finally {
         building.current = false;
       }
-    },
+  };
+
+  const start = useCallback(
+    (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) =>
+      begin((sessions, d) => {
+        const built = buildSession({ template, date, profile: profile as Profile, where: override ?? (profile as Profile).where, sessions, lifts: d.lifts, ciChoice, checkin, focus, exclusions, swaps, adjustments });
+        return {
+          workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: templateName(template, override ?? (profile as Profile).where), base: template, where: override, mods: built.mods, exercises: [], ci_choice: ciChoice },
+          exs: built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] })),
+        };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue],
   );
+
+  /** Start from one picked exercise (prototype `exPick` with no template): a "Session" with that exercise's default sets and the start screen's where override and check-in choice (prototype keeps `w.ciChoice`). */
+  const startPicked = (name: string, override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
+    begin((sessions, d) => {
+      const built = newExercise(name, { lifts: d.lifts, date }, 1);
+      return {
+        workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: 'Session', base: null, where: override, mods: {}, exercises: [], ci_choice: ciChoice },
+        exs: [{ name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: built.sets.map(() => blankRow()), ramp: [] }],
+      };
+    });
 
   const addSecond = useCallback(
     async (template: string) => {
@@ -734,5 +728,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
+  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, startPicked, addSecond };
 }
