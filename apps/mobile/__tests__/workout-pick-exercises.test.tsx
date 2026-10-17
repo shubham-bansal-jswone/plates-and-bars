@@ -69,4 +69,64 @@ describe('Workout start: Pick exercises', () => {
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Push B', base: 'Push B' });
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises).toHaveLength(5);
   });
+
+  it('shows no "added" toast for a start-screen library pick', async () => {
+    await setup(0);
+    await screen.findByText('Rest day');
+    await press('Pick exercises');
+    await press('Add Barbell Bench Press');
+    await screen.findByText('Session');
+    expect(screen.queryByText(/added/)).toBeNull();
+  });
+
+  it('a typed known name starts the session without a toast', async () => {
+    const db = await setup(0);
+    await screen.findByText('Rest day');
+    await press('Pick exercises');
+    await fireEvent.changeText(screen.getByLabelText('Your own exercise'), 'barbell bench press');
+    await press('Add the exercise you typed');
+    await screen.findByText('Session');
+    expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Barbell Bench Press']);
+    expect(screen.queryByText(/added/)).toBeNull();
+  });
+});
+
+describe('Start-screen pick of a new name', () => {
+  it('saves from the tag sheet, starts the session and shows no toast', async () => {
+    const db = await setup(0);
+    await screen.findByText('Rest day');
+    await press('Pick exercises');
+    await fireEvent.changeText(screen.getByLabelText('Your own exercise'), 'Zottman Curl');
+    await press('Add the exercise you typed');
+    await screen.findByLabelText('Main muscle: biceps');
+    await press('Main muscle: biceps');
+    await press('Add Zottman Curl with these muscles');
+    await screen.findByText('Session');
+    expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Zottman Curl']);
+    expect(screen.queryByText(/added/)).toBeNull();
+  });
+});
+
+describe('Pick exercises keeps what the day already holds', () => {
+  it('a cardio-only day keeps cardio_min and stores template Session', async () => {
+    const db = await setup(0);
+    await screen.findByText('Rest day');
+    await fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '25');
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).cardio_min).toBe(25));
+    await press('Pick exercises');
+    await press('Add Barbell Bench Press');
+    await screen.findByText('Session');
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Session', cardio_min: 25 }));
+  });
+
+  it('the check-in choice made on the start screen is stored as ci_choice', async () => {
+    const db = await setup(6);
+    await screen.findByText('Push B day');
+    await press('Sleep last night: Poor');
+    await press('Lighter session');
+    await press('Pick exercises');
+    await press('Add Barbell Bench Press');
+    await screen.findByText('Session');
+    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Session', ci_choice: 'light' });
+  });
 });

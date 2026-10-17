@@ -250,8 +250,8 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
         ))}
         <Chip label="Pick exercises" onPress={() => setPicking(true)} />
       </View>
-      <AddExerciseFlow open={picking} onClose={() => setPicking(false)} inSession={[]} add={(n) => {
-          void w.startPicked(n, override);
+      <AddExerciseFlow open={picking} onClose={() => setPicking(false)} inSession={[]} quiet add={(n) => {
+          void w.startPicked(n, override, choice);
           return true;
         }} notify={notify} />
       <WeekTools date={date} notify={notify} />

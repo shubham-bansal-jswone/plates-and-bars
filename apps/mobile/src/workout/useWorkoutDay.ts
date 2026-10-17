@@ -275,12 +275,12 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue],
   );
 
-  /** Start from one picked exercise (prototype `exPick` with no template): a "Session" with that exercise's default sets and the start screen's where override. */
-  const startPicked = (name: string, override: Workout['where'] = null) =>
+  /** Start from one picked exercise (prototype `exPick` with no template): a "Session" with that exercise's default sets and the start screen's where override and check-in choice (prototype keeps `w.ciChoice`). */
+  const startPicked = (name: string, override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
     begin((sessions, d) => {
       const built = newExercise(name, { lifts: d.lifts, date }, 1);
       return {
-        workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: 'Session', base: null, where: override, mods: {}, exercises: [], ci_choice: null },
+        workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: 'Session', base: null, where: override, mods: {}, exercises: [], ci_choice: ciChoice },
         exs: [{ name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: built.sets.map(() => blankRow()), ramp: [] }],
       };
     });
