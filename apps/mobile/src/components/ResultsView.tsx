@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WhyLink } from '../why/WhyLink';
 import { Text } from './Text';
@@ -8,7 +8,7 @@ import type { Profile } from '../setup/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ClearanceCard } from './ClearanceCard';
-import { Card, H1, Hint, Label, Note } from './ui';
+import { Button, Card, H1, Hint, Label, Note } from './ui';
 
 /** Notes that carry a Why link in the prototype (`resultsHtml`). */
 const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweight: 'home', older: 'older' };
@@ -17,8 +17,9 @@ const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweig
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
  * `onCleared` shows the clearance card with its "My doctor has cleared me" button.
  */
-export function ResultsView({ profile, onCleared, hideTargets }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean }) {
+export function ResultsView({ profile, onCleared, hideTargets, showWhy }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
   const c = useTheme();
+  const [whyOpen, setWhyOpen] = useState(false);
   const v = buildResults(profile);
   const t = v.r;
   const tiles: [string, string, string][] = [
@@ -68,6 +69,21 @@ export function ResultsView({ profile, onCleared, hideTargets }: { profile: Prof
           </Fragment>
         );
       })}
+      {showWhy ? (
+        <>
+          <Button kind="link" label="Why these numbers?" expanded={whyOpen} onPress={() => setWhyOpen(!whyOpen)} />
+          {whyOpen
+            ? v.why.map((l) => (
+                <Text key={l.head} style={{ color: c.body, lineHeight: 21 }}>
+                  <Text style={{ color: c.ink, fontWeight: '700' }}>{l.head}</Text>
+                  {` ${l.text}`}
+                  {l.ev ? <Text style={{ color: c.ink, fontWeight: '700' }}>{` ${l.ev}`}</Text> : null}
+                  {l.after ? ` ${l.after}` : null}
+                </Text>
+              ))
+            : null}
+        </>
+      ) : null}
     </View>
   );
 }

@@ -9,8 +9,10 @@ import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '..
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
 import { LegalLinks } from '../legal/LegalLinks';
 import { DeletionNotice } from '../account/DeletionNotice';
+import type { Profile } from '../setup/types';
 import { buildProfile, draftFromProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
+import { postToast } from '../state/pendingToast';
 import { useTheme } from '../theme/useTheme';
 
 type Pick = <K extends keyof Draft>(k: K, v: Draft[K]) => void;
@@ -245,7 +247,7 @@ export function SetupScreen({ recalc = false }: { recalc?: boolean }) {
  * (prototype `su-recalc`, `startSetup(4)`); the latest weigh-in replaces the stored weight, as `startSetup` does; saving keeps the profile's `created` and `cleared`.
  */
 function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null }) {
-  const { profile: stored, consent, giveConsent, setProfile, skipSetup } = useProfile();
+  const { profile: stored, consent, giveConsent, saveSetup, skipSetup } = useProfile();
   const router = useRouter();
   const c = useTheme();
   const [d, setD] = useState<Draft>(() => (stored ? { ...draftFromProfile(stored), ...(weight ? { weight: String(weight) } : {}) } : emptyDraft()));
@@ -256,6 +258,17 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
     setD((prev) => ({ ...prev, [k]: v }));
   };
   const profile = useMemo(() => (step === STEPS ? buildProfile(d, new Date(), stored) : null), [step, d, stored]);
+
+  const save = async (p: Profile, toast: string) => {
+    try {
+      await saveSetup(p);
+    } catch {
+      setErr(SAVE_ERROR);
+      return;
+    }
+    postToast(toast);
+    router.replace('/' as never);
+  };
 
   if (!consent) return <Consent onContinue={giveConsent} />;
 
@@ -293,22 +306,21 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
           />
         )}
       </View>
+      <View
+        accessible
+        accessibilityRole="progressbar"
+        accessibilityLabel="Setup progress"
+        accessibilityValue={{ min: 0, max: STEPS + 1, now: Math.min(step + 1, STEPS + 1) }}
+        style={{ height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: c.track }}
+      >
+        <View style={{ height: '100%', width: `${(Math.min(step + 1, STEPS + 1) / (STEPS + 1)) * 100}%`, backgroundColor: c.brand }} />
+      </View>
       {profile ? (
         <>
-          <ResultsView profile={profile} />
+          <ResultsView profile={profile} showWhy />
           {err ? <ErrorText>{err}</ErrorText> : null}
-          <Button
-            label="Use these targets"
-            onPress={async () => {
-              try {
-                await setProfile(profile);
-              } catch {
-                setErr(SAVE_ERROR);
-                return;
-              }
-              router.replace('/targets' as never);
-            }}
-          />
+          <Button label="Use these targets" onPress={() => save(profile, 'Targets updated')} />
+          {stored ? <Button kind="ghost" label="Keep my current targets" onPress={() => save({ ...profile, targets: stored.targets }, 'Setup saved, targets unchanged')} /> : null}
         </>
       ) : (
         <>

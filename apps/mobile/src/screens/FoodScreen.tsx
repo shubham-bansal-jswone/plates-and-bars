@@ -27,6 +27,7 @@ import { useSettings } from '../state/SettingsProvider';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
+import { usePendingToast } from '../state/pendingToast';
 import { useAi } from '../ai/AiProvider';
 import { DescribeSheet } from '../ai/DescribeSheet';
 import { AI_COPY } from '../ai/copy';
@@ -56,6 +57,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), toastMs(msg));
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  usePendingToast(notify);
   const dataVersion = useDataVersion();
   const v = useViewedDate(now);
   const f = useFoodDay({ db, date: v.date, now, notify, reloadKey: dataVersion });

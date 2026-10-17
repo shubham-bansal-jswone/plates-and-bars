@@ -3,9 +3,14 @@ import { normaliseSetup } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import { loadConsent, loadProfile, saveConsent, saveProfile } from '../src/db/records';
-import { buildProfile, emptyDraft } from '../src/setup/logic';
+import { buildProfile, emptyDraft, localDate } from '../src/setup/logic';
 import { SCREEN_Q } from '../src/setup/copy';
 import { memoryDb, withProfile } from './helpers';
+import { loadWeights, saveWeight } from '../src/db/progress';
+import { buildResults } from '../src/setup/results';
+import { usePendingToast } from '../src/state/pendingToast';
+import { useState } from 'react';
+import { Text } from 'react-native';
 
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
@@ -103,7 +108,7 @@ describe('setup flow', () => {
     expect(await loadProfile(db)).toBeNull();
 
     await press('Use these targets');
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/targets'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
     const p = await loadProfile(db);
     expect(p).toMatchObject({
       id: null,
@@ -257,7 +262,7 @@ describe('redo and recalculate setup', () => {
     await render(withProfile(db, <SetupScreen recalc />));
     expect(await screen.findByLabelText('1,990 kcal')).toBeTruthy();
     await press('Use these targets');
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/targets'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
     expect(await loadProfile(db)).toMatchObject({ created: before.created, cleared: '2026-09-02', targets: before.targets });
   });
 
@@ -298,5 +303,105 @@ describe('redo and recalculate setup', () => {
     mockCanGoBack = true;
     expect(mockBack).not.toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith('/targets');
+  });
+});
+
+// A stand-in for the mounted Food tab: shows what the Food tab would toast.
+function ToastProbe() {
+  const [m, setM] = useState('');
+  usePendingToast(setM);
+  return <Text>{m ? `toast: ${m}` : 'no toast'}</Text>;
+}
+
+describe('setup results: keep, first weigh-in, toast, progress, why', () => {
+  beforeEach(() => mockReplace.mockClear());
+  const answers = { ...emptyDraft(), sex: 'male' as const, age: '30', unit: 'cm' as const, cm: '165', weight: '82', activity: 'sitting' as const, where: 'gym' as const, days: 6 as const, exp: 'some' as const, minutes: 60 as const, goal: 'lose' as const, pace: 'moderate' as const, screen: ['no', 'no', 'no', 'no', 'no', 'no'] as const };
+  const edited = { kcal: 2500, protein_g: 150, carbs_g: 260, fat_g: 70 };
+  async function redo(opts: { weights?: boolean } = {}) {
+    const db = memoryDb();
+    await saveProfile(db, { ...buildProfile({ ...answers, screen: [...answers.screen] }, new Date(2026, 8, 1)), targets: edited });
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    if (opts.weights) await saveWeight(db, { id: null, version: 0, updated_at: '2026-09-02T00:00:00Z', deleted_at: null, date: '2026-09-02', weight_kg: 79 });
+    await render(withProfile(db, <><ToastProbe /><SetupScreen recalc /></>));
+    await screen.findByLabelText('Use these targets');
+    return db;
+  }
+
+  it('Use these targets replaces edited targets, goes to Food and toasts "Targets updated"', async () => {
+    const db = await redo();
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect(await screen.findByText('toast: Targets updated')).toBeTruthy();
+    expect((await loadProfile(db))!.targets).toEqual({ kcal: g.output.kcal, protein_g: g.output.protein, carbs_g: g.output.carbs, fat_g: g.output.fat });
+  });
+
+  it('Keep my current targets keeps the four edited targets, saves the other answers and toasts', async () => {
+    const db = await redo();
+    await press('Keep my current targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect(await screen.findByText('toast: Setup saved, targets unchanged')).toBeTruthy();
+    const p = (await loadProfile(db))!;
+    expect(p.targets).toEqual(edited);
+    expect(p).toMatchObject({ weight_kg: 82, created: '2026-09-01', goal: 'lose' });
+  });
+
+  it('shows Keep only when a profile already exists', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen recalc />));
+    expect(screen.queryByLabelText('Keep my current targets')).toBeNull();
+  });
+
+  it('writes the setup weight as today\'s weigh-in when there is none', async () => {
+    const db = await redo();
+    await press('Use these targets');
+    await waitFor(async () => expect(await loadWeights(db)).toHaveLength(1));
+    expect((await loadWeights(db))[0]).toMatchObject({ date: localDate(new Date()), weight_kg: 82, deleted_at: null, id: null });
+  });
+
+  it('does not write a weigh-in when one exists', async () => {
+    const db = await redo({ weights: true });
+    await press('Keep my current targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalled());
+    expect((await loadWeights(db)).map((w) => w.date)).toEqual(['2026-09-02']);
+  });
+
+  it('Why these numbers? opens the lines with the golden values', async () => {
+    await redo();
+    expect(screen.queryByText(/Mifflin-St Jeor/)).toBeNull();
+    await press('Why these numbers?');
+    expect(screen.getByText(/Resting, .* kcal\./)).toBeTruthy();
+    expect(screen.getByText(/Mifflin-St Jeor/)).toBeTruthy();
+    expect(screen.getByText(/Calories, 1,990\./)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`Protein, ${g.output.protein} g\\.`))).toBeTruthy();
+    expect(screen.getAllByText(/Moderate/)).toHaveLength(2);
+    expect(screen.getByText(/Strong/)).toBeTruthy();
+    expect(screen.getByText(/Rough estimate/)).toBeTruthy();
+    expect(screen.getByText(/6 sessions of about 60 min/)).toBeTruthy();
+    expect(screen.getByLabelText('Why these numbers?').props.accessibilityState).toMatchObject({ expanded: true });
+    expect(screen.getByText(/per kg of a reference weight of \d+ kg/)).toBeTruthy(); // BMI 30.1
+  });
+
+  it('the protein line names the reference weight when BMI is above 30, and the no-training line reads as the prototype', () => {
+    const light = buildProfile({ ...answers, screen: [...answers.screen], weight: '70', days: 0, exp: '', minutes: null }, new Date(2026, 8, 1));
+    const lines = buildResults(light).why.map((l) => `${l.head} ${l.text}`);
+    expect(lines.find((l) => l.startsWith('Protein'))).toMatch(/per kg of your bodyweight\./);
+    expect(lines.find((l) => l.startsWith('Training'))).toContain('No regular training yet.');
+  });
+
+  it('progress bar steps 1 to 5 across the questions and results', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 5, now: 1 });
+    await press('Male');
+    await fireEvent.changeText(screen.getByLabelText('Age'), '30');
+    await press('Use cm');
+    await fireEvent.changeText(screen.getByLabelText('Height in cm'), '165');
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '82');
+    await press('Continue');
+    expect(screen.getByRole('progressbar').props.accessibilityValue.now).toBe(2);
+  });
+
+  it('the results step is the fifth', async () => {
+    await redo();
+    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 5, now: 5 });
   });
 });

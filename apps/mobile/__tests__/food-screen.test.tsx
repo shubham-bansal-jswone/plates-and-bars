@@ -9,6 +9,7 @@ import { getCuisines } from '../src/food/catalog';
 import { toastMs } from '../src/food/copy';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
+import { postToast } from '../src/state/pendingToast';
 
 // Pressable folds aria-expanded into accessibilityState before the host view, so record what the card hands to it.
 const mockPressed: Record<string, unknown>[] = [];
@@ -853,5 +854,13 @@ describe('Low on protein add-on', () => {
     await setup({ db });
     await screen.findByText('Almonds');
     expect(screen.queryByText(/^Low on protein/)).toBeNull();
+  });
+});
+
+describe('toast posted by setup', () => {
+  it('shows a message posted before the tab mounted, once', async () => {
+    postToast('Targets updated');
+    await setup();
+    expect(await screen.findByText('Targets updated')).toBeTruthy();
   });
 });
