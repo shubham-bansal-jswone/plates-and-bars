@@ -1,4 +1,4 @@
-# Plate & Bar: handoff (updated 2026-10-16, later)
+# Plate & Bar: handoff (updated 2026-10-17)
 
 Untracked on purpose (the owner keeps AGENTS.md, CLAUDE.md, .claude/skills and this file out of git). Read this first, then `docs/AGENTS.md` (lane rules), `docs/development-plan.md` (v1 scope) and `PROTOTYPE_SPEC.md`.
 
@@ -8,11 +8,11 @@ Finish the full v1 from `docs/development-plan.md`: Expo app (web + Android), As
 
 ## Repo map
 
-- `packages/api`: OpenAPI 3.1 contract (currently 0.1.9), generated client, test vectors, guards. Contract changes come first and are additive.
+- `packages/api`: OpenAPI 3.1 contract (currently 0.1.17), generated client, test vectors, guards. Contract changes come first and are additive.
 - `packages/core`: pure TypeScript rule ports with golden and differential tests against `docs/prototype/plate-and-bar.html`. No regex lookbehind (guard test).
-- `apps/mobile`: Expo SDK 57, expo-router, expo-sqlite (wa-sqlite on web), sync client, content store.
+- `apps/mobile`: Expo SDK 58, expo-router, expo-sqlite (wa-sqlite on web), sync client, content store.
 - `apps/site`: Astro website, privacy, terms, deletion page.
-- `backend/`: Spring Boot, Java 21, Gradle, MySQL, Flyway (V1 to V6), JWT, Bucket4j.
+- `backend/`: Spring Boot 4.1.1 (Jackson 3, Security 7), Java 21, Gradle, MySQL, Flyway, JWT, Bucket4j.
 - `content/`: bundled JSON content. `tools/`: importers and validators (`tools/validate/*` is the spec the app validators mirror).
 - `tests/e2e`: Playwright suite (Chromium via `npm run install:chromium`, `CHROME_PATH`, `EXPO_NO_TELEMETRY=1`).
 - `infra/`, `.github/`: CI, Caddy templates, staging compose, release workflows.
@@ -31,6 +31,7 @@ Finish the full v1 from `docs/development-plan.md`: Expo app (web + Android), As
 
 ## Workflow that worked
 
+0. **Always `git fetch origin` and base on the latest `origin/main` before starting any work** (fresh worktree from `origin/main`, or `git merge origin/main` into an existing branch; again before every push and before review). Also written into docs/AGENTS.md (PR #772).
 1. Open a GitHub issue first (labelled by lane), then a fresh worktree: `git fetch origin && git worktree add ../wt-<name> -b <lane>/<name> origin/main`.
 2. One lane per PR, under about 400 changed lines where possible (split otherwise).
 3. Before every push, from `apps/mobile`, one at a time: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npx expo export --platform web`, `node scripts/web-reload.mjs`. Backend: `./gradlew build` (integration tests need Docker). Core and api have their own suites.
@@ -111,9 +112,11 @@ Known gaps left on purpose (documented in the PRs): iOS photo vault needs backup
 ## Blocked on the owner
 
 - Reminders: `expo-notifications` pulls Firebase on Android. Accept, write a small Android AlarmManager module, or defer (recommended: defer). Device steps (#300) need a Kotlin module.
-- Per-account record cap (#353, #349): recommend 413 `account_full` plus a per-record outcome.
-- Setup consent wording (#361): prototype text says data is "saved privately to your Claude account" and that photos go to Claude; must be rewritten before launch.
-- Lab hold (#219) and cycle line (#258): the contract has no field (`labHold` not synced in v0, no cycle fields). Needs a spec decision.
+- Per-account record cap (#353, #349): DECIDED 2026-10-17 (413 `account_full`), contract merged (#642); backend #658 and app follow-up in progress.
+- Web sign-in tokens (#250): DECIDED 2026-10-17 (access token in memory, refresh token in an httpOnly cookie), contract + ADR 006 merged (#644); backend and web client in progress.
+- Device steps (#300): DECIDED 2026-10-17, deferred to v1.1.
+- Setup consent wording (#361): DECIDED and rewritten (PR #670). Launch checklist: wipe pre-launch test consent records (no re-consent flow; app unreleased); lawyer review still open.
+- Lab hold (#219): decided, ships with lab reports in v2 (only set by a red-flagged lab report). Cycle line (#258): the contract has no cycle fields; needs a spec decision.
 - Manual email-deletion path on the deletion page has no owner or runbook.
 - Accounts and decisions: domain and email/SMTP, hosting (GitHub Pages vs Caddy VM), AI provider and monthly budget, GlitchTip and Uptime Kuma (and the Kuma host), Play Console and the Android upload keystore (create the `android-release` GitHub environment restricted to `v*` and add four secrets), lawyer review of privacy, terms and deletion pages, coach or dietitian review, exercise photo and text provenance, repo licence and visibility (#76), required branch-protection checks (site a11y, e2e), backup retention (30 days decided) and export rate (20/h decided).
 
@@ -160,3 +163,181 @@ Merged by OpenCode on 2026-10-16 (later still), Expo SDK 58 track:
 - #544 QA: fixed the SDK 58 e2e a11y opener race (squash `48cafa6`, closes #542). The incoming tab mounts one commit after the outgoing one is `aria-hidden`, a ~10–26 ms window with **no** non-`aria-hidden` level-one heading. Three openers were satisfiable on the *previous* screen: `workout` (`[aria-label^="Start "]` matched Targets' "Start a rest timer after each set"; `/day$/` matched Targets' h1 "You burn about 2,493 kcal a day"), `about` (`/about/i` matched that same headline) and `targets` (no wait at all). They now wait on screen-unique markers (`[aria-label^="Exercise 1: "]`, exact `About and sources`, `Redo setup`), and `scan()`'s precondition is auto-retrying (`toPass`, 5 s) so a single read cannot land in the window while a screen that genuinely has no level-one heading still fails. Evidence: `--repeat-each=15` went **14/300 → 0/300**; the reviewer's independent revert measured 113/120 before vs 60/60 after; a probe confirmed `axe: workout` still axes Workout, so coverage held.
 
 OpenCode watchpoints: `main` is moving fast, so merge `origin/main` before every push. The GitNexus runner and index live only in the main checkout, so confirm blast radius by text search inside a worktree. OpenCode worktrees `wt-reentry-cards`, `wt-protein-floor`, `wt-expo58`, `wt-dependabot`, `wt-a11y-opener` and `wt-readme-note` are removed; `../wt-*` worktrees for #526/#533/#517/#522/#534 belong to the Claude Code session — do not touch them. Main CI green at `20912a3`. The e2e `axe: workout` flake is fixed (#544), so a red there is a real regression again.
+
+
+Claude Code claims (2026-10-17): #534 (targets-water-foods flake), #473 (sync-refresh flake), #298 (+#127, exercise type enum), #147 (workout polish leftovers), #577 (About sources merge), #578 (web-reload detached Frame flake). OpenCode: please leave these; everything else open is unclaimed by Claude Code.
+- #31 closed: already implemented by #238 (+#208, #430).
+- #555 app: web test for the photo wipe through lockedDb (closes #517); no bug found.
+- #557 backend: SyncEngineIT round-trips a lift_stats record with a nested prev (whole record, JSON equality since MySQL reorders keys) and rejects a depth-two prev, null or not (closes #136).
+- #135 closed: already done by #245 (core liftStat.ts, used by apps/mobile/src/sync/records.ts).
+- Never use `git stash` in this repo: stashes are shared by all worktrees, and on 2026-10-17 one agent's stash was popped into another agent's worktree. The owner's `stash@{0}` (On main: GitHub_Desktop) is still in the list, untouched.
+- #556 app: tick, rampTick and rampRated write sets and workout row in one transaction; `atomic(task)` defers synced.current and the reload bump until commit for every workout write (closes #545).
+- Closed #24 (done by #137) and #312 (done by #448/#449/#452/#463/#479) after an open-issue audit.
+- #564 infra: weekly gitleaks run scans every branch and tag (--all); PR and push scans unchanged (closes #67).
+- #565 infra: Dependabot ignores json-schema-validator >=3 until Spring Boot 4 (#81); #416 stays open for the 3.x migration.
+- #568 core: engines.node >=22 (part of #82).
+- #569 tools: engines.node >=22 (closes #82).
+- #573 qa: web-reload.mjs waits for the TargetsEditor 'Calories (kcal)' input to read 1990 (the read-only kcal tile went away in #500). Follow-up flake #578 (detached Frame after the flex step, 1 in 7 runs).
+- #572 content: FDC ids for all 13 usda_fdc foods in source.reference (refs #98; stays open for the dietitian questions in #576). Follow-up #577 (About source card) in progress.
+
+
+## Claude Code session 2026-10-17 (owner: "merge on reviewer Approve + green CI yourself")
+
+Owner decisions this day (recorded on the issues): record cap 413 `account_full` (#353/#349), web refresh token in an httpOnly cookie (#250, ADR 006), Spring Boot 4 go with no API behaviour change (#81), device steps deferred to v1.1 (#300), spec-change PRs may be merged by Claude Code on Approve + green CI like any other PR.
+
+Merged 2026-10-16/17 by Claude Code (each through an independent reviewer agent, CI green): #526 #533 #540 #546 #547 #548 #551 #554 #558 #559 #560 #561 #566 #567 #571 #574 #575 #579 #580 #581 #582 #583 #585 #586 #588 #590 #591 #592 #594 #595 #596 #603 #605 #606 #607 #608 #609 #610 #611 #612 #613 #615 #616 #624 #626 #627 #628 #629 #631 #632 #633 #634 #635 #636 #637 #638 #639 #642 #643 #644 #649 #650 #655. Highlights:
+- Why it works (#488) finished: 30 cards, library, daily read (rules in core, golden learn cases), links, in-sheet follow-up; future learn start counts as today (#584).
+- Workout polish (#147): REST_EXTEND_SEC, rest live region (iOS announces, web/Android live region), cardio minutes + burn and cardio-only days, rough guess, ladder step, Learn mode block, body map (#659 in review), exercise settings sheet (#656 in review).
+- Settings store: writes during a reload are kept (#606), and each queued save reads/applies/writes in one transaction so a pull cannot interleave (#627). Follow-ups #645 (save queued before sign-out), #651 (kept failed edit vs newer pulled value).
+- Spec-change batch: prototype follows the decided exceptions for #150 (day-complete), #143 (swap clash), #584, #139; kept behaviours recorded for #131 #123 #104 #151 #97 #155. Golden generator `tools/golden-gen` (#615) is the only way to change golden files.
+- Contracts 0.1.15 (health without version), 0.1.16 (record cap), 0.1.17 (web refresh cookie). Backend health (#592), Spring Boot 4 (#650, request parsing kept as before; stricter parsing is #652).
+- Infra: staging deploy workflow inert until STAGING_DEPLOY_ENABLED + `staging` environment secrets (#580/#608), HSTS guard (#609), backend/bin untracked (#610).
+
+Hard-won rules added today:
+- Never use `git stash` (shared across worktrees; an agent popped another agent's prototype edit). Check `git status` for stray files before every commit.
+- Never commit a worktree `node_modules` symlink; #583/#590 had to be squash-merged to keep one off main (the only squash merges allowed).
+- A PR that adds an entry at the top of PROTOTYPE_SPEC section 0 conflicts with every other such PR: merge them one at a time, merging main into the next each time.
+- Reviewers must stop only processes they started (one used `pkill` by jar name).
+- The machine runs at load ~100 with many agents: run jest with `--maxWorkers=2` and treat timeouts that pass alone as load flakes (#660 tracks moving those tests to fake timers).
+- Stall card and other writers of exercise_overrides must respect the 500 cap (#661).
+
+In flight at this update: #656 (exercise settings sheet; core helpers PR on branch core/exercise-override-helpers first), #657 (#270 flake fix), #640 (#450 case-insensitive names), #658 (backend record cap, ships OFF), #659 (body map), app account_full handling (branch app/account-full), backend cookie mode (#250). Then: web client cookie mode, turning the cap on after the app handling merges, #645, #651, #652, #653, #654, #646, #647, #648, #660, #661, #641, #625 (v1.1), #150 leftover prototype parts (too-small, invalid, name-too-long toasts).
+
+### Update later on 2026-10-17 (owner delegated ALL owner-level decisions; parallel agents allowed, cap 20)
+
+Merged since: #640 #655 #657 #658 #659 #663 (plus the earlier list). Decisions recorded on issues (label `decided`): #361 consent text, #76 Apache-2.0 + CC BY 4.0 (repo public), #212 keep hidden, #549 honest ratings, #576 Ghee 900/Oil generic, #646 close contract-defined shapes (WorkoutExercise stays open), #652 strict JSON on /sync and /auth, #651 newer pull wins over kept edits, #625 v1.1, #653 no demo images in v1, #150 leftover wording, #697 reminders v1.1 / Google sign-in off / export excludes photos, #200 decision 9 (range low >= 1). Web app hosting decided: same Caddy VM as the API (needed for the #644 cookie).
+
+v1 audit (2026-10-17) gaps filed: #681 week plan ignored (bug), #682 date navigation, #683 web hosting, #684 Android release API URL + versionCode, #685 production deploy, #686 missed-day cards, #687 error tracking (Sentry -> self-hosted GlitchTip, off without DSN), #688 offline-sync e2e + Maestro, #689 AI 80% alert, #690 meal prep, #691 low-protein add-on, #692 clearance card on Workout, #693 terms + privacy rights, #694 breach runbook, #695 Play data safety answers, #696 check-in banner, #698 open-source licences screen. Others: #664 #665 #666 #667 #671 #672 #673 #680.
+
+Open PRs in review/rework at this update: #656 (sheet, core helpers), #662 (account_full), #668 #676 (content), #669 (cookie mode, security review), #670 (consent, rework), #674 (licence, nits), #675 (recount), #678 (brand icon). Queued (agent cap): #687 app half + #698 app half; #682 date navigation after the Workout/Food agents land; #673 after #670; #665 + #666 spec notes in a later spec-change batch.
+
+Owner launch checklist (cannot be done by agents): VM + DNS + secrets (#36, web host, production env), domain + SMTP + contact email, Play developer account + keystore + android-release secrets, AI provider/key/budget (AI stays off until then), GOOGLE_CLIENT_IDS only if Google sign-in is wanted later, branch protection (#29), lawyer review (privacy, terms, deletion, placeholders), grievance officer, coach/dietitian pass on draft cards and food matches, wipe pre-launch test consent records, turn the record cap on after #662 + recount (#667).
+
+### Session resumed 2026-10-17 evening (owner: max 7 agents at once, machine use must stay under 80%)
+
+Merged this round: #675 (record recount), #708 (breach runbook + Play data safety), #701 (draft terms, DPDP rights, consent wording), #705 (#150 leftover prototype checks; closes #150), #710 (AI 80% spend alert), #707 (Android API URL + versionCode), #711 (production deploy on v* tag), #662 (app handles 413 account_full). #690 has a note: the meal-prep port must stop when `recipeFood` is not ok. Follow-up filed: #724 (spend alert overflow, low).
+
+Rework needed (Request changes on the PR):
+- #717 backend Sentry: nothing from request handling reaches Sentry (the catch-all handler swallows it), and a client `sentry-trace` header forces unscrubbed transactions. Fix: capture in the catch-all 500 branch; drop traces-sample-rate, max-breadcrumbs 0, and drop all transactions.
+- #677 / #699 / #713 settings chain: key-order equality in keptEdits, the old account's kept edits written after a wipe (blocker), a gitleaks false positive in settings-stale-save.test.tsx:15, and #713 adding the exercise before the in-save name check decides.
+- #669 cookie mode: security findings; the author is fixing them (a new migration takes V10).
+
+In review at this update: #656 (fixes in), #706 (fixes in), #704, #678, #702, #703, #679, #712, #719, #722, #723.
+
+Paused agent work not yet in PRs: #673/#716 spec wording (main checkout is on spec/673-claude-wording with the prototype edited, so do not switch the main checkout), #721 core prune (worktree pab-721-core), #660 fake timers (pb-load660-*), app Sentry (scratchpad s687) and the licences screen (l698), offline e2e + Maestro (#688), food meal prep (wf2).
+
+Ops: removed about 80 clean worktrees whose PRs were merged. An orphaned jest from the earlier session (scratchpad wt662) was burning CPU; the owner has to kill it, because the agent kill was blocked. Spotlight indexing of worktrees adds load: consider excluding the fit-app folder and the scratchpad from Spotlight.
+
+## Claude Code session 2026-10-17 (evening, resumed after the earlier session died)
+
+Found 13 open PRs and ~50 worktrees (many with uncommitted WIP from the dead sessions). Clean worktrees of merged PRs removed.
+
+Merged (reviewer gate + CI green):
+- #730 open-source licences screen on About (closes #698 app half). Main merged in, licences.json regenerated unchanged.
+- #750 site privacy page describes crash/error reports, incl. native Android crashes that skip the JS scrubber, session pings, device fields, user-agent (refs #748). New placeholder `[hosting provider]`.
+- #751 docs/PLAY-DATA-SAFETY.md crash reporting answers: Crash logs, Diagnostics, install id required; purpose Analytics (owner must confirm wording against Google's live help page before submitting).
+
+In flight (background agents): reviews of #743 #746 #753 #745 #747 #755 #756 #754 #759 #761 #758 #760; fixes on #742 (web cookie security review) and #752 (date nav review: useWater stale day, midnight test, announcement); WIP salvage #688 (sync e2e, wt688), #666 (pb-bodymap-666), #660 (pb-load660-*, wt-water-foods, pb-deflake); new #749 CSP, #757 backend part.
+Parked WIP: Workout/Progress half of #682 in scratchpad `dn` worktree (branch app/date-nav-workout-progress, stacked on #752) — resume after #752 merges.
+Owner follow-ups: app could set `enableAutoSessionTracking: false` and a native-side scrubber, then privacy page + data-safety doc shrink.
+- #758 spec/content: #716 section 0 entry corrected, screening card PAR-Q+ source line, cards.json + bundled.json regenerated (closes #736).
+- #760 spec: custom exercise names match case-insensitively recorded in section 0 (closes #665).
+- Opened: #759 contract 0.1.19 wording (refs #757), #764 backend `invalid_json` -> `type` (closes #757), #761 recount nits (closes #667). #742 fixes pushed; findings 6/7/9 deferred to #762 (cross-tab sign-out, lock timeout, offline backoff).
+- #759 contract 0.1.19: x-max-json-bytes counting wording (JSON.stringify escapes, numbers as sent) and one issue name `type` for unparseable bodies on /sync and /ai/* (refs #757; backend #764 closes it).
+- Review outcomes pending fixes: #754 Request changes (sheet title focus loses to RNW focus trap after 250 ms animation; fix via onShow + e2e), #764/#761 nits, #743/#746 nits, #753 Request changes (rate-limit bucket label), #745/#747/#755/#756/#763 nits.
+- 2026-10-18: owner paused auto-merge. Do not merge; give the owner the ready list and `gh pr merge N --squash --delete-branch` commands.
+- Owner merged (2026-10-18): #765 (closes #666; spec note tracked in #769), #743 AI alert overflow, #746 refresh reuse log, #755 scrubber nits.
+- Owner merged #763 (sync e2e + Maestro flow, refs #688; Maestro never run on a device).
+- 2026-10-18 later: owner resumed auto-merge.
+- Owner merged #756 (custom exercise name + settings follow-ups, #734/#741).
+- #761 merged (record recount nits, refs #667; staging cap enablement stays with owner/infra).
+- #764 merged (backend unparseable-body issue name `type`; closes #757 with #759).
+- 2026-10-18: owner froze new agent spawns; running agents finish first, owner will say when to spin up more.
+- #753 merged (security detection signals: real rate-limit bucket names, token_expired at DEBUG; also edits docs/INCIDENT-RESPONSE.md as issue #714 asked; infra/OBSERVABILITY.md left to an infra PR). #714 still open for the Caddy access-log half.
+
+## STATE AT PAUSE (2026-10-18, session limit) — SUPERSEDED: see the final section at the bottom
+
+Owner paused everything. All subagents were stopped. Auto-merge is ON again (reviewer Approve + green CI, one `gh pr merge N --squash --delete-branch` per command, HANDOFF update after each). **Owner froze spawning new agents ("when I say we spin up more")**: do not spawn agents until told; resume by re-reviewing and merging the PRs below yourself or ask the owner.
+
+Merged this session (reviewer gate + green CI): #730 #750 #751 #758 #759 #760 #761 #764 #753 by Claude Code; #765 #743 #746 #755 #763 #756 merged by the owner by hand while auto-merge was paused. #757 #736 #665 #666 #667-part closed or advanced by these.
+
+Open PRs (state at stop):
+- #771 service worker offline start (closes #718): CI green, MERGEABLE, **no review yet**. Needs a reviewer before merge.
+- #770 sync badge shows Not synced on store write (closes #767): CI green, MERGEABLE, review was **stopped half-way** (reviewer was mutating the listener/notify). Re-review: check write-storm cost, listener fires on failed/uncommitted writes, cleanup on sign-out; sync-races.test.tsx leaves the engine pause counter above zero (test leak, file a follow-up).
+- #768 settings sheet follow-ups (closes #725): Approve with nits, nits applied, CI green, MERGEABLE. Ready to merge (a fresh verdict on the final head is optional; the agent that pushed the nits was stopped, check the head has the rethrow-outside-queue fix and the "Saved is gone" assertion).
+- #766 web CSP (closes #749): Approve with nits; now **CONFLICTING** (main moved after #763). Merge main (keep both), then nits: validate WEB_SENTRY_ORIGIN (no `https:` or `*`), tie the Sentry origin to the DSN setting, justify or test `img-src blob:`. #771's worker needs `worker-src 'self'` (already there).
+- #754 sheets dialog name + title focus (#661): Request changes earlier (RNW focus trap grabs focus after the 250 ms animation); agent pushed 8baf7eb "addressed" and CI was green, agent was stopped before reporting. **Needs a re-review.** Also add jsdom to devDependencies (nit). Same-file overlap with #745/#747 in ExerciseCards.tsx.
+- #752 date navigation on Food (part of #682): Approve with nits, nits pushed ("Nits applied", use-water-guard test); CI was still running (3 pending) at stop. Merge when green.
+- #747 `__proto__` settings names (#715): Approve with nits, nits applied, **CONFLICTING** with main (#756 touches the same customRefused). Merge main keeping both sides, then merge. Worktree scratchpad/wt747b.
+- #745 dismissKey wiring (#721): Approve with nits, nits applied, CI had 1 pending at stop, MERGEABLE earlier, then conflicted. Check mergeable, merge main keeping both (`today` arg, `withEntry`/`ownGet`), merge. Worktree scratchpad/wt745b.
+- #742 web cookie session (#250, ADR 006): security re-review Approve with nits, nits pushed (in-memory sign-out flag without localStorage; web notice on refused sign-in). I also pushed 6ac0f7c adding AUTH_COOKIE_ORIGINS to tests/e2e/stack/docker-compose.yml because the new e2e-sync job 403'd cookie mode; **CI was re-running (3 pending)**. If e2e (sync) still fails, look for SameSite=Strict / `__Secure-` cookie issues on http://127.0.0.1 across ports (4174 app vs API port). Deferred findings are in #762.
+
+Suggested merge order when green: #768, #752, #745, #747 (merge main first), #754 (after re-review), #742, #766 (after conflict fix), #770 and #771 (after reviews).
+
+Stopped mid-flight (uncommitted or unpushed work; check `git -C <wt> status` before deleting anything):
+- #660 (tests off wall clock): agent a "fake timers" effort in `../pb-l660-a|b|c` (branches app/load-tests-660-{a,b,c}-v2, dirty, nothing pushed, no PR) and older WIP in `../pb-load660-a|b|c`, `../wt-water-foods`, `../pb-deflake`. Nothing is on GitHub. Start over from these diffs or discard.
+- #682 Workout/Progress half: `scratchpad/dn` (branch app/date-nav-workout-progress, stacked on #752, dirty). Needs one `DateAnnouncer` next to each `DateBar` outside any loading swap. Resume after #752 merges.
+- `wt754` (/private/tmp/claude-503/wt754), `scratchpad/w250` (1 unpushed commit on app/250-web-cookie, likely already superseded by the pushed head; compare before deleting).
+- Old stragglers with dirty files and no PR: `../wt-about-sources` (#577), `../wt-app-sync-refresh-flake` (#473, 17 unpushed commits), `../wt-cardio`, `../wt-qa-e2e-flows`, `../wt-scratch-e2e`, `../wt-qa-scratch`.
+
+Open issues not started this session: #647 (two devices editing one workout day lose data), #744 (cookie misconfiguration looks offline), #762 (cross-tab sign-out, lock timeout, offline backoff), #646 (close nested sync record shapes), #353/#349, #147 leftovers, #769 (spec note: kept body-map tap per date), #714 Caddy access-log half, #29/#36/#79, plus #667 "turn the cap on in staging" (owner/infra).
+
+Review nits parked as follow-ups: #770 test leak in sync-races; #763 Maestro flow never run on a device; #751/#750 crash-report texts are factual drafts (lawyer review, confirm the Play Analytics wording on Google's live help page); app could set `enableAutoSessionTracking: false` and add a native scrubber, then shrink those texts.
+
+Machine notes: Docker was up for some runs, jest needs `--maxWorkers=2`, Gradle 9.8.0 cached binary was used when the wrapper download timed out (do not edit gradle-wrapper.properties). Never use `git stash`.
+- #772 docs: AGENTS.md rule "fetch and base on latest origin/main before starting work" (owner request) — open, docs-only; merge when CI green.
+
+
+## STATE AT PAUSE (2026-10-18, OpenCode session, stopped ~01:05 IST) — SUPERSEDED by the final section at the bottom (PR states changed)
+
+Owner lifted the agent freeze mid-session ("you can spin up sub agents now"), then set a hard stop at **01:05 IST** and asked for this handoff. Auto-merge policy is unchanged: **reviewer Approve (nits applied) + green CI → merge yourself with one `gh pr merge N --squash --delete-branch` per command, then update this file.** I did the verification/merging myself this session (agent-freeze was still on when I started), so no reviewer verdicts were added by me.
+
+Merged this session (verdict comments checked, nits confirmed on head, CI green):
+- **#768** settings sheet follow-ups (closes #725). Verified head `120fe95` carries the rethrow-outside-the-save-queue fix and the "Saved for this exercise is gone" assertion before merging.
+- **#752** date navigation on Food (part of #682). Nits applied (`use-water-guard.test.tsx`; midnight announce kept).
+- **#745** wire core `dismissKey` into answered cards (closes #721).
+Main advanced to `18663c3`; local main fast-forwarded, no local edits besides this untracked file.
+
+Open PRs — state at stop (suggested order first to last):
+
+- **#742** web cookie session (#250, ADR 006): was MERGEABLE/CLEAN with **all checks green at 00:33** (incl. the e2e sync job, which passed after `6ac0f7c` added `AUTH_COOKIE_ORIGINS` to `tests/e2e/stack/docker-compose.yml`). **Not merged only because time ran out.** Confirm the security re-review verdict (Approve with nits, nits pushed) sits on the current head, re-check `mergeable`, then merge.
+- **#747** `__proto__` settings names (#715): **CONFLICTING**. Remote head `f6f535a` == local worktree `scratchpad/wt747b` (branch `nit747b`, nits commit `ad0d757`). Needs another `origin/main` merge keeping **both** sides (#756 touched the same `customRefused`), then push the branch and merge.
+- **#754** sheets dialog name + title focus (#661): **re-review still owed.** Head `8baf7eb` adds a ~16 ms retry in `Sheet.tsx` that focuses the title only once `role="dialog"` exists and the trap has moved focus in; author verified in Chromium against a web export. Open nit: add `jsdom` to devDependencies. Overlaps ExerciseCards.tsx with #745/#747 (both now on main).
+- **#766** web CSP (#749): **CONFLICTING**. Merge main keeping both, then the three nits: validate `WEB_SENTRY_ORIGIN` (no bare `https:` / `*`), tie the Sentry origin to the DSN setting, and justify or test `img-src blob:`. #771's service worker needs `worker-src 'self'` (already present).
+- **#770** sync badge "Not synced" on store write (closes #767): **re-review never finished** (was mutating the listener/notify). Check: write-storm cost, that the listener does not fire on failed/uncommitted writes, and cleanup on sign-out. `sync-races.test.tsx` leaves the engine pause counter above zero → file a follow-up issue (test leak).
+- **#771** service worker so the web app starts offline (closes #718): **unreviewed**, CI green, MERGEABLE.
+- **#772** docs: AGENTS.md rule "fetch and base on latest origin/main before starting work" (owner request): unreviewed, docs-only; merge when CI green.
+
+Notes: main moved fast this session, so merge `origin/main` into any branch right before pushing. The GitNexus runner/index live only in the main checkout (run `impact` there; in a worktree confirm blast radius by text search). Do not touch Claude Code's `../wt-*` worktrees. Machine load was fine (~5.4); still run jest with `--maxWorkers=2`. Never use `git stash`.
+
+## STATE (2026-10-18, OpenCode session continued) — read this first
+
+The owner lifted the agent freeze ("you can spin up sub agents now"), so this stretch used reviewer subagents again. Auto-merge policy unchanged: **reviewer Approve (nits applied) + green CI → merge yourself with one `gh pr merge N --squash --delete-branch` per command, then update this file.**
+
+Merged this session (verdict comments verified, nits confirmed on the head, CI green):
+- **#768** settings sheet follow-ups (#725) — verified head `120fe95` had the rethrow-outside-queue fix and the "Saved for this exercise is gone" assertion.
+- **#752** date navigation on Food (part of #682).
+- **#745** wire core `dismissKey` into answered cards (#721).
+- **#742** web cookie session (#250, ADR 006) — all checks green incl. e2e sync after the `AUTH_COOKIE_ORIGINS` compose fix.
+- **#747** `__proto__` settings names (#715) — was CONFLICTING; merged `origin/main` keeping both sides (HEAD's `ownGet`/`withEntry` **and** main's `today` argument in `answered(...)`; kept `has`/`isProtoName`/`withEntry` **and** main's `keptCopy`), pushed `820d95a`, merged.
+- **#772** docs rule (fetch/base on latest `origin/main`) — had already been merged by the owner as `9b7e716`.
+- **#774** (closes #773) wait for the rethrown done-callback error instead of racing its timer — reviewer reproduced the pre-fix flake 4 runs in 10, and both mutations still fail. Main is now `c4ec4b1` after the next two.
+- **#766** web CSP (#749) — nits applied (tested `check-sentry-origin.sh`; docs; `blob:` justification) **and** the real cross-feature break fixed: the sync e2e was blocked by `connect-src` so no sign-in code was ever mailed. Fix: `tests/e2e/support/server.mjs` appends the `E2E_API_URL` origin to `connect-src`, and `playwright.sync.config.mjs` passes it (the first attempt missed the `import { API }`, which CI caught as `ReferenceError: API is not defined` — verify such configs with `playwright test --list` before pushing). All 18 checks green.
+- **#770** sync badge on store write (#767) — nits applied (a throwing listener can no longer reject a committed write; two failure-path tests) and the PR body brought up to the template. Green, including e2e sync.
+- **#754** sheets dialog name + title focus (#661) — conflict resolved in `ExerciseCards.tsx` + `workout-adjust.test.tsx` (keep the cap check with `withEntry`/`ownGet` + `answered(..., today)`, keep **both** tests), nits applied (retry ~2 s, title through a ref — sync it in an effect, the `react-hooks/refs` rule forbids writing a ref in render), body/checklist aligned. All 6 checks green.
+- **#771** service worker offline start (#718) — nits applied: `assetPaths` also matches backtick (template-literal) paths; the "two builds at once" test now counts concurrent `/` reads so it *fails* when the build queue is removed (verified by mutation); `README.md` + `scripts/web-reload.mjs` no longer claim an offline reload cannot load. Skipped on purpose: a timeout before the navigation fallback (documented in the PR body). Green.
+
+Main is now `0000c33` and **every PR that was open when this stretch began is merged**.
+
+Open PRs at this update:
+- **#776** App: date navigation on Workout and Progress (closes #682) — app lane, 7 files, +433/−25 (about 65 lines of source, the rest tests), MERGEABLE CLEAN, opened 19:50 by the app session, **no verdict yet**. A reviewer subagent was started for it (`../rv776`) at this update. If you are reading this and it is still unmerged, that review is the next action: check its verdict comment, apply any nits, re-merge `origin/main` and merge on green.
+
+Issues filed this session:
+- **#773** `settings-store.test.tsx:272` raced a 0 ms timer (a bare `expect(reported)` instead of `waitFor`); it reddened #766's mobile job though #766 touches infra only, and #770's mobile job too. Fixed by #774.
+- **#775** `sync-races.test.tsx` leaves the engine's run pending: the last test holds the fake server with `server.hold = new Promise(() => undefined)` and `server.hold = null` never releases the promise that `Promise.race([s.hold, aborted])` already captured, so a later `syncOnce`/`pauseSync` in that module hangs (`pauses` then stuck at 1). Blast radius is a future test added/reordered in that file; the full-suite "worker process failed to exit gracefully" line may share the cause.
+
+Watchpoints: main moves quickly — merge `origin/main` into any branch right before pushing. Do **not** run `npx expo export` in a PR worktree (the reviewer used a second throwaway one). A `gh pr merge --delete-branch` removes the local branch *and* the worktree that held it; that is fine once the branch is pushed, but do not rely on the worktree afterwards. The CSP work and the e2e server interact: any change to `_headers` `connect-src` must keep the sync suite workable (the comment in `server.mjs` says why).
+
+## Claude Code claims (2026-10-18, ~01:15 IST; OpenCode keeps #754 and #771)
+
+Claude Code (coordinator session) resumed after its usage limit. It leaves #754 and #771 to OpenCode and takes these, one agent each, with the 7-agent / 80% load rules: #682 Workout/Progress half (resume `scratchpad/dn`), #660 tests off the wall clock (start from the `pb-l660-*` diffs), #775 sync-races test leak, #744 + #762 web session follow-ups, #714 Caddy access-log half (infra). OpenCode: please leave these; everything else open is unclaimed.
