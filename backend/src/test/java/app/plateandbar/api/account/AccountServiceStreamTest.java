@@ -28,7 +28,7 @@ class AccountServiceStreamTest {
     final ObjectMapper json = JsonMapper.builder().build();
     final AccountRepository accounts = mock(AccountRepository.class);
     final SyncExporter sync = mock(SyncExporter.class);
-    final AccountService service = new AccountService(accounts, sync, json, Clock.systemUTC());
+    final AccountService service = new AccountService(accounts, sync, json, Clock.systemUTC(), mock(ErasureLedger.class));
 
     private void account(String email) {
         when(accounts.find(USER))
