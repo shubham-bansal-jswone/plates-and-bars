@@ -7,6 +7,7 @@ import { ResultsView } from '../components/ResultsView';
 import { Button, Caption, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
+import { LegalLinks } from '../legal/LegalLinks';
 import { DeletionNotice } from '../account/DeletionNotice';
 import { buildProfile, draftFromProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
@@ -31,6 +32,7 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
           {b}
         </Text>
       ))}
+      <LegalLinks />
       <Note>{CONSENT.note}</Note>
       <View style={[layout.row, { marginTop: 8 }]}>
         <Switch
