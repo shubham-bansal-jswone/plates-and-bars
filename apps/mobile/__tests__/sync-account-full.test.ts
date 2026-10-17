@@ -4,7 +4,7 @@ import { pendingChanges, pendingCount } from '../src/db/outbox';
 import { forgetHeldRetry, syncOnce } from '../src/sync/engine';
 import { KEY_ACCOUNT_FULL, isAccountFull } from '../src/sync/held';
 import { naturalId } from '../src/sync/ids';
-import { listQuarantined } from '../src/sync/quarantine';
+import { discardQuarantined, listQuarantined } from '../src/sync/quarantine';
 import { KEY_USER, getKv, setKv } from '../src/sync/store';
 import { saveWeightDoc, type WeightDoc } from './sync-fixtures';
 import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
@@ -209,6 +209,19 @@ describe('while the account is full', () => {
     expect(await pendingCount(c.db)).toBe(2);
   });
 
+  it('when every /sync is refused with account_full, even a pull-only one, a run makes at most 2 requests', async () => {
+    const c = await setup();
+    c.server.refuseAll = true;
+    await saveWeightDoc(c.db, weight(date(5), 90));
+    expect((await syncOnce(c.deps)).status).toBe('rejected');
+    expect(syncCalls(c).length).toBeLessThanOrEqual(2);
+    // Already full, only a pull-only request left to send: still ends.
+    const n = syncCalls(c).length;
+    await c.db.runAsync('DELETE FROM sync_outbox');
+    expect((await syncOnce(c.deps)).status).toBe('rejected');
+    expect(syncCalls(c).length - n).toBeLessThanOrEqual(2);
+  });
+
   it('with the full flag set and nothing held, a run ends after the pull: the held phase does not loop', async () => {
     const c = await setup();
     await setKv(c.db, KEY_ACCOUNT_FULL, '1');
@@ -326,6 +339,29 @@ describe('the retry of held records', () => {
     await saveWeightDoc(c.db, weight(date(5), 90));
     await syncOnce(c.deps);
     expect(await outboxKeys(c)).toEqual([date(5)]);
+  });
+
+  it('the sent mark of a record that is gone is removed', async () => {
+    const c = await setup();
+    await saveWater(c, 'w-gone', true);
+    c.server.online = false;
+    await syncOnce(c.deps);
+    expect(await getKv(c.db, 'sync.sent.water_logs.w-gone')).not.toBeNull();
+    await c.db.runAsync("DELETE FROM water_logs WHERE key = 'w-gone'");
+    c.server.online = true;
+    await syncOnce(c.deps);
+    expect(await getKv(c.db, 'sync.sent.water_logs.w-gone')).toBeNull();
+    expect(await pendingCount(c.db)).toBe(0);
+  });
+
+  it('discarding a refused (quarantined) record removes its sent mark', async () => {
+    const c = await setup();
+    c.server.rejectIf = (t, r) => (t === 'weights' && (r.weight_kg as number) <= 0 ? 'weight_kg' : null);
+    await saveWeightDoc(c.db, weight(date(5), -1));
+    await syncOnce(c.deps);
+    expect(await getKv(c.db, `sync.sent.weights.${date(5)}`)).not.toBeNull();
+    expect(await discardQuarantined(c.db)).toBe(1);
+    expect(await getKv(c.db, `sync.sent.weights.${date(5)}`)).toBeNull();
   });
 
   it('a batch cut short by the byte budget is judged and tried by what was sent: 14 then 6, not 14, 10, 10', async () => {
