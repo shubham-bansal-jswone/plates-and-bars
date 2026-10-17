@@ -22,6 +22,12 @@ export const SYNC_INTERVAL_MS = 30_000;
 /** While sign-in is flagged unavailable (#744), one refresh is tried this often, in case the site was fixed. */
 export const SIGN_IN_RECHECK_MS = 600_000;
 const MAX_BACKOFF_MS = 300_000;
+/**
+ * After a failed refresh request the retry is sent this long after the failure, by its own timer (#809). The server's 60 s grace
+ * window (ADR 003) is counted from the first request, which may have waited the whole `REFRESH_TIMEOUT_MS` (20 s) before failing:
+ * 20 s + 20 s = 40 s leaves 20 s of margin. The 30 s interval tick plus its 30 s hold would land 30 to 60 s after the failure.
+ */
+export const REFRESH_RETRY_MS = 20_000;
 
 export interface SyncState {
   /** False when this build has no server address: the app is local-only and shows no sync UI. */
@@ -99,6 +105,12 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const held = useRef(false);
   const holdUntil = useRef(0);
   const backoff = useRef(SYNC_INTERVAL_MS);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runRef = useRef<(force: boolean) => Promise<SyncResult | null>>(async () => null);
+  const clearRetry = useCallback(() => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = null;
+  }, []);
 
   const clearLastDeletion = useCallback(() => setLastDeletion(null), []);
   /** State changes after a delete attempt; shared by the screen's call and the finish-on-launch run. */
@@ -132,6 +144,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
 
   const runSync = useCallback(async (force: boolean): Promise<SyncResult | null> => {
     if (!api || (!signedIn && !force)) return null;
+    clearRetry(); // this run is the retry (or supersedes it): at most one is scheduled, and a failure below schedules the next
     setSyncing(true);
     try {
       const r = await syncOnce({ db, api, tokens });
@@ -142,9 +155,22 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       else if (r.status === 'unavailable' || r.status === 'rejected' || r.status === 'offline') {
         // Offline backs off like a server problem (30 s, 1 min, 2 min, up to 5 min) so a long outage is not retried every 30 s.
         // A failed refresh request is the exception: the server may have rotated the token, and a retry must land inside its 60 s
-        // grace window or it is read as reuse and ends the session, so wait 30 s at most and do not escalate (#762).
-        if (r.viaRefresh) holdUntil.current = Date.now() + SYNC_INTERVAL_MS;
-        else {
+        // grace window or it is read as reuse and ends the session, so retry after REFRESH_RETRY_MS and do not escalate (#762, #809).
+        // Every ambiguous failure gets the fast retry, not a count of them: the window runs from the first rotation, which can be any
+        // request in a failure streak, so the retry after this one is due 40 s at most after the send it follows (20 s wait + the
+        // 20 s request timeout) and always inside the window. A cap could push a needed retry past it and get the session revoked.
+        // Volume is bounded on web by not scheduling after an instant network error while the browser reports offline: the `online`
+        // event runs at once. A timeout or 5xx got somewhere, so it still fast-retries. Native always schedules the fast retry.
+        const offlineWeb = r.status === 'offline' && Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (r.viaRefresh && !offlineWeb) {
+          holdUntil.current = Date.now() + REFRESH_RETRY_MS;
+          clearRetry(); // a joined run may have scheduled one already: keep a single tracked timer
+          // An explicit one-shot timer, not the next interval tick (#809). The run is single-flight and takes the cross-tab lock in the engine.
+          retryTimer.current = setTimeout(() => {
+            retryTimer.current = null;
+            if (!held.current) void runRef.current(false);
+          }, REFRESH_RETRY_MS);
+        } else {
           holdUntil.current = Date.now() + backoff.current;
           backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
         }
@@ -154,7 +180,10 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       setSyncing(false);
       await refreshPending().catch(() => undefined);
     }
-  }, [api, db, tokens, signedIn, refreshPending]);
+  }, [api, db, tokens, signedIn, refreshPending, clearRetry]);
+  useEffect(() => {
+    runRef.current = runSync;
+  }, [runSync]);
   const syncNow = useCallback(() => runSync(false), [runSync]);
 
   // Load account state once, then keep the pending count fresh.
@@ -207,20 +236,23 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       // Back in the app (native has no `online` event): the user is here now, so start from the short wait again.
       holdUntil.current = 0;
       backoff.current = SYNC_INTERVAL_MS;
+      clearRetry();
       tick();
     });
     const online = () => {
       holdUntil.current = 0;
       backoff.current = SYNC_INTERVAL_MS; // the network is back: start again from the short wait
+      clearRetry();
       tick();
     };
     if (Platform.OS === 'web' && typeof window !== 'undefined') window.addEventListener('online', online);
     return () => {
       clearInterval(timer);
+      clearRetry();
       app.remove();
       if (Platform.OS === 'web' && typeof window !== 'undefined') window.removeEventListener('online', online);
     };
-  }, [configured, signedIn, syncNow, refreshPending]);
+  }, [configured, signedIn, syncNow, refreshPending, clearRetry]);
 
   // Web: another tab signed out (all tabs share one cookie). Drop this tab's access token and show signed out at once, instead
   // of keeping it until it expires (#762). Local data stays.
