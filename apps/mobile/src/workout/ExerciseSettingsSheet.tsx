@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
-import { DEFAULT_STEP, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
+import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Input } from '../components/Input';
 import { a11yState, Button, ErrorText, Heading, Hint, Label, Press } from '../components/ui';
@@ -8,12 +8,11 @@ import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { TYPE_LABEL } from './copy';
-import { EQUIPMENT, OVERRIDES_FULL, OVERRIDES_MAX, overrideFromDraft, RANGE_INVALID, STEP_CHOICES, withoutOverride } from './exerciseSettings';
+import { OVERRIDES_FULL, RANGE_INVALID, STEP_INVALID, withOverride, withoutOverride } from './exerciseSettings';
 import { Chip } from './parts';
 
 const SAVED = 'Saved for this exercise';
 const RESET = 'Back to defaults';
-const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 const NOT_STORED = 'Couldn’t save that on this device. Try again.';
 
 /**
@@ -79,11 +78,11 @@ function Sheet({ name, info, onClose }: { name: string; info: ExInfo; onClose: (
   const [error, setError] = useState<string | null>(null);
 
   const save = () => {
-    const o = overrideFromDraft({ type, step, lo, hi });
-    if (!o) return setError(RANGE_INVALID);
-    if (!has(settings.exercise_overrides, name) && Object.keys(settings.exercise_overrides).length >= OVERRIDES_MAX) return setError(OVERRIDES_FULL);
+    const r = exerciseOverrideEntry({ type, step, lo, hi });
+    if (r.kind !== 'ok') return setError(r.kind === 'invalid-range' ? RANGE_INVALID : STEP_INVALID);
+    if (exerciseOverridesWouldExceed(settings.exercise_overrides, name)) return setError(OVERRIDES_FULL);
     // The edit is applied to the stored record when it is written. Refused when the stored settings could not be read: the values stay here.
-    if (!update((s) => ({ exercise_overrides: { ...s.exercise_overrides, [name]: o } }))) return setError(SETTINGS_UNREADABLE);
+    if (!update((s) => ({ exercise_overrides: withOverride(s.exercise_overrides, name, r.entry) }))) return setError(SETTINGS_UNREADABLE);
     onClose(SAVED);
   };
   const reset = () => {
@@ -107,7 +106,7 @@ function Sheet({ name, info, onClose }: { name: string; info: ExInfo; onClose: (
           <View style={{ gap: 6 }}>
             <Label>Equipment</Label>
             <View style={styles.chips}>
-              {EQUIPMENT.map((t) => (
+              {EXERCISE_SHEET_TYPES.map((t) => (
                 <Chip
                   key={t}
                   label={`Equipment: ${TYPE_LABEL[t]}`}
@@ -126,7 +125,7 @@ function Sheet({ name, info, onClose }: { name: string; info: ExInfo; onClose: (
             <View style={{ gap: 6 }}>
               <Label>Smallest weight jump {type === 'dumbbell' ? '(per dumbbell)' : 'on this equipment'}</Label>
               <View style={styles.chips}>
-                {STEP_CHOICES.map((x) => (
+                {EXERCISE_STEP_CHOICES.map((x) => (
                   <Chip key={x} label={`Weight jump ${x} kg`} text={`${x} kg`} pressed={step === x} onPress={() => setStep(x)} />
                 ))}
               </View>

@@ -7,7 +7,8 @@ import { defaultSettings, type Settings } from '../src/settings/types';
 import { ExerciseSettings } from '../src/workout/ExerciseSettingsSheet';
 import { useSettings } from '../src/state/SettingsProvider';
 import { Button } from '../src/components/ui';
-import { overrideFromDraft, OVERRIDES_MAX, withoutOverride } from '../src/workout/exerciseSettings';
+import { EXERCISE_OVERRIDES_MAX as OVERRIDES_MAX } from '@plate-and-bar/core';
+import { withOverride, withoutOverride } from '../src/workout/exerciseSettings';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
@@ -308,23 +309,18 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
   });
 });
 
-describe('overrideFromDraft', () => {
-  const d = { type: 'barbell' as const, step: 2.5, lo: '6', hi: '10' };
-  it('builds the contract entry', () => expect(overrideFromDraft(d)).toEqual({ type: 'barbell', step_kg: 2.5, rep_low: 6, rep_high: 10 }));
-  it('accepts a range of one rep count', () => expect(overrideFromDraft({ ...d, lo: '8', hi: '8' })).toMatchObject({ rep_low: 8, rep_high: 8 }));
-  it.each([
-    ['low above high', '11', '10'],
-    ['zero low', '0', '10'],
-    ['rounds to zero', '0.4', '10'],
-    ['negative', '-1', '10'],
-    ['blank with zero-width characters', '​', '10'],
-    ['not a number', 'x', '10'],
-    ['not a safe integer', '6', '1e30'],
-  ])('refuses %s', (_n, lo, hi) => expect(overrideFromDraft({ ...d, lo, hi })).toBeNull());
-  it('never writes a step below the contract’s 0', () => expect(overrideFromDraft({ ...d, step: -1 })?.step_kg).toBe(0));
+describe('withOverride and withoutOverride', () => {
+  const one = { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 } as const;
+  const two = { type: 'cable', step_kg: 5, rep_low: 10, rep_high: 12 } as const;
+  it('sets one entry and keeps the others', () => expect(withOverride({ a: one }, 'b', two)).toEqual({ a: one, b: two }));
+  it('adds an entry for a name like __proto__ instead of setting the prototype', () => {
+    const out = withOverride({ a: one }, '__proto__', two);
+    expect(Object.keys(out).sort()).toEqual(['__proto__', 'a']);
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(Object.getOwnPropertyDescriptor(out, '__proto__')?.value).toEqual(two);
+  });
   it('withoutOverride drops only the named entry, also a name like __proto__', () => {
-    const one = { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 } as const;
     expect(withoutOverride({ a: one, b: one }, 'a')).toEqual({ b: one });
-    expect(Object.keys(withoutOverride(JSON.parse('{"__proto__": {"type":"machine","step_kg":5,"rep_low":6,"rep_high":8}, "b": {"type":"machine","step_kg":5,"rep_low":6,"rep_high":8}}'), 'b'))).toEqual(['__proto__']);
+    expect(Object.keys(withoutOverride(withOverride({ b: one }, '__proto__', one), 'b'))).toEqual(['__proto__']);
   });
 });
