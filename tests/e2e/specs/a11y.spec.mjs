@@ -9,13 +9,15 @@ import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo
 const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
 // Label in name (#800): the app names these controls differently from their visible text. One entry per kind of control.
 const LABEL_IN_NAME = 'label-content-name-mismatch';
+// The session-chip entries show only because the Add exercise click scrolls the last card into view (axe skips off-screen
+// controls); every exercise card has the bug, including those below the fold.
 const sessionChips = [
   { rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Add a set to ') },
   { rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Remove the last set of ') },
-  { rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Remove .+ from today"/.test(node.html) },
+  { rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Remove [^"]+ from today"/.test(node.html) },
 ];
-KNOWN['sheet-food-add'] = [{ rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Add ') }];
-KNOWN['sheet-workout-settings'] = [{ rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Reset ') }];
+KNOWN['sheet-food-add'] = [{ rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Add [^"]+, [\d.]+ g protein, \d+ kcal"/.test(node.html) }];
+KNOWN['sheet-workout-settings'] = [{ rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Reset [^"]+ to default"/.test(node.html) }];
 KNOWN['sheet-workout-add'] = sessionChips;
 KNOWN['sheet-workout-custom'] = sessionChips;
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
@@ -197,7 +199,8 @@ const sheets = {
   'sheet-targets-cant': async (page) => {
     await tab(page, 'Targets');
     await label(page, 'Add an exercise to avoid').click();
-    const pick = dialog(page, 'Exercise to avoid').getByRole('button').nth(1);
+    // The first exercise button in the sheet (the sheet's own controls carry other names).
+    const pick = dialog(page, 'Exercise to avoid').getByRole('button').first();
     const name = await pick.getAttribute('aria-label');
     await pick.click();
     await expect(dialog(page, `Can’t do ${name}?`)).toBeVisible();
