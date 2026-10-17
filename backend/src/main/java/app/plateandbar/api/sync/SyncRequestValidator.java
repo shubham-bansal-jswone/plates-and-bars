@@ -66,7 +66,7 @@ public class SyncRequestValidator {
     private final ObjectMapper reader;
 
     /** For tests: a mapper with Jackson's default limits. */
-    public SyncRequestValidator() {
+    SyncRequestValidator() {
         this(new ObjectMapper());
     }
 
@@ -125,7 +125,7 @@ public class SyncRequestValidator {
             }
         } catch (RuntimeException e) {
             // Fail closed. The message may quote the body, so it is dropped.
-            throw invalid(List.of(new ErrorResponse.Detail("", "invalid_json")));
+            throw invalid(List.of(new ErrorResponse.Detail("", "type")));
         }
         if (!problems.isEmpty()) {
             throw invalid(problems);
