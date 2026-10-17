@@ -61,4 +61,21 @@ for path in /assets/missing.png /_expo/static/js/web/entry-gone.js; do
   ! grep -q index "$tmp/b" || fail "$path: served index.html"
   ! grep -q immutable "$tmp/h" || fail "$path: 404 marked immutable"
 done
+# Access log (#714): a request carrying a query string, Authorization, Cookie and X-Forwarded-For leaves one JSON line with
+# the path but none of those values, and the client IP is masked (the last IPv4 octet is 0)
+curl -s -o /dev/null -H 'Authorization: Bearer sekrit-token' -H 'Cookie: refresh=sekrit-cookie' -H 'X-Forwarded-For: 203.0.113.77' \
+  "http://127.0.0.1:$port/probe-path?email=sekrit%40example.com"
+line=""
+for _ in $(seq 1 10); do
+  line="$(docker exec "$cid" grep probe-path /data/web_access.log 2> /dev/null | head -n 1 || true)"
+  [ -z "$line" ] || break
+  sleep 1
+done
+[ -n "$line" ] || fail "access log: no line for /probe-path in /data/web_access.log"
+case "$line" in "{"*"}") ;; *) fail "access log line is not JSON: $line" ;; esac
+case "$line" in *'"uri":"/probe-path"'*) ;; *) fail "access log: uri is not the bare path: $line" ;; esac
+for secret in sekrit 203.0.113 'Bearer' 'refresh='; do
+  case "$line" in *"$secret"*) fail "access log leaks '$secret': $line" ;; esac
+done
+printf '%s' "$line" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "access log: remote_ip not masked: $line"
 echo "Caddyfile.web serving tests passed"

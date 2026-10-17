@@ -24,6 +24,37 @@
 {$API_HOST:api.example.com} {
 	encode zstd gzip
 
+	# Access log (#714), JSON, one file per host under /data (the caddy_data volume in the Compose stack). Privacy: the
+	# client IP is masked to /24 (IPv4) or /48 (IPv6) in remote_ip, client_ip and remote_addr; the query string is cut
+	# from the URI; every request header (Authorization, Cookie, X-Forwarded-For, User-Agent ...) and every response
+	# header (Set-Cookie ...) is dropped; Caddy never logs request bodies. Kept 14 days (roll_keep_for 336h) and at most
+	# 10 files of 10 MiB. infra/scripts/check-caddy-access-log.sh fails CI if one of these filters goes missing.
+	log api_access {
+		output file /data/api_access.log {
+			roll_size 10MiB
+			roll_keep 10
+			roll_keep_for 336h
+		}
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>remote_addr ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "\?.*$" ""
+			request>headers delete
+			resp_headers delete
+		}
+	}
+
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
