@@ -85,7 +85,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
     day.exs.length === 0 ? (
       <StartView key={w.date} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
-      <SessionView db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+      <SessionView key={w.date} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
     );
   const where = day.workout?.where ?? profile.where;
   const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
