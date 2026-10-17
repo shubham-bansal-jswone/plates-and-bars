@@ -13,6 +13,7 @@ import { discardQuarantined, quarantineCount, retryQuarantined } from './quarant
 import { isAccountFull } from './held';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
+import { onSignInUnavailable, signInUnavailable as readSignInUnavailable } from './cookieHealth';
 import { cookieMode } from './transport';
 import { dropLegacyWebTokens, markSignOutPending, revokeCookie, signOutPending } from './webSession';
 
@@ -37,6 +38,8 @@ export interface SyncState {
   quarantined: number;
   /** The server said the account is full: new entries stay on this device and are not backed up (edits and deletes still sync). Kept across restarts; clears when a push of new records succeeds. */
   accountFull: boolean;
+  /** Web only: sign-in and session refresh cannot work from this site (ADR 006, #744). Nothing retries by itself; a reload tries again. */
+  signInUnavailable: boolean;
   syncing: boolean;
   /** Last run's outcome; null before the first run. */
   last: SyncResult | null;
@@ -86,6 +89,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const [pending, setPending] = useState(0);
   const [quarantined, setQuarantined] = useState(0);
   const [accountFull, setAccountFull] = useState(false);
+  const [signInUnavailable, setSignInUnavailable] = useState(readSignInUnavailable);
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -203,10 +207,15 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     };
   }, [configured, signedIn, syncNow, refreshPending]);
 
-  // Web: a sign-out that did not reach the server is retried until it does (the cookie would otherwise sign the user back in).
+  // Web: cookie-mode calls fail while the API answers (#744): say so. The runs themselves send nothing meanwhile (the engine
+  // ends them `sign_in_unavailable` before any request), and carry on by themselves once a cookie-mode call gets through.
+  useEffect(() => onSignInUnavailable(setSignInUnavailable), []);
+
+  // Web: a sign-out that did not reach the server is retried until it does (the cookie would otherwise sign the user back in),
+  // unless sign-in is known to be unavailable from this site: the call cannot work and is not retried in a loop.
   useEffect(() => {
     if (!api || !cookieMode()) return;
-    const timer = setInterval(() => signOutPending() && void revokeCookie(api), SYNC_INTERVAL_MS);
+    const timer = setInterval(() => signOutPending() && !readSignInUnavailable() && void revokeCookie(api), SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [api]);
 
@@ -221,6 +230,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       pending,
       quarantined,
       accountFull,
+      signInUnavailable,
       syncing,
       last,
       epoch,
@@ -282,7 +292,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         return afterDelete(r);
       },
     }),
-    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, accountFull, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
+    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, accountFull, signInUnavailable, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
   // AI features sit inside the sync provider: they reuse its client and tokens (kept inside) and its signed-in state.
   return (

@@ -14,7 +14,7 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 
 const base: SyncState = {
   configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0,
-  dataVersion: 0, quarantined: 0, accountFull: false, holdSchedule: () => undefined,
+  dataVersion: 0, quarantined: 0, accountFull: false, signInUnavailable: false, holdSchedule: () => undefined,
   retryQuarantined: async () => undefined,
   discardQuarantined: async () => undefined,
   syncNow: async () => null,
@@ -69,6 +69,37 @@ describe('live region', () => {
     await render(withSync({ signedIn: true, pending: 2 }, <SignInScreen />));
     expect(screen.getByTestId('account-full-live').props.accessibilityLiveRegion).toBe('polite');
     expect(screen.queryByText(/Your account is full/)).toBeNull();
+  });
+});
+
+describe('sign-in unavailable on this site (#744)', () => {
+  it('signed out: says sign-in is not available, not offline, in a polite live region that stays mounted', async () => {
+    await render(withSync({}, <SignInScreen />));
+    expect(screen.getByTestId('sign-in-unavailable-live').props.accessibilityLiveRegion).toBe('polite');
+    expect(screen.queryByText(/Sign-in isn't available on this site/)).toBeNull();
+    await screen.unmount();
+    await render(withSync({ signInUnavailable: true }, <SignInScreen />));
+    expect(screen.getByText(/Sign-in isn't available on this site/)).toBeTruthy();
+    expect(screen.queryByText(/offline/i)).toBeNull();
+  });
+
+  it('a failed code check on this site shows the same message', async () => {
+    await render(withSync({ verifyCode: async () => ({ kind: 'error' as const, reason: 'sign_in_unavailable' as const }) }, <SignInScreen />));
+    await fireEvent.changeText(screen.getByLabelText('Email address'), 'asha@example.com');
+    await fireEvent.press(screen.getByLabelText('Send code'));
+    await fireEvent.changeText(await screen.findByLabelText('6-digit code'), '482913');
+    await fireEvent.press(screen.getByLabelText('Sign in'));
+    expect(await screen.findByText(/Sign-in isn't available on this site/)).toBeTruthy();
+    expect(screen.queryByText(/Try again when you are online/)).toBeNull();
+  });
+
+  it('signed in: shows the message instead of "we will try again", even after an offline run', async () => {
+    await render(withSync({ signedIn: true, last: { status: 'offline', conflicts: 0 }, signInUnavailable: true }, <SignInScreen />));
+    expect(screen.getByText(/Sign-in isn't available on this site/)).toBeTruthy();
+    expect(screen.queryByText(/we will try again/)).toBeNull();
+    await screen.unmount();
+    await render(withSync({ signedIn: true, last: { status: 'offline', conflicts: 0 } }, <SignInScreen />));
+    expect(screen.getByText(/we will try again/)).toBeTruthy();
   });
 });
 
