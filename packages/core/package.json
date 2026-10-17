@@ -2,6 +2,7 @@
   "name": "@plate-and-bar/core",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Plate & Bar rules ported from the prototype as pure TypeScript functions",
   "type": "module",
   "main": "src/index.ts",
