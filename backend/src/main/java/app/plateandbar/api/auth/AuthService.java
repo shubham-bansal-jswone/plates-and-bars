@@ -240,6 +240,30 @@ public class AuthService {
         return pair;
     }
 
+    /**
+     * Ends the session of any refresh token the server knows, whether current, rotated or expired: every token of its
+     * family is revoked. An unknown token revokes nothing. Never logs the token, and says nothing either way.
+     */
+    public void revokeSession(String presented) {
+        String hash = sha256Hex(presented);
+        TransactionCallback<Void> attempt = s -> {
+            Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            // Same row lock as refresh, so a revoke and a rotation of this token queue instead of racing.
+            refreshTokens.findByHashForUpdate(hash).ifPresent(row -> refreshTokens.revokeFamily(row.familyId(), now));
+            return null;
+        };
+        try {
+            tx.execute(attempt);
+        } catch (PessimisticLockingFailureException e) {
+            // A deadlock or lock timeout rolled everything back; retry once, then 503 so the client retries (204 is idempotent).
+            try {
+                tx.execute(attempt);
+            } catch (PessimisticLockingFailureException again) {
+                throw new ServiceUnavailableException(again);
+            }
+        }
+    }
+
     /** Google identities are keyed by sub; email is used once to join an existing account (ADR 004). */
     private Resolved resolveUser(String provider, String subject, String email) {
         Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
