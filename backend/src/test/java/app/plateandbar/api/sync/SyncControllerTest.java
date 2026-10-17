@@ -76,6 +76,37 @@ class SyncControllerTest {
         send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + deep + "}").andExpect(status().isOk());
     }
 
+    /** x-max-json-bytes (#720) through the controller: the raw bytes are measured, so 1e2 counts as sent and the 400 names the field. */
+    @Test
+    void aSettingsFieldOverItsByteLimitIs400AtItsPath() throws Exception {
+        ObjectNode settings = SyncFixtures.oneOfEach(USER, T).get(SyncTable.settings);
+        settings.put("learn", "PLACEHOLDER");
+        String body = Req.of(null).add(SyncTable.settings, settings).build().toString();
+        String atLimit = "{\"k\":1e2,\"p\":\"" + "x".repeat(65536 - 16) + "\"}";
+        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
+        send(USER, body.replace("\"PLACEHOLDER\"", atLimit)).andExpect(status().isOk());
+        send(USER, body.replace("\"PLACEHOLDER\"", atLimit.replace("1e2", "1e20")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(jsonPath("$.details[0].field").value("changes.settings[0].learn"));
+    }
+
+    /** The byte measuring must parse with the request mapper's nesting limit (1000), not a default of 500: it once failed open there. */
+    @Test
+    void anOversizedFieldIsRefusedEvenInABodyNestedDeeperThanTheDefaultLimit() throws Exception {
+        ObjectNode settings = SyncFixtures.oneOfEach(USER, T).get(SyncTable.settings);
+        settings.put("learn", "PLACEHOLDER");
+        String body = Req.of(null).add(SyncTable.settings, settings).build().toString();
+        String deep = "[".repeat(600) + "]".repeat(600);
+        String over = "{\"k\":\"" + "x".repeat(65537 - 8) + "\"}";
+        assertThat(over.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(65537);
+        String withDeepKeyFirst = "{\"x\":" + deep + "," + body.substring(1);
+        send(USER, withDeepKeyFirst.replace("\"PLACEHOLDER\"", over))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0].field").value("changes.settings[0].learn"))
+                .andExpect(jsonPath("$.details[0].issue").value("max_json_bytes"));
+    }
+
     @Test
     void withoutTokenIs401() throws Exception {
         mvc.perform(post("/api/v1/sync").contentType(MediaType.APPLICATION_JSON).content("{\"cursor\":null,\"changes\":{}}"))
