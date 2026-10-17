@@ -41,6 +41,17 @@ export interface ProtoMeals {
   combos(info: ProtoInfo, diet: string | undefined): ProtoCombo[];
   combosFast(info: ProtoInfo): ProtoCombo[];
   nextMealInfo(state: ProtoMealState): ProtoInfo | null;
+  /** The prototype's own `upgradeHtml(meal, items)`, read back: null when it shows nothing. `meals` is the whole day (its calories set what is left). */
+  upgrade(state: { date: string; today: string; diet: string | undefined; kcal: number; meals: ProtoMeal[] }, meal: string, items: ProtoMeal[]): ProtoUpgrade | null;
+}
+
+/** What the prototype's "Low on protein" line says and what its Add button carries. */
+export interface ProtoUpgrade {
+  name: string;
+  qty: number;
+  label: string;
+  protein: string;
+  kcal: string;
 }
 
 /** Lines from the first starting with `start` up to and including the first ending with `end`. */
@@ -63,11 +74,18 @@ export function loadMeals(): ProtoMeals {
   const src = prototypeSource();
   const code = [
     ...mealsCode(src),
+    sliceLine(src, 'const esc = '),
+    sliceLine(src, 'const fmt = '),
+    'const whyLink = () => "";',
+    sliceBlock(src, 'function upgradeHtml(meal, items){', '}'),
     'const copy = x => JSON.parse(JSON.stringify(x));',
     'return {',
     '  FOODS, ROLE, MEAL_W, PROT_W, MAXQ, MINQ,',
     '  combos(info, diet){ S.settings = { diet }; return combos(copy(info)); },',
     '  combosFast(info){ return combosFast(copy(info)); },',
+    '  upgrade(st, meal, items){ TODAY_ = st.today; S.date = st.date; S.settings = { kcal:st.kcal, diet:st.diet }; S.day = { meals: copy(st.meals) }; const h = upgradeHtml(meal, copy(items)); if(!h) return null;',
+    '    const m = h.match(/Low on protein\\. Add (.*): \\+(\\S+) g protein, (\\S+) kcal\\..*data-v="([^"]*)" data-q="([^"]*)"/); if(!m) throw new Error("upgradeHtml reshaped: " + h);',
+    '    return { label:m[1], protein:m[2], kcal:m[3], name:m[4], qty:+m[5] }; },',
     '  nextMealInfo(st){ HOUR = st.hour; TODAY_ = st.today; KT = st.kcalTarget; S.date = st.date; S.day = { meals: copy(st.meals) }; S.settings = copy(st.settings); return nextMealInfo(); },',
     '};',
   ].join('\n');
