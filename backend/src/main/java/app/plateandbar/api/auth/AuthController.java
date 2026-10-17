@@ -50,9 +50,9 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<TokenPair> refresh(
-            @RequestBody JsonNode body, HttpServletRequest http, HttpServletResponse response) {
+            @RequestBody TokenBody wrapped, HttpServletRequest http, HttpServletResponse response) {
         boolean cookie = CookieMode.requested(http);
-        String presented = bodyChecked(body, cookie);
+        String presented = bodyChecked(wrapped == null ? null : wrapped.tree(), cookie);
         try {
             if (cookie) {
                 // No cookie is the same refusal as an unknown token, and clears it like every refresh 401.
@@ -69,9 +69,9 @@ public class AuthController {
 
     /** Ends the session of the presented token. Always 204, so a retry is safe; clears the cookie in cookie mode. */
     @PostMapping("/refresh/revoke")
-    public ResponseEntity<Void> revoke(@RequestBody JsonNode body, HttpServletRequest http) {
+    public ResponseEntity<Void> revoke(@RequestBody TokenBody wrapped, HttpServletRequest http) {
         boolean cookie = CookieMode.requested(http);
-        String presented = bodyChecked(body, cookie);
+        String presented = bodyChecked(wrapped == null ? null : wrapped.tree(), cookie);
         if (cookie) {
             presented = CookieMode.token(http).orElse(null);
         }

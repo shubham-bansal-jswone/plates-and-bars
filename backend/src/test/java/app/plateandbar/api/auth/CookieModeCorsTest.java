@@ -154,6 +154,7 @@ class CookieModeCorsTest {
         assertThatThrownBy(() -> new CookieModeProperties(List.of("*"))).isInstanceOf(IllegalStateException.class);
         assertThat(new CookieModeProperties(List.of(" ", " https://a.example "))).extracting(CookieModeProperties::cookieOrigins)
                 .isEqualTo(List.of("https://a.example"));
+        assertThatThrownBy(() -> new CookieModeProperties(List.of("https://a.example", "null"))).isInstanceOf(IllegalStateException.class);
         assertThat(new CookieModeProperties(null).cookieOrigins()).isEmpty();
     }
 }
