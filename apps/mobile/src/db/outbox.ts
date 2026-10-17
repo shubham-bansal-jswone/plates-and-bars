@@ -36,10 +36,15 @@ export interface OutboxEntry {
 export async function pendingChanges(db: WorkoutDb, limit = 500): Promise<OutboxEntry[]> {
   // Entries the server refused and the engine set aside (see sync/quarantine.ts) are not sent again until retried or edited.
   // Entries held while the account is full (see sync/held.ts) wait for the engine's own retry.
-  return db.getAllAsync<OutboxEntry>(
-    "SELECT o.seq, o.tbl, o.key, o.queued_at FROM sync_outbox o WHERE NOT EXISTS (SELECT 1 FROM settings s WHERE s.key = 'sync.quarantine.' || o.seq || '.' || o.tbl || '.' || o.key) AND NOT EXISTS (SELECT 1 FROM settings h WHERE h.key = 'sync.held.' || o.seq || '.' || o.tbl || '.' || o.key) ORDER BY o.seq LIMIT ?",
-    limit,
-  );
+  return db.getAllAsync<OutboxEntry>(`SELECT o.seq, o.tbl, o.key, o.queued_at FROM sync_outbox o WHERE ${NOT_SET_ASIDE} ORDER BY o.seq LIMIT ?`, limit);
+}
+
+const NOT_SET_ASIDE = "NOT EXISTS (SELECT 1 FROM settings s WHERE s.key = 'sync.quarantine.' || o.seq || '.' || o.tbl || '.' || o.key) AND NOT EXISTS (SELECT 1 FROM settings h WHERE h.key = 'sync.held.' || o.seq || '.' || o.tbl || '.' || o.key)";
+
+/** True when a record of `tbl` is waiting to be pushed (`key`: that record; set-aside entries do not count). */
+export async function hasPending(db: StoreDb, tbl: SyncTableName, key?: string): Promise<boolean> {
+  const row = await db.getFirstAsync(`SELECT 1 AS x FROM sync_outbox o WHERE o.tbl = ?${key === undefined ? '' : ' AND o.key = ?'} AND ${NOT_SET_ASIDE} LIMIT 1`, ...(key === undefined ? [tbl] : [tbl, key]));
+  return row !== null;
 }
 
 /** How many local changes are not pushed yet (what #31 shows before sign-out). */

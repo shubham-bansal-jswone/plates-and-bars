@@ -154,7 +154,7 @@ describe('Targets: Water sizes and My foods', () => {
     let settled = false;
     const written = pendingWrites().then(() => (settled = true));
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
+      await new Promise<void>((r) => setImmediate(r));
     });
     expect(settled).toBe(false);
     release();
