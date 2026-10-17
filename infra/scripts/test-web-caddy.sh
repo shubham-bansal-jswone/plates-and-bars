@@ -8,7 +8,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 image="caddy:2.11.7" # keep in step with infra/staging/docker-compose.yml
 tmp="$(mktemp -d)"
 cid=""
-cleanup() { [ -z "$cid" ] || docker rm -f "$cid" > /dev/null 2>&1 || true; rm -rf "$tmp"; }
+ecid=""
+cleanup() { [ -z "$cid" ] || docker rm -f "$cid" > /dev/null 2>&1 || true; [ -z "$ecid" ] || docker rm -f "$ecid" > /dev/null 2>&1 || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 fail() { echo "FAIL: $*"; exit 1; }
 
@@ -79,4 +80,29 @@ for secret in sekrit 203.0.113 'Bearer' 'refresh='; do
   case "$line" in *"$secret"*) fail "access log leaks '$secret': $line" ;; esac
 done
 printf '%s' "$line" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "access log: remote_ip not masked: $line"
+# Error log (#714): the stack file, with the API upstream down, answers a probe with 502 or 503; Caddy's own error line for it
+# (stderr) must not hold the raw IP, the query string, or the User-Agent and X-Forwarded-For headers
+ecid="$(docker run -d -p 127.0.0.1::8082 -e 'API_HOST=http://:8082' -e 'WEB_HOST=http://:8081' -e API_UPSTREAM=127.0.0.1:9 \
+  -v "$here/../caddy:/etc/caddy/sites:ro" -v "$tmp/web:/srv/web:ro" "$image" caddy run --config /etc/caddy/sites/Caddyfile.stack --adapter caddyfile)"
+eport="$(docker port "$ecid" 8082/tcp | head -n 1 | sed 's/.*://')"
+for _ in $(seq 1 30); do
+  curl -s -o /dev/null "http://127.0.0.1:$eport/nothing" && break
+  sleep 1
+done
+printf 'User-Agent: sekrit-agent\nX-Forwarded-For: 203.0.113.77\n' > "$tmp/err-headers"
+estatus="$(curl -s -o /dev/null -w '%{http_code}' -H "@$tmp/err-headers" "http://127.0.0.1:$eport/api/v1/probe-err?email=sekrit%40example.com")"
+case "$estatus" in 502|503) ;; *) fail "error probe: status $estatus, expected 502 or 503 (upstream down)" ;; esac
+eline=""
+for _ in $(seq 1 10); do
+  eline="$(docker logs "$ecid" 2>&1 | grep '"level":"error"' | grep probe-err | head -n 1 || true)"
+  [ -z "$eline" ] || break
+  sleep 1
+done
+[ -n "$eline" ] || fail "error log: no error line for /api/v1/probe-err in docker logs"
+case "$eline" in *'"uri":"/api/v1/probe-err"'*) ;; *) fail "error log: uri is not the bare path: $eline" ;; esac
+for secret in sekrit 203.0.113 sekrit-agent; do
+  case "$eline" in *"$secret"*) fail "error log leaks '$secret': $eline" ;; esac
+done
+printf '%s' "$eline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "error log: remote_ip not masked: $eline"
+echo "Caddyfile.stack error log tests passed"
 echo "Caddyfile.web serving tests passed"
