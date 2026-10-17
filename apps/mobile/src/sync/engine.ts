@@ -611,8 +611,11 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         const requeue = async (txn: WorkoutDb) => {
           if (!merged) return;
           await saveWorkout(txn, merged);
-          // The merged day is the stored copy plus what this device added: the stored copy is the base for a second race (it is taken when the day is next sent).
-          await setBase(txn, s.entry.key, normalizeTimestamps(server) as Workout);
+          // Only on `server_won` is the stored copy the other device's day, so the merged day differs from it by this device's own edits alone:
+          // it is the base for a second race (it is taken when the day is next sent). On `client_won` the stored copy is this device's own push and
+          // the merged day differs from it by the other device's older `replaced_record`; as a base that would read the older copy as this device's
+          // edit and overwrite the other device's later one. So no base is kept there: a second race falls back to whole-record.
+          if (c.resolution === 'server_won') await setBase(txn, s.entry.key, normalizeTimestamps(server) as Workout);
         };
         if (same) {
           // The server's copy is this push as stored (an idempotent retry, or `client_won`): adopt the stored version and time, nothing else changes.

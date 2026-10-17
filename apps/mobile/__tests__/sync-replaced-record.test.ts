@@ -281,6 +281,23 @@ describe('server_won after the pre-pull (#792)', () => {
     expect(await getKv(a.db, `sync.base.workouts.${DATE}`)).toBeNull();
   });
 
+  it('client_won base: a later explicit edit on the other device is not overwritten by the replaced copy', async () => {
+    const { server, a, b, id } = await devices();
+    await a.sync();
+    await b.sync();
+    server.seed('workouts', { ...cardioDay(30, '2026-10-08T10:00:00Z'), id, version: 1 }); // B's day; A never pulled it
+    await saveWorkout(a.db, sessionDay('2026-10-08T11:00:00.000Z'));
+    await saveSet(a.db, DATE, benchSet('2026-10-08T11:00:00.000Z'));
+    await a.sync(); // client_won; merged with the replaced copy (cardio 30), queued at v2
+    expect((await load(a.db)).cardio_min).toBe(30);
+    await b.sync(); // B pulls v2: no minutes
+    await saveWorkout(b.db, { ...(await load(b.db)), cardio_min: 45, updated_at: '2026-10-08T12:00:00.000Z' });
+    await b.sync(); // v3
+    await a.sync(); // server_won against v3
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ cardio_min: 45 });
+  });
+
   it('a second race on the merged day is merged too: the stored copy is its base', async () => {
     const { server, a, id, beforePush } = await racing(cardioDay(30, '2026-10-08T10:00:00.000Z'), sessionDay('2026-10-08T10:30:00.000Z'), { cardio_min: 40, updated_at: '2026-10-08T12:00:00Z' });
     await a.sync(); // pre-pull merge (v1); the push ends server_won against v2; the merged day is queued at v2
