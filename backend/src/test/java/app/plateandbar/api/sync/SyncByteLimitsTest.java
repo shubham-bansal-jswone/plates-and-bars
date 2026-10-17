@@ -94,6 +94,17 @@ class SyncByteLimitsTest {
         assertThat(refusal(body("water_sizes", "{}"))).extracting(ErrorResponse.Detail::issue).doesNotContain("max_json_bytes");
     }
 
+    /** If the measuring parse fails, the request is refused: it must never fail open and let a big value through. */
+    @Test
+    void aMeasuringParseFailureRefusesTheRequest() throws Exception {
+        String raw = body("learn", "{}");
+        JsonNode parsed = JSON.readTree(raw);
+        ApiException e = catchThrowableOfType(ApiException.class,
+                () -> VALIDATOR.validate(USER, parsed, "{\"changes\":".getBytes(StandardCharsets.UTF_8)));
+        assertThat(e).isNotNull();
+        assertThat(e.details()).containsExactly(new ErrorResponse.Detail("", "invalid_json"));
+    }
+
     /** The library logs a warning once per JVM for a keyword it does not know; registering it stops that. */
     @Test
     void theByteKeywordIsKnownToTheSchemaLibrary() {

@@ -63,7 +63,17 @@ public class SyncRequestValidator {
     static final Dialect REQUEST_DIALECT =
             Dialect.builder(Dialects.getDraft202012()).keyword(new NonValidationKeyword(MAX_JSON_BYTES)).build();
 
+    private final ObjectMapper reader;
+
+    /** For tests: a mapper with Jackson's default limits. */
     public SyncRequestValidator() {
+        this(new ObjectMapper());
+    }
+
+    /** {@code reader} is the request mapper, so the byte measuring parses with the same limits as the request. */
+    @org.springframework.beans.factory.annotation.Autowired
+    public SyncRequestValidator(ObjectMapper reader) {
+        this.reader = reader;
         JsonNode components;
         try (InputStream in = SyncRequestValidator.class.getResourceAsStream("/openapi.yaml")) {
             components = new YAMLMapper().readTree(in).path("components");
@@ -109,8 +119,13 @@ public class SyncRequestValidator {
         }
 
         // Measured on the raw bytes (number text as sent), and only once the shape is known to be valid.
-        for (String path : CompactJsonSizes.overLimit(raw, byteLimits)) {
-            problems.add(new ErrorResponse.Detail(path, "max_json_bytes"));
+        try {
+            for (String path : CompactJsonSizes.overLimit(reader, raw, byteLimits)) {
+                problems.add(new ErrorResponse.Detail(path, "max_json_bytes"));
+            }
+        } catch (RuntimeException e) {
+            // Fail closed. The message may quote the body, so it is dropped.
+            throw invalid(List.of(new ErrorResponse.Detail("", "invalid_json")));
         }
         if (!problems.isEmpty()) {
             throw invalid(problems);
