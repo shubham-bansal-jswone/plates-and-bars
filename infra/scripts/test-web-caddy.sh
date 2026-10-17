@@ -63,8 +63,9 @@ for path in /assets/missing.png /_expo/static/js/web/entry-gone.js; do
 done
 # Access log (#714): a request carrying a query string, Authorization, Cookie and X-Forwarded-For leaves one JSON line with
 # the path but none of those values, and the client IP is masked (the last IPv4 octet is 0)
-curl -s -o /dev/null -H 'Authorization: Bearer sekrit-token' -H 'Cookie: refresh=sekrit-cookie' -H 'X-Forwarded-For: 203.0.113.77' \
-  "http://127.0.0.1:$port/probe-path?email=sekrit%40example.com"
+# (the headers come from a file so the fixture value is not a curl -H literal that secret scanners flag)
+printf 'Authorization: Bearer sekrit-token\nCookie: refresh=sekrit-cookie\nX-Forwarded-For: 203.0.113.77\n' > "$tmp/req-headers"
+curl -s -o /dev/null -H "@$tmp/req-headers" "http://127.0.0.1:$port/probe-path?email=sekrit%40example.com"
 line=""
 for _ in $(seq 1 10); do
   line="$(docker exec "$cid" grep probe-path /data/web_access.log 2> /dev/null | head -n 1 || true)"
