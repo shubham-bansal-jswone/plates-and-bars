@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
 import { DATA_COPY } from '../account/copy';
 import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
+import { LicencesScreen } from './LicencesScreen';
+import { LICENCES_COPY as lc, REPO_FILES } from './licences';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ABOUT_COPY as t, BODY_MAP_LICENCE, BODY_MAP_SOURCE, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
@@ -24,6 +27,9 @@ function Source({ s }: { s: SourceInfo }) {
 
 /** Attribution: every data source and its licence (ADR 002 and 005). Text only; works offline. */
 export function AboutScreen({ onBack }: { onBack: () => void }) {
+  const c = useTheme();
+  const [showLicences, setShowLicences] = useState(false);
+  if (showLicences) return <LicencesScreen onBack={() => setShowLicences(false)} />;
   return (
     <Page>
       <Button label="Back" kind="link" onPress={onBack} />
@@ -40,6 +46,17 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Label>{t.bodyMap}</Label>
       <Source s={BODY_MAP_SOURCE} />
       <Hint>{BODY_MAP_LICENCE}</Hint>
+      <Label>{lc.section}</Label>
+      <Hint>{lc.summary}</Hint>
+      <Button label={lc.open} kind="ghost" onPress={() => setShowLicences(true)} />
+      <Label>{lc.repoDocs}</Label>
+      <View style={{ gap: 4 }}>
+        {REPO_FILES.map((f) => (
+          <Press key={f.url} accessibilityRole="link" accessibilityLabel={`Open ${f.label}`} onPress={() => void Linking.openURL(f.url)} style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Text style={[type.caption, { color: c.link }]}>{f.label}</Text>
+          </Press>
+        ))}
+      </View>
     </Page>
   );
 }
