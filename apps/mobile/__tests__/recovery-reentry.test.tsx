@@ -139,8 +139,9 @@ describe('recovery week on the start screen', () => {
     const db = await open({ declines: { deload: 3 } }, ['Pec Deck Fly', 'Cable Lateral Raise', 'Machine Shoulder Press', 'Machine Chest Press']);
     expect(await screen.findByText(/^Pec Deck Fly, Cable Lateral Raise, Machine Shoulder Press and 1 more haven’t moved in 3 sessions\./)).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Stop suggesting this, recovery week'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { deload: true } }));
+    // The toast is set on the press and clears after 2.2 s, so look for it before the write wait: that wait can outlast it under load.
     expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
+    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { deload: true } }));
     expect(screen.queryByText('Several lifts have stalled')).toBeNull();
   });
 
@@ -250,8 +251,9 @@ describe('welcome back card after a break', () => {
   it('after 3 declines it offers to stop suggesting this, which mutes the type', async () => {
     const db = await open({ declines: { break: 3 } }, [], ['2026-09-24']);
     fireEvent.press(await screen.findByLabelText('Stop suggesting this, re-entry'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { break: true } }));
+    // The toast is set on the press and clears after 2.2 s, so look for it before the write wait: that wait can outlast it under load.
     expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
+    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { break: true } }));
     expect(screen.queryByText(/^Welcome back\./)).toBeNull();
   });
 
@@ -277,8 +279,9 @@ describe('steady weeks card', () => {
   it('after 3 declines, Stop suggesting this mutes it and toasts', async () => {
     const db = await open({ declines: { 'deload-plan': 3 } }, [], steadyWeeks(6));
     fireEvent.press(await screen.findByLabelText('Stop suggesting this, lighter week'));
-    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { 'deload-plan': true } }));
+    // The toast is set on the press and clears after 2.2 s, so look for it before the write wait: that wait can outlast it under load.
     expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
+    await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { 'deload-plan': true } }));
     expect(screen.queryByText('6 steady weeks of training')).toBeNull();
   });
 
