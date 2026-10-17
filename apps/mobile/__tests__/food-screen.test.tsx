@@ -658,6 +658,55 @@ describe('Estimated burn today so far', () => {
   });
 });
 
+describe('Meal prep on Food', () => {
+  const batch = (over: Record<string, unknown> = {}) => ({ id: 'b1', name: 'Dal (home-style)', meal: 'Lunch' as const, left: 3, until: '2026-10-14', food: { kcal: 161, protein_g: 7.8, carbs_g: 23.3, fat_g: 4.6 }, ...over });
+  async function withPrep(prep: ReturnType<typeof batch>[]) {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), prep });
+    await setup({ db });
+    return db;
+  }
+  const settingsPrep = async (db: Db) => (await loadSettings(db))!.prep;
+
+  it('shows the batch under its meal with the prototype copy and a labelled Log 1 katori', async () => {
+    await withPrep([batch()]);
+    expect(await screen.findByText('Meal prep: Dal (home-style), 3 portions left')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Log 1 katori of Dal (home-style) to lunch' })).toBeTruthy();
+  });
+
+  it('Log 1 katori logs one portion under that meal and takes one off the batch, saved at once', async () => {
+    const db = await withPrep([batch()]);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Log 1 katori of Dal (home-style) to lunch' }));
+    await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(1));
+    expect(docs(db, 'food_logs')[0]).toMatchObject({ meal: 'Lunch', name: 'Dal (home-style)', qty: 1, kcal: 161, protein_g: 7.8, carbs_g: 23.3, fat_g: 4.6, date: DATE, deleted_at: null });
+    expect(screen.getByText('Meal prep: Dal (home-style), 2 portions left')).toBeTruthy();
+    expect(screen.getByText('Logged Dal (home-style)')).toBeTruthy();
+    await waitFor(async () => expect(((await settingsPrep(db))[0] as { left: number }).left).toBe(2));
+  });
+
+  it('says "1 portion left" and the line goes when the last one is logged; a second tap logs nothing more', async () => {
+    const db = await withPrep([batch({ left: 2 })]);
+    const press = () => fireEvent.press(screen.getByRole('button', { name: 'Log 1 katori of Dal (home-style) to lunch' }));
+    await press();
+    expect(await screen.findByText('Meal prep: Dal (home-style), 1 portion left')).toBeTruthy();
+    await press();
+    await waitFor(() => expect(screen.queryByText(/^Meal prep:/)).toBeNull());
+    expect(screen.queryByRole('button', { name: /^Log 1 katori/ })).toBeNull();
+    await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(2));
+    await waitFor(async () => expect(((await settingsPrep(db))[0] as { left: number }).left).toBe(0));
+  });
+
+  it('leaves out other meals, used-up batches and expired ones (the last day still shows)', async () => {
+    await withPrep([batch({ id: 'a', name: 'Dinner dish', meal: 'Dinner' }), batch({ id: 'b', name: 'Empty', left: 0 }), batch({ id: 'c', name: 'Expired', until: '2026-10-07' }), batch({ id: 'd', name: 'Last day', until: '2026-10-08' })]);
+    expect(await screen.findByText('Meal prep: Dinner dish, 3 portions left')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Log 1 katori of Dinner dish to dinner' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Log 1 katori of Last day to lunch' })).toBeTruthy();
+    expect(screen.queryByText(/Empty/)).toBeNull();
+    expect(screen.queryByText(/Expired/)).toBeNull();
+  });
+});
+
 describe('Weekly check-in banner', () => {
   const SUNDAY = () => new Date(2026, 9, 18, 10, 0, 0);
   const MONDAY = () => new Date(2026, 9, 19, 10, 0, 0);
