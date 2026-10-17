@@ -9,6 +9,7 @@ import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, 
 import { withTimeout, REFRESH_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { signInUnavailable, takeAttempt, trackCookieCall } from './cookieHealth';
 import { authInit, cookieMode, refreshBody } from './transport';
 import { markSignOutPending, postRevoke, signOutPending, withTabLock } from './webSession';
 import { deleteKitchenPhoto } from '../photos/vault';
@@ -24,6 +25,8 @@ export type SyncStatus =
   | 'offline'
   /** 503 or a server error: try later; never signs out. */
   | 'unavailable'
+  /** Web only (ADR 006): sign-in and session refresh cannot work from this site (cookie-mode calls fail while the API answers). No automatic retry; a reload tries again. */
+  | 'sign_in_unavailable'
   /** 429: wait `retryAfterSec`. */
   | 'rate_limited'
   /** The server refused the request (400 or another 4xx); retrying the same request will not help. */
@@ -135,7 +138,7 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
     if (data) return { ok: true, data };
     if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
     if (response.status !== 401) return failFrom(response, error);
-    if (attempt === 1 || !(await refresh(d, owner))) return fail('signed_out');
+    if (attempt === 1 || !(await refreshForRun(d, owner))) return fail('signed_out');
     // The rotated pair is saved even when paused, but a paused run must not go on to push: the user may have chosen to discard.
     await guard(d.db);
   }
@@ -177,6 +180,16 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
   const promise: Promise<boolean> = (cookieMode() ? withTabLock(async () => (signOutPending() ? false : rotate(d, owner, '', signal))) : rotate(d, owner, t?.refresh ?? '', signal)).catch((e: unknown) => Promise.reject(markViaRefresh(e))).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
   refreshing.set(key, promise);
   return promise;
+}
+
+/**
+ * `refresh` for a sync run. While sign-in is known to be unavailable from this site (#744) it sends nothing: the run ends
+ * `sign_in_unavailable` instead of trying a call that cannot work, so no retry loop runs behind the message. One attempt is let
+ * through when something asked for it (`allowOneAttempt`).
+ */
+async function refreshForRun(d: SyncDeps, owner: string | null): Promise<boolean> {
+  if (cookieMode() && signInUnavailable() && !takeAttempt()) throw new TransientError(fail('sign_in_unavailable'));
+  return refresh(d, owner);
 }
 
 /** Tags a failure of the refresh request so the run's result can say so (`SyncResult.viaRefresh`). */
@@ -222,7 +235,7 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
   try {
     // Its own timeout, started here: inside the cross-tab lock, so the lock is held until this request settles or the timeout
     // fires (never longer), and a refresh made from a sync run is bounded too (#762).
-    const timed = await withTimeout(d.refreshTimeoutMs ?? REFRESH_TIMEOUT_MS, (own) => net(() => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal: either(signal, own), ...authInit() })));
+    const timed = await withTimeout(d.refreshTimeoutMs ?? REFRESH_TIMEOUT_MS, (own) => net(() => trackCookieCall(d.api, () => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal: either(signal, own), ...authInit() }))));
     if (timed.timedOut) throw new TransientError(fail('unavailable'));
     result = timed.value;
   } catch (e) {
@@ -383,7 +396,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   const heldDue = () => full && !heldDone && !pushBlocked && (!heldTried || heldTried.user !== userId || now() - heldTried.at >= DAY_MS);
   try {
     // Web after a reload (or a refresh that could not finish): no access token in memory, so restore it from the cookie first.
-    if (cookieMode() && !(await d.tokens.load()) && !(await refresh(d, userId))) return { status: 'signed_out', conflicts: 0 };
+    if (cookieMode() && !(await d.tokens.load()) && !(await refreshForRun(d, userId))) return { status: 'signed_out', conflicts: 0 };
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const entries = pushBlocked ? [] : phase === 'held' ? (heldPlan.shift() ?? (await heldEntries(d.db, HELD_BATCH, sessionStamp))) : await pendingChanges(d.db, MAX_PUSH);
       if (phase === 'held' && entries.length === 0) {
