@@ -80,9 +80,9 @@ export const FDC_REFERENCE = {
   "Ghee": "FDC 171314 (SR Legacy: Butter, Clarified butter (ghee)), per 100 g x 4.9 g (1 tsp)",
   "Sweet potato, boiled": "FDC 168484 (SR Legacy: Sweet potato, cooked, boiled, without skin), per 100 g x 150 g",
   "Peanuts, roasted": "FDC 172430 (SR Legacy: Peanuts, all types, raw), per 100 g x 30 g; values are for raw peanuts",
-  "Beer": "FDC 168746 (SR Legacy: Alcoholic beverage, beer, regular, all), per 100 g x 356 g (1 can, 12 fl oz) gives 153 kcal, 1.6 g protein, 12.6 g carbs, rounded; kcal include the alcohol; a 330 ml can (about 331 g) is about 7 % less",
-  "Whisky, rum or vodka": "FDC 171919 (SR Legacy: Alcoholic beverage, distilled, all (gin, rum, vodka, whiskey) 86 proof), per 100 g x 28 g (30 ml; 1 fl oz is 27.8 g); kcal are the alcohol; a 40 % spirit (FDC 174815, 80 proof) gives 65 kcal",
-  "Wine": "FDC 173190 (SR Legacy: Alcoholic beverage, wine, table, red), per 100 g x 147 g (1 serving, 5 fl oz) gives 125 kcal, 0.1 g protein, 3.8 g carbs; kcal include the alcohol",
+  "Beer": "FDC 168746 (SR Legacy: Alcoholic beverage, beer, regular, all), per 100 g x 356 g (12 fl oz can), rounded; kcal include alcohol; a 330 ml can (331 g) is about 7 % less",
+  "Whisky, rum or vodka": "FDC 171919 (SR Legacy: Alcoholic beverage, distilled, all (gin, rum, vodka, whiskey) 86 proof), per 100 g x 28 g (30 ml); kcal are alcohol; 80 proof (FDC 174815) gives 65",
+  "Wine": "FDC 173190 (SR Legacy: Alcoholic beverage, wine, table, red), per 100 g x 147 g (5 fl oz), rounded; kcal include alcohol",
 };
 
 export const SOURCE_OF = {};

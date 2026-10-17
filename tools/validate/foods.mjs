@@ -5,6 +5,8 @@ import { nonEmpty } from './text.mjs';
 
 // Keep in sync with FoodSource.code in packages/api/openapi.yaml.
 export const SOURCE_CODES = ['usda_fdc', 'fssai', 'own_recipe', 'own_estimate', 'kitchen_test', 'label_typical'];
+// Keep in sync with isFoodSource in apps/mobile/src/content/reader.ts.
+export const REFERENCE_MAX = 200;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FOOD_KEYS = ['id', 'name', 'name_hi', 'aliases', 'serving', 'per_serving', 'fruit_veg_servings', 'source', 'updated_at'];
 const NUTRIENTS = ['kcal', 'protein_g', 'carbs_g', 'fibre_g', 'added_sugar_g', 'fat_g'];
@@ -62,6 +64,8 @@ function checkFood(f, errors, opts = {}) {
     if (!nonEmpty(src.name)) err('source.name missing');
     if (!nonEmpty(src.licence)) err('source.licence missing');
     for (const k of ['url', 'reference']) if (!(k in src) || (src[k] !== null && !nonEmpty(src[k]))) err(`source.${k} must be a string or null`);
+    // The app's isFoodSource rejects a longer reference, and with it the whole stored copy.
+    if (typeof src.reference === 'string' && src.reference.length > REFERENCE_MAX) err(`source.reference is longer than ${REFERENCE_MAX} characters`);
   }
 }
 
