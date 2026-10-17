@@ -9,7 +9,7 @@ export const CONSENT = {
   intro:
     'Plate & Bar tracks food, training, body measurements and, if you choose, photos, cycle data and lab results. That’s health data, so here’s how it’s handled:',
   bullets: [
-    'Your data stays on this device. If you sign in and agree to sync, it is also stored on our own server so it syncs between your devices.',
+    'Your data stays on this device. If you sign in, it is also stored on our own server so it syncs between your devices.',
     'Progress photos, cycle logs and lab reports stay only on this device.',
     'AI features are off by default and need their own opt-in. No photos are sent anywhere.',
     'You can download or delete everything at any time on the Targets tab.',
