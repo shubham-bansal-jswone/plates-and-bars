@@ -92,17 +92,20 @@ done
 printf 'User-Agent: sekrit-agent\nX-Forwarded-For: 203.0.113.77\n' > "$tmp/err-headers"
 estatus="$(curl -s -o /dev/null -w '%{http_code}' -H "@$tmp/err-headers" "http://127.0.0.1:$eport/api/v1/probe-err?email=sekrit%40example.com")"
 case "$estatus" in 502|503) ;; *) fail "error probe: status $estatus, expected 502 or 503 (upstream down)" ;; esac
-eline=""
+elines=""
 for _ in $(seq 1 10); do
-  eline="$(docker logs "$ecid" 2>&1 | grep '"level":"error"' | grep probe-err | head -n 1 || true)"
-  [ -z "$eline" ] || break
+  elines="$(docker logs "$ecid" 2>&1 | grep '"level":"error"' | grep probe-err || true)"
+  [ -z "$elines" ] || break
   sleep 1
 done
-[ -n "$eline" ] || fail "error log: no error line for /api/v1/probe-err in docker logs"
-case "$eline" in *'"uri":"/api/v1/probe-err"'*) ;; *) fail "error log: uri is not the bare path: $eline" ;; esac
-for secret in sekrit 203.0.113 sekrit-agent; do
-  case "$eline" in *"$secret"*) fail "error log leaks '$secret': $eline" ;; esac
-done
-printf '%s' "$eline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "error log: remote_ip not masked: $eline"
+[ -n "$elines" ] || fail "error log: no error line for /api/v1/probe-err in docker logs"
+# every matching line is checked, not only the first
+while IFS= read -r eline; do
+  case "$eline" in *'"uri":"/api/v1/probe-err"'*) ;; *) fail "error log: uri is not the bare path: $eline" ;; esac
+  for secret in sekrit 203.0.113 sekrit-agent; do
+    case "$eline" in *"$secret"*) fail "error log leaks '$secret': $eline" ;; esac
+  done
+  printf '%s' "$eline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "error log: remote_ip not masked: $eline"
+done <<< "$elines"
 echo "Caddyfile.stack error log tests passed"
 echo "Caddyfile.web serving tests passed"

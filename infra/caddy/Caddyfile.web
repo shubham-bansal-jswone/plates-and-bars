@@ -17,6 +17,8 @@
 	root * /srv/web
 	encode zstd gzip
 
+	# Standalone use (this file loaded alone, not through Caddyfile.stack): also copy the global `log errors` block from
+	# Caddyfile.stack to the top of this file, or Caddy's error lines (which carry the request) are written unfiltered.
 	# Access log (#714), JSON, one file per host under /data (the caddy_data volume in the Compose stack). Privacy: the
 	# client IP is masked to /24 (IPv4) or /48 (IPv6) in remote_ip and client_ip; the query string is cut
 	# from the URI; every request header (Authorization, Cookie, X-Forwarded-For, User-Agent ...) and every response
