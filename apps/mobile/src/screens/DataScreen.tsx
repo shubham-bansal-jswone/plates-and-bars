@@ -6,6 +6,7 @@ import { DATA_COPY as t } from '../account/copy';
 import { clearOldExports, saveTextFile, type SaveResult } from '../account/saveFile';
 import type { DeleteResult, ServerExportResult } from '../account/server';
 import { Button, ErrorText, H1, Hint, Note, Page } from '../components/ui';
+import { LegalLinks } from '../legal/LegalLinks';
 import type { WorkoutDb } from '../db/workouts';
 import { useSync } from '../sync/SyncProvider';
 
@@ -153,6 +154,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
             setStep('confirm');
           }}
         />
+        <LegalLinks />
         <Button kind="link" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as never))} />
       </View>
     </Page>
