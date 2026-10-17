@@ -57,7 +57,7 @@ describe('precache and fetch', () => {
 
   it('caches the shell with the response headers, then serves it when the network is down', async () => {
     const { stores } = install(files);
-    await sw.precache(ORIGIN);
+    await sw.precache();
     const cache = stores.get(`pb-shell-${ENTRY}`)!;
     expect([...cache.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());
     expect((await cache.match('/'))!.headers.get('Cross-Origin-Embedder-Policy')).toBe('require-corp');
@@ -72,16 +72,16 @@ describe('precache and fetch', () => {
 
   it('a failed download leaves no cache, so the previous one stays in use', async () => {
     const { stores } = install({ '/': HTML, [ENTRY]: `y("${FONT}")` }); // the font is a 404
-    await expect(sw.precache(ORIGIN)).rejects.toThrow();
+    await expect(sw.precache()).rejects.toThrow();
     expect(stores.size).toBe(0);
   });
 
   it('a new deploy replaces the old cache once it is complete', async () => {
     const { stores } = install(files);
-    await sw.precache(ORIGIN);
+    await sw.precache();
     const ENTRY2 = '/_expo/static/js/web/entry-new999.js';
     install({ '/': HTML.replace(ENTRY, ENTRY2), [ENTRY2]: '' }, stores);
-    await sw.precache(ORIGIN);
+    await sw.precache();
     expect([...stores.keys()]).toEqual([`pb-shell-${ENTRY2}`]);
   });
 });

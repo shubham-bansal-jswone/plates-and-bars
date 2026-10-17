@@ -32,7 +32,14 @@ function versionOf(html) {
   return m ? PREFIX + m[0] : null;
 }
 
-async function precache(origin) {
+// One build at a time: the install and the first navigation both call precache, and a second one must not fight the first.
+let running = null;
+function precache() {
+  running = (running || Promise.resolve()).catch(() => {}).then(() => build());
+  return running;
+}
+
+async function build() {
   const res = await fetch('/', { cache: 'no-cache' });
   if (!res.ok) return;
   const html = await res.clone().text();
@@ -84,7 +91,7 @@ async function onFetch(request, origin, wait) {
     try {
       const res = await fetch(request);
       // A new deploy: build its cache in the background; this load already uses the fresh network copy.
-      wait(precache(origin).catch(() => {}));
+      wait(precache().catch(() => {}));
       return res;
     } catch {
       const c = await shellCache();
@@ -97,7 +104,7 @@ async function onFetch(request, origin, wait) {
 
 if (typeof importScripts === 'function' && typeof self.skipWaiting === 'function') {
   self.addEventListener('install', (e) => {
-    e.waitUntil(precache(self.location.origin).then(() => self.skipWaiting()));
+    e.waitUntil(precache().then(() => self.skipWaiting()));
   });
   self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
   self.addEventListener('fetch', (e) => {
