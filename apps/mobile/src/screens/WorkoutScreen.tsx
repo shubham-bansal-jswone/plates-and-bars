@@ -7,6 +7,7 @@ import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
+import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
@@ -123,6 +124,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
+  const { markCleared } = useProfile();
   const [ci, setCi] = useState<Checkin>({});
   const [choice, setChoice] = useState<Workout['ci_choice']>(null);
   // Today's "where" override (prototype whereNow): null keeps the profile's. Stored on the workout at Start.
@@ -155,6 +157,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
 
   return (
     <Page>
+      <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
       <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
