@@ -88,8 +88,17 @@ const frozenClock = () => jest.spyOn(Date, 'now').mockReturnValue(Date.now());
 
 // A test that waits on a slow write or read, or on a toast, runs on a fake clock: findBy*/waitFor timeouts and toast timers then
 // count test steps, not machine time, so they cannot expire while a loaded machine is busy. Microtasks and setImmediate stay real.
-const fakeClock = () => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
-afterEach(() => jest.useRealTimers());
+let fake = false;
+const fakeClock = () => {
+  fake = true;
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+};
+// Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
+afterEach(() => {
+  if (fake) jest.runOnlyPendingTimers();
+  fake = false;
+  jest.useRealTimers();
+});
 
 describe('Workout tab: preview and Start', () => {
   it('shows today’s planned session from core with a Start button', async () => {
@@ -831,6 +840,8 @@ describe('Workout tab: write ordering and guards', () => {
     await press('Mark Barbell Bench Press set 1 done');
     await press('Barbell Bench Press set 1: Easy');
     await flush();
+    // The gate really held the tick's save: nothing is stored yet.
+    expect(storedSets(db).find((s) => s.done && s.exercise === 'Barbell Bench Press')).toBeUndefined();
     await act(async () => release());
     await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').sets[0]?.rate).toBe('easy'));
     await waitFor(() => expect(storedSets(db).find((s) => s.done)?.rate).toBe('easy'));
@@ -850,6 +861,8 @@ describe('Workout tab: write ordering and guards', () => {
     await press('Mark Barbell Bench Press set 1 done');
     await press('Overhead Cable Extension form: Not really');
     await flush();
+    // The gate really held the tick's save: the Bench tick is not stored yet.
+    expect(storedSets(db).find((s) => s.done && s.exercise === 'Barbell Bench Press')).toBeUndefined();
     await act(async () => release());
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'));
     await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no'));

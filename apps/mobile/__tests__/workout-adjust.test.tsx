@@ -61,7 +61,11 @@ const ended = (o: Partial<ExclusionRecord> = {}): ExclusionRecord => ({
 // Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
 // fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
 beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
-afterEach(() => jest.useRealTimers());
+// Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
+afterEach(() => {
+  jest.runOnlyPendingTimers();
+  jest.useRealTimers();
+});
 
 describe('re-check card for a timed rule that ended', () => {
   it('shows on the start screen, and the exercise stays out until it is answered', async () => {

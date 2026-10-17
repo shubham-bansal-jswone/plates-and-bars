@@ -43,7 +43,8 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     },
     async runAsync(sql: string, ...p: (string | number)[]) {
       if (db.failWrites) throw new Error('disk full');
-      await db.hold?.(sql);
+      const held = db.hold?.(sql);
+      if (held) await held; // no extra microtask turn for the many tests that never set `hold`
       const lag = db.lag;
       if (lag) await new Promise((r) => setTimeout(r, lag(sql)));
       if (sql.startsWith('DELETE FROM settings WHERE key')) {
