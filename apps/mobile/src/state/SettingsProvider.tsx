@@ -33,6 +33,16 @@ interface SettingsState {
 const Ctx = createContext<SettingsState | null>(null);
 /** Thrown inside a save that found its provider gone or the store wiped since it was queued. */
 class Dropped extends Error {}
+/**
+ * True when a custom exercise `name` cannot be added to `have`. A name that is a known exercise in another letter case would be
+ * a near-duplicate (#450): the typed-name flow adds the known one. The contract keeps at most 500 custom exercises; replacing
+ * one already there is always fine.
+ */
+function customRefused(have: Settings['custom_tags'], name: string): boolean {
+  const known = exerciseNamed(name, have);
+  if (known !== undefined && known !== name) return true;
+  return !Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_EXERCISES_MAX;
+}
 const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /**
@@ -182,13 +192,10 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
 
   const addCustomTags = useCallback(
     (name: string, tags: ExerciseTag) => {
-      const have = ref.current.custom_tags;
-      // A name that is a known exercise in another letter case would be a near-duplicate (#450): refused, the typed-name flow adds the known one.
-      const known = exerciseNamed(name);
-      if (known !== undefined && known !== name) return false;
-      // The contract keeps at most 500 custom exercises; replacing one already there is always fine.
-      if (!Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_EXERCISES_MAX) return false;
-      return change((s) => ({ custom_tags: { ...s.custom_tags, [name]: tags } }));
+      // Refused at once against what is shown, and again inside the save against the record re-read there: a pull may have
+      // stored a name this copy does not have yet (#664), and the save is where the record is known.
+      if (customRefused(ref.current.custom_tags, name)) return false;
+      return change((s) => (customRefused(s.custom_tags, name) ? {} : { custom_tags: { ...s.custom_tags, [name]: tags } }));
     },
     [change],
   );

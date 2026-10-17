@@ -130,6 +130,23 @@ describe('settings store', () => {
       expect(ok).toBe(true); // the exact name is a replace, as before
       expect(Object.keys((await loadSettings(db))?.custom_tags ?? {})).toEqual(['Cossack Squat']);
     });
+
+    it('the case-insensitive guard and the 500 cap look at the stored record, not at what shows (#664)', async () => {
+      const db = memoryDb();
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      // Another device's names are stored (a pull) but this provider has not reloaded them yet.
+      await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), custom_tags: { 'Cossack Squat': tag } });
+      await act(async () => void result.current.addCustomTags('COSSACK SQUAT', tag));
+      await waitFor(() => expect(result.current.settings.custom_tags).toEqual({ 'Cossack Squat': tag })); // what shows is what is stored
+      expect(Object.keys((await loadSettings(db))!.custom_tags)).toEqual(['Cossack Squat']);
+      const full = Object.fromEntries(Array.from({ length: CUSTOM_EXERCISES_MAX }, (_, i) => [`E${i}`, tag]));
+      await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), custom_tags: full });
+      await act(async () => void result.current.addCustomTags('One too many', tag));
+      await waitFor(() => expect(result.current.settings.custom_tags['One too many']).toBeUndefined());
+      expect(Object.keys((await loadSettings(db))!.custom_tags)).toHaveLength(CUSTOM_EXERCISES_MAX);
+      expect((await loadSettings(db))!.custom_tags['One too many']).toBeUndefined();
+    });
   });
 });
 
