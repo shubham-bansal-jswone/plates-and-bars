@@ -227,6 +227,14 @@ export type {
  */
 export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, reentryCard, reentryRange, steadyCard, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
 export type { AdjRange, AdjState, RecoveryCard, ReentryCard, SteadyCard, StallCard, LiftUpdate } from './stalls';
+
+/**
+ * Answered adjustment cards (`adj.dismissed`), kept within the contract's size cap (#721). Not in the prototype, which never prunes.
+ * - `dismissKey` mirrors the `A.dismissed[key] = true` step of prototype `adjAction`, `exAction` and `checkinAction`, then prunes.
+ * - `pruneDismissed` drops keys dated over `DISMISSED_MAX_AGE_DAYS` (90) days ago (the newest of each group stays),
+ *   then keeps at most `DISMISSED_MAX_KEYS` (300) keys and `DISMISSED_MAX_BYTES` (32 KB).
+ */
+export { dismissKey, pruneDismissed, DISMISSED_MAX_AGE_DAYS, DISMISSED_MAX_KEYS, DISMISSED_MAX_BYTES } from './dismissed';
 export { addDays } from './dates';
 
 /**
@@ -611,3 +619,6 @@ export type { LearnCard, LearnState, DailyRead } from './learn';
  */
 export { addPrep, prepFor, logPrep, isPrepEntry, PREP_DAYS, PREP_MAX } from './prep';
 export type { PrepEntry, AddPrepInput } from './prep';
+
+/** `checkinBannerDue` mirrors prototype `checkinBanner()`: Food's "weekly check-in is ready" banner (Sunday or Monday, today, not yet seen this week). */
+export { checkinBannerDue } from './progress';

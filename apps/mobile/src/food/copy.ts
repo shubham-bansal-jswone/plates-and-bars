@@ -37,6 +37,10 @@ export const prepLine = (name: string, left: number): string => `Meal prep: ${na
 /** Toast after "Log 1 katori" (prototype: `Logged <name>`). */
 export const prepLogged = (name: string): string => `Logged ${name}`;
 
+/** Food's weekly check-in banner (prototype `checkinBanner`). */
+export const CHECKIN_READY = 'Your weekly check-in is ready.';
+export const CHECKIN_SEE = 'See it';
+
 /** The "Low on protein" line (prototype `upgradeHtml`); `label` is core's wording of what to add. */
 export const lowProtein = (label: string, protein_g: number, kcal: number): string => `Low on protein. Add ${label}: +${fmt(protein_g)} g protein, ${fmt(kcal)} kcal.`;
 /** Toast after the one-tap add (prototype: `Added <food>`). */
