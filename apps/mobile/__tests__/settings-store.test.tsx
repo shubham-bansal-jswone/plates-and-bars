@@ -131,6 +131,19 @@ describe('settings store', () => {
       expect(Object.keys((await loadSettings(db))?.custom_tags ?? {})).toEqual(['Cossack Squat']);
     });
 
+    it('addCustomTags replaces the exact stored name even when two case variants are stored (#734)', async () => {
+      const db = memoryDb();
+      await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), custom_tags: { 'Cossack Squat': tag, 'COSSACK SQUAT': tag } });
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      let ok = false;
+      await act(async () => void (ok = await result.current.addCustomTags('COSSACK SQUAT', { ...tag, primary: ['glutes'] })));
+      expect(ok).toBe(true);
+      await act(async () => void (ok = await result.current.addCustomTags('cossack squat', tag)));
+      expect(ok).toBe(false); // a third spelling is still a near-duplicate
+      expect((await loadSettings(db))?.custom_tags['COSSACK SQUAT']).toMatchObject({ primary: ['glutes'] });
+    });
+
     it('addCustomTags resolves true for an accepted name, also when the write then fails, and false when the save is dropped', async () => {
       const db = memoryDb();
       const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });

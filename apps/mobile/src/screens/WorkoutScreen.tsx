@@ -362,7 +362,11 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
             const name = tagging;
             setTagging(null);
             // Only after the save has decided: a name it refuses (a near-duplicate a pull stored meanwhile) must not reach the workout.
-            if (!(await addCustomTags(name, tags))) return notify('Couldn’t save that exercise. Try again.');
+            if (!(await addCustomTags(name, tags))) {
+              // The refused name is the one the app has by now (what showed is what is stored): say which exercise it matches.
+              const known = exerciseNamed(name);
+              return notify(known && known !== name ? `That name matches ${known}. Use that name instead.` : 'Couldn’t save that exercise. Try again.');
+            }
             notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
           }}
         />
