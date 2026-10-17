@@ -67,7 +67,10 @@ class SyncControllerTest {
     void strictJsonVectorsAreRefused(StrictJsonVectors.Vector v) throws Exception {
         send(USER, v.body())
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("invalid_request"));
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(jsonPath("$.details.length()").value(1))
+                .andExpect(jsonPath("$.details[0].field").value(""))
+                .andExpect(jsonPath("$.details[0].issue").value("type"));
         verifyNoInteractions(service);
     }
 
