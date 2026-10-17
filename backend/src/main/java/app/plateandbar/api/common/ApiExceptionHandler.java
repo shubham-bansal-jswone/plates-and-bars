@@ -97,7 +97,13 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    ResponseEntity<ErrorResponse> internal(Exception e) {
+    ResponseEntity<ErrorResponse> internal(Exception e, jakarta.servlet.http.HttpServletResponse response)
+            throws Exception {
+        if (response.isCommitted()) {
+            // The 200 and part of a streamed body are on the wire: an Error object appended to it would only end the
+            // transfer cleanly. Rethrow so the container aborts the connection (no final chunk).
+            throw e;
+        }
         if (e instanceof org.springframework.web.ErrorResponse spring) {
             // ResponseStatusException, HttpMediaTypeNotAcceptableException and friends keep their status.
             HttpStatus status = HttpStatus.resolve(spring.getStatusCode().value());
