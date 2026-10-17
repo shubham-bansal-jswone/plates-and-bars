@@ -35,13 +35,15 @@ jobs:
             grep -q "required variable $v" err.txt
           done
       - name: shellcheck
-        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh release.sh test-release.sh
+        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh release.sh test-release.sh restore-check.sh test-restore-check.sh
       - name: backup.sh against a stub docker
         run: ./test-backup.sh
       - name: deploy.sh against stubs (rollback on a failed health check)
         run: ./test-deploy.sh
       - name: release.sh against stubs (backup first, no deploy after a failed backup)
         run: ./test-release.sh
+      - name: restore-check.sh against a stub docker (stale dump, failed load, cleanup)
+        run: ./test-restore-check.sh
       - name: every image is pinned to a version
         run: |
           if docker compose --env-file .env.example config --images | grep -E ':latest$|^[^:]+$' | grep -v '^plateandbar-api:'; then
