@@ -5,12 +5,12 @@ import { cookieMode } from './transport';
 // Web only (ADR 006, #744). A browser on an origin the backend does not list for cookie mode fails the CORS preflight of the
 // cookie-mode calls (`/auth/refresh`, `/auth/refresh/revoke`, `/auth/email/verify`): `fetch` reports a network error, which
 // looks like being offline. The tell is that those calls keep failing at the network level while a plain call to the same API,
-// `GET /health` (no credentials, no custom header, an origin the web CSP's connect-src already allows), gets an answer. Then
+// `GET /health` (no credentials; it may carry `Authorization` when an access token is in memory; an origin the web CSP's connect-src already allows), gets an answer. Then
 // the site is misconfigured, and the app says so instead of "offline" and stops retrying on its own. Nothing here logs or
 // keeps a token, an address or a user value.
 //
 // What it detects: the API answers a plain cross-origin GET from this page (so CORS allows this origin) but not the credentialed
-// cookie-mode calls (the origin is not in the backend's cookie-mode origin list, or the preflight for `X-Auth-Transport` is
+// cookie-mode calls (the origin is not in the backend's cookie-mode origin list, so the preflight for `X-Auth-Transport` is
 // refused). What it does not: an origin missing from CORS altogether (`/health` fails too, so it reads as offline); an API that
 // is down; a cookie the browser stores but never sends (cross-site or http deployment: the calls get answers, and refresh says
 // 401 like a signed-out user); a proxy that drops only some requests.

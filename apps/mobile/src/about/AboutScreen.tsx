@@ -3,6 +3,7 @@ import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
 import { DATA_COPY } from '../account/copy';
 import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
+import { versionLine } from '../appVersion';
 import { LegalLinks } from '../legal/LegalLinks';
 import { LicencesScreen } from './LicencesScreen';
 import { LICENCES_COPY as lc, REPO_FILES } from './licences';
@@ -29,6 +30,7 @@ function Source({ s }: { s: SourceInfo }) {
 /** Attribution: every data source and its licence (ADR 002 and 005). Text only; works offline. */
 export function AboutScreen({ onBack }: { onBack: () => void }) {
   const c = useTheme();
+  const version = versionLine();
   const [showLicences, setShowLicences] = useState(false);
   if (showLicences) return <LicencesScreen onBack={() => setShowLicences(false)} />;
   return (
@@ -36,6 +38,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Button label="Back" kind="link" onPress={onBack} />
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
+      {version ? <Text style={{ color: c.ink }}>{version}</Text> : null}
       <Label>{t.privacy}</Label>
       <Hint>{DATA_COPY.withdraw}</Hint>
       <LegalLinks />

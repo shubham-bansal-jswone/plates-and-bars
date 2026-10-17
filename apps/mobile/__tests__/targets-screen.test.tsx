@@ -53,7 +53,27 @@ describe('TargetsScreen', () => {
     expect(screen.getByLabelText('Protein (g)').props.value).toBe(String(g.output.protein));
     expect(screen.getByLabelText('Carbs (g)').props.value).toBe(String(g.output.carbs));
     expect(screen.getByLabelText('Fat (g)').props.value).toBe(String(g.output.fat));
-    expect(screen.getByText('You burn about 2,493 kcal a day')).toBeTruthy();
+    // The burn is stated once, in Your setup, as on the prototype's Targets.
+    expect(screen.queryByText('You burn about 2,493 kcal a day')).toBeNull();
+    expect(screen.getAllByText(/^(You burn|Estimated burn)/)).toHaveLength(1);
+  });
+
+  it('Your setup summarises the answers in the prototype wording, with the burn from core', async () => {
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    expect(await screen.findByRole('header', { name: 'Your setup' })).toBeTruthy();
+    expect(screen.getByText('Male, 30, 5′5″, 82 kg. Mostly sitting; 6 sessions a week of about 60 min. Goal: lose fat.')).toBeTruthy();
+    expect(screen.getByText('Estimated burn: about 2,493 kcal a day.')).toBeTruthy();
+  });
+
+  it('Your setup says no regular training yet for a 0-day profile, and shows a half-kilo weight and a female profile', async () => {
+    const db = memoryDb();
+    const p = goldenProfile();
+    await saveProfile(db, { ...p, sex: 'female', days: 0, minutes: null, weight_kg: 61.5, activity: 'feet', goal: 'gain' });
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    expect(await screen.findByText('Female, 30, 5′5″, 61.5 kg. On my feet a lot; no regular training yet. Goal: build muscle.')).toBeTruthy();
+    expect(screen.getByText(/^Estimated burn: about [\d,]+ kcal a day\.$/)).toBeTruthy();
   });
 
   it('Why cards state the stored (edited) targets and the computed burn breakdown, and close', async () => {
