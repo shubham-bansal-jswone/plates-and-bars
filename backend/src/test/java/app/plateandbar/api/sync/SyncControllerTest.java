@@ -327,4 +327,23 @@ class SyncControllerTest {
         assertThat(parsed.getValue().cursor()).isEqualTo("c_000000000000a3f1");
         assertThat(parsed.getValue().records()).isEqualTo(List.of());
     }
+
+    @Test
+    void accountFullIs413WithTheRecordCapBodyOfTheContract() throws Exception {
+        when(service.sync(any(), any())).thenThrow(new AccountFullException(200000, 199950, 120));
+        send(USER, body(Req.of(null).add(SyncTable.water_logs, waterLog(id(), 0, T, null, 250)).build()))
+                .andExpect(status().isContentTooLarge())
+                .andExpect(jsonPath("$.code").value("account_full"))
+                .andExpect(jsonPath("$.message").value("Your account is full. New entries stay on this device and are not backed up."))
+                .andExpect(jsonPath("$.record_cap.limit").value(200000))
+                .andExpect(jsonPath("$.record_cap.stored").value(199950))
+                .andExpect(jsonPath("$.record_cap.new_records").value(120))
+                .andExpect(jsonPath("$.details").doesNotExist())
+                .andExpect(jsonPath("$.quota").doesNotExist());
+    }
+
+    @Test
+    void otherErrorsCarryNoRecordCap() throws Exception {
+        send(USER, "[]").andExpect(status().isBadRequest()).andExpect(jsonPath("$.record_cap").doesNotExist());
+    }
 }

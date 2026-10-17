@@ -36,7 +36,7 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
   `Authorization`, `Content-Type`, `Accept` and `If-None-Match` request headers, `Retry-After` and `ETag` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   The one exception is `/api/v1/auth/**` for a cookie-mode origin, which gets credentials (below).
   Empty means every cross-origin call is refused.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`.
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
@@ -188,9 +188,21 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   default 90; both must be at least 1 or the app refuses to start). Pruning happens only when a later sync logs a
   conflict: then entries older than the retention and all but the newest ones are deleted. An account that stops
   conflicting is not pruned, and its expired entries stay until then. So `GET /me/export`'s `conflict_log` holds at most
-  the cap. Per-user caps on synced rows and
-  schema `maxLength`/`maxItems` need a contract change and are not enforced yet (#353).
-  Deletes are soft (`deleted_at`).
+  the cap. Schema `maxLength`/`maxItems` limits are not enforced yet (#353). Deletes are soft (`deleted_at`).
+- **Account record cap** (#349, contract 0.1.16). `SYNC_MAX_RECORDS_PER_ACCOUNT` (`app.sync.max-records-per-account`) is
+  the most records one account may store across the 16 tables, tombstones included (the conflict log does not count).
+  **Unset, empty or 0 means no cap, and that is the default** until the app's `account_full` handling has merged (today's
+  app reads any 413 as a too-large body and splits the batch); then set it (the contract suggests 200000). A negative or
+  non-numeric value stops the app at start. A push is refused with 413 `account_full` and `record_cap`
+  `{limit, stored, new_records}` only when it has at least one new record and `stored + new > limit`. New means the
+  account stores no row with that id in that table (whatever `version` was sent); edits, deletes, retries, a natural-key
+  record whose key is already stored and pull-only requests are never refused, even when `stored` is over a lowered
+  limit. A refused request applies nothing, pulls nothing, leaves the cursor and the conflict log alone (the transaction
+  rolls back). Checks run in the contract's order: body size, token, rate limit, validation including `natural_key_id`
+  (400), then the cap. `stored` is `sync_state.records`, a per-user counter (V8, backfilled from the 16 tables) that
+  the sync transaction raises by the number of new ids under the same `FOR UPDATE` lock that serialises the account's
+  syncs, so two devices cannot overrun the cap and no push counts 16 tables. It is kept even while the cap is off, so
+  turning the cap on needs no recount. The only log line is the refusal: user id and the three counts.
 - **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
   2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before
   anything else (detail `too_many_records`), then the body is validated against the schemas in the contract
@@ -251,7 +263,7 @@ cd backend
 ./gradlew test
 ```
 
-`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`) use Testcontainers to start MySQL 8, so Docker must be running.
+`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`, `SyncRecordCapIT`, `SyncRecordCountIT`) use Testcontainers to start MySQL 8, so Docker must be running.
 `SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
 `AuthCookieIT` (Testcontainers) covers the web refresh cookie end to end; `CookieModeControllerTest`, `CookieModeCorsTest` and `CookieModeRateLimitTest` cover it per rule.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
@@ -274,6 +286,7 @@ cd backend
 | `SMTP_USER`, `SMTP_PASSWORD` | empty | SMTP credentials; leave `SMTP_USER` empty for no authentication |
 | `SMTP_FROM` | none, required outside the dev profile | Sender address of sign-in mails |
 | `SMTP_STARTTLS` | `true` | Require STARTTLS; set `false` only for a local test server. The app refuses to start if `SMTP_USER` or `SMTP_PASSWORD` is set while this is `false` |
+| `SYNC_MAX_RECORDS_PER_ACCOUNT` | empty (no cap) | Most records one account may store; over it, a push with new records is 413 `account_full`. Empty or `0` is off; see "Sync" |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated web app origins, e.g. `https://app.example.com` |
 | `AUTH_COOKIE_ORIGINS` | empty | Comma-separated exact origins of the web app itself, the only ones that may use cookie mode for the refresh token (`X-Auth-Transport: cookie`). Separate from `CORS_ALLOWED_ORIGINS`; empty refuses cookie mode. See "Web refresh cookie" |
 | `SPRING_PROFILES_ACTIVE` | empty | `dev` swaps SMTP for the logging mail sender |
