@@ -108,6 +108,93 @@ describe('Workout date navigation', () => {
     await act(async () => open());
     expect(await screen.findByLabelText('Start Push B')).toBeTruthy();
   });
+  it('keeps a running rest timer and a message on screen while a day is read', async () => {
+    const db = await setup();
+    await startFirst(); // today
+    const first = screen.getAllByLabelText(/^Mark .* set 1 done$/)[0]!.props.accessibilityLabel as string;
+    const name = first.replace(/^Mark /, '').replace(/ set 1 done$/, '');
+    await fireEvent.press(screen.getByLabelText(first)); // nothing entered yet: a message
+    expect(await screen.findByText(/^Enter the .* first\.$/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText(`${name} set 1 reps`), '10');
+    const kg = screen.queryByLabelText(`${name} set 1 kg`);
+    if (kg) await fireEvent.changeText(kg, '10');
+    await fireEvent.press(screen.getByLabelText(first)); // a set done: the rest timer starts
+    expect(await screen.findByLabelText('Rest timer')).toBeTruthy();
+    const read = db.getFirstAsync.bind(db);
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM workouts')) await gate;
+      return read(sql, ...p);
+    }) as typeof db.getFirstAsync;
+    await back();
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    expect(screen.getByLabelText('Rest timer')).toBeTruthy();
+    expect(screen.getByText(/^Enter the .* first\.$/)).toBeTruthy();
+    await act(async () => open());
+    await screen.findByText('Yesterday');
+    expect(screen.getByLabelText('Rest timer')).toBeTruthy();
+  });
+
+  describe('rest bar and toast across a day change', () => {
+    const os = Platform.OS;
+    afterEach(() => {
+      Platform.OS = os;
+      jest.restoreAllMocks();
+    });
+    /** Starts today's session, shows a message and starts a rest; then holds the day read and goes back a day. Returns the release. */
+    async function restAndToast(db: Db) {
+      await startFirst();
+      const first = screen.getAllByLabelText(/^Mark .* set 1 done$/)[0]!.props.accessibilityLabel as string;
+      const name = first.replace(/^Mark /, '').replace(/ set 1 done$/, '');
+      await fireEvent.press(screen.getByLabelText(first));
+      await screen.findByText(/^Enter the .* first\.$/);
+      await fireEvent.changeText(screen.getByLabelText(`${name} set 1 reps`), '10');
+      const kg = screen.queryByLabelText(`${name} set 1 kg`);
+      if (kg) await fireEvent.changeText(kg, '10');
+      await fireEvent.press(screen.getByLabelText(first));
+      await screen.findByLabelText('Rest timer');
+      const read = db.getFirstAsync.bind(db);
+      let open!: () => void;
+      const gate = new Promise<void>((r) => (open = r));
+      db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+        if (sql.includes('FROM workouts')) await gate;
+        return read(sql, ...p);
+      }) as typeof db.getFirstAsync;
+      await back();
+      expect(screen.getByText('Loading…')).toBeTruthy();
+      return open;
+    }
+
+    it('on iOS, "Rest done, go!" is announced once when the timer ends, not again on a day change', async () => {
+      Platform.OS = 'ios';
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+      announce.mockClear();
+      const db = await setup();
+      const realNow = Date.now();
+      const open0 = await restAndToast(db);
+      const rests = () => announce.mock.calls.filter(([t]) => t === 'Rest done, go!').length;
+      expect(rests()).toBe(0);
+      jest.spyOn(Date, 'now').mockReturnValue(realNow + 60 * 60 * 1000); // the rest has run out
+      await waitFor(() => expect(rests()).toBe(1));
+      await act(async () => open0());
+      await screen.findByText('Yesterday');
+      await forward();
+      await screen.findByText('Today');
+      expect(rests()).toBe(1);
+    });
+
+    it('on web, the toast node is the same one across the day read, so it is not read again', async () => {
+      Platform.OS = 'web';
+      const db = await setup();
+      const open = await restAndToast(db);
+      const toast = screen.getByText(/^Enter the .* first\.$/);
+      await act(async () => open());
+      await screen.findByText('Yesterday');
+      expect(screen.getByText(/^Enter the .* first\.$/)).toBe(toast);
+    });
+  });
+
   describe('announcement', () => {
     const originalOS = Platform.OS;
     afterEach(() => {
