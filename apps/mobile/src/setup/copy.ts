@@ -21,12 +21,12 @@ export const CONSENT = {
 };
 
 export const SCREEN_Q = [
-  'Has a doctor told you that you have a heart condition or high blood pressure?',
-  'Do you get chest pain at rest, during daily activities or when you exercise?',
-  'In the past 12 months, have you lost balance from dizziness or lost consciousness?',
-  'Do you have another long-term medical condition, or take prescribed medicine for one?',
-  'Do you have a bone, joint or muscle problem that more activity could make worse?',
-  'Has a doctor said you should only exercise under medical supervision?',
+  'Have you ever been diagnosed with a heart problem or high blood pressure?',
+  'Does your chest hurt when you are resting or being active?',
+  'In the last year, have you fainted, or felt so dizzy that you nearly fell?',
+  'Do you live with a long-term health condition, or take regular medication for one?',
+  'Is there a bone, joint or soft-tissue problem, such as a back, knee or shoulder injury, that exercise tends to aggravate?',
+  'Have you been told to exercise only with professional supervision?',
 ] as const;
 
 type Choice = readonly [label: string, sub: string];

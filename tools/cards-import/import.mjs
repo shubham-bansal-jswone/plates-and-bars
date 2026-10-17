@@ -65,7 +65,7 @@ export const CARD_OVERRIDES = {
     from: {
       evidence: 'Strong',
       source: 'Warburton et al., PAR-Q+ (Physical Activity Readiness Questionnaire for Everyone)',
-      body: 'These questions cover the same topics as the PAR-Q+, the widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
+      body: 'These questions are our own wording of the safety topics that pre-exercise screening tools such as the PAR-Q+ cover: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
     },
     set: {
       evidence: 'Moderate',
