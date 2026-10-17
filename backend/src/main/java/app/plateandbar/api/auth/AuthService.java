@@ -135,7 +135,7 @@ public class AuthService {
             // parallel guesses cannot overshoot it; a blocked attempt is refused even if the code is right.
             long wait = failureCapWaitSeconds(email, now);
             if (wait > 0) {
-                throw new RateLimitedException(wait);
+                throw new RateLimitedException("email-verify-address", wait);
             }
             if (row.isEmpty()) {
                 return null;
