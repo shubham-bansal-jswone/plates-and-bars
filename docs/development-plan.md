@@ -63,7 +63,7 @@ The app writes every change to its local SQLite store first and syncs it through
 
 ## Repository and data model
 
-One private GitHub monorepo, so the API contract, shared logic and content change together in one pull request.
+One public GitHub monorepo, so the API contract, shared logic and content change together in one pull request. Code is Apache-2.0, our own written content is CC BY 4.0, and third-party data keeps its own licence (`LICENSE`, `CONTENT-LICENSE`, `NOTICE`, `THIRD_PARTY.md`; issue #76).
 
 ```
 plate-and-bar/
@@ -241,7 +241,7 @@ The biggest risks are losing user data, AI costs running away and a store reject
 
 The first two weeks set up the foundations every agent depends on; no feature work starts until they’re done.
 
-- [ ] Create the private GitHub monorepo with the folder layout above, branch protection on `main`, and `docs/AGENTS.md`
+- [ ] Create the GitHub monorepo (public since #76) with the folder layout above, branch protection on `main`, and `docs/AGENTS.md`
 - [ ] Write ADR 001 (React Native + Expo, Spring Boot, MySQL, offline-first sync) and ADR 002 (no IFCT data; USDA + own recipes)
 - [ ] Draft the OpenAPI spec for auth, sync and foods; review and merge it before any implementation
 - [ ] Port `packages/core` from the prototype: setup targets, plan engine, progression; golden-number tests against prototype outputs
