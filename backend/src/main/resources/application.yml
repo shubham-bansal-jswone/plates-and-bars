@@ -38,6 +38,16 @@ logging:
     # Tomcat's HTTP/1.1 processor can print raw request bytes at DEBUG or TRACE.
     org.apache.coyote.http11: INFO
 
+# Error tracking (#687). Off, with no network use, unless SENTRY_DSN is set. SentryScrubber runs on every event.
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:production}
+  send-default-pii: false
+  max-request-body-size: none
+  traces-sample-rate: 0.0
+  attach-server-name: false
+  enable-external-configuration: false
+
 server:
   port: ${PORT:8080}
   # Deliberately off (#352). Forwarded headers are not trusted by the servlet container: the client IP comes from
