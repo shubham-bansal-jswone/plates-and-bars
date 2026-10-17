@@ -540,8 +540,32 @@ describe('web provider', () => {
     }
   });
 
+  it('web with navigator.onLine stuck false: a refresh that times out still gets the fast retry within 40 s (#813 review)', async () => {
+    const restoreOnLine = fakeOnLine(false);
+    try {
+      const k = { n: 0 };
+      const { sent, advance } = await timedRefreshes(() => {
+        const inner = globalThis.fetch;
+        (globalThis as { fetch: unknown }).fetch = async (input: Request) => {
+          if (!new URL(input.url).pathname.endsWith('/auth/refresh')) return inner(input);
+          await inner(input).catch(() => undefined); // lets timedRefreshes stamp the send
+          k.n++;
+          if (k.n === 2) {
+            await new Promise((_, reject) => input.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
+          }
+          throw new TypeError('network down'); // request 1 fails at once: offline, and no fast retry while onLine is false
+        };
+      });
+      await advance(300_000);
+      // Request 2 (sent on the normal schedule) times out: the request got somewhere, so request 3 follows within 40 s.
+      expect((sent[2] ?? Infinity) - (sent[1] ?? 0)).toBeLessThanOrEqual(40_000);
+    } finally {
+      restoreOnLine();
+    }
+  });
+
   /** The reviewer's probe: the first refresh fails at once (never reached the server), the Nth hangs to the timeout (it may have rotated). */
-  it.each([2, 3])('a refresh that hangs as request %i of a failure streak is retried within 40 s of its send (#813 review)', async (hang) => {
+  it.each([2, 3, 4])('a refresh that hangs as request %i of a failure streak (request 1 is the mount refresh) is retried within 40 s of its send (#813 review)', async (hang) => {
     const k = { n: 0 };
     const { sent, advance } = await timedRefreshes(() => {
       const inner = globalThis.fetch;

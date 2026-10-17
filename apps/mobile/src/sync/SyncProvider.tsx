@@ -159,9 +159,9 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         // Every ambiguous failure gets the fast retry, not a count of them: the window runs from the first rotation, which can be any
         // request in a failure streak, so the retry after this one is due 40 s at most after the send it follows (20 s wait + the
         // 20 s request timeout) and always inside the window. A cap could push a needed retry past it and get the session revoked.
-        // Volume is bounded on web by not scheduling while the browser reports offline: the `online` event runs at once. Native
-        // relies on the foreground event.
-        const offlineWeb = Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.onLine === false;
+        // Volume is bounded on web by not scheduling after an instant network error while the browser reports offline: the `online`
+        // event runs at once. A timeout or 5xx got somewhere, so it still fast-retries. Native always schedules the fast retry.
+        const offlineWeb = r.status === 'offline' && Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.onLine === false;
         if (r.viaRefresh && !offlineWeb) {
           holdUntil.current = Date.now() + REFRESH_RETRY_MS;
           clearRetry(); // a joined run may have scheduled one already: keep a single tracked timer
