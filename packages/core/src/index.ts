@@ -65,13 +65,14 @@ export type { HealthProfile, ScreenAnswer, ScreenAnswers } from './health';
 
 /**
  * Plan engine: which template a day gets.
- * - `planned` mirrors prototype `planned(date)` (state passed in).
+ * - `planned` mirrors prototype `planned(date)` (state passed in); `missed` mirrors `missed(date)` the same way.
+ * - `CONDENSED` mirrors the prototype table of the same name.
  * - `splitFor`, `planList`, `dayTemplate`, `exerciseCap`, `older` mirror the prototype functions of the same name.
  * - `beginnerRamp` mirrors the beginner check inline in prototype `setsFor`.
  * - `TEMPLATES`, `ORDER`, `SPLITS` mirror the prototype tables of the same name.
  * - `mondayOf`, `daysBetween` mirror the prototype date helpers; `weekdayOf` mirrors `parseYmd(date).getDay()`.
  */
-export { planned, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS } from './plan';
+export { planned, missed, CONDENSED, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS } from './plan';
 export type { PlanProfile, PlanState, SessionEntry, SessionLog, Split, WeekPlan, Where, Experience } from './plan';
 export { mondayOf, daysBetween, weekdayOf } from './dates';
 
