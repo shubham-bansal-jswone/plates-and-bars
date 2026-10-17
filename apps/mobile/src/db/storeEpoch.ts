@@ -8,3 +8,8 @@ export const storeEpoch = (): number => epoch;
 
 /** Called inside the wipe transaction, after the deletes, so every save that takes the lock afterwards sees it. */
 export const bumpStoreEpoch = (): void => void (epoch += 1);
+
+/** Undoes the bump of a wipe whose transaction did not commit (nothing was wiped), unless another wipe has bumped it since. */
+export const revertStoreEpoch = (before: number): void => {
+  if (epoch === before + 1) epoch = before;
+};
