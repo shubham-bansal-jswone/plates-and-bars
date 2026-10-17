@@ -44,6 +44,39 @@ describe('data screen (#27)', () => {
     expect(screen.getByText(DATA_COPY.withdraw)).toBeTruthy();
   });
 
+  it('says where the data is stored: this device when signed out, the account when signed in, this browser on web', async () => {
+    const first = await show({});
+    expect(screen.getByText(DATA_COPY.storageDevice)).toBeTruthy();
+    expect(screen.queryByText(/waiting to sync/)).toBeNull();
+    await first.unmount();
+    const second = await show({ signedIn: true });
+    expect(screen.getByText('Saved privately to your account; photos, cycle and lab data stay on this device.')).toBeTruthy();
+    await second.unmount();
+    const was = Platform.OS;
+    Platform.OS = 'web';
+    try {
+      await show({});
+      expect(screen.getByText('Saved in this browser only.')).toBeTruthy();
+    } finally {
+      Platform.OS = was;
+    }
+  });
+
+  it('adds "Some changes are waiting to sync." while the queue holds records, and drops it when it empties', async () => {
+    const view = await show({ pending: 2 });
+    expect(screen.getByText('Saved on this device only. Some changes are waiting to sync.')).toBeTruthy();
+    await view.rerender(
+      <SyncContext.Provider value={{ ...base, pending: 0 }}>
+        <DataScreen db={memoryDb()} />
+      </SyncContext.Provider>,
+    );
+    expect(screen.getByText('Saved on this device only.')).toBeTruthy();
+    expect(screen.queryByText(/waiting to sync/)).toBeNull();
+    const signed = await show({ signedIn: true, pending: 1 });
+    expect(screen.getByText('Saved privately to your account; photos, cycle and lab data stay on this device. Some changes are waiting to sync.')).toBeTruthy();
+    await signed.unmount();
+  });
+
   it('exports from the device with no account: the JSON and the food-log CSV, no server option', async () => {
     await show({});
     expect(screen.queryByLabelText('Download from my account')).toBeNull();

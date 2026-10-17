@@ -127,6 +127,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
+      <Hint>{`${s.signedIn ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
       {message ? <Note>{message}</Note> : null}
