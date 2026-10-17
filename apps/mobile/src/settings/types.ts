@@ -3,7 +3,7 @@ import type { SyncMeta } from '../setup/types';
 
 /**
  * Contract `Settings`, snake_case as in packages/api/openapi.yaml. Shapes that the contract leaves to
- * packages/core (`adjustments`, `adaptive`, `learn`, `prep`) stay open objects here.
+ * packages/core (`adjustments`, `adaptive`, `learn`) stay open objects here; `prep` is read by core's prep rules.
  */
 export interface Settings extends Omit<SyncMeta, 'id'> {
   /**
@@ -29,7 +29,8 @@ export interface Settings extends Omit<SyncMeta, 'id'> {
   learn: Record<string, unknown>;
   /** Core's `MealPlan`: the shape the contract leaves to packages/core. */
   meal_plan: MealPlan | null;
-  prep: Record<string, unknown>[];
+  /** Meal-prep batches. Items are open objects in the contract: core's prep rules read the `PrepEntry` ones and keep the rest. */
+  prep: unknown[];
 }
 
 /** A fresh Settings record: every required contract field present, nothing chosen yet. */

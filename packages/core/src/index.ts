@@ -612,3 +612,13 @@ export type { FeelResult } from './feel';
  */
 export { learnList, dailyRead, LEARN_DAYS_PER_CARD } from './learn';
 export type { LearnCard, LearnState, DailyRead } from './learn';
+
+/**
+ * Meal prep (contract `Settings.prep`, shape owned here): `addPrep` mirrors the prep step of prototype `case 'rb-prep'`
+ * (6-day expiry, portions = katoris), `prepFor` mirrors `prepLineHtml(meal)`, `logPrep` mirrors `case 'prep-log'`.
+ */
+export { addPrep, prepFor, logPrep, isPrepEntry, PREP_DAYS, PREP_MAX } from './prep';
+export type { PrepEntry, AddPrepInput } from './prep';
+
+/** `checkinBannerDue` mirrors prototype `checkinBanner()`: Food's "weekly check-in is ready" banner (Sunday or Monday, today, not yet seen this week). */
+export { checkinBannerDue } from './progress';

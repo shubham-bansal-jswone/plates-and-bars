@@ -1,9 +1,10 @@
 import type { Schemas } from '@plate-and-bar/api';
 import { SYNC_TABLES, inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { bumpStoreEpoch, revertStoreEpoch, storeEpoch } from '../db/storeEpoch';
 import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_PHOTOS_WIPE, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
+import { KEY_PHOTOS_WIPE, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { announceWipe, wipePhotos } from '../photos/vault';
 
@@ -44,6 +45,7 @@ export class OwnerChanged extends Error {}
 
 export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser?: string | null } = {}): Promise<number> {
   let pending = 0;
+  const epochBefore = storeEpoch();
   await inTransaction(db, async (txn) => {
     if (opts.expectUser !== undefined && (await getUserId(txn)) !== opts.expectUser) throw new OwnerChanged();
     pending = (await txn.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox'))?.n ?? 0;
@@ -51,9 +53,15 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     for (const local of Object.values(SYNC_TABLES)) await txn.runAsync(`DELETE FROM ${local}`);
     await txn.runAsync('DELETE FROM sync_outbox');
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
+    await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", KEY_PHOTOS_WIPE);
+    bumpStoreEpoch();
     pending = 0;
+  }).catch((e) => {
+    // The transaction rolled back (a failed COMMIT, say): nothing was wiped, so the providers' saves must not be dropped as if it had.
+    revertStoreEpoch(epochBefore);
+    throw e;
   });
   if (pending === 0) await finishPhotoWipe(db);
   return pending;
