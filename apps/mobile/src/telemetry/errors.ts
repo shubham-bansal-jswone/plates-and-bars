@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react-native';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { randomUUID } from 'expo-crypto';
+import { errorRelease } from '../appVersion';
 import { scrubBreadcrumb, scrubEvent } from './scrub';
 
 const INSTALL_ID_KEY = 'pb.install_id';
@@ -20,10 +21,15 @@ async function loadInstallId(): Promise<string> {
 }
 
 /** Initialises error tracking. Returns false (and does nothing else) without a DSN. */
-export function initErrorTracking(dsn: string | undefined = process.env.EXPO_PUBLIC_SENTRY_DSN): boolean {
+export function initErrorTracking(
+  dsn: string | undefined = process.env.EXPO_PUBLIC_SENTRY_DSN,
+  environment: string | undefined = process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT,
+): boolean {
   if (!dsn || !dsn.trim()) return false;
   Sentry.init({
     dsn: dsn.trim(),
+    environment: environment?.trim() || 'development',
+    release: errorRelease(),
     sendDefaultPii: false,
     attachScreenshot: false,
     attachViewHierarchy: false,
