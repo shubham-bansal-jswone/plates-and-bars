@@ -45,13 +45,6 @@ final class AuthDtos {
         }
     }
 
-    record RefreshRequest(@JsonProperty("refresh_token") @NotBlank String refreshToken) {
-        @Override
-        public String toString() {
-            return "RefreshRequest[redacted]";
-        }
-    }
-
     record UserDto(String id, String email, @JsonProperty("created_at") Instant createdAt) {
         @Override
         public String toString() {
@@ -67,6 +60,11 @@ final class AuthDtos {
             @JsonProperty("refresh_token_expires_at") Instant refreshTokenExpiresAt,
             UserDto user,
             @JsonProperty("new_user") boolean newUser) {
+        /** Cookie mode: the token is only in the cookie, so the body's {@code refresh_token} is the empty string. */
+        TokenPair withoutRefreshToken() {
+            return new TokenPair(tokenType, accessToken, accessTokenExpiresAt, "", refreshTokenExpiresAt, user, newUser);
+        }
+
         // Spring logs bodies at DEBUG via toString; never let tokens through.
         @Override
         public String toString() {
