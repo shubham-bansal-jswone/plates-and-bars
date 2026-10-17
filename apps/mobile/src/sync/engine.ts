@@ -6,7 +6,7 @@ import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, 
 import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
 import { quarantine } from './quarantine';
 import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, markSent, setAccountFull, stampOf, touchHeld, unmarkSent, wasSent } from './held';
-import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
+import { withTimeout, REFRESH_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { signInUnavailable, takeAttempt, trackCookieCall } from './cookieHealth';
@@ -55,12 +55,20 @@ export interface SyncResult {
   accountFull?: boolean;
   /** For `error`: the exception's class name only. */
   errorName?: string;
+  /**
+   * The run failed (`offline` or `unavailable`) on the `/auth/refresh` request itself, a lost response or a timeout. The server may
+   * have rotated the token meanwhile, and a retry is only safe inside its 60 s grace window, so the caller retries within 30 s
+   * and does not back off further (#762).
+   */
+  viaRefresh?: boolean;
 }
 
 export interface SyncDeps {
   db: SyncDb;
   api: ApiClient;
   tokens: TokenStore;
+  /** How long one refresh request may take before it is given up (default `REFRESH_TIMEOUT_MS`). Tests only. */
+  refreshTimeoutMs?: number;
   /** The clock in ms (tests set it); the held-record retry is once a day by this clock. */
   now?: () => number;
 }
@@ -108,7 +116,10 @@ function failFrom(res: Response, body?: unknown): Failure {
 }
 
 /** A rejected fetch: no connection. Only this (not any exception) maps to `offline`. */
-class NetworkError extends Error {}
+class NetworkError extends Error {
+  /** The failed request was the token refresh (a lost response or a timeout): see `SyncResult.viaRefresh`. */
+  viaRefresh = false;
+}
 
 async function net<T>(call: () => Promise<T>): Promise<T> {
   try {
@@ -166,7 +177,7 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
     return raceAbort(inflight, signal);
   }
   // Web: the pending flag is re-checked under the lock, because another tab may have signed out while this one waited.
-  const promise: Promise<boolean> = (cookieMode() ? withTabLock(async () => (signOutPending() ? false : rotate(d, owner, '', signal))) : rotate(d, owner, t?.refresh ?? '', signal)).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
+  const promise: Promise<boolean> = (cookieMode() ? withTabLock(async () => (signOutPending() ? false : rotate(d, owner, '', signal))) : rotate(d, owner, t?.refresh ?? '', signal)).catch((e: unknown) => Promise.reject(markViaRefresh(e))).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
   refreshing.set(key, promise);
   return promise;
 }
@@ -179,6 +190,30 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
 async function refreshForRun(d: SyncDeps, owner: string | null): Promise<boolean> {
   if (cookieMode() && signInUnavailable() && !takeAttempt()) throw new TransientError(fail('sign_in_unavailable'));
   return refresh(d, owner);
+}
+
+/** Tags a failure of the refresh request so the run's result can say so (`SyncResult.viaRefresh`). */
+function markViaRefresh(e: unknown): unknown {
+  if (e instanceof NetworkError) e.viaRefresh = true;
+  else if (e instanceof TransientError) e.outcome.result.viaRefresh = true;
+  return e;
+}
+
+/**
+ * A signal that aborts when either of the two does (AbortSignal.any is not in every runtime the app runs on). The listeners it
+ * adds to `a` and `b` are not removed: both are short-lived signals of one request (a timer's controller and the caller's
+ * timeout), dropped with it, so nothing accumulates.
+ */
+function either(a: AbortSignal | undefined, b: AbortSignal): AbortSignal {
+  if (!a) return b;
+  const c = new AbortController();
+  const fire = () => c.abort();
+  if (a.aborted || b.aborted) c.abort();
+  else {
+    a.addEventListener('abort', fire, { once: true });
+    b.addEventListener('abort', fire, { once: true });
+  }
+  return c.signal;
 }
 
 /** Rejects when `signal` aborts before `p` settles (the shared request itself keeps going for its leader). */
@@ -198,7 +233,11 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
   };
   let result;
   try {
-    result = await net(() => trackCookieCall(d.api, () => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal, ...authInit() })));
+    // Its own timeout, started here: inside the cross-tab lock, so the lock is held until this request settles or the timeout
+    // fires (never longer), and a refresh made from a sync run is bounded too (#762).
+    const timed = await withTimeout(d.refreshTimeoutMs ?? REFRESH_TIMEOUT_MS, (own) => net(() => trackCookieCall(d.api, () => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal: either(signal, own), ...authInit() }))));
+    if (timed.timedOut) throw new TransientError(fail('unavailable'));
+    result = timed.value;
   } catch (e) {
     // Aborted by the caller that started this request (its timeout): joiners must not read that as "offline".
     if (e instanceof NetworkError && signal?.aborted) throw new TransientError(fail('unavailable'));
@@ -207,6 +246,14 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
   const { data, response } = result;
   if (data) {
     await sameOwner();
+    // Web: another tab ended the session while this request was in flight. Its revoke waits for the lock, so the new cookie is
+    // cleared right after; this tab must not bring an access token back for it.
+    if (cookieMode() && signOutPending()) {
+      // The cookie this response set (and the session behind it) must end: clear this tab's tokens and revoke it, as for another account's cookie.
+      await d.tokens.clear();
+      await postRevoke(d.api); // already under the tab lock
+      return false;
+    }
     // A cookie that belongs to another account than this store's must not carry this store's records to it (ADR 004).
     if (cookieMode() && owner && data.user.id !== owner) {
       await d.tokens.clear();
@@ -235,7 +282,7 @@ export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
  * while the request was in flight the answer is dropped and no tokens are saved or cleared: 'ended'. Otherwise 'ended'
  * means the session is over and the tokens are cleared; transient failures keep the tokens.
  */
-export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
+export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens' | 'refreshTimeoutMs'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
   const owner = await getUserId(d.db);
   try {
     // A stalled request is given up after the timeout, so the account lock is never held for long.
@@ -564,7 +611,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   } catch (e) {
     if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
     if (e instanceof Aborted) return { status: 'paused', conflicts, pulled, skipped };
-    if (e instanceof NetworkError) return { status: 'offline', conflicts, pulled, skipped };
+    if (e instanceof NetworkError) return { status: 'offline', conflicts, pulled, skipped, ...(e.viaRefresh ? { viaRefresh: true } : {}) };
     // Anything else is a bug or a local failure, not the network: report it as an error state (class name only).
     return { status: 'error', conflicts, pulled, skipped, errorName: e instanceof Error ? e.constructor.name : 'Unknown' };
   }
