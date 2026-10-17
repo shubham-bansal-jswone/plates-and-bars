@@ -61,6 +61,8 @@ public class AuthService {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final byte[] codeKey;
+    /** At most one reuse log line per session family per minute, so a replayed token cannot flood the log. */
+    private final RateLimiter reuseLogLimiter;
 
     public AuthService(
             GoogleIdTokenVerifier google,
@@ -86,6 +88,7 @@ public class AuthService {
         this.limits = limits;
         this.tx = new TransactionTemplate(txManager);
         this.clock = clock;
+        this.reuseLogLimiter = new RateLimiter(clock, 10_000);
         this.codeKey = hmac(props.jwtSigningKey().getBytes(StandardCharsets.UTF_8), "email-code-v1");
     }
 
@@ -132,7 +135,7 @@ public class AuthService {
             // parallel guesses cannot overshoot it; a blocked attempt is refused even if the code is right.
             long wait = failureCapWaitSeconds(email, now);
             if (wait > 0) {
-                throw new RateLimitedException(wait);
+                throw new RateLimitedException("email-verify-address", wait);
             }
             if (row.isEmpty()) {
                 return null;
@@ -182,7 +185,9 @@ public class AuthService {
 
     public TokenPair refresh(String presented) {
         String hash = sha256Hex(presented);
+        String[] reuse = new String[3]; // reason, user id, family id of a detected reuse; set only by the last attempt
         TransactionCallback<TokenPair> attempt = s -> {
+            java.util.Arrays.fill(reuse, null);
             Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
             var found = refreshTokens.findByHashForUpdate(hash);
             if (found.isEmpty()) {
@@ -193,6 +198,7 @@ public class AuthService {
             if (row.replacedAt() != null) {
                 // A lost-response retry already replaced this token, so whoever holds it is a second party.
                 refreshTokens.revokeFamily(row.familyId(), now);
+                noteReuse(reuse, "replaced_token_presented", row);
                 return null;
             }
             if (row.rotatedAt() != null) {
@@ -204,6 +210,7 @@ public class AuthService {
                 if (!retry) {
                     // Reuse of a rotated token: treat as theft and end the whole session.
                     refreshTokens.revokeFamily(row.familyId(), now);
+                    noteReuse(reuse, "rotated_token_reused", row);
                     return null;
                 }
                 // The replacement was never used, so the response carrying it was probably lost. Mark it
@@ -235,9 +242,32 @@ public class AuthService {
             }
         }
         if (pair == null) {
+            if (reuse[0] != null) {
+                logReuse(reuse[0], reuse[1], reuse[2]);
+            }
             throw ApiException.sessionEnded();
         }
         return pair;
+    }
+
+    private static void noteReuse(String[] out, String reason, RefreshTokenRepository.Row row) {
+        out[0] = reason;
+        out[1] = row.userId();
+        out[2] = row.familyId();
+    }
+
+    /**
+     * One WARN per reuse (the strongest theft signal), written after the transaction commits so a rollback leaves no
+     * stray line. Carries only the opaque user id, the session family id and a reason code; never the token or any
+     * part of it. Rate-limited per family, so repeated replays log once a minute.
+     */
+    private void logReuse(String reason, String userId, String familyId) {
+        try {
+            reuseLogLimiter.consume("refresh-reuse-log", familyId, new RateLimitProperties.Limit(1, Duration.ofMinutes(1)));
+        } catch (RateLimitedException suppressed) {
+            return;
+        }
+        log.warn("Refresh token reuse, session ended (reason={}, user={}, family={})", reason, userId, familyId);
     }
 
     /**

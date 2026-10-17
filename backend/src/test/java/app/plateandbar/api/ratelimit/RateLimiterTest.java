@@ -33,6 +33,7 @@ class RateLimiterTest {
                     assertThat(e.retryAfterSeconds()).isBetween(1L, 10L);
                     assertThat(e.status().value()).isEqualTo(429);
                     assertThat(e.code()).isEqualTo("rate_limited");
+                    assertThat(e.scope()).isEqualTo("s"); // the label the security log reports as the bucket
                 });
         clock.advance(Duration.ofSeconds(10));
         assertThatCode(() -> limiter.consume("s", "k", l)).doesNotThrowAnyException();

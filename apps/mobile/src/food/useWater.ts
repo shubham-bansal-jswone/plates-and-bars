@@ -33,6 +33,9 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
   const [logs, setLogs] = useState<WaterLog[]>([]);
   const [target, setTarget] = useState<{ ml: number; trained: boolean } | null>(null);
   const logsRef = useRef(logs);
+  /** The day the shown drinks belong to: not ready while the viewed day is another one, so Undo cannot tombstone another day's drink. */
+  const [loaded, setLoaded] = useState<string | null>(null);
+  const loadedRef = useRef<string | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   /** Counts this screen's writes, so a read that overlapped one is redone. */
   const writes = useRef(0);
@@ -48,6 +51,8 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
       await freshRead({ queue, writes }, () => loadWaterLogs(db, date), () => live, (l) => {
         logsRef.current = l;
         setLogs(l);
+        loadedRef.current = date;
+        setLoaded(date);
       });
     })().catch(() => {
       if (live) notify('Couldn’t read your saved water.');
@@ -95,6 +100,7 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
 
   const add = useCallback(
     (ml: number) => {
+      if (loadedRef.current !== date) return;
       const t = stamp(now());
       const log: WaterLog = { id: newId(), version: 0, updated_at: t, deleted_at: null, date, ml };
       logsRef.current = [...logsRef.current, log];
@@ -105,6 +111,7 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
   );
 
   const undo = useCallback(() => {
+    if (loadedRef.current !== date) return;
     // The newest drink by its own timestamp, not by row or array position, so a sync rewrite cannot change which is undone.
     const last = logsRef.current.reduce<WaterLog | null>((a, l) => (!a || Date.parse(l.updated_at) >= Date.parse(a.updated_at) ? l : a), null);
     if (!last) return;
@@ -113,7 +120,7 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
     logsRef.current = logsRef.current.filter((l) => l.id !== last.id);
     setLogs(logsRef.current);
     enqueue(() => saveWaterLog(db, tomb));
-  }, [db, now, enqueue]);
+  }, [db, date, now, enqueue]);
 
-  return { ml: logs.reduce((a, l) => a + l.ml, 0), count: logs.length, target, add, undo };
+  return { ready: loaded === date, ml: logs.reduce((a, l) => a + l.ml, 0), count: logs.length, target, add, undo };
 }

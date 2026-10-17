@@ -16,6 +16,8 @@ const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 const label = (i: MealIdea<CatalogFood>): string => i.items.map((x) => `${x.food.name}${x.qty !== 1 ? ` ×${r1(x.qty)}` : ''}`).join(' + ');
 
 interface Props {
+  /** The day shown; the card is for today only, so it is empty on any other day (core's `nextMealInfo`). */
+  date: string;
   today: string;
   hour: number;
   logs: readonly FoodLog[];
@@ -45,7 +47,7 @@ export function IdeasCard(p: Props) {
   const [flexOpen, setFlexOpen] = useState(false);
   const [plateOpen, setPlateOpen] = useState(false);
   const info = nextMealInfo({
-    date: p.today,
+    date: p.date,
     today: p.today,
     hour: p.hour,
     logs: p.logs,
