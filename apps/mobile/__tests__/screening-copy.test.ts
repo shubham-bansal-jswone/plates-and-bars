@@ -19,7 +19,7 @@ describe('health-check copy', () => {
     expect(SCREEN_Q).toHaveLength(REPLACED.length);
     SCREEN_Q.forEach((q, i) => {
       expect(q).not.toBe(REPLACED[i]);
-      expect(q).toMatch(TOPICS[i]);
+      expect(q).toMatch(TOPICS[i]!);
       expect(q).not.toMatch(/PAR-Q/i);
     });
     expect(new Set(SCREEN_Q).size).toBe(SCREEN_Q.length);
