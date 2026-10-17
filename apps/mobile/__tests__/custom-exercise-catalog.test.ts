@@ -56,6 +56,13 @@ describe('a typed exercise name matches in any letter case (decided on #450)', (
     expect(exerciseNamed('cossack SQUAT')).toBe('Cossack Squat');
   });
 
+  it('with two case variants stored, the exact name is that one and any other case is the first (#734)', () => {
+    setCustomTags({ 'Cossack Squat': tag(), 'COSSACK SQUAT': tag() });
+    expect(exerciseNamed('COSSACK SQUAT')).toBe('COSSACK SQUAT');
+    expect(exerciseNamed('Cossack Squat')).toBe('Cossack Squat');
+    expect(exerciseNamed('cossack squat')).toBe('Cossack Squat');
+  });
+
   it('is letter case only: other spaces and spellings are new names', () => {
     expect(exerciseNamed('goblet  squat')).toBeUndefined();
     expect(exerciseNamed('goblet squats')).toBeUndefined();
