@@ -1,0 +1,109 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { WorkoutScreen } from '../src/screens/WorkoutScreen';
+import { saveProfile } from '../src/db/records';
+import { saveSettings } from '../src/db/settings';
+import { defaultSettings } from '../src/settings/types';
+import { buildProfile, emptyDraft } from '../src/setup/logic';
+import { musclesOf } from '../src/workout/muscles';
+import { memoryDb, withProfile } from './helpers';
+
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
+jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
+
+const profile = () =>
+  buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1));
+
+/** Thursday 2026-10-08 plans Push B: chest, front and side shoulders, triceps. */
+const THURSDAY = () => new Date(2026, 9, 8, 10, 0, 0);
+const MAIN = 'chest, front shoulders, side shoulders and triceps'.replace(', front', ', front');
+
+async function mount(now = THURSDAY) {
+  const db = memoryDb();
+  // Rest timer off: ticking a set then starts no interval.
+  await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), rest_off: true });
+  await saveProfile(db, { ...profile(), where: 'gym' });
+  await render(withProfile(db, <WorkoutScreen db={db} now={now} />));
+  return db;
+}
+/** Fills set 1 of the bench press and ticks it. */
+async function tickFirstSet() {
+  await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '60');
+  await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '8');
+  await press('Mark Barbell Bench Press set 1 done');
+}
+async function press(label: string) {
+  await fireEvent.press(screen.getByLabelText(label));
+}
+
+describe('musclesOf', () => {
+  it('rolls the exercises up to main muscles and also-working ones that are not already main', () => {
+    expect(musclesOf(['Barbell Bench Press'])).toEqual({ primary: ['chest'], secondary: ['triceps', 'front-delt'] });
+    // The press makes triceps and front delts main for the session, so they drop out of also-working.
+    expect(musclesOf(['Barbell Bench Press', 'Machine Shoulder Press', 'Overhead Cable Extension'])).toEqual({ primary: ['chest', 'front-delt', 'side-delt', 'triceps'], secondary: [] });
+  });
+
+  it('skips an exercise the content does not know', () => {
+    expect(musclesOf(['Not An Exercise'])).toEqual({ primary: [], secondary: [] });
+  });
+});
+
+describe('Workout start preview: muscle map', () => {
+  it('shows the map with a text alternative, the legend and the muscle lists', async () => {
+    await mount();
+    expect(await screen.findByText('Push B day')).toBeTruthy();
+    expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
+    expect(screen.getByText('Main focus')).toBeTruthy();
+    expect(screen.getByText('Also working')).toBeTruthy();
+    expect(screen.getByText(/Main focus:/)).toBeTruthy();
+  });
+
+  it('says which muscles are also working when the session has any', async () => {
+    // Pull A (Tuesday): rows and pulldowns also work the biceps.
+    await mount(() => new Date(2026, 9, 6, 10, 0, 0));
+    expect(await screen.findByText("Pull A day")).toBeTruthy();
+    const label = screen.getByLabelText(/^Muscles worked: /).props.accessibilityLabel as string;
+    expect(label).toMatch(/\. Also working: /);
+    expect(screen.getByText(/Also working: /, { exact: false })).toBeTruthy();
+  });
+
+  it('shows no map on a rest day', async () => {
+    await mount(() => new Date(2026, 9, 11, 10, 0, 0));
+    expect(await screen.findByText('Rest day')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull();
+  });
+});
+
+describe('Workout session: Muscles today', () => {
+  async function started() {
+    const db = await mount();
+    await screen.findByText('Push B day');
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    return db;
+  }
+
+  it('is a disclosure, open with the map until the first set is ticked', async () => {
+    await started();
+    const toggle = screen.getByLabelText(`Muscles today: ${MAIN}`);
+    expect(toggle.props.accessibilityRole).toBe('button');
+    expect(toggle.props.accessibilityState).toMatchObject({ expanded: true });
+    expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
+    expect(screen.getByText('Main focus')).toBeTruthy();
+
+    await tickFirstSet();
+    await waitFor(() => expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull());
+    expect(screen.getByLabelText(`Muscles today: ${MAIN}`).props.accessibilityState).toMatchObject({ expanded: false });
+  });
+
+  it('opens and closes on a tap, and keeps the choice once made', async () => {
+    await started();
+    await press(`Muscles today: ${MAIN}`);
+    expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull();
+    await tickFirstSet();
+    await screen.findByText('1 of 15 sets done, 480 kg lifted');
+    expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull();
+    await press(`Muscles today: ${MAIN}`);
+    expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
+    expect(screen.getByLabelText(`Muscles today: ${MAIN}`).props.accessibilityState).toMatchObject({ expanded: true });
+  });
+});
