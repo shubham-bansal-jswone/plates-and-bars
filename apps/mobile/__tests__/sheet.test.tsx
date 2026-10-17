@@ -47,9 +47,9 @@ describe('SheetModal', () => {
     expect(() => focusSheetTitle('No such sheet')).not.toThrow();
   });
 
-  // Not covered here: react-native-web's real timing (its dialog role and focus trap switch on in `onShow`, after the slide animation).
+  // Not covered here: react-native-web's real timing (its dialog role and focus trap switch on after `onShow`, which follows the slide animation).
   // The Playwright check in tests/e2e/specs/sheet-focus.spec.mjs covers that in a browser. Here `onShow` is called by hand.
-  it('on the web it focuses the title one tick after onShow, keeps focus on a title change, and gives it back to the opener on close', async () => {
+  it('on the web it focuses the title once the dialog is on and the trap has moved focus in, keeps focus on a title change, and gives it back to the opener on close', async () => {
     jest.useFakeTimers();
     try {
       document.body.innerHTML = '<button id="opener">Open</button>';
@@ -61,12 +61,15 @@ describe('SheetModal', () => {
         </SheetModal>
       );
       const view = await render(sheet('Add exercise'));
-      document.body.insertAdjacentHTML('beforeend', '<div role="dialog" aria-label="Add exercise"><button id="first">Close</button><h2 role="heading" id="title">Add exercise</h2></div>');
-      (document.getElementById('first') as HTMLElement).focus();
-      jest.runOnlyPendingTimers();
-      expect(document.activeElement?.id).toBe('first'); // nothing happens before onShow
+      // onShow comes first, then React switches the dialog on (a little later) and the trap focuses the first button.
       screen.getByLabelText('Add exercise', { hidden: true }).props.onShow();
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(48);
+      expect(document.activeElement?.id).toBe('opener'); // no dialog yet: keeps waiting
+      document.body.insertAdjacentHTML('beforeend', '<div role="dialog" aria-label="Add exercise"><button id="first">Close</button><h2 role="heading" id="title">Add exercise</h2></div>');
+      jest.advanceTimersByTime(16);
+      expect(document.activeElement?.id).toBe('opener'); // dialog there but the trap has not moved focus in yet: still waiting
+      (document.getElementById('first') as HTMLElement).focus();
+      jest.advanceTimersByTime(16);
       expect(document.activeElement?.id).toBe('title');
       await view.rerender(sheet('Add exercise now'));
       expect(document.activeElement?.id).toBe('title'); // a title change does not send focus back to the opener

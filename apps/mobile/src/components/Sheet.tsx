@@ -5,18 +5,23 @@ import { Modal, Platform } from 'react-native';
 const activeElement = (): HTMLElement | null => (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null);
 
 /**
- * On the web, a dialog should start with focus on its title (screen readers then read it first). react-native-web puts focus
- * on the first button, so once it has done so the title takes it. A no-op where there is no DOM (native).
+ * On the web, a dialog should start with focus on its title (screen readers then read it first). react-native-web marks the
+ * dialog (role, focus trap) active some time after `onShow`, and the trap then focuses the first button: the title takes focus
+ * only once the dialog exists and the trap has put focus inside it. Returns whether it did; false means "not yet" (or no DOM).
  */
-export function focusSheetTitle(title: string): void {
-  if (typeof document === 'undefined') return;
+export function focusSheetTitle(title: string): boolean {
+  if (typeof document === 'undefined') return false;
   const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find((d) => d.getAttribute('aria-label') === title);
   // Unquoted on purpose: the heading-levels guard flags the quoted form as an assignment of the role.
   const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
-  if (!heading) return;
+  if (!dialog || !heading || !dialog.contains(document.activeElement)) return false;
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
   heading.focus();
+  return true;
 }
+
+const TICK_MS = 16;
+const GIVE_UP_TICKS = 60; // about a second, then leave focus where the trap put it
 
 /**
  * Every full-screen sheet: a modal with an accessible name (`title`, the same text as its heading) so the web dialog is
@@ -34,12 +39,14 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
     },
     [],
   );
-  // react-native-web activates the dialog (role, focus trap) in `onShow`, at the end of the slide animation, and the trap's effect
-  // runs after that re-render and focuses the first button: take focus one tick later.
+  // Modal's `onShow` is when the slide animation ends and the dialog is switched on, which React renders a little later.
   const onShow = () => {
     if (Platform.OS !== 'web') return;
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => focusSheetTitle(title), 0);
+    const attempt = (left: number) => {
+      if (!focusSheetTitle(title) && left > 0) timer.current = setTimeout(() => attempt(left - 1), TICK_MS);
+    };
+    attempt(GIVE_UP_TICKS);
   };
   // `aria-label` reaches the web dialog (react-native-web passes extra props on). Native starts on the title already (and a
   // modal labelled like the button that opened it would only be a second match for that label).
