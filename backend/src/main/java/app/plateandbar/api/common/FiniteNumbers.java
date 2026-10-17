@@ -1,6 +1,6 @@
 package app.plateandbar.api.common;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * A JSON number too large for a double (1e400, or an integer of 400 digits) passes a schema with no {@code maximum}

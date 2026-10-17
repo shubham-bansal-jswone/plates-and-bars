@@ -3,8 +3,8 @@ package app.plateandbar.api.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import app.plateandbar.api.common.ErrorResponse;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ class BlankTextVectorsTest {
 
     private static List<String[]> fields() {
         List<String[]> out = new ArrayList<>();
-        VECTORS.path("fields").forEach(f -> out.add(f.asText().split("\\.")));
+        VECTORS.path("fields").forEach(f -> out.add(f.asString().split("\\.")));
         assertThat(out).hasSize(3);
         return out;
     }
@@ -47,9 +47,9 @@ class BlankTextVectorsTest {
         assertThat(VECTORS.path("must_fail").size()).isPositive();
         for (String[] f : fields()) {
             for (JsonNode t : VECTORS.path("must_fail")) {
-                assertThat(problems(f, t.asText())).as("%s.%s %s", f[0], f[1], t.toString())
+                assertThat(problems(f, t.asString())).as("%s.%s %s", f[0], f[1], t.toString())
                         .contains(new ErrorResponse.Detail(f[1], "pattern"));
-                assertThat(AiPrompts.isBlank(AiPrompts.sanitize(t.asText()))).isTrue();
+                assertThat(AiPrompts.isBlank(AiPrompts.sanitize(t.asString()))).isTrue();
             }
         }
     }
@@ -59,8 +59,8 @@ class BlankTextVectorsTest {
         assertThat(VECTORS.path("must_pass").size()).isPositive();
         for (String[] f : fields()) {
             for (JsonNode t : VECTORS.path("must_pass")) {
-                assertThat(problems(f, t.asText())).as("%s.%s %s", f[0], f[1], t.toString()).isEmpty();
-                assertThat(AiPrompts.isBlank(AiPrompts.sanitize(t.asText()))).isFalse();
+                assertThat(problems(f, t.asString())).as("%s.%s %s", f[0], f[1], t.toString()).isEmpty();
+                assertThat(AiPrompts.isBlank(AiPrompts.sanitize(t.asString()))).isFalse();
             }
         }
     }

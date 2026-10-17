@@ -22,7 +22,7 @@ class QuotaErrorMappingTest {
 
     @Test
     void otherErrorsOmitQuota() throws Exception {
-        String json = new com.fasterxml.jackson.databind.ObjectMapper()
+        String json = new tools.jackson.databind.ObjectMapper()
                 .writeValueAsString(ErrorResponse.of("rate_limited", "x"));
         assertThat(json).doesNotContain("quota");
     }

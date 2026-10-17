@@ -4,15 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import app.plateandbar.api.auth.JwtService;
 import app.plateandbar.api.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpEntity;
@@ -22,12 +23,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.mysql.MySQLContainer;
 
 /**
  * Real MySQL 8 (one container shared by every subclass), real Flyway, real HTTP through the real security
  * chain. The clock is settable; every request is signed with a fresh token for the user it names.
  */
+@AutoConfigureTestRestTemplate
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
@@ -37,7 +39,7 @@ import org.testcontainers.containers.MySQLContainer;
 @org.springframework.context.annotation.Import(SyncITBase.Config.class)
 abstract class SyncITBase {
 
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4");
+    static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4");
 
     static {
         MYSQL.start(); // stopped by Testcontainers' reaper when the JVM exits

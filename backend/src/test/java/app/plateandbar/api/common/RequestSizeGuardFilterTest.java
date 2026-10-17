@@ -3,7 +3,7 @@ package app.plateandbar.api.common;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
 import java.io.ByteArrayInputStream;

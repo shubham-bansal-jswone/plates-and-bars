@@ -5,10 +5,10 @@ import app.plateandbar.api.common.ErrorResponse;
 import app.plateandbar.api.sync.SyncRepository.Stored;
 import app.plateandbar.api.sync.SyncRequestValidator.Incoming;
 import app.plateandbar.api.sync.SyncRequestValidator.Parsed;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -178,7 +178,7 @@ public class SyncService {
 
         ObjectNode changes = json.createObjectNode();
         for (Pulled p : page) {
-            ((ArrayNode) changes.withArray(p.table().name())).add(record(p.record()));
+            changes.withArrayProperty(p.table().name()).add(record(p.record()));
         }
 
         ObjectNode out = json.createObjectNode();
