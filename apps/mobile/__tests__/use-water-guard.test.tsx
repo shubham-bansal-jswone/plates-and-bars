@@ -15,7 +15,7 @@ describe('useWater before the viewed day has loaded', () => {
   it('ignores add and undo until the day is read, then works on that day', async () => {
     const db = memoryDb();
     db.rows.set('water_logs:w1', JSON.stringify({ id: 'w1', version: 0, updated_at: '2026-10-08T05:00:00.000Z', deleted_at: null, date: '2026-10-08', ml: 250 }));
-    const r = await renderHook(({ date }) => useWater({ db, date, now: NOW, profile: null, notify }), { initialProps: { date: '2026-10-08' } });
+    const r = await renderHook<ReturnType<typeof useWater>, { date: string }>(({ date }) => useWater({ db, date, now: NOW, profile: null, notify }), { initialProps: { date: '2026-10-08' } });
     await waitFor(() => expect(r.result.current.ready).toBe(true));
     const read = db.getAllAsync.bind(db);
     let open!: () => void;
