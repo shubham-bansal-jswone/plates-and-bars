@@ -350,7 +350,7 @@ describe('guards', () => {
     const out = jest.fn();
     await ai(optedIn(), api, <Probe onResult={out} />);
     await waitFor(() => expect(api.GET).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise<void>((r) => setImmediate(r));
     await fireEvent.press(screen.getByLabelText('probe'));
     await waitFor(() => expect(out).toHaveBeenCalledWith({ kind: 'quota', quota: used }));
     expect(POST).not.toHaveBeenCalled();
@@ -396,8 +396,8 @@ describe('account lock', () => {
     await waitFor(() => expect(api.GET).toHaveBeenCalled());
     await fireEvent.press(screen.getByLabelText('probe'));
     await waitFor(() => expect(POST).toHaveBeenCalled());
-    // What sign-in, sign-out, export and sync pausing all wait on:
-    const got = await Promise.race([withSyncPaused(async () => 'free'), new Promise((r) => setTimeout(() => r('held'), 200))]);
+    // What sign-in, sign-out, export and sync pausing all wait on. A free lock resolves within promise callbacks; one still held loses to the next macrotask, whatever the machine load:
+    const got = await Promise.race([withSyncPaused(async () => 'free'), new Promise((r) => setImmediate(() => r('held')))]);
     expect(got).toBe('free');
     release({ data: { items: [], quota: QUOTA }, response: res(200) });
     await waitFor(() => expect(out).toHaveBeenCalledWith({ kind: 'ok', data: { items: [], quota: QUOTA } }));
