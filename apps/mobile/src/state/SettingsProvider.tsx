@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { loadSettings, saveSettings } from '../db/settings';
 import { inTransaction, type PullDb } from '../db/outbox';
+import { storeEpoch } from '../db/storeEpoch';
 import type { StoreDb } from '../db/records';
 import { CUSTOM_EXERCISES_MAX, type ExerciseTag, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
@@ -30,6 +31,8 @@ interface SettingsState {
 }
 
 const Ctx = createContext<SettingsState | null>(null);
+/** Thrown inside a save that found its provider gone or the store wiped since it was queued. */
+class Dropped extends Error {}
 const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /**
@@ -52,6 +55,11 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
   const unsaved = useRef<KeptEdit[]>([]);
   /** True while the kept edits are written down in the device store. */
   const persisted = useRef(false);
+  /** False once this provider is gone (sign-out or wipe remounts it): its queued saves must not write for an account that is no longer here (#645). */
+  const mounted = useRef(true);
+  /** The wipe count when this provider started: a save finding another one belongs to a wiped account. */
+  const epoch = useRef(storeEpoch());
+  const stale = () => !mounted.current || storeEpoch() !== epoch.current;
   const booted = useRef(false);
   if (!booted.current) {
     booted.current = true;
@@ -61,6 +69,13 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       persisted.current = k.length > 0;
     });
   }
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -111,13 +126,18 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       setState(next);
       queue.current = queue.current
         .then(async () => {
+          if (stale()) throw new Dropped();
           unsaved.current.push({ f: apply, at });
           // Read, apply and write in one transaction: a pull cannot store the other device's record in between
           // (this save would then write the older record back, with its old version). A pull that comes after
           // finds this save queued and leaves the record for the next push to settle.
           let saved!: Settings;
           await inTransaction(db, async (txn) => {
-            saved = replayKept((await loadSettings(txn)) ?? defaultSettings(at), unsaved.current);
+            const stored = (await loadSettings(txn)) ?? defaultSettings(at);
+            // Checked here, with the write lock held and after the read: a wipe or sign-out that ran meanwhile has already
+            // committed, and nothing of this save may land for the old account (nor reach the outbox through the triggers).
+            if (stale()) throw new Dropped();
+            saved = replayKept(stored, unsaved.current);
             await saveSettings(txn, saved);
             if (persisted.current) await clearKept(txn);
           });
@@ -127,9 +147,10 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         })
         .then(
           (saved) => {
+            done?.(true); // told also when this provider has gone: the record was written
+            if (!mounted.current) return;
             setSaveFailed(false);
             pending.current -= 1;
-            done?.(true);
             // The last of the queued edits has landed: what shows is what is stored (it keeps the pulled fields and version).
             if (pending.current === 0) {
               ref.current = saved;
@@ -137,12 +158,19 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
               setState(saved);
             }
           },
-          async () => {
+          async (e) => {
+            // The account is gone: nothing to show, keep or write; the caller is told nothing was stored.
+            if (e instanceof Dropped) return done?.(false);
             pending.current -= 1;
             setSaveFailed(true);
             done?.(false);
             // Written down so an app restart does not lose them; if this fails too they stay in memory.
-            await inTransaction(db, (txn) => persistKept(txn, unsaved.current))
+            // With the lock held, and not for an account that a sign-out or wipe has meanwhile removed: that wipe took the lock
+            // first and deleted the kept edits, so writing them now would hand them to the next account (#645).
+            await inTransaction(db, async (txn) => {
+              if (stale()) throw new Dropped();
+              await persistKept(txn, unsaved.current);
+            })
               .then(() => void (persisted.current = true))
               .catch(() => undefined);
           },
