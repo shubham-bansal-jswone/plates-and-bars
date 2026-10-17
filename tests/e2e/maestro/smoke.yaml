@@ -1,0 +1,55 @@
+# Android smoke: setup, one meal, one set. Written against the web journeys in specs/ (same labels: React Native maps
+# accessibilityLabel to the content description, which Maestro matches like text). NOT yet run on a device: see README.md,
+# "Android (Maestro)". Run: maestro test maestro/smoke.yaml  (emulator or phone with the release-candidate APK installed).
+appId: app.plateandbar.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn: "I understand and agree to my data being stored as described"
+- tapOn: "Continue"
+- tapOn: "Male"
+- tapOn: "Age"
+- inputText: "30"
+- tapOn: "Use cm"
+- tapOn: "Height in cm"
+- inputText: "165"
+- tapOn: "Weight in kg"
+- inputText: "82"
+- hideKeyboard
+- tapOn: "Continue"
+- tapOn: "Mostly sitting.*"
+- tapOn: "Continue"
+- tapOn: "6"
+- tapOn: "At a gym.*"
+- tapOn: "Some experience.*"
+- tapOn: "60 min"
+- tapOn: "Continue"
+- tapOn: "Lose fat.*"
+- assertVisible: "Quick health check"
+# Health check: every answer is No (the radio groups sit below the fold on a phone).
+- repeat:
+    while:
+      visible: "No"
+    commands:
+      - tapOn:
+          text: "No"
+          index: 0
+      - scroll
+- tapOn: "See my targets"
+- tapOn: "Use these targets"
+- assertVisible: "Redo setup"
+# A meal.
+- tapOn: "Food"
+- tapOn: "+ Add to breakfast"
+- tapOn: "Add Roti / chapati.*"
+- tapOn: "Done"
+- assertVisible: ".* of .* kcal eaten"
+# A set.
+- tapOn: "Workout"
+- tapOn:
+    text: "Start (?!a rest).*"
+- tapOn:
+    text: "Mark .* set 1 done"
+- assertVisible:
+    text: "Mark .* set 1 done"
+    checked: true
