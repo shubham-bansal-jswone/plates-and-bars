@@ -6,7 +6,9 @@ import { fitLine } from '../src/recipes/copy';
 import { getKatoriG, getLibrary, getPresets, getRawIngredients } from '../src/recipes/content';
 import { loadRecipes } from '../src/db/recipes';
 import { loadUserFoods } from '../src/db/food';
-import { memoryDb } from './helpers';
+import { loadSettings, saveSettings } from '../src/db/settings';
+import { defaultSettings } from '../src/settings/types';
+import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
@@ -15,7 +17,7 @@ type Db = ReturnType<typeof memoryDb>;
 const stored = (db: Db, table: string) => [...db.rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => JSON.parse(v) as Record<string, unknown>);
 
 async function setup(db: Db = memoryDb(), onBack = jest.fn(), onKitchen = jest.fn()) {
-  await render(<RecipesScreen db={db} onBack={onBack} onKitchen={onKitchen} now={NOW} />);
+  await render(withProfile(db, <RecipesScreen db={db} onBack={onBack} onKitchen={onKitchen} now={NOW} />));
   await screen.findByRole('header', { name: 'Recipes' });
   return { db, onBack };
 }
@@ -202,7 +204,7 @@ describe('Recipes screen: builder', () => {
   it('logs to the meal Recipes was opened from', async () => {
     const db = memoryDb();
     const onBack = jest.fn();
-    await render(<RecipesScreen db={db} onBack={onBack} onKitchen={jest.fn()} meal="Snacks" now={NOW} />);
+    await render(withProfile(db, <RecipesScreen db={db} onBack={onBack} onKitchen={jest.fn()} meal="Snacks" now={NOW} />));
     await screen.findByRole('header', { name: 'Recipes' });
     await fireEvent.press(screen.getByLabelText('Dal'));
     await fireEvent.press(screen.getByLabelText('Save and add to snacks'));
@@ -214,7 +216,7 @@ describe('Recipes screen: builder', () => {
     const db = memoryDb();
     db.getAllAsync = () => Promise.reject(new Error('disk'));
     const onBack = jest.fn();
-    await render(<RecipesScreen db={db} onBack={onBack} onKitchen={jest.fn()} now={NOW} />);
+    await render(withProfile(db, <RecipesScreen db={db} onBack={onBack} onKitchen={jest.fn()} now={NOW} />));
     expect(await screen.findByText('Couldn’t read your saved recipes.')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Back'));
     await waitFor(() => expect(onBack).toHaveBeenCalled());
@@ -332,5 +334,64 @@ describe('Recipes screen: make it fit', () => {
     await fireEvent.press(screen.getByLabelText('Rich'));
     await fireEvent.changeText(screen.getByLabelText('Number of katoris'), '0');
     expect(screen.queryByText('Make it fit')).toBeNull();
+  });
+});
+
+describe('Recipes screen: meal prep', () => {
+  it('Save as meal prep saves the recipe and stores a batch: portions = katoris, 6 days, per-katori values, then goes back', async () => {
+    const db = memoryDb();
+    const { onBack } = await setup(db);
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Dinner'));
+    await fireEvent.press(screen.getByLabelText('Save as meal prep for dinner'));
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
+    const dal = getPresets().find((p) => p.name === 'Dal')!;
+    const t = recipeTotals({ ingredients: presetIngredients(dal.ingredients, 'normal', getRawIngredients()), yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
+    await waitFor(async () => expect((await loadSettings(db))?.prep).toHaveLength(1));
+    const [p] = (await loadSettings(db))!.prep;
+    expect(p).toMatchObject({ name: 'Dal (home-style)', meal: 'Dinner', left: 5, until: '2026-10-14' });
+    expect(p!.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(p!.food.kcal).toBe(Math.round(t.perKatori!.kcal));
+    // the recipe itself was saved as well, and nothing was logged
+    expect((await loadRecipes(db)).map((r) => r.name)).toEqual(['Dal (home-style)']);
+    expect(stored(db, 'food_logs')).toHaveLength(0);
+  });
+
+  it('stores nothing and keeps the refusal message when the recipe does not save', async () => {
+    const db = memoryDb();
+    const { onBack } = await setup(db);
+    await fireEvent.press(screen.getByLabelText('Save as meal prep for lunch'));
+    expect(await screen.findByText('Give the recipe a name.')).toBeTruthy();
+    expect(screen.queryByText(/Meal prep set/)).toBeNull();
+    expect(onBack).not.toHaveBeenCalled();
+    expect((await loadSettings(db))?.prep ?? []).toEqual([]);
+    expect(await loadRecipes(db)).toEqual([]);
+  });
+
+  it('a recipe with no yield stores no batch', async () => {
+    const db = memoryDb();
+    await setup(db);
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.changeText(screen.getByLabelText('Number of katoris'), '');
+    await fireEvent.press(screen.getByLabelText('Save as meal prep for lunch'));
+    expect(await screen.findByText(/Add how many katoris/)).toBeTruthy();
+    expect((await loadSettings(db))?.prep ?? []).toEqual([]);
+  });
+
+  it('drops used-up and expired batches when a new one is set, keeping the others', async () => {
+    const db = memoryDb();
+    const old = { id: 'old', name: 'Old', meal: 'Lunch' as const, left: 2, until: '2026-10-08', food: { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 } };
+    await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), prep: [old, { ...old, id: 'gone', until: '2026-10-07' }, { ...old, id: 'empty', left: 0 }] });
+    const { onBack } = await setup(db);
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Save as meal prep for lunch'));
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
+    await waitFor(async () => expect((await loadSettings(db))!.prep.map((p) => p.id)).toHaveLength(2));
+    expect((await loadSettings(db))!.prep.map((p) => p.name)).toEqual(['Old', 'Dal (home-style)']);
+  });
+
+  it('the button has a spoken label naming the meal', async () => {
+    await setup();
+    expect(screen.getByRole('button', { name: 'Save as meal prep for lunch' })).toBeTruthy();
   });
 });

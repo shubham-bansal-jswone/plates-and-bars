@@ -25,3 +25,8 @@ export const fitLine = (s: FitSuggestion): string =>
   s.kind === 'fit-oil' ? `Use half the oil or ghee: about −${fmt(s.kcal_saved)} kcal per katori` : `Add ${FIT_SOYA_G} g soya chunks: about +${fmt(s.protein_added_g)} g protein per katori`;
 export const UNKNOWN_ROW = 'not in the ingredient table, not counted';
 export const unknownBlock = (names: readonly string[]): string => `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} ${UNKNOWN_ROW}. Pick another ingredient or remove the row to save.`;
+
+/** Toast after "Save as meal prep" (prototype: `Meal prep set: …`); `portions` is the katoris made, rounded. */
+export const prepSet = (portions: number, meal: string): string => `Meal prep set: ${portions} portions for ${meal.toLowerCase()} this week`;
+/** The recipe saved but the settings could not be written, so no prep was set. */
+export const PREP_NOT_SAVED = 'Couldn’t read your saved settings, so the meal prep was not set. Restart the app to try again.';
