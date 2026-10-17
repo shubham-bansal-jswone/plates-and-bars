@@ -11,6 +11,7 @@ Where to find things. The prototype is the behaviour specification; everything e
     spec/golden/*.json             fixtures generated from the prototype; never edit by hand
     spec/ISSUES.md                 work items from the 2026-10-07 handoff, with acceptance criteria
     INCIDENT-RESPONSE.md           personal data breach runbook (DPDP notification, templates)
+    ACCOUNT-DELETION-RUNBOOK.md    deleting an account on an emailed request (code check, DELETE /me, replies)
     PLAY-DATA-SAFETY.md            Play Console Data safety and Health apps declaration answers
 
 When the prototype changes, follow "When the prototype changes" in AGENTS.md.
