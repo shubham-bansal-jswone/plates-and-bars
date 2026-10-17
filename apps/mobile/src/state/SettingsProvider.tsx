@@ -6,6 +6,7 @@ import type { StoreDb } from '../db/records';
 import { CUSTOM_EXERCISES_MAX, type ExerciseTag, type FlexEntry, type MealPlan } from '@plate-and-bar/core';
 import { defaultSettings, type Settings } from '../settings/types';
 import { exerciseNamed, setCustomTags } from '../workout/catalog';
+import { has, isProtoName, withEntry } from '../content/own';
 import { clearKept, keptCopy, persistKept, readKept, replayKept, type KeptEdit } from './keptEdits';
 
 interface SettingsState {
@@ -40,12 +41,13 @@ class Dropped extends Error {}
 /**
  * True when a custom exercise `name` cannot be added to `have`. A name that is a known exercise in another letter case would be
  * a near-duplicate (#450): the typed-name flow adds the known one. The contract keeps at most 500 custom exercises; replacing
- * one already there is always fine.
+ * one already there is always fine. A new `Object.prototype` name (`__proto__`, `constructor`, ...) is refused: the catalogue drops it,
+ * so it would be invisible yet count toward the cap (#715); one already stored (another device, an older build) stays as data.
  */
 function customRefused(have: Settings['custom_tags'], name: string): boolean {
   const known = exerciseNamed(name, have);
   if (known !== undefined && known !== name) return true;
-  return !Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_EXERCISES_MAX;
+  return !has(have, name) && (isProtoName(name) || Object.keys(have).length >= CUSTOM_EXERCISES_MAX);
 }
 const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
@@ -238,7 +240,7 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         let refused = false;
         const queued = change(
           (s) => {
-            if (!customRefused(s.custom_tags, name)) return { custom_tags: { ...s.custom_tags, [name]: tags } };
+            if (!customRefused(s.custom_tags, name)) return { custom_tags: withEntry<unknown>(s.custom_tags, name, tags) };
             refused = true;
             return {};
           },
