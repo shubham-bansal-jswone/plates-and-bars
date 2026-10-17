@@ -30,6 +30,7 @@ jobs:
       run_site: ${{ steps.d.outputs.run_site }}
       run_content_meta: ${{ steps.d.outputs.run_content_meta }}
       run_e2e: ${{ steps.d.outputs.run_e2e }}
+      run_e2e_sync: ${{ steps.d.outputs.run_e2e_sync }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -265,7 +266,7 @@ jobs:
   e2e-sync:
     name: e2e (sync, Playwright + backend stack)
     needs: changes
-    if: needs.changes.outputs.run_e2e == 'true'
+    if: needs.changes.outputs.run_e2e_sync == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

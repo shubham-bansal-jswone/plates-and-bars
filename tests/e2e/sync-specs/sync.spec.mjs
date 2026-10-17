@@ -19,7 +19,7 @@ test('log a meal offline, sync it to a second device, then delete the account', 
   await saved(a, () => a.locator('[aria-label^="Add Roti / chapati"]').first().click());
   await label(a, 'Done').click();
   await expect(label(a, '102 of 1,990 kcal eaten')).toBeVisible();
-  // The badge count is only refreshed by the 30 s sync tick (a bug, filed), so allow one tick before it says so.
+  // The badge count is only refreshed by the 30 s sync tick (#767), so allow one tick before it says so.
   await expect(badge(a, 'Not synced')).toBeVisible({ timeout: 45_000 });
 
   // Back online: the app syncs on the browser's online event and the badge clears.
