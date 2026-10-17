@@ -2,16 +2,16 @@ import type { Activity, Experience, Goal, Pace, Where } from '@plate-and-bar/cor
 
 // Setup copy, taken from docs/prototype/plate-and-bar.html. Moves into a content bundle once one exists.
 
-export const CONSENT_TEXT_VERSION = '2026-10-16';
+export const CONSENT_TEXT_VERSION = '2026-10-17';
 
 export const CONSENT = {
   title: 'Before you start',
   intro:
     'Plate & Bar tracks food, training, body measurements and, if you choose, photos, cycle data and lab results. That’s health data, so here’s how it’s handled:',
   bullets: [
-    'Food, workouts, weight and measurements are saved privately to your Claude account so they sync between devices.',
+    'Your data stays on this device. If you sign in and agree to sync, it is also stored on our own server so it syncs between your devices.',
     'Progress photos, cycle logs and lab reports stay only on this device.',
-    'Meal photos, recipe imports and form-check frames are sent to Claude for analysis and not stored.',
+    'AI features are off by default and need their own opt-in. No photos are sent anywhere.',
     'You can download or delete everything at any time on the Targets tab.',
     'Withdrawing your consent means deleting your account.',
   ],
