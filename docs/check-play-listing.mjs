@@ -31,7 +31,7 @@ for (const [key, { max, text }] of Object.entries(blocks)) {
   if (text.trim() === '') problems.push(`${key}: empty`);
   if (len(text) > max) problems.push(`${key}: ${len(text)} characters, over ${max}`);
   if (/\[[^\]\n]*\]/.test(text)) problems.push(`${key}: contains a [placeholder]; listing text must be paste-ready`);
-  if (/\b(claude|anthropic|openai|chatgpt|gpt|gemini|llama|mistral|cohere)\b/i.test(text)) {
+  if (/\b(claude|anthropic|openai|chatgpt|gpt|gemini|llama|mistral|cohere|deepseek|grok|qwen|copilot|bard|perplexity)\b/i.test(text)) {
     problems.push(`${key}: names an AI vendor or model (#673)`);
   }
 }

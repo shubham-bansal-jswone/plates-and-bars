@@ -12,7 +12,7 @@ Placeholders are marked like the site's legal pages (`[contact email]`). Fill th
 2. `[site host]`: the website host. Privacy policy URL is `https://[site host]/privacy/`, website `https://[site host]/`, account deletion URL `https://[site host]/delete-account/` (also in `docs/PLAY-DATA-SAFETY.md`). Publish the final, lawyer-reviewed pages first.
 3. App name: keep "Plate & Bar" (the app's own name in `apps/mobile/app.json`) or pick the longer option below.
 4. AI paragraph: add it to the full description only if AI features are switched on in production at release (a provider and a budget are chosen and the `AI_*_ENABLED` flags are on). Today they are off, so leave it out.
-5. Crash reporting sentence: keep it as written whether or not the release has a DSN; it stays true either way. If crash reporting is on, the privacy page's crash-report section must be published first (`docs/PLAY-DATA-SAFETY.md`, Before submitting).
+5. Crash reporting sentence: keep it as written whether or not the release has a DSN; it stays true either way. Do not describe crash reports as opt-in: users have no switch for them, and they are sent whenever the build has a DSN (`docs/PLAY-DATA-SAFETY.md`). If crash reporting is on, the privacy page's crash-report section must be published first (`docs/PLAY-DATA-SAFETY.md`, Before submitting).
 6. Content rating: answer the live questionnaire with the answers below, checking each against Google's current wording, which may differ from the topic names used here.
 7. Target audience: "Ages 18 and over" only, and decide whether to turn on Restrict Minor Access (below).
 8. Price: the app has no purchases, ads or subscriptions; set it to free unless you decide otherwise.
@@ -81,7 +81,7 @@ Why it works
 Short cards explain the reasons behind your targets and your plan.
 
 Your data
-- No ads, and no advertising or analytics SDKs.
+- No ads and no advertising SDKs; the only SDK that sends anything is for crash reports.
 - If crash reporting is switched on for a release, crash and error reports go to an error-tracking service we run ourselves. See the privacy policy.
 - Download a copy of your data, or delete everything, from "Your data" in the app. Deleting clears this device and, if you signed in, removes your account and its data from our server.
 
@@ -94,7 +94,7 @@ Optional paragraph, only when AI is switched on in production (owner step 4). In
 <!-- play:ai max=4000 -->
 ```text
 Optional AI help
-AI features are off by default and you switch them on yourself; the app works fully without them. When on, you can describe a meal in words to log it, ask why your plan or targets are what they are, get a weekly summary, and get muscle suggestions for your own exercises. Photos are never sent. AI answers are information, not advice, and can be wrong.
+AI features need you to sign in, are off by default, and you switch them on yourself; the app works fully without them. When on, you can describe a meal in words to log it, ask why your plan or targets are what they are, get a weekly summary, and get muscle suggestions for your own exercises. Photos are never sent. AI answers are information, not advice, and can be wrong.
 ```
 
 ### What's new (release notes, 500 max)
@@ -118,7 +118,7 @@ For later releases, keep the same shape: one line saying what the release is, th
 | Field | Answer | Why |
 | --- | --- | --- |
 | App or game | App | |
-| Category | Health and Fitness | Google's example content for it is "Personal fitness, workout tracking, diet and nutritional tips, health and safety" (source 3). Not Medical: the app gives no diagnosis or treatment (same reasoning as the Health apps declaration in `docs/PLAY-DATA-SAFETY.md`) |
+| Category | Health & Fitness | Google's example content for it is "Personal fitness, workout tracking, diet and nutritional tips, health and safety" (source 3). Not Medical: the app gives no diagnosis or treatment (same reasoning as the Health apps declaration in `docs/PLAY-DATA-SAFETY.md`) |
 | Tags (up to five, from Play Console's list) | Owner picks; look for the closest to: fitness tracking, workout, nutrition or calorie counter, diet, weight loss | Tags are picked from Play Console's suggestions (source 3) |
 | Contact email | `[contact email]` | Required by Play (source 1) |
 | Website | `https://[site host]/` | Recommended by Play (source 1) |
@@ -133,7 +133,7 @@ For later releases, keep the same shape: one line saying what the release is, th
 | Restrict Minor Access | Recommended: on. **Owner** decides | With 18 and over as the only age group, users Google has determined to be minors cannot search for, download or buy the app (source 4). It matches the terms' "do not create an account or use the app" for under-18s |
 | Does the store listing appeal to children? | No | No youthful characters or animation in the listing (keep it that way in the graphics, #833) |
 
-Note on "18+ content rating" in the launch checklist: the content rating is calculated by IARC from the questionnaire answers, and the developer cannot pick it (source 5). The answers below will most likely give a low rating; the adults-only limit comes from the target audience setting, the terms and the setup disclaimer, not from the rating.
+Note on "18+ content rating" in the launch checklist: the content rating is calculated by IARC from the questionnaire answers, and the developer cannot pick it (source 5). The answers below will most likely give a low rating, though IARC may rate the app 12+ or Teen in some regions because of the alcohol references (harmless, since the target audience is 18 and over); the adults-only limit comes from the target audience setting, the terms and the setup disclaimer, not from the rating.
 
 ## Content rating questionnaire
 
@@ -145,7 +145,7 @@ Topic names are from Google's ratings help (source 5); the live questionnaire wo
 | Violence, blood, fear | No | None |
 | Sexuality, nudity | No | Progress photos are the user's own, stay on the device and are never shown to anyone else |
 | Language (profanity, crude humour) | No | None |
-| Controlled substances: alcohol | **Yes, references only** (owner to confirm how the live question classes it) | The eating-out list has drinks with calories (beer, wine, spirits, cocktails) and a science card explains that alcohol adds calories and slows recovery. No use is shown or encouraged |
+| Controlled substances: alcohol | **Yes, references only** (owner to confirm how the live question classes it) | The eating-out list has drinks with calories (beer, wine, spirits, cocktails) and a science card explains that alcohol adds calories and slows recovery. No use is shown; the Drinks tips advise drinking less and picking lower-calorie drinks |
 | Controlled substances: tobacco, drugs | No | None |
 | Gambling, simulated gambling | No | None |
 | Users can interact or exchange content (chat, messaging, forums) | No | No messaging, comments or public profiles; sync is only between the user's own devices |
