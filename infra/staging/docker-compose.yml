@@ -65,6 +65,8 @@ services:
       # Error tracking (Sentry SDK to GlitchTip). Empty = off, nothing is sent.
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
+      # Maps events to the deployed image (#827); API_TAG is the sha or v* tag that deploy.sh writes. Backend reads it as sentry.release.
+      SENTRY_RELEASE: plateandbar-api@${API_TAG}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

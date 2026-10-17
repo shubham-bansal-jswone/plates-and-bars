@@ -13,6 +13,12 @@ name: Android release build
 # Repository variable (Settings > Secrets and variables > Actions > Variables):
 #   ANDROID_API_URL            https://<API_HOST>/api/v1, baked into the build as EXPO_PUBLIC_API_URL. REQUIRED on v* tags (the job fails
 #                              without it); optional, with a warning, on manual and PR runs. Not a secret.
+# Optional variables of the `android-release` environment (all inert when unset; they reach only the Gradle step, which
+# bundles the JS, never npm ci or expo prebuild):
+#   EXPO_PUBLIC_SENTRY_DSN     error-tracking DSN baked into the build; empty = the app sends nothing. Set it only after the
+#                              privacy page and the Play data-safety answers name crash reports (#748, #827).
+#   EXPO_PUBLIC_SITE_URL       https origin of the website; the app hides its privacy, terms and deletion links without it (#825)
+# EXPO_PUBLIC_SENTRY_ENVIRONMENT is set here, not by you: `production` on a v* tag, `staging` otherwise.
 # android.versionCode comes from the tag (v1.2.3 -> 1002003) or, on non-tag runs, the run number; see
 # infra/scripts/android-release-config.sh.
 #
@@ -30,6 +36,7 @@ on:
       - 'infra/scripts/android-release-config.sh'
       - 'infra/scripts/test-android-release-config.sh'
       - 'infra/scripts/check-api-url.sh'
+      - 'infra/scripts/test-release-env.sh'
   workflow_dispatch:
 
 permissions:
@@ -70,9 +77,10 @@ jobs:
         if: github.event_name == 'pull_request'
         working-directory: .
         run: |
-          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh
+          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/test-release-env.sh
           infra/scripts/test-check-api-url.sh
           infra/scripts/test-android-release-config.sh
+          infra/scripts/test-release-env.sh
       - name: Set versionCode and check the API URL (CI checkout only, not committed)
         run: ../../infra/scripts/android-release-config.sh app.json
       - name: Generate the native project
@@ -94,6 +102,10 @@ jobs:
       - name: Build APK and AAB
         working-directory: apps/mobile/android
         env:
+          # read by Metro when Gradle bundles the JS; only this step, never npm ci
+          EXPO_PUBLIC_SENTRY_DSN: ${{ vars.EXPO_PUBLIC_SENTRY_DSN }}
+          EXPO_PUBLIC_SENTRY_ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+          EXPO_PUBLIC_SITE_URL: ${{ vars.EXPO_PUBLIC_SITE_URL }}
           ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
           ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
           ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
