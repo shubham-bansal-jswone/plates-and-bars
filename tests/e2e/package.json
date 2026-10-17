@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "install:chromium": "node scripts/install-chromium.mjs",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:sync": "playwright test -c playwright.sync.config.mjs"
   },
   "engines": {
     "node": ">=22.13"
