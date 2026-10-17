@@ -11,6 +11,10 @@ export const EQUIPMENT = ['barbell', 'dumbbell', 'machine', 'cable', 'assisted',
 /** The "Smallest weight jump" chips, in kg (prototype `renderExSettings`). The default for a type is core's `DEFAULT_STEP`. */
 export const STEP_CHOICES = [1, 1.25, 2, 2.5, 5, 10] as const;
 
+/** The contract keeps at most 500 `exercise_overrides` (`maxProperties`); a new name past it is refused. Moves to packages/core with the other helpers. */
+export const OVERRIDES_MAX = 500;
+export const OVERRIDES_FULL = 'You have set up the most exercises that can be changed (500). Reset one to default first.';
+
 export const RANGE_INVALID = 'Set a valid range, like 8 to 12.';
 
 /**

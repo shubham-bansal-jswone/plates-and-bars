@@ -4,7 +4,10 @@ import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings, type Settings } from '../src/settings/types';
-import { overrideFromDraft, withoutOverride } from '../src/workout/exerciseSettings';
+import { ExerciseSettings } from '../src/workout/ExerciseSettingsSheet';
+import { useSettings } from '../src/state/SettingsProvider';
+import { Button } from '../src/components/ui';
+import { overrideFromDraft, OVERRIDES_MAX, withoutOverride } from '../src/workout/exerciseSettings';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
@@ -240,6 +243,68 @@ describe('exercise settings sheet', () => {
     expect(await screen.findByText('Couldn’t save that on this device. Try again.')).toBeTruthy();
     // The card still shows what was chosen; the edit is written with the next save.
     expect(screen.getByLabelText(`${BENCH} settings`)).toBeTruthy();
+  });
+});
+
+describe('exercise settings sheet: failed writes and the entry cap', () => {
+  const NOT_STORED = 'Couldn’t save that on this device. Try again.';
+
+  it('reports every failed save of the sheet, also a second one in a row', async () => {
+    const db = await open();
+    db.failWrites = true;
+    await press(`${BENCH} settings`);
+    await press(`Save settings for ${BENCH}`);
+    expect(await screen.findByText(NOT_STORED)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(NOT_STORED)).toBeNull(), { timeout: 4000 });
+    await press(`${BENCH} settings`);
+    await press('Equipment: Cable');
+    await press(`Save settings for ${BENCH}`);
+    expect(screen.queryByText('Saved for this exercise')).toBeNull();
+    expect(await screen.findByText(NOT_STORED)).toBeTruthy();
+  });
+
+  it('does not report a later failed write that is not this sheet’s save', async () => {
+    const notify = jest.fn();
+    const db = memoryDb();
+    function Other() {
+      const { update } = useSettings();
+      return <Button label="Other write" onPress={() => void update({ rest_off: true })} />;
+    }
+    const info = { type: 'barbell' as const, lo: 6, hi: 10, step: 2.5 };
+    await render(withProfile(db, <><ExerciseSettings name={BENCH} info={info} notify={notify} /><Other /></>));
+    await press(`${BENCH} settings`);
+    await press(`Save settings for ${BENCH}`);
+    await waitFor(() => expect(settingsOf(db).exercise_overrides[BENCH]).toBeDefined());
+    await act(async () => {});
+    notify.mockClear();
+    db.failWrites = true;
+    await press('Other write');
+    await act(async () => {});
+    await act(async () => {});
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  const full = () => Object.fromEntries(Array.from({ length: OVERRIDES_MAX }, (_, i) => [`Custom ${i}`, { type: 'machine' as const, step_kg: 5, rep_low: 8, rep_high: 12 }]));
+
+  it('refuses a new name past the 500-entry cap and keeps the sheet, but still changes an existing entry', async () => {
+    const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: full() }));
+    await press(`${BENCH} settings`);
+    await press(`Save settings for ${BENCH}`);
+    expect(screen.getByText(/most exercises that can be changed \(500\)/)).toBeTruthy();
+    expect(screen.getByLabelText(`Close ${BENCH} settings`)).toBeTruthy();
+    await act(async () => {});
+    expect(Object.keys(settingsOf(db).exercise_overrides)).toHaveLength(OVERRIDES_MAX);
+    expect(settingsOf(db).exercise_overrides[BENCH]).toBeUndefined();
+    // Reset frees nothing here (no entry), but an entry already there can be replaced at the cap.
+    await press(`Close ${BENCH} settings`);
+  });
+
+  it('allows replacing an entry when the cap is reached', async () => {
+    const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: { ...full(), [BENCH]: { type: 'barbell', step_kg: 2.5, rep_low: 6, rep_high: 10 } } }));
+    await press(`${BENCH} settings`);
+    await fireEvent.changeText(input('Range high'), '11');
+    await press(`Save settings for ${BENCH}`);
+    await waitFor(() => expect(settingsOf(db).exercise_overrides[BENCH]?.rep_high).toBe(11));
   });
 });
 
