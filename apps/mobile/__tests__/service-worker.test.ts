@@ -70,6 +70,12 @@ describe('precache and fetch', () => {
     expect(await asset.text()).toBe('f');
   });
 
+  it('the install and the first navigation building at once end with one complete cache', async () => {
+    const { stores } = install(files);
+    await Promise.all([sw.precache(), sw.precache()]);
+    expect([...stores.get(`pb-shell-${ENTRY}`)!.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());
+  });
+
   it('a failed download leaves no cache, so the previous one stays in use', async () => {
     const { stores } = install({ '/': HTML, [ENTRY]: `y("${FONT}")` }); // the font is a 404
     await expect(sw.precache()).rejects.toThrow();
