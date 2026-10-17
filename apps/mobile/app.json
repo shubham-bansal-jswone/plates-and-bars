@@ -7,13 +7,13 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "plugins": [["expo-router", { "asyncRoutes": false }], "expo-sqlite", ["expo-secure-store", { "configureAndroidBackup": false }], "expo-font", "expo-sharing", ["expo-image-picker", { "photosPermission": "Choose progress photos. They stay on this device.", "cameraPermission": "Take progress photos. They stay on this device.", "microphonePermission": false }], "./plugins/with-no-backup"],
+    "plugins": [["expo-router", { "asyncRoutes": false }], "expo-sqlite", ["expo-secure-store", { "configureAndroidBackup": false }], "expo-font", ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 200, "backgroundColor": "#FFFFFF", "dark": { "backgroundColor": "#000000" } }], "expo-sharing", ["expo-image-picker", { "photosPermission": "Choose progress photos. They stay on this device.", "cameraPermission": "Take progress photos. They stay on this device.", "microphonePermission": false }], "./plugins/with-no-backup"],
     "experiments": { "typedRoutes": true },
     "ios": { "supportsTablet": true, "bundleIdentifier": "app.plateandbar.mobile" },
     "android": {
       "package": "app.plateandbar.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#2457E6",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
