@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import app.plateandbar.api.ratelimit.ClientIpResolver;
 import app.plateandbar.api.ratelimit.RateLimitProperties;
 import app.plateandbar.api.ratelimit.RateLimiter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
 import java.io.IOException;

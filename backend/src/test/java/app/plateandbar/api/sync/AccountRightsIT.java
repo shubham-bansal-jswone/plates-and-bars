@@ -5,7 +5,7 @@ import static app.plateandbar.api.sync.SyncFixtures.id;
 import static app.plateandbar.api.sync.SyncFixtures.waterLog;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,10 +37,10 @@ class AccountRightsIT extends SyncITBase {
     }
 
     /** Seeds every table the schema has for the user; returns the one-of-each records it pushed. */
-    private Map<SyncTable, com.fasterxml.jackson.databind.node.ObjectNode> seed(String user, String email) {
+    private Map<SyncTable, tools.jackson.databind.node.ObjectNode> seed(String user, String email) {
         jdbc.update("UPDATE users SET email = ? WHERE id = ?", email, user);
         Req push = Req.of(null);
-        Map<SyncTable, com.fasterxml.jackson.databind.node.ObjectNode> pushed = SyncFixtures.oneOfEach(user, MID);
+        Map<SyncTable, tools.jackson.databind.node.ObjectNode> pushed = SyncFixtures.oneOfEach(user, MID);
         pushed.forEach(push::add);
         ok(user, push.build());
         String rid = id();
@@ -138,7 +138,7 @@ class AccountRightsIT extends SyncITBase {
         assertThat(export.getBody()).contains("\"unauthorized\"");
         Resp sync = post(token, Req.of(null).build().toString());
         assertThat(sync.status()).isEqualTo(401);
-        assertThat(sync.body().path("code").asText()).isEqualTo("unauthorized");
+        assertThat(sync.body().path("code").asString()).isEqualTo("unauthorized");
         assertThat(count("SELECT COUNT(*) FROM sync_state WHERE user_id = ?", a)).isZero();
 
         assertThat(call(HttpMethod.DELETE, "/api/v1/me", token).getStatusCode().value()).isEqualTo(204);
@@ -164,7 +164,7 @@ class AccountRightsIT extends SyncITBase {
         String a = newUser();
         String b = newUser();
         String aMail = "a-" + a + "@example.com";
-        Map<SyncTable, com.fasterxml.jackson.databind.node.ObjectNode> pushed = seed(a, aMail);
+        Map<SyncTable, tools.jackson.databind.node.ObjectNode> pushed = seed(a, aMail);
         seed(b, "b-" + b + "@example.com");
 
         ResponseEntity<String> res = call(HttpMethod.GET, "/api/v1/me/export", jwt.issue(a).value());
@@ -176,9 +176,9 @@ class AccountRightsIT extends SyncITBase {
 
         assertThat(ContractSchemas.validate("MeExport", out)).isEmpty();
         assertThat(out.path("format_version").asInt()).isEqualTo(1);
-        assertThat(out.path("exported_at").asText()).isEqualTo(iso(START));
-        assertThat(out.path("user").path("id").asText()).isEqualTo(a);
-        assertThat(out.path("user").path("email").asText()).isEqualTo(aMail);
+        assertThat(out.path("exported_at").asString()).isEqualTo(iso(START));
+        assertThat(out.path("user").path("id").asString()).isEqualTo(a);
+        assertThat(out.path("user").path("email").asString()).isEqualTo(aMail);
 
         // Every table present; each seeded record comes back with its fields, stored version 1.
         assertThat(out.path("tables").size()).isEqualTo(SyncTable.values().length);
@@ -188,15 +188,13 @@ class AccountRightsIT extends SyncITBase {
             JsonNode sent = pushed.get(t);
             JsonNode got = null;
             for (JsonNode r : rows) {
-                if (r.path("id").asText().equals(sent.path("id").asText())) {
+                if (r.path("id").asString().equals(sent.path("id").asString())) {
                     got = r;
                 }
             }
             assertThat(got).as("seeded " + t.name()).isNotNull();
             assertThat(got.path("version").asInt()).isEqualTo(1);
-            var fields = sent.fieldNames();
-            while (fields.hasNext()) {
-                String f = fields.next();
+            for (String f : sent.propertyNames()) {
                 if (!f.equals("version")) {
                     assertThat(JsonContent.same(sent.get(f), got.get(f))).as(t + "." + f).isTrue();
                 }
@@ -216,11 +214,11 @@ class AccountRightsIT extends SyncITBase {
 
         JsonNode log = out.path("conflict_log");
         assertThat(log).hasSize(1);
-        assertThat(log.get(0).path("table").asText()).isEqualTo("water_logs");
-        assertThat(log.get(0).path("loser").asText()).isEqualTo("client");
+        assertThat(log.get(0).path("table").asString()).isEqualTo("water_logs");
+        assertThat(log.get(0).path("loser").asString()).isEqualTo("client");
         assertThat(log.get(0).path("winner_version").asInt()).isEqualTo(1);
         assertThat(log.get(0).path("record").path("ml").asInt()).isEqualTo(300);
-        assertThat(Instant.parse(log.get(0).path("logged_at").asText())).isEqualTo(START);
+        assertThat(Instant.parse(log.get(0).path("logged_at").asString())).isEqualTo(START);
         // Nothing of B's.
         assertThat(res.getBody()).doesNotContain(b);
         // No credentials.
@@ -297,7 +295,7 @@ class AccountRightsIT extends SyncITBase {
         try {
             Resp r = post(token, body);
             assertThat(r.status()).isEqualTo(401);
-            assertThat(r.body().path("code").asText()).isEqualTo("unauthorized");
+            assertThat(r.body().path("code").asString()).isEqualTo("unauthorized");
         } finally {
             org.mockito.Mockito.reset(existence);
         }
