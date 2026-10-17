@@ -30,6 +30,8 @@ export const SIGN_IN_COPY = {
   rejectedAfterSetAside: 'The server refused this sync after some records were set aside. Your changes are safe on this device; we will try again later. Update the app if it keeps happening.',
   failed: 'Sync stopped because of a problem on this device. Your records are safe; try again, and update the app if it keeps happening.',
   retrying: 'We could not reach the server. Your changes are safe on this device and we will try again.',
+  /** Web only (ADR 006, #744): the cookie-mode calls cannot get through from this site, though the server itself answers. */
+  signInUnavailable: "Sign-in isn't available on this site. Your records stay on this device and keep working. If you run this site, its address must be allowed on the sign-in server and both must be served over https from the same domain. Reload the page to try again.",
   accountFullHint: 'Your account is full, so new entries stay on this device and are not backed up',
   accountFull: 'Your account is full. New entries stay on this device and are not backed up. Changes to entries that are already backed up keep syncing, and we will try the new ones again later.',
   conflicts: (n: number) => `${n} ${n === 1 ? 'record was' : 'records were'} changed on another device more recently, so that version was kept.`,
@@ -49,6 +51,6 @@ export const SIGN_IN_COPY = {
   refused: (n: number) => `This device has ${n} unsynced ${n === 1 ? 'change' : 'changes'} from a different account, so that sign-in was not kept. Sign in as the previous user to sync them, or discard them.`,
   startError: (r: 'invalid_email' | 'rate_limited' | 'unavailable') =>
     r === 'invalid_email' ? 'Check the email address.' : r === 'rate_limited' ? 'Too many tries. Wait a minute and try again.' : 'We could not reach the server. Try again when you are online.',
-  verifyError: (r: 'invalid_code' | 'rate_limited' | 'unavailable' | 'offline') =>
-    r === 'invalid_code' ? 'That code is wrong or has expired. Request a new one.' : r === 'rate_limited' ? 'Too many tries. Wait a minute and try again.' : 'We could not reach the server. Try again when you are online.',
+  verifyError: (r: 'invalid_code' | 'rate_limited' | 'unavailable' | 'offline' | 'sign_in_unavailable') =>
+    r === 'sign_in_unavailable' ? SIGN_IN_COPY.signInUnavailable : r === 'invalid_code' ? 'That code is wrong or has expired. Request a new one.' : r === 'rate_limited' ? 'Too many tries. Wait a minute and try again.' : 'We could not reach the server. Try again when you are online.',
 };

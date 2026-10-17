@@ -1,6 +1,7 @@
 import type { ApiClient } from '@plate-and-bar/api';
 import { ACCESS_KEY, REFRESH_KEY } from '../secure/tokens';
 import { REQUEST_TIMEOUT_MS, withTimeout } from './timeout';
+import { trackCookieCall } from './cookieHealth';
 import { authInit, cookieMode } from './transport';
 
 // Web session bookkeeping for the cookie mode of ADR 006. Nothing here reads, stores or logs the refresh token, except
@@ -134,7 +135,7 @@ export function revokeCookie(api: ApiClient): Promise<boolean> {
 export async function postRevoke(api: ApiClient): Promise<boolean> {
   if (!cookieMode()) return true;
   try {
-    const r = await withTimeout(REQUEST_TIMEOUT_MS, (signal) => api.POST('/auth/refresh/revoke', { body: {}, signal, ...authInit() }));
+    const r = await withTimeout(REQUEST_TIMEOUT_MS, (signal) => trackCookieCall(api, () => api.POST('/auth/refresh/revoke', { body: {}, signal, ...authInit() })));
     if (r.timedOut || r.value.response.status !== 204) return false;
     clearSignOutPending();
     return true;
