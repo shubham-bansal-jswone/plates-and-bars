@@ -1,0 +1,28 @@
+Plate & Bar written content
+Copyright 2026 The Plate & Bar authors
+
+Our own written content is licensed under the Creative Commons Attribution 4.0
+International licence (CC BY 4.0). You may share and adapt it for any purpose,
+including commercially, as long as you give appropriate credit ("Plate & Bar"
+with a link to this repository), link to the licence, and say if you made
+changes.
+
+Legal code: https://creativecommons.org/licenses/by/4.0/legalcode
+Summary:    https://creativecommons.org/licenses/by/4.0/
+
+What this covers:
+- The text we wrote in content/: the "Why" and Learn cards (cards.json), recipe
+  names, steps and notes (recipes.json), exercise how-to notes, meal-planning
+  text, labels, and the values on rows whose source is "Own work" (own
+  recipes and own estimates).
+- User-facing copy in the app (apps/mobile) and the website (apps/site).
+
+What this does not cover:
+- Source code, including code that holds the copy above. Code is licensed
+  under the Apache License, Version 2.0 (see LICENSE).
+- Third-party data and assets. They keep their own licences, recorded on each
+  content row's "source" field and listed in THIRD_PARTY.md. For example,
+  values taken from USDA FoodData Central are public domain, and the body map
+  polygons are MIT-licensed.
+- Works cited on the cards. A card's "source" field is a reference to the
+  study or review it is based on; no text from those works is copied.
