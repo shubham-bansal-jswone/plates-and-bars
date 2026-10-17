@@ -11,6 +11,9 @@ import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SchemaRegistryConfig;
 import com.networknt.schema.SpecificationVersion;
+import com.networknt.schema.dialect.Dialect;
+import com.networknt.schema.dialect.Dialects;
+import com.networknt.schema.keyword.NonValidationKeyword;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
@@ -48,6 +51,17 @@ public class SyncRequestValidator {
 
     private final Schema requestSchema;
     private final Map<SyncTable, Set<String>> fields = new java.util.EnumMap<>(SyncTable.class);
+    /** {@code x-max-json-bytes} limits by table name then field, read from the contract; see CompactJsonSizes. */
+    private final Map<String, Map<String, CompactJsonSizes.Limit>> byteLimits = new java.util.HashMap<>();
+
+    static final String MAX_JSON_BYTES = "x-max-json-bytes";
+
+    /**
+     * Draft 2020-12 plus {@code x-max-json-bytes}, which CompactJsonSizes checks, not the schema library. Registered
+     * as a keyword that validates nothing, so the library does not log "Unknown keyword" for it.
+     */
+    static final Dialect REQUEST_DIALECT =
+            Dialect.builder(Dialects.getDraft202012()).keyword(new NonValidationKeyword(MAX_JSON_BYTES)).build();
 
     public SyncRequestValidator() {
         JsonNode components;
@@ -61,14 +75,20 @@ public class SyncRequestValidator {
         wrapper.put("$schema", DIALECT);
         wrapper.put("$ref", "#/components/schemas/SyncRequest");
         wrapper.set("components", components);
-        this.requestSchema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
+        this.requestSchema = SchemaRegistry.withDefaultDialect(REQUEST_DIALECT,
                 b -> b.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())).getSchema(wrapper);
         for (SyncTable t : SyncTable.values()) {
-            fields.put(t, recordFields(components.path("schemas"), components.path("schemas").path(schemaName(t))));
+            JsonNode schemas = components.path("schemas");
+            fields.put(t, recordFields(schemas, schemas.path(schemaName(t))));
+            Map<String, CompactJsonSizes.Limit> limits = byteLimits(schemas, schemas.path(schemaName(t)));
+            if (!limits.isEmpty()) {
+                byteLimits.put(t.name(), limits);
+            }
         }
     }
 
-    public Parsed validate(String userId, JsonNode body) {
+    /** {@code raw} is the request body {@code body} was parsed from; the byte limits are measured on it. */
+    public Parsed validate(String userId, JsonNode body, byte[] raw) {
         if (body == null || !body.isObject()) {
             throw invalid(List.of(new ErrorResponse.Detail("", "type")));
         }
@@ -83,6 +103,14 @@ public class SyncRequestValidator {
         List<ErrorResponse.Detail> problems = new ArrayList<>();
         for (com.networknt.schema.Error m : requestSchema.validate(body)) {
             problems.add(detail(m));
+        }
+        if (!problems.isEmpty()) {
+            throw invalid(problems);
+        }
+
+        // Measured on the raw bytes (number text as sent), and only once the shape is known to be valid.
+        for (String path : CompactJsonSizes.overLimit(raw, byteLimits)) {
+            problems.add(new ErrorResponse.Detail(path, "max_json_bytes"));
         }
         if (!problems.isEmpty()) {
             throw invalid(problems);
@@ -239,6 +267,32 @@ public class SyncRequestValidator {
         collect(schemas, schema, names);
         names.removeAll(Set.of("id", "version", "updated_at", "deleted_at"));
         return names;
+    }
+
+    /** Fields of the record schema with {@code x-max-json-bytes}, on the field or (for an array) on its items. */
+    private static Map<String, CompactJsonSizes.Limit> byteLimits(JsonNode schemas, JsonNode schema) {
+        Map<String, JsonNode> props = new java.util.LinkedHashMap<>();
+        collectProperties(schemas, schema, props);
+        Map<String, CompactJsonSizes.Limit> out = new java.util.HashMap<>();
+        props.forEach((name, prop) -> {
+            if (prop.has(MAX_JSON_BYTES)) {
+                out.put(name, new CompactJsonSizes.Limit(prop.get(MAX_JSON_BYTES).asLong(), false));
+            } else if (prop.path("items").has(MAX_JSON_BYTES)) {
+                out.put(name, new CompactJsonSizes.Limit(prop.path("items").get(MAX_JSON_BYTES).asLong(), true));
+            }
+        });
+        return out;
+    }
+
+    private static void collectProperties(JsonNode schemas, JsonNode schema, Map<String, JsonNode> out) {
+        if (schema.has("$ref")) {
+            String ref = schema.get("$ref").asString();
+            collectProperties(schemas, schemas.path(ref.substring(ref.lastIndexOf('/') + 1)), out);
+        }
+        schema.path("properties").properties().forEach(e -> out.put(e.getKey(), e.getValue()));
+        for (JsonNode part : schema.path("allOf")) {
+            collectProperties(schemas, part, out);
+        }
     }
 
     private static void collect(JsonNode schemas, JsonNode schema, Set<String> names) {
