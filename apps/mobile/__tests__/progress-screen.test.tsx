@@ -57,7 +57,11 @@ const weigh = (date: string, kg: number) => ({ id: null, version: 0, updated_at:
 // Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
 // fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
 beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
-afterEach(() => jest.useRealTimers());
+// Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
+afterEach(() => {
+  jest.runOnlyPendingTimers();
+  jest.useRealTimers();
+});
 
 describe('Progress screen', () => {
   it('saves a weigh-in to SQLite, rounded to 0.1, and shows it as the latest', async () => {
@@ -593,6 +597,8 @@ describe('Weekly check-in, burn and habits', () => {
     };
     await setup({ db });
     await flush();
+    // While the settings read is held, nothing has been written over the stored record.
+    expect(settingsDoc(db).checkin_seen).toBeNull();
     await act(async () => release());
     await waitFor(() => expect(settingsDoc(db)).toMatchObject({ focus: ['Chest'], diet: 'veg', checkin_seen: '2026-10-05', adjustments: { declines: { checkin: 2 } } }));
   });
