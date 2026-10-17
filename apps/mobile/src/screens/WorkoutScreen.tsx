@@ -87,7 +87,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
     day.exs.length === 0 ? (
       <StartView key={w.date} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
-      <SessionView db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+      <SessionView key={w.date} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
     );
   const where = day.workout?.where ?? profile.where;
   const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
@@ -362,7 +362,11 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
             const name = tagging;
             setTagging(null);
             // Only after the save has decided: a name it refuses (a near-duplicate a pull stored meanwhile) must not reach the workout.
-            if (!(await addCustomTags(name, tags))) return notify('Couldn’t save that exercise. Try again.');
+            if (!(await addCustomTags(name, tags))) {
+              // The refused name is the one the app has by now (what showed is what is stored): say which exercise it matches.
+              const known = exerciseNamed(name);
+              return notify(known && known !== name ? `That name matches ${known}. Use that name instead.` : 'Couldn’t save that exercise. Try again.');
+            }
             notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
           }}
         />

@@ -37,7 +37,7 @@ const probe = {
   contexts: {
     app: { app_version: '1.0', note: FOOD },
     device: { model: 'Pixel', note: FOOD, free_text: WEIGHT },
-    react_native_context: { js_engine: 'hermes', weightKg: WEIGHT, mealName: FOOD, health: 'knee pain', answers: 'knee pain', token: 'r-tok', email: 'me@example.com', password: 'pw-secret', passwd: 'pw-secret', secret: 'pw-secret', authorization: 'Bearer', cookie: 'r-tok', photo: FOOD, labResults: 'LABVALUE', lab: 'LABVALUE', bloodLabs: 'LABVALUE', label: 'kept', nested: deep(10, 'DEEPLEAK') },
+    react_native_context: { js_engine: 'hermes', foodName: FOOD, measurements: WEIGHT, profileGoal: WEIGHT, weightKg: WEIGHT, mealName: FOOD, health: 'knee pain', answers: 'knee pain', token: 'r-tok', email: 'me@example.com', password: 'pw-secret', passwd: 'pw-secret', secret: 'pw-secret', authorization: 'Bearer', cookie: 'r-tok', photo: FOOD, labResults: 'LABVALUE', lab: 'LABVALUE', bloodLabs: 'LABVALUE', label: 'kept', nested: deep(10, 'DEEPLEAK') },
     os: { name: 'Android' },
     profile: { age: 30, goal: WEIGHT },
     state: { value: FOOD },
@@ -57,7 +57,7 @@ const probe = {
       {
         type: 'SyntaxError',
         value: `Unexpected token 'p', "${FOOD}"... is not valid JSON`,
-        mechanism: { type: 'generic', handled: false },
+        mechanism: { type: 'generic', handled: false, synthetic: false, description: FOOD, data: { food: FOOD }, meta: { weight: WEIGHT } },
         stacktrace: { frames: [{ function: 'parseRow', filename: `app:///index.bundle?food=${FOOD}`, lineno: 10, colno: 3, in_app: true, vars: { weight: WEIGHT, other: FOOD }, pre_context: [FOOD], context_line: FOOD, post_context: [WEIGHT] }] },
       },
     ],
@@ -80,8 +80,15 @@ describe('scrubEvent', () => {
   });
   it('keeps the exception type, mechanism and stack, and blanks the value', () => {
     const ex = out.exception.values[0];
-    expect(ex).toMatchObject({ type: 'SyntaxError', value: '', mechanism: { type: 'generic', handled: false } });
+    expect(ex).toMatchObject({ type: 'SyntaxError', value: '', mechanism: { type: 'generic', handled: false, synthetic: false } });
     expect(ex.stacktrace.frames).toEqual([{ function: 'parseRow', filename: 'app:///index.bundle', lineno: 10, colno: 3, in_app: true }]);
+  });
+  it('keeps the linked-error fields as numbers, booleans and a fixed-shape source, and drops anything else', () => {
+    const scrub = (mechanism: object) => (scrubEvent({ exception: { values: [{ type: 'E', mechanism }] } } as unknown as ErrorEvent, null) as any).exception.values[0].mechanism;
+    expect(scrub({ type: 'chained', exception_id: 1, parent_id: 0, is_exception_group: false, source: 'errors[2]' })).toEqual({ type: 'chained', exception_id: 1, parent_id: 0, is_exception_group: false, source: 'errors[2]' });
+    expect(scrub({ source: 'cause' })).toEqual({ source: 'cause' });
+    const bad = scrub({ type: FOOD.repeat(20), exception_id: FOOD, parent_id: { food: FOOD }, is_exception_group: FOOD, handled: FOOD, source: FOOD });
+    expect(bad).toEqual({});
   });
   it('allows only device and app contexts, and filters sensitive keys inside them', () => {
     expect(Object.keys(out.contexts).sort()).toEqual(['app', 'device', 'os', 'react_native_context']);
@@ -90,7 +97,7 @@ describe('scrubEvent', () => {
     expect(out.contexts.os).toEqual({ name: 'Android' });
     const d = out.contexts.react_native_context;
     expect(d.js_engine).toBe('hermes');
-    for (const k of ['weightKg', 'mealName', 'health', 'answers', 'token', 'email', 'password', 'passwd', 'secret', 'authorization', 'cookie', 'photo', 'labResults', 'lab', 'bloodLabs']) expect(d[k]).toBe('[Filtered]');
+    for (const k of ['foodName', 'measurements', 'profileGoal', 'weightKg', 'mealName', 'health', 'answers', 'token', 'email', 'password', 'passwd', 'secret', 'authorization', 'cookie', 'photo', 'labResults', 'lab', 'bloodLabs']) expect(d[k]).toBe('[Filtered]');
     expect(d.label).toBe('kept');
     expect(JSON.stringify(d.nested)).toContain('[Filtered]'); // deeper than the depth limit
   });

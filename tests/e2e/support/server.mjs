@@ -5,7 +5,10 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = fileURLToPath(new URL('../../../apps/mobile/dist/', import.meta.url));
+// E2E_DIST: another export to serve (the sync tests serve a build that has the API URL compiled in), relative to tests/e2e.
+const root = process.env.E2E_DIST
+  ? fileURLToPath(new URL(`../${process.env.E2E_DIST}/`, import.meta.url))
+  : fileURLToPath(new URL('../../../apps/mobile/dist/', import.meta.url));
 const port = Number(process.env.E2E_PORT ?? 4173);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.ttf': 'font/ttf' };
 
