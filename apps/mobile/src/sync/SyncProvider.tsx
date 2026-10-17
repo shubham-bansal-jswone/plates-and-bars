@@ -105,8 +105,6 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const held = useRef(false);
   const holdUntil = useRef(0);
   const backoff = useRef(SYNC_INTERVAL_MS);
-  const refreshFails = useRef(0); // refresh failures in a row (ambiguous ones): the fast retry is used for the first only
-  const lastCounted = useRef<SyncResult | null>(null);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runRef = useRef<(force: boolean) => Promise<SyncResult | null>>(async () => null);
   const clearRetry = useCallback(() => {
@@ -152,21 +150,19 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       const r = await syncOnce({ db, api, tokens });
       setLast(r);
       if ((r.pulled ?? 0) > 0) setDataVersion((v) => v + 1);
-      if (r.status !== 'unavailable' && r.status !== 'rejected' && r.status !== 'offline') refreshFails.current = 0;
       if (r.status === 'ok') backoff.current = SYNC_INTERVAL_MS;
       else if (r.status === 'rate_limited') holdUntil.current = Date.now() + (r.retryAfterSec ?? 60) * 1000;
       else if (r.status === 'unavailable' || r.status === 'rejected' || r.status === 'offline') {
         // Offline backs off like a server problem (30 s, 1 min, 2 min, up to 5 min) so a long outage is not retried every 30 s.
         // A failed refresh request is the exception: the server may have rotated the token, and a retry must land inside its 60 s
         // grace window or it is read as reuse and ends the session, so retry after REFRESH_RETRY_MS and do not escalate (#762, #809).
-        // Only the first failure in a row: after the second the window can no longer be counted on, so a phone that stays offline
-        // falls back to the normal backoff instead of retrying every 20 s for hours.
-        // Runs that joined one sync get the same result object: it counts once.
-        if (r !== lastCounted.current) {
-          lastCounted.current = r;
-          refreshFails.current = r.viaRefresh ? refreshFails.current + 1 : 0;
-        }
-        if (r.viaRefresh && refreshFails.current < 2) {
+        // Every ambiguous failure gets the fast retry, not a count of them: the window runs from the first rotation, which can be any
+        // request in a failure streak, so the retry after this one is due 40 s at most after the send it follows (20 s wait + the
+        // 20 s request timeout) and always inside the window. A cap could push a needed retry past it and get the session revoked.
+        // Volume is bounded on web by not scheduling while the browser reports offline: the `online` event runs at once. Native
+        // relies on the foreground event.
+        const offlineWeb = Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (r.viaRefresh && !offlineWeb) {
           holdUntil.current = Date.now() + REFRESH_RETRY_MS;
           clearRetry(); // a joined run may have scheduled one already: keep a single tracked timer
           // An explicit one-shot timer, not the next interval tick (#809). The run is single-flight and takes the cross-tab lock in the engine.
@@ -174,8 +170,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
             retryTimer.current = null;
             if (!held.current) void runRef.current(false);
           }, REFRESH_RETRY_MS);
-        }
-        else {
+        } else {
           holdUntil.current = Date.now() + backoff.current;
           backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
         }
@@ -241,14 +236,12 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       // Back in the app (native has no `online` event): the user is here now, so start from the short wait again.
       holdUntil.current = 0;
       backoff.current = SYNC_INTERVAL_MS;
-      refreshFails.current = 0;
       clearRetry();
       tick();
     });
     const online = () => {
       holdUntil.current = 0;
       backoff.current = SYNC_INTERVAL_MS; // the network is back: start again from the short wait
-      refreshFails.current = 0;
       clearRetry();
       tick();
     };
