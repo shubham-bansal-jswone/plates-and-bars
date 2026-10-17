@@ -3,10 +3,16 @@
 Spring Boot 4.1 (Spring Framework 7, Spring Security 7, Jackson 3; Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contract is
 `packages/api/openapi.yaml`; every route lives under `/api/v1`.
 
-Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turns off Jackson 3's
-`fail-on-trailing-tokens` (so `/sync` and `/auth/*` still accept content after the JSON body; `/ai/*` refuses it in
-`AiController`) and keeps the nesting limit at Jackson 2's 1000 instead of Jackson 3's 500. A duplicate key in an
-`/auth/*` body takes the last value (202); Boot 3 answered 500, a bug, pinned in `AuthControllerTest`.
+Request parsing is strict on every endpoint (contract 0.1.18, #720; the vectors are
+`packages/api/test-vectors/strict-json.json`): `application.yml` turns on Jackson's `fail-on-trailing-tokens` and
+`read.strict-duplicate-detection`, so content after the JSON value and a key repeated in one object (compared after
+unescaping) are 400 `invalid_request` on `/auth/*`, `/sync` and `/ai/*` alike, and no key or value is named in the
+answer. The nesting limit stays at Jackson 2's 1000 instead of Jackson 3's 500 (#81).
+
+`POST /sync` also enforces `x-max-json-bytes` (`CompactJsonSizes`): each annotated value (`Settings.adjustments`,
+`adaptive`, `learn`, `meal_plan`, each `prep` item) is measured on the raw request bytes as compact UTF-8 JSON with
+number text exactly as sent (`1e2` is 3 bytes; not as JavaScript or Jackson would write the number again), and a value over its limit is 400 `invalid_request` (issue `max_json_bytes`) at its path. The
+keyword is registered with the schema library as a non-validation keyword so it does not log "Unknown keyword".
 
 ## Status (M0)
 
