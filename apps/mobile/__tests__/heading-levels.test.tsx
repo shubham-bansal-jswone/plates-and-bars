@@ -70,11 +70,11 @@ describe('screen outlines', () => {
     expectOutline(levels());
   });
 
-  it('Targets has one level-one heading: the results headline', async () => {
+  it('Targets has one level-one heading: Your setup, which states the burn once', async () => {
     const db = memoryDb();
     await saveProfile(db, profile());
     await render(withProfile(db, <TargetsScreen db={db} />));
-    await screen.findByRole('header', { name: /^You burn about/ });
+    await screen.findByRole('header', { name: 'Your setup' });
     expectOutline(levels());
   });
 
