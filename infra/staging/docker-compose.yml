@@ -48,6 +48,8 @@ services:
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY (at least 32 bytes)}
       GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # Per-account record cap on POST /sync (413 account_full). Unset or empty = no cap; leave unset until the app handles account_full.
+      SYNC_MAX_RECORDS_PER_ACCOUNT: ${SYNC_MAX_RECORDS_PER_ACCOUNT:-}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

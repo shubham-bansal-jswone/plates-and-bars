@@ -2,6 +2,7 @@ package app.plateandbar.api.common;
 
 import app.plateandbar.api.ai.QuotaExceededException;
 import app.plateandbar.api.ratelimit.RateLimitedException;
+import app.plateandbar.api.sync.AccountFullException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ErrorResponse> api(ApiException e) {
         return respond(e.status(), e.code(), e.getMessage(), e.details());
+    }
+
+    @ExceptionHandler(AccountFullException.class)
+    ResponseEntity<ErrorResponse> accountFull(AccountFullException e) {
+        return ResponseEntity.status(e.status())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(new ErrorResponse(e.code(), e.getMessage(), null, null, e.recordCap()));
     }
 
     @ExceptionHandler(RateLimitedException.class)
