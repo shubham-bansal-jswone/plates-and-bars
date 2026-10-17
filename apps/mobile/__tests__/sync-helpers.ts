@@ -98,6 +98,8 @@ export function fakeServer(userId: string) {
     bareAccountFull: false,
     /** The next /sync requests are applied and then the answer is lost (the client sees a network error). */
     loseResponses: 0,
+    /** Like `loseResponses`, but only for the next requests that carry changes (a pull-only request is answered). */
+    losePushResponses: 0,
     /** Resolution to apply to every version mismatch. */
     conflictResolution: null as null | 'server_won',
     /** Settles a version mismatch like the contract: the later `updated_at` wins the whole record (a tie goes to the server). */
@@ -192,6 +194,10 @@ export function fakeServer(userId: string) {
           }
         }
       }
+      if (s.losePushResponses > 0 && Object.keys(body.changes ?? {}).length > 0) {
+        s.losePushResponses--;
+        throw new TypeError('network down');
+      }
       if (s.loseResponses > 0) {
         s.loseResponses--;
         throw new TypeError('network down');
@@ -200,7 +206,8 @@ export function fakeServer(userId: string) {
         const from = Number(String(body.cursor ?? 's0').slice(1));
         const mine = new Set(Object.entries(body.changes ?? {}).flatMap(([t, rs]) => rs.map((r) => `${t}:${r.id}`)));
         const out: Record<string, Rec[]> = {};
-        for (const e of s.log) if (e.n > from && !mine.has(`${e.table}:${e.rec.id}`)) (out[e.table] ??= []).push(e.rec);
+        // Like the server: one change per record, its latest state.
+        for (const e of s.log) if (e.n > from && !mine.has(`${e.table}:${e.rec.id}`) && s.log.every((l) => l.n <= e.n || l.table !== e.table || l.rec.id !== e.rec.id)) (out[e.table] ??= []).push(e.rec);
         return json(200, { cursor: `s${s.log.length}`, has_more: s.alwaysMore, applied, conflicts, changes: out });
       }
       const changes = { ...pending };

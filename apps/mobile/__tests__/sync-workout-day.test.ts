@@ -159,4 +159,19 @@ describe('two devices edit the same workout day (#647)', () => {
     await a.sync();
     expect(server.calls.filter((c) => c.path === '/sync').length).toBeLessThanOrEqual(41);
   });
+
+  it('a day whose first push was stored but its answer lost is not merged (it saw a server copy)', async () => {
+    const { server, a, b } = await devices();
+    const id = await naturalId(USER, 'workouts', DATE);
+    await saveWorkout(a.db, cardioDay(30, '2026-10-08T10:00:00.000Z'));
+    server.losePushResponses = 1;
+    await a.sync(); // the server stored it as v1; A still holds it at v0
+    await b.sync();
+    await saveWorkout(b.db, { ...((await loadWorkout(b.db, DATE)) as Workout), cardio_min: null, updated_at: '2026-10-08T12:00:00.000Z' });
+    await b.sync(); // v2: the minutes are cleared
+    await a.sync();
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ cardio_min: null });
+    expect(((await loadWorkout(a.db, DATE)) as Workout).cardio_min).toBeNull();
+  });
 });
