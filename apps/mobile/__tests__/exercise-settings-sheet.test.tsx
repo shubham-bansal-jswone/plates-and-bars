@@ -73,7 +73,7 @@ describe('exercise settings sheet', () => {
     expect(input('Range low (reps)').props.value).toBe('6');
     expect(input('Range high').props.value).toBe('10');
     expect(screen.getByLabelText(`Save settings for ${BENCH}`)).toBeTruthy();
-    expect(screen.getByLabelText(`Reset ${BENCH} to default`)).toBeTruthy();
+    expect(screen.getByLabelText(`Reset to default for ${BENCH}`)).toBeTruthy();
   });
 
   it('Save writes the override and the card shows it at once: type, step, range, each-suffix and suggestion', async () => {
@@ -136,7 +136,7 @@ describe('exercise settings sheet', () => {
     });
     expect(screen.getByText(/Dumbbells, 8–12 reps, steps of 1 kg/)).toBeTruthy();
     await press(`${BENCH} settings`);
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     expect(screen.getByText('Back to defaults')).toBeTruthy();
     expect(screen.getByText(/Barbell, 6–10 reps, steps of 2.5 kg/)).toBeTruthy();
     expect(screen.getByText(SUGGESTED_BEFORE)).toBeTruthy();
@@ -232,7 +232,7 @@ describe('exercise settings sheet', () => {
     expect(screen.getByLabelText(`Close ${BENCH} settings`)).toBeTruthy();
     expect(screen.getByLabelText('Equipment: Cable').props['aria-pressed']).toBe(true);
     expect(input('Range high').props.value).toBe('14');
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     expect(screen.getByText(/Couldn’t read your saved settings/)).toBeTruthy();
     expect(db.rows.get('user_settings:me')).toBeUndefined();
   });
@@ -392,7 +392,7 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: { [BENCH]: { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 } } }));
     await press(`${BENCH} settings`);
     db.failWrites = true;
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     expect(await screen.findByText(NOT_STORED)).toBeTruthy();
     db.failWrites = false;
     expect(settingsOf(db).exercise_overrides[BENCH]).toBeDefined();
@@ -403,7 +403,7 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     const other = { type: 'cable' as const, step_kg: 5, rep_low: 10, rep_high: 12 };
     await saveSettings(db, { ...defaultSettings('2026-10-08T01:00:00Z'), diet: 'veg', exercise_overrides: { [BENCH]: { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 }, 'Pec Deck Fly': other } });
     await press(`${BENCH} settings`);
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     await waitFor(() => expect(Object.keys(settingsOf(db).exercise_overrides)).toEqual(['Pec Deck Fly']));
     expect(settingsOf(db).diet).toBe('veg');
   });

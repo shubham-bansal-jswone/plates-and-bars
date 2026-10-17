@@ -275,12 +275,23 @@ describe('Workout tab: logging sets', () => {
     await started();
     const sets = () => screen.queryAllByLabelText(/^Barbell Bench Press set \d+ kg$/).length;
     const n = sets();
-    await press('Add a set to Barbell Bench Press');
+    await press('Add set to Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(n + 1));
-    for (let k = n + 1; k > 1; k--) await press('Remove the last set of Barbell Bench Press');
+    for (let k = n + 1; k > 1; k--) await press('Remove last set of Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(1));
-    expect(screen.queryByLabelText('Remove the last set of Barbell Bench Press')).toBeNull();
+    expect(screen.queryByLabelText('Remove last set of Barbell Bench Press')).toBeNull();
     expect(screen.getByText('Set removed')).toBeTruthy();
+  });
+
+  it('the set chips are named from their visible text (WCAG 2.5.3, #800)', async () => {
+    await started();
+    await press('Add set to Barbell Bench Press');
+    expect(screen.getAllByText('Add set').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Add set to Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Remove last set of Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Remove exercise Barbell Bench Press from today')).toBeTruthy();
+    await press('Remove exercise Barbell Bench Press from today');
+    expect(screen.getByLabelText('Tap again to remove Barbell Bench Press from today')).toBeTruthy();
   });
 
   it('Add exercise lists the library without today\'s exercises and adds the pick; Remove takes a second tap (#147)', async () => {
@@ -290,7 +301,7 @@ describe('Workout tab: logging sets', () => {
     await press('Add Goblet Squat');
     expect(await screen.findByText('Goblet Squat added')).toBeTruthy();
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toContain('Goblet Squat'));
-    await press('Remove Goblet Squat from today');
+    await press('Remove exercise Goblet Squat from today');
     expect(screen.getByLabelText('Tap again to remove Goblet Squat from today')).toBeTruthy();
     await press('Tap again to remove Goblet Squat from today');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).not.toContain('Goblet Squat'));
@@ -632,7 +643,7 @@ describe('Workout tab: logging sets', () => {
       await press(`${NAME}: It hurt`);
       await press(`Skip remaining sets of ${NAME}`);
       await waitFor(() => expect(screen.queryByLabelText(`${NAME} set 3 kg`)).toBeNull());
-      await press(`Add a set to ${NAME}`);
+      await press(`Add set to ${NAME}`);
       await waitFor(() => expect(screen.getByLabelText(`${NAME} set 3 kg`)).toBeTruthy());
       await waitFor(() => {
         const live = storedSets(db).filter((x) => x.exercise === NAME && x.kind === 'work' && !x.deleted_at);
@@ -748,10 +759,10 @@ describe('Workout tab: personal best', () => {
     await setup({ lifts: { 'Barbell Bench Press': 60 } });
     await press('Start Push B');
     await screen.findByText('Push B');
-    await press('Remove Barbell Bench Press from today');
+    await press('Remove exercise Barbell Bench Press from today');
     expect(screen.getByLabelText('Tap again to remove Barbell Bench Press from today')).toBeTruthy();
     await act(async () => void jest.advanceTimersByTime(4100));
-    expect(screen.getByLabelText('Remove Barbell Bench Press from today')).toBeTruthy();
+    expect(screen.getByLabelText('Remove exercise Barbell Bench Press from today')).toBeTruthy();
   });
 
   it('toasts a personal best once a day and records pb_toast_date', async () => {

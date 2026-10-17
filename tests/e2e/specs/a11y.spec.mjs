@@ -1,4 +1,4 @@
-import { htmlHas, triage } from '../support/axe.mjs';
+import { triage } from '../support/axe.mjs';
 import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, tab, test } from '../support/app.mjs';
 
 // axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
@@ -7,19 +7,6 @@ import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
 const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
-// Label in name (#800): the app names these controls differently from their visible text. One entry per kind of control.
-const LABEL_IN_NAME = 'label-content-name-mismatch';
-// The session-chip entries show only because the Add exercise click scrolls the last card into view (axe skips off-screen
-// controls); every exercise card has the bug, including those below the fold.
-const sessionChips = [
-  { rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Add a set to ') },
-  { rule: LABEL_IN_NAME, issue: 800, match: htmlHas('aria-label="Remove the last set of ') },
-  { rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Remove [^"]+ from today"/.test(node.html) },
-];
-KNOWN['sheet-food-add'] = [{ rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Add [^"]+, [\d.]+ g protein, \d+ kcal"/.test(node.html) }];
-KNOWN['sheet-workout-settings'] = [{ rule: LABEL_IN_NAME, issue: 800, match: (node) => /aria-label="Reset [^"]+ to default"/.test(node.html) }];
-KNOWN['sheet-workout-add'] = sessionChips;
-KNOWN['sheet-workout-custom'] = sessionChips;
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
