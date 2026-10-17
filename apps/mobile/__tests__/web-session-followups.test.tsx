@@ -2,7 +2,7 @@ import { act, cleanup, render, waitFor } from '@testing-library/react-native';
 import { AppState, Platform } from 'react-native';
 import { createClient } from '@plate-and-bar/api';
 import { REFRESH_TIMEOUT_MS } from '../src/sync/timeout';
-import { SYNC_INTERVAL_MS, SyncProvider, useSync } from '../src/sync/SyncProvider';
+import { REFRESH_RETRY_MS, SYNC_INTERVAL_MS, SyncProvider, useSync } from '../src/sync/SyncProvider';
 import { KEY_USER, setKv } from '../src/sync/store';
 import { webTokenStore } from '../src/sync/tokens';
 import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
@@ -405,21 +405,81 @@ describe('web provider', () => {
     }
   });
 
-  it('a failed refresh request is retried every 30 s, not backed off, so the retry stays inside the server grace window', async () => {
+  /** Mounts the web provider with every /auth/refresh request timestamped (ms since mount) in `sent`. */
+  async function timedRefreshes(setup: (srv: ReturnType<typeof setupServer>) => void) {
     setWeb();
     jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
     const srv = setupServer();
-    srv.down.add('/auth/refresh');
+    const t0 = Date.now();
+    const sent: number[] = [];
+    const expire = { syncs: 0 }; // this many next /sync calls are answered 401 (the access token ran out), which makes the run refresh
+    const base = srv.fetch;
+    srv.fetch = async (input: Request) => {
+      const path = new URL(input.url).pathname;
+      if (path.endsWith('/auth/refresh')) sent.push(Date.now() - t0);
+      if (path.endsWith('/sync') && expire.syncs > 0) {
+        expire.syncs--;
+        return new Response(JSON.stringify({ code: 'token_expired', message: 'x' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+      }
+      return base(input);
+    };
+    (globalThis as { fetch: unknown }).fetch = srv.fetch;
+    setup(srv);
     const { sync } = await mount(webTokenStore());
     const advance = async (ms: number) => void (await act(async () => void (await jest.advanceTimersByTimeAsync(ms))));
     await advance(0);
     await waitFor(() => expect(sync().signedIn).toBe(true));
     await advance(0);
-    const before = srv.calls('/auth/refresh');
-    for (let i = 1; i <= 5; i++) {
-      await advance(SYNC_INTERVAL_MS);
-      expect(srv.calls('/auth/refresh')).toBe(before + i); // a run every tick: 30 s, 60 s, 90 s ...
-    }
+    return { sent, advance, expire, now: sync };
+  }
+
+  it('a failed refresh request is retried 20 s after the failure by its own timer, not on the next interval tick (#809)', async () => {
+    const { sent, advance } = await timedRefreshes((srv) => srv.down.add('/auth/refresh'));
+    const n = sent.length;
+    expect(n).toBeGreaterThan(0);
+    await advance(REFRESH_RETRY_MS - 1);
+    expect(sent.length).toBe(n);
+    await advance(1);
+    expect(sent.length).toBe(n + 1);
+    expect((sent[n] ?? 0) - (sent[n - 1] ?? 0)).toBe(REFRESH_RETRY_MS);
+    await advance(REFRESH_RETRY_MS);
+    expect(sent.length).toBe(n + 2); // every 20 s while it keeps failing, never backed off
+  });
+
+  it('a run started meanwhile replaces the scheduled retry: one retry is pending at a time, never two', async () => {
+    const { sent, advance, now } = await timedRefreshes((srv) => srv.down.add('/auth/refresh'));
+    const n = sent.length;
+    await advance(5_000);
+    await act(async () => void (await now().syncNow())); // fails the same way, 5 s after the first failure
+    expect(sent.length).toBe(n + 1);
+    await advance(REFRESH_RETRY_MS - 1); // the first timer's moment is past (t = 20 s): it must not fire
+    expect(sent.length).toBe(n + 1);
+    await advance(1); // the replacement is due 20 s after the manual run
+    expect(sent.length).toBe(n + 2);
+  });
+
+  it('the retry timer does not run while a confirm dialog holds the schedule', async () => {
+    const { sent, advance, now } = await timedRefreshes((srv) => srv.down.add('/auth/refresh'));
+    const n = sent.length;
+    await act(async () => now().holdSchedule(true));
+    await advance(REFRESH_RETRY_MS);
+    expect(sent.length).toBe(n);
+  });
+
+  it('a refresh that timed out is retried inside the 60 s grace window counted from its first send, once, not once per timer and tick', async () => {
+    const gate = { srv: undefined as undefined | ReturnType<typeof setupServer> };
+    const { sent, advance, expire } = await timedRefreshes((srv) => void (gate.srv = srv));
+    expire.syncs = 2; // the run and its retry
+    (gate.srv as ReturnType<typeof setupServer>).gate = new Promise<void>(() => undefined); // that refresh never answers: it ends at the timeout
+    const n = sent.length;
+    await advance(SYNC_INTERVAL_MS); // the next tick starts the run
+    expect(sent.length).toBe(n + 1);
+    await advance(REFRESH_TIMEOUT_MS + REFRESH_RETRY_MS + 5_000);
+    expect(sent.length).toBe(n + 2);
+    const gap = (sent[n + 1] ?? 0) - (sent[n] ?? 0);
+    expect(gap).toBe(REFRESH_TIMEOUT_MS + REFRESH_RETRY_MS);
+    expect(gap).toBeLessThan(60_000);
+    expect(REFRESH_TIMEOUT_MS + REFRESH_RETRY_MS).toBeLessThanOrEqual(45_000); // keeps 15 s of margin under the window for clock and scheduling slack
   });
 
   it('back in the app (native foreground) ends the wait and starts from 30 s again', async () => {
