@@ -17,7 +17,7 @@ export PATH="$tmp/bin:$PATH" STUB_LOG="$tmp/log" JOURNALD_DROPIN_DIR="$tmp/dropi
 
 conf="$here/plate-and-bar.conf"
 for line in '[Journal]' 'Storage=persistent' 'MaxFileSec=1day' 'MaxRetentionSec=13day' 'SystemMaxUse=200M'; do
-  grep -qx "$line" "$conf" || fail "drop-in lacks $line"
+  grep -qxF "$line" "$conf" || fail "drop-in lacks $line"
 done
 # the age bound: retention plus the one-day file span stays within 14 days
 days="$(sed -n 's/^MaxRetentionSec=\([0-9]*\)day$/\1/p' "$conf")"
