@@ -58,6 +58,11 @@ const ended = (o: Partial<ExclusionRecord> = {}): ExclusionRecord => ({
   id: 'r1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, name: 'Pec Deck Fly', scope: 'exercise', key: 'Pec Deck Fly', reason: 'dislike', created: '2026-09-10', until: '2026-10-08', to: { 'Pec Deck Fly': null }, done: false, ...o,
 });
 
+// Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
+// fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
+beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
+afterEach(() => jest.useRealTimers());
+
 describe('re-check card for a timed rule that ended', () => {
   it('shows on the start screen, and the exercise stays out until it is answered', async () => {
     await openSession((db) => saveExclusion(db, ended()));

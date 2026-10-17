@@ -77,12 +77,19 @@ async function seedLift(db: Db, name: string, w: number, scores?: number[]) {
   db.rows.set(`lift_stats:${name}`, JSON.stringify(rec));
 }
 
+/** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
+const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
 const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
 const stored = <T,>(db: Db, key: string) => JSON.parse(db.rows.get(key) as string) as T;
 const storedSets = (db: Db) => [...db.sets.values()].map((s) => JSON.parse(s.data) as WorkoutSet);
 const placeholder = (label: string) => screen.getByLabelText(label).props.placeholder as string;
 /** The rest countdown reads the wall clock, so a test that checks its text freezes the clock first (#270): the text must not depend on how long the machine took. */
 const frozenClock = () => jest.spyOn(Date, 'now').mockReturnValue(Date.now());
+
+// A test that waits on a slow write or read, or on a toast, runs on a fake clock: findBy*/waitFor timeouts and toast timers then
+// count test steps, not machine time, so they cannot expire while a loaded machine is busy. Microtasks and setImmediate stay real.
+const fakeClock = () => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+afterEach(() => jest.useRealTimers());
 
 describe('Workout tab: preview and Start', () => {
   it('shows today’s planned session from core with a Start button', async () => {
@@ -425,6 +432,7 @@ describe('Workout tab: logging sets', () => {
   });
 
   it('does not flash the add-your-weight hint while the weigh-ins load, when the profile has a weight', async () => {
+    fakeClock();
     const db = await setup({ lifts });
     const real = db.getAllAsync.bind(db);
     let release: () => void = () => {};
@@ -436,9 +444,7 @@ describe('Workout tab: logging sets', () => {
     await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
     await screen.findByText('Push B');
     await press('Mark Barbell Bench Press set 1 done');
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
+    await flush();
     expect(screen.queryByText(/Add your weight/)).toBeNull();
     release();
     expect(await screen.findByText('About 20 kcal burned')).toBeTruthy();
@@ -585,6 +591,7 @@ describe('Workout tab: logging sets', () => {
     });
 
     it('It hurt shows the safety note; Skip remaining sets keeps only the done sets', async () => {
+    fakeClock();
       const db = await started();
       await press(`Mark ${NAME} set 1 done`);
       await press(`${NAME}: It hurt`);
@@ -813,27 +820,39 @@ describe('Workout tab: write ordering and guards', () => {
   });
 
   it('a rating given straight after a tick is kept in lift_stats even when the tick saves slowly', async () => {
+    fakeClock();
     const db = await setup({ lifts });
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
-    db.lag = (sql) => (sql.includes('workout_sets') ? 40 : 0);
+    // The tick's save stays queued until the test opens the gate, so the rating is given while it is still slow.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = (sql) => (sql.includes('workout_sets') ? gate : undefined);
     await press('Mark Barbell Bench Press set 1 done');
     await press('Barbell Bench Press set 1: Easy');
-    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').sets[0]?.rate).toBe('easy'), { timeout: 3000 });
-    await waitFor(() => expect(storedSets(db).find((s) => s.done)?.rate).toBe('easy'), { timeout: 3000 });
+    await flush();
+    await act(async () => release());
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').sets[0]?.rate).toBe('easy'));
+    await waitFor(() => expect(storedSets(db).find((s) => s.done)?.rate).toBe('easy'));
   });
 
   it('a form answer on one exercise is kept when a tick on another saves slowly', async () => {
+    fakeClock();
     const db = await setup({ lifts });
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
     for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
     await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(3));
-    db.lag = (sql) => (sql.includes('INTO workouts') || sql.includes('workout_sets') ? 40 : 0);
+    // The tick's save stays queued until the test opens the gate, so the answer is given while it is still slow.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = (sql) => (sql.includes('INTO workouts') || sql.includes('workout_sets') ? gate : undefined);
     await press('Mark Barbell Bench Press set 1 done');
     await press('Overhead Cable Extension form: Not really');
-    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'), { timeout: 3000 });
-    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no'), { timeout: 3000 });
+    await flush();
+    await act(async () => release());
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'));
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no'));
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').date).toBe(DATE);
   });
 
