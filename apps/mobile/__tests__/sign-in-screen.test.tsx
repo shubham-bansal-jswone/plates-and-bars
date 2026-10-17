@@ -13,7 +13,7 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 
 const base: SyncState = {
   configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0,
-  dataVersion: 0, quarantined: 0, holdSchedule: () => undefined,
+  dataVersion: 0, quarantined: 0, accountFull: false, holdSchedule: () => undefined,
   retryQuarantined: async () => undefined,
   discardQuarantined: async () => undefined,
   syncNow: async () => null,
@@ -36,6 +36,13 @@ describe('badge', () => {
     expect(badgeLabel({ signedIn: false, pending: 0 })).toBe('Sign in to sync');
     expect(badgeLabel({ signedIn: true, pending: 2 })).toBe('Not synced');
     expect(badgeLabel({ signedIn: true, pending: 0 })).toBe('Synced');
+    expect(badgeLabel({ signedIn: true, pending: 2, accountFull: true })).toBe('Account full');
+    expect(badgeLabel({ signedIn: false, pending: 2, accountFull: true })).toBe('Sign in to sync');
+  });
+
+  it('tells a screen reader the account is full and that new entries are not backed up', async () => {
+    await render(withSync({ signedIn: true, pending: 3, accountFull: true }, <SyncBadge />));
+    expect(screen.getByLabelText('Account full. Your account is full, so new entries stay on this device and are not backed up. Opens account')).toBeTruthy();
   });
 
   it('says how many changes are unsynced to a screen reader, and is absent in a build without a server', async () => {
@@ -43,6 +50,16 @@ describe('badge', () => {
     expect(screen.getByLabelText('Not synced. 3 changes on this device are not synced yet. Opens account')).toBeTruthy();
     await render(withSync({ configured: false }, <SyncBadge />));
     expect(screen.queryByText('Sign in to sync')).toBeNull();
+  });
+});
+
+describe('full account notice', () => {
+  it('shows a polite live notice on the sync screen while the account is full, and none otherwise', async () => {
+    await render(withSync({ signedIn: true, pending: 2, accountFull: true }, <SignInScreen />));
+    expect(screen.getByText(/Your account is full\. New entries stay on this device and are not backed up\./)).toBeTruthy();
+    await screen.unmount();
+    await render(withSync({ signedIn: true, pending: 2 }, <SignInScreen />));
+    expect(screen.queryByText(/Your account is full/)).toBeNull();
   });
 });
 

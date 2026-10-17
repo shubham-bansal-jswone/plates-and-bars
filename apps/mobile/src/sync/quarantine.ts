@@ -9,6 +9,7 @@ import type { WorkoutDb } from '../db/workouts';
 // (for example `changes.food_logs[0].kcal`), never a value.
 
 const PREFIX = 'sync.quarantine.';
+export const QUARANTINE_PREFIX = PREFIX;
 export const quarantineKey = (e: Pick<OutboxEntry, 'seq' | 'tbl' | 'key'>) => `${PREFIX}${e.seq}.${e.tbl}.${e.key}`;
 
 export interface Quarantined {
