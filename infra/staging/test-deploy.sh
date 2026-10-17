@@ -83,4 +83,20 @@ if STUB_BUILD_FAIL=1 STUB_HEALTHY=abc123def456,oldtag "$stack/deploy.sh" > /dev/
 [ "$(tag_now)" = oldtag ] || fail "failed build changed API_TAG"
 ! grep -q 'docker compose up' "$STUB_LOG" || fail "compose up ran after a failed build"
 
+# DEPLOY_TAG (production release): the image is tagged with it instead of the sha, and rollback goes back to the previous tag
+reset
+DEPLOY_TAG=v1.2.3 STUB_HEALTHY=v1.2.3 "$stack/deploy.sh" > /dev/null 2>&1 || fail "release deploy exited non-zero"
+[ "$(tag_now)" = v1.2.3 ] || fail "API_TAG not moved to the release tag"
+grep -q 'docker compose build api \[API_TAG=v1.2.3\]' "$STUB_LOG" || fail "image not built with the release tag"
+reset
+if DEPLOY_TAG=v1.2.3 STUB_HEALTHY=oldtag "$stack/deploy.sh" > /dev/null 2>&1; then fail "unhealthy release exited 0"; fi
+[ "$(tag_now)" = oldtag ] || fail "release: API_TAG not rolled back to the previous tag"
+grep -q 'docker compose up -d api \[API_TAG=' "$STUB_LOG" || fail "release: api not recreated on rollback"
+for bad in 'a/b' 'a b' '-x' 'v1;rm'; do
+  reset
+  if DEPLOY_TAG="$bad" STUB_HEALTHY=oldtag "$stack/deploy.sh" > /dev/null 2>&1; then fail "accepted DEPLOY_TAG '$bad'"; fi
+  [ "$(tag_now)" = oldtag ] || fail "bad DEPLOY_TAG '$bad' changed API_TAG"
+  ! grep -q 'docker compose' "$STUB_LOG" || fail "bad DEPLOY_TAG '$bad' reached docker"
+done
+
 echo "deploy.sh tests passed"

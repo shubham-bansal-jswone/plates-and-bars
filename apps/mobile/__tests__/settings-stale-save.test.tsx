@@ -60,7 +60,8 @@ describe('a settings save queued before sign-out or a wipe (#645)', () => {
     const held = holdNext();
     await act(async () => r.result.current.setFocus(['chest'])); // A: inside its transaction, holding the write lock
     await held.reached;
-    await act(async () => r.result.current.setDiet('veg')); // B: queued behind A, has not started
+    const told: boolean[] = [];
+    await act(async () => r.result.current.update({ diet: 'veg' }, (stored) => told.push(stored))); // B: queued behind A, has not started
     const out = signOut(db, memoryTokens({ access: 'a', refresh: 'r' }), { discard: true }); // waits for the lock, then wipes
     await sleep(20);
     await act(async () => held.open());
@@ -68,6 +69,7 @@ describe('a settings save queued before sign-out or a wipe (#645)', () => {
     await sleep(50); // B runs now
     expect(await rows()).toEqual({ settings: [], outbox: [] });
     expect(await loadSettings(db)).toBeNull();
+    expect(told).toEqual([false]); // the dropped save tells its caller that nothing was stored
     // The dropped save is not a failure: no error shows and nothing is kept for the account that is gone.
     expect(r.result.current.saveFailed).toBe(false);
     expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull();
