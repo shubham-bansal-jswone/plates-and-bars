@@ -40,7 +40,8 @@ export const logOf = (f: CatalogFood, qty: number): NewLog => ({
  * goes through one FIFO queue (nothing waits on the network, and writes finish in the order the user acted).
  */
 export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
-  const [ready, setReady] = useState(false);
+  /** The day the shown logs belong to: not ready while the viewed day is another one, so nothing can be written against stale rows. */
+  const [loaded, setLoaded] = useState<string | null>(null);
   const [logs, setLogs] = useState<FoodLog[]>([]);
   const [note, setNote] = useState<DayNote | null>(null);
   const [mine, setMine] = useState<UserFood[]>([]);
@@ -73,7 +74,7 @@ export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
         setLogs(l);
         setNote(n);
         setMine(m);
-        setReady(true);
+        setLoaded(date);
       });
     })().catch(() => {
       if (!live) return;
@@ -209,5 +210,6 @@ export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
     [db, now, enqueue],
   );
 
+  const ready = loaded === date;
   return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, copyPrevious, setComplete, setFast, saveMine };
 }

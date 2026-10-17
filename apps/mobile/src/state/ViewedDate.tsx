@@ -1,6 +1,18 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { AccessibilityInfo } from 'react-native';
 import { addDays } from '@plate-and-bar/core';
 import { localDate } from '../setup/logic';
+
+const parse = (d: string): Date => {
+  const [y, m, day] = d.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, day);
+};
+
+/** The prototype's header label: Today, Yesterday, else the short weekday. */
+export const dateLabel = (date: string, today: string): string =>
+  date === today ? 'Today' : date === addDays(today, -1) ? 'Yesterday' : parse(date).toLocaleDateString('en-IN', { weekday: 'short' });
+/** The line under it: "Saturday, 17 Oct". */
+export const dateSub = (date: string): string => parse(date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
 
 interface Shared {
   picked: string | null;
@@ -42,6 +54,8 @@ export function useViewedDate(now: () => Date): ViewedDate {
       const to = addDays(date, n);
       if (to > today) return;
       setPicked(to === today ? null : to);
+      // Announced here, not from the bar, so it is said once per change whatever the screen shows while the day loads.
+      AccessibilityInfo.announceForAccessibility(`${dateLabel(to, today)}, ${dateSub(to)}`);
     },
     [date, today, setPicked],
   );

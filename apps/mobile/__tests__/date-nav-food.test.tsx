@@ -82,6 +82,26 @@ describe('Food date navigation', () => {
     expect(await screen.findByText('Yesterday dal')).toBeTruthy();
   });
 
+  it('shows Loading, not the old day’s rows, while the other day is read (nothing can be written against stale rows)', async () => {
+    const db = await setup(NOW, (d) => {
+      d.rows.set('food_logs:t1', JSON.stringify(log('t1', TODAY, { name: 'Today dal' })));
+    });
+    expect(await screen.findByText('Today dal')).toBeTruthy();
+    const read = db.getAllAsync.bind(db);
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM food_logs WHERE log_date')) await gate;
+      return read(sql, ...p);
+    }) as typeof db.getAllAsync;
+    await back();
+    expect(screen.queryByText('Today dal')).toBeNull();
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    expect(screen.getByText('Yesterday')).toBeTruthy(); // the bar stays, so the day can still be changed
+    await act(async () => open());
+    await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull());
+  });
+
   it('logs on a past day with that date, and the log is still there after a reload', async () => {
     const db = await setup();
     await back();
