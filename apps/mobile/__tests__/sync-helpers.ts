@@ -91,6 +91,11 @@ export function fakeServer(userId: string) {
     loseResponses: 0,
     /** Resolution to apply to every version mismatch. */
     conflictResolution: null as null | 'server_won',
+    /** Settles a version mismatch like the contract: the later `updated_at` wins the whole record (a tie goes to the server). */
+    byUpdatedAt: false,
+    /** Several devices share this server: a stored record comes back as a change to every other request, by cursor (`s<n>`). */
+    relay: false,
+    log: [] as { n: number; table: string; rec: Rec }[],
     put(table: string, rec: Rec) {
       store.set(`${table}:${rec.id}`, rec);
       (pending[table] ??= []).push(rec);
@@ -164,7 +169,13 @@ export function fakeServer(userId: string) {
           if (!cur || cur.version === r.version) {
             const next = { ...r, version: (cur?.version ?? 0) + 1 };
             store.set(`${table}:${r.id}`, next);
+            s.log.push({ n: s.log.length + 1, table, rec: next });
             applied.push({ table, id: r.id, version: next.version });
+          } else if (s.byUpdatedAt && Date.parse(String(r.updated_at)) > Date.parse(String(cur.updated_at))) {
+            const next = { ...r, version: cur.version + 1 };
+            store.set(`${table}:${r.id}`, next);
+            s.log.push({ n: s.log.length + 1, table, rec: next });
+            conflicts.push({ table, id: r.id, client_version: r.version, server_version: next.version, resolution: 'client_won', server_record: next });
           } else {
             conflicts.push({ table, id: r.id, client_version: r.version, server_version: cur.version, resolution: s.conflictResolution ?? 'server_won', server_record: cur });
           }
@@ -173,6 +184,13 @@ export function fakeServer(userId: string) {
       if (s.loseResponses > 0) {
         s.loseResponses--;
         throw new TypeError('network down');
+      }
+      if (s.relay) {
+        const from = Number(String(body.cursor ?? 's0').slice(1));
+        const mine = new Set(Object.entries(body.changes ?? {}).flatMap(([t, rs]) => rs.map((r) => `${t}:${r.id}`)));
+        const out: Record<string, Rec[]> = {};
+        for (const e of s.log) if (e.n > from && !mine.has(`${e.table}:${e.rec.id}`)) (out[e.table] ??= []).push(e.rec);
+        return json(200, { cursor: `s${s.log.length}`, has_more: false, applied, conflicts, changes: out });
       }
       const changes = { ...pending };
       for (const k of Object.keys(pending)) delete pending[k];
