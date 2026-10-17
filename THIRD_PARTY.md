@@ -28,7 +28,7 @@ The `source` field on each card in `content/cards.json` (for example "Mifflin et
 | Inter font | [The Inter Project Authors](https://github.com/rsms/inter) | SIL Open Font License 1.1 | App: `@expo-google-fonts/inter`, licence text in `apps/mobile/public/licenses/Inter-OFL-1.1.txt`. Site: `@fontsource/inter`, licence text in `apps/site/public/fonts/Inter-OFL.txt` |
 | Roboto font | [The Roboto Project Authors](https://github.com/googlefonts/roboto-classic) | SIL Open Font License 1.1 | App: `@expo-google-fonts/roboto`, licence text in `apps/mobile/public/licenses/Roboto-OFL-1.1.txt`. Site: `@fontsource/roboto`, licence text in `apps/site/public/fonts/Roboto-OFL.txt` |
 | Tab bar icons (Ionicons) | [Ionicons](https://github.com/ionic-team/ionicons) via `@expo/vector-icons` | MIT | `apps/mobile/app/(tabs)/_layout.tsx` |
-| App icon, adaptive icon, splash and web favicon images | Expo project template (placeholders, to be replaced by our own artwork) | MIT ([expo/expo](https://github.com/expo/expo)) | `apps/mobile/assets/*.png` |
+| App icon, adaptive icon, splash and web favicon images | Own work (original artwork from `apps/mobile/assets/brand/*.svg`) | Apache-2.0 | `apps/mobile/assets/*.png` |
 | Website favicon | Own work | Apache-2.0 | `apps/site/public/favicon.svg` |
 | Exercise demo photos in the prototype | [Free Exercise DB](https://github.com/yuhonas/free-exercise-db) | Public domain (The Unlicense) | `docs/prototype/plate-and-bar.html` only; the app shows no exercise photos |
 
