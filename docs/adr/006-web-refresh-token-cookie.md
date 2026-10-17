@@ -1,6 +1,7 @@
 # ADR 006: Web refresh token in an httpOnly cookie, access token in memory
 
 - Status: Accepted
+- Amended 2026-10-18: recorded the web client follow-ups that landed after #742 (#777, #779) and what the misconfiguration check does and does not detect. No decision changed.
 - Date: 2026-10-17
 - Supersedes in part: [ADR 003](003-auth.md), only where the web app keeps the refresh token. Everything else in ADR 003 stands, and native apps are unchanged.
 - Decided by Shubham on #250 (2026-10-17).
@@ -35,3 +36,24 @@ ADR 003 keeps both tokens in the phone's secure storage. A browser has no secure
 - Every web page load costs one refresh call, within the existing per-IP rate limits.
 - A browser on an origin that is not allowed fails the CORS preflight and never sees the 403. `fetch` reports a network error. The web app must not mistake a persistent failure of this kind for being offline, and must not retry it in a loop.
 - The backend change must ship before the web app sends the header. The current CORS configuration does not allow `X-Auth-Transport` or credentials, so the browser would block the request.
+
+## Follow-ups that landed (2026-10-18)
+
+Items deferred from the web client PR #742, and where they went:
+- Security-review findings 6 (cross-tab sign-out), 7 (a refresh timeout released the tab lock; the refresh inside a sync run had no timeout) and 9 (`offline` not backed off): #762, done by #777.
+- Telling a misconfigured cookie mode apart from being offline (the CORS preflight consequence above): #744, done by #779.
+
+### #777: cross-tab sign-out, bounded refresh, offline backoff
+
+- **Cross-tab sign-out.** Every end of a web session (sign-out, account deletion, a refused sign-in, a cookie for another account) posts a `signout` message on the `pb-session` BroadcastChannel; where there is no BroadcastChannel, the `storage` event of the `pb.signout_pending` flag does the same. The message carries no token. Other tabs drop their in-memory access token and show signed out; local data and the account binding stay. A refresh response that arrives after another tab signed out is not saved.
+- **Refresh timeout under the tab lock.** Each `/auth/refresh` request has its own timeout (`REFRESH_TIMEOUT_MS`, 20 s), started inside the tab lock, so the lock is held until the request settles or the timeout fires. The refresh inside a sync run, which had no timeout, is bounded too. A timeout is `unavailable`, never a sign-out.
+- **Retries inside the 60 s grace window.** The 20 s timeout is under the server's 60 s lost-response grace window (ADR 003), so a tab that presents the same cookie after a given-up request is not read as reuse. A sync run that fails on the refresh request itself (lost response or timeout) is retried within 30 s and never backed off further, so the retry still lands inside the window.
+- **Offline backoff.** `offline` backs off like `unavailable`: the wait doubles from 30 s up to a 5-minute cap. The browser's `online` event and the app coming back to the foreground reset it to 30 s.
+
+### #779: misconfigured cookie mode is not "offline"
+
+Every cookie-mode call (`/auth/refresh`, `/auth/refresh/revoke`, `/auth/email/verify`) is counted. After 3 network-level failures in a row, the app asks `GET /health` once, with no credentials and no `X-Auth-Transport`. If that answers 200, the app shows "Sign-in isn't available on this site" instead of offline, and stops retrying the cookie-mode calls on its own. User-started cookie-mode calls (code check, export, delete) are still attempted. The flag clears when a cookie-mode call gets an answer (a user-started call, a user-pressed Sync now, or the one attempt let through every 10 minutes), on the browser's `online` event, or on a page reload.
+
+What it detects, and what it does not (from #779; the header comment of `apps/mobile/src/sync/cookieHealth.ts` gives the same lists):
+- Detects: the API answers a plain cross-origin `GET /health` from this page (so CORS allows the origin) while the credentialed cookie-mode calls fail at the network level (the origin is not in the backend's cookie-mode origin list, so the preflight for `X-Auth-Transport` is refused).
+- Does not detect: an origin missing from CORS altogether (`/health` fails too, so it reads as offline); an API that is down; a cookie the browser stores but never sends (cross-site or http deployment: the calls get answers and refresh says 401, like a signed-out user); a proxy that drops only some requests.
