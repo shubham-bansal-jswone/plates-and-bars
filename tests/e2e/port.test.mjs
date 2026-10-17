@@ -129,8 +129,8 @@ test('both configs reuse a server only with E2E_REUSE=1 (and not because CI is u
         process.env.CHROME_PATH = process.execPath;
         process.env.E2E_PORT = '0';
         if (reuse) process.env.E2E_REUSE = reuse;
-        // The sync port is fixed at 4174; skip the case if something already holds it (the config would refuse to load).
-        if (config.includes('sync') && !reuse && (await isPortTaken(4174))) continue;
+        // The sync config defaults to 4174 and refuses to load if it is taken, so give it a free port of its own.
+        if (config.includes('sync')) process.env.E2E_SYNC_PORT = String(await freePort());
         const { default: loaded } = await import(`${config}?case=${index}`);
         assert.equal(loaded.webServer.reuseExistingServer, Boolean(reuse), `${config} with E2E_REUSE=${reuse}`);
       }
