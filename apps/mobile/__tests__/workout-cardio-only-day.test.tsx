@@ -62,6 +62,54 @@ describe('start() over a cardio-only row pulled behind the screen', () => {
     await settle();
     expect((await loadWorkout(db, DATE))!.cardio_min).toBeNull();
   });
+
+  it('a tombstone left with minutes is no base: the pulled 30 is kept on Start, not read as a change the user made', async () => {
+    const { db, result } = await mount(async (d) => {
+      await saveWorkout(d, row({ cardio_min: 30, deleted_at: '2026-10-07T00:00:00Z', updated_at: '2026-10-07T00:00:00Z' })); // old remove-last wrote minutes onto its tombstone
+    });
+    expect(result.current.day.workout).toBeNull();
+    await saveWorkout(db, row({ cardio_min: 30, version: 2 })); // a live cardio-only row pulled behind the screen
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await settle();
+    expect((await loadWorkout(db, DATE))!).toMatchObject({ template: 'Upper A', cardio_min: 30, deleted_at: null });
+    expect(result.current.day.workout?.cardio_min).toBe(30);
+  });
+
+  it('the screen wins after a failed cardio write: minutes shown but never stored are not replaced by the pulled ones', async () => {
+    const { db, result } = await mount();
+    const exclusive = db.withExclusiveTransactionAsync;
+    db.withExclusiveTransactionAsync = (task) =>
+      exclusive(async (raw) => {
+        await task({ ...raw }); // a handle of its own, as expo-sqlite passes: the hook tells it from `db`
+        throw new Error('commit failed');
+      });
+    await act(async () => result.current.setCardio('10'));
+    await settle();
+    db.withExclusiveTransactionAsync = exclusive;
+    expect(result.current.day.workout?.cardio_min).toBe(10);
+    expect(await loadWorkout(db, DATE)).toBeNull();
+    await saveWorkout(db, row({ cardio_min: 30 })); // pulled afterwards
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await settle();
+    expect((await loadWorkout(db, DATE))!.cardio_min).toBe(10);
+    expect(result.current.day.workout?.cardio_min).toBe(10);
+  });
+
+  it('a failed Start leaves the screen as it was: the pulled minutes show only once the session has committed', async () => {
+    const { db, result } = await mount();
+    await saveWorkout(db, row({ cardio_min: 30 }));
+    const exclusive = db.withExclusiveTransactionAsync;
+    db.withExclusiveTransactionAsync = (task) =>
+      exclusive(async (raw) => {
+        await task({ ...raw }); // a handle of its own, as expo-sqlite passes: the hook tells it from `db`
+        throw new Error('commit failed');
+      });
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await settle();
+    db.withExclusiveTransactionAsync = exclusive;
+    expect(result.current.day.workout?.cardio_min).toBeNull();
+    expect((await loadWorkout(db, DATE))!).toMatchObject({ template: null, cardio_min: 30 });
+  });
 });
 
 describe('the first cardio keystroke when another device stored a session', () => {
@@ -84,7 +132,7 @@ describe('the first cardio keystroke when another device stored a session', () =
     const exclusive = db.withExclusiveTransactionAsync;
     db.withExclusiveTransactionAsync = (task) =>
       exclusive(async (raw) => {
-        await task(raw);
+        await task({ ...raw }); // a handle of its own, as expo-sqlite passes: the hook tells it from `db`
         throw new Error('commit failed');
       });
     await act(async () => result.current.setCardio('10'));
