@@ -12,7 +12,7 @@ import { SyncProvider, useSync } from '../src/sync/SyncProvider';
 import { useProfile } from '../src/state/ProfileProvider';
 import { gateRedirect } from '../src/state/gateRedirect';
 import { getCursor, getUserId, KEY_USER, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, turns, until } from './sync-helpers';
 import { saveWeightDoc } from './sync-fixtures';
 import { saveWeight } from '../src/db/progress';
 
@@ -63,7 +63,7 @@ describe('discarding while a sync is running', () => {
     const slow = gate();
     server.hold = slow.p;
     const run = syncOnce(deps); // request in flight, response held
-    await new Promise((r) => setTimeout(r, 10));
+    await until("the held request", () => server.calls.length >= 1);
     const discard = discardAll(db, tokens);
     slow.release();
     await discard;
@@ -84,7 +84,7 @@ describe('discarding while a sync is running', () => {
     server.hold = slow.p;
     server.holdPath = '/auth/refresh'; // the 401 answers at once, the refresh request is the one that waits
     const run = syncOnce(deps);
-    await new Promise((r) => setTimeout(r, 10));
+    await until("the held refresh request", () => server.calls.length >= 2);
     expect(server.calls.map((c) => c.path)).toEqual(['/sync', '/auth/refresh']);
     const discard = discardAll(db, tokens);
     slow.release();
@@ -99,7 +99,7 @@ describe('discarding while a sync is running', () => {
     const slow = gate();
     server.hold = slow.p;
     const run = syncOnce(deps);
-    await new Promise((r) => setTimeout(r, 10));
+    await until("the held request", () => server.calls.length >= 1);
     await setKv(db, KEY_USER, OTHER_USER); // someone else owns the store now
     slow.release();
     expect((await run).status).toBe('paused');
@@ -125,14 +125,16 @@ describe('write lock', () => {
     const ui = lockedDb(db as never) as unknown as typeof db;
     const hold = gate();
     const order: string[] = [];
+    let open = false;
     const sync = applyPulled(db, 'weights', '2026-10-08', async (txn) => {
       await txn.runAsync("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-08', ?)", JSON.stringify(w('2026-10-08', 80)));
+      open = true;
       await hold.p; // the UI saves while the pulled write is open
       order.push('sync done');
     });
-    await new Promise((r) => setTimeout(r, 5));
+    await until('the pulled write to open', () => open);
     const save = ui.runAsync('INSERT OR REPLACE INTO weights (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify(w('2026-10-08', 81))).then(() => order.push('ui write'));
-    await new Promise((r) => setTimeout(r, 10));
+    await turns();
     expect(order).toEqual([]); // the UI write has not run inside the sync transaction
     hold.release();
     await Promise.all([sync, save]);
@@ -147,15 +149,17 @@ describe('write lock', () => {
     const ui = lockedDb(db as never) as unknown as typeof db;
     const hold = gate();
     let syncDone = false;
+    let open = false;
     const sync = applyPulled(db, 'weights', '2026-10-07', async (txn) => {
       await txn.runAsync("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-07', ?)", JSON.stringify(w('2026-10-07', 80)));
+      open = true;
       await hold.p;
       syncDone = true;
     });
-    await new Promise((r) => setTimeout(r, 5));
+    await until('the pulled write to open', () => open);
     let saved = false;
     const save = saveWeight(ui, { ...w('2026-10-08', 81), id: null } as never).then(() => (saved = true));
-    await new Promise((r) => setTimeout(r, 10));
+    await turns();
     expect(saved).toBe(false);
     hold.release();
     await Promise.all([sync, save]);

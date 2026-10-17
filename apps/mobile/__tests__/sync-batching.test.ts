@@ -5,7 +5,7 @@ import { BODY_BUDGET_BYTES, MAX_BODY_BYTES, utf8Length } from '../src/sync/batch
 import { syncOnce } from '../src/sync/engine';
 import { listQuarantined, retryQuarantined } from '../src/sync/quarantine';
 import { KEY_CURSOR, KEY_USER, getCursor, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, turns, until } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -130,7 +130,7 @@ describe('size-aware batching', () => {
     server.hold = new Promise<void>((r) => (release = r));
     server.holdPath = '/auth/refresh';
     const run = syncOnce(deps);
-    await new Promise((r) => setTimeout(r, 30)); // the refresh is in flight
+    await until("the refresh in flight", () => server.calls.some((c) => c.path === "/auth/refresh")); // the refresh is in flight
     release();
     expect(await run).toMatchObject({ status: 'ok' });
     expect(server.refreshes).toBe(1);

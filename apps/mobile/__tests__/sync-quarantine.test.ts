@@ -5,7 +5,7 @@ import { syncOnce } from '../src/sync/engine';
 import { discardQuarantined, listQuarantined, quarantineCount, retryQuarantined } from '../src/sync/quarantine';
 import { KEY_USER, setKv } from '../src/sync/store';
 import { saveWeightDoc, type WeightDoc } from './sync-fixtures';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, turns, until } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -140,7 +140,7 @@ describe('a 400 from /sync', () => {
     server.hold = new Promise<void>((r) => (release = r));
     server.force400.push([{ field: 'changes.weights[0].weight_kg', issue: 'x' }]);
     const run = syncOnce(deps);
-    await new Promise((r) => setTimeout(r, 20)); // the request is in flight
+    await until("the request in flight", () => server.calls.length >= 1); // the request is in flight
     await saveWeightDoc(db, weight('2026-10-08', 80));
     server.hold = null;
     release();
