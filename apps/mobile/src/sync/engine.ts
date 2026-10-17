@@ -353,7 +353,7 @@ export function resumeSync(): void {
 }
 
 /** True when a data_storage consent record is stored. */
-async function hasConsent(db: WorkoutDb): Promise<boolean> {
+export async function hasConsent(db: WorkoutDb): Promise<boolean> {
   const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM consents');
   return rows.some((r) => {
     const c = JSON.parse(r.data) as { kind?: string; deleted_at?: string | null };
