@@ -48,8 +48,17 @@ const golden = loadGolden<GoldenFoods>('foods');
 const proto = loadRecipes();
 const RUNS = 4000;
 
-// content is passed to the recipe functions as is; these assignments are the type check.
-const raw: readonly RawIngredient[] = rawContent.ingredients;
+// Content differs from the prototype in one row on purpose (#576): Ghee uses FDC 171314 (900 kcal / 100 g) instead of the
+// prototype's 876 kcal. The arithmetic below is checked against the prototype, so it runs on the prototype's Ghee values;
+// the content test further down pins the content value.
+const GHEE_CONTENT = { kcal: 900, protein_g: 0, carbs_g: 0, fibre_g: 0, fat_g: 100 };
+const withProtoGhee = (i: (typeof rawContent.ingredients)[number]): RawIngredient => {
+  if (i.name !== 'Ghee') return i;
+  const [kcal, protein_g, carbs_g, fat_g] = golden.raw100g.Ghee!;
+  return { ...i, per_100g: { kcal, protein_g, carbs_g, fibre_g: golden.rawFibre100g.Ghee ?? 0, fat_g } };
+};
+// content passed to the recipe functions otherwise as is; these assignments are the type check.
+const raw: readonly RawIngredient[] = rawContent.ingredients.map(withProtoGhee);
 const katoriG: number = recipesContent.katori_g;
 const preset = (name: string): IngredientRow[] => {
   const p = recipesContent.presets.find((x) => x.name === name);
@@ -97,11 +106,18 @@ describe('raw ingredients (golden raw100g, rawFibre100g; content/raw-ingredients
   });
 
   it('content per_100g equals golden raw100g and rawFibre100g (no fibre entry stored as 0), in order', () => {
-    expect(raw.map((i) => i.name)).toEqual(Object.keys(golden.raw100g));
-    for (const i of raw) {
+    expect(rawContent.ingredients.map((i) => i.name)).toEqual(Object.keys(golden.raw100g));
+    for (const i of rawContent.ingredients) {
+      if (i.name === 'Ghee') continue; // the one deliberate difference, pinned below
       const [kcal, protein_g, carbs_g, fat_g] = golden.raw100g[i.name]!;
       expect(i.per_100g).toEqual({ kcal, protein_g, carbs_g, fibre_g: golden.rawFibre100g[i.name] ?? 0, fat_g });
     }
+  });
+
+  it('content Ghee is FDC 171314 (900 kcal / 100 g), not the prototype row (#576)', () => {
+    const ghee = rawContent.ingredients.find((i) => i.name === 'Ghee')!;
+    expect(ghee.per_100g).toEqual(GHEE_CONTENT);
+    expect(ghee.source.reference).toMatch(/^FDC 171314 /);
   });
 
   it('content fatty flags are the prototype FATTY', () => {

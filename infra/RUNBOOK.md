@@ -2,6 +2,8 @@
 
 Staging runs from `infra/staging/` on one VM: Caddy (HTTPS), the API and MySQL 8.4 in Docker Compose. This file covers set-up, backups, restore, rollback and monitoring. Backups are not automated until you add the cron line (section 3). The merge-to-`main` deploy exists but stays off until you enable it (section 2); no account has been created. Steps marked **Owner** need an account or a decision from Shubham.
 
+Suspected personal data breach (leaked data, keys or backups, one user seeing another's records, data loss): follow [`docs/INCIDENT-RESPONSE.md`](../docs/INCIDENT-RESPONSE.md) before anything in this file, and preserve the API logs before any restart or rollback.
+
 ## Free-tier limits (checked 2026-10-12)
 
 - Cloudflare R2: free tier of 10 GB-month of Standard storage, 1 million Class A and 10 million Class B requests per month (developers.cloudflare.com/r2/pricing, fetched 2026-10-12). One dump a day kept 30 days stays far below that unless the compressed dump grows past roughly 300 MB.
@@ -68,3 +70,7 @@ Rehearsal: the dump and restore commands (not the bucket transfer) were run on 2
 ## 5. Monitoring
 
 Add an Uptime Kuma (MIT, self-hosted; the host is an **Owner** decision) HTTP(s) monitor on `https://<API_HOST>/api/v1/health` with an e-mail alert. `/health` answers 503 when the database is unreachable, so one monitor covers API and database. Check that the cron backup ran: the newest object in the bucket should be less than 25 hours old; the log is `~/plateandbar-backup.log` of the user whose crontab runs it.
+
+## 6. Turning on the per-account record cap (#349, #667)
+
+The cap is off by default (`SYNC_MAX_RECORDS_PER_ACCOUNT` empty). Do not set it until the mobile app handles 413 `account_full` (app PR #662). Order: (1) deploy a version that contains the recount (`RecordRecount`) with the cap still off; (2) set `SYNC_MAX_RECORDS_PER_ACCOUNT` (the contract suggests 200000) in `.env` and run `docker compose up -d api`; the restart starts the recount in the background, which re-checks every account's `sync_state.records` against the 16 tables, in short per-account transactions beside live traffic. (3) Check the log for `record recount done, counters corrected: N` (N is normally 0; the log has counts only). If the API restarts mid-run the next start repeats it; changing the limit needs the same restart, so it recounts then too. To switch the cap off, empty the variable and restart; nothing needs undoing.
