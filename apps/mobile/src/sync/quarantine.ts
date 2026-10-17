@@ -9,6 +9,7 @@ import type { WorkoutDb } from '../db/workouts';
 // (for example `changes.food_logs[0].kcal`), never a value.
 
 const PREFIX = 'sync.quarantine.';
+export const QUARANTINE_PREFIX = PREFIX;
 export const quarantineKey = (e: Pick<OutboxEntry, 'seq' | 'tbl' | 'key'>) => `${PREFIX}${e.seq}.${e.tbl}.${e.key}`;
 
 export interface Quarantined {
@@ -60,6 +61,7 @@ export async function discardQuarantined(db: PullDb): Promise<number> {
   await inTransaction(db, async (txn) => {
     const rows = await listQuarantined(txn as WorkoutDb);
     for (const r of rows) await clearPushed(txn, r);
+    for (const r of rows) await txn.runAsync('DELETE FROM settings WHERE key = ?', `sync.sent.${r.tbl}.${r.key}`); // held.ts: nothing is sent for them now
     await txn.runAsync(`DELETE FROM settings WHERE key LIKE '${PREFIX}%'`);
     n = rows.length;
   });

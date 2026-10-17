@@ -26,6 +26,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
+    /** The path as the router sees it (percent-decoded), so /auth/email/%76erify cannot dodge its bucket. */
+    private static final org.springframework.web.util.UrlPathHelper PATHS = org.springframework.web.util.UrlPathHelper.defaultInstance;
     private static final String AUTH_PREFIX = "/api/v1/auth/";
     private static final String CONTENT_PREFIX = "/api/v1/content/";
     private static final String HEALTH = "/api/v1/health";
@@ -47,7 +49,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String scope;
         try {
-            String path = request.getRequestURI();
+            String path = PATHS.getPathWithinApplication(request);
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (!path.startsWith(AUTH_PREFIX) && !path.startsWith(CONTENT_PREFIX) && !path.equals(HEALTH) && auth != null && auth.isAuthenticated()
                     && !(auth instanceof AnonymousAuthenticationToken)) {
@@ -74,7 +76,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * garbage tokens cannot be replayed for free. Returns the last scope consumed (for the debug log on refusal).
      */
     public String limitByIp(HttpServletRequest request) {
-        String path = request.getRequestURI();
+        String path = PATHS.getPathWithinApplication(request);
         String ip = ips.resolve(request);
         if (path.equals(HEALTH)) {
             limiter.consume("health-ip", ip, props.getHealthPerIp());
