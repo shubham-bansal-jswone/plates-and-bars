@@ -78,6 +78,11 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** The day the loaded session belongs to: while the viewed day is another one the screen is not ready, so no action runs against the old day's rows. */
   const [loaded, setLoaded] = useState<string | null>(null);
   const ref = useRef(day);
+  /** The day shown now: a start or second session that was reading history when the day changed must not commit. */
+  const dateRef = useRef(date);
+  useEffect(() => {
+    dateRef.current = date;
+  }, [date]);
   const commit = useCallback((d: Day) => {
     ref.current = d;
     setDay(d);
@@ -216,6 +221,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       building.current = true;
       try {
         const sessions = await loadSessionLog(db);
+        if (dateRef.current !== date) return; // the day changed while the history was read
         const d = clone(ref.current);
         const built = buildSession({
           template,
@@ -291,6 +297,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       building.current = true;
       try {
         const sessions = await loadSessionLog(db);
+        if (dateRef.current !== date) return; // the day changed while the history was read
         const d = clone(ref.current);
         const old = d.workout as Workout;
         const built = buildSession({

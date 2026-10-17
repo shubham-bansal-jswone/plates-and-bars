@@ -179,8 +179,8 @@ describe('Workout date navigation', () => {
     const open = async () => {
       const db = memoryDb();
       await saveProfile(db, profile());
-      // 7 Jul is out of the 90-day window from the real today (10 Jul) but inside it from the viewed day (4 Jul).
-      await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), adjustments: { dismissed: { 'break:2026-07-06': true, 'break:2026-07-13': true } } });
+      // 9 Jul is before the 90-day window from the real today (8 Oct: window starts 10 Jul) but inside it from the viewed day (7 Oct: starts 9 Jul).
+      await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), adjustments: { dismissed: { 'break:2026-07-09': true, 'break:2026-07-13': true } } });
       seedSession(db, '2026-09-23'); // 15 days before today, 14 before yesterday
       await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
       return db;
@@ -201,5 +201,56 @@ describe('Workout date navigation', () => {
       await fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
       await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ reentry: { from: YESTERDAY, until: '2026-10-13', pct: 0.15 }, dismissed: { 'break:2026-07-13': true, 'break:2026-09-23': true } }));
     });
+  });
+  it('a Start still reading history when the day changes does not put its session on the new day', async () => {
+    const db = await setup();
+    await back();
+    await screen.findByText('Yesterday');
+    const read = db.getAllAsync.bind(db);
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('GROUP BY workout_date')) await gate;
+      return read(sql, ...p);
+    }) as typeof db.getAllAsync;
+    const btn = (await screen.findAllByLabelText(/^Start /))[0]!;
+    await fireEvent.press(btn); // reading history, nothing built yet
+    await forward();
+    await act(async () => open());
+    expect(await screen.findByLabelText('Start Push B')).toBeTruthy(); // today, still with no session
+    expect(screen.queryByLabelText(/^Mark .* set 1 done$/)).toBeNull();
+    expect(db.rows.has(`workouts:${YESTERDAY}`)).toBe(false);
+    expect(db.rows.has(`workouts:${TODAY}`)).toBe(false);
+  });
+  it('a second session still reading history when the day changes is not added to the new day', async () => {
+    const db = await setup();
+    await back();
+    await screen.findByText('Yesterday');
+    await fireEvent.press(screen.getByLabelText('Start Push B'));
+    await screen.findAllByLabelText(/^Mark .* set 1 done$/);
+    const template = 'Push B';
+    for (const n of stored<Workout>(db, `workouts:${YESTERDAY}`).exercises.map((e) => e.name)) {
+      const kg = screen.queryByLabelText(`${n} set 1 kg`);
+      if (kg) await fireEvent.changeText(kg, '10');
+      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
+      await fireEvent.press(screen.getByLabelText(`Mark ${n} set 1 done`));
+    }
+    await fireEvent.press(screen.getByLabelText('Training again later today?'));
+    const before = stored<Workout>(db, `workouts:${YESTERDAY}`).exercises.length;
+    const read = db.getAllAsync.bind(db);
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('GROUP BY workout_date')) await gate;
+      return read(sql, ...p);
+    }) as typeof db.getAllAsync;
+    await fireEvent.press(screen.getByLabelText('Add Pull B'));
+    await forward();
+    await act(async () => open());
+    expect(await screen.findByLabelText('Start Push B')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Mark .* set 1 done$/)).toBeNull();
+    expect(stored<Workout>(db, `workouts:${YESTERDAY}`)).toMatchObject({ template });
+    expect(stored<Workout>(db, `workouts:${YESTERDAY}`).exercises.length).toBe(before);
+    expect(db.rows.has(`workouts:${TODAY}`)).toBe(false);
   });
 });
