@@ -11,7 +11,7 @@ name: Web app deploy
 #              never as a repository variable, so one environment can never inherit another's API), WEB_SSH_HOST, WEB_SSH_USER,
 #              WEB_ROOT (the VM directory mounted at /srv/web, for example /opt/plateandbar/infra/staging/web)
 #   secrets    WEB_SSH_KEY (private key of a user that can write only WEB_ROOT), WEB_SSH_KNOWN_HOSTS (ssh-keyscan -t ed25519 host)
-# See infra/README.md (Web app deploy) and infra/RUNBOOK.md section 6.
+# See infra/README.md (Web app deploy) and infra/RUNBOOK.md section 7.
 on:
   push:
     branches: [main]

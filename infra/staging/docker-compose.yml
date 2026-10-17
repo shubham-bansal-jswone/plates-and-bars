@@ -77,7 +77,7 @@ services:
     command: caddy run --config /etc/caddy/sites/Caddyfile.stack --adapter caddyfile
     volumes:
       - ../caddy:/etc/caddy/sites:ro
-      # Expo web export, written by web-deploy.yml (rsync). Create it as the deploy user first: RUNBOOK.md section 6.
+      # Expo web export, written by web-deploy.yml (rsync). Create it as the deploy user first: RUNBOOK.md section 7.
       - ${WEB_DIR:-./web}:/srv/web:ro
       - caddy_data:/data # certificates: keep, or Let's Encrypt rate limits bite after a rebuild
       - caddy_config:/config
