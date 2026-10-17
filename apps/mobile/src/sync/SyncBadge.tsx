@@ -5,12 +5,13 @@ import { Press } from '../components/ui';
 import { Text } from '../components/Text';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { changes } from './copy';
+import { SIGN_IN_COPY, changes } from './copy';
 import { useSync } from './SyncProvider';
 
 /** The label the badge shows: signed out, unsynced changes, or all pushed. */
-export function badgeLabel(s: { signedIn: boolean; pending: number }): string {
+export function badgeLabel(s: { signedIn: boolean; pending: number; accountFull?: boolean }): string {
   if (!s.signedIn) return 'Sign in to sync';
+  if (s.accountFull) return 'Account full';
   return s.pending > 0 ? 'Not synced' : 'Synced';
 }
 
@@ -24,8 +25,8 @@ export function SyncBadge() {
   // While a device wipe is pending the account is already deleted: no "sign in" prompt.
   if (!s.configured || path === '/sign-in' || s.wipePending) return null;
   const label = badgeLabel(s);
-  const warn = s.signedIn && s.pending > 0;
-  const hint = s.signedIn ? (s.pending > 0 ? `${changes(s.pending)} on this device ${s.pending === 1 ? 'is' : 'are'} not synced yet` : 'All changes are synced') : 'Signing in is optional';
+  const warn = s.signedIn && (s.pending > 0 || s.accountFull);
+  const hint = s.signedIn && s.accountFull ? SIGN_IN_COPY.accountFullHint : s.signedIn ? (s.pending > 0 ? `${changes(s.pending)} on this device ${s.pending === 1 ? 'is' : 'are'} not synced yet` : 'All changes are synced') : 'Signing in is optional';
   return (
     <Press
       accessibilityRole="button"
