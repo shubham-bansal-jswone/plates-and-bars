@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class SyncServiceLimitsTest {
 
     private static SyncService with(int keep, int days) {
-        return new SyncService(mock(SyncRepository.class), Clock.systemUTC(), new ObjectMapper(), keep, days);
+        return new SyncService(mock(SyncRepository.class), Clock.systemUTC(), new ObjectMapper(), keep, days, "");
     }
 
     @Test
@@ -22,5 +22,24 @@ class SyncServiceLimitsTest {
                 .hasMessageContaining("conflict-log-retention-days");
         assertThatThrownBy(() -> with(-1, -1)).isInstanceOf(IllegalArgumentException.class);
         assertThatCode(() -> with(1, 1)).doesNotThrowAnyException();
+    }
+
+    private static SyncService cap(String value) {
+        return new SyncService(mock(SyncRepository.class), Clock.systemUTC(), new ObjectMapper(), 1000, 90, value);
+    }
+
+    @Test
+    void recordCapUnsetEmptyOrZeroIsOffAndAWholeNumberIsAccepted() {
+        for (String ok : new String[] {null, "", "  ", "0", "200000", " 5 "}) {
+            assertThatCode(() -> cap(ok)).as("[" + ok + "]").doesNotThrowAnyException();
+        }
+    }
+
+    @Test
+    void aRecordCapThatIsNegativeOrNotANumberFailsStartup() {
+        for (String bad : new String[] {"-1", "abc", "1.5", "200,000"}) {
+            assertThatThrownBy(() -> cap(bad)).as(bad).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("max-records-per-account");
+        }
     }
 }
