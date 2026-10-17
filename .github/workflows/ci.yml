@@ -270,6 +270,9 @@ jobs:
       # Same sandbox note as the site job: keep the Chromium sandbox on and relax the runner's AppArmor rule.
       - name: Allow Chromium sandbox (unprivileged user namespaces)
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Port handling (taken port fails fast, E2E_REUSE=1 reuses)
+        working-directory: tests/e2e
+        run: npm run test:port
       - name: Playwright tests
         working-directory: tests/e2e
         run: npx playwright test

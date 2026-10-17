@@ -2,6 +2,10 @@
 export const DATA_COPY = {
   title: 'Your data',
   intro: 'Download a copy of what the app stores, or delete everything.',
+  storageAccount: 'Saved privately to your account.',
+  storageDevice: 'Saved on this device only.',
+  storageBrowser: 'Saved in this browser only.',
+  storageWaiting: ' Some changes are waiting to sync.',
   exportDevice: 'Download my data',
   exportServer: 'Download from my account',
   withdraw: 'Withdrawing your consent means deleting your account, and you can delete it at any time from Your data.',

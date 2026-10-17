@@ -61,6 +61,7 @@ The JSON is about 0.5 MB. `loadLicences` loads it with a dynamic `import()`: the
 
 `@sentry/react-native` (MIT, version pinned by Expo SDK 58's `bundledNativeModules.json`) sends crashes and errors to a self-hosted GlitchTip. It is off by default: `initErrorTracking` (`src/telemetry/errors.ts`) returns without calling `Sentry.init` unless `EXPO_PUBLIC_SENTRY_DSN` is set at build time, so there is no SDK start-up and no network traffic without it. The DSN is a build-time environment variable (never committed).
 
+- Events carry `environment` (build-time `EXPO_PUBLIC_SENTRY_ENVIRONMENT`, default `development`) and `release` (`plate-and-bar@X.Y.Z+versionCode`, from the app version via `expo-constants`). About shows the same version. The release workflows pass the variables (#827).
 - `sendDefaultPii` false, no screenshots, no view hierarchy, no failed-request capture, the default breadcrumbs integration removed.
 - Tracing is off: no `tracesSampleRate` or `tracesSampler` (any number turns tracing on in the SDK), `enableAutoPerformanceTracing` false, `tracePropagationTargets: []` so no `sentry-trace` or `baggage` header is added to any request, and `beforeSendTransaction` drops every transaction.
 - `src/telemetry/scrub.ts` fails closed. `beforeSend` builds the outgoing event from an allowlist of fields: event id, time, platform, level, release, environment, SDK info, the exception type, mechanism and stack frames (function, file without query, line), allowlisted device and app contexts, and the user reduced to a random install id (kept in the keystore, not tied to an account). Exception values and `message` are blanked or dropped (a `JSON.parse` error quotes its input), and `logentry`, `extra`, `tags`, `request`, `transaction`, `fingerprint`, `spans`, `threads` and frame variables are dropped. Breadcrumbs keep only type, category, level and time (no message, no data); console and network breadcrumbs are dropped. A key filter (food, meal, weight, measure, health, answer, token, email, password, secret, authorization, cookie, profile, photo, lab) is a second guard on the contexts that have no fixed key set.
@@ -112,3 +113,7 @@ npx expo export --platform web && node scripts/web-reload.mjs
 ```
 
 It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the export carries `sw.js` now, so this usually comes back from the service worker; the script logs whichever way it goes, and `tests/e2e/specs/offline.spec.mjs` is what asserts the offline start), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.
+
+## Website links (#825)
+
+The privacy policy, terms and account deletion links (About, Your data, setup consent) point at the website origin in `EXPO_PUBLIC_SITE_URL`, an `https://` URL set at build time. Unset or not https, the links are hidden. The release workflows pass it (#827).

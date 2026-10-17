@@ -13,6 +13,7 @@ import { ResultsView } from '../components/ResultsView';
 import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
+import { setupText } from '../setup/summary';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -78,12 +79,18 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
       </Page>
     );
   }
+  const summary = setupText(profile);
   const drift = weightDrift(weights, profile.weight_kg);
   const whyValues = profileWhyValues(profile, { date: localDate(now()), flex: settings.flex });
   return (
     <View style={{ flex: 1 }}>
       <Page>
-        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets />
+        <View style={{ gap: 8 }}>
+          <H1>Your setup</H1>
+          <Text style={{ color: c.ink, lineHeight: 22 }}>{summary.line}</Text>
+          <Hint>{summary.burn}</Hint>
+        </View>
+        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets hideHeadline />
         <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 }}>
           {/* The numbers are the stored (possibly edited) targets; the burn breakdown is what setup computed. */}

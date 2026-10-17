@@ -226,6 +226,8 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   `user_id, id, version, updated_at, deleted_at, seq, data JSON`, primary key `(user_id, id)`. `data` holds the
   record's other fields, so the engine is generic over tables. Foreign key to `users` with `ON DELETE CASCADE`.
   `sync_state` holds one row per user with the change counter `seq`; `sync_conflicts` is the conflict log.
+  A `client_won` conflict in the `POST /sync` response also carries `replaced_record` (contract 0.1.20): the stored copy
+  the edit replaced, at `server_version - 1`, identical to the entry logged with `loser: server`. Never on `server_won`.
   The conflict log is bounded per user (`SYNC_CONFLICT_LOG_MAX_PER_USER`, default 1000; `SYNC_CONFLICT_LOG_RETENTION_DAYS`,
   default 90; both must be at least 1 or the app refuses to start). Pruning happens only when a later sync logs a
   conflict: then entries older than the retention and all but the newest ones are deleted. An account that stops

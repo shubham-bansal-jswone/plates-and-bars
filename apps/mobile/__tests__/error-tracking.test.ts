@@ -6,6 +6,7 @@ const mockInit = jest.fn();
 const mockSetUser = jest.fn();
 jest.mock('@sentry/react-native', () => ({ init: (o: unknown) => mockInit(o), setUser: (u: unknown) => mockSetUser(u) }));
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => 'install-1'), setItemAsync: jest.fn() }));
+jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { version: '1.2.3', android: { versionCode: 1002003 } } } }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'web-id' }));
 
 // One probe: food text and a weight in every field the SDK can carry. None of them may appear in the scrubbed event.
@@ -140,5 +141,30 @@ describe('initErrorTracking', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(mockSetUser).toHaveBeenCalledWith({ id: 'install-1' });
     expect(o.beforeSend({ message: FOOD, user: { email: 'a@b.c' } })).toEqual({ user: { id: 'install-1' }, contexts: {}, breadcrumbs: [] });
+  });
+
+  it('sets the environment (default development) and the release, and both survive the scrubber', () => {
+    initErrorTracking('https://key@glitchtip.example/1');
+    expect(mockInit.mock.calls[0]![0]).toMatchObject({ environment: 'development', release: 'plate-and-bar@1.2.3+1002003' });
+    initErrorTracking('https://key@glitchtip.example/1', '  ');
+    expect(mockInit.mock.calls[1]![0].environment).toBe('development');
+    initErrorTracking('https://key@glitchtip.example/1', 'production');
+    const o = mockInit.mock.calls[2]![0];
+    expect(o.environment).toBe('production');
+    // The SDK stamps these on the event before beforeSend; the scrubber must keep them.
+    const out = JSON.parse(JSON.stringify(o.beforeSend({ ...probe, release: o.release, environment: o.environment })));
+    expect(out).toMatchObject({ release: 'plate-and-bar@1.2.3+1002003', environment: 'production' });
+  });
+
+  it('reads the environment from EXPO_PUBLIC_SENTRY_ENVIRONMENT by default', () => {
+    const was = process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT;
+    process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT = 'staging';
+    try {
+      initErrorTracking('https://key@glitchtip.example/1');
+    } finally {
+      if (was === undefined) delete process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT;
+      else process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT = was;
+    }
+    expect(mockInit.mock.calls[0]![0].environment).toBe('staging');
   });
 });
