@@ -123,6 +123,22 @@ export function ReentryCardView({ card, onEase, ...c }: { card: ReentryCard; onE
   );
 }
 
+/** "You missed X on Monday": shift the week forward (prototype `renderStart`, missed-day step). */
+export function MissedCardView({ missed, weekday, stick, onShift, ...c }: { missed: { t: string }; weekday: string; /** The planned day the "Stick to" button names. */ stick: string; onShift: () => void } & Common) {
+  return (
+    <AdjCard
+      title={`You missed ${missed.t} on ${weekday}`}
+      level={2}
+      subject="missed day"
+      declines={c.declines}
+      onMute={c.onMute}
+      buttons={[{ label: 'Shift the week', primary: true, onPress: onShift }, { label: `Stick to ${stick}`, onPress: c.onNo }]}
+    >
+      {`Shift the week forward so nothing gets skipped? Today becomes ${missed.t}, and the rest of the plan follows in order.`}
+    </AdjCard>
+  );
+}
+
 /** The "N steady weeks of training" card: an optional lighter week (prototype `renderStart`). */
 export function SteadyCardView({ card, onStart, ...c }: { card: SteadyCard; onStart: () => void } & Common) {
   return (
