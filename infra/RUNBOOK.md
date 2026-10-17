@@ -2,6 +2,8 @@
 
 Staging runs from `infra/staging/` on one VM: Caddy (HTTPS), the API and MySQL 8.4 in Docker Compose. This file covers set-up, backups, restore, rollback and monitoring. Backups are not automated until you add the cron line (section 3). The merge-to-`main` deploy exists but stays off until you enable it (section 2); no account has been created. Steps marked **Owner** need an account or a decision from Shubham.
 
+Suspected personal data breach (leaked data, keys or backups, one user seeing another's records, data loss): follow [`docs/INCIDENT-RESPONSE.md`](../docs/INCIDENT-RESPONSE.md) before anything in this file, and preserve the API logs before any restart or rollback.
+
 ## Free-tier limits (checked 2026-10-12)
 
 - Cloudflare R2: free tier of 10 GB-month of Standard storage, 1 million Class A and 10 million Class B requests per month (developers.cloudflare.com/r2/pricing, fetched 2026-10-12). One dump a day kept 30 days stays far below that unless the compressed dump grows past roughly 300 MB.
