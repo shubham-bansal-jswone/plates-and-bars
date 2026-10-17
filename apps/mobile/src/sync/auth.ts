@@ -36,16 +36,20 @@ export async function verifyEmailCode(db: StoreDb & PullDb, api: ApiClient, toke
   try {
     const { data, response } = await api.POST('/auth/email/verify', { body: { email, code }, ...authInit() });
     if (data) {
-      const outcome = await acceptTokenPair(db, tokens, data);
-      if (cookieMode()) {
-        if (outcome.kind === 'signed_in') clearSignOutPending();
-        else {
-          // The tokens were refused (another account, unsynced changes) but the server already set the cookie: end that session.
-          markSignOutPending();
-          void revokeCookie(api);
+      let outcome: SignInOutcome | undefined;
+      try {
+        outcome = await acceptTokenPair(db, tokens, data);
+        return outcome;
+      } finally {
+        if (cookieMode()) {
+          if (outcome?.kind === 'signed_in') clearSignOutPending();
+          else {
+            // Refused (another account, unsynced changes) or failed after the server set the cookie: end that session.
+            markSignOutPending();
+            void revokeCookie(api);
+          }
         }
       }
-      return outcome;
     }
     if (response.status === 401 || response.status === 400) return { kind: 'error', reason: 'invalid_code' };
     if (response.status === 429) return { kind: 'error', reason: 'rate_limited', retryAfterSec: Number(response.headers.get('Retry-After')) || 60 };

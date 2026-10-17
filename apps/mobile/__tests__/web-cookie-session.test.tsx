@@ -4,10 +4,11 @@ import { createClient } from '@plate-and-bar/api';
 import { startEmailSignIn, verifyEmailCode } from '../src/sync/auth';
 import { syncOnce } from '../src/sync/engine';
 import { signOut } from '../src/sync/guard';
-import { KEY_USER, setKv } from '../src/sync/store';
+import { KEY_USER, getUserId, setKv } from '../src/sync/store';
 import { SyncProvider, useSync } from '../src/sync/SyncProvider';
 import { webTokenStore } from '../src/sync/tokens';
-import { signOutPending } from '../src/sync/webSession';
+import { clearSignOutPending, markSignOutPending, revokeCookie, signOutPending } from '../src/sync/webSession';
+import { saveWeightDoc } from './sync-fixtures';
 import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -34,14 +35,18 @@ function setupServer() {
     refreshStatus: null as number | null,
     revokeStatus: 204,
     networkDownFor: null as string | null,
+    /** The account the cookie refresh and verify answer for. */
+    refreshUser: USER,
     calls: (path: string) => log.filter((l) => l.path === path),
     fetch: async (input: Request): Promise<Response> => {
       const path = new URL(input.url).pathname.replace('/api/v1', '');
-      const body = JSON.parse(await input.clone().text()) as Record<string, unknown>;
+      const text = await input.clone().text();
+      const body = (text ? JSON.parse(text) : {}) as Record<string, unknown>;
       const transport = input.headers.get('X-Auth-Transport');
       log.push({ path, transport, credentials: input.credentials, body, auth: input.headers.get('Authorization') });
       const json = (status: number, b: unknown) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } });
       if (w.networkDownFor === path) throw new TypeError('network down');
+      if (path === '/me' && input.method === 'DELETE') return new Response(null, { status: 204 });
       if (path === '/auth/refresh/revoke') return w.revokeStatus === 204 ? new Response(null, { status: 204 }) : json(w.revokeStatus, { code: 'unavailable', message: 'x' });
       if (path === '/auth/refresh') {
         if (w.refreshStatus) return json(w.refreshStatus, { code: w.refreshStatus === 503 ? 'unavailable' : 'unauthorized', message: 'x' });
@@ -49,7 +54,7 @@ function setupServer() {
         if (cookieMode ? !w.cookie || 'refresh_token' in body : !body.refresh_token) return json(cookieMode && 'refresh_token' in body ? 400 : 401, { code: 'unauthorized', message: 'x' });
         s.refreshes++;
         s.accessValid = `access-cookie-${s.refreshes}`;
-        return json(200, { token_type: 'Bearer', access_token: s.accessValid, access_token_expires_at: '2026-10-09T00:00:00Z', refresh_token: cookieMode ? LEAK : 'native-rotated', refresh_token_expires_at: '2027-01-01T00:00:00Z', user: { id: USER, email: null, created_at: '2026-10-01T00:00:00Z' }, new_user: false });
+        return json(200, { token_type: 'Bearer', access_token: s.accessValid, access_token_expires_at: '2026-10-09T00:00:00Z', refresh_token: cookieMode ? LEAK : 'native-rotated', refresh_token_expires_at: '2027-01-01T00:00:00Z', user: { id: w.refreshUser, email: null, created_at: '2026-10-01T00:00:00Z' }, new_user: false });
       }
       return s.fetch(input);
     },
@@ -397,5 +402,181 @@ describe('web provider', () => {
     expect(srv.calls('/auth/refresh/revoke')[0]).toMatchObject({ transport: null, body: { refresh_token: 'legacy-rt' } });
     await waitFor(() => expect(sync().linked).toBe(true));
     expect(sync().signedIn).toBe(false);
+  });
+});
+
+const OTHER = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
+const bearers = (srv: ReturnType<typeof setupServer>) => srv.calls('/sync').map((c) => c.auth);
+
+describe('web: a cookie for another account never carries this store (ADR 004)', () => {
+  it('cold reload: refresh answers another user: no /sync, tokens cleared, signed out, cookie revoked', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    srv.refreshUser = OTHER;
+    const db = await setupDb();
+    const tokens = webTokenStore();
+    expect((await syncOnce({ db, api: clientFor(tokens), tokens })).status).toBe('signed_out');
+    expect(srv.calls('/sync')).toHaveLength(0);
+    expect(await tokens.load()).toBeNull();
+    expect(srv.calls('/auth/refresh/revoke')).toHaveLength(1);
+    expect(srv.calls('/auth/refresh/revoke')[0]).toMatchObject({ transport: 'cookie', credentials: 'include', body: {} });
+  });
+
+  it('mid-run 401 then a refresh for another user: the other account token is never sent to /sync', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    srv.refreshUser = OTHER;
+    srv.s.accessValid = 'newer';
+    const db = await setupDb();
+    const tokens = webTokenStore();
+    await tokens.save({ access: 'access-old', refresh: '' });
+    expect((await syncOnce({ db, api: clientFor(tokens), tokens })).status).toBe('signed_out');
+    expect(bearers(srv)).toEqual(['Bearer access-old']);
+    expect(await tokens.load()).toBeNull();
+    expect(srv.calls('/auth/refresh/revoke')).toHaveLength(1);
+  });
+
+  it('a failed revoke leaves the pending flag, so the other cookie is not refreshed again', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    srv.refreshUser = OTHER;
+    srv.revokeStatus = 503;
+    const db = await setupDb();
+    const tokens = webTokenStore();
+    const deps = { db, api: clientFor(tokens), tokens };
+    await syncOnce(deps);
+    expect(signOutPending()).toBe(true);
+    await syncOnce(deps);
+    expect(srv.calls('/auth/refresh')).toHaveLength(1);
+  });
+
+  it('provider cold reload with the mismatch: signed out, binding and data kept', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    srv.refreshUser = OTHER;
+    const db = await setupDb();
+    const { sync } = await mount(db, webTokenStore());
+    await waitFor(() => expect(srv.calls('/auth/refresh').length).toBe(1));
+    await waitFor(() => expect(sync().linked).toBe(true));
+    expect(sync().signedIn).toBe(false);
+    expect(await getUserId(db)).toBe(USER);
+    expect(srv.calls('/sync')).toHaveLength(0);
+  });
+});
+
+describe('web: every end of a session revokes the cookie', () => {
+  const expectRevoke = (srv: ReturnType<typeof setupServer>) => {
+    expect(srv.calls('/auth/refresh/revoke')).toHaveLength(1);
+    expect(srv.calls('/auth/refresh/revoke')[0]).toMatchObject({ transport: 'cookie', credentials: 'include', body: {} });
+  };
+
+  it('verify refused (another account on this device): flag set, revoke sent', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    srv.revokeStatus = 503; // keeps the flag visible
+    const db = await setupDb();
+    await saveWeightDoc(db, { id: null, version: 0, updated_at: '2026-10-09T06:00:00Z', deleted_at: null, date: '2026-10-08', weight_kg: 80 });
+    await setKv(db, KEY_USER, OTHER); // the store belongs to someone else with unsynced changes; verify answers USER
+    const tokens = webTokenStore();
+    const r = await verifyEmailCode(db, clientFor(tokens), tokens, 'a@example.com', '123456');
+    expect(r.kind).toBe('refused');
+    await waitFor(() => expect(srv.calls('/auth/refresh/revoke')).toHaveLength(1));
+    expect(local.data.get('pb.signout_pending')).toBe('1');
+    expectRevoke(srv);
+  });
+
+  it('verify where saving the tokens throws after the cookie was set: offline result, but the cookie is revoked', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    const db = await openDb();
+    const tokens = webTokenStore();
+    tokens.save = async () => {
+      throw new Error('disk');
+    };
+    const r = await verifyEmailCode(db, clientFor(tokens), tokens, 'a@example.com', '123456');
+    expect(r).toMatchObject({ kind: 'error' });
+    await waitFor(() => expectRevoke(srv));
+  });
+
+  it('delete account (204): the cookie is revoked', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    const db = await setupDb();
+    const tokens = webTokenStore();
+    await tokens.save({ access: srv.s.accessValid, refresh: '' });
+    const { sync } = await mount(db, tokens);
+    await waitFor(() => expect(sync().signedIn).toBe(true));
+    await act(async () => {
+      expect(await sync().deleteEverything()).toMatchObject({ kind: 'deleted', server: true });
+    });
+    await waitFor(() => expectRevoke(srv));
+  });
+
+  it('discard and sign out: flag set, revoke sent', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    srv.revokeStatus = 503;
+    const db = await setupDb();
+    const { sync } = await mount(db, webTokenStore());
+    await waitFor(() => expect(sync().signedIn).toBe(true));
+    await act(async () => void (await sync().discardAndSignOut()));
+    await waitFor(() => expect(srv.calls('/auth/refresh/revoke')).toHaveLength(1));
+    expect(local.data.get('pb.signout_pending')).toBe('1');
+    expect(srv.calls('/auth/refresh/revoke')[0]).toMatchObject({ transport: 'cookie', credentials: 'include' });
+  });
+});
+
+describe('web: tab lock and storage edge cases', () => {
+  const withLocks = async (request: (name: string, cb: () => Promise<unknown>) => Promise<unknown>, f: () => Promise<void>) => {
+    const nav = globalThis.navigator as unknown as { locks?: unknown };
+    const had = Object.getOwnPropertyDescriptor(nav, 'locks');
+    Object.defineProperty(nav, 'locks', { configurable: true, value: { request } });
+    try {
+      await f();
+    } finally {
+      if (had) Object.defineProperty(nav, 'locks', had);
+      else delete nav.locks;
+    }
+  };
+
+  it('a sign-out in another tab while this one waits for the lock: no refresh is sent', async () => {
+    setPlatform('web');
+    const srv = setupServer();
+    const db = await setupDb();
+    const tokens = webTokenStore();
+    await withLocks(
+      async (_n, cb) => {
+        local.data.set('pb.signout_pending', '1'); // the other tab signed out (and its revoke failed) while we waited
+        return cb();
+      },
+      async () => {
+        expect((await syncOnce({ db, api: clientFor(tokens), tokens })).status).toBe('signed_out');
+      },
+    );
+    expect(srv.calls('/auth/refresh')).toHaveLength(0);
+  });
+
+  it('the revoke runs under the same cross-tab lock', async () => {
+    setPlatform('web');
+    setupServer();
+    const held: string[] = [];
+    await withLocks(
+      async (name, cb) => (held.push(name), cb()),
+      async () => {
+        expect(await revokeCookie(clientFor(webTokenStore()))).toBe(true);
+      },
+    );
+    expect(held).toEqual(['pb-refresh-cookie']);
+  });
+
+  it('blocked localStorage: the sign-out flag still holds for this page', () => {
+    setPlatform('web');
+    local.setItem = () => {
+      throw new Error('blocked');
+    };
+    markSignOutPending();
+    expect(signOutPending()).toBe(true);
+    clearSignOutPending();
+    expect(signOutPending()).toBe(false);
   });
 });

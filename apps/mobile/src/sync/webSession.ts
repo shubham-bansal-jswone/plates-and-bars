@@ -22,9 +22,13 @@ function webStorages(): Storage[] {
   return out;
 }
 
+/** Fallback for blocked storage: the flag then lives for this page only, which still covers an offline sign-out in this tab. */
+let memoryPending = false;
+
 /** True while a sign-out on this browser has not reached the server: the cookie would sign the user back in, so no refresh may run. */
 export function signOutPending(): boolean {
   if (!cookieMode()) return false;
+  if (memoryPending) return true;
   try {
     return globalThis.localStorage?.getItem(PENDING_KEY) === '1';
   } catch {
@@ -37,11 +41,12 @@ export function markSignOutPending(): void {
   try {
     globalThis.localStorage?.setItem(PENDING_KEY, '1');
   } catch {
-    // storage blocked: the sign-out still clears the in-memory token
+    memoryPending = true; // storage blocked
   }
 }
 
 export function clearSignOutPending(): void {
+  memoryPending = false;
   try {
     globalThis.localStorage?.removeItem(PENDING_KEY);
   } catch {
@@ -53,7 +58,13 @@ export function clearSignOutPending(): void {
  * Asks the server to end the session and clear the cookie. True when it answered 204 (the flag is cleared); false on a
  * failure, a 503 or no connection (the flag stays and the caller retries later). Never throws.
  */
-export async function revokeCookie(api: ApiClient): Promise<boolean> {
+export function revokeCookie(api: ApiClient): Promise<boolean> {
+  // Under the cross-tab lock, so a revoke and a refresh never overlap in the browser's cookie jar.
+  return cookieMode() ? withTabLock(() => postRevoke(api)) : Promise.resolve(true);
+}
+
+/** `revokeCookie` for a caller that already holds the tab lock (Web Locks are not reentrant). */
+export async function postRevoke(api: ApiClient): Promise<boolean> {
   if (!cookieMode()) return true;
   try {
     const r = await withTimeout(REQUEST_TIMEOUT_MS, (signal) => api.POST('/auth/refresh/revoke', { body: {}, signal, ...authInit() }));

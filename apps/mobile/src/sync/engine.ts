@@ -10,7 +10,7 @@ import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { authInit, cookieMode, refreshBody } from './transport';
-import { signOutPending, withTabLock } from './webSession';
+import { markSignOutPending, postRevoke, signOutPending, withTabLock } from './webSession';
 import { deleteKitchenPhoto } from '../photos/vault';
 import { NATURAL_KEY_TABLES } from './ids';
 
@@ -162,7 +162,8 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
     joins++;
     return raceAbort(inflight, signal);
   }
-  const promise: Promise<boolean> = (cookieMode() ? withTabLock(() => rotate(d, owner, '', signal)) : rotate(d, owner, t?.refresh ?? '', signal)).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
+  // Web: the pending flag is re-checked under the lock, because another tab may have signed out while this one waited.
+  const promise: Promise<boolean> = (cookieMode() ? withTabLock(async () => (signOutPending() ? false : rotate(d, owner, '', signal))) : rotate(d, owner, t?.refresh ?? '', signal)).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
   refreshing.set(key, promise);
   return promise;
 }
@@ -196,6 +197,9 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
     // A cookie that belongs to another account than this store's must not carry this store's records to it (ADR 004).
     if (cookieMode() && owner && data.user.id !== owner) {
       await d.tokens.clear();
+      // That cookie has no legitimate session on this browser: end it rather than rotating it on every run.
+      markSignOutPending();
+      await postRevoke(d.api); // already under the tab lock
       return false;
     }
     await d.tokens.save({ access: data.access_token, refresh: data.refresh_token });
