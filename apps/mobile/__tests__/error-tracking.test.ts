@@ -83,6 +83,13 @@ describe('scrubEvent', () => {
     expect(ex).toMatchObject({ type: 'SyntaxError', value: '', mechanism: { type: 'generic', handled: false, synthetic: false } });
     expect(ex.stacktrace.frames).toEqual([{ function: 'parseRow', filename: 'app:///index.bundle', lineno: 10, colno: 3, in_app: true }]);
   });
+  it('keeps the linked-error fields as numbers, booleans and a fixed-shape source, and drops anything else', () => {
+    const scrub = (mechanism: object) => (scrubEvent({ exception: { values: [{ type: 'E', mechanism }] } } as unknown as ErrorEvent, null) as any).exception.values[0].mechanism;
+    expect(scrub({ type: 'chained', exception_id: 1, parent_id: 0, is_exception_group: false, source: 'errors[2]' })).toEqual({ type: 'chained', exception_id: 1, parent_id: 0, is_exception_group: false, source: 'errors[2]' });
+    expect(scrub({ source: 'cause' })).toEqual({ source: 'cause' });
+    const bad = scrub({ type: FOOD.repeat(20), exception_id: FOOD, parent_id: { food: FOOD }, is_exception_group: FOOD, handled: FOOD, source: FOOD });
+    expect(bad).toEqual({});
+  });
   it('allows only device and app contexts, and filters sensitive keys inside them', () => {
     expect(Object.keys(out.contexts).sort()).toEqual(['app', 'device', 'os', 'react_native_context']);
     expect(out.contexts.app).toEqual({ app_version: '1.0' }); // unlisted keys are dropped

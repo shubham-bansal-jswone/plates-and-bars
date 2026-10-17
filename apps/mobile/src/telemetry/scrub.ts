@@ -43,6 +43,16 @@ function filterKeys(value: unknown, depth: number): unknown {
   return value;
 }
 
+/** Mechanism fields: the SDK's own type and flags, plus the LinkedErrors chain links. Typed so no message text can ride through; `source` is only `cause` or `errors[n]`. */
+function scrubMechanism(m: Rec): Rec {
+  const out: Rec = {};
+  if (typeof m.type === 'string' && m.type.length <= 64) out.type = m.type;
+  for (const k of ['handled', 'synthetic', 'is_exception_group'] as const) if (typeof m[k] === 'boolean') out[k] = m[k];
+  for (const k of ['exception_id', 'parent_id'] as const) if (typeof m[k] === 'number' && Number.isFinite(m[k])) out[k] = m[k];
+  if (typeof m.source === 'string' && /^(cause|errors\[\d{1,3}\])$/.test(m.source)) out.source = m.source;
+  return out; // not description, data or meta: they can carry values
+}
+
 function scrubFrame(f: Rec): Rec {
   const out = pick(f, FRAME_ALLOW);
   for (const k of ['filename', 'abs_path'] as const) if (typeof out[k] === 'string') out[k] = stripQuery(out[k]);
@@ -77,7 +87,7 @@ export function scrubEvent<T extends ErrorEvent>(event: T, installId: string | n
         const frames = (v.stacktrace as { frames?: Rec[] } | undefined)?.frames;
         return {
           ...pick(v, ['type', 'module', 'thread_id']),
-          ...(v.mechanism && typeof v.mechanism === 'object' ? { mechanism: pick(v.mechanism as Rec, ['type', 'handled', 'synthetic']) } : {}), // not description, data or meta: they can carry values
+          ...(v.mechanism && typeof v.mechanism === 'object' ? { mechanism: scrubMechanism(v.mechanism as Rec) } : {}),
           value: '', // blanked: may quote a food name or a weight
           ...(frames ? { stacktrace: { frames: frames.map(scrubFrame) } } : {}),
         };
