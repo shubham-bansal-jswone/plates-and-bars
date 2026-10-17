@@ -75,9 +75,18 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const v = useViewedDate(now);
   const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
+  const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
-  if (status !== 'ready' || !ready || !day.ready || !rules.ready) return <View style={styles.fill}><DateAnnouncer v={v} /><Page><DateBar v={v} /><Hint>Loading…</Hint></Page></View>;
+  if (status !== 'ready' || !ready || !day.ready || !rules.ready) return (
+      <View style={styles.fill}>
+        <DateAnnouncer v={v} />
+        <Page><DateBar v={v} /><Hint>Loading…</Hint></Page>
+        {/* Outside the loading swap, as the prototype keeps #restbar and #toast outside #view: a day read does not hide a running rest or a message. */}
+        <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />
+        <ToastBar message={toast} />
+      </View>
+    );
   if (!profile)
     return (
       <View style={styles.fill}>
@@ -117,7 +126,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
         }}
         onClose={() => setCantName(null)}
       />
-      <RestBar rest={rest} onAdd={() => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r))} onSkip={() => setRest(null)} />
+      <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />
       <ToastBar message={toast} />
     </View>
   );

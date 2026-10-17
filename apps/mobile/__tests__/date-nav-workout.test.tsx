@@ -108,6 +108,34 @@ describe('Workout date navigation', () => {
     await act(async () => open());
     expect(await screen.findByLabelText('Start Push B')).toBeTruthy();
   });
+  it('keeps a running rest timer and a message on screen while a day is read', async () => {
+    const db = await setup();
+    await startFirst(); // today
+    const first = screen.getAllByLabelText(/^Mark .* set 1 done$/)[0]!.props.accessibilityLabel as string;
+    const name = first.replace(/^Mark /, '').replace(/ set 1 done$/, '');
+    await fireEvent.press(screen.getByLabelText(first)); // nothing entered yet: a message
+    expect(await screen.findByText(/^Enter the .* first\.$/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText(`${name} set 1 reps`), '10');
+    const kg = screen.queryByLabelText(`${name} set 1 kg`);
+    if (kg) await fireEvent.changeText(kg, '10');
+    await fireEvent.press(screen.getByLabelText(first)); // a set done: the rest timer starts
+    expect(await screen.findByLabelText('Rest timer')).toBeTruthy();
+    const read = db.getFirstAsync.bind(db);
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM workouts')) await gate;
+      return read(sql, ...p);
+    }) as typeof db.getFirstAsync;
+    await back();
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    expect(screen.getByLabelText('Rest timer')).toBeTruthy();
+    expect(screen.getByText(/^Enter the .* first\.$/)).toBeTruthy();
+    await act(async () => open());
+    await screen.findByText('Yesterday');
+    expect(screen.getByLabelText('Rest timer')).toBeTruthy();
+  });
+
   describe('announcement', () => {
     const originalOS = Platform.OS;
     afterEach(() => {
