@@ -85,12 +85,12 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={{ flex: 1 }}>
       <Page>
-        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets hideHeadline />
-        <View style={{ gap: 8, marginTop: 8 }}>
-          <H1 level={2}>Your setup</H1>
+        <View style={{ gap: 8 }}>
+          <H1>Your setup</H1>
           <Text style={{ color: c.ink, lineHeight: 22 }}>{summary.line}</Text>
           <Hint>{summary.burn}</Hint>
         </View>
+        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets hideHeadline />
         <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 }}>
           {/* The numbers are the stored (possibly edited) targets; the burn breakdown is what setup computed. */}
