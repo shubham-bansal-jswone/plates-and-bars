@@ -95,10 +95,20 @@ Without the two headers the page is not cross-origin isolated and the database d
 
 `app.json` passes `{ "asyncRoutes": false }` to the `expo-router` plugin: SDK 58 otherwise splits every route into its own JS file, loaded only when that route is first opened. On a page with no service worker that breaks the offline-first rule for the web build - a screen the user has not opened online yet cannot be opened at all offline (the e2e suite's offline tests fail on it). With async routes off the export is one `entry-*.js` plus the SQLite worker, exactly as under SDK 57.
 
+### Offline start (service worker)
+
+`public/sw.js` (hand-written, no dependency; copied into `dist/` by the export) lets the production web build start with no network after one online visit. `src/web/registerServiceWorker.ts` registers it (production web only; the dev server and native are untouched). Because `expo export` gives the worker no build step, it learns the hashed file names from the live `index.html` and the bundles, caches them under `pb-shell-<entry bundle path>`, following the entry bundle to the SQLite worker bundle (the only place the wasm path appears). Cached responses keep their COOP/COEP headers, so the page stays cross-origin isolated offline.
+
+- Navigations are network-first (a deploy shows up on the next load and triggers a new cache build in the background); offline they get the cached `index.html`. Hashed `/assets/` and `/_expo/static/` files are cache-first.
+- Only those precached same-origin GET files are ever stored or served. API calls (another origin, or any `/api/` or `/auth/` path) pass straight through and are never cached.
+- Update flow: the new cache is built next to the old one and the old one is deleted only once the new one is complete, so nobody is left on a half-cached or stale bundle; no reload prompt is needed (single bundle, no lazy chunks).
+- Hosting: `sw.js` must be served with `Cache-Control: no-cache` (Caddyfile.web already revalidates everything not hashed; Cloudflare Pages revalidates by default) and a CSP needs `worker-src 'self'` (#749).
+- Tests: `__tests__/service-worker.test.ts`, and `tests/e2e/specs/offline.spec.mjs` (load, wait for the cache, go offline, reload, the app starts).
+
 Check that data survives a reload (needs a local Chrome; set `CHROME_PATH` if it is not in a standard place):
 
 ```
 npx expo export --platform web && node scripts/web-reload.mjs
 ```
 
-It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the static export has no service worker, so the page itself cannot load offline; that is expected and only logged), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.
+It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the export carries `sw.js` now, so this usually comes back from the service worker; the script logs whichever way it goes, and `tests/e2e/specs/offline.spec.mjs` is what asserts the offline start), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.
