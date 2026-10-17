@@ -49,12 +49,12 @@ describe('app version', () => {
     os('android');
     const first = await render(<AboutScreen onBack={() => {}} />);
     expect(screen.getByText('Version 1.2.3 (1002003)')).toBeTruthy();
-    first.unmount();
+    await first.unmount();
     jest.restoreAllMocks();
     os('web');
     const second = await render(<AboutScreen onBack={() => {}} />);
     expect(screen.getByText('Version 1.2.3')).toBeTruthy();
-    second.unmount();
+    await second.unmount();
     mockConfig = null;
     await render(<AboutScreen onBack={() => {}} />);
     expect(screen.queryByText(/^Version /)).toBeNull();
