@@ -31,6 +31,7 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
       const table = /FROM (\w+)/.exec(sql)![1];
       if (sql.includes('WHERE key')) {
         const data = rows.get(`${table}:${p[0]}`);
+        if (table === 'settings') return (data === undefined ? null : { value: data }) as T | null; // the key/value flags table
         return (data === undefined ? null : { data }) as T | null;
       }
       // latest by given_at, as the consents query orders
@@ -42,6 +43,10 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
       if (db.failWrites) throw new Error('disk full');
       const lag = db.lag;
       if (lag) await new Promise((r) => setTimeout(r, lag(sql)));
+      if (sql.startsWith('DELETE FROM settings WHERE key')) {
+        rows.delete(`settings:${p[0]}`);
+        return;
+      }
       const table = /INTO (\w+)/.exec(sql)![1];
       if (table === 'workout_sets') {
         sets.set(String(p[0]), { date: String(p[1]), kind: String(p[2]), done: Number(p[3]), deleted: Number(p[4]), data: String(p[5]) });
