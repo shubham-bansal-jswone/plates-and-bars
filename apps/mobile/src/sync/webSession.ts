@@ -42,7 +42,10 @@ export function markSignOutPending(): void {
     if (!globalThis.localStorage) memoryPending = true; // no storage at all (some embedded webviews)
     globalThis.localStorage?.setItem(PENDING_KEY, '1');
   } catch {
-    memoryPending = true; // storage blocked
+    // Storage blocked: the flag then lives in this tab's memory only. Other tabs cannot read it, but they still hear the
+    // BroadcastChannel message below and drop their access token; their next refresh would use the cookie again until this
+    // tab's revoke clears it (it runs right after, under the same lock).
+    memoryPending = true;
   }
   announceSignOut();
 }

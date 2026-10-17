@@ -135,8 +135,13 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       else if (r.status === 'rate_limited') holdUntil.current = Date.now() + (r.retryAfterSec ?? 60) * 1000;
       else if (r.status === 'unavailable' || r.status === 'rejected' || r.status === 'offline') {
         // Offline backs off like a server problem (30 s, 1 min, 2 min, up to 5 min) so a long outage is not retried every 30 s.
-        holdUntil.current = Date.now() + backoff.current;
-        backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
+        // A failed refresh request is the exception: the server may have rotated the token, and a retry must land inside its 60 s
+        // grace window or it is read as reuse and ends the session, so wait 30 s at most and do not escalate (#762).
+        if (r.viaRefresh) holdUntil.current = Date.now() + SYNC_INTERVAL_MS;
+        else {
+          holdUntil.current = Date.now() + backoff.current;
+          backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
+        }
       } else if (r.status === 'signed_out') setSignedIn(false);
       return r;
     } finally {
@@ -191,7 +196,13 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     };
     tick();
     const timer = setInterval(tick, SYNC_INTERVAL_MS);
-    const app = AppState.addEventListener('change', (s) => s === 'active' && tick());
+    const app = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') return;
+      // Back in the app (native has no `online` event): the user is here now, so start from the short wait again.
+      holdUntil.current = 0;
+      backoff.current = SYNC_INTERVAL_MS;
+      tick();
+    });
     const online = () => {
       holdUntil.current = 0;
       backoff.current = SYNC_INTERVAL_MS; // the network is back: start again from the short wait
