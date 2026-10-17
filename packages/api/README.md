@@ -17,7 +17,7 @@ Run from `packages/api/` (Node 20 or later):
 
 ```sh
 npm install
-npm run lint        # validate the spec (Redocly CLI, recommended rules)
+npm run lint        # validate the spec (Redocly CLI, recommended rules; an invalid example is an error, see redocly.yaml)
 npm run generate    # regenerate client/schema.d.ts from openapi.yaml
 npm run typecheck   # type-check the client
 npm run test-vectors  # verify test-vectors/sync-ids.json, content-hash.json, blank-text.json and strict-json.json

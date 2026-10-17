@@ -1,0 +1,6 @@
+# Redocly CLI config for `npm run lint`. Same as the built-in recommended ruleset,
+# except that an example that does not match its schema fails the lint (#842).
+extends:
+  - recommended
+rules:
+  no-invalid-media-type-examples: error
