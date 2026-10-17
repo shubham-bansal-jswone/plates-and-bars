@@ -19,9 +19,8 @@ await render('monochrome.svg', 432, 'android-icon-monochrome.png');
 await render('icon.svg', 48, 'favicon.png');
 await sharp({ create: { width: 512, height: 512, channels: 4, background: '#2457E6' } })
   .png().toFile(join(assets, 'android-icon-background.png'));
-// Splash: rounded brand tile on transparent, reads on both light (#FFFFFF) and dark (#000000) canvases.
-const tile = await sharp(svg('icon.svg'), { density: 384 }).resize(640, 640).png().toBuffer();
-const mask = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640"><rect width="640" height="640" rx="144"/></svg>');
-const rounded = await sharp(tile).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
-await sharp({ create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-  .composite([{ input: rounded, left: 192, top: 192 }]).png().toFile(join(assets, 'splash-icon.png'));
+// Splash: brand-blue circle holding the (safe-zone scaled) mark. Android 12+ crops the splash icon to a circle,
+// and the circle reads on both the white and black splash backgrounds.
+const fg = await sharp(svg('foreground.svg'), { density: 384 }).resize(1024, 1024).png().toBuffer();
+const circle = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><circle cx="512" cy="512" r="512" fill="#2457E6"/></svg>');
+await sharp(circle).composite([{ input: fg }]).png().toFile(join(assets, 'splash-icon.png'));
