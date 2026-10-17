@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the pinned official Caddy image with infra/caddy/Caddyfile.web over a fixture export and asserts what a browser
-# gets: COOP same-origin and COEP require-corp on every response (including the SPA fallback), a long immutable cache
+# gets: COOP same-origin, COEP require-corp and the Content-Security-Policy on every response (including the SPA fallback), a long immutable cache
 # for hashed assets, no-cache for index.html and everything else, index.html for unknown routes, and a 404 (not index.html, not
 # immutable) for a missing hashed asset. Needs Docker. Run from anywhere: infra/scripts/test-web-caddy.sh
 set -euo pipefail
@@ -20,7 +20,7 @@ echo 'MIT' > "$tmp/web/licenses/a.txt"
 chmod -R a+rX "$tmp/web"
 
 # a plain-HTTP address: no certificate is requested in the test; everything else is the real file
-cid="$(docker run -d -p 127.0.0.1::8081 -e 'WEB_HOST=http://:8081' \
+cid="$(docker run -d -p 127.0.0.1::8081 -e 'WEB_HOST=http://:8081' -e API_HOST=api.test -e SENTRY_ORIGIN=https://errors.test \
   -v "$here/../caddy/Caddyfile.web:/etc/caddy/Caddyfile:ro" -v "$tmp/web:/srv/web:ro" "$image")"
 port="$(docker port "$cid" 8081/tcp | head -n 1 | sed 's/.*://')"
 for _ in $(seq 1 30); do
@@ -34,7 +34,15 @@ get() {
   tr -d '\r' < "$tmp/h.raw" | tr '[:upper:]' '[:lower:]' > "$tmp/h"
 }
 hdr() { grep -q "^$1: $2\$" "$tmp/h" || fail "$path: expected '$1: $2', got: $(grep "^$1:" "$tmp/h" || echo none)"; }
-iso() { hdr cross-origin-opener-policy same-origin; hdr cross-origin-embedder-policy require-corp; }
+iso() { hdr cross-origin-opener-policy same-origin; hdr cross-origin-embedder-policy require-corp; csp; }
+# the policy: script-src is exactly self plus wasm (no inline, no eval), the API host (API_HOST) and the error-tracking origin (SENTRY_ORIGIN) in connect-src only
+csp() {
+  local v; v="$(grep '^content-security-policy:' "$tmp/h" || true)"
+  [ -n "$v" ] || fail "$path: no Content-Security-Policy"
+  case "$v" in *"script-src 'self' 'wasm-unsafe-eval';"*) ;; *) fail "$path: script-src: $v" ;; esac
+  case "$v" in *"connect-src 'self' https://api.test https://errors.test;"*) ;; *) fail "$path: connect-src: $v" ;; esac
+  case "$v" in *"default-src 'self';"*"object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"*) ;; *) fail "$path: closed directives: $v" ;; esac
+}
 
 path=/; get "$path"; [ "$status" = 200 ] || fail "$path: status $status"
 iso; hdr cache-control no-cache; grep -q index "$tmp/b" || fail "$path: not index.html"

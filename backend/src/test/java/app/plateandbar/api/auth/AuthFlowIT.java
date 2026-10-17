@@ -152,6 +152,13 @@ class AuthFlowIT {
         return post("/refresh", Map.of("refresh_token", token));
     }
 
+    /** Reuse lines (order-independent: filtered by content, counted, never indexed). */
+    private List<ILoggingEvent> reuseLines() {
+        return logs.list.stream()
+                .filter(e -> e.getFormattedMessage().startsWith("Refresh token reuse"))
+                .toList();
+    }
+
     private static String uniq(String prefix) {
         return prefix + "-" + java.util.UUID.randomUUID() + "@example.com";
     }
@@ -451,6 +458,13 @@ class AuthFlowIT {
         clock.advance(Duration.ofSeconds(10));
         assertThat(refresh(t1.get("refresh_token")).getStatusCode().value()).isEqualTo(401); // the thief's next refresh
         assertThat(refresh(t2.get("refresh_token")).getStatusCode().value()).isEqualTo(401); // the whole session is dead
+        // the thief's token was the one a grace retry replaced: logged once, with its own reason and no token material
+        assertThat(reuseLines()).hasSize(1);
+        String text = reuseLines().get(0).getFormattedMessage();
+        assertThat(text).contains("reason=replaced_token_presented", "user=" + user(t0).get("id"));
+        for (Object token : List.of(t0.get("refresh_token"), t1.get("refresh_token"), t2.get("refresh_token"))) {
+            assertThat(text).doesNotContain(token.toString()).doesNotContain(token.toString().substring(3, 12));
+        }
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
                         Integer.class,
@@ -490,6 +504,27 @@ class AuthFlowIT {
         assertThat(protectedStatus((String) t1.get("access_token"))).isNotEqualTo(401); // authenticated
         clock.advance(Duration.ofSeconds(5));
         assertThat(refresh(t0.get("refresh_token")).getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void reuseOfRotatedTokenLogsOneWarnWithoutTokenMaterial() {
+        Map first = signInByEmail(uniq("r9"));
+        Map second = refresh(first.get("refresh_token")).getBody();
+        clock.advance(Duration.ofSeconds(61)); // past the lost-response grace
+        assertThat(reuseLines()).isEmpty();
+
+        assertThat(refresh(first.get("refresh_token")).getStatusCode().value()).isEqualTo(401);
+        assertThat(refresh(first.get("refresh_token")).getStatusCode().value()).isEqualTo(401); // replay: same family
+
+        assertThat(reuseLines()).hasSize(1);
+        ILoggingEvent line = reuseLines().get(0);
+        assertThat(line.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+        String text = line.getFormattedMessage();
+        assertThat(text).contains("reason=rotated_token_reused", "user=" + user(first).get("id"), "family=");
+        for (Object token : List.of(first.get("refresh_token"), second.get("refresh_token"), first.get("access_token"))) {
+            assertThat(text).doesNotContain(token.toString());
+            assertThat(text).doesNotContain(token.toString().substring(3, 12));
+        }
     }
 
     @Test

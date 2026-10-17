@@ -3,10 +3,16 @@
 Spring Boot 4.1 (Spring Framework 7, Spring Security 7, Jackson 3; Java 21), Gradle, MySQL 8, Flyway, Spring Security. The API contract is
 `packages/api/openapi.yaml`; every route lives under `/api/v1`.
 
-Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turns off Jackson 3's
-`fail-on-trailing-tokens` (so `/sync` and `/auth/*` still accept content after the JSON body; `/ai/*` refuses it in
-`AiController`) and keeps the nesting limit at Jackson 2's 1000 instead of Jackson 3's 500. A duplicate key in an
-`/auth/*` body takes the last value (202); Boot 3 answered 500, a bug, pinned in `AuthControllerTest`.
+Request parsing is strict on every endpoint (contract 0.1.18, #720; the vectors are
+`packages/api/test-vectors/strict-json.json`): `application.yml` turns on Jackson's `fail-on-trailing-tokens` and
+`read.strict-duplicate-detection`, so content after the JSON value and a key repeated in one object (compared after
+unescaping) are 400 `invalid_request` on `/auth/*`, `/sync` and `/ai/*` alike, and no key or value is named in the
+answer. The nesting limit stays at Jackson 2's 1000 instead of Jackson 3's 500 (#81).
+
+`POST /sync` also enforces `x-max-json-bytes` (`CompactJsonSizes`): each annotated value (`Settings.adjustments`,
+`adaptive`, `learn`, `meal_plan`, each `prep` item) is measured on the raw request bytes as compact UTF-8 JSON with
+number text exactly as sent (`1e2` is 3 bytes; not as JavaScript or Jackson would write the number again), and a value over its limit is 400 `invalid_request` (issue `max_json_bytes`) at its path. The
+keyword is registered with the schema library as a non-validation keyword so it does not log "Unknown keyword".
 
 ## Status (M0)
 
@@ -53,6 +59,13 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
     buckets expire after their longest window. Address-keyed buckets (code issuance) have their own cache
     (`app.rate-limit.address-max-tracked-keys`) so an IP-keyed flood cannot evict them. Within a cache, eviction under
     pressure can forgive an evicted key; the email guessing cap is unaffected because it is in MySQL. Limits are configuration (`app.rate-limit.*`, see below).
+- Security signals (#714, `common.SecuritySignalFilter`, logger `app.plateandbar.security`): one INFO line per refused
+  request (401, 403: status, method, path template, reason code) and per rate-limit hit (429: bucket name, path
+  template; the bucket is the limit's own name carried on `RateLimitedException`, e.g. `public-ip`, `email-start-ip`,
+  `email-start-address`, `email-verify-address`, `ai-ip`, `ai-user`, `export-ip`, `export-user`, `user`). A routine
+  `token_expired` 401 is logged at DEBUG only and does not use the refusal allowance. No IP, e-mail, user id, token, header or query string; ids in paths become `{id}`. Capped at 5 refusals
+  per minute per client address and one rate-limit line per bucket and address per minute. Refresh-token reuse is
+  logged separately by `AuthService` (#709). See `docs/INCIDENT-RESPONSE.md`.
 - Sync (#28, ADR 001): `POST /api/v1/sync`, the whole offline-first round trip in one transaction. See "Sync" below.
 - Account rights (#192), package `account`:
   - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
@@ -215,7 +228,7 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   never user data. With the cap off it does nothing. **Enable order:** deploy this version (cap still off), then set
   `SYNC_MAX_RECORDS_PER_ACCOUNT` and restart the API; the recount starts with that restart. Until it finishes (seconds
   for thousands of accounts) a drifted counter could let one push through or refuse one wrongly, which only matters if the
-  counters had drifted, and the next push or restart fixes it. Enabling the cap itself waits for the app's `account_full` handling (app PR #662).
+  counters had drifted, and the background recount fixes it when it reaches that account. Enabling the cap itself waits for the app's `account_full` handling (app PR #662).
 - **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
   2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before
   anything else (detail `too_many_records`), then the body is validated against the schemas in the contract

@@ -22,7 +22,7 @@ import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { SummaryCard } from '../ai/SummaryCard';
 import { PhotosSection } from '../photos/PhotosSection';
-import { DateBar } from '../components/DateBar';
+import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
 
 interface Props {
@@ -54,6 +54,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const ready = status === 'ready' && p.ready;
   return (
     <View style={styles.fill}>
+      <DateAnnouncer v={v} />
       <Page>
         {ready ? <H1>Progress</H1> : null}
         <DateBar v={v} />
@@ -63,10 +64,10 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
-            <WeightSection key={`w${p.date}`} p={p} />
-            <MeasureSection key={`m${p.date}`} p={p} isToday={v.isToday} />
+            <WeightSection p={p} />
+            <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
-            <StepsSleepSection key={`s${p.date}`} p={p} />
+            <StepsSleepSection p={p} />
             <WeekCard date={p.date} days={ci.days} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
           </>
         ) : (

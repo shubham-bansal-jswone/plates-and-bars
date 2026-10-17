@@ -51,3 +51,5 @@ if [ -f apps/mobile/scripts/content-meta.mjs ] && want content/ apps/mobile/src/
 if has_npm apps/site && want apps/site/; then emit site true; else emit site false; fi
 # the web end-to-end tests run the exported app; they need the app's inputs and their own folder
 if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/; then emit e2e true; else emit e2e false; fi
+# the sync tests also run the real API (tests/e2e/stack builds backend/), so a backend change must run them
+if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/ backend/; then emit e2e_sync true; else emit e2e_sync false; fi

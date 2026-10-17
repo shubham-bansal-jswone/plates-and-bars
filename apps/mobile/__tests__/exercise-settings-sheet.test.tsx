@@ -373,6 +373,41 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     await press(`Close ${BENCH} settings`);
   });
 
+  it('refuses at the cap on the stored record when the screen’s copy is under it, and writes nothing', async () => {
+    const db = await open();
+    // The store filled up (a pull) after the screen read it: only the save sees it.
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: full() });
+    await press(`${BENCH} settings`);
+    await press(`Save settings for ${BENCH}`);
+    // The save is queued, so the sheet has closed by the time the stored record says no: the cap message follows the saved one.
+    expect(await screen.findByText(new RegExp(`most exercises that can be changed \\(${OVERRIDES_MAX}\\)`))).toBeTruthy();
+    await act(async () => {});
+    expect(Object.keys(settingsOf(db).exercise_overrides)).toHaveLength(OVERRIDES_MAX);
+    expect(settingsOf(db).exercise_overrides[BENCH]).toBeUndefined();
+    expect(screen.queryByText(NOT_STORED)).toBeNull();
+    expect(screen.queryByText('Saved for this exercise')).toBeNull(); // the cap toast replaced it
+  });
+
+  it('Reset says so when the write to the device fails', async () => {
+    const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: { [BENCH]: { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 } } }));
+    await press(`${BENCH} settings`);
+    db.failWrites = true;
+    await press(`Reset ${BENCH} to default`);
+    expect(await screen.findByText(NOT_STORED)).toBeTruthy();
+    db.failWrites = false;
+    expect(settingsOf(db).exercise_overrides[BENCH]).toBeDefined();
+  });
+
+  it('Reset removes the entry from the stored record when that record was replaced since the screen read it', async () => {
+    const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: { [BENCH]: { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 } } }));
+    const other = { type: 'cable' as const, step_kg: 5, rep_low: 10, rep_high: 12 };
+    await saveSettings(db, { ...defaultSettings('2026-10-08T01:00:00Z'), diet: 'veg', exercise_overrides: { [BENCH]: { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 }, 'Pec Deck Fly': other } });
+    await press(`${BENCH} settings`);
+    await press(`Reset ${BENCH} to default`);
+    await waitFor(() => expect(Object.keys(settingsOf(db).exercise_overrides)).toEqual(['Pec Deck Fly']));
+    expect(settingsOf(db).diet).toBe('veg');
+  });
+
   it('allows replacing an entry when the cap is reached', async () => {
     const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: { ...full(), [BENCH]: { type: 'barbell', step_kg: 2.5, rep_low: 6, rep_high: 10 } } }));
     await press(`${BENCH} settings`);

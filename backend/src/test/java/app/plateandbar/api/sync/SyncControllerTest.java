@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import app.plateandbar.api.auth.JwtService;
+import app.plateandbar.api.support.StrictJsonVectors;
 import app.plateandbar.api.support.WebMvcAuthSlice;
 import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
@@ -60,20 +61,84 @@ class SyncControllerTest {
         return n.toString();
     }
 
-    /** Spring Boot 4 / Jackson 3 refuses trailing content by default; the API keeps accepting it as before (#81). */
-    @Test
-    void contentAfterTheJsonBodyIsStillAccepted() throws Exception {
-        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
-        send(USER, "{\"cursor\":null,\"changes\":{}} junk").andExpect(status().isOk());
-        send(USER, "{\"cursor\":null,\"changes\":{}}{\"x\":1}").andExpect(status().isOk());
+    /** Contract 0.1.18 wire conventions (#720): the shared vectors. A refusal never reaches the engine. */
+    @ParameterizedTest(name = "refused: {0}")
+    @MethodSource("refusedVectors")
+    void strictJsonVectorsAreRefused(StrictJsonVectors.Vector v) throws Exception {
+        send(USER, v.body())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(jsonPath("$.details.length()").value(1))
+                .andExpect(jsonPath("$.details[0].field").value(""))
+                .andExpect(jsonPath("$.details[0].issue").value("type"));
+        verifyNoInteractions(service);
     }
 
-    /** Jackson 2's nesting limit was 1000, Jackson 3's is 500; application.yml keeps 1000 (#81). */
-    @Test
-    void anExtraPropertyNested700DeepIsStillAccepted() throws Exception {
+    static Stream<StrictJsonVectors.Vector> refusedVectors() {
+        return StrictJsonVectors.mustRefuse("/sync").stream();
+    }
+
+    @ParameterizedTest(name = "accepted: {0}")
+    @MethodSource("acceptedVectors")
+    void strictJsonVectorsThatAreValidAreAccepted(StrictJsonVectors.Vector v) throws Exception {
         when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
-        String deep = "[".repeat(700) + "]".repeat(700);
-        send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + deep + "}").andExpect(status().isOk());
+        send(USER, v.body()).andExpect(status().isOk());
+    }
+
+    static Stream<StrictJsonVectors.Vector> acceptedVectors() {
+        return StrictJsonVectors.mustAccept("/sync").stream();
+    }
+
+    /** Jackson 2's nesting limit was 1000, Jackson 3's is 500; application.yml keeps 1000 (#81). One more level is refused. */
+    @Test
+    void anExtraPropertyNestedAtTheLimitIsAcceptedAndOneDeeperIsRefused() throws Exception {
+        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
+        int max = StrictJsonVectors.maxNestingDepth();
+        // The body object is level 1; the array chain makes up the rest.
+        String ok = "[".repeat(max - 1) + "]".repeat(max - 1);
+        String deep = "[".repeat(max) + "]".repeat(max);
+        send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + ok + "}").andExpect(status().isOk());
+        send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + deep + "}").andExpect(status().isBadRequest());
+
+        // At the limit the byte measuring still runs (it parses with the same limits): an oversized learn is refused.
+        ObjectNode settings = SyncFixtures.oneOfEach(USER, T).get(SyncTable.settings);
+        settings.put("learn", "PLACEHOLDER");
+        String body = Req.of(null).add(SyncTable.settings, settings).build().toString();
+        String over = "{\"k\":\"" + "x".repeat(65537 - 8) + "\"}";
+        send(USER, ("{\"x\":" + ok + "," + body.substring(1)).replace("\"PLACEHOLDER\"", over))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0].issue").value("max_json_bytes"));
+    }
+
+    /** x-max-json-bytes (#720) through the controller: the raw bytes are measured, so 1e2 counts as sent and the 400 names the field. */
+    @Test
+    void aSettingsFieldOverItsByteLimitIs400AtItsPath() throws Exception {
+        ObjectNode settings = SyncFixtures.oneOfEach(USER, T).get(SyncTable.settings);
+        settings.put("learn", "PLACEHOLDER");
+        String body = Req.of(null).add(SyncTable.settings, settings).build().toString();
+        String atLimit = "{\"k\":1e2,\"p\":\"" + "x".repeat(65536 - 16) + "\"}";
+        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
+        send(USER, body.replace("\"PLACEHOLDER\"", atLimit)).andExpect(status().isOk());
+        send(USER, body.replace("\"PLACEHOLDER\"", atLimit.replace("1e2", "1e20")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(jsonPath("$.details[0].field").value("changes.settings[0].learn"));
+    }
+
+    /** The byte measuring must parse with the request mapper's nesting limit (1000), not a default of 500: it once failed open there. */
+    @Test
+    void anOversizedFieldIsRefusedEvenInABodyNestedDeeperThanTheDefaultLimit() throws Exception {
+        ObjectNode settings = SyncFixtures.oneOfEach(USER, T).get(SyncTable.settings);
+        settings.put("learn", "PLACEHOLDER");
+        String body = Req.of(null).add(SyncTable.settings, settings).build().toString();
+        String deep = "[".repeat(600) + "]".repeat(600);
+        String over = "{\"k\":\"" + "x".repeat(65537 - 8) + "\"}";
+        assertThat(over.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(65537);
+        String withDeepKeyFirst = "{\"x\":" + deep + "," + body.substring(1);
+        send(USER, withDeepKeyFirst.replace("\"PLACEHOLDER\"", over))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0].field").value("changes.settings[0].learn"))
+                .andExpect(jsonPath("$.details[0].issue").value("max_json_bytes"));
     }
 
     @Test

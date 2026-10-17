@@ -54,6 +54,12 @@ fresh
 grep -v 'Cross-Origin-Opener-Policy' "$tmp/t/infra/caddy/Caddyfile.web" > "$tmp/web" && cat "$tmp/web" > "$tmp/t/infra/caddy/Caddyfile.web"
 if check; then fail "passed with COOP removed from Caddyfile.web"; fi
 
+# the web CSP: loosening it in Caddyfile.web (script-src, or a changed API default) must be caught
+fresh
+sed "s/script-src 'self' 'wasm-unsafe-eval'/script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'/" "$tmp/t/infra/caddy/Caddyfile.web" > "$tmp/web" && cat "$tmp/web" > "$tmp/t/infra/caddy/Caddyfile.web"
+if check; then fail "passed with an unsafe-inline script-src in Caddyfile.web"; fi
+grep -q 'Caddyfile.web is missing or differs from apps/mobile/public/_headers for: content-security-policy' "$tmp/out" || fail "wrong error: $(cat "$tmp/out")"
+
 # a header added to the mobile _headers (for example a new CSP) must reach Caddyfile.web
 fresh
 printf '  X-New-Header: 1\n' >> "$tmp/t/apps/mobile/public/_headers"

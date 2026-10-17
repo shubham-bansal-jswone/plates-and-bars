@@ -1,14 +1,13 @@
 package app.plateandbar.api.ratelimit;
 
 import app.plateandbar.api.common.ErrorResponse;
+import app.plateandbar.api.common.SecuritySignalFilter;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -21,11 +20,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * user id. Anything else without a valid token (it will get 401) falls back to the per-IP bucket, and so does
  * a request whose token {@code JwtAuthFilter} rejected (it calls {@link #limitByIp}). /health has its own generous
  * per-IP limit. Per-address limits live in the auth service because they need the request body.
- * Refusals log only the scope name, never the IP, address or user id.
+ * A refusal records only the scope name (request attribute {@link SecuritySignalFilter#BUCKET}, logged by that filter),
+ * never the IP, address or user id.
  */
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
     /** The path as the router sees it (percent-decoded), so /auth/email/%76erify cannot dodge its bucket. */
     private static final org.springframework.web.util.UrlPathHelper PATHS = org.springframework.web.util.UrlPathHelper.defaultInstance;
     private static final String AUTH_PREFIX = "/api/v1/auth/";
@@ -57,7 +56,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 try {
                     limiter.consume(scope, auth.getName(), props.getAuthenticatedPerUser());
                 } catch (RateLimitedException e) {
-                    log.debug("Rate limit hit: {}", scope);
+                    request.setAttribute(SecuritySignalFilter.BUCKET, scope);
                     throw e;
                 }
             } else {
@@ -73,7 +72,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     /**
      * Per-IP limits for the request's path. Also called for requests whose bearer token was rejected, so that
-     * garbage tokens cannot be replayed for free. Returns the last scope consumed (for the debug log on refusal).
+     * garbage tokens cannot be replayed for free. Returns the last scope consumed (for the log line on refusal).
      */
     public String limitByIp(HttpServletRequest request) {
         String path = PATHS.getPathWithinApplication(request);
@@ -93,7 +92,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 limiter.consume(scope, ip, props.getEmailVerifyPerIp());
             }
         } catch (RateLimitedException e) {
-            log.debug("Rate limit hit: {}", scope);
+            request.setAttribute(SecuritySignalFilter.BUCKET, scope);
             throw e;
         }
         return scope;

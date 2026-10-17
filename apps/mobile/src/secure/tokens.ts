@@ -6,8 +6,11 @@ import * as SecureStore from 'expo-secure-store';
 const supported = Platform.OS !== 'web';
 
 // Token storage only; there is no auth flow yet. Never log these values.
-const ACCESS = 'pb.access_token';
-const REFRESH = 'pb.refresh_token';
+/** Also read by the web migration that removes them from web storage. */
+export const ACCESS_KEY = 'pb.access_token';
+export const REFRESH_KEY = 'pb.refresh_token';
+const ACCESS = ACCESS_KEY;
+const REFRESH = REFRESH_KEY;
 
 export interface Tokens {
   access: string;

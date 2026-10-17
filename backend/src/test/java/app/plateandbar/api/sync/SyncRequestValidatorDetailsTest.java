@@ -100,7 +100,7 @@ class SyncRequestValidatorDetailsTest {
     @MethodSource("cases")
     /** {@code expected} null: the request is valid. */
     void details(String name, ObjectNode body, List<ErrorResponse.Detail> expected) {
-        ApiException e = catchThrowableOfType(ApiException.class, () -> VALIDATOR.validate(USER, body));
+        ApiException e = catchThrowableOfType(ApiException.class, () -> VALIDATOR.validate(USER, body, body.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         if (expected == null) {
             assertThat(e).isNull();
         } else {

@@ -44,6 +44,8 @@ export const SIGN_IN_COPY = {
   stillUnsyncedRefused: (n: number, refused: number) => `${changes(n)} ${n === 1 ? 'is' : 'are'} still not synced, so you are still signed in. ${refused === 1 ? '1 was' : `${refused} were`} refused by the server, and trying again will not help for ${refused === 1 ? 'that one' : 'those'}: use the buttons above to try again later or stop sending ${refused === 1 ? 'it' : 'them'}, or discard everything.`,
   stillUnsynced: (n: number) => `${changes(n)} ${n === 1 ? 'is' : 'are'} still not synced, so you are still signed in. Try again when you are online, or discard them.`,
   confirmDiscard: (n: number) => `This deletes ${n} unsynced ${n === 1 ? 'change' : 'changes'} and all data on this device. It cannot be undone.`,
+  /** Web only: one browser holds one cookie, so the refused sign-in replaced the previous user's session. */
+  refusedWeb: 'This browser is now signed out. Sign in as the previous user to keep syncing.',
   refused: (n: number) => `This device has ${n} unsynced ${n === 1 ? 'change' : 'changes'} from a different account, so that sign-in was not kept. Sign in as the previous user to sync them, or discard them.`,
   startError: (r: 'invalid_email' | 'rate_limited' | 'unavailable') =>
     r === 'invalid_email' ? 'Check the email address.' : r === 'rate_limited' ? 'Too many tries. Wait a minute and try again.' : 'We could not reach the server. Try again when you are online.',

@@ -65,13 +65,14 @@ class AiUsageRepository {
     }
 
     /**
-     * Marks the month's 80% alert as fired if the ledger has reached {@code percent} of the budget and it has not
-     * fired yet. One conditional UPDATE, so of any number of concurrent callers exactly one gets true, and the flag
-     * survives a restart.
+     * Marks the month's 80% alert as fired if the ledger has reached 80% of the budget and it has not fired yet. One
+     * conditional UPDATE, so of any number of concurrent callers exactly one gets true, and the flag survives a
+     * restart. The threshold is {@code budget - budget / 5}, which cannot overflow for any positive budget (a
+     * multiplication would wrap for budgets near {@code Long.MAX_VALUE} and fire a false alert).
      */
-    boolean markAlertSent(LocalDate month, long budgetTokens, int percent) {
+    boolean markAlertSent(LocalDate month, long budgetTokens) {
         return jdbc.update(
-                "UPDATE ai_spend_monthly SET alert_sent = 1 WHERE month = ? AND alert_sent = 0 AND tokens * 100 >= ?",
-                month, budgetTokens * percent) == 1;
+                "UPDATE ai_spend_monthly SET alert_sent = 1 WHERE month = ? AND alert_sent = 0 AND tokens >= ?",
+                month, budgetTokens - budgetTokens / 5) == 1;
     }
 }
