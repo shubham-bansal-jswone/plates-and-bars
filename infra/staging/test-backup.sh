@@ -17,6 +17,8 @@ if [ "$1" = compose ]; then
   echo "-- dump"
 elif [[ " $* " == *" rcat "* ]]; then
   cat > /dev/null
+elif [[ " $* " == *" delete "* ]]; then
+  [ -z "${STUB_DELETE_FAIL:-}" ] || exit 1
 fi
 STUB
 # curl stub: records its arguments and the config read from stdin (-K -); STUB_CURL_FAIL makes it fail
@@ -50,12 +52,13 @@ if STUB_DUMP_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2>&1; then fail "failed d
 ! grep -Eq ' (moveto|delete) ' "$STUB_LOG" || fail "failed dump was renamed or followed by a delete"
 
 # heartbeat: with the URL set it is requested once after success, from stdin (not on a command line or the docker log)
-hb='https://kuma.test/api/push/tok3n-s3cret?status=up'
-echo "BACKUP_HEARTBEAT_URL=$hb" >> "$tmp/stack/.env"
+hb='https://kuma.test/api/push/tok3n-s3cret?status=up&msg=OK&ping='
+echo "BACKUP_HEARTBEAT_URL='$hb'" >> "$tmp/stack/.env"
 : > "$STUB_LOG"; : > "$STUB_CURL_LOG"
 "$tmp/stack/backup.sh" > /dev/null || fail "heartbeat set: backup.sh exited non-zero"
 [ "$(grep -c '^curl ' "$STUB_CURL_LOG")" = 1 ] || fail "expected one heartbeat request: $(cat "$STUB_CURL_LOG")"
 grep -qF "url = \"$hb\"" "$STUB_CURL_LOG" || fail "heartbeat URL not given to curl on stdin"
+grep -q -- ' -m 10 ' "$STUB_CURL_LOG" || fail "heartbeat curl has no 10 s timeout (-m 10)"
 ! grep -q 'tok3n' <(grep '^curl ' "$STUB_CURL_LOG") || fail "heartbeat token on the curl command line"
 ! grep -q 'tok3n' "$STUB_LOG" || fail "heartbeat token on a docker command line"
 
@@ -64,6 +67,11 @@ grep -qF "url = \"$hb\"" "$STUB_CURL_LOG" || fail "heartbeat URL not given to cu
 STUB_CURL_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2> "$tmp/err" || fail "failing heartbeat made the backup fail"
 grep -q 'heartbeat ping failed' "$tmp/err" || fail "no warning for a failed heartbeat"
 ! grep -q 'tok3n' "$tmp/err" || fail "heartbeat token printed on failure"
+
+# a failed retention step (after the upload) sends no heartbeat either
+: > "$STUB_LOG"; : > "$STUB_CURL_LOG"
+if STUB_DELETE_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2>&1; then fail "failed retention: backup.sh exited 0"; fi
+[ ! -s "$STUB_CURL_LOG" ] || fail "heartbeat sent after a failed retention step"
 
 # a failed dump sends no heartbeat (the missing ping is the alert)
 : > "$STUB_LOG"; : > "$STUB_CURL_LOG"

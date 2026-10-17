@@ -32,9 +32,9 @@ Uptime Kuma, interval 60 s (the plan asked for 5 minutes; self-hosting has no fr
 | API health | HTTP(s) GET the backend health endpoint, expect 200 | 2 consecutive failures |
 | Website | HTTP(s) GET `/`, keyword match on a stable phrase | 2 consecutive failures |
 | TLS certificate | Certificate expiry on both domains | under 14 days |
-| Backup heartbeat | Push monitor; the nightly backup job curls the push URL on success | no heartbeat for 26 h |
+| Backup heartbeat | Push monitor; the nightly backup job curls the push URL on success | no heartbeat for 25 h |
 
-The backup heartbeat needs one `curl` line at the end of the backup script in `infra/` once #36 lands; it is not added here.
+The backup heartbeat is a `curl` at the end of `infra/staging/backup.sh`, sent only after a successful backup when `BACKUP_HEARTBEAT_URL` is set (`infra/RUNBOOK.md` section 5).
 
 ## Error tracking rules
 
@@ -59,7 +59,7 @@ The backup heartbeat needs one `curl` line at the end of the backup script in `i
 - Scrubbing is fail-closed, in `apps/mobile/src/telemetry/scrub.ts` and tested on a probe event carrying a food name and a weight in every field (`apps/mobile/__tests__/error-tracking.test.ts`): the event is rebuilt from an allowlist; exception values, message, `logentry`, `extra`, `tags`, request, transaction and fingerprint never leave; breadcrumbs carry no message or data; the user is a random install id.
 - Native Android crashes are sent by the native SDK and skip the JS `beforeSend`; they carry stack frames, device data, the install id and the scrubbed breadcrumbs only.
 - The SDK adds `ACCESS_NETWORK_STATE` to the Android manifest. List it and crash reporting in the privacy notice and the Play data-safety answers (docs follow-up).
-- Not done: source-map upload (needs the CLI; not wanted), Git-tag releases and the backend side of #687. The backup heartbeat (`BACKUP_HEARTBEAT_URL`, `infra/staging/backup.sh`, `infra/RUNBOOK.md` section 5) is done.
+- Not done: source-map upload (needs the CLI; not wanted), Git-tag releases. The backend side of #687 and the backup heartbeat are done.
 
 ## Install outline (do not run yet)
 
