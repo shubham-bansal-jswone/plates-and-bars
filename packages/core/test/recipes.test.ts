@@ -238,11 +238,14 @@ describe('stepRecipeLog (prototype case rb-log)', () => {
 });
 
 describe('recipeFood (prototype case rb-save)', () => {
-  const NAMES = ['', '   ', 'Mom’s dal', '  Rajma  ', 'Khichdi'];
+  const NAMES = ['', '   ', 'Mom’s dal', '  Rajma  ', 'Khichdi', 'x'.repeat(FOOD_NAME_MAX), ` ${'y'.repeat(FOOD_NAME_MAX + 1)} `];
+  // The prototype's toasts for the #150 checks (the app's wording, apps/mobile/src/recipes/copy.ts).
+  const NAME_TOO_LONG_TOAST = 'That name is too long. Keep it under 200 characters.';
+  const INVALID_TOAST = 'An amount can’t be below 0.';
 
   it(`matches the prototype's checks, saved rows and food over ${RUNS} random recipes`, () => {
     const rand = rng(2195);
-    let invalids = 0;
+    const seen = new Set<string>();
     for (let i = 0; i < RUNS; i++) {
       const rb: Partial<ProtoRB> = {
         name: NAMES[Math.floor(rand() * NAMES.length)]!,
@@ -254,23 +257,31 @@ describe('recipeFood (prototype case rb-save)', () => {
       };
       const want = proto.recipeAction('rb-save', {}, rb, { myFoods: [], recipes: [] });
       const got = recipeFood({ name: rb.name!, ingredients: rb.rows!.map(toRow), yield_mode: rb.ymode as 'katori' | 'grams', katoris: rb.katoris!, cooked_g: rb.grams! }, raw, katoriG);
-      const kind = { 'Give the recipe a name.': 'no-name', 'Add at least one ingredient with an amount.': 'no-ingredients', 'Add how many katoris it made, or the cooked weight.': 'no-yield' }[want.toast] ?? 'ok';
-      // #150: past the name check, a negative amount is `invalid` where the prototype goes on.
-      const negative = rb.rows!.some((r) => parseFloat(r.amt.replace(',', '.')) < 0);
-      expect(got.kind).toBe(kind !== 'no-name' && negative ? 'invalid' : kind);
-      if (negative) invalids++;
-      if (got.kind !== 'ok') continue;
+      const kind =
+        {
+          'Give the recipe a name.': 'no-name',
+          [NAME_TOO_LONG_TOAST]: 'name-too-long',
+          [INVALID_TOAST]: 'invalid',
+          'Add at least one ingredient with an amount.': 'no-ingredients',
+          'Add how many katoris it made, or the cooked weight.': 'no-yield',
+        }[want.toast] ?? 'ok';
+      expect(got.kind).toBe(kind);
+      seen.add(got.kind);
+      if (got.kind !== 'ok') {
+        expect([want.settings.myFoods, want.settings.recipes]).toEqual([[], []]);
+        continue;
+      }
       expect(want.toast).toBe(`Saved ${got.name} to your foods`);
       expect(got.food).toEqual(toContract(want.settings.myFoods[0]!));
       expect(got.ingredients).toEqual(want.settings.recipes[0]!.rows.map(toRow));
     }
-    expect(invalids).toBeGreaterThan(100);
+    expect([...seen].sort()).toEqual(['invalid', 'name-too-long', 'no-ingredients', 'no-name', 'no-yield', 'ok']);
   });
 
-  it('a negative amount is invalid (#150; the prototype saves fat_g -4.2 here)', () => {
+  it('a negative amount is invalid, in the prototype too (#150)', () => {
     const rows: IngredientRow[] = [{ ingredient: 'Toor dal (dry)', amount: 100, unit: 'g' }, { ingredient: 'Oil', amount: -10, unit: 'g' }];
     const want = proto.recipeAction('rb-save', {}, { name: 'Dal', rows: rows.map((r) => ({ ing: r.ingredient, amt: String(r.amount), unit: r.unit })), ymode: 'katori', katoris: '2', editing: null }, { myFoods: [], recipes: [] });
-    expect(want.settings.myFoods[0]!.f).toBe(-4.2);
+    expect(want).toMatchObject({ toast: INVALID_TOAST, settings: { myFoods: [], recipes: [] } });
     expect(recipeFood({ name: 'Dal', ingredients: rows, yield_mode: 'katori', katoris: 2, cooked_g: null }, raw, katoriG)).toEqual({ kind: 'invalid' });
     expect(recipeFood({ name: ' ', ingredients: rows, yield_mode: 'katori', katoris: 2, cooked_g: null }, raw, katoriG)).toEqual({ kind: 'no-name' });
   });
@@ -315,8 +326,11 @@ describe('recipeFood (prototype case rb-save)', () => {
     });
   });
 
-  it('rejects a name over the contract limit (as customFood, #150; the prototype saves it)', () => {
+  it('rejects a name over the contract limit, as the prototype does (as customFood, #150)', () => {
     const base = { ingredients: [{ ingredient: 'Egg', amount: 100, unit: 'g' }], yield_mode: 'katori' as const, katoris: 1, cooked_g: null };
+    const rb = { rows: [{ ing: 'Egg', amt: '100', unit: 'g' }], ymode: 'katori', katoris: '1', editing: null };
+    expect(proto.recipeAction('rb-save', {}, { ...rb, name: 'x'.repeat(FOOD_NAME_MAX + 1) }, { myFoods: [], recipes: [] }).toast).toBe(NAME_TOO_LONG_TOAST);
+    expect(proto.recipeAction('rb-save', {}, { ...rb, name: 'x'.repeat(FOOD_NAME_MAX) }, { myFoods: [], recipes: [] }).toast).toBe(`Saved ${'x'.repeat(FOOD_NAME_MAX)} to your foods`);
     expect(recipeFood({ ...base, name: 'x'.repeat(FOOD_NAME_MAX) }, raw, katoriG).kind).toBe('ok');
     expect(recipeFood({ ...base, name: 'x'.repeat(FOOD_NAME_MAX + 1) }, raw, katoriG).kind).toBe('name-too-long');
   });
@@ -452,8 +466,13 @@ describe('kitchenTest (prototype ktCalc)', () => {
 });
 
 describe('kitchenTestFood (prototype ktSave(true))', () => {
+  // The prototype's toasts for the #150 checks (the app's wording, apps/mobile/src/kitchen/copy.ts).
+  const NAME_TOO_LONG_TOAST = 'That name is too long. Keep it under 200 characters.';
+  const INVALID_TOAST = 'An amount or weight can’t be below 0.';
   const TOASTS: Record<string, string> = {
     'Name the dish.': 'no-name',
+    [NAME_TOO_LONG_TOAST]: 'name-too-long',
+    [INVALID_TOAST]: 'invalid',
     'Add the raw ingredients with their weights.': 'no-ingredients',
     'Add the cooked weight, or both pot weights.': 'not-ready',
     'Weigh one serving first, so the app knows the portion.': 'no-serving',
@@ -461,20 +480,14 @@ describe('kitchenTestFood (prototype ktSave(true))', () => {
 
   it(`matches the prototype's checks and food over ${RUNS} random tests`, () => {
     const rand = rng(4195);
-    const names = ['', '  ', 'Dal', ' Poha ', 'Sabzi'];
-    let invalids = 0;
+    const names = ['', '  ', 'Dal', ' Poha ', 'Sabzi', 'x'.repeat(FOOD_NAME_MAX), ` ${'y'.repeat(FOOD_NAME_MAX + 1)} `];
+    const seen = new Set<string>();
     for (let i = 0; i < RUNS; i++) {
       const d = randomTest(rand, names[Math.floor(rand() * names.length)]!);
       const want = proto.ktSave(d, true, []);
       const got = kitchenTestFood(testInput(d), raw);
-      // #150: past the name check, a negative amount or weight is `invalid` where the prototype goes on.
-      const negative = [...d.rows.map((r) => r.amt), d.pot, d.potFull, d.cooked, d.serving].some((v) => parseFloat(v.replace(',', '.')) < 0);
-      if (negative && want.toast !== 'Name the dish.') {
-        expect(got.kind).toBe('invalid');
-        invalids++;
-        continue;
-      }
       expect(got.kind).toBe(TOASTS[want.toast] ?? 'ok');
+      seen.add(got.kind);
       if (got.kind === 'no-serving' || got.kind === 'ok') {
         expect(want.kitchen.map((k) => k.name)).toEqual([got.name]);
       } else {
@@ -484,13 +497,14 @@ describe('kitchenTestFood (prototype ktSave(true))', () => {
       expect(want.toast).toBe(`Saved. ${got.name} now logs with your weighed values.`);
       expect(got.food).toEqual(toContract(want.myFoods[0]!));
     }
-    expect(invalids).toBeGreaterThan(100);
+    expect([...seen].sort()).toEqual(['invalid', 'name-too-long', 'no-ingredients', 'no-name', 'no-serving', 'not-ready', 'ok']);
   });
 
-  it('a negative amount, pot, cooked or serving weight is invalid (#150; the prototype saves "1 katori (-50 g)")', () => {
+  it('a negative amount, pot, cooked or serving weight is invalid, in the prototype too (#150)', () => {
     const base = { name: 'Dal', ingredients: [{ ingredient: 'Toor dal (dry)', amount: 100, unit: 'g' }], pot_g: null, pot_full_g: null, cooked_g: 300, serving_g: 150, serving_name: 'katori' };
     const d: ProtoKitchenTest = { id: 'k', name: 'Dal', rows: [{ ing: 'Toor dal (dry)', amt: '100', unit: 'g' }], pot: '', potFull: '', cooked: '300', serving: '-50', sname: 'katori' };
-    expect(proto.ktSave(d, true, []).myFoods[0]!.unit).toBe('1 katori (-50 g)');
+    for (const use of [true, false]) expect(proto.ktSave(d, use, [])).toEqual({ toast: INVALID_TOAST, myFoods: [], kitchen: [] });
+    expect(proto.ktSave({ ...d, serving: '', pot: '-100', potFull: '500', cooked: '' }, true, []).toast).toBe(INVALID_TOAST);
     expect(kitchenTestFood({ ...base, serving_g: -50 }, raw)).toEqual({ kind: 'invalid' });
     expect(kitchenTestFood({ ...base, ingredients: [...base.ingredients, { ingredient: 'Oil', amount: -1, unit: 'tsp' }] }, raw)).toEqual({ kind: 'invalid' });
     expect(kitchenTestFood({ ...base, cooked_g: null, pot_g: -100, pot_full_g: 500 }, raw)).toEqual({ kind: 'invalid' });
@@ -511,8 +525,10 @@ describe('kitchenTestFood (prototype ktSave(true))', () => {
     expect(small.kind === 'ok' && small.food).toMatchObject({ unit: '1 katori (180 g)', added_sugar_g: 0, fruit_veg_servings: null, origin: 'kitchen_test' });
   });
 
-  it('rejects a name over the contract limit (as customFood, #150; the prototype saves it)', () => {
+  it('rejects a name over the contract limit, as the prototype does (as customFood, #150)', () => {
     const base = { ingredients: [{ ingredient: 'Egg', amount: 100, unit: 'g' }], pot_g: null, pot_full_g: null, cooked_g: 90, serving_g: 45, serving_name: 'katori' };
+    const d: ProtoKitchenTest = { id: 'k', name: 'x'.repeat(FOOD_NAME_MAX + 1), rows: [{ ing: 'Egg', amt: '100', unit: 'g' }], pot: '', potFull: '', cooked: '90', serving: '45', sname: 'katori' };
+    for (const use of [true, false]) expect(proto.ktSave(d, use, [])).toEqual({ toast: NAME_TOO_LONG_TOAST, myFoods: [], kitchen: [] });
     expect(kitchenTestFood({ ...base, name: 'x'.repeat(FOOD_NAME_MAX + 1) }, raw).kind).toBe('name-too-long');
   });
 });

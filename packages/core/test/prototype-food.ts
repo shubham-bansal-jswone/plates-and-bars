@@ -43,8 +43,8 @@ export interface ProtoFood {
   unitGrams(f: [string, string]): number;
   /** `foodListHtml()`'s query and filter over `allFoods()`, returning the matching names. */
   search(q: string): string[];
-  /** `case 'pick'`'s grams steps for food `name` with grams input `g` and servings `serv`. */
-  pick(name: string, g: string, serv: number): { qty: number } | { err: true };
+  /** `case 'pick'` for food `name` with grams input `g` and servings `serv`: the logged quantity, or the toast when nothing is logged. */
+  pick(name: string, g: string, serv: number): { qty: number } | { toast: string };
   totals(meals: ProtoMeal[]): { kcal: number; p: number; c: number; f: number };
   fibreTotals(meals: ProtoMeal[]): { fib: number; sug: number; veg: number; unknown: number };
   fibreTarget(): number;
@@ -89,15 +89,14 @@ function replaceOnce(s: string, from: string, to: string): string {
  * Runs the prototype's food rules, sliced out of the HTML, against a fake `S`: the food tables (`FOODS`
  * with its fasting-day and drinks additions, `FIB`, `PRODUCE`, `ALIAS`), `foodMatch`, `unitGrams`,
  * `totals`, `fibOf`, `produceOf`, `fibreTotals`, `fibreTarget`, `fibreHtml`, `dayComplete`, the query and
- * filter of `foodListHtml` and the grams steps of `case 'pick'`. `kcalTarget`, `whyLink` and `TODAY` are stubbed.
+ * filter of `foodListHtml`, and `case 'pick'` and `case 'addcustom'` with their UI calls stubbed. `kcalTarget`,
+ * `whyLink` and `TODAY` are stubbed.
  */
 export function loadFood(): ProtoFood {
   const src = prototypeSource();
   const listHtml = sliceBlock(src, 'function foodListHtml(){', '}').split('\n');
   const pickLines = src.split('\n');
-  const ugLine = pickLines.find((l) => l.startsWith('      const ug = unitGrams(f), g = num(FS.g)'));
-  const errLine = pickLines.find((l) => l.startsWith('      if(g > 0 && !ug){ toast('));
-  if (!ugLine || !errLine) throw new Error('prototype: case pick reshaped');
+  const pickCase = sliceBlock(src, "    case 'pick': {", '    }').split('\n').slice(1, -1).join('\n').replaceAll('break;', 'return;');
   const servLine = pickLines.find((l) => l.startsWith("    case 'serv': FS.serv = "));
   if (!servLine) throw new Error('prototype: case serv reshaped');
   const badge = listHtml.join('\n').match(/\$\{(f\[2\] && f\[3\]\*100\/f\[2\] >= 8) \?/);
@@ -136,10 +135,12 @@ export function loadFood(): ProtoFood {
       return l;
     }),
     '  return list.map(f => f[0]); }',
-    'function pick(name, g0, serv){ const FS = { g:g0, serv }; const f = allFoods().find(x => x[0] === name);',
-    ugLine,
-    replaceOnce(errLine, 'break;', 'return { err:true };').replace(/toast\([^;]*\);/, ''),
-    '  return { qty }; }',
+    'function pick(name, g0, serv){ const FS = { g:g0, serv }, b = { dataset:{ name } }; let TOAST = "", MEAL = null;',
+    '  const toast = t => { TOAST = t; }, addMeal = m => { MEAL = m; }, render = () => {};',
+    '  (() => {',
+    pickCase,
+    '  })();',
+    '  return MEAL ? { qty:MEAL.qty } : { toast:TOAST }; }',
     sliceBlock(src, 'const ACTIVITY = {', '};'),
     sliceLine(src, 'const PACE = '),
     sliceLine(src, 'const TRAIN_NET_MET = '),
