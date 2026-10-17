@@ -68,7 +68,7 @@ Aim: stop further access without destroying evidence. Work from `infra/staging` 
    }
    ```
 2. **Stop automatic deploys**: set the repository variable `STAGING_DEPLOY_ENABLED` to `false` (Settings > Secrets and variables > Actions > Variables) and pause merges to `main`. Otherwise a merge that touches the backend runs `deploy.sh`, whose `docker compose up -d` restarts a stopped API. When present, also set `PRODUCTION_DEPLOY_ENABLED` (production releases from `v*` tags, #711; they also end in `docker compose up -d`) and `WEB_DEPLOY_ENABLED` (the web app, #706) to `false`, and do not push release tags. Note which switches were `true` so Recover turns back on only those. The site deploy (`SITE_DEPLOY_TARGET`) does not touch the API or the web app.
-3. **Stop the leak**: if the API itself is leaking (wrong user's data, auth bypass), `docker compose stop api`. The app keeps working offline and queues changes, but sync, sign-in, AI, server export, in-app "Delete everything" (`DELETE /me`) and content refresh all fail while it is stopped. Point users who want their account deleted to the email route on `/delete-account/` and handle those requests once the API is back. The API stays stopped until step 7.
+3. **Stop the leak**: if the API itself is leaking (wrong user's data, auth bypass), `docker compose stop api`. The app keeps working offline and queues changes, but sync, sign-in, AI, server export, in-app "Delete everything" (`DELETE /me`) and content refresh all fail while it is stopped. Point users who want their account deleted to the email route on `/delete-account/` and handle those requests once the API is back ([`ACCOUNT-DELETION-RUNBOOK.md`](ACCOUNT-DELETION-RUNBOOK.md)). The API stays stopped until step 7.
 4. **End every session**: put a new `JWT_SIGNING_KEY` in `.env`. Access tokens signed with the old key stop working, and so do pending sign-in codes, whose hash key is derived from it (`AuthService`). If the API is stopped (step 3), leave it stopped: it reads the new key when it comes back in step 7. If step 3 was skipped, `docker compose up -d api` now. Refresh tokens are SHA-256 hashes that do not depend on that key, so revoke them all; this needs only the `mysql` container:
    ```
    docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot plateandbar -e "UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP(3) WHERE revoked_at IS NULL"'
@@ -135,7 +135,7 @@ Order: Board intimation and user notices without delay once the breach is confir
 
 ## 5. Recover
 
-Fix the cause, ship it through the normal PR and review path, restore data if needed, bring the API back with the fixed tag (`docker compose up -d api`, check `/api/v1/health`), process the deletion requests that came in by email, and watch logs and error tracking closely for 7 days. Before turning deploys back on, remove the temporary Caddy log by restoring the tracked file on the VM (`git checkout -- infra/caddy/Caddyfile.api`, then `docker compose restart caddy`); a modified tracked file makes the deploy's `git merge --ff-only` fail when a later change touches it. Then set back to `true` only the deploy switches that were on before (step 2), uncomment the backup cron line, and delete the `incident-<date>` backup copy when counsel agrees it is no longer needed.
+Fix the cause, ship it through the normal PR and review path, restore data if needed, bring the API back with the fixed tag (`docker compose up -d api`, check `/api/v1/health`), process the deletion requests that came in by email ([`ACCOUNT-DELETION-RUNBOOK.md`](ACCOUNT-DELETION-RUNBOOK.md)), and watch logs and error tracking closely for 7 days. Before turning deploys back on, remove the temporary Caddy log by restoring the tracked file on the VM (`git checkout -- infra/caddy/Caddyfile.api`, then `docker compose restart caddy`); a modified tracked file makes the deploy's `git merge --ff-only` fail when a later change touches it. Then set back to `true` only the deploy switches that were on before (step 2), uncomment the backup cron line, and delete the `incident-<date>` backup copy when counsel agrees it is no longer needed.
 
 ## 6. Post-incident review
 
@@ -155,7 +155,7 @@ Fill every bracket. Counsel reviews each notice before it is sent.
 >
 > What we have done: [e.g. "closed the gap on DATE, signed every device out and changed our keys"].
 >
-> What you can do: [e.g. "sign in again with a new code; we never ask for your code by email or phone; you can download or delete your data from 'Your data' in the app"].
+> What you can do: [e.g. "sign in again with a new code; we never ask for your code by phone, and by email only in reply to a deletion request you sent us; you can download or delete your data from 'Your data' in the app"].
 >
 > Questions: [name], [privacy contact email], [phone].
 
