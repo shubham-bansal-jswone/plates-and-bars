@@ -2377,6 +2377,8 @@ function recipeAction(a, b){
     case 'rb-save': {
       const { t, kat, per } = rbTotals(), name = RB.name.trim();
       if(!name){ toast('Give the recipe a name.'); return; }
+      if(name.length > 200){ toast('That name is too long. Keep it under 200 characters.'); return; }
+      if(RB.rows.some(r => num(r.amt) < 0)){ toast('An amount can’t be below 0.'); return; }
       if(!t.g){ toast('Add at least one ingredient with an amount.'); return; }
       if(!per){ toast('Add how many katoris it made, or the cooked weight.'); return; }
       const rec = { name, rows:RB.rows.filter(r => num(r.amt) > 0), ymode:RB.ymode, katoris:RB.katoris, grams:RB.grams, oil:RB.oil };
@@ -3631,6 +3633,8 @@ function ktListHtml(){
 async function ktSave(use){
   const d = KT.d, r = ktCalc(d);
   if(!d.name.trim()){ toast('Name the dish.'); return; }
+  if(d.name.trim().length > 200){ toast('That name is too long. Keep it under 200 characters.'); return; }
+  if(d.rows.some(x => num(x.amt) < 0) || [d.pot, d.potFull, d.cooked, d.serving].some(w => num(w) < 0)){ toast('An amount or weight can’t be below 0.'); return; }
   if(!r.t.g){ toast('Add the raw ingredients with their weights.'); return; }
   if(!r.ready){ toast('Add the cooked weight, or both pot weights.'); return; }
   d.name = d.name.trim();
@@ -3718,10 +3722,11 @@ setInterval(checkRollover, 60000);
 function consentHtml(){
   return `<div class="su"><h1 class="su-h">Before you start</h1>
     <p>Plate &amp; Bar tracks food, training, body measurements and, if you choose, photos, cycle data and lab results. That’s health data, so here’s how it’s handled:</p>
-    <ul class="howto"><li>Food, workouts, weight and measurements are saved privately to your Claude account so they sync between devices.</li>
+    <ul class="howto"><li>Your data stays on this device. If you sign in, it is also stored on our own server so it syncs between your devices.</li>
       <li>Progress photos, cycle logs and lab reports stay only on this device.</li>
-      <li>Meal photos, recipe imports and form-check frames are sent to Claude for analysis and not stored.</li>
-      <li>You can download or delete everything at any time on the Targets tab.</li></ul>
+      <li>AI features are off by default and need their own opt-in. No photos are sent anywhere.</li>
+      <li>You can download or delete everything at any time on the Targets tab.</li>
+      <li>Withdrawing your consent means deleting your account.</li></ul>
     <p class="note">This app gives general fitness and nutrition guidance. It isn’t medical advice. It’s for adults 18 and over; if you have a medical condition, are pregnant, or are unsure whether exercise is safe for you, check with a doctor first.</p>
     <label class="inline"><input type="checkbox" id="cnsOk" style="width:20px;height:20px"> I understand and agree to my data being stored as described</label>
     <div><button class="primary" data-act="consent">Continue</button></div></div>`;
@@ -4422,6 +4427,7 @@ document.addEventListener('click', async e => {
       const f = allFoods().find(x => x[0] === b.dataset.name); if(!f) break;
       const ug = unitGrams(f), g = num(FS.g), qty = g > 0 && ug ? r1(g/ug) : FS.serv;
       if(g > 0 && !ug){ toast(`${f[0]} is measured in ${f[1]}, not grams. Use servings.`); break; }
+      if(g > 0 && !qty){ toast('That amount is too small to log. Enter more grams or use servings.'); break; }
       addMeal({ name:f[0], qty, kcal:f[2], p:f[3], c:f[4], f:f[5] });
       toast(`Added ${f[0]}${g > 0 && ug ? ` (${fmt(g)} g)` : qty !== 1 ? ' ×' + r1(qty) : ''}`); render(); break;
     }
@@ -4429,8 +4435,10 @@ document.addEventListener('click', async e => {
       const name = $('#cfName').value.trim(); const p = num($('#cfP').value), c = num($('#cfC').value), f = num($('#cfF').value);
       let k = num($('#cfK').value); if(!k) k = Math.round(p*4 + c*4 + f*9);
       if(!name){ toast('Give the food a name.'); $('#cfName').focus(); break; }
-      if(!k){ toast('Enter calories or at least one macro.'); break; }
+      if(name.length > 200){ toast('That name is too long. Shorten it.'); $('#cfName').focus(); break; }
       const qty = num($('#cfQ').value) || 1;
+      if(k < 0 || p < 0 || c < 0 || f < 0 || qty <= 0){ toast('Calories, macros and servings can’t be negative, and servings must be more than 0.'); break; }
+      if(!k){ toast('Enter calories or at least one macro.'); break; }
       addMeal({ name, qty, kcal:k, p, c, f });
       if($('#cfSave').checked){ S.settings.myFoods = [{ name, unit:$('#cfU').value.trim() || '1 serving', kcal:k, p, c, f }, ...(S.settings.myFoods || []).filter(x => x.name !== name)].slice(0,60); saveSoon('settings', S.settings); }
       sheet.close(); toast(`Added ${name}`); render(); break;
