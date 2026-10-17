@@ -28,7 +28,7 @@ export const PREP_MAX = 100;
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-/** Whether a stored `Settings.prep` item is a prep entry this package wrote (others, from a newer app, are left out). */
+/** Whether a stored `Settings.prep` item is a prep entry this package wrote. Other items (from another client or a newer app) are never shown, logged or changed, but are kept in the list. */
 export function isPrepEntry(v: unknown): v is PrepEntry {
   if (!isObj(v) || typeof v.id !== 'string' || typeof v.name !== 'string' || typeof v.until !== 'string' || !fin(v.left)) return false;
   if (typeof v.meal !== 'string' || !(MEAL_ORDER as readonly string[]).includes(v.meal)) return false;
@@ -53,12 +53,13 @@ export interface AddPrepInput {
 /**
  * The prep list after "Save as meal prep": batches used up or past their last day are dropped, then the new one is added
  * with a portion per katori made (rounded, at least 1) kept until `PREP_DAYS` days from today. Call it only once the
- * recipe itself saved (`recipeFood` returned ok). The newest `PREP_MAX` are kept.
+ * recipe itself saved (`recipeFood` returned ok). Items this build does not recognise are kept; the newest `PREP_MAX` of all are kept.
  *
  * Mirrors the prep step of prototype `case 'rb-prep'`.
  */
-export function addPrep(prep: readonly unknown[], input: AddPrepInput): PrepEntry[] {
-  const kept = prep.filter(isPrepEntry).filter((p) => live(p, input.today));
+export function addPrep(prep: readonly unknown[], input: AddPrepInput): unknown[] {
+  // An item this build does not recognise is kept as it is (the prototype keeps what it does not read); only batches known to be over go.
+  const kept = prep.filter((p) => !isPrepEntry(p) || live(p, input.today));
   const { perKatori: per } = input;
   const entry: PrepEntry = {
     id: input.id,
@@ -80,9 +81,8 @@ export function prepFor(prep: readonly unknown[], meal: Meal, date: string): Pre
  * "Log 1 katori": the entry to log (one portion of the batch's food) and the list with one fewer portion left.
  * Null when the batch is gone or has nothing left (a second tap). Mirrors prototype `case 'prep-log'`.
  */
-export function logPrep(prep: readonly unknown[], id: string): { entry: PrepEntry; prep: PrepEntry[] } | null {
-  const all = prep.filter(isPrepEntry);
-  const entry = all.find((p) => p.id === id);
+export function logPrep(prep: readonly unknown[], id: string): { entry: PrepEntry; prep: unknown[] } | null {
+  const entry = prep.filter(isPrepEntry).find((p) => p.id === id);
   if (!entry || entry.left <= 0) return null;
-  return { entry, prep: all.map((p) => (p === entry ? { ...p, left: p.left - 1 } : p)) };
+  return { entry, prep: prep.map((p) => (p === entry ? { ...entry, left: entry.left - 1 } : p)) };
 }

@@ -4,17 +4,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logPrep, logTotals, planFlex, planForMeal, prepFor, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type PrepEntry } from '@plate-and-bar/core';
+import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logPrep, logTotals, planFlex, planForMeal, prepFor, proteinUpgrade, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type PrepEntry, type ProteinUpgrade } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, toastMs } from '../food/copy';
+import { lowProtein, PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, toastMs, upgradeAdded } from '../food/copy';
 import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
+import { getMealPlanning } from '../meals/content';
 import { IdeasCard } from '../meals/IdeasCard';
 import { useWater } from '../food/useWater';
 import { BurnCard } from '../food/BurnCard';
@@ -101,6 +102,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   /** "Log 1 katori": logs one portion of the batch and takes it off the batch, in the settings write queue (nothing waits on the network). */
   const logPrepared = (meal: Meal, id: string) => {
     if (blocked()) return;
+    // Nothing left to log on the copy shown (a fast second tap on the last portion): no write, so Settings is not touched for nothing.
+    if (!logPrep(settings.prep, id)) return;
     let done: PrepEntry | undefined;
     // The updater also runs when the write is made, on the stored record: only its first run, here, decides what is logged.
     const ok = update((s) => {
@@ -113,6 +116,12 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     f.add(meal, { name: done.name, qty: 1, kcal: done.food.kcal, protein_g: done.food.protein_g, carbs_g: done.food.carbs_g, fat_g: done.food.fat_g });
     notify(prepLogged(done.name));
   };
+
+  // The add-on's room is the base target less what is eaten (prototype `S.settings.kcal`), not the shown target with flex days and the lab hold.
+  const baseTarget = kcalTarget(f.date, { flex: [] }, profile);
+  // The Food tab shows today only, so the day shown is today (core's add-on is for today only).
+  const upgradeFor = (meal: Meal): ProteinUpgrade<CatalogFood> | null =>
+    proteinUpgrade({ meal, date: f.date, today: f.date, items: f.logs.filter((l) => l.meal === meal), kcalLeft: baseTarget - t.kcal, foods: getFoodCatalog(), planning: getMealPlanning(), diet: settings.diet });
 
   return (
     <View style={styles.fill}>
@@ -175,7 +184,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} kcalEaten={t.kcal} reloadKey={dataVersion} /> : null}
         {water.target ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} prep={prepFor(settings.prep, m, f.date)} onLogPrep={(id) => logPrepared(m, id)} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} prep={prepFor(settings.prep, m, f.date)} onLogPrep={(id) => logPrepared(m, id)} upgrade={upgradeFor(m)} onUpgrade={(u) => { f.add(m, logOf(u.food, u.qty)); notify(upgradeAdded(u.food.name)); }} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
           <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" {...a11yState({ checked: complete })} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -205,7 +214,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   );
 }
 
-function MealSection({ meal, items, facts, prep, onLogPrep, planned, onLogPlanned, known, onRemove, onAdd, onDescribe, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; prep: PrepEntry[]; onLogPrep: (id: string) => void; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; known: (name: string) => boolean; onRemove: (id: string) => void; onAdd: () => void; onDescribe?: () => void; onRecipes: () => void }) {
+function MealSection({ meal, items, facts, prep, onLogPrep, upgrade, onUpgrade, planned, onLogPlanned, known, onRemove, onAdd, onDescribe, onRecipes }: { meal: Meal; items: FoodLog[]; facts: FoodFacts[]; prep: PrepEntry[]; onLogPrep: (id: string) => void; upgrade: ProteinUpgrade<CatalogFood> | null; onUpgrade: (u: ProteinUpgrade<CatalogFood>) => void; planned: PlanItem[] | null; onLogPlanned: (meal: Meal, items: PlanItem[]) => void; known: (name: string) => boolean; onRemove: (id: string) => void; onAdd: () => void; onDescribe?: () => void; onRecipes: () => void }) {
   const c = useTheme();
   const kcal = logTotals(items, facts).kcal;
   return (
@@ -237,6 +246,15 @@ function MealSection({ meal, items, facts, prep, onLogPrep, planned, onLogPlanne
           <Button label="Log 1 katori" a11yLabel={`Log 1 katori of ${p.name} to ${meal.toLowerCase()}`} kind="ghost" onPress={() => onLogPrep(p.id)} />
         </View>
       ))}
+      {upgrade ? (
+        <View style={styles.between}>
+          <View style={styles.fill}>
+            <Text style={{ color: c.ink }}>{lowProtein(upgrade.label, upgrade.protein_g, upgrade.kcal)}</Text>
+            <WhyLink id="protein" subject={`low protein in ${meal.toLowerCase()}`} />
+          </View>
+          <Button label="Add" a11yLabel={`Add ${upgrade.label} to ${meal.toLowerCase()}`} kind="ghost" onPress={() => onUpgrade(upgrade)} />
+        </View>
+      ) : null}
       <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
       {onDescribe ? <Button label={AI_COPY.describeButton} a11yLabel={`Describe your ${meal.toLowerCase()} in words, AI estimate`} onPress={onDescribe} kind="ghost" /> : null}
       <Button label="Recipes" a11yLabel={`Recipes for ${meal.toLowerCase()}: build a recipe, the library and cooking mode`} onPress={onRecipes} kind="link" />

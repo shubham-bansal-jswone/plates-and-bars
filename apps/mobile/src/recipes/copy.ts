@@ -28,5 +28,5 @@ export const unknownBlock = (names: readonly string[]): string => `${names.join(
 
 /** Toast after "Save as meal prep" (prototype: `Meal prep set: …`); `portions` is the katoris made, rounded. */
 export const prepSet = (portions: number, meal: string): string => `Meal prep set: ${portions} portions for ${meal.toLowerCase()} this week`;
-/** The recipe saved but the settings could not be written, so no prep was set. */
+/** The stored settings could not be read, so nothing is saved: neither the recipe nor a batch. */
 export const PREP_NOT_SAVED = 'Couldn’t read your saved settings, so the meal prep was not set. Restart the app to try again.';

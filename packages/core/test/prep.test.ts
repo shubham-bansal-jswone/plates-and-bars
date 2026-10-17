@@ -66,7 +66,7 @@ describe('meal prep (prototype rb-prep, prepLineHtml, prep-log)', () => {
   });
 
   it('a batch of under half a katori still has one portion', () => {
-    expect(addPrep([], { id: 'x', name: 'Dal', meal: 'Lunch', katoris: 0.2, perKatori: { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }, today: '2026-10-17' })[0]?.left).toBe(1);
+    expect((addPrep([], { id: 'x', name: 'Dal', meal: 'Lunch', katoris: 0.2, perKatori: { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }, today: '2026-10-17' })[0] as PrepEntry).left).toBe(1);
   });
 
   it('the last day still counts, the next does not', () => {
@@ -80,16 +80,31 @@ describe('meal prep (prototype rb-prep, prepLineHtml, prep-log)', () => {
     expect(logPrep([entry({ left: 0 })], 'a')).toBeNull();
     expect(logPrep([entry()], 'zzz')).toBeNull();
     const once = logPrep([entry({ left: 1 })], 'a')!;
-    expect(once.prep[0]?.left).toBe(0);
+    expect((once.prep[0] as PrepEntry).left).toBe(0);
     expect(logPrep(once.prep, 'a')).toBeNull();
   });
 
-  it('keeps at most the contract’s 100 entries, newest last, and leaves out items it did not write', () => {
+  it('keeps items it does not recognise, through adding and logging, as the prototype keeps what it does not read', () => {
+    const other = { id: 'z', shape: 'newer', left: 9 };
+    const odd = { ...entry({ id: 'n' }), meal: 'Brunch' };
+    const mixed = [other, entry({ id: 'live' }), odd, entry({ id: 'dead', left: 0 }), 5, null];
+    const added = addPrep(mixed, { id: 'new', name: 'Dal', meal: 'Lunch', katoris: 2, perKatori: { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }, today: '2026-10-17' });
+    // 'live' ends 2026-10-14, so it is over by the 17th and goes; the unrecognised items stay, in order
+    expect((added as { id?: string }[]).map((p) => (p as { id?: string } | null)?.id)).toEqual(['z', 'n', undefined, undefined, 'new']);
+    const logged = logPrep(mixed, 'live')!;
+    expect(logged.prep).toHaveLength(mixed.length);
+    expect(logged.prep[0]).toBe(other);
+    expect(logged.prep[2]).toBe(odd);
+    expect(logged.prep[1]).toEqual({ ...entry({ id: 'live' }), left: 2 });
+    expect(logged.prep[4]).toBe(5);
+  });
+
+  it('keeps at most the contract’s 100 entries, newest last', () => {
     const many = Array.from({ length: 100 }, (_, i) => entry({ id: `p${i}`, until: '2026-12-31' }));
-    const out = addPrep([...many, { junk: true }, null, 5], { id: 'new', name: 'Dal', meal: 'Lunch', katoris: 2, perKatori: { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }, today: '2026-10-17' });
+    const out = addPrep(many, { id: 'new', name: 'Dal', meal: 'Lunch', katoris: 2, perKatori: { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }, today: '2026-10-17' });
     expect(out).toHaveLength(PREP_MAX);
-    expect(out[PREP_MAX - 1]?.id).toBe('new');
-    expect(out[0]?.id).toBe('p1');
+    expect((out[PREP_MAX - 1] as PrepEntry).id).toBe('new');
+    expect((out[0] as PrepEntry).id).toBe('p1');
     expect(isPrepEntry({ id: 'a', name: 'x', meal: 'Brunch', left: 1, until: '2026-10-10', food: { kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 } })).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { addPrep, fitSuggestions, OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
+import { addPrep, fitSuggestions, isPrepEntry, OIL_LEVEL, RECIPE_LOG_STEP, recipeFood, recipeTotals, stepRecipeLog, type OilLevel } from '@plate-and-bar/core';
 import { localDate } from '../setup/logic';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
@@ -76,6 +76,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
   };
   /** "Save as meal prep" (prototype `rb-prep`): saves the recipe as Save only does, then sets the batch; nothing is set when the recipe does not save. */
   const savePrep = () => {
+    if (leaving.current) return; // a second tap before the screen has gone back
     const unknown = unknownIngredients(d.rows);
     if (unknown.length) return notify(unknownBlock(unknown));
     const r = recipeFood({ name: d.name, ingredients: d.rows, ...yieldFields }, getRawIngredients(), getKatoriG());
@@ -85,7 +86,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
     const batch = { id: entryId, name: r.name, meal: d.meal, katoris: t.katoris, perKatori: t.perKatori, today: localDate(now()) };
     store.save({ result: r, yield_mode: d.ymode, katoris: d.katoris, cooked_g: d.grams, oil: d.oil, editing: d.editing, log: null });
     // The updater runs on the shown copy and again on the stored record: a batch already there (a replay) is not added twice.
-    update((s) => (s.prep.some((p) => p.id === entryId) ? {} : { prep: addPrep(s.prep, batch) }));
+    update((s) => (s.prep.some((p) => isPrepEntry(p) && p.id === entryId) ? {} : { prep: addPrep(s.prep, batch) }));
     notify(prepSet(Math.round(t.katoris), d.meal));
     leave(onBack);
   };

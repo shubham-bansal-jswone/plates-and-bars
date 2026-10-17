@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { applyFit, FIT_SOYA_G, fitSuggestions, presetIngredients, recipeTotals, stepMinutes } from '@plate-and-bar/core';
+import { applyFit, type PrepEntry, FIT_SOYA_G, fitSuggestions, presetIngredients, recipeTotals, stepMinutes } from '@plate-and-bar/core';
 import { RecipesScreen } from '../src/screens/RecipesScreen';
 import { fmt } from '../src/format';
 import { fitLine } from '../src/recipes/copy';
@@ -8,6 +9,7 @@ import { loadRecipes } from '../src/db/recipes';
 import { loadUserFoods } from '../src/db/food';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
+import { useSettings } from '../src/state/SettingsProvider';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
@@ -348,7 +350,7 @@ describe('Recipes screen: meal prep', () => {
     const dal = getPresets().find((p) => p.name === 'Dal')!;
     const t = recipeTotals({ ingredients: presetIngredients(dal.ingredients, 'normal', getRawIngredients()), yield_mode: 'katori', katoris: dal.katoris, cooked_g: null }, getRawIngredients(), getKatoriG());
     await waitFor(async () => expect((await loadSettings(db))?.prep).toHaveLength(1));
-    const [p] = (await loadSettings(db))!.prep;
+    const [p] = (await loadSettings(db))!.prep as PrepEntry[];
     expect(p).toMatchObject({ name: 'Dal (home-style)', meal: 'Dinner', left: 5, until: '2026-10-14' });
     expect(p!.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(p!.food.kcal).toBe(Math.round(t.perKatori!.kcal));
@@ -366,6 +368,66 @@ describe('Recipes screen: meal prep', () => {
     expect(onBack).not.toHaveBeenCalled();
     expect((await loadSettings(db))?.prep ?? []).toEqual([]);
     expect(await loadRecipes(db)).toEqual([]);
+  });
+
+  it('stops when the saved settings cannot be read: says so, saves no recipe and no batch, and does not leave', async () => {
+    const db = memoryDb();
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('user_settings')) throw new Error('disk');
+      return read(sql, ...p);
+    }) as typeof db.getFirstAsync;
+    const { onBack } = await setup(db);
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Save as meal prep for lunch'));
+    expect(await screen.findByText(/Couldn’t read your saved settings, so the meal prep was not set/)).toBeTruthy();
+    expect(screen.queryByText(/Meal prep set/)).toBeNull();
+    expect(onBack).not.toHaveBeenCalled();
+    expect(await loadRecipes(db)).toEqual([]);
+    expect(stored(db, 'user_settings')).toEqual([]);
+  });
+
+  it('a second tap before the screen goes back saves one recipe and one batch', async () => {
+    const db = memoryDb();
+    const { onBack } = await setup(db);
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    const btn = screen.getByLabelText('Save as meal prep for lunch');
+    await fireEvent.press(btn);
+    await fireEvent.press(btn);
+    await waitFor(() => expect(onBack).toHaveBeenCalled());
+    await waitFor(async () => expect((await loadSettings(db))?.prep).toHaveLength(1));
+    expect(await loadRecipes(db)).toHaveLength(1);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('a batch whose write landed but was reported failed is not added twice when the change is replayed', async () => {
+    const db = memoryDb();
+    const write = db.runAsync.bind(db);
+    let failed = false;
+    db.runAsync = (async (sql: string, ...p: (string | number)[]) => {
+      await write(sql, ...p);
+      if (sql.includes('user_settings') && !failed) {
+        failed = true;
+        throw new Error('crashed after commit');
+      }
+    }) as typeof db.runAsync;
+    const handle: { poke?: () => void } = {};
+    function Poke() {
+      const { update } = useSettings();
+      useEffect(() => {
+        handle.poke = () => update({ checkin_seen: '2026-10-05' });
+      }, [update]);
+      return null;
+    }
+    await render(withProfile(db, <><RecipesScreen db={db} onBack={jest.fn()} onKitchen={jest.fn()} now={NOW} /><Poke /></>));
+    await screen.findByRole('header', { name: 'Recipes' });
+    await fireEvent.press(screen.getByLabelText('Dal'));
+    await fireEvent.press(screen.getByLabelText('Save as meal prep for lunch'));
+    await waitFor(() => expect(failed).toBe(true));
+    // the next settings change replays the batch's change onto the record that already holds it
+    await act(async () => handle.poke?.());
+    await waitFor(async () => expect((await loadSettings(db))?.checkin_seen).toBe('2026-10-05'));
+    expect((await loadSettings(db))!.prep).toHaveLength(1);
   });
 
   it('a recipe with no yield stores no batch', async () => {
@@ -386,8 +448,8 @@ describe('Recipes screen: meal prep', () => {
     await fireEvent.press(screen.getByLabelText('Dal'));
     await fireEvent.press(screen.getByLabelText('Save as meal prep for lunch'));
     await waitFor(() => expect(onBack).toHaveBeenCalled());
-    await waitFor(async () => expect((await loadSettings(db))!.prep.map((p) => p.id)).toHaveLength(2));
-    expect((await loadSettings(db))!.prep.map((p) => p.name)).toEqual(['Old', 'Dal (home-style)']);
+    await waitFor(async () => expect((await loadSettings(db))!.prep.map((p) => (p as PrepEntry).id)).toHaveLength(2));
+    expect((await loadSettings(db))!.prep.map((p) => (p as PrepEntry).name)).toEqual(['Old', 'Dal (home-style)']);
   });
 
   it('the button has a spoken label naming the meal', async () => {

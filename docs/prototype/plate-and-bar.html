@@ -598,7 +598,7 @@ function renderFood(){
     </div>
   </section>`;
   if(S.ui.stepsTgt === undefined){ S.ui.stepsTgt = 0; stepsTarget().then(v => { S.ui.stepsTgt = v; }); }
-  if(sampleFn && SAMPLE_IMG) h += `<div class="snaprow"><button class="primary" data-act="snap">Snap a meal</button><span class="hint">Photo → Claude estimates → you check and add</span></div>`;
+  if(sampleFn && SAMPLE_IMG) h += `<div class="snaprow"><button class="primary" data-act="snap">Snap a meal</button><span class="hint">Photo → AI estimates → you check and add</span></div>`;
   h += fibreHtml() + flexNoteHtml() + checkinBanner() + energyHtml() + waterHtml() + guidanceHtml();
   if(!S.day.meals.length){
     h += `<div class="empty"><p>Nothing logged for this day yet. Add food under a meal, or copy the previous day if you ate the same things.</p>
@@ -639,7 +639,7 @@ function allFoods(){ return [...(S.settings.myFoods || []).map(f => [f.name, f.u
 function foodListHtml(){
   const q = FS.q.trim().toLowerCase();
   const list = allFoods().filter(f => foodMatch(f, q));
-  if(!list.length) return `<p class="hint">No match. Use Custom to enter it yourself${sampleFn ? ', or Describe to have Claude estimate it' : ''}.</p>`;
+  if(!list.length) return `<p class="hint">No match. Use Custom to enter it yourself${sampleFn ? ', or Describe to have AI estimate it' : ''}.</p>`;
   return '<p class="hint">Values are calculated from USDA public-domain ingredient data using standard home recipes (carbs include fibre, as on food labels); paneer, curd and milk follow FSSAI composition standards. Packaged foods (whey, Greek yogurt, makhana) use typical label values; check your pack.</p><ul class="flist">' + list.map((f) => `<li><button data-act="pick" data-name="${esc(f[0])}"><span><span class="nm">${esc(f[0])}</span><span class="sub">${esc(f[1])}, ${f[3]} g protein${f[2] && f[3]*100/f[2] >= 8 ? ' <span class="ev">high protein</span>' : ''}</span></span><span class="kc">${f[2]}</span></button></li>`).join('') + '</ul>';
 }
 function renderFoodSheet(keepQuick){
@@ -676,8 +676,8 @@ function renderFoodSheet(keepQuick){
       <button class="primary" data-act="estimate" ${FS.busy ? 'disabled' : ''}>${FS.busy ? 'Estimating…' : 'Estimate macros'}</button>
       ${FS.err ? `<p class="hint" style="color:var(--danger)">${esc(FS.err)}</p>` : ''}
       ${FS.est ? `<ul class="flist est">${FS.est.map(i => `<li><span><span class="nm">${esc(i.name)}</span><span class="sub">${esc(i.qty || '')}, ${fmt(i.protein)} g protein, ${fmt(i.carbs)} g carbs, ${fmt(i.fat)} g fat</span></span><span class="kc">${fmt(i.kcal)}</span></li>`).join('')}</ul>
-        <p class="hint">Estimates from Claude. Portions vary, so treat these as a close guess.</p>
-        <button class="primary" data-act="addest">Add all to ${FS.meal.toLowerCase()}</button>` : '<p class="hint">Claude estimates each item using typical home-cooked portions.</p>'}`;
+        <p class="hint">Estimates from AI. Portions vary, so treat these as a close guess.</p>
+        <button class="primary" data-act="addest">Add all to ${FS.meal.toLowerCase()}</button>` : '<p class="hint">AI estimates each item using typical home-cooked portions.</p>'}`;
   }
   openSheet(`<div class="sheet-h"><h2>Add to ${FS.meal.toLowerCase()}</h2><button class="x" data-act="close" aria-label="Close">×</button></div>${segHtml()}${body}`);
 }
@@ -701,7 +701,7 @@ async function estimate(){
     FS.est = items.length ? items : null;
   }catch(e){
     const c = e && e.code;
-    if(c === 'not_granted'){ FS.err = 'Estimating needs your permission to use Claude. Use Custom or the food list instead.'; }
+    if(c === 'not_granted'){ FS.err = 'Estimating needs you to turn on AI features. Use Custom or the food list instead.'; }
     else if(c === 'rate_limited'){ FS.err = 'Too many requests right now. Wait a minute and try again.'; }
     else { FS.err = 'Couldn’t get an estimate. Try again, or enter it under Custom.'; }
   }
@@ -2217,7 +2217,7 @@ Reply with ONLY a JSON object: {"notFood":boolean,"items":[{"name":string,"porti
     const c = e && e.code;
     FS.err = c === 'images_unavailable' ? 'Photo analysis isn’t available here. Use Describe it instead.'
       : c === 'image_rejected' ? 'That photo couldn’t be read. Try a JPEG or PNG under 20 MB.'
-      : c === 'not_granted' ? 'Analysing photos needs your permission to use Claude.'
+      : c === 'not_granted' ? 'Analysing photos needs you to turn on AI features.'
       : c === 'rate_limited' ? 'Too many requests right now. Wait a minute and try again.'
       : 'Couldn’t analyse the photo. Try again, or use Describe it.';
   }
@@ -2607,7 +2607,7 @@ async function compressPhoto(file){
 }
 function photosShellHtml(){
   return `<section class="block"><h2>Progress photos</h2>
-    <p class="hint">Saved only on this device, in this browser. They’re never uploaded or sent to Claude. Clearing your browser data deletes them.</p>
+    <p class="hint">Saved only on this device, in this browser. They’re never uploaded or sent anywhere. Clearing your browser data deletes them.</p>
     <div id="phArea"><p class="hint">Loading…</p></div></section>`;
 }
 async function renderPhotos(){
@@ -2781,7 +2781,7 @@ async function summariseWeek(){
 Three sentences, plain and encouraging but honest: one on what went well, one on the main gap, one specific thing to focus on next week. No headings, no lists, no emojis.`, { modelTier:'quick' });
     CI_SUM.text = String(res && res.text || '').trim();
     if(!CI_SUM.text) CI_SUM.err = 'Couldn’t write a summary this time.';
-  }catch(e){ CI_SUM.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Summaries need your permission to use Claude.' : 'Couldn’t write a summary this time.'; }
+  }catch(e){ CI_SUM.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Summaries need you to turn on AI features.' : 'Couldn’t write a summary this time.'; }
   CI_SUM.busy = false; renderCheckin();
 }
 function checkinAction(a, b){
@@ -2878,7 +2878,7 @@ function openWhy(id){
     <p class="hint">Source: ${esc(c.src)}. Draft card, not yet reviewed by a coach or dietitian. Not medical advice.</p>
     ${sampleFn ? `<div class="ask"><label for="askQ" class="lbl">Ask a follow-up</label><div class="inline"><input id="askQ" value="${esc(WHY.q)}" placeholder="e.g. Is 150 g too much protein?" style="max-width:none"><button class="ghost sm" data-act="why-ask" ${WHY.busy ? 'disabled' : ''}>${WHY.busy ? 'Thinking…' : 'Ask'}</button></div>
       ${WHY.ans ? `<p class="ask-a">${esc(WHY.ans)}</p>` : ''}${WHY.err ? `<p class="err">${esc(WHY.err)}</p>` : ''}
-      <p class="hint">Answers come only from the app’s cards. If they don’t cover it, Claude will say so.</p></div>` : ''}`);
+      <p class="hint">Answers come only from the app’s cards. If they don’t cover it, the answer will say so.</p></div>` : ''}`);
 }
 async function askWhy(){
   const q = ($('#askQ')?.value || '').trim(); if(!q || !sampleFn) return;
@@ -2892,7 +2892,7 @@ ${cards}
 The person was reading: "${KB[WHY.id].t}".
 Question: ${q}`, { modelTier:'quick' });
     WHY.ans = String(res && res.text || '').trim() || 'No answer came back. Try rephrasing.';
-  }catch(e){ WHY.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Follow-ups need your permission to use Claude.' : 'Couldn’t answer just now. Try again.'; }
+  }catch(e){ WHY.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Follow-ups need you to turn on AI features.' : 'Couldn’t answer just now. Try again.'; }
   WHY.busy = false; if(sheet.open) openWhy(WHY.id);
 }
 function learnCardHtml(){
@@ -3189,7 +3189,7 @@ async function videoFrames(file, n){
 function formSheet(){
   const ex = S.day.workout.exercises[FC.i], c = CARDS[ex.name];
   let h = `<div class="sheet-h"><h2>Check my form: ${esc(ex.name)}</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
-    <p class="hint">Prop your phone on the floor about 2–3 metres away, side view, whole body in frame. Record one set. The video stays on your phone; only a few still frames are sent to Claude.</p>
+    <p class="hint">Prop your phone on the floor about 2–3 metres away, side view, whole body in frame. Record one set. The video stays on your phone; only a few still frames are sent for analysis, and only if you have turned on AI features.</p>
     <label class="ghost filebtn">${FC.frames.length ? 'Use a different video' : 'Record or choose a video'}<input type="file" accept="video/*" id="fcIn"></label>`;
   if(FC.busy) h += `<p class="hint">Looking at your set…</p>`;
   if(FC.err) h += `<p class="err" role="alert">${esc(FC.err)}</p>`;
@@ -3219,7 +3219,7 @@ Common mistakes: ${(c.m || []).join('; ')}.
 For each key cue, judge only what is clearly visible in the frames. Use "unclear" when the angle or quality doesn't let you tell. Be specific and kind. Don't diagnose injuries.
 Reply with ONLY JSON: {"visible":boolean,"checks":[{"cue":string,"status":"good"|"watch"|"unclear","note":string}],"summary":string}`, { images: FC.frames.map(f => f.blob) });
     FC.res = R && typeof R === 'object' ? R : null; if(!FC.res) FC.err = 'Couldn’t get a second opinion this time.';
-  }catch(e){ FC.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Form checks need your permission to use Claude.' : 'Couldn’t get a second opinion this time. You can still check yourself against the cues.'; }
+  }catch(e){ FC.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Form checks need you to turn on AI features.' : 'Couldn’t get a second opinion this time. You can still check yourself against the cues.'; }
   FC.busy = false; if(sheet.open) formSheet();
 }
 
@@ -3310,7 +3310,7 @@ Reply with ONLY JSON: {"date":string|null,"tests":[{"name":string,"value":number
     const tests = (R && Array.isArray(R.tests) ? R.tests : []).filter(t => t && t.name && isFinite(num(t.value))).slice(0, 80).map(t => ({ name:String(t.name), value:String(t.value), unit:String(t.unit || ''), low: t.low == null ? '' : String(t.low), high: t.high == null ? '' : String(t.high) }));
     if(!tests.length) throw new Error('none');
     LAB.draft = { date: /^\d{4}-\d{2}-\d{2}$/.test(R.date || '') ? R.date : TODAY(), tests };
-  }catch(e){ LAB.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Reading reports needs your permission to use Claude.' : 'Couldn’t read that report. Try a clear photo of each page, or a PDF.'; }
+  }catch(e){ LAB.err = e && e.code === 'rate_limited' ? 'Too many requests right now. Try again in a minute.' : e && e.code === 'not_granted' ? 'Reading reports needs you to turn on AI features.' : 'Couldn’t read that report. Try a clear photo of each page, or a PDF.'; }
   LAB.busy = false; labSheet();
 }
 function labSheet(){
@@ -3732,14 +3732,14 @@ function consentHtml(){
     <div><button class="primary" data-act="consent">Continue</button></div></div>`;
 }
 
-/* ---------- 2. health screening (topics based on the PAR-Q+) ---------- */
+/* ---------- 2. health screening (our own wording; PAR-Q+ is only a reference) ---------- */
 const SCREEN_Q = [
-  'Has a doctor told you that you have a heart condition or high blood pressure?',
-  'Do you get chest pain at rest, during daily activities or when you exercise?',
-  'In the past 12 months, have you lost balance from dizziness or lost consciousness?',
-  'Do you have another long-term medical condition, or take prescribed medicine for one?',
-  'Do you have a bone, joint or muscle problem that more activity could make worse?',
-  'Has a doctor said you should only exercise under medical supervision?',
+  'Have you ever been diagnosed with a heart problem or high blood pressure?',
+  'Does your chest hurt when you are resting or being active?',
+  'In the last year, have you fainted, or felt so dizzy that you fell or nearly fell?',
+  'Do you live with a long-term health condition, or take regular medication for one?',
+  'Do you have a back, knee, shoulder or other bone, joint or muscle problem that being more active could make worse?',
+  'Has a doctor or other health professional said you should only exercise with supervision?',
 ];
 function screenHtml(p){
   p.screen = p.screen || {};
@@ -3780,7 +3780,7 @@ async function deleteEverything(){
   toast('Everything deleted'); setTimeout(() => location.reload(), 900);
 }
 function dataSectionHtml(){
-  return `<section class="block"><h2>Your data</h2><p class="hint">${Store.mode === 'cloud' ? 'Saved privately to your Claude account; photos, cycle and lab data stay on this device.' : 'Saved in this browser only.'}${pendKeys().length ? ' Some changes are waiting to sync.' : ''}</p>
+  return `<section class="block"><h2>Your data</h2><p class="hint">${Store.mode === 'cloud' ? 'Saved privately to your account; photos, cycle and lab data stay on this device.' : 'Saved in this browser only.'}${pendKeys().length ? ' Some changes are waiting to sync.' : ''}</p>
     <div class="row"><button class="ghost sm" data-act="data-export">Download my data</button><button class="ghost sm danger" data-act="data-del">${S.ui.delAll ? 'Tap again to delete everything' : 'Delete everything'}</button></div></section>`;
 }
 
@@ -3814,7 +3814,7 @@ Reply with ONLY JSON: {"pattern":string,"equipment":string,"difficulty":1|2|3,"p
 function tagSheet(){
   const t = TAGQ.tags;
   openSheet(`<div class="sheet-h"><h2>${esc(TAGQ.name)}</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
-    ${TAGQ.busy ? '<p class="hint">Working out which muscles this trains…</p>' : `<p class="hint">${sampleFn ? 'Claude’s suggestion. Tap muscles to correct it.' : 'Tap the muscles this exercise trains.'} Tags let it show on the body map, count toward coverage and get swaps.</p>
+    ${TAGQ.busy ? '<p class="hint">Working out which muscles this trains…</p>' : `<p class="hint">${sampleFn ? 'AI suggestion. Tap muscles to correct it.' : 'Tap the muscles this exercise trains.'} Tags let it show on the body map, count toward coverage and get swaps.</p>
     ${exMapHtml0(t)}
     <div class="field"><span class="lbl">Main muscles</span><div class="chips">${Object.entries(MUSCLE).map(([k, l]) => `<button class="chip" data-act="tg-m" data-v="${k}" aria-pressed="${t.m.includes(k)}">${l}</button>`).join('')}</div></div>
     <div class="field"><span class="lbl">Also working</span><div class="chips">${Object.entries(MUSCLE).map(([k, l]) => `<button class="chip" data-act="tg-s" data-v="${k}" aria-pressed="${t.s.includes(k)}">${l}</button>`).join('')}</div></div>
@@ -3891,7 +3891,7 @@ Object.assign(CARDS, {
 });
 Object.assign(KB, {
   screening:{ t:'Why a health check before training?', s:'A few questions catch the people who should see a doctor before starting.', ev:'Strong',
-    b:() => 'These questions cover the same topics as the PAR-Q+, the widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
+    b:() => 'These questions are our own wording of the safety topics that pre-exercise screening tools such as the PAR-Q+ cover: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
     src:'Warburton et al., PAR-Q+ (Physical Activity Readiness Questionnaire for Everyone)' },
   alcohol:{ t:'Alcohol and training', s:'Alcohol adds calories without protein and slows recovery.', ev:'Moderate',
     b:() => 'Alcohol has about 7 kcal per gram, so drinks add up quickly. In a study of men drinking alcohol after a hard workout, muscle-building after the session dropped noticeably, even with protein. An occasional drink fits into a plan; regular heavy drinking makes fat loss and recovery harder.',
