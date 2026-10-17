@@ -580,6 +580,17 @@ describe('Weekly check-in, burn and habits', () => {
     await waitFor(() => expect(settingsDoc(db)).toMatchObject({ checkin_seen: '2026-10-05', adaptive: { prev: null, week: '2026-10-05', value: expect.any(Number) } }));
   });
 
+  it('marks this week\'s check-in seen even when the saved days cannot be read, so Food\'s banner goes (as the prototype does)', async () => {
+    const db = memoryDb();
+    const read = db.getAllAsync.bind(db);
+    db.getAllAsync = async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM food_logs')) throw new Error('disk');
+      return read(sql, ...p);
+    };
+    await setup({ db });
+    await waitFor(() => expect(settingsDoc(db)).toMatchObject({ checkin_seen: '2026-10-05' }));
+  });
+
   it('puts all four suggested targets on the profile, protein kept', async () => {
     const db = memoryDb();
     await seed(db, 1500, true);
