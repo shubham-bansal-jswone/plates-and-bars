@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "origin": "docs/prototype/plate-and-bar.html (KB, LEARN)",
+  "origin": "docs/prototype/plate-and-bar.html (KB, LEARN), with CARD_OVERRIDES in tools/cards-import/import.mjs",
   "split_names": {
     "2": "two full-body sessions",
     "3": "three full-body sessions",
@@ -255,8 +255,8 @@
       "title": "Why warm up before the first big lift?",
       "summary": "A couple of lighter sets rehearse the movement and prepare your joints.",
       "body": "Specific warm-up sets at around 50% and 75% of your working weight improve performance on the heavier sets that follow and give you a final form check. They’re short and light on purpose, so they don’t tire you out. Later exercises in the session usually don’t need them because you’re already warm.",
-      "evidence": "Moderate",
-      "source": "Common strength-training practice; Fradkin et al., 2010 (warm-up and performance review)",
+      "evidence": "Emerging",
+      "source": "Common strength-training practice (coaching convention, limited direct evidence); Fradkin et al., 2010 (warm-up and performance review)",
       "learn_order": null,
       "review_status": "draft"
     },
@@ -264,9 +264,9 @@
       "id": "fibre",
       "title": "Why track fibre and fruit and veg?",
       "summary": "Fibre keeps you full on fewer calories and supports gut and heart health.",
-      "body": "India’s dietary guidelines recommend filling about half your plate with vegetables and fruit, and many guidelines suggest roughly 14–15 g of fibre per 1,000 kcal{?fibre_g}, which is about {fibre_g} g for your target{/fibre_g}. High-fibre foods (dals, chana, rajma, vegetables, fruit, oats, whole wheat) make a calorie deficit far easier to stick to. The WHO also advises keeping added sugars under 10% of calories, ideally under 5%.",
-      "evidence": "Strong",
-      "source": "ICMR-NIN Dietary Guidelines for Indians, 2024; Reynolds et al., 2019, The Lancet (fibre meta-analysis); WHO sugars guideline, 2015",
+      "body": "The ICMR-NIN dietary guidelines for Indians (2024) recommend filling about half your plate with vegetables and fruit. The Institute of Medicine’s Dietary Reference Intakes (2005) set an adequate fibre intake of 14 g per 1,000 kcal{?fibre_g}, which is about {fibre_g} g for your target{/fibre_g}. High-fibre foods (dals, chana, rajma, vegetables, fruit, oats, whole wheat) make a calorie deficit far easier to stick to. The WHO also advises keeping added sugars under 10% of calories, ideally under 5%.",
+      "evidence": "Moderate",
+      "source": "ICMR-NIN Dietary Guidelines for Indians, 2024 (plate rule); Institute of Medicine, Dietary Reference Intakes for Energy, Carbohydrate, Fiber, Fat, Fatty Acids, Cholesterol, Protein, and Amino Acids, 2005 (14 g per 1,000 kcal); Reynolds et al., 2019, The Lancet (fibre meta-analysis); WHO sugars guideline, 2015",
       "learn_order": null,
       "placeholders": [
         "fibre_g"
@@ -290,9 +290,9 @@
       "id": "screening",
       "title": "Why a health check before training?",
       "summary": "A few questions catch the people who should see a doctor before starting.",
-      "body": "These questions cover the same topics as the PAR-Q+, the widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.",
-      "evidence": "Strong",
-      "source": "Warburton et al., PAR-Q+ (Physical Activity Readiness Questionnaire for Everyone)",
+      "body": "These questions cover similar topics to the PAR-Q+, a widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. They are a short summary, not the PAR-Q+ itself; the official form is free at eparmedx.com. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.",
+      "evidence": "Moderate",
+      "source": "Warburton DER, Jamnik VK, Bredin SSD, Gledhill N. The Physical Activity Readiness Questionnaire for Everyone (PAR-Q+) and Electronic Physical Activity Readiness Medical Examination (ePARmed-X+). Health & Fitness Journal of Canada 2011;4(2):3-23",
       "learn_order": null,
       "review_status": "draft"
     },
@@ -321,8 +321,8 @@
       "title": "Training and eating after 60",
       "summary": "Strength and balance training matter even more with age; protein needs go up a little.",
       "body": "The WHO recommends that adults 60+ do activities focused on balance and strength on 3 or more days a week to prevent falls, alongside regular aerobic activity. Muscles respond less to protein with age, so experts suggest at least 1.0–1.2 g per kg a day for older adults, spread across meals with around 25–30 g at each main meal. The app adds a short balance exercise to each session, keeps weight increases smaller, and makes sure every main meal idea has enough protein. Thirst signals also weaken with age, so drink regularly rather than waiting to feel thirsty.",
-      "evidence": "Strong",
-      "source": "WHO Guidelines on Physical Activity and Sedentary Behaviour, 2020; Bauer et al., 2013, PROT-AGE Study Group",
+      "evidence": "Moderate",
+      "source": "WHO Guidelines on Physical Activity and Sedentary Behaviour, 2020; Bauer et al., 2013, PROT-AGE Study Group (expert consensus recommendations)",
       "learn_order": null,
       "review_status": "draft"
     },
@@ -331,8 +331,8 @@
       "title": "How focus muscles work",
       "summary": "More weekly sets and a fresher slot in the session, for up to 3 muscles at a time.",
       "body": "Muscle growth rises with weekly sets up to a point, so the most reliable way to prioritise a muscle is to give it more hard sets: the app adds one set to its exercises and, on days that train that area, adds an exercise if none is planned. Exercises done first in a session tend to see bigger strength gains, while the effect on muscle size is small, so focus work moves earlier. Prioritising everything means prioritising nothing, so the limit is 3; other muscles keep enough work to hold on to what they have.",
-      "evidence": "Moderate",
-      "source": "Schoenfeld, Ogborn & Krieger, 2017 (volume dose-response); Nunes et al., 2021, Sports Medicine (exercise order review)",
+      "evidence": "Emerging",
+      "source": "The focus rule is a coaching convention, not a tested protocol; Schoenfeld, Ogborn & Krieger, 2017 (volume dose-response); Nunes et al., 2021, European Journal of Sport Science 21(2):149-157, doi:10.1080/17461391.2020.1733672 (exercise order review)",
       "learn_order": null,
       "review_status": "draft"
     },

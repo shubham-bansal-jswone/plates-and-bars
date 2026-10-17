@@ -1,0 +1,21 @@
+{
+  "description": "Request bodies the server must refuse with 400 invalid_request, and bodies it must accept, on every endpoint that takes a JSON body (/auth/*, /sync, /ai/*). See the wire conventions in openapi.yaml. `path` is the endpoint a test can send the body to; each must_accept body is valid for it, and each must_refuse body is a valid body for it with exactly one fault, named by `fault`.",
+  "max_nesting_depth": 1000,
+  "nesting": "Arrays and objects nested max_nesting_depth deep parse; one more level is refused. `[[...]]` with n opening brackets is n deep.",
+  "must_refuse": [
+    { "name": "trailing text", "path": "/sync", "fault": "trailing", "body": "{\"cursor\":null,\"changes\":{}} junk" },
+    { "name": "second value", "path": "/sync", "fault": "trailing", "body": "{\"cursor\":null,\"changes\":{}}{\"cursor\":null,\"changes\":{}}" },
+    { "name": "trailing comma-separated value", "path": "/auth/email/start", "fault": "trailing", "body": "{\"email\":\"asha@example.com\"},{}" },
+    { "name": "trailing number after whitespace", "path": "/auth/refresh", "fault": "trailing", "body": "{\"refresh_token\":\"rt_9f2c1e6b7a8d4c3b9e0f1a2b3c4d5e6f\"}\n1" },
+    { "name": "duplicate top-level key", "path": "/auth/email/start", "fault": "duplicate_key", "body": "{\"email\":\"asha@example.com\",\"email\":\"ravi@example.com\"}" },
+    { "name": "duplicate key, escaped spelling", "path": "/sync", "fault": "duplicate_key", "body": "{\"cursor\":null,\"changes\":{},\"\\u0063ursor\":null}" },
+    { "name": "duplicate key inside a record", "path": "/sync", "fault": "duplicate_key", "body": "{\"cursor\":null,\"changes\":{\"water_logs\":[{\"id\":\"2a7d9c4e-5b1f-4a3e-8c6d-0e9f1b2a3c4d\",\"version\":0,\"updated_at\":\"2026-10-08T09:00:10Z\",\"deleted_at\":null,\"date\":\"2026-10-08\",\"ml\":250,\"ml\":500}]}}" },
+    { "name": "duplicate table", "path": "/sync", "fault": "duplicate_key", "body": "{\"cursor\":null,\"changes\":{\"water_logs\":[],\"water_logs\":[]}}" }
+  ],
+  "must_accept": [
+    { "name": "compact", "path": "/sync", "body": "{\"cursor\":null,\"changes\":{}}" },
+    { "name": "whitespace around the value", "path": "/sync", "body": " \t{\"cursor\":null,\"changes\":{}}\r\n" },
+    { "name": "same key in sibling objects", "path": "/sync", "body": "{\"cursor\":null,\"changes\":{\"water_logs\":[{\"id\":\"2a7d9c4e-5b1f-4a3e-8c6d-0e9f1b2a3c4d\",\"version\":0,\"updated_at\":\"2026-10-08T09:00:10Z\",\"deleted_at\":null,\"date\":\"2026-10-08\",\"ml\":250},{\"id\":\"3b8e0d5f-6c2a-4b4f-9d7e-1f0a2c3b4d5e\",\"version\":0,\"updated_at\":\"2026-10-08T09:05:10Z\",\"deleted_at\":null,\"date\":\"2026-10-08\",\"ml\":250}]}}" },
+    { "name": "trailing newline", "path": "/auth/email/start", "body": "{\"email\":\"asha@example.com\"}\n" }
+  ]
+}

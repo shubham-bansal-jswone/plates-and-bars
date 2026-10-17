@@ -85,7 +85,7 @@ public class SyncService {
     }
 
     /** Unset, blank or 0 is no cap; anything else must be a positive whole number or the app refuses to start. */
-    private static long parseCap(String value) {
+    static long parseCap(String value) {
         if (value == null || value.isBlank()) {
             return 0;
         }

@@ -174,6 +174,29 @@ class SyncRecordCapIT extends SyncITBase {
     }
 
     @Test
+    void overALoweredLimitAPlainEditAndAnIdempotentRetryStillPass() {
+        String user = newUser();
+        seed(user, 8); // 8 stored, limit 5
+        List<String> ids = jdbc.queryForList("SELECT id FROM water_logs WHERE user_id = ? ORDER BY id", String.class, user);
+
+        // A plain edit (not a delete) of a stored record at the version the device last saw.
+        Resp edit = ok(user, req(null).add(SyncTable.water_logs, waterLog(ids.get(0), 1, LATER, null, 777)).build());
+        assertThat(edit.body().path("applied")).hasSize(1);
+        assertThat(count("SELECT COUNT(*) FROM water_logs WHERE user_id = ? AND id = ? AND version = 2", user, ids.get(0)))
+                .isEqualTo(1);
+
+        // The same push again (the device never saw the answer): a retry of a success, server_won, nothing written.
+        Resp retry = ok(user, req(null).add(SyncTable.water_logs, waterLog(ids.get(0), 1, LATER, null, 777)).build());
+        assertThat(retry.body().path("conflicts")).hasSize(1);
+        assertThat(retry.body().path("conflicts").get(0).path("resolution").asString()).isEqualTo("server_won");
+        assertThat(count("SELECT COUNT(*) FROM water_logs WHERE user_id = ? AND id = ? AND version = 2", user, ids.get(0)))
+                .isEqualTo(1);
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
+        assertThat(rows(user)).isEqualTo(8);
+        assertThat(counter(user)).isEqualTo(8);
+    }
+
+    @Test
     void aNewTombstoneIsANewRecord() {
         String user = newUser();
         fill(user, LIMIT);
