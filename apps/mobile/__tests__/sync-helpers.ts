@@ -66,6 +66,15 @@ export function fakeServer(userId: string) {
     hold: null as null | Promise<void>,
     /** Limits `hold` to one path (e.g. '/auth/refresh'). */
     holdPath: null as null | string,
+    /** Holds requests (see `holdPath`) until the returned function is called, which lets every request already waiting go on (nulling `hold` would not: a waiting request keeps the promise it captured). */
+    block(): () => void {
+      let release!: () => void;
+      s.hold = new Promise<void>((r) => (release = r));
+      return () => {
+        release();
+        s.hold = null;
+      };
+    },
     accessValid: 'access-1',
     refreshes: 0,
     refreshOk: true,
