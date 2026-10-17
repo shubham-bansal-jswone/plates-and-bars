@@ -93,7 +93,8 @@ class SyncIsolationIT extends SyncITBase {
         // B's push is newer than A's copy, which would be client_won if B's id collided with A's record.
         Resp r = ok(b, Req.of(null).add(SyncTable.water_logs, waterLog(rid, 0, "2026-10-08T11:45:00Z", null, 999)).build());
         assertThat(r.body().path("conflicts")).isEmpty();
-        assertThat(r.body().toString()).doesNotContain("replaced_record").doesNotContain("260");
+        assertThat(r.body().path("changes").path("water_logs")).as("nothing of A's is pulled by B").isEmpty();
+        assertThat(r.body().findValues("replaced_record")).isEmpty();
         assertThat(r.body().path("applied")).hasSize(1);
         assertThat(r.body().path("applied").get(0).path("version").asInt()).isEqualTo(1);
 
