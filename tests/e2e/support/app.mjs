@@ -71,9 +71,12 @@ export async function answerSetup(page, { age = '30', where = 'At a gym. Machine
   await label(page, 'Mostly sitting. Desk job, little walking (under ~5,000 steps)').click();
   await label(page, 'Continue').click();
   await label(page, days).click(); // '6', or 'None yet' for no training days
-  await label(page, where).click();
-  await label(page, 'Some experience. 6 months to 2 years of regular training').click();
-  await label(page, '60 min').click();
+  if (days !== 'None yet') {
+    // With no training days the setup asks nothing more about training.
+    await label(page, where).click();
+    await label(page, 'Some experience. 6 months to 2 years of regular training').click();
+    await label(page, '60 min').click();
+  }
   await label(page, 'Continue').click();
   await label(page, 'Lose fat. Steady fat loss while keeping muscle').click();
   await expect(page.getByText('Quick health check', { exact: true })).toBeVisible();
