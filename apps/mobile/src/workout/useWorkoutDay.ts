@@ -43,6 +43,8 @@ export interface Day {
 
 interface Options {
   db: WorkoutDb & PullDb;
+  /** The day shown (the viewed day, which may be a past one); today's date when not given. */
+  date?: string;
   profile: Profile | null;
   now: () => Date;
   focus: readonly string[];
@@ -63,15 +65,18 @@ interface Options {
   reloadKey?: number;
 }
 
+const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {} };
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
 
 /**
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
-  const date = localDate(now());
+export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustments, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
+  const date = shown ?? localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
+  /** The day the loaded session belongs to: while the viewed day is another one the screen is not ready, so no action runs against the old day's rows. */
+  const [loaded, setLoaded] = useState<string | null>(null);
   const ref = useRef(day);
   const commit = useCallback((d: Day) => {
     ref.current = d;
@@ -112,6 +117,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           lifts,
           sessions,
         });
+        setLoaded(date);
       });
     })().catch(() => notify('Couldn’t read your saved workout.'));
     return () => {
@@ -721,5 +727,5 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
+  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
 }

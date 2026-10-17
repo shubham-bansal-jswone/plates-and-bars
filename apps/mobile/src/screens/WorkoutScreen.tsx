@@ -33,6 +33,8 @@ import { useRules } from '../workout/useRules';
 import { useWorkoutDay } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 import { isBlank } from '../text/blank';
+import { DateBar } from '../components/DateBar';
+import { useViewedDate, type ViewedDate } from '../state/ViewedDate';
 
 interface Props {
   db: WorkoutDb & PullDb;
@@ -70,24 +72,26 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const rulesApi = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const { rules, addRule } = rulesApi;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
-  const w = useWorkoutDay({ db, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
+  const v = useViewedDate(now);
+  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
-  if (status !== 'ready' || !ready || !day.ready || !rules.ready) return <Page><Hint>Loading…</Hint></Page>;
+  if (status !== 'ready' || !ready || !day.ready || !rules.ready) return <Page><DateBar v={v} /><Hint>Loading…</Hint></Page>;
   if (!profile)
     return (
       <Page>
         <H1>Workout</H1>
+        <DateBar v={v} />
         <Hint>Finish setup first, so the app can plan your sessions.</Hint>
       </Page>
     );
 
   const body =
     day.exs.length === 0 ? (
-      <StartView key={w.date} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+      <StartView key={w.date} v={v} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
     ) : (
-      <SessionView db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+      <SessionView v={v} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
     );
   const where = day.workout?.where ?? profile.where;
   const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
@@ -120,7 +124,7 @@ const WHERE_CHOICES: [NonNullable<Workout['where']>, string][] = [['gym', 'Norma
 type W = ReturnType<typeof useWorkoutDay>;
 type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 
-function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
+function StartView({ v, w, profile, focus, rules, notify, tune }: { v: ViewedDate; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
@@ -157,6 +161,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
 
   return (
     <Page>
+      <DateBar v={v} />
       <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
       <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} />
@@ -258,7 +263,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   );
 }
 
-function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
+function SessionView({ v, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { v: ViewedDate; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const [open, setOpen] = useState(false);
@@ -298,6 +303,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
 
   return (
     <Page>
+      <DateBar v={v} />
       <H1>{wk.template || 'Session'}</H1>
       <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={{ color: c.muted, fontSize: 14 }}>
