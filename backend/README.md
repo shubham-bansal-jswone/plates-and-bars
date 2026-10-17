@@ -300,6 +300,8 @@ cd backend
 | `SMTP_FROM` | none, required outside the dev profile | Sender address of sign-in mails |
 | `SMTP_STARTTLS` | `true` | Require STARTTLS; set `false` only for a local test server. The app refuses to start if `SMTP_USER` or `SMTP_PASSWORD` is set while this is `false` |
 | `SYNC_MAX_RECORDS_PER_ACCOUNT` | empty (no cap) | Most records one account may store; over it, a push with new records is 413 `account_full`. Empty or `0` is off; see "Sync" |
+| `SENTRY_DSN` | empty (off) | Error tracking DSN (Sentry SDK, MIT, to GlitchTip or Sentry). Empty: the SDK is disabled and sends nothing. See "Error tracking" |
+| `SENTRY_ENVIRONMENT` | active Spring profile, else `dev` | Environment tag on events |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated web app origins, e.g. `https://app.example.com` |
 | `AUTH_COOKIE_ORIGINS` | empty | Comma-separated exact origins of the web app itself, the only ones that may use cookie mode for the refresh token (`X-Auth-Transport: cookie`). Separate from `CORS_ALLOWED_ORIGINS`; empty refuses cookie mode. See "Web refresh cookie" |
 | `SPRING_PROFILES_ACTIVE` | empty | `dev` swaps SMTP for the logging mail sender |
@@ -343,3 +345,20 @@ Secrets come from the environment only. Logs must never contain food, weight, he
 
 Package by feature under `app.plateandbar.api`: `health`, `auth`, `common` (shared error handling);
 later `sync`, `foods`, `content`, `ai`, `account`.
+
+## Error tracking (#687)
+
+`io.sentry:sentry-spring-boot-4` (MIT, built for Spring Boot 4 and Jakarta) reports unhandled server errors. It is on only
+when `SENTRY_DSN` is set; with no DSN the SDK is disabled and makes no network calls. `send-default-pii` is false, request
+bodies are never attached, no transactions or breadcrumbs are sent (a transaction filter drops them even if a client sends a
+`sentry-trace` header). The catch-all in `ApiExceptionHandler` reports real 500s explicitly (the SDK's resolver never sees them),
+never 4xx. `SentryScrubber` (a `beforeSend` callback) is the second line:
+it drops request bodies, query strings, cookies and every header except `User-Agent`, `Content-Type`, `Accept`; replaces
+the user with a SHA-256 based opaque id (no email, name or IP); blanks exception messages and log messages (they can echo
+submitted values); removes breadcrumbs and any tag, extra or context whose name looks like food, meal, weight, health,
+token, email, password, secret, cookie or auth; masks UUID path segments; and discards 4xx `ApiException`s. Tests
+(`SentryScrubberTest`, `SentryWiringTest`) serialize worst-case sync, auth and AI events and assert on the full JSON.
+
+Data protection (DPDP): the error-tracking service (self-hosted GlitchTip, or Sentry if a hosted DSN is used) is a data
+processor for these events. They hold exception types, stack traces, the method and path (UUIDs masked) and one hashed
+opaque account id, never health or food data. Record it in the privacy notice's processor list when a DSN is set in production.
