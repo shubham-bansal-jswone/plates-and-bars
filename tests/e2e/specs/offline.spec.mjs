@@ -3,7 +3,7 @@ import { completeSetup, expect, label, test } from '../support/app.mjs';
 // #718: a cold reload with no network starts the app from the service worker's cache (and the local database).
 test('after one online visit the app reloads and starts with the network off', async ({ page, context }) => {
   await completeSetup(page);
-  // The worker caches the shell on install and the SQLite wasm after the page reports it (about 5 s): wait for both.
+  // The worker caches the shell, bundles and the SQLite wasm on install: wait for it.
   await expect
     .poll(
       () =>

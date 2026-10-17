@@ -11,14 +11,6 @@ export function registerServiceWorker(): void {
   const register = () => {
     navigator.serviceWorker
       .register('/sw.js')
-      .then(() => navigator.serviceWorker.ready)
-      .then((reg) => {
-        // Tell the worker which files this load used (it cannot find the SQLite wasm by itself), now and once the database is up.
-        const report = () =>
-          reg.active?.postMessage({ type: 'loaded', urls: performance.getEntriesByType('resource').map((e) => e.name) });
-        report();
-        setTimeout(report, 5000);
-      })
       .catch(() => {}); // offline start is an extra; the app works without it
   };
   if (document.readyState === 'complete') register();

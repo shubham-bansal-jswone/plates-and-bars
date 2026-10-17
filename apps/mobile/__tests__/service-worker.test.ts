@@ -53,7 +53,7 @@ describe('service worker helpers', () => {
 });
 
 describe('precache and fetch', () => {
-  const files = { '/': HTML, [ENTRY]: `x("${WORKER}");y("${FONT}")`, [WORKER]: 'w', [FONT]: 'f' };
+  const files = { '/': HTML, [ENTRY]: `x("${WORKER}")`, [WORKER]: `y("${FONT}")`, [FONT]: 'f' };
 
   it('caches the shell with the response headers, then serves it when the network is down', async () => {
     const { stores } = install(files);

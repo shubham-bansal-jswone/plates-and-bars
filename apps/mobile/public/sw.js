@@ -41,13 +41,18 @@ async function precache(origin) {
   if (await caches.has(name)) return;
   const cache = await caches.open(name);
   try {
+    // Follow every script found (entry bundle, then the SQLite worker it names): the wasm path is only inside the worker.
     const paths = new Set(assetPaths(html));
-    for (const p of [...paths]) {
-      if (!/\.js$/.test(p)) continue;
+    const scripts = [...paths].filter((p) => /\.js$/.test(p));
+    while (scripts.length) {
+      const p = scripts.pop();
       const js = await fetch(p);
       if (!js.ok) throw new Error(p);
       await cache.put(p, js.clone());
-      for (const q of assetPaths(await js.text())) paths.add(q);
+      for (const q of assetPaths(await js.text())) {
+        if (!paths.has(q) && /\.js$/.test(q)) scripts.push(q);
+        paths.add(q);
+      }
     }
     for (const p of paths) {
       if (!(await cache.match(p))) {
@@ -100,22 +105,6 @@ if (typeof importScripts === 'function' && typeof self.skipWaiting === 'function
     if (request.method !== 'GET' || !cacheable(request.url, self.location.origin)) return;
     if (request.mode !== 'navigate' && !HASHED.test(new URL(request.url).pathname)) return;
     e.respondWith(onFetch(request, self.location.origin, (p) => e.waitUntil(p)));
-  });
-  // The page reports what it loaded (the SQLite wasm is only named inside the worker bundle, so no scan finds it).
-  self.addEventListener('message', (e) => {
-    if (!e.data || e.data.type !== 'loaded' || !Array.isArray(e.data.urls)) return;
-    e.waitUntil(
-      (async () => {
-        const c = await shellCache();
-        if (!c) return;
-        for (const u of e.data.urls) {
-          if (typeof u !== 'string') continue;
-          const url = new URL(u, self.location.origin);
-          if (url.origin !== self.location.origin || !HASHED.test(url.pathname) || !cacheable(u, self.location.origin)) continue;
-          if (!(await c.match(url.pathname))) await c.add(url.pathname).catch(() => {});
-        }
-      })(),
-    );
   });
 }
 
