@@ -229,6 +229,29 @@ for (const [name, ex] of Object.entries(fullExamples ?? {})) {
   const cap = v.record_cap;
   if (!cap || !(cap.stored + cap.new_records > cap.limit)) failures.push(`/sync 413 example ${name}: record_cap.stored + new_records must exceed limit`);
 }
+// Web refresh cookie (#250, ADR 006): one cookie name everywhere, every Set-Cookie example and the auth tag carry the
+// required attributes and no Domain, the cookie path covers refresh and revoke, and the cookie-mode body token is empty.
+const cookieName = parsed.components.parameters.RefreshCookie.name;
+const cookiePath = "/api/v1/auth/refresh";
+if (!cookieName.startsWith("__Secure-")) failures.push(`RefreshCookie: ${cookieName} lacks the __Secure- prefix`);
+for (const p of ["/auth/refresh", "/auth/refresh/revoke"]) if (!parsed.paths[p]) failures.push(`openapi.yaml: no ${p}`);
+const authTag = parsed.tags.find((t) => t.name === "auth").description;
+const cookieLines = [
+  ["auth tag", (authTag.match(/__Secure-[\w-]+=[^`]*/) ?? [""])[0]],
+  ...["SetRefreshCookie", "ClearRefreshCookie"].map((h) => [h, parsed.components.headers[h].example]),
+];
+for (const [where, line] of cookieLines) {
+  const attrs = line.split(";").map((a) => a.trim());
+  if (attrs[0].split("=")[0] !== cookieName) failures.push(`${where}: cookie name is not ${cookieName}`);
+  for (const a of [`Path=${cookiePath}`, "HttpOnly", "Secure", "SameSite=Strict"]) if (!attrs.includes(a)) failures.push(`${where}: Set-Cookie lacks ${a}`);
+  if (attrs.some((a) => /^domain=/i.test(a))) failures.push(`${where}: Set-Cookie must not set Domain`);
+}
+if (!/Max-Age=0(;|$)/.test(parsed.components.headers.ClearRefreshCookie.example)) failures.push("ClearRefreshCookie: Max-Age=0 missing");
+// The cookie that sets the token lives exactly as long as the refresh token: 90 days (refresh_token_expires_at).
+for (const [where, line] of cookieLines.filter(([w]) => w !== "ClearRefreshCookie")) {
+  if (!line.split(";").map((a) => a.trim()).includes(`Max-Age=${90 * 24 * 3600}`)) failures.push(`${where}: Set-Cookie must carry Max-Age=${90 * 24 * 3600} (90 days)`);
+}
+if (parsed.components.responses.TokenPair.content["application/json"].examples.cookie?.value.refresh_token !== "") failures.push("TokenPair cookie example: refresh_token must be empty");
 
 if (failures.length) {
   console.error(failures.join("\n"));
