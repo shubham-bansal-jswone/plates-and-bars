@@ -45,6 +45,7 @@ import Base from "../layouts/Base.astro";
     <li><strong>Email delivery</strong>: if you sign in with an email code, your email address and the code go through our email provider, [SMTP provider].</li>
     <li><strong>Hosting</strong>: our server runs at [hosting provider].</li>
     <li><strong>Backups</strong>: [backup arrangement: where nightly database backups are kept, and whether they are encrypted].</li>
+    <li><strong>Error tracking</strong>: when crash reporting is on, reports go to [error-tracking service host] (see "Crash and error reports").</li>
     <li><strong>AI service</strong>: AI features are off by default and you switch them on yourself; the app works without them. When you use one, the app sends the items below to our server, which passes them to [AI provider]. It never sends your name, email, photos, cycle or lab data.</li>
   </ul>
   <p>What each AI feature sends:</p>
@@ -62,6 +63,19 @@ import Base from "../layouts/Base.astro";
   <p>Our server does not save what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours.</p>
   <p>The app also fetches shared reference content (foods, exercises, cards and similar) from our server. This content is the same for everyone and contains none of your data.</p>
 
+  <h2>Crash and error reports</h2>
+  <p>Crash and error reporting is built in but stays off until we switch it on for a release. When it is on, the app and our server send error reports to [error-tracking service host], an error-tracking service we run ourselves that accepts Sentry-compatible reports. It acts as a data processor for us. We use reports only to find and fix bugs.</p>
+  <p>From the app, a report contains:</p>
+  <ul>
+    <li>the type of error and the stack frames (function name, file name without any query, line number);</li>
+    <li>device model, operating system and app version, plus the release and environment names;</li>
+    <li>a random install id kept on your device. It is not tied to your account, and it is different if you reinstall;</li>
+    <li>the type, category, level and time of earlier app events, with no message or content.</li>
+  </ul>
+  <p>From our server, a report contains the error type, the stack trace, the request method and path (ids in the path are masked) and one hashed account id that does not reveal your email, name or IP address.</p>
+  <p>Reports never contain food, weight, health answers, messages, email addresses, sign-in tokens, photos, or the text of the error. Request bodies, cookies and most headers are removed before a report leaves the app or the server. The error text is blanked because it can echo what you typed. No usage analytics, advertising or screenshots are sent.</p>
+  <p>The Android app declares the "network state" permission (ACCESS_NETWORK_STATE). The error-reporting library uses it to tell whether the phone is online when it sends a report.</p>
+
   <h2>Server logs</h2>
   <p>Our server logs never contain food, weight, health answers or tokens. They record an opaque internal user identifier with operational events such as sign-in, sync, deletion, export and AI requests (and, for AI, which feature, the outcome and how long it took).</p>
 
@@ -70,6 +84,7 @@ import Base from "../layouts/Base.astro";
     <li>Your account and records stay until you delete your account. The conflict log is bounded as described above.</li>
     <li>The anonymous monthly AI token total has no user id and stays when an account is deleted, so deleting an account does not give its AI use back to the shared budget.</li>
     <li>Backups: [planned policy to confirm: nightly backups kept for 30 days; after you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later].</li>
+    <li>Crash and error reports: kept for [error report retention period], then deleted. A report holds no health data and only an opaque id, so deleting your account does not remove it.</li>
     <li>Server logs record opaque user ids and are kept for a bounded period. Log retention: [log retention period].</li>
   </ul>
 
