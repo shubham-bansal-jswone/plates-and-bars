@@ -27,3 +27,14 @@ export function exerciseNameTooLong(name: string): boolean {
 
 /** Most custom exercises the contract keeps (`Settings.custom_tags` maxProperties): a new one past this is refused (#312). */
 export const CUSTOM_EXERCISES_MAX = 500;
+
+/** Most entries the contract keeps in `Settings.exercise_overrides` (maxProperties): a new exercise past this is refused (#620). */
+export const EXERCISE_OVERRIDES_MAX = 500;
+
+/**
+ * True when saving an override for `name` would take `overrides` past `EXERCISE_OVERRIDES_MAX` (500): `name` has no
+ * entry yet and the list is already full. Replacing an existing entry is always allowed (#620). The prototype has no cap.
+ */
+export function exerciseOverridesWouldExceed(overrides: Readonly<Record<string, unknown>>, name: string): boolean {
+  return !Object.prototype.hasOwnProperty.call(overrides, name) && Object.keys(overrides).length >= EXERCISE_OVERRIDES_MAX;
+}
