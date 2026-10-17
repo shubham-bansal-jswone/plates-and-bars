@@ -21,7 +21,9 @@ export function focusSheetTitle(title: string): boolean {
 }
 
 const TICK_MS = 16;
-const GIVE_UP_TICKS = 60; // about a second, then leave focus where the trap put it
+// About two seconds, then leave focus where the trap put it: a slow first paint on a loaded device can take longer than a
+// second, and the fix would become a coin flip. Closing the sheet cancels the retry (the unmount cleanup clears it).
+const GIVE_UP_TICKS = 125;
 
 /**
  * Every full-screen sheet: a modal with an accessible name (`title`, the same text as its heading) so the web dialog is
@@ -31,6 +33,12 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   const opener = useRef<HTMLElement | null | undefined>(undefined);
   if (opener.current === undefined) opener.current = Platform.OS === 'web' ? activeElement() : null; // before the modal takes focus
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Read through a ref: a sheet whose title changes while the retry runs still searches for the name on screen, not the
+  // one captured when `onShow` fired. Synced in an effect (React forbids writing a ref during render).
+  const titleRef = useRef(title);
+  useEffect(() => {
+    titleRef.current = title;
+  });
   // Unmount only (not on a title change): give focus back to the opener and cancel a pending title focus.
   useEffect(
     () => () => {
@@ -44,7 +52,7 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
     if (Platform.OS !== 'web') return;
     clearTimeout(timer.current);
     const attempt = (left: number) => {
-      if (!focusSheetTitle(title) && left > 0) timer.current = setTimeout(() => attempt(left - 1), TICK_MS);
+      if (!focusSheetTitle(titleRef.current) && left > 0) timer.current = setTimeout(() => attempt(left - 1), TICK_MS);
     };
     attempt(GIVE_UP_TICKS);
   };
