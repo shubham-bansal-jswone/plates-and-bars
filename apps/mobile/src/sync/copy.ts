@@ -30,6 +30,8 @@ export const SIGN_IN_COPY = {
   rejectedAfterSetAside: 'The server refused this sync after some records were set aside. Your changes are safe on this device; we will try again later. Update the app if it keeps happening.',
   failed: 'Sync stopped because of a problem on this device. Your records are safe; try again, and update the app if it keeps happening.',
   retrying: 'We could not reach the server. Your changes are safe on this device and we will try again.',
+  accountFullHint: 'Your account is full, so new entries stay on this device and are not backed up',
+  accountFull: 'Your account is full. New entries stay on this device and are not backed up. Changes to entries that are already backed up keep syncing, and we will try the new ones again later.',
   conflicts: (n: number) => `${n} ${n === 1 ? 'record was' : 'records were'} changed on another device more recently, so that version was kept.`,
   quarantined: (n: number) => `${n} ${n === 1 ? 'record was' : 'records were'} refused by the server or too large to sync, so ${n === 1 ? 'it was' : 'they were'} set aside and everything else kept syncing. ${n === 1 ? 'It stays' : 'They stay'} on this device. Try again later, or stop trying to send ${n === 1 ? 'it' : 'them'}.`,
   retryQuarantined: 'Try the refused records again',

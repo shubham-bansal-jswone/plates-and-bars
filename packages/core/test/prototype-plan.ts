@@ -72,6 +72,8 @@ export interface ProtoState {
 export interface Proto {
   S: ProtoState;
   planned(date: string): string | null;
+  missed(date: string): { date: string; t: string } | null;
+  CONDENSED: Record<string, string[]>;
   mapForWhere(names: string[], where: string): string[];
   resolveSession(names: string[], where: string): { name: string; bridge?: boolean }[];
   trimSession(items: unknown[], t: string): { name: string; bridge?: boolean }[];
@@ -99,6 +101,7 @@ export function loadProto(): Proto {
     sliceBlock(src, 'const TEMPLATES = {', '};'),
     sliceLine(src, 'const ORDER = '),
     sliceBlock(src, 'Object.assign(TEMPLATES, {', '});'),
+    sliceLine(src, 'const addDays = '),
     sliceLine(src, 'const adjState = '),
     sliceLine(src, 'const mondayOf = '),
     sliceLine(src, 'const daysBetween = '),
@@ -106,6 +109,8 @@ export function loadProto(): Proto {
     sliceLine(src, 'function lastSession(before){'),
     sliceLine(src, 'const inRange = '),
     sliceBlock(src, 'function planned(date){', '}'),
+    sliceBlock(src, 'function missed(date){', '}'),
+    sliceLine(src, 'const CONDENSED = '),
     sliceBlock(src, 'const SPLITS = {', '};'),
     sliceBlock(src, 'function splitFor(){', '}'),
     sliceLine(src, 'const planList = '),
@@ -135,7 +140,7 @@ export function loadProto(): Proto {
     'const lastFor = n => S.last[n] === undefined ? null : { sets: Array.from({ length: S.last[n] }) };',
     'const needsClearance = () => S.clearance, labHoldOn = () => false;',
     'const whereNow = () => S.day.workout.where || (S.settings.profile && S.settings.profile.where) || "gym";',
-    'return { S, planned, mapForWhere, resolveSession, trimSession, applyFocus, setsFor, buildSession, TEMPLATES, SPLITS };',
+    'return { S, planned, missed, CONDENSED, mapForWhere, resolveSession, trimSession, applyFocus, setsFor, buildSession, TEMPLATES, SPLITS };',
   ].join('\n');
   return new Function('TAGS', 'CARDS', 'AWAY', code)(g.tags, g.cards, g.awayMap_dumbbells_bodyweight) as Proto;
 }

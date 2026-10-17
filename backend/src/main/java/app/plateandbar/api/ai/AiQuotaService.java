@@ -6,7 +6,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -18,6 +22,9 @@ public class AiQuotaService {
 
     /** A unit held for one call; hand it back to {@link #release} if the call does not end in a 200. */
     public record Reservation(String userId, LocalDate day, AiFeature feature, AiQuota quota) {}
+
+    private static final Logger log = LoggerFactory.getLogger(AiQuotaService.class);
+    static final int ALERT_PERCENT = 80;
 
     private final AiUsageRepository usage;
     private final AiProperties props;
@@ -102,6 +109,26 @@ public class AiQuotaService {
     @Transactional
     public void recordTokens(Reservation r, int inputTokens, int outputTokens) {
         usage.addTokens(r.userId(), r.day(), r.feature(), inputTokens, outputTokens);
+        long budget = props.getMonthlyBudgetTokens();
+        LocalDate month = r.day().withDayOfMonth(1);
+        if (budget > 0 && usage.markAlertSent(month, budget, ALERT_PERCENT)) {
+            // After commit, so a rolled-back transaction (which also rolls back the flag) never leaves a stray WARN.
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        budgetAlert(month, budget);
+                    }
+                });
+            } else {
+                budgetAlert(month, budget);
+            }
+        }
+    }
+
+    /** The one place a notifier can hook in later. Aggregate figures only, no user data. */
+    private void budgetAlert(LocalDate month, long budget) {
+        log.warn("AI monthly token budget passed {}% for {} (budget {} tokens)", ALERT_PERCENT, month, budget);
     }
 
     private LocalDate today() {

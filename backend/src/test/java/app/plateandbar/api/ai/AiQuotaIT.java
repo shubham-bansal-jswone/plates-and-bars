@@ -229,7 +229,7 @@ class AiQuotaIT extends AiITBase {
         quotas.recordTokens(held, 1, 1);
         assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.columns"
                 + " WHERE table_schema = DATABASE() AND table_name = 'ai_spend_monthly'", String.class))
-                .containsExactlyInAnyOrder("month", "tokens");
+                .containsExactlyInAnyOrder("month", "tokens", "alert_sent");
         assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-10-01'", Long.class))
                 .isEqualTo(17L);
     }
@@ -251,5 +251,75 @@ class AiQuotaIT extends AiITBase {
         assertThat(jdbc.queryForObject("SELECT tokens FROM ai_spend_monthly WHERE month = '2026-10-01'", Long.class))
                 .isEqualTo(460L);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_spend_monthly", Integer.class)).isEqualTo(2);
+    }
+
+    private List<String> captureWarns(Runnable body) {
+        ch.qos.logback.classic.Logger lg = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AiQuotaService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> app = new ch.qos.logback.core.read.ListAppender<>();
+        app.start();
+        lg.addAppender(app);
+        try {
+            body.run();
+        } finally {
+            lg.detachAppender(app);
+        }
+        return app.list.stream().filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                .map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage).toList();
+    }
+
+    @Test
+    void crossingEightyPercentLogsOneWarnPerMonthAndSurvivesARestart() {
+        String u = newUser();
+        var r = quotas.reserve(u, AiFeature.ASK_WHY);
+        List<String> warns = captureWarns(() -> {
+            quotas.recordTokens(r, 300, 400); // 700: under
+            quotas.recordTokens(r, 50, 50); // 800: exactly 80%
+            quotas.recordTokens(r, 10, 10); // still over, no second WARN
+        });
+        assertThat(warns).hasSize(1);
+        assertThat(warns.get(0)).contains("80%", "2026-10-01").doesNotContain(u);
+        assertThat(jdbc.queryForObject("SELECT alert_sent FROM ai_spend_monthly WHERE month = '2026-10-01'", Integer.class)).isEqualTo(1);
+        // the flag is in the database, so the same condition after a restart stays quiet
+        assertThat(captureWarns(() -> quotas.recordTokens(r, 1, 1))).isEmpty();
+        // next month it fires again
+        clock.advance(Duration.ofDays(24));
+        var r2 = quotas.reserve(u, AiFeature.ASK_WHY);
+        assertThat(captureWarns(() -> quotas.recordTokens(r2, 450, 450))).hasSize(1);
+    }
+
+    @Test
+    void belowEightyPercentLogsNothing() {
+        String u = newUser();
+        var r = quotas.reserve(u, AiFeature.ASK_WHY);
+        assertThat(captureWarns(() -> quotas.recordTokens(r, 399, 400))).isEmpty();
+    }
+
+    @Test
+    void twoConcurrentRequestsCrossingTheThresholdLogOneWarn() throws Exception {
+        String a = newUser();
+        String b = newUser();
+        var ra = quotas.reserve(a, AiFeature.ASK_WHY);
+        var rb = quotas.reserve(b, AiFeature.ASK_WHY);
+        jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES ('2026-10-01', 700)");
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<String> warns = captureWarns(() -> {
+                CountDownLatch go = new CountDownLatch(1);
+                List<Future<?>> fs = List.of(
+                        pool.submit(() -> { go.await(); quotas.recordTokens(ra, 60, 60); return null; }),
+                        pool.submit(() -> { go.await(); quotas.recordTokens(rb, 60, 60); return null; }));
+                go.countDown();
+                for (Future<?> f : fs) {
+                    try {
+                        f.get();
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            });
+            assertThat(warns).hasSize(1);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 }

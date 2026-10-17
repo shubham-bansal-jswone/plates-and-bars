@@ -15,7 +15,7 @@ on:
       - 'content/**'
       - 'packages/api/openapi.yaml'
       - 'infra/staging/**'
-      - 'infra/caddy/Caddyfile.api'
+      - 'infra/caddy/**'
       - '.github/workflows/staging-deploy.yml'
   workflow_dispatch:
 

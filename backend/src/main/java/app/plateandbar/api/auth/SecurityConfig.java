@@ -30,7 +30,7 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
  * (see {@link JwtAuthFilter}). Failures use the contract's Error shape.
  */
 @Configuration
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, CookieModeProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -41,7 +41,8 @@ public class SecurityConfig {
             RateLimiter limiter,
             ClientIpResolver clientIps,
             RateLimitProperties limits,
-            UserExistenceCheck users)
+            UserExistenceCheck users,
+            CookieModeProperties cookieMode)
             throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, ex) -> writeUnauthorized(mapper, response);
         AccessDeniedHandler denied = (request, response, ex) -> writeUnauthorized(mapper, response);
@@ -59,26 +60,60 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(denied))
                 .addFilterBefore(jwtFilter, AnonymousAuthenticationFilter.class)
                 .addFilterAfter(rateLimitFilter, JwtAuthFilter.class)
+                // Cookie mode's Origin check: after the rate limit (429 before 403), before the body is read (403 before 400).
+                .addFilterAfter(new CookieModeOriginFilter(cookieMode, mapper), RateLimitFilter.class)
                 .cors(Customizer.withDefaults());
         return http.build();
     }
 
     /**
-     * Only the configured web app origins may call the API from a browser. Auth is a bearer header, not a cookie,
-     * so credentials are not allowed. With no origins configured every cross-origin request is refused.
+     * Exact origins only, never {@code *}. Auth is a bearer header, so no response allows credentials, with one exception
+     * (ADR 006): on {@code /api/v1/auth/**} an origin listed in {@code app.auth.cookie-origins} gets
+     * {@code Access-Control-Allow-Credentials: true} and its preflights may name {@code X-Auth-Transport}, so the web
+     * app can send and receive the refresh cookie. Cookie-mode origins are also allowed everywhere else, without
+     * credentials, because the web app's own origin must reach the bearer endpoints too. With no origins configured
+     * every cross-origin request is refused.
+     * <p>
+     * A cookie-mode request ({@code X-Auth-Transport: cookie}, not a preflight) on {@code /auth/**} from any other
+     * origin gets no CORS answer here instead of the filter's plain 403, so it reaches the rate limit and then
+     * {@link CookieModeOriginFilter}, which refuses it with 403 {@code forbidden} in the {@code Error} shape. A browser
+     * on such an origin never gets that far: its preflight is refused (the header is not allowed there).
      */
     @Bean
-    CorsConfigurationSource corsConfigurationSource(CorsProperties props) {
+    CorsConfigurationSource corsConfigurationSource(CorsProperties props, CookieModeProperties cookieMode) {
+        List<String> origins = java.util.stream.Stream.concat(props.allowedOrigins().stream(), cookieMode.cookieOrigins().stream())
+                .distinct()
+                .toList();
+        List<String> headers = List.of("Authorization", "Content-Type", "Accept", "If-None-Match");
+        CorsConfiguration bearer = cors(origins, headers, false);
+        CorsConfiguration withCookies =
+                cors(origins, java.util.stream.Stream.concat(headers.stream(), java.util.stream.Stream.of(CookieMode.HEADER)).toList(), true);
+        UrlBasedCorsConfigurationSource everywhere = new UrlBasedCorsConfigurationSource();
+        everywhere.registerCorsConfiguration("/api/**", bearer);
+        return request -> {
+            if (CookieMode.path(request).startsWith(CookieMode.AUTH_PREFIX)) {
+                String origin = request.getHeader("Origin");
+                if (origin != null && cookieMode.cookieOrigins().contains(origin)) {
+                    return withCookies;
+                }
+                boolean preflight = "OPTIONS".equals(request.getMethod());
+                if (!preflight && CookieMode.requested(request)) {
+                    return null;
+                }
+            }
+            return everywhere.getCorsConfiguration(request);
+        };
+    }
+
+    private static CorsConfiguration cors(List<String> origins, List<String> headers, boolean credentials) {
         CorsConfiguration cors = new CorsConfiguration();
-        cors.setAllowedOrigins(props.allowedOrigins());
+        cors.setAllowedOrigins(origins);
         cors.setAllowedMethods(List.of("GET", "POST", "DELETE"));
         cors.setExposedHeaders(List.of("Retry-After", "ETag"));
-        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "If-None-Match"));
-        cors.setAllowCredentials(false);
+        cors.setAllowedHeaders(headers);
+        cors.setAllowCredentials(credentials);
         cors.setMaxAge(3600L);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", cors);
-        return source;
+        return cors;
     }
 
     private static void writeUnauthorized(ObjectMapper mapper, jakarta.servlet.http.HttpServletResponse response)
