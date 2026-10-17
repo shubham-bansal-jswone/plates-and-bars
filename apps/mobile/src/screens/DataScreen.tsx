@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { buildLocalExport } from '../account/exportLocal';
@@ -8,6 +8,7 @@ import type { DeleteResult, ServerExportResult } from '../account/server';
 import { Button, ErrorText, H1, Hint, Note, Page } from '../components/ui';
 import { LegalLinks } from '../legal/LegalLinks';
 import type { WorkoutDb } from '../db/workouts';
+import { hasConsent } from '../sync/engine';
 import { useSync } from '../sync/SyncProvider';
 
 type Step = 'home' | 'confirm' | 'done';
@@ -28,6 +29,15 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   const [error, setError] = useState<string | null>(null);
   const [deleted, setDeleted] = useState<DeleteResult | null>(null);
   const [deviceOnly, setDeviceOnly] = useState(false);
+  // Signed in is not enough: without the data_storage consent the engine stops at consent_required and uploads nothing.
+  const [consented, setConsented] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void hasConsent(db).then((ok) => live && setConsented(ok), () => live && setConsented(false));
+    return () => {
+      live = false;
+    };
+  }, [db, s.signedIn, s.last, s.dataVersion]);
 
   const run = async (f: () => Promise<void>) => {
     if (busy) return;
@@ -128,6 +138,10 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
+      {/* A signed-in user's consent is read async; show no storage line until it is known rather than a wrong one. */}
+      {s.signedIn && consented === null ? null : (
+        <Hint>{`${s.signedIn && consented ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
+      )}
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
       {message ? <Note>{message}</Note> : null}
