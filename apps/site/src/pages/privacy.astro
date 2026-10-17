@@ -81,7 +81,7 @@ import Base from "../layouts/Base.astro";
 
   <h2>Server logs</h2>
   <p>Our server logs never contain food, weight, health answers or tokens. They record an opaque internal user identifier with operational events such as sign-in, sync, deletion, export and AI requests (and, for AI, which feature, the outcome and how long it took).</p>
-  <p>The web servers in front of our API and the web app also keep an access log, with one line per request: the time, the method, the path without the query string (the part after "?"), the status, the response size, how long it took, the host name, technical connection details (the HTTP and TLS versions, the cipher and the port number your device used) and your IP address with its end masked (IPv4 to /24, IPv6 to /48), so it points to a block of addresses rather than one device. It has no user id and holds no request or response headers (so no cookies, sign-in tokens or user-agent) and no request bodies. When these servers log an error about a request (for example when the API cannot be reached), that line is filtered the same way.</p>
+  <p>The web servers in front of our API and the web app also keep an access log, with one line per request: the time, the method, the path without the query string (the part after "?"), the status, the request and response sizes, how long it took, the host name, technical connection details (the HTTP and TLS versions, the cipher and the port number your device used) and your IP address with its end masked (IPv4 to /24, IPv6 to /48), so it points to a block of addresses rather than one device. It has no user id and holds no request or response headers (so no cookies, sign-in tokens or user-agent) and no request bodies. When these servers log an error about a request (for example when the API cannot be reached), that line is filtered the same way.</p>
 
   <h2>Retention</h2>
   <ul>
@@ -89,7 +89,7 @@ import Base from "../layouts/Base.astro";
     <li>The anonymous monthly AI token total has no user id and stays when an account is deleted, so deleting an account does not give its AI use back to the shared budget.</li>
     <li>Backups: [planned policy to confirm: nightly backups kept for 30 days; after you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later].</li>
     <li>Crash and error reports: kept for [error report retention period], then deleted. A report holds no health data and only an opaque id, so deleting your account does not remove it. [Lawyer review: the hashed account id in server reports is a pseudonym that we can recompute while your account exists, so confirm whether reports must be deleted with the account.]</li>
-    <li>Access logs of the web servers: kept 14 days, then deleted.</li>
+    <li>Access logs of the web servers: kept for at most about 15 days, then deleted.</li>
     <li>Server logs record opaque user ids and are kept for a bounded period. Retention: [retention of the API's own logs and of server error lines, to be set].</li>
   </ul>
 
