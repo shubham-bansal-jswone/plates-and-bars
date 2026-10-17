@@ -76,7 +76,8 @@ export function scrubEvent<T extends ErrorEvent>(event: T, installId: string | n
       values: values.map((v) => {
         const frames = (v.stacktrace as { frames?: Rec[] } | undefined)?.frames;
         return {
-          ...pick(v, ['type', 'module', 'thread_id', 'mechanism']),
+          ...pick(v, ['type', 'module', 'thread_id']),
+          ...(v.mechanism && typeof v.mechanism === 'object' ? { mechanism: pick(v.mechanism as Rec, ['type', 'handled', 'synthetic']) } : {}), // not description, data or meta: they can carry values
           value: '', // blanked: may quote a food name or a weight
           ...(frames ? { stacktrace: { frames: frames.map(scrubFrame) } } : {}),
         };
