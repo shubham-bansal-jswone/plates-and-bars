@@ -197,7 +197,7 @@ describe('progress photos, review on #431', () => {
     await act(async () => {
       mockVault.wiped.forEach((f) => f(true));
       openOld();
-      await new Promise((r) => setTimeout(r, 0));
+      await new Promise<void>((r) => setImmediate(r));
     });
     expect(screen.queryByText('1 Oct')).toBeNull();
     await act(async () => openNew());
@@ -218,10 +218,10 @@ describe('progress photos, review on #431', () => {
     await act(async () => mockVault.wiped.forEach((f) => f(false)));
     expect(screen.queryByLabelText('Check-in 1 Oct')).toBeNull();
     expect(await screen.findByText('Couldn’t open your photos on this device. Try again.')).toBeTruthy();
-    await act(async () => new Promise((r) => setTimeout(r, 50)));
+    await act(async () => new Promise<void>((r) => setImmediate(r)));
     expect(mockVault.calls.filter((c) => c === 'wipe')).toHaveLength(0);
     await fireEvent.press(screen.getByLabelText('Try again'));
-    await act(async () => new Promise((r) => setTimeout(r, 50)));
+    await act(async () => new Promise<void>((r) => setImmediate(r)));
     expect(mockVault.calls.filter((c) => c === 'wipe')).toHaveLength(1);
     expect(screen.getByText('Couldn’t open your photos on this device. Try again.')).toBeTruthy();
     mockWipe.mockImplementation(async () => void mockVault.calls.push('wipe'));
