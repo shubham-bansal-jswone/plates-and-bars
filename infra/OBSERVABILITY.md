@@ -73,3 +73,15 @@ The backup heartbeat is a `curl` at the end of `infra/staging/backup.sh`, sent o
 1. Accept GlitchTip + Uptime Kuma, or prefer a different open-source stack.
 2. Where Uptime Kuma runs (second Oracle VM, or a machine you own).
 3. Alert channel: email via an SMTP account you already have, or a self-hosted ntfy (not the public ntfy.sh).
+
+## Caddy access log (#714)
+
+`infra/caddy/Caddyfile.api` and `Caddyfile.web` each write a JSON access log with Caddy's `log` directive and the `filter` encoder, to `/data/api_access.log` and `/data/web_access.log` (the `caddy_data` volume of `infra/staging/docker-compose.yml`).
+
+- Kept: timestamp, method, path, status, response size, duration, TLS version, host.
+- Masked: the client IP (`remote_ip`, `client_ip`) to /24 (IPv4) or /48 (IPv6).
+- Removed: the query string (it can carry an e-mail address), every request header (`Authorization`, `Cookie`, `X-Forwarded-For`, `User-Agent`), every response header (`Set-Cookie`). Caddy never logs request bodies.
+- Retention: `roll_keep_for 336h` (14 days), rolled every 24 hours (`roll_interval 24h`, so the 14 days hold on a quiet host too), also at 10 MiB, at most 15 files. The privacy page still has the placeholder "[log retention period]" in `apps/site/src/pages/privacy.astro` (Website lane); it should say 14 days for server logs. The API's own logs are `docker compose logs api` and follow Docker's log driver, not this setting.
+- Checks: `infra/scripts/check-caddy-access-log.sh` (grep for each filter; tested by `test-check-caddy-access-log.sh`), `caddy validate` in the `site-deploy.yml` job, and `infra/scripts/test-web-caddy.sh`, which sends a request with a query string, `Authorization`, `Cookie` and `X-Forwarded-For` and asserts none of them reach the log, then does the same with the API upstream down and asserts the 5xx error line holds no raw IP, query, `User-Agent` or `X-Forwarded-For`. The check script pins `ipv4 24`, `ipv6 48`, `roll_interval 24h` and `roll_keep_for 336h`.
+- Error log: Caddy's own errors (a 502 or 503 with the API down carries the request) go to stderr (`docker compose logs caddy`) through a global `log errors` block in `infra/caddy/Caddyfile.stack` (a global block cannot live in an imported file) with the same IP mask, query cut and header drop. Using `Caddyfile.api` or `.web` alone, copy that block to its top. Docker's log driver sets how long stderr is kept.
+- Read it: `docker compose exec caddy tail -n 100 /data/api_access.log`. Caddy does not ship it anywhere.
