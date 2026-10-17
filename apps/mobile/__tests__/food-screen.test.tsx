@@ -696,6 +696,26 @@ describe('Low on protein add-on', () => {
     expect(screen.queryByText(/egg whites/)).toBeNull();
   });
 
+  it('logs three egg whites for the egg-white add-on (qty 3, three times the values)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    seed(db, [{ id: 'big', meal: 'Dinner', name: 'X', kcal: 1848, protein_g: 40 }, ...lunch]);
+    await setup({ db });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add 3 egg whites to lunch' }));
+    await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.name === 'Egg white')).toHaveLength(1));
+    expect(docs(db, 'food_logs').find((l) => l.name === 'Egg white')).toMatchObject({ meal: 'Lunch', qty: 3, kcal: 17, protein_g: 3.6 });
+  });
+
+  it('works out the room from the base target, not the target a flex day raises', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    // base 1,990: 40 kcal left, so egg whites fit; with +300 flex shown (2,290) whey (120 kcal) would fit and win
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: [{ id: 'flex-1', date: DATE, kcal_delta: 300 }] });
+    seed(db, [{ id: 'big', meal: 'Dinner', name: 'X', kcal: 1848, protein_g: 40 }, ...lunch]);
+    await setup({ db });
+    expect(await screen.findByText(/^Low on protein\. Add 3 egg whites/)).toBeTruthy();
+  });
+
   it('is not shown for Snacks, for an empty meal or at 20 g or more', async () => {
     const db = memoryDb();
     await saveProfile(db, profile());

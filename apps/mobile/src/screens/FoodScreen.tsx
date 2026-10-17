@@ -99,9 +99,11 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     notify(plannedLogged(meal, skipped, items.length - skipped.length));
   };
 
+  // The add-on's room is the base target less what is eaten (prototype `S.settings.kcal`), not the shown target with flex days and the lab hold.
+  const baseTarget = kcalTarget(f.date, { flex: [] }, profile);
   // The Food tab shows today only, so the day shown is today (core's add-on is for today only).
   const upgradeFor = (meal: Meal): ProteinUpgrade<CatalogFood> | null =>
-    proteinUpgrade({ meal, date: f.date, today: f.date, items: f.logs.filter((l) => l.meal === meal), kcalLeft: left, foods: getFoodCatalog(), planning: getMealPlanning(), diet: settings.diet });
+    proteinUpgrade({ meal, date: f.date, today: f.date, items: f.logs.filter((l) => l.meal === meal), kcalLeft: baseTarget - t.kcal, foods: getFoodCatalog(), planning: getMealPlanning(), diet: settings.diet });
 
   return (
     <View style={styles.fill}>
