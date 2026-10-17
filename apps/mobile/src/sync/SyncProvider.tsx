@@ -13,12 +13,14 @@ import { discardQuarantined, quarantineCount, retryQuarantined } from './quarant
 import { isAccountFull } from './held';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
-import { onSignInUnavailable, signInUnavailable as readSignInUnavailable } from './cookieHealth';
+import { allowOneAttempt, cancelAttempt, clearSignInUnavailable, onSignInUnavailable, signInUnavailable as readSignInUnavailable, takeAttempt } from './cookieHealth';
 import { cookieMode } from './transport';
 import { dropLegacyWebTokens, markSignOutPending, revokeCookie, signOutPending } from './webSession';
 
 /** How often a signed-in device syncs, besides on app start, on returning to the app and when the network is back. */
 export const SYNC_INTERVAL_MS = 30_000;
+/** While sign-in is flagged unavailable (#744), one refresh is tried this often, in case the site was fixed. */
+export const SIGN_IN_RECHECK_MS = 600_000;
 const MAX_BACKOFF_MS = 300_000;
 
 export interface SyncState {
@@ -210,12 +212,24 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   // Web: cookie-mode calls fail while the API answers (#744): say so. The runs themselves send nothing meanwhile (the engine
   // ends them `sign_in_unavailable` before any request), and carry on by themselves once a cookie-mode call gets through.
   useEffect(() => onSignInUnavailable(setSignInUnavailable), []);
+  // The browser coming back online forgets the verdict (the cause may have been the network); a slow timer lets one refresh
+  // through in case the site was fixed while the page stayed open.
+  useEffect(() => {
+    if (!cookieMode()) return;
+    const online = () => clearSignInUnavailable();
+    if (typeof window !== 'undefined') window.addEventListener('online', online);
+    const timer = setInterval(allowOneAttempt, SIGN_IN_RECHECK_MS);
+    return () => {
+      clearInterval(timer);
+      if (typeof window !== 'undefined') window.removeEventListener('online', online);
+    };
+  }, []);
 
   // Web: a sign-out that did not reach the server is retried until it does (the cookie would otherwise sign the user back in),
   // unless sign-in is known to be unavailable from this site: the call cannot work and is not retried in a loop.
   useEffect(() => {
     if (!api || !cookieMode()) return;
-    const timer = setInterval(() => signOutPending() && !readSignInUnavailable() && void revokeCookie(api), SYNC_INTERVAL_MS);
+    const timer = setInterval(() => signOutPending() && (!readSignInUnavailable() || takeAttempt()) && void revokeCookie(api), SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [api]);
 
@@ -246,7 +260,15 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         await discardQuarantined(db);
         await refreshPending();
       },
-      syncNow,
+      // A user pressed Sync now: while sign-in is flagged unavailable this may try one refresh (the scheduler's runs may not).
+      syncNow: async () => {
+        allowOneAttempt();
+        try {
+          return await runSync(false);
+        } finally {
+          cancelAttempt();
+        }
+      },
       startSignIn: async (email) => (api ? startEmailSignIn(api, email) : { ok: false, reason: 'unavailable' }),
       verifyCode: async (email, code) => {
         if (!api) return { kind: 'error', reason: 'unavailable' };

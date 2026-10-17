@@ -9,7 +9,7 @@ import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, 
 import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
-import { signInUnavailable, trackCookieCall } from './cookieHealth';
+import { signInUnavailable, takeAttempt, trackCookieCall } from './cookieHealth';
 import { authInit, cookieMode, refreshBody } from './transport';
 import { markSignOutPending, postRevoke, signOutPending, withTabLock } from './webSession';
 import { deleteKitchenPhoto } from '../photos/vault';
@@ -173,10 +173,11 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
 
 /**
  * `refresh` for a sync run. While sign-in is known to be unavailable from this site (#744) it sends nothing: the run ends
- * `sign_in_unavailable` instead of trying a call that cannot work, so no retry loop runs behind the message.
+ * `sign_in_unavailable` instead of trying a call that cannot work, so no retry loop runs behind the message. One attempt is let
+ * through when something asked for it (`allowOneAttempt`).
  */
 async function refreshForRun(d: SyncDeps, owner: string | null): Promise<boolean> {
-  if (cookieMode() && signInUnavailable()) throw new TransientError(fail('sign_in_unavailable'));
+  if (cookieMode() && signInUnavailable() && !takeAttempt()) throw new TransientError(fail('sign_in_unavailable'));
   return refresh(d, owner);
 }
 

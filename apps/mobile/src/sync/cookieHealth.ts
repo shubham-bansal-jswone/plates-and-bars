@@ -8,6 +8,12 @@ import { cookieMode } from './transport';
 // `GET /health` (no credentials, no custom header, an origin the web CSP's connect-src already allows), gets an answer. Then
 // the site is misconfigured, and the app says so instead of "offline" and stops retrying on its own. Nothing here logs or
 // keeps a token, an address or a user value.
+//
+// What it detects: the API answers a plain cross-origin GET from this page (so CORS allows this origin) but not the credentialed
+// cookie-mode calls (the origin is not in the backend's cookie-mode origin list, or the preflight for `X-Auth-Transport` is
+// refused). What it does not: an origin missing from CORS altogether (`/health` fails too, so it reads as offline); an API that
+// is down; a cookie the browser stores but never sends (cross-site or http deployment: the calls get answers, and refresh says
+// 401 like a signed-out user); a proxy that drops only some requests.
 
 /** Consecutive network failures of cookie-mode calls before `/health` is asked. */
 export const COOKIE_FAILURES_BEFORE_PROBE = 3;
@@ -17,6 +23,7 @@ export const PROBE_TIMEOUT_MS = 10_000;
 let failures = 0;
 let flagged = false;
 let probing: Promise<void> | null = null;
+let attempt = false;
 const listeners = new Set<(unavailable: boolean) => void>();
 
 function setFlag(v: boolean): void {
@@ -46,7 +53,7 @@ function failed(api: ApiClient): void {
   if (++failures < COOKIE_FAILURES_BEFORE_PROBE) return;
   probing = (async () => {
     try {
-      const r = await withTimeout(PROBE_TIMEOUT_MS, (signal) => api.GET('/health', { signal }));
+      const r = await withTimeout(PROBE_TIMEOUT_MS, (signal) => api.GET('/health', { signal, cache: 'no-store' }));
       if (!r.timedOut && r.value.response.ok) setFlag(true);
     } catch {
       // the API does not answer either: this really is no connection
@@ -79,9 +86,36 @@ export async function trackCookieCall<T>(api: ApiClient, call: () => Promise<T>)
   }
 }
 
+/**
+ * Lets the next automatic refresh or revoke go out once although the flag is set (a user pressed Sync now, the browser came back
+ * online, or the periodic re-check is due). If it is answered the flag clears; if it fails the flag stays and nothing more is
+ * counted. A no-op while not flagged.
+ */
+export function allowOneAttempt(): void {
+  attempt = flagged;
+}
+/** True once per `allowOneAttempt`: the caller may send one request now. */
+export function takeAttempt(): boolean {
+  const a = attempt;
+  attempt = false;
+  return a;
+}
+/** Withdraws an attempt nobody used (a manual run that needed no refresh). */
+export function cancelAttempt(): void {
+  attempt = false;
+}
+
+/** The browser reports it is online again: forget what was learned while it was not (the cause may have been the network). */
+export function clearSignInUnavailable(): void {
+  failures = 0;
+  attempt = false;
+  setFlag(false);
+}
+
 /** Forgets everything (a test, or a new page). */
 export function resetCookieHealth(): void {
   failures = 0;
   flagged = false;
+  attempt = false;
   probing = null;
 }
