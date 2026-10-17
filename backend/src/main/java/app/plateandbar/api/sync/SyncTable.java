@@ -1,6 +1,6 @@
 package app.plateandbar.api.sync;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Function;
@@ -53,6 +53,6 @@ enum SyncTable {
     }
 
     private static Function<JsonNode, String> field(String name) {
-        return r -> r.path(name).asText();
+        return r -> r.path(name).asString();
     }
 }

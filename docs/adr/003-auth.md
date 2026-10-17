@@ -1,6 +1,6 @@
 # ADR 003: Auth (Google and email code sign-in, JWT with rotating refresh tokens)
 
-- Status: Accepted
+- Status: Accepted; superseded in part by [ADR 006](006-web-refresh-token-cookie.md) (where the web app keeps the refresh token: an httpOnly cookie, not secure storage)
 - Amended 2026-10-08: recorded the per-address code limits added with rate limiting (#43) and their lockout consequence. The per-code rule is unchanged.
 - Amended 2026-10-15: lost-response grace window for refresh (#399).
 - Date: 2026-10-08

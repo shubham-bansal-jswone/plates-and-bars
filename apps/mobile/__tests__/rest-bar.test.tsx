@@ -1,5 +1,5 @@
 import { act, render, screen } from '@testing-library/react-native';
-import { StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, Text } from 'react-native';
 import { Page } from '../src/components/ui';
 import { RestBar } from '../src/workout/parts';
 
@@ -17,6 +17,75 @@ describe('RestBar live region', () => {
     await act(async () => { jest.advanceTimersByTime(2500); });
     expect(screen.getByTestId('rest-announce').props.children).toBe('Rest done, go!');
     expect(screen.getByTestId('rest-announce').props.accessibilityLiveRegion).toBe('polite');
+  });
+
+  it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const live = screen.getByTestId('rest-announce');
+    const style = StyleSheet.flatten(live.props.style);
+    expect(style).toMatchObject({ position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' });
+    expect(style.display).toBeUndefined();
+    // Hiding it from assistive tech would silence the announcement.
+    expect(live.props['aria-hidden']).toBeUndefined();
+  });
+
+  // jest-expo runs as iOS; the Android and web branches set Platform.OS for the test and restore it after.
+  describe('at zero, by platform', () => {
+    const original = Platform.OS;
+    afterEach(() => {
+      Platform.OS = original;
+      jest.restoreAllMocks();
+    });
+    // jest-expo already mocks AccessibilityInfo, so spyOn returns that shared mock: clear what earlier tests called on it.
+    const spyAnnounce = () => jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockClear().mockImplementation(() => {});
+    const rest = () => render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+
+    it.each(['android', 'web'] as const)('%s: hides the visible "Rest done, go!" from assistive tech once the timer ends, so only the live region says it', async (os) => {
+      Platform.OS = os;
+      const announce = spyAnnounce();
+      await rest();
+      // While counting, the visible time stays readable.
+      expect(screen.getByTestId('rest-title').props['aria-hidden']).toBeUndefined();
+      expect(screen.getByText('Rest 0:02')).toBeOnTheScreen();
+
+      await act(async () => { jest.advanceTimersByTime(2500); });
+      expect(screen.getByTestId('rest-title', { includeHiddenElements: true }).props['aria-hidden']).toBe(true);
+      // A swipe through the accessibility tree finds it once (the live region); the hidden visible copy is skipped.
+      expect(screen.queryAllByText('Rest done, go!')).toHaveLength(1);
+      expect(screen.queryAllByText('Rest done, go!', { includeHiddenElements: true })).toHaveLength(2);
+      // The live region speaks here, so there is no extra announcement.
+      expect(announce).not.toHaveBeenCalled();
+    });
+
+    it('ios: keeps the visible text readable (the live region is Android-only and its transparent text is skipped) and announces once when the timer ends', async () => {
+      Platform.OS = 'ios';
+      const announce = spyAnnounce();
+      await rest();
+      expect(announce).not.toHaveBeenCalled();
+
+      await act(async () => { jest.advanceTimersByTime(2500); });
+      expect(screen.getByTestId('rest-title').props['aria-hidden']).toBeUndefined();
+      expect(screen.getByTestId('rest-title')).toHaveTextContent('Rest done, go!');
+      expect(announce).toHaveBeenCalledTimes(1);
+      expect(announce).toHaveBeenCalledWith('Rest done, go!');
+
+      // Still at zero a second later: no repeat.
+      await act(async () => { jest.advanceTimersByTime(1500); });
+      expect(announce).toHaveBeenCalledTimes(1);
+    });
+
+    it('ios: announces again when +30 s re-arms the timer and it ends again', async () => {
+      Platform.OS = 'ios';
+      const announce = spyAnnounce();
+      const view = await rest();
+      await act(async () => { jest.advanceTimersByTime(2500); });
+      expect(announce).toHaveBeenCalledTimes(1);
+      await view.rerender(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 32, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+      await act(async () => { jest.advanceTimersByTime(600); });
+      expect(screen.getByText(/^Rest 0:0/)).toBeOnTheScreen();
+      await act(async () => { jest.advanceTimersByTime(2500); });
+      expect(announce).toHaveBeenCalledTimes(2);
+    });
   });
 });
 

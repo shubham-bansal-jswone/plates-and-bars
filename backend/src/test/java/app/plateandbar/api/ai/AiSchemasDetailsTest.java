@@ -3,7 +3,7 @@ package app.plateandbar.api.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import app.plateandbar.api.common.ErrorResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
