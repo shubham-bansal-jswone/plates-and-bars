@@ -2,6 +2,8 @@
 # Nightly MySQL backup: mysqldump | gzip, streamed to an S3-compatible bucket with rclone (MIT), then objects
 # older than 30 days are deleted (the decided retention). Run from cron on the VM, see RUNBOOK.md:
 #   15 3 * * * cd /opt/plateandbar/infra/staging && ./backup.sh >> "$HOME/plateandbar-backup.log" 2>&1
+# Optional BACKUP_HEARTBEAT_URL (an Uptime Kuma push URL or similar): requested with GET after a fully successful run
+# (dump, upload and retention). A failed run sends nothing, so the monitor alerts when the ping goes missing. Unset = off.
 # Needs .env (see .env.example) and a running stack. The dump holds user data: keep the bucket private.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -37,3 +39,10 @@ echo "backup ok: $name"
 
 # 30-day retention (also removes stale .partial files)
 rclone delete --min-age 30d "$dest"
+
+# Heartbeat. The URL holds a secret token, so it goes to curl on stdin (-K -), not on the command line (ps). A failing
+# monitor must not fail a backup that succeeded: warn only.
+if [ -n "${BACKUP_HEARTBEAT_URL:-}" ]; then
+  printf 'url = "%s"\n' "$BACKUP_HEARTBEAT_URL" | curl -fsS -m 10 --retry 3 -o /dev/null -K - \
+    || echo "warning: heartbeat ping failed (backup itself succeeded)" >&2
+fi
