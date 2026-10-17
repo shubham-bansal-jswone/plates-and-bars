@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenTable, kitchenTest } from '@plate-and-bar/core';
 import { KitchenTestScreen } from '../src/screens/KitchenTestScreen';
@@ -129,7 +129,10 @@ describe('Kitchen test screen', () => {
 
   it('registers its writes so Food waits for them, and Back waits once, even when pressed twice', async () => {
     const db = memoryDb();
-    db.lag = () => 40;
+    // Writes stay queued until the test opens the gate, so "waits" does not depend on how long the machine takes.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = () => gate;
     const { onBack } = await setup(db);
     await start();
     await fill();
@@ -138,9 +141,12 @@ describe('Kitchen test screen', () => {
     void pendingWrites().then(() => (landed = stored(db, 'kitchen_tests').length === 1 && stored(db, 'user_foods').length === 1));
     await fireEvent.press(screen.getByLabelText('Back'));
     await fireEvent.press(screen.getByLabelText('Back'));
+    await act(async () => {});
     expect(onBack).not.toHaveBeenCalled();
+    expect(landed).toBe(false);
+    await act(async () => release());
     await waitFor(() => expect(onBack).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 100));
+    await act(async () => {});
     expect(landed).toBe(true);
     expect(onBack).toHaveBeenCalledTimes(1);
   });

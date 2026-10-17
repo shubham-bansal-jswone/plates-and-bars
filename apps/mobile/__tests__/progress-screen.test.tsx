@@ -50,7 +50,14 @@ async function setup(opts: { sex?: 'male' | 'female'; db?: Db } = {}) {
   return db;
 }
 const docs = (db: Db, table: string) => [...db.rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => JSON.parse(v));
+/** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
+const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
 const weigh = (date: string, kg: number) => ({ id: null, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, weight_kg: kg });
+
+// Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
+// fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
+beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
+afterEach(() => jest.useRealTimers());
 
 describe('Progress screen', () => {
   it('saves a weigh-in to SQLite, rounded to 0.1, and shows it as the latest', async () => {
@@ -83,17 +90,22 @@ describe('Progress screen', () => {
 
   it('keeps writes in the order the user acted when the first is slow', async () => {
     const db = memoryDb();
-    // The first write is the slowest, so a queue that let the second overtake it would end with 81.
+    // The first write is held, so a queue that let the second overtake it would land 80.5 first and then 81 on release.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
     let n = 0;
-    db.lag = (sql) => (sql.includes('weights') ? [80, 10][n++] ?? 0 : 0);
+    db.hold = (sql) => (sql.includes('weights') && n++ === 0 ? gate : undefined);
     await setup({ db });
     await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '81');
     await fireEvent.press(screen.getByLabelText('Save weight'));
     await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '80.5');
     await fireEvent.press(screen.getByLabelText('Save weight'));
+    await flush();
+    expect(docs(db, 'weights')).toHaveLength(0);
+    await act(async () => release());
     await waitFor(() => expect(docs(db, 'weights')[0].weight_kg).toBe(80.5));
     // The slow first write must not land afterwards and put 81 back.
-    await new Promise((r) => setTimeout(r, 150));
+    await flush();
     expect(docs(db, 'weights')[0].weight_kg).toBe(80.5);
   });
 
@@ -327,16 +339,17 @@ describe('Targets: recalculate after weigh-in drift (#161)', () => {
     await saveProfile(db, profile());
     await saveConsent(db, consent);
     await saveWeight(db, weigh('2026-10-01', 79.4));
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
     const read = db.getAllAsync.bind(db);
     db.getAllAsync = async <T,>(sql: string, ...p: (string | number)[]) => {
-      if (sql.includes('FROM weights')) await new Promise((r) => setTimeout(r, 150));
+      if (sql.includes('FROM weights')) await gate;
       return read<T>(sql, ...p);
     };
     await render(withProfile(db, <SetupScreen recalc />));
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
+    await flush();
     expect(screen.queryByLabelText('Use these targets')).toBeNull();
+    await act(async () => release());
     await fireEvent.press(await screen.findByLabelText('Use these targets'));
     await waitFor(() => expect(JSON.parse(db.rows.get('profiles:me')!)).toMatchObject({ weight_kg: 79.4 }));
   });
@@ -571,14 +584,17 @@ describe('Weekly check-in, burn and habits', () => {
     const db = memoryDb();
     await seed(db, 1500, true);
     await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), focus: ['Chest'], diet: 'veg', adjustments: { declines: { checkin: 2 } } });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
     const read = db.getFirstAsync.bind(db);
     db.getFirstAsync = async (sql: string, ...p: (string | number)[]) => {
-      if (sql.includes('user_settings')) await new Promise((r) => setTimeout(r, 300));
+      if (sql.includes('user_settings')) await gate;
       return read(sql, ...p);
     };
     await setup({ db });
-    // Every settings read takes 300 ms (and a save reads the record too): wait for the write to land, not a fixed time.
-    await waitFor(() => expect(settingsDoc(db)).toMatchObject({ focus: ['Chest'], diet: 'veg', checkin_seen: '2026-10-05', adjustments: { declines: { checkin: 2 } } }), { timeout: 3000 });
+    await flush();
+    await act(async () => release());
+    await waitFor(() => expect(settingsDoc(db)).toMatchObject({ focus: ['Chest'], diet: 'veg', checkin_seen: '2026-10-05', adjustments: { declines: { checkin: 2 } } }));
   });
 
   it('saves the real-burn state and that this week\'s check-in was seen', async () => {
