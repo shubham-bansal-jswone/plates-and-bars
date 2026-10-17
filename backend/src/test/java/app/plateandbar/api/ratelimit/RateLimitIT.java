@@ -22,7 +22,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpEntity;
@@ -32,7 +33,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -42,6 +43,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * which are lifted here because every request comes from the same loopback address.
  */
 @Testcontainers
+@AutoConfigureTestRestTemplate
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
@@ -54,7 +56,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class RateLimitIT {
 
     @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4");
+    static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4");
 
     @DynamicPropertySource
     static void db(DynamicPropertyRegistry r) {

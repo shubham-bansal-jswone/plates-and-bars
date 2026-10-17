@@ -5,14 +5,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import app.plateandbar.api.support.WebMvcAuthSlice;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -35,7 +35,7 @@ class ContentRealFilesTest {
         String manifest = mvc.perform(get("/api/v1/content/manifest")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         JsonNode bundles = ContentBundlesTest.JSON.readTree(manifest).path("bundles");
-        assertThat(bundles.findValuesAsText("name")).containsExactlyElementsOf(
+        assertThat(bundles.findValuesAsString("name")).containsExactlyElementsOf(
                 files.stream().map(p -> p.getFileName().toString().replace(".json", "")).toList());
         for (Path f : files) {
             String name = f.getFileName().toString().replace(".json", "");
@@ -43,8 +43,8 @@ class ContentRealFilesTest {
             byte[] served = mvc.perform(get("/api/v1/content/" + name)).andExpect(status().isOk())
                     .andReturn().getResponse().getContentAsByteArray();
             assertThat(served).as(name).isEqualTo(bytes);
-            JsonNode entry = bundles.findParents("name").stream().filter(n -> n.path("name").asText().equals(name)).findFirst().orElseThrow();
-            assertThat(entry.path("sha256").asText()).isEqualTo(ContentBundles.sha256(bytes));
+            JsonNode entry = bundles.findParents("name").stream().filter(n -> n.path("name").asString().equals(name)).findFirst().orElseThrow();
+            assertThat(entry.path("sha256").asString()).isEqualTo(ContentBundles.sha256(bytes));
             assertThat(entry.path("size_bytes").asInt()).isEqualTo(bytes.length);
         }
     }

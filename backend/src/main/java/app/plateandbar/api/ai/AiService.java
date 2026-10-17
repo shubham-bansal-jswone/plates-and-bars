@@ -4,10 +4,10 @@ import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -52,7 +52,7 @@ public class AiService {
 
     public ObjectNode describeMeal(String userId, JsonNode body) {
         return run(userId, AiFeature.DESCRIBE_MEAL, body, "DescribeMealRequest", req -> {
-            String text = AiPrompts.sanitize(req.path("text").asText()).trim();
+            String text = AiPrompts.sanitize(req.path("text").asString()).trim();
             if (AiPrompts.isBlank(text)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("text", "pattern")));
             }
@@ -62,11 +62,11 @@ public class AiService {
 
     public ObjectNode askWhy(String userId, JsonNode body) {
         return run(userId, AiFeature.ASK_WHY, body, "AskWhyRequest", req -> {
-            String cardId = req.path("card_id").asText();
+            String cardId = req.path("card_id").asString();
             if (!content.hasCard(cardId)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("card_id", "unknown")));
             }
-            String question = AiPrompts.sanitize(req.path("question").asText()).trim();
+            String question = AiPrompts.sanitize(req.path("question").asString()).trim();
             if (AiPrompts.isBlank(question)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("question", "pattern")));
             }
@@ -77,14 +77,14 @@ public class AiService {
 
     public ObjectNode weeklySummary(String userId, JsonNode body) {
         return run(userId, AiFeature.WEEKLY_SUMMARY, body, "WeeklySummaryRequest", req -> {
-            ObjectNode facts = req.deepCopy();
-            ArrayNode improved = facts.withArray("improved");
+            ObjectNode facts = (ObjectNode) req.deepCopy();
+            ArrayNode improved = facts.withArrayProperty("improved");
             for (JsonNode i : improved) {
-                ((ObjectNode) i).put("exercise", coerce(i.path("exercise").asText()));
+                ((ObjectNode) i).put("exercise", coerce(i.path("exercise").asString()));
             }
             ArrayNode stalled = json.createArrayNode();
             for (JsonNode s : facts.path("stalled")) {
-                stalled.add(coerce(s.asText()));
+                stalled.add(coerce(s.asString()));
             }
             facts.set("stalled", stalled);
             return new Call(AiPrompts.weeklySummary(facts), facts, replies::weeklySummary);
@@ -93,7 +93,7 @@ public class AiService {
 
     public ObjectNode suggestTags(String userId, JsonNode body) {
         return run(userId, AiFeature.SUGGEST_TAGS, body, "SuggestTagsRequest", req -> {
-            String name = AiPrompts.sanitize(req.path("name").asText()).trim();
+            String name = AiPrompts.sanitize(req.path("name").asString()).trim();
             if (AiPrompts.isBlank(name)) {
                 throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("name", "pattern")));
             }

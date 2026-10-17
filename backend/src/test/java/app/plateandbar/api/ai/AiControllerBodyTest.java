@@ -10,7 +10,7 @@ import app.plateandbar.api.auth.JwtService;
 import app.plateandbar.api.support.WebMvcAuthSlice;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,6 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 class AiControllerBodyTest {
 
     static final String USER = "11111111-1111-1111-1111-111111111111";
+
+    static final String OTHER = "22222222-2222-2222-2222-222222222222";
 
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
@@ -39,9 +41,25 @@ class AiControllerBodyTest {
                 .andExpect(jsonPath("$.code").value("invalid_request"));
     }
 
+    /** The mapper no longer fails on trailing content (#81), so /ai/* must still refuse it itself: the body reaches the service as unparseable (null). */
+    @Test
+    void contentAfterTheJsonBodyIsStillRefused() throws Exception {
+        // Its own user: the per-user AI limit is shared by every test in this context.
+        when(ai.describeMeal(any(), any())).thenReturn(new tools.jackson.databind.ObjectMapper().createObjectNode());
+        for (String bad : new String[] {"{\"text\":\"a\"} junk", "{\"text\":\"a\"}{\"text\":\"b\"}"}) {
+            mvc.perform(post("/api/v1/ai/describe-meal")
+                            .header("Authorization", "Bearer " + jwt.issue(OTHER).value())
+                            .contentType("application/json")
+                            .content(bad))
+                    .andExpect(status().isOk());
+        }
+        org.mockito.Mockito.verify(ai, org.mockito.Mockito.times(2))
+                .describeMeal(org.mockito.ArgumentMatchers.eq(OTHER), org.mockito.ArgumentMatchers.isNull());
+    }
+
     @Test
     void anOversizedBodyIsPassedOnAsInvalidAndAValidOneIsParsed() throws Exception {
-        when(ai.describeMeal(any(), any())).thenReturn(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode());
+        when(ai.describeMeal(any(), any())).thenReturn(new tools.jackson.databind.ObjectMapper().createObjectNode());
         // Valid JSON, 100 KB: over the 16 KB read bound, under the global limit. It must not be parsed.
         // Valid JSON followed by whitespace, so cutting the read at 16 KB + 1 still leaves parseable JSON: only the
         // length check can reject it.
@@ -61,7 +79,7 @@ class AiControllerBodyTest {
                 .andExpect(status().isOk());
         org.mockito.Mockito.verify(ai).describeMeal(
                 org.mockito.ArgumentMatchers.eq(USER),
-                org.mockito.ArgumentMatchers.argThat(b -> b != null && b.path("text").asText().length() == 16 * 1024 - 20));
+                org.mockito.ArgumentMatchers.argThat(b -> b != null && b.path("text").asString().length() == 16 * 1024 - 20));
         // Over the global request limit (2 MB): refused by the guard filter before the controller runs.
         mvc.perform(post("/api/v1/ai/describe-meal")
                         .header("Authorization", "Bearer " + jwt.issue(USER).value())
@@ -77,13 +95,13 @@ class AiControllerBodyTest {
                 .andExpect(status().isOk());
         org.mockito.Mockito.verify(ai).describeMeal(
                 org.mockito.ArgumentMatchers.eq(USER),
-                org.mockito.ArgumentMatchers.argThat(b -> b != null && "rice".equals(b.path("text").asText())));
+                org.mockito.ArgumentMatchers.argThat(b -> b != null && "rice".equals(b.path("text").asString())));
     }
 
     @Test
     void aBodyWithANonFiniteNumberIsPassedOnAsUnparseable() throws Exception {
         // #420: 1e400 parses to Infinity, which passes `maximum`; the service gets no body and answers 400.
-        when(ai.weeklySummary(any(), any())).thenReturn(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode());
+        when(ai.weeklySummary(any(), any())).thenReturn(new tools.jackson.databind.ObjectMapper().createObjectNode());
         mvc.perform(post("/api/v1/ai/weekly-summary")
                         .header("Authorization", "Bearer " + jwt.issue(USER).value())
                         .contentType("application/json")

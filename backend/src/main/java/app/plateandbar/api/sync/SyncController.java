@@ -3,9 +3,9 @@ package app.plateandbar.api.sync;
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
 import app.plateandbar.api.common.FiniteNumbers;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
@@ -58,7 +58,7 @@ public class SyncController {
             if (!FiniteNumbers.all(body)) {
                 body = null; // a number too large for a double (#420): answered as unparseable
             }
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             body = null; // the validator answers 400; the parser's message may quote the body
         }
         String userId = auth.getName();

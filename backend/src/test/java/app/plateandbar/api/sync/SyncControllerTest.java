@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import app.plateandbar.api.auth.JwtService;
 import app.plateandbar.api.support.WebMvcAuthSlice;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -29,7 +29,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -60,6 +60,22 @@ class SyncControllerTest {
         return n.toString();
     }
 
+    /** Spring Boot 4 / Jackson 3 refuses trailing content by default; the API keeps accepting it as before (#81). */
+    @Test
+    void contentAfterTheJsonBodyIsStillAccepted() throws Exception {
+        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
+        send(USER, "{\"cursor\":null,\"changes\":{}} junk").andExpect(status().isOk());
+        send(USER, "{\"cursor\":null,\"changes\":{}}{\"x\":1}").andExpect(status().isOk());
+    }
+
+    /** Jackson 2's nesting limit was 1000, Jackson 3's is 500; application.yml keeps 1000 (#81). */
+    @Test
+    void anExtraPropertyNested700DeepIsStillAccepted() throws Exception {
+        when(service.sync(eq(USER), any())).thenReturn(obj("{'cursor':'c_1','has_more':false,'applied':[],'conflicts':[],'changes':{}}"));
+        String deep = "[".repeat(700) + "]".repeat(700);
+        send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + deep + "}").andExpect(status().isOk());
+    }
+
     @Test
     void withoutTokenIs401() throws Exception {
         mvc.perform(post("/api/v1/sync").contentType(MediaType.APPLICATION_JSON).content("{\"cursor\":null,\"changes\":{}}"))
@@ -85,7 +101,7 @@ class SyncControllerTest {
             assertThat(r.table()).isEqualTo(SyncTable.food_logs);
             assertThat(r.id()).isEqualTo(logId);
             assertThat(r.version()).isZero();
-            assertThat(r.data().get("name").asText()).isEqualTo("Poha");
+            assertThat(r.data().get("name").asString()).isEqualTo("Poha");
             assertThat(r.data().has("id")).isFalse();
         });
     }
