@@ -9,6 +9,7 @@ import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, 
 import { syncOnce, type SyncDb, type SyncResult } from './engine';
 import { completePhotoWipe, discardAll, signOut as guardedSignOut } from './guard';
 import { discardQuarantined, quarantineCount, retryQuarantined } from './quarantine';
+import { isAccountFull } from './held';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
 
@@ -31,6 +32,8 @@ export interface SyncState {
   pending: number;
   /** Of `pending`, the records the server refused (400): set aside so the rest keeps syncing; retry or discard them. */
   quarantined: number;
+  /** The server said the account is full: new entries stay on this device and are not backed up (edits and deletes still sync). Kept across restarts; clears when a push of new records succeeds. */
+  accountFull: boolean;
   syncing: boolean;
   /** Last run's outcome; null before the first run. */
   last: SyncResult | null;
@@ -79,6 +82,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const [lastDeletion, setLastDeletion] = useState<{ server: boolean; linked: boolean } | null>(null);
   const [pending, setPending] = useState(0);
   const [quarantined, setQuarantined] = useState(0);
+  const [accountFull, setAccountFull] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -109,6 +113,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
   const refreshPending = useCallback(async () => {
     setPending(await pendingCount(db));
     setQuarantined(await quarantineCount(db));
+    setAccountFull(await isAccountFull(db));
   }, [db]);
 
   const runSync = useCallback(async (force: boolean): Promise<SyncResult | null> => {
@@ -188,6 +193,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       clearLastDeletion,
       pending,
       quarantined,
+      accountFull,
       syncing,
       last,
       epoch,
@@ -247,7 +253,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         return afterDelete(r);
       },
     }),
-    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
+    [configured, signedIn, linked, wipePending, afterDelete, lastDeletion, clearLastDeletion, pending, quarantined, accountFull, syncing, last, epoch, dataVersion, syncNow, runSync, api, db, tokens, refreshPending],
   );
   // AI features sit inside the sync provider: they reuse its client and tokens (kept inside) and its signed-in state.
   return (
