@@ -2,8 +2,8 @@ package app.plateandbar.api.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
@@ -16,15 +16,15 @@ class UuidsTest {
     void matchesEverySharedContractVector() throws Exception {
         JsonNode file = new ObjectMapper().readTree(Files.readAllBytes(Path.of("..", "packages", "api", "test-vectors", "sync-ids.json")));
         JsonNode rfc = file.path("rfc_example");
-        assertThat(Uuids.v5(UUID.fromString(rfc.path("namespace").asText()), rfc.path("name").asText()).toString())
-                .isEqualTo(rfc.path("id").asText());
+        assertThat(Uuids.v5(UUID.fromString(rfc.path("namespace").asString()), rfc.path("name").asString()).toString())
+                .isEqualTo(rfc.path("id").asString());
         assertThat(file.path("cases").size()).isGreaterThanOrEqualTo(14);
         for (JsonNode c : file.path("cases")) {
-            String name = c.path("table").asText() + ":" + c.path("key").asText();
-            assertThat(name).isEqualTo(c.path("name").asText());
-            assertThat(Uuids.v5(UUID.fromString(c.path("user_id").asText()), name).toString())
-                    .as(c.path("note").asText() + " " + name)
-                    .isEqualTo(c.path("id").asText());
+            String name = c.path("table").asString() + ":" + c.path("key").asString();
+            assertThat(name).isEqualTo(c.path("name").asString());
+            assertThat(Uuids.v5(UUID.fromString(c.path("user_id").asString()), name).toString())
+                    .as(c.path("note").asString() + " " + name)
+                    .isEqualTo(c.path("id").asString());
         }
     }
 

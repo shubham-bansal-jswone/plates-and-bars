@@ -11,8 +11,8 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -40,7 +40,7 @@ class SyncEngineIT extends SyncITBase {
 
     private JsonNode pulled(Resp r, String table, String id) {
         for (JsonNode n : r.body().path("changes").path(table)) {
-            if (n.path("id").asText().equals(id)) {
+            if (n.path("id").asString().equals(id)) {
                 return n;
             }
         }
@@ -56,7 +56,7 @@ class SyncEngineIT extends SyncITBase {
         Resp push = ok(user, req(null).add(SyncTable.food_logs, foodLog(rid, 0, MID, null, "Poha", 291)).build());
 
         assertThat(push.body().path("applied")).hasSize(1);
-        assertThat(only(push.body().path("applied")).path("table").asText()).isEqualTo("food_logs");
+        assertThat(only(push.body().path("applied")).path("table").asString()).isEqualTo("food_logs");
         assertThat(only(push.body().path("applied")).path("version").asInt()).isEqualTo(1);
         assertThat(push.body().path("conflicts")).isEmpty();
         assertThat(push.body().path("changes")).as("pushed records are not echoed").isEmpty();
@@ -64,8 +64,8 @@ class SyncEngineIT extends SyncITBase {
         Resp other = ok(user, req(null).build());
         JsonNode rec = pulled(other, "food_logs", rid);
         assertThat(rec.path("version").asInt()).isEqualTo(1);
-        assertThat(rec.path("name").asText()).isEqualTo("Poha");
-        assertThat(rec.path("updated_at").asText()).isEqualTo(MID);
+        assertThat(rec.path("name").asString()).isEqualTo("Poha");
+        assertThat(rec.path("updated_at").asString()).isEqualTo(MID);
         assertThat(rec.path("deleted_at").isNull()).isTrue();
     }
 
@@ -120,7 +120,7 @@ class SyncEngineIT extends SyncITBase {
         ObjectNode rec = liftWithPrev(user, prev);
 
         ok(user, req(null).add(SyncTable.lift_stats, rec).build());
-        JsonNode back = pulled(ok(user, req(null).build()), "lift_stats", rec.path("id").asText());
+        JsonNode back = pulled(ok(user, req(null).build()), "lift_stats", rec.path("id").asString());
 
         // Compared as JSON values; MySQL's JSON column reorders object keys, so the text can differ.
         ObjectNode expected = rec.deepCopy();
@@ -143,9 +143,9 @@ class SyncEngineIT extends SyncITBase {
 
             Resp res = post(user, req(null).add(SyncTable.lift_stats, liftWithPrev(user, prev)).build());
             assertThat(res.status()).isEqualTo(400);
-            assertThat(res.body().path("code").asText()).isEqualTo("invalid_request");
+            assertThat(res.body().path("code").asString()).isEqualTo("invalid_request");
             assertThat(res.body().path("details")).isNotEmpty();
-            assertThat(res.body().path("details").get(0).path("field").asText()).startsWith("changes.lift_stats[0].prev");
+            assertThat(res.body().path("details").get(0).path("field").asString()).startsWith("changes.lift_stats[0].prev");
         }
         assertThat(count("SELECT COUNT(*) FROM lift_stats WHERE user_id = ?", user)).isZero();
     }
@@ -163,10 +163,10 @@ class SyncEngineIT extends SyncITBase {
 
         assertThat(r.body().path("applied")).isEmpty();
         JsonNode c = only(r.body().path("conflicts"));
-        assertThat(c.path("resolution").asText()).isEqualTo("client_won");
+        assertThat(c.path("resolution").asString()).isEqualTo("client_won");
         assertThat(c.path("client_version").asInt()).isZero();
         assertThat(c.path("server_version").asInt()).isEqualTo(2);
-        assertThat(c.path("server_record").path("name").asText()).isEqualTo("Client version");
+        assertThat(c.path("server_record").path("name").asString()).isEqualTo("Client version");
         assertThat(c.path("server_record").path("version").asInt()).isEqualTo(2);
 
         Map<String, Object> log = jdbc.queryForMap(
@@ -175,7 +175,7 @@ class SyncEngineIT extends SyncITBase {
         assertThat(log.get("version")).isEqualTo(1);
         assertThat(log.get("winner_version")).isEqualTo(2);
         assertThat(log.get("record").toString()).contains("Server version");
-        assertThat(ok(user, req(null).build()).body().path("changes").path("food_logs").get(0).path("name").asText())
+        assertThat(ok(user, req(null).build()).body().path("changes").path("food_logs").get(0).path("name").asString())
                 .isEqualTo("Client version");
     }
 
@@ -188,9 +188,9 @@ class SyncEngineIT extends SyncITBase {
         Resp r = ok(user, req(null).add(SyncTable.food_logs, foodLog(rid, 0, MID, null, "Client version", 200)).build());
 
         JsonNode c = only(r.body().path("conflicts"));
-        assertThat(c.path("resolution").asText()).isEqualTo("server_won");
+        assertThat(c.path("resolution").asString()).isEqualTo("server_won");
         assertThat(c.path("server_version").asInt()).isEqualTo(1);
-        assertThat(c.path("server_record").path("name").asText()).isEqualTo("Server version");
+        assertThat(c.path("server_record").path("name").asString()).isEqualTo("Server version");
         assertThat(r.body().path("applied")).isEmpty();
 
         Map<String, Object> log = jdbc.queryForMap(
@@ -260,8 +260,8 @@ class SyncEngineIT extends SyncITBase {
         Resp r = ok(user, req(null).add(SyncTable.food_logs, foodLog(rid, 0, MID, null, "Client version", 200)).build());
 
         JsonNode c = only(r.body().path("conflicts"));
-        assertThat(c.path("resolution").asText()).isEqualTo("server_won");
-        assertThat(c.path("server_record").path("name").asText()).isEqualTo("Server version");
+        assertThat(c.path("resolution").asString()).isEqualTo("server_won");
+        assertThat(c.path("server_record").path("name").asString()).isEqualTo("Server version");
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ? AND loser = 'client'", user)).isEqualTo(1);
     }
 
@@ -277,8 +277,8 @@ class SyncEngineIT extends SyncITBase {
                 .add(SyncTable.water_logs, waterLog(fresh, 0, MID, null, 300))
                 .build());
 
-        assertThat(only(r.body().path("applied")).path("id").asText()).isEqualTo(fresh);
-        assertThat(only(r.body().path("conflicts")).path("id").asText()).isEqualTo(clash);
+        assertThat(only(r.body().path("applied")).path("id").asString()).isEqualTo(fresh);
+        assertThat(only(r.body().path("conflicts")).path("id").asString()).isEqualTo(clash);
     }
 
     @Test
@@ -299,8 +299,8 @@ class SyncEngineIT extends SyncITBase {
         }
         JsonNode body = ok(user, push.build()).body();
         Set<String> seen = new HashSet<>();
-        body.path("applied").forEach(a -> assertThat(seen.add(a.path("id").asText())).isTrue());
-        body.path("conflicts").forEach(a -> assertThat(seen.add(a.path("id").asText())).isTrue());
+        body.path("applied").forEach(a -> assertThat(seen.add(a.path("id").asString())).isTrue());
+        body.path("conflicts").forEach(a -> assertThat(seen.add(a.path("id").asString())).isTrue());
         assertThat(seen).containsExactlyInAnyOrderElementsOf(ids);
         assertThat(body.path("applied")).hasSize(2);
         assertThat(body.path("conflicts")).hasSize(4);
@@ -318,10 +318,10 @@ class SyncEngineIT extends SyncITBase {
         Resp retry = ok(user, push); // same body, same stale version 0, response of the first was "lost"
 
         JsonNode c = only(retry.body().path("conflicts"));
-        assertThat(c.path("resolution").asText()).isEqualTo("server_won");
+        assertThat(c.path("resolution").asString()).isEqualTo("server_won");
         assertThat(c.path("client_version").asInt()).isZero();
         assertThat(c.path("server_version").asInt()).isEqualTo(1);
-        assertThat(c.path("server_record").path("name").asText()).isEqualTo("Poha");
+        assertThat(c.path("server_record").path("name").asString()).isEqualTo("Poha");
         assertThat(retry.body().path("applied")).isEmpty();
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
         assertThat(count("SELECT version FROM food_logs WHERE user_id = ? AND id = ?", user, rid)).isEqualTo(1);
@@ -336,7 +336,7 @@ class SyncEngineIT extends SyncITBase {
 
         // The device retries with the same content but a newer edit time: still the same edit, not a new one.
         Resp retry = ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, NEW, null, 500)).build());
-        assertThat(only(retry.body().path("conflicts")).path("resolution").asText()).isEqualTo("server_won");
+        assertThat(only(retry.body().path("conflicts")).path("resolution").asString()).isEqualTo("server_won");
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
         assertThat(count("SELECT version FROM water_logs WHERE user_id = ? AND id = ?", user, rid)).isEqualTo(2);
     }
@@ -351,7 +351,7 @@ class SyncEngineIT extends SyncITBase {
         clock.advance(Duration.ofSeconds(30));
 
         Resp retry = ok(user, push);
-        assertThat(only(retry.body().path("conflicts")).path("resolution").asText()).isEqualTo("server_won");
+        assertThat(only(retry.body().path("conflicts")).path("resolution").asString()).isEqualTo("server_won");
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
     }
 
@@ -365,7 +365,7 @@ class SyncEngineIT extends SyncITBase {
         ok(user, del);
         clock.advance(Duration.ofHours(2));
         Resp retry = ok(user, del);
-        assertThat(only(retry.body().path("conflicts")).path("resolution").asText()).isEqualTo("server_won");
+        assertThat(only(retry.body().path("conflicts")).path("resolution").asString()).isEqualTo("server_won");
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
     }
 
@@ -377,7 +377,7 @@ class SyncEngineIT extends SyncITBase {
         ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, MID, MID, 250)).build());
         // A device that never saw the delete deletes it too, later: same content, other deleted_at.
         Resp r = ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, OLD, NEW, 250)).build());
-        assertThat(only(r.body().path("conflicts")).path("resolution").asText()).isEqualTo("server_won");
+        assertThat(only(r.body().path("conflicts")).path("resolution").asString()).isEqualTo("server_won");
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isEqualTo(1);
     }
 
@@ -387,11 +387,11 @@ class SyncEngineIT extends SyncITBase {
         String lower = id();
         String upper = lower.toUpperCase();
         Resp first = ok(user, req(null).add(SyncTable.water_logs, waterLog(upper, 0, MID, null, 250)).build());
-        assertThat(only(first.body().path("applied")).path("id").asText()).isEqualTo(lower);
+        assertThat(only(first.body().path("applied")).path("id").asString()).isEqualTo(lower);
         Resp retry = ok(user, req(null).add(SyncTable.water_logs, waterLog(upper, 0, MID, null, 250)).build());
         JsonNode c = only(retry.body().path("conflicts"));
-        assertThat(c.path("id").asText()).isEqualTo(lower);
-        assertThat(c.path("server_record").path("id").asText()).isEqualTo(lower);
+        assertThat(c.path("id").asString()).isEqualTo(lower);
+        assertThat(c.path("server_record").path("id").asString()).isEqualTo(lower);
         // Pulls agree.
         assertThat(pulled(ok(user, req(null).build()), "water_logs", lower)).isNotNull();
     }
@@ -402,7 +402,7 @@ class SyncEngineIT extends SyncITBase {
         String rid = id();
         ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 0, MID, null, 250)).build());
         Resp r = ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 0, OLD, null, 251)).build());
-        assertThat(only(r.body().path("conflicts")).path("resolution").asText()).isEqualTo("server_won");
+        assertThat(only(r.body().path("conflicts")).path("resolution").asString()).isEqualTo("server_won");
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isEqualTo(1);
     }
 
@@ -416,7 +416,7 @@ class SyncEngineIT extends SyncITBase {
         again.put("qty", 1.0);
         again.put("kcal", 291.0);
         Resp r = ok(user, req(null).add(SyncTable.food_logs, again).build());
-        assertThat(only(r.body().path("conflicts")).path("resolution").asText()).isEqualTo("server_won");
+        assertThat(only(r.body().path("conflicts")).path("resolution").asString()).isEqualTo("server_won");
         assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
     }
 
@@ -427,14 +427,14 @@ class SyncEngineIT extends SyncITBase {
         String user = newUser();
         String rid = id();
         ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 0, OLD, null, 250)).build());
-        String cursorB = ok(user, req(null).build()).body().path("cursor").asText(); // device B is up to date
+        String cursorB = ok(user, req(null).build()).body().path("cursor").asString(); // device B is up to date
 
         ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, MID, MID, 250)).build()); // device A deletes
 
         Resp b = ok(user, req(cursorB).build());
         JsonNode tomb = pulled(b, "water_logs", rid);
         assertThat(tomb).isNotNull();
-        assertThat(tomb.path("deleted_at").asText()).isEqualTo(MID);
+        assertThat(tomb.path("deleted_at").asString()).isEqualTo(MID);
         assertThat(tomb.path("version").asInt()).isEqualTo(2);
         // Soft delete: the row is still there.
         assertThat(count("SELECT COUNT(*) FROM water_logs WHERE user_id = ? AND id = ? AND deleted_at IS NOT NULL", user, rid))
@@ -468,7 +468,7 @@ class SyncEngineIT extends SyncITBase {
         Resp r = ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, MID, MID, 250)).build());
 
         JsonNode c = only(r.body().path("conflicts"));
-        assertThat(c.path("resolution").asText()).isEqualTo("server_won");
+        assertThat(c.path("resolution").asString()).isEqualTo("server_won");
         assertThat(c.path("server_record").path("deleted_at").isNull()).isTrue();
         assertThat(c.path("server_record").path("ml").asInt()).isEqualTo(500);
     }
@@ -481,7 +481,7 @@ class SyncEngineIT extends SyncITBase {
         ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, MID, MID, 250)).build());
         // A device that never saw the delete edits later and wins the conflict.
         Resp r = ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, NEW, null, 400)).build());
-        assertThat(only(r.body().path("conflicts")).path("resolution").asText()).isEqualTo("client_won");
+        assertThat(only(r.body().path("conflicts")).path("resolution").asString()).isEqualTo("client_won");
         assertThat(only(r.body().path("conflicts")).path("server_record").path("deleted_at").isNull()).isTrue();
     }
 
@@ -524,13 +524,13 @@ class SyncEngineIT extends SyncITBase {
             int n = 0;
             for (String table : List.of("food_logs", "water_logs")) {
                 for (JsonNode rec : page.body().path("changes").path(table)) {
-                    assertThat(got.add(rec.path("id").asText())).as("no duplicates across pages").isTrue();
+                    assertThat(got.add(rec.path("id").asString())).as("no duplicates across pages").isTrue();
                     n++;
                 }
             }
             pageSizes.add(n);
             more.add(page.body().path("has_more").asBoolean());
-            String next = page.body().path("cursor").asText();
+            String next = page.body().path("cursor").asString();
             long seq = Long.parseLong(next.substring(2), 16);
             assertThat(seq).as("cursor moves forward").isGreaterThan(lastSeq);
             lastSeq = seq;
@@ -544,7 +544,7 @@ class SyncEngineIT extends SyncITBase {
         Resp after = ok(user, req(cursor).build());
         assertThat(after.body().path("changes")).isEmpty();
         assertThat(after.body().path("has_more").asBoolean()).isFalse();
-        assertThat(after.body().path("cursor").asText()).isEqualTo(cursor);
+        assertThat(after.body().path("cursor").asString()).isEqualTo(cursor);
     }
 
     @Test
@@ -571,7 +571,7 @@ class SyncEngineIT extends SyncITBase {
         }
         Resp res = post(user, r.build());
         assertThat(res.status()).isEqualTo(400);
-        assertThat(res.body().path("code").asText()).isEqualTo("invalid_request");
+        assertThat(res.body().path("code").asString()).isEqualTo("invalid_request");
         assertThat(count("SELECT COUNT(*) FROM water_logs WHERE user_id = ?", user)).isZero();
     }
 
@@ -594,14 +594,14 @@ class SyncEngineIT extends SyncITBase {
         assertThat(r.body().path("has_more").asBoolean()).isTrue();
         assertThat(r.body().path("changes").path("water_logs")).hasSize(500);
         assertThat(pulled(r, "food_logs", mine)).as("own push not echoed").isNull();
-        assertThat(only(r.body().path("applied")).path("id").asText()).isEqualTo(mine);
+        assertThat(only(r.body().path("applied")).path("id").asString()).isEqualTo(mine);
     }
 
     @Test
     void afterAPushTheReturnedCursorSkipsTheDevicesOwnWrites() {
         String user = newUser();
         Resp push = ok(user, req(null).add(SyncTable.water_logs, waterLog(id(), 0, MID, null, 250)).build());
-        Resp next = ok(user, req(push.body().path("cursor").asText()).build());
+        Resp next = ok(user, req(push.body().path("cursor").asString()).build());
         assertThat(next.body().path("changes")).isEmpty();
     }
 
@@ -611,7 +611,7 @@ class SyncEngineIT extends SyncITBase {
         String a = id();
         String b = id();
         Resp first = ok(user, req(null).add(SyncTable.water_logs, waterLog(a, 0, MID, null, 250)).build());
-        String cursor = first.body().path("cursor").asText();
+        String cursor = first.body().path("cursor").asString();
         ok(user, req(null).add(SyncTable.water_logs, waterLog(b, 0, MID, null, 300)).build()); // another device
 
         Resp pull = ok(user, req(cursor).build());
@@ -641,8 +641,8 @@ class SyncEngineIT extends SyncITBase {
                 .add(SyncTable.water_logs, waterLog(near, 0, iso(START.plus(Duration.ofMinutes(4))), null, 250))
                 .build());
         Resp pull = ok(user, req(null).build());
-        assertThat(pulled(pull, "water_logs", far).path("updated_at").asText()).isEqualTo(iso(START));
-        assertThat(pulled(pull, "water_logs", near).path("updated_at").asText()).isEqualTo(iso(START.plus(Duration.ofMinutes(4))));
+        assertThat(pulled(pull, "water_logs", far).path("updated_at").asString()).isEqualTo(iso(START));
+        assertThat(pulled(pull, "water_logs", near).path("updated_at").asString()).isEqualTo(iso(START.plus(Duration.ofMinutes(4))));
     }
 
     @Test
@@ -653,12 +653,12 @@ class SyncEngineIT extends SyncITBase {
         // A device with a clock a year ahead edits with a stale version; its edit time counts as "now".
         String year = "2027-10-08T12:00:00Z";
         Resp r = ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 0, year, null, 999)).build());
-        assertThat(only(r.body().path("conflicts")).path("resolution").asText()).isEqualTo("client_won");
-        assertThat(only(r.body().path("conflicts")).path("server_record").path("updated_at").asText()).isEqualTo(iso(START));
+        assertThat(only(r.body().path("conflicts")).path("resolution").asString()).isEqualTo("client_won");
+        assertThat(only(r.body().path("conflicts")).path("server_record").path("updated_at").asString()).isEqualTo(iso(START));
         // The clamped time is real server time, so a later honest edit from another device still wins.
         clock.advance(Duration.ofMinutes(10));
         Resp later = ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 1, iso(START.plus(Duration.ofMinutes(10))), null, 100)).build());
-        assertThat(only(later.body().path("conflicts")).path("resolution").asText()).isEqualTo("client_won");
+        assertThat(only(later.body().path("conflicts")).path("resolution").asString()).isEqualTo("client_won");
     }
 
     @Test
@@ -668,7 +668,7 @@ class SyncEngineIT extends SyncITBase {
         String far = iso(START.plus(Duration.ofDays(2)));
         ok(user, req(null).add(SyncTable.water_logs, waterLog(rid, 0, far, far, 250)).build());
         Resp pull = ok(user, req("c_0000000000000000").build());
-        assertThat(pulled(pull, "water_logs", rid).path("deleted_at").asText()).isEqualTo(iso(START));
+        assertThat(pulled(pull, "water_logs", rid).path("deleted_at").asString()).isEqualTo(iso(START));
     }
 
     // ---- atomic validation, accounts, hygiene ----
@@ -719,7 +719,7 @@ class SyncEngineIT extends SyncITBase {
         String ghost = java.util.UUID.randomUUID().toString();
         Resp r = post(ghost, req(null).build());
         assertThat(r.status()).isEqualTo(401);
-        assertThat(r.body().path("code").asText()).isEqualTo("unauthorized");
+        assertThat(r.body().path("code").asString()).isEqualTo("unauthorized");
     }
 
     @Test
@@ -739,7 +739,7 @@ class SyncEngineIT extends SyncITBase {
 
         Resp pull = ok(user, req(null).build());
         for (Map.Entry<SyncTable, ObjectNode> e : all.entrySet()) {
-            JsonNode got = pulled(pull, e.getKey().name(), e.getValue().path("id").asText());
+            JsonNode got = pulled(pull, e.getKey().name(), e.getValue().path("id").asString());
             assertThat(got).as(e.getKey().name()).isNotNull();
             ObjectNode expected = e.getValue().deepCopy();
             expected.put("version", 1);

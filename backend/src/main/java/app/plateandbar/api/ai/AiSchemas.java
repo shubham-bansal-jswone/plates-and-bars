@@ -2,10 +2,11 @@ package app.plateandbar.api.ai;
 
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SchemaRegistryConfig;
@@ -30,7 +31,7 @@ class AiSchemas {
     AiSchemas() {
         try (InputStream in = AiSchemas.class.getResourceAsStream("/openapi.yaml")) {
             this.components = new YAMLMapper().readTree(in).path("components");
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             throw new IllegalStateException("openapi.yaml cannot be read", e);
         }
     }
@@ -47,7 +48,7 @@ class AiSchemas {
 
     private static List<String> enumValues(JsonNode node) {
         List<String> out = new java.util.ArrayList<>();
-        node.path("enum").forEach(v -> out.add(v.asText()));
+        node.path("enum").forEach(v -> out.add(v.asString()));
         if (out.isEmpty()) {
             throw new IllegalStateException("enum missing in openapi.yaml");
         }
@@ -83,7 +84,7 @@ class AiSchemas {
     }
 
     /** Stands in for a body over 16 KB (16,384 bytes) that was not read; compared by identity. */
-    static final JsonNode TOO_LARGE = com.fasterxml.jackson.databind.node.TextNode.valueOf("too_large");
+    static final JsonNode TOO_LARGE = tools.jackson.databind.node.StringNode.valueOf("too_large");
 
     /** 400 {@code invalid_request} unless the request body fits the named request schema. */
     void requireValid(String schemaName, JsonNode body) {
