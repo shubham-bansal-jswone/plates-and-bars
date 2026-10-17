@@ -23,6 +23,67 @@ export const OPTIONAL_CLAUSES = {
 };
 const SPLIT_DAYS = [2, 3, 4, 5, 6];
 
+// Content-over-prototype differences (decided in #549, 2026-10-17). The prototype's evidence label or citation for these
+// five cards is stronger than its source supports, so the shipped card says what the source supports. `from` records the
+// prototype value being replaced; if the prototype changes it, the import fails so the override is reviewed again.
+// Evidence stays within the existing Strong / Moderate / Emerging scale (the app and validator accept only those).
+export const CARD_OVERRIDES = {
+  warmup: {
+    from: { evidence: 'Moderate', source: 'Common strength-training practice; Fradkin et al., 2010 (warm-up and performance review)' },
+    set: {
+      evidence: 'Emerging',
+      source: 'Common strength-training practice (coaching convention, limited direct evidence); Fradkin et al., 2010 (warm-up and performance review)',
+    },
+  },
+  focus: {
+    from: { evidence: 'Moderate', source: 'Schoenfeld, Ogborn & Krieger, 2017 (volume dose-response); Nunes et al., 2021, Sports Medicine (exercise order review)' },
+    set: {
+      evidence: 'Emerging',
+      source: 'The focus rule is a coaching convention, not a tested protocol; Schoenfeld, Ogborn & Krieger, 2017 (volume dose-response); Nunes et al., 2021, Sports Medicine (exercise order review)',
+    },
+  },
+  older: {
+    from: { evidence: 'Strong', source: 'WHO Guidelines on Physical Activity and Sedentary Behaviour, 2020; Bauer et al., 2013, PROT-AGE Study Group' },
+    set: {
+      evidence: 'Moderate',
+      source: 'WHO Guidelines on Physical Activity and Sedentary Behaviour, 2020; Bauer et al., 2013, PROT-AGE Study Group (expert consensus recommendations)',
+    },
+  },
+  fibre: {
+    from: {
+      evidence: 'Strong',
+      source: 'ICMR-NIN Dietary Guidelines for Indians, 2024; Reynolds et al., 2019, The Lancet (fibre meta-analysis); WHO sugars guideline, 2015',
+      body: 'India’s dietary guidelines recommend filling about half your plate with vegetables and fruit, and many guidelines suggest roughly 14–15 g of fibre per 1,000 kcal{?fibre_g}, which is about {fibre_g} g for your target{/fibre_g}. High-fibre foods (dals, chana, rajma, vegetables, fruit, oats, whole wheat) make a calorie deficit far easier to stick to. The WHO also advises keeping added sugars under 10% of calories, ideally under 5%.',
+    },
+    set: {
+      evidence: 'Moderate',
+      source: 'ICMR-NIN Dietary Guidelines for Indians, 2024 (plate rule); Institute of Medicine, Dietary Reference Intakes for Energy, Carbohydrate, Fiber, Fat, Fatty Acids, Cholesterol, Protein, and Amino Acids, 2005 (14 g per 1,000 kcal); Reynolds et al., 2019, The Lancet (fibre meta-analysis); WHO sugars guideline, 2015',
+      body: 'The ICMR-NIN dietary guidelines for Indians (2024) recommend filling about half your plate with vegetables and fruit. The Institute of Medicine’s Dietary Reference Intakes (2005) set an adequate fibre intake of 14 g per 1,000 kcal{?fibre_g}, which is about {fibre_g} g for your target{/fibre_g}. High-fibre foods (dals, chana, rajma, vegetables, fruit, oats, whole wheat) make a calorie deficit far easier to stick to. The WHO also advises keeping added sugars under 10% of calories, ideally under 5%.',
+    },
+  },
+  screening: {
+    from: {
+      evidence: 'Strong',
+      source: 'Warburton et al., PAR-Q+ (Physical Activity Readiness Questionnaire for Everyone)',
+      body: 'These questions cover the same topics as the PAR-Q+, the widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
+    },
+    set: {
+      evidence: 'Moderate',
+      source: 'Warburton DER, Jamnik VK, Bredin SSD, Gledhill N. The Physical Activity Readiness Questionnaire for Everyone (PAR-Q+) and electronic PAR-Q+. Health & Fitness Journal of Canada 2011;4(2):3-23',
+      body: 'These questions cover similar topics to the PAR-Q+, a widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. They are a short summary, not the PAR-Q+ itself; the official form is free at eparmedx.com. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
+    },
+  },
+};
+
+function applyOverride(id, card) {
+  const o = CARD_OVERRIDES[id];
+  if (!o) return card;
+  for (const [k, v] of Object.entries(o.from)) {
+    if (card[k] !== v) throw new Error(`card '${id}': prototype ${k} changed since the #549 override was written; review CARD_OVERRIDES`);
+  }
+  return { ...card, ...o.set };
+}
+
 // Replacement-reason phrases from candidates() in the prototype. Each must appear verbatim in the source.
 export const REASON_SOURCE_SNIPPETS = {
   works: '`works your ${listJoin(prim.map(x => MUSCLE[x]))}`',
@@ -155,7 +216,7 @@ export function importCards(html) {
   const m = /list\.splice\((\d+), 0, 'bulky'\)/.exec(html);
   if (!m) throw new Error("the female-only 'bulky' learn-list insertion not found in the prototype");
   const learnIds = p.LEARN;
-  const cards = Object.entries(p.KB).map(([id, c]) => ({
+  const cards = Object.entries(p.KB).map(([id, c]) => applyOverride(id, {
     id,
     title: c.t,
     summary: c.s,
@@ -169,7 +230,7 @@ export function importCards(html) {
     ...(PLACEHOLDERS[id] ? { placeholders: PLACEHOLDERS[id], sections: sectionNames(id) } : {}),
     review_status: 'draft',
   }));
-  return { schema_version: 1, origin: 'docs/prototype/plate-and-bar.html (KB, LEARN)', split_names: names, cards };
+  return { schema_version: 1, origin: 'docs/prototype/plate-and-bar.html (KB, LEARN), with CARD_OVERRIDES in tools/cards-import/import.mjs', split_names: names, cards };
 }
 
 export function importMeasures(html) {
