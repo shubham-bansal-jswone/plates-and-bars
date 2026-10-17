@@ -10,6 +10,14 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — prototype fix: grams too small to log, and the custom-food, recipe and kitchen-test checks (spec-change; golden fixtures unchanged).**
+- #150, the parts left after the day-complete fix. Each check stops the log or save and shows a toast; nothing is logged or saved. The toasts are the wording the app already shows for core's results (`apps/mobile/src/food/copy.ts`, `recipes/copy.ts`, `kitchen/copy.ts`; decided 2026-10-17, decisions delegated to Claude Code). Core already does each check (PRs #156, #211), and its prototype tests now compare exactly.
+- `case 'pick'`: grams that round to 0 servings (such as 4 g paneer) are not logged: "That amount is too small to log. Enter more grams or use servings." Before, the prototype logged quantity 0, which the contract rejects (core `too-small`).
+- `case 'addcustom'`, after the empty-name check: a trimmed name longer than 200 characters (the contract limit) gives "That name is too long. Shorten it." (core `name-too-long`). Then a negative calorie or macro value, or a quantity at or below 0, gives "Calories, macros and servings can’t be negative, and servings must be more than 0." (core `invalid`). Both come before "Enter calories or at least one macro.".
+- `case 'rb-save'`, after the empty-name check: a name over 200 characters gives "That name is too long. Keep it under 200 characters.", then an ingredient amount below 0 gives "An amount can’t be below 0." (core `recipeFood`).
+- `ktSave` (both "Save test" and "Save and use for my logging"), after the empty-name check: a name over 200 characters gives "That name is too long. Keep it under 200 characters.", then an ingredient amount, empty-pot, pot-with-food, cooked or serving weight below 0 gives "An amount or weight can’t be below 0." (core `kitchenTestFood`).
+- No golden fixture covers these steps; `node golden-gen/cli.mjs` gives no diff. "Save as meal prep" (`case 'rb-prep'`) still saves the prep after `rb-save` refuses, as it already did for its other checks; it is not ported, so it is left as is.
+
 **2026-10-17 — setup consent text matches the real design (spec-change; prototype behaviour and golden fixtures unchanged).**
 - #361: the first-run consent said data is "saved privately to your Claude account" and that meal photos, recipe imports and form-check frames "are sent to Claude". Both were wrong (ADR 004, privacy page). New bullets: data stays on this device, and if you sign in it is also stored on our own server (upload needs sign-in plus a `data_storage` consent record, given by the setup tick or via "Agree and sync"); AI features are off by default and need their own opt-in, and no photos are sent anywhere. The prototype also gains the "Withdrawing your consent means deleting your account." bullet the app already had (#507). Section 7 reworded to match. The app is unreleased, so no re-consent flow is built; pre-launch test consent records should be wiped. The app's `CONSENT_TEXT_VERSION` is now `2026-10-17`; it applies to new consent records only, existing records keep their version.
 
@@ -221,6 +229,7 @@ Still open (#155): after M0, the planned count may move to the built session's r
 - Day complete: user tick, or for older days ≥3 meals and ≥75% of target. Only complete days feed the real-burn estimate.
 - Recipes: raw ingredients per 100 g (`RAW`, `RAW_FIB`), cooked yield by katoris (150 g) or pot weight.
 - Kitchen tests: pot weights → cooked weight; per 100 g and per serving; "use for my logging" writes a personal food.
+- Logging and saving checks (#150): grams that round to 0 servings are not logged; a custom food, recipe or kitchen test with a trimmed name over 200 characters, or a negative amount or value (a custom-food quantity at or below 0), is not saved.
 
 **Kept on #151.**
 - Fibre, added sugar and fruit and veg are looked up by the logged item's name, not a food id, so a custom log named like a shared food gets the shared food's values. For fibre and added sugar a shared food's entry wins over a user food of the same name (`fibOf`); for fruit and veg the shared value wins only when it is not 0, so a shared 0 lets the user food's value count (`produceOf`). Revisiting `food_id` lookups when the sync client lands is tracked in #648.
