@@ -1,0 +1,90 @@
+name: Production deploy
+
+# A v* tag backs up the production database, then deploys that tag's API image to the production VM over SSH
+# (infra/staging/release.sh: backup.sh, then deploy.sh with the tag as the image tag; deploy.sh health-checks through
+# the local Caddy and restores the previous API_TAG if the new image is not healthy). RUNBOOK.md section 4a.
+# Disabled until the owner sets the repository variable PRODUCTION_DEPLOY_ENABLED to 'true' (Settings > Secrets and
+# variables > Actions > Variables). Unset or any other value: the job is skipped. Only tags whose commit is on main.
+# Needs a GitHub environment named `production` (Settings > Environments: required reviewers, deployment tags v*) holding:
+#   secrets    PRODUCTION_SSH_KEY (private key of a deploy-only user in the docker group),
+#              PRODUCTION_SSH_KNOWN_HOSTS (ssh-keyscan -t ed25519 host)
+#   variables  PRODUCTION_SSH_HOST, PRODUCTION_SSH_USER, PRODUCTION_DIR (checkout on the VM, for example /opt/plateandbar)
+# The tag must come from a commit that passed CI on main; this workflow does not re-run CI.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'infra/staging/release.sh'
+      - 'infra/staging/test-release.sh'
+      - '.github/workflows/production-deploy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  # a release is never cancelled half way through; PR validation has its own group
+  group: ${{ github.event_name == 'pull_request' && format('production-validate-{0}', github.ref) || 'production-deploy' }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: validate release script
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck infra/staging/release.sh infra/staging/test-release.sh
+      - name: release.sh against stubs
+        run: infra/staging/test-release.sh
+
+  deploy:
+    name: deploy (production VM)
+    if: github.event_name == 'push' && github.ref_type == 'tag' && vars.PRODUCTION_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      SSH_HOST: ${{ vars.PRODUCTION_SSH_HOST }}
+      SSH_USER: ${{ vars.PRODUCTION_SSH_USER }}
+      DIR: ${{ vars.PRODUCTION_DIR }}
+      TAG: ${{ github.ref_name }}
+      SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check the tag and the settings
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::release tags must be vMAJOR.MINOR.PATCH, got '$TAG'"
+            exit 1
+          fi
+          # a release comes from main, never from a side branch
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "::error::$TAG ($SHA) is not on main: tag a commit that was merged to main"
+            exit 1
+          fi
+          : "${SSH_HOST:?PRODUCTION_SSH_HOST is not set}" "${SSH_USER:?PRODUCTION_SSH_USER is not set}" "${DIR:?PRODUCTION_DIR is not set}"
+          # the directory is interpolated into a remote shell command: allow plain absolute paths only
+          if ! printf '%s' "$DIR" | grep -Eq '^/[A-Za-z0-9_./-]+$' || printf '%s' "$DIR" | grep -Fq '..'; then
+            echo "::error::PRODUCTION_DIR must be a plain absolute path, for example /opt/plateandbar"
+            exit 1
+          fi
+      - name: Install SSH key
+        env:
+          SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+        run: |
+          : "${SSH_KEY:?PRODUCTION_SSH_KEY is not set}" "${KNOWN_HOSTS:?PRODUCTION_SSH_KNOWN_HOSTS is not set}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Back up, deploy, health check (rolls back on failure)
+        run: |
+          # check out exactly the tag on the VM, then run the tag's own release.sh: it refuses a checkout that is not
+          # the tag's commit, runs backup.sh (a failed backup stops the release), then deploy.sh
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -- "$SSH_USER@$SSH_HOST" \
+            "cd '$DIR' && git fetch --quiet --force --tags origin && git checkout --quiet --detach 'refs/tags/$TAG' && infra/staging/release.sh '$TAG'"
