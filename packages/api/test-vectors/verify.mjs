@@ -190,6 +190,147 @@ for (const flags of ["", "u"]) {
   for (const t of blank.must_fail) if (re.test(t)) failures.push(`blank-text.json (flags "${flags}"): must_fail ${JSON.stringify(t)} passes`);
   for (const t of blank.must_pass) if (!re.test(t)) failures.push(`blank-text.json (flags "${flags}"): must_pass ${JSON.stringify(t)} fails`);
 }
+// Closed record shapes (#646): every object a sync record nests whose fields the contract lists is closed, by
+// `additionalProperties` (false, or a schema for a typed map) or by `unevaluatedProperties: false` on the `allOf` that
+// builds it. The record's own top level is exempt (unlisted keys are ignored there). An `additionalProperties: true`
+// object (shape owned by packages/core) must carry a positive integer `x-max-json-bytes`. Dropping any one closing
+// keyword on a record path must make the check fail.
+function checkClosed(doc) {
+  const schemas = doc.components.schemas;
+  const found = [];
+  const seen = new Set();
+  const closers = new Set();
+  function walk(node, path, closedByAllOf) {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach((n, i) => walk(n, `${path}[${i}]`, closedByAllOf));
+    const closed = closedByAllOf || node.unevaluatedProperties === false;
+    if (node.additionalProperties === false || node.unevaluatedProperties === false) closers.add(node);
+    if (typeof node.$ref === "string") {
+      const name = node.$ref.split("/").pop();
+      if (!seen.has(`${name}/${closed}`)) {
+        seen.add(`${name}/${closed}`);
+        walk(schemas[name], name, closed);
+      }
+    }
+    if (node.properties && node.additionalProperties === undefined && !closed) found.push(`openapi.yaml: open record object at ${path} (set additionalProperties: false)`);
+    const xBytes = node["x-max-json-bytes"];
+    if (node.additionalProperties === true && !(Number.isInteger(xBytes) && xBytes > 0)) found.push(`openapi.yaml: ${path} is open (additionalProperties: true) without x-max-json-bytes`);
+    for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") walk(v, `${path}.${k}`, k === "allOf" && closed);
+  }
+  for (const prop of Object.values(schemas.SyncChanges.properties)) {
+    const name = prop.items.$ref.split("/").pop();
+    for (const part of schemas[name].allOf) {
+      if (part.$ref) continue; // SyncMeta: id, version and timestamps only
+      for (const [field, sub] of Object.entries(part.properties)) walk(sub, `${name}.${field}`, false);
+    }
+  }
+  return { found, closers };
+}
+const closedCheck = checkClosed(parsed);
+failures.push(...closedCheck.found);
+if (closedCheck.closers.size === 0) failures.push("openapi.yaml: no closed record objects found");
+let closedMutants = 0;
+const dropClosers = (node, path) => {
+  if (!node || typeof node !== "object") return;
+  if (closedCheck.closers.has(node)) {
+    for (const key of ["additionalProperties", "unevaluatedProperties"]) {
+      if (node[key] !== false) continue;
+      const copy = structuredClone(parsed);
+      let target = copy.components.schemas;
+      for (const step of path) target = target[step];
+      delete target[key];
+      closedMutants++;
+      if (checkClosed(copy).found.length === 0) failures.push(`closed-shape check misses components.schemas.${path.join(".")} without ${key}`);
+    }
+  }
+  for (const [k, v] of Object.entries(node)) if (k !== "examples" && k !== "description") dropClosers(v, [...path, k]);
+};
+dropClosers(parsed.components.schemas, []);
+if (closedMutants < closedCheck.closers.size) failures.push("closed-shape check: some closers were not mutated");
+// strict-json.json (#652): what "exactly one JSON value" means, checked with a small strict reader: trailing content,
+// a repeated key (compared after unescaping) and nesting past max_nesting_depth are each their own fault.
+const strict = JSON.parse(readFileSync(new URL("./strict-json.json", import.meta.url), "utf8"));
+function strictFault(text, maxDepth) {
+  let i = 0;
+  const ws = () => { while (i < text.length && " \t\n\r".includes(text[i])) i++; };
+  const fail = (fault) => { throw Object.assign(new Error(fault), { fault, at: i }); };
+  const token = (re) => {
+    re.lastIndex = i;
+    const m = re.exec(text);
+    if (!m) fail("syntax");
+    i += m[0].length;
+    return m[0];
+  };
+  const STRING = /"(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"/y;
+  const SCALAR = /true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
+  const value = (depth) => {
+    ws();
+    const open = text[i];
+    if (open !== "{" && open !== "[") return void token(open === '"' ? STRING : SCALAR);
+    if (depth + 1 > maxDepth) fail("depth");
+    i++;
+    ws();
+    const close = open === "{" ? "}" : "]";
+    if (text[i] === close) return void i++;
+    const keys = new Set();
+    for (;;) {
+      if (open === "{") {
+        ws();
+        const key = JSON.parse(token(STRING));
+        if (keys.has(key)) fail("duplicate_key");
+        keys.add(key);
+        ws();
+        if (text[i++] !== ":") fail("syntax");
+      }
+      value(depth + 1);
+      ws();
+      const c = text[i++];
+      if (c === close) return;
+      if (c !== ",") fail("syntax");
+    }
+  };
+  try {
+    value(0);
+    ws();
+    if (i < text.length) fail("trailing");
+    return { fault: null };
+  } catch (e) {
+    if (!e.fault) throw e;
+    return { fault: e.fault, at: e.at };
+  }
+}
+const deep = (n) => "[".repeat(n) + "]".repeat(n);
+if (strict.max_nesting_depth !== 1000 || !parsed.info.description.includes("nested more than 1,000")) failures.push("strict-json.json: max_nesting_depth must be the 1,000 the wire conventions name");
+if (strictFault(deep(strict.max_nesting_depth), strict.max_nesting_depth).fault !== null) failures.push("strict-json.json: nesting at max_nesting_depth must parse");
+if (strictFault(deep(strict.max_nesting_depth + 1), strict.max_nesting_depth).fault !== "depth") failures.push("strict-json.json: nesting past max_nesting_depth must be refused");
+if (!parsed.info.description.includes("`test-vectors/strict-json.json`")) failures.push("openapi.yaml: wire conventions do not point to strict-json.json");
+for (const v of [...strict.must_refuse, ...strict.must_accept]) {
+  if (!parsed.paths[v.path]?.post?.requestBody) failures.push(`strict-json.json "${v.name}": ${v.path} takes no request body`);
+}
+for (const v of strict.must_accept) {
+  const got = strictFault(v.body, strict.max_nesting_depth);
+  if (got.fault !== null) failures.push(`strict-json.json must_accept "${v.name}": refused (${got.fault})`);
+}
+for (const v of strict.must_refuse) {
+  const got = strictFault(v.body, strict.max_nesting_depth);
+  if (got.fault !== v.fault) failures.push(`strict-json.json must_refuse "${v.name}": fault ${got.fault}, expected ${v.fault}`);
+  // Exactly one fault: the body without its trailing part, or a duplicate-key body read by JSON.parse, is fine.
+  if (v.fault === "trailing" && strictFault(v.body.slice(0, got.at), strict.max_nesting_depth).fault !== null) failures.push(`strict-json.json must_refuse "${v.name}": wrong before the trailing content`);
+  if (v.fault === "duplicate_key") {
+    try {
+      JSON.parse(v.body);
+    } catch {
+      failures.push(`strict-json.json must_refuse "${v.name}": not JSON apart from the duplicate key`);
+    }
+  }
+}
+for (const fault of ["trailing", "duplicate_key"]) if (!strict.must_refuse.some((v) => v.fault === fault)) failures.push(`strict-json.json: no ${fault} vector`);
+// Every operation that takes a JSON body lists 400 invalid_request (malformed, strict-JSON and schema failures).
+for (const [p, ops] of Object.entries(parsed.paths)) {
+  for (const [method, op] of Object.entries(ops)) {
+    if (op?.requestBody && !op.responses?.["400"]) failures.push(`openapi.yaml: ${method.toUpperCase()} ${p} takes a body but lists no 400`);
+  }
+}
 // YAML 1.1 readers (SnakeYAML under the backend's Jackson YAMLMapper) read bare y/n/yes/no/on/off (any case) as
 // booleans and a leading-zero integer such as 010 as octal. Jackson keeps mapping keys as text but converts values,
 // including flow and block list items, so `required: [..., on]` became `true` on the server (#418). Quote them all.
@@ -263,3 +404,5 @@ console.log(`blank-text.json: ${blank.must_fail.length} must-fail and ${blank.mu
 console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
 console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and open objects, all bounded`);
 console.log(`openapi.yaml: ${mutants} bounds in ${aiRequests.size} AI request schemas (${[...aiRequests].join(", ")}), each one caught when removed`);
+console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, each one caught when opened; open core-owned objects carry x-max-json-bytes`);
+console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);
