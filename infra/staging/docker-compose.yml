@@ -48,6 +48,8 @@ services:
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY (at least 32 bytes)}
       GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # Exact origin(s) of the web app itself allowed to use cookie mode for the refresh token (ADR 006). Empty refuses cookie mode.
+      AUTH_COOKIE_ORIGINS: ${AUTH_COOKIE_ORIGINS:-}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
