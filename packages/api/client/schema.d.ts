@@ -192,11 +192,14 @@ export interface paths {
          *     version-checked like any other push. Which tables can be merged, and when a merge is
          *     safe, is the app's rule; a device that does not merge ignores the field. On
          *     `server_won` (idempotent retries included) the field is absent, because the losing
-         *     copy is the device's own push. Servers built against contract 0.1.19 or earlier
-         *     never send it, so a `client_won` conflict without it leaves the replaced copy only
-         *     in the conflict log, and the device keeps `server_record` as before. A response
-         *     carries at most one `replaced_record` per pushed record; they do not count toward
-         *     the 500-record page limit on pulled `changes`.
+         *     copy is the device's own push. So if the answer to a `client_won` push is lost, the
+         *     device's retry resolves as an idempotent `server_won` without `replaced_record`, and
+         *     the other device's copy is then only in the server's conflict log. Servers built
+         *     against contract 0.1.19 or earlier never send it, so a `client_won` conflict without
+         *     it leaves the replaced copy only in the conflict log, and the device keeps
+         *     `server_record` as before. A response carries at most one `replaced_record` per
+         *     pushed record; they do not count toward the 500-record page limit on pulled
+         *     `changes`.
          *
          *     **Conflict log retention.** The log is bounded per user: the server keeps each
          *     user's newest 1,000 entries and drops entries older than 90 days. Pruning runs when
