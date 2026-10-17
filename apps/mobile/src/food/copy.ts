@@ -32,6 +32,11 @@ export function plannedLogged(meal: string, skipped: readonly string[], logged: 
   return `Logged your planned ${m}, except ${andList(skipped)}, which ${verb} in the food list any more`;
 }
 
+/** A meal-prep batch line on Food (prototype `prepLineHtml`). */
+export const prepLine = (name: string, left: number): string => `Meal prep: ${name}, ${left} portion${left > 1 ? 's' : ''} left`;
+/** Toast after "Log 1 katori" (prototype: `Logged <name>`). */
+export const prepLogged = (name: string): string => `Logged ${name}`;
+
 /** Food's weekly check-in banner (prototype `checkinBanner`). */
 export const CHECKIN_READY = 'Your weekly check-in is ready.';
 export const CHECKIN_SEE = 'See it';
