@@ -221,7 +221,7 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   never user data. With the cap off it does nothing. **Enable order:** deploy this version (cap still off), then set
   `SYNC_MAX_RECORDS_PER_ACCOUNT` and restart the API; the recount starts with that restart. Until it finishes (seconds
   for thousands of accounts) a drifted counter could let one push through or refuse one wrongly, which only matters if the
-  counters had drifted, and the next push or restart fixes it. Enabling the cap itself waits for the app's `account_full` handling (app PR #662).
+  counters had drifted, and the background recount fixes it when it reaches that account. Enabling the cap itself waits for the app's `account_full` handling (app PR #662).
 - **Validation.** The body is read with a size cap (`app.sync.max-body-bytes`, env `SYNC_MAX_BODY_BYTES`, default
   2 MB; larger is 400 `invalid_request` with detail `too_large`), the records are counted against the 500 cap before
   anything else (detail `too_many_records`), then the body is validated against the schemas in the contract

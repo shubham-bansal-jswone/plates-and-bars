@@ -37,6 +37,7 @@ class RecordRecount {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
     private final boolean capOn;
+    private volatile Thread walk;
 
     RecordRecount(
             JdbcTemplate jdbc,
@@ -52,22 +53,32 @@ class RecordRecount {
         if (!capOn) {
             return;
         }
-        Thread t = new Thread(() -> {
+        walk = new Thread(() -> {
             try {
                 long fixed = recountAll();
                 log.info("record recount done, counters corrected: {}", fixed);
             } catch (RuntimeException e) {
-                log.error("record recount failed: {}", e.getClass().getSimpleName()); // safe to rerun: restart the app
+                // Also reached when a normal shutdown closes the pool under the walk, so not ERROR. Safe to rerun: restart.
+                log.warn("record recount stopped early: {}", e.getClass().getSimpleName());
             }
         }, "record-recount");
-        t.setDaemon(true);
-        t.start();
+        walk.setDaemon(true);
+        walk.start();
+    }
+
+    /** Test hook: waits until the walk started at startup has finished. */
+    void awaitStartupWalk() throws InterruptedException {
+        Thread t = walk;
+        if (t != null) {
+            t.join();
+        }
     }
 
     /** Recounts every user with a {@code sync_state} row; returns how many counters were wrong and are now corrected. */
     long recountAll() {
         long corrected = 0;
         long checked = 0;
+        long skipped = 0;
         String after = "";
         while (true) {
             List<String> users = jdbc.queryForList(
@@ -76,14 +87,18 @@ class RecordRecount {
                 break;
             }
             for (String user : users) {
-                if (recount(user)) {
-                    corrected++;
+                try {
+                    if (recount(user)) {
+                        corrected++;
+                    }
+                } catch (org.springframework.dao.DataAccessException e) {
+                    skipped++; // for example a lock-wait timeout: carry on, the next start repeats it
                 }
                 checked++;
             }
             after = users.get(users.size() - 1);
         }
-        log.info("record recount checked {} accounts", checked);
+        log.info("record recount checked {} accounts, {} skipped after an error", checked, skipped);
         return corrected;
     }
 
