@@ -16,7 +16,7 @@ import app.plateandbar.api.support.WebMvcAuthSlice;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -74,6 +74,30 @@ class AuthControllerTest {
         mvc.perform(json("/api/v1/auth/google", "{\"id_token\":\"  \"}")).andExpect(status().isBadRequest());
         mvc.perform(json("/api/v1/auth/google", "not json")).andExpect(status().isBadRequest());
         verifyNoInteractions(auth);
+    }
+
+    /** Spring Boot 4 / Jackson 3 refuses trailing content by default; the API keeps accepting it as before (#81). */
+    @Test
+    void contentAfterTheJsonBodyIsStillAccepted() throws Exception {
+        when(auth.startEmailSignIn("b@example.com"))
+                .thenReturn(new EmailStartResponse(Instant.parse("2026-10-08T06:40:00Z"), 60));
+        mvc.perform(json("/api/v1/auth/email/start", "{\"email\":\"b@example.com\"} junk"))
+                .andExpect(status().isAccepted());
+        mvc.perform(json("/api/v1/auth/email/start", "{\"email\":\"b@example.com\"}{\"x\":1}"))
+                .andExpect(status().isAccepted());
+    }
+
+    /**
+     * A duplicate key: the last value wins (202). Spring Boot 3 answered 500 here, which was a bug; a follow-up makes
+     * it 400 like /ai/*. This pins the current answer so a change is deliberate.
+     */
+    @Test
+    void aDuplicateKeyTakesTheLastValue() throws Exception {
+        when(auth.startEmailSignIn("d@example.com"))
+                .thenReturn(new EmailStartResponse(Instant.parse("2026-10-08T06:40:00Z"), 60));
+        mvc.perform(json("/api/v1/auth/email/start", "{\"email\":\"c@example.com\",\"email\":\"d@example.com\"}"))
+                .andExpect(status().isAccepted());
+        verify(auth).startEmailSignIn("d@example.com");
     }
 
     @Test

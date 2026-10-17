@@ -4,7 +4,7 @@ import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.common.ErrorResponse;
 import app.plateandbar.api.ratelimit.RateLimitFilter;
 import app.plateandbar.api.ratelimit.RateLimitedException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
