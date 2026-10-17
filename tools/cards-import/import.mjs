@@ -70,7 +70,7 @@ export const CARD_OVERRIDES = {
     set: {
       evidence: 'Moderate',
       source: 'Warburton DER, Jamnik VK, Bredin SSD, Gledhill N. The Physical Activity Readiness Questionnaire for Everyone (PAR-Q+) and Electronic Physical Activity Readiness Medical Examination (ePARmed-X+). Health & Fitness Journal of Canada 2011;4(2):3-23',
-      body: 'These questions cover similar topics to the PAR-Q+, a widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. They are a short summary, not the PAR-Q+ itself; the official form is free at eparmedx.com. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
+      body: 'These questions are our own wording of the safety topics that pre-exercise screening tools such as the PAR-Q+ cover: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. The PAR-Q+ is our reference, not the source of these questions; the official form is free at eparmedx.com. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
     },
   },
 };

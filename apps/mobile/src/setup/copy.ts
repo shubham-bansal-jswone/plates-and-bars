@@ -23,10 +23,10 @@ export const CONSENT = {
 export const SCREEN_Q = [
   'Have you ever been diagnosed with a heart problem or high blood pressure?',
   'Does your chest hurt when you are resting or being active?',
-  'In the last year, have you fainted, or felt so dizzy that you nearly fell?',
+  'In the last year, have you fainted, or felt so dizzy that you fell or nearly fell?',
   'Do you live with a long-term health condition, or take regular medication for one?',
-  'Is there a bone, joint or soft-tissue problem, such as a back, knee or shoulder injury, that exercise tends to aggravate?',
-  'Have you been told to exercise only with professional supervision?',
+  'Do you have a back, knee, shoulder or other bone, joint or muscle problem that being more active could make worse?',
+  'Has a doctor or other health professional said you should only exercise with supervision?',
 ] as const;
 
 type Choice = readonly [label: string, sub: string];
