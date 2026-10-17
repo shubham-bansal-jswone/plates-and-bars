@@ -325,6 +325,30 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
+  it('does not report a failed sheet save again when later unrelated writes fail', async () => {
+    const notify = jest.fn();
+    const db = memoryDb();
+    function Host() {
+      const { update } = useSettings();
+      return (
+        <>
+          <Button label="Other write" onPress={() => void update({ rest_off: true })} />
+          <ExerciseSettings name={BENCH} info={{ type: 'barbell', lo: 6, hi: 10, step: 2.5 }} notify={notify} />
+        </>
+      );
+    }
+    await render(withProfile(db, <Host />));
+    db.failWrites = true;
+    await press(`${BENCH} settings`);
+    await press(`Save settings for ${BENCH}`);
+    await waitFor(() => expect(notify).toHaveBeenCalledWith(NOT_STORED));
+    notify.mockClear();
+    await press('Other write');
+    await act(async () => {});
+    await act(async () => {});
+    expect(notify).not.toHaveBeenCalled();
+  });
+
   it('writes the override onto the stored record, not the screen’s copy', async () => {
     const db = await open();
     // Another device’s override reached the store after the screen read it.
