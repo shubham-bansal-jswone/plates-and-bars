@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
@@ -385,6 +385,10 @@ describe('Food screen', () => {
       const name = row.props.accessibilityLabel as string;
       expect(name).not.toMatch(/^Add /);
       expect(name).toMatch(/ [\d,]+ kcal .*g protein.*, tap to add$/);
+      // The name starts with the row's visible texts joined in reading order (WCAG 2.5.3).
+      const visible = within(row).getAllByText(/./).map((t) => [t.props.children].flat().join('').trim()).join(' ');
+      expect(visible).not.toBe('');
+      expect(name.startsWith(visible)).toBe(true);
     }
   });
 
