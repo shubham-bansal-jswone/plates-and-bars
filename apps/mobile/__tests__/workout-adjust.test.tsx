@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import type { LiftRecord } from '@plate-and-bar/core';
+import { EXERCISE_OVERRIDES_MAX, type LiftRecord } from '@plate-and-bar/core';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveSet, saveWorkout } from '../src/db/workouts';
@@ -176,6 +176,22 @@ describe('stall card', () => {
     expect(screen.getByText('Pec Deck Fly: now 6–8 reps')).toBeTruthy();
     expect(screen.queryByText('No progress in 3 sessions')).toBeNull();
     expect(screen.getByText(/Machine, 6–8 reps/)).toBeTruthy();
+  });
+
+  it('Switch to 6–8 is refused at the 500-entry overrides cap: nothing is stored, the card stays and it says why (#661)', async () => {
+    const entry = { type: 'machine' as const, step_kg: 5, rep_low: 8, rep_high: 12 };
+    const full = Object.fromEntries(Array.from({ length: EXERCISE_OVERRIDES_MAX }, (_, i) => [`Custom ${i}`, entry]));
+    const db = await started(async (d) => {
+      seed(d, 'Pec Deck Fly', stalledLift());
+      await saveSettings(d, { ...defaultSettings('2026-10-01T00:00:00Z'), exercise_overrides: full });
+    });
+    await press('Switch to 6–8, Pec Deck Fly');
+    expect(await screen.findByText(/most exercises that can be changed/)).toBeTruthy();
+    expect(screen.queryByText('Pec Deck Fly: now 6–8 reps')).toBeNull();
+    expect(screen.getByText('No progress in 3 sessions')).toBeTruthy();
+    expect(Object.keys(settingsOf(db).exercise_overrides)).toHaveLength(EXERCISE_OVERRIDES_MAX);
+    expect(settingsOf(db).exercise_overrides['Pec Deck Fly']).toBeUndefined();
+    expect(settingsOf(db).adjustments.dismissed).toBeUndefined();
   });
 
   it('Or switch to a similar exercise saves a swap with no bridge', async () => {

@@ -1,4 +1,5 @@
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
 import { Heading, Button } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
@@ -9,7 +10,7 @@ export function AvoidPicker({ visible, onPick, onClose }: { visible: boolean; on
   const c = useTheme();
   if (!visible) return null;
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title="Exercise to avoid" onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
@@ -30,7 +31,7 @@ export function AvoidPicker({ visible, onPick, onClose }: { visible: boolean; on
           <Button label="Close" kind="ghost" onPress={onClose} />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 
