@@ -1,6 +1,6 @@
 # Error tracking and uptime: proposal (#306)
 
-Status: proposal only. Nothing is installed. Licences checked 2026-10-09 against the upstream LICENSE files; re-check before installing.
+Status: proposal. The mobile app has the Sentry SDK wired, off unless a DSN is set (see "Mobile app wiring"); the backend SDK, GlitchTip and Uptime Kuma are not installed. Licences checked 2026-10-09 against the upstream LICENSE files; re-check before installing.
 
 The plan (`docs/development-plan.md`, Monitoring) names Sentry free tier and UptimeRobot. Both are hosted vendor services with their own terms, which conflicts with the open-source-only rule. `docs/` is owned by Shubham, so the plan text is not edited here; if you accept this proposal, update that row.
 
@@ -50,6 +50,16 @@ The backup heartbeat needs one `curl` line at the end of the backup script in `i
   - Tests in the App and Backend lanes build a worst-case event and assert on the full serialized event (the JSON the SDK would send), not on individual fields, that none of the above appears. Review a sample event in GlitchTip before enabling production.
 - Retention: 30 days, matching backups, to keep the database small.
 - Releases: tag events with the Git tag so a regression maps to a release; rollback is the previous image tag (see `infra/RUNBOOK.md` when it exists).
+
+## Mobile app wiring (#687)
+
+- SDK: `@sentry/react-native` (MIT, checked 2026-10-17; the version Expo SDK 58 pins). Initialised in `apps/mobile/app/_layout.tsx` only when `EXPO_PUBLIC_SENTRY_DSN` is set at build time; with no DSN the SDK is not started and sends nothing. Put the `mobile` project DSN in a GitHub secret and pass it to the release build.
+- `@sentry/cli` (a hard dependency of the SDK) is FSL-1.1-MIT, which is not open source. It is replaced by an empty MIT stub through npm `overrides`, and a test fails if any FSL package reaches the lockfile.
+- Tracing is off (no sample rate, empty `tracePropagationTargets`, transactions dropped), so no `sentry-trace` or `baggage` header leaves the app.
+- Scrubbing is fail-closed, in `apps/mobile/src/telemetry/scrub.ts` and tested on a probe event carrying a food name and a weight in every field (`apps/mobile/__tests__/error-tracking.test.ts`): the event is rebuilt from an allowlist; exception values, message, `logentry`, `extra`, `tags`, request, transaction and fingerprint never leave; breadcrumbs carry no message or data; the user is a random install id.
+- Native Android crashes are sent by the native SDK and skip the JS `beforeSend`; they carry stack frames, device data, the install id and the scrubbed breadcrumbs only.
+- The SDK adds `ACCESS_NETWORK_STATE` to the Android manifest. List it and crash reporting in the privacy notice and the Play data-safety answers (docs follow-up).
+- Not done: source-map upload (needs the CLI; not wanted), Git-tag releases and the backend side of #687.
 
 ## Install outline (do not run yet)
 

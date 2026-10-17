@@ -3,11 +3,12 @@ import { StyleSheet, View } from 'react-native';
 import { WhyLink } from '../why/WhyLink';
 import { Text } from './Text';
 import { fmt } from '../format';
-import { buildResults, clearanceNote } from '../setup/results';
+import { buildResults } from '../setup/results';
 import type { Profile } from '../setup/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { Heading, Button, Card, H1, Hint, Label, Note } from './ui';
+import { ClearanceCard } from './ClearanceCard';
+import { Card, H1, Hint, Label, Note } from './ui';
 
 /** Notes that carry a Why link in the prototype (`resultsHtml`). */
 const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweight: 'home', older: 'older' };
@@ -19,7 +20,6 @@ const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweig
 export function ResultsView({ profile, onCleared, hideTargets }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean }) {
   const c = useTheme();
   const v = buildResults(profile);
-  const clear = clearanceNote(profile);
   const t = v.r;
   const tiles: [string, string, string][] = [
     [fmt(t.kcal), 'kcal', c.ink],
@@ -58,15 +58,7 @@ export function ResultsView({ profile, onCleared, hideTargets }: { profile: Prof
         </>
       )}
       <Hint>{v.pace}</Hint>
-      {clear ? (
-        <View style={[styles.card, { borderColor: c.danger, backgroundColor: c.surface }]}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
-            {clear.title}
-          </Heading>
-          <Text style={{ color: c.ink, lineHeight: 20 }}>{clear.body}</Text>
-          {onCleared ? <Button label="My doctor has cleared me" onPress={onCleared} /> : null}
-        </View>
-      ) : null}
+      <ClearanceCard profile={profile} onCleared={onCleared} />
       {v.notes.map((n, i) => {
         const why = NOTE_WHY[v.noteKeys[i] as string];
         return (
@@ -87,5 +79,4 @@ const styles = StyleSheet.create({
   tile: { flexGrow: 1, flexBasis: '45%', alignItems: 'center', gap: 2 },
   dot: { width: 10, height: 10, borderRadius: radius.full },
   num: { fontSize: 26, fontWeight: '300' },
-  card: { borderWidth: 2, borderRadius: radius.md, padding: 12, gap: 6 },
 });
