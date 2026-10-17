@@ -81,6 +81,8 @@ const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
 const stored = <T,>(db: Db, key: string) => JSON.parse(db.rows.get(key) as string) as T;
 const storedSets = (db: Db) => [...db.sets.values()].map((s) => JSON.parse(s.data) as WorkoutSet);
 const placeholder = (label: string) => screen.getByLabelText(label).props.placeholder as string;
+/** The rest countdown reads the wall clock, so a test that checks its text freezes the clock first (#270): the text must not depend on how long the machine took. */
+const frozenClock = () => jest.spyOn(Date, 'now').mockReturnValue(Date.now());
 
 describe('Workout tab: preview and Start', () => {
   it('shows today’s planned session from core with a Start button', async () => {
@@ -243,6 +245,7 @@ describe('Workout tab: preview and Start', () => {
 });
 
 describe('Workout tab: logging sets', () => {
+  afterEach(() => jest.restoreAllMocks());
   const lifts = { 'Barbell Bench Press': 60, 'Machine Shoulder Press': 30, 'Pec Deck Fly': 25, 'Cable Lateral Raise': 10, 'Overhead Cable Extension': 20 };
 
   async function started(opts: Parameters<typeof setup>[0] = {}) {
@@ -326,6 +329,7 @@ describe('Workout tab: logging sets', () => {
 
   it('ticking an empty set takes the target, writes the set and the lift stat, and starts the rest timer', async () => {
     const db = await started();
+    frozenClock(); // restored after each test below
     await press('Mark Barbell Bench Press set 1 done');
     await waitFor(() => expect(storedSets(db).find((s) => s.done)).toBeTruthy());
     const s = storedSets(db).find((x) => x.done) as WorkoutSet;
@@ -352,7 +356,7 @@ describe('Workout tab: logging sets', () => {
   it('the rest timer’s +30 s button adds core’s REST_EXTEND_SEC', async () => {
     await started();
     // A frozen clock, so the countdown reads exactly 2:30, then 3:00.
-    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now());
+    const clock = frozenClock();
     try {
       await press('Mark Barbell Bench Press set 1 done');
       expect(await screen.findByText('Rest 2:30')).toBeTruthy();

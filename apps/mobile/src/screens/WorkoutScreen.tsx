@@ -19,6 +19,8 @@ import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../wor
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
 import { CustomTagsSheet } from '../workout/CustomTagsSheet';
+import { BodyMap } from '../workout/BodyMap';
+import { musclesOf } from '../workout/muscles';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
@@ -139,7 +141,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
     ? buildSession({ template: startT, date, profile, where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, adjustments: settings.adjustments })
     : null;
   const names = built ? built.exercises.map((e) => e.name) : [];
-  const prim = [...new Set(names.flatMap((n) => getCatalog().tags[n]?.primary ?? []))];
+  const { primary: prim, secondary: sec } = musclesOf(names);
   const eachSets = built && built.exercises.length && built.exercises.every((e) => e.sets === built.exercises[0]?.sets) ? built.exercises[0]?.sets : null;
   const others = (planList(profile) as readonly string[]).filter((k) => k !== plan);
 
@@ -160,10 +162,12 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
       </Hint>
       {plan && built && startT ? (
         <Card>
+          <BodyMap primary={prim} secondary={sec} />
           <Text style={{ color: c.ink, fontSize: 15 }}>
             <Text style={{ fontWeight: '700' }}>Main focus: </Text>
             {listJoin(prim.map((m) => muscleName(m)))}
           </Text>
+          {sec.length ? <Hint>Also working: {listJoin(sec.map((m) => muscleName(m)))}</Hint> : null}
           {names.map((n, i) => (
             <Text key={n} accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15 }}>
               {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
@@ -248,6 +252,8 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
   const c = useTheme();
   const { date, day } = w;
   const [open, setOpen] = useState(false);
+  // The muscle map is open until the first set is ticked (prototype sessionMapHtml); once the user taps it, their choice stays.
+  const [mapOpen, setMapOpen] = useState<boolean | null>(null);
   const [adding, setAdding] = useState(false);
   const [tagging, setTagging] = useState<string | null>(null);
   const { addCustomTags } = useSettings();
@@ -277,6 +283,8 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
   const notes = modsNote(wk.mods).map(modsNoteText);
   const choices = secondSessionChoices({ exercises: day.exs, template: wk.template, base: wk.base }, profile);
   const vol = sessionVolume(day.exs);
+  const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
+  const mapShown = mapOpen ?? done === 0;
 
   return (
     <Page>
@@ -287,6 +295,12 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
       </Text>
       <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
+      {mainMuscles.length ? (
+        <View>
+          <Button kind="link" label={`Muscles today: ${listJoin(mainMuscles.map((m) => muscleName(m)))}`} expanded={mapShown} onPress={() => setMapOpen(!mapShown)} />
+          {mapShown ? <BodyMap primary={mainMuscles} secondary={alsoMuscles} /> : null}
+        </View>
+      ) : null}
       {day.exs.map((ex, i) => {
         const { info, sug } = guidance(ex, ctx, wk);
         const act: Actions = {
