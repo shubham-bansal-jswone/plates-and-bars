@@ -61,13 +61,19 @@ type Say = (text: string, error?: boolean) => void;
 function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress: () => void; sub: string; badge?: boolean }) {
   const high = badge && highProtein(food);
   const c = useTheme();
+  const kcal = `${fmt(food.per_serving.kcal)} kcal`;
+  // WCAG 2.5.3: the accessible name is the visible text in reading order (name, kcal, then the detail line) plus a hint, so it
+  // starts with what a sighted user reads. The spaces after the name and the kcal keep a checker from joining them into one word.
+  // The kcal sits in the first line so the name stays a prefix even when a scroll edge clips the detail line.
   return (
-    <Press accessibilityRole="button" accessibilityLabel={`Add ${food.name}, ${sub}, ${fmt(food.per_serving.kcal)} kcal${high ? ', high protein' : ''}`} onPress={onPress} style={[styles.food, { backgroundColor: c.surface }]}>
+    <Press accessibilityRole="button" accessibilityLabel={`${food.name} ${kcal} ${sub}${high ? ' · high protein' : ''}, tap to add`} onPress={onPress} style={[styles.food, { backgroundColor: c.surface }]}>
       <View style={styles.fill}>
-        <Text style={{ color: c.ink, fontWeight: '600', fontSize: 16 }}>{food.name}</Text>
+        <View style={styles.foodHead}>
+          <Text style={{ color: c.ink, fontWeight: '600', fontSize: 16, flex: 1 }}>{food.name} </Text>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{kcal} </Text>
+        </View>
         <Text style={{ color: c.muted, fontSize: 14 }}>{sub}{high ? ' · high protein' : ''}</Text>
       </View>
-      <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(food.per_serving.kcal)}</Text>
     </Press>
   );
 }
@@ -170,6 +176,7 @@ const styles = StyleSheet.create({
   step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },
   fill: { flex: 1 },
+  foodHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   search: { maxWidth: undefined },
   wide: { maxWidth: undefined },
 });

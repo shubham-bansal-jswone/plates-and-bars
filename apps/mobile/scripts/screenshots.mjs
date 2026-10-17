@@ -75,7 +75,7 @@ try {
     await shot('workout');
     await click('Food');
     await click('+ Add to breakfast');
-    await (await page.waitForSelector('[aria-label^="Add Roti / chapati"]', { timeout: 30000 })).evaluate((e) => e.click());
+    await (await page.waitForSelector('[aria-label^="Roti / chapati"]', { timeout: 30000 })).evaluate((e) => e.click());
     await click('Done');
     await page.waitForSelector(sel('102 of 1,990 kcal eaten'), { timeout: 30000 });
     await shot('food');

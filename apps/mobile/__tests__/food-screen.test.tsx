@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
@@ -299,7 +299,7 @@ describe('Food screen', () => {
     const db = await setup();
     await open();
     await fireEvent.press(screen.getByLabelText('More servings'));
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText('Added Roti / chapati ×1.5');
     await fireEvent.press(screen.getByText('Done'));
     expect(screen.getByLabelText('153 of 1,990 kcal eaten')).toBeTruthy();
@@ -312,7 +312,7 @@ describe('Food screen', () => {
   it('the fibre Why card states that day’s target (flex included), the same as the fibre row', async () => {
     await setup({ flex: 300 });
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText('Added Roti / chapati');
     await fireEvent.press(screen.getByText('Done'));
     expect(screen.getByText(/of 34 g/)).toBeTruthy();
@@ -325,13 +325,13 @@ describe('Food screen', () => {
     await open('lunch');
     expect(screen.getByText(/dry or ingredient weight/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '1');
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     expect(await screen.findByText(/too small to log/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '75');
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText('Added Roti / chapati (75 g)');
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '50');
-    await fireEvent.press(screen.getByLabelText(/^Add Egg, whole/));
+    await fireEvent.press(screen.getByLabelText(/^Egg, whole/));
     expect(await screen.findByText(/is measured in .*, not grams. Use servings./)).toBeTruthy();
     await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(1));
     expect(docs(db, 'food_logs')[0]).toMatchObject({ meal: 'Lunch', qty: 2.5 });
@@ -342,7 +342,7 @@ describe('Food screen', () => {
     await open();
     expect(screen.getByText(/calculated from USDA public-domain/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '75 g');
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     expect(await screen.findByText('Added Roti / chapati (75 g)')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Eating out'));
     expect(screen.queryByText(/high protein/)).toBeNull();
@@ -352,8 +352,8 @@ describe('Food screen', () => {
     await setup();
     await open();
     await fireEvent.changeText(screen.getByLabelText('Search foods'), 'chawal');
-    expect(screen.getByLabelText(/^Add Rice, cooked/)).toBeTruthy();
-    expect(screen.queryByLabelText(/^Add Roti \/ chapati/)).toBeNull();
+    expect(screen.getByLabelText(/^Rice, cooked/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Roti \/ chapati/)).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Search foods'), 'whey');
     expect(screen.getByText(/high protein/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Search foods'), 'zzzz');
@@ -369,10 +369,27 @@ describe('Food screen', () => {
     await fireEvent.press(screen.getByLabelText('Drinks'));
     expect(screen.getByLabelText('Why? Alcohol and training')).toBeTruthy();
     const beer = getCuisines().find((c) => c.name === 'Drinks')!.dishes[0]!;
-    await fireEvent.press(screen.getByLabelText(new RegExp(`^Add ${beer.name.replace(/[()]/g, '\\$&')}`)));
+    await fireEvent.press(screen.getByLabelText(new RegExp(`^${beer.name.replace(/[()]/g, '\\$&')}.*tap to add$`)));
     await screen.findByText(`Added ${beer.name}`);
     await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(1));
     expect(docs(db, 'food_logs')[0]).toMatchObject({ name: beer.name, qty: 1, kcal: beer.per_serving.kcal, food_id: beer.id });
+  });
+
+  it('every food row is named from its visible text: name, kcal, then the detail line (WCAG 2.5.3, #800)', async () => {
+    await setup();
+    await open();
+    expect(screen.getAllByText(/^[\d,]+ kcal$/).length).toBeGreaterThan(0);
+    const rows = screen.getAllByLabelText(/, tap to add$/);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const name = row.props.accessibilityLabel as string;
+      expect(name).not.toMatch(/^Add /);
+      expect(name).toMatch(/ [\d,]+ kcal .*g protein.*, tap to add$/);
+      // The name starts with the row's visible texts joined in reading order (WCAG 2.5.3).
+      const visible = within(row).getAllByText(/./).map((t) => [t.props.children].flat().join('').trim()).join(' ');
+      expect(visible).not.toBe('');
+      expect(name.startsWith(visible)).toBe(true);
+    }
   });
 
   it('a serving unit over 100 characters blocks only when the food is saved to my foods', async () => {
@@ -420,13 +437,13 @@ describe('Food screen', () => {
     expect(docs(db, 'food_logs')[0]).toMatchObject({ name: 'Canteen thali', food_id: food.id });
     // It now shows in the food list, first.
     await fireEvent.press(screen.getByLabelText('+ Add to breakfast'));
-    expect(await screen.findByLabelText(/^Add Canteen thali/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^Canteen thali/)).toBeTruthy();
   });
 
   it('deletes a log as a tombstone and keeps it out of the totals', async () => {
     const db = await setup();
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText(/Added Roti/);
     await fireEvent.press(screen.getByText('Done'));
     await fireEvent.press(screen.getByLabelText('Remove Roti / chapati'));
@@ -437,7 +454,7 @@ describe('Food screen', () => {
   it('writes the "logged everything" tick as DayNote.complete and reads it back', async () => {
     const db = await setup();
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText(/Added Roti/);
     await fireEvent.press(screen.getByText('Done'));
     await fireEvent.press(screen.getByLabelText('I’ve logged everything I ate today'));
@@ -453,7 +470,7 @@ describe('Food screen', () => {
     const db = await setup();
     db.failWrites = true;
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await act(async () => {});
     expect(await screen.findByText('Added Roti / chapati')).toBeTruthy();
     await fireEvent.press(screen.getByText('Done'));
@@ -518,7 +535,7 @@ describe('Food screen', () => {
       await act(async () => { fireEvent.press(screen.getByLabelText('Copy previous day')); });
       // Still mid-read: log a food for today, as another screen or a sync pull would.
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+      await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
       await screen.findByText(/Added Roti/);
       await fireEvent.press(screen.getByText('Done'));
       await act(async () => release());
@@ -534,7 +551,7 @@ describe('Food screen', () => {
       const { release, restore } = holdCopyRead(db);
       await act(async () => { fireEvent.press(screen.getByLabelText('Copy previous day')); });
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+      await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
       await screen.findByText(/Added Roti/);
       await fireEvent.press(screen.getByText('Done'));
       release();
@@ -624,7 +641,7 @@ describe('Food screen', () => {
       const gate = new Promise<void>((r) => (release = r));
       db.hold = () => gate;
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByLabelText(/^Roti/));
       await fireEvent.press(screen.getByText('Done'));
       expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
       await refocus(db);
@@ -651,7 +668,7 @@ describe('Food screen', () => {
       }) as typeof db.getAllAsync;
       await refocus(db);
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByLabelText(/^Roti/));
       await fireEvent.press(screen.getByText('Done'));
       // The just-added food shows while the stale read is still held.
       expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();

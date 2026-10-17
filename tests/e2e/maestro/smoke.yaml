@@ -41,7 +41,7 @@ appId: app.plateandbar.mobile
 # A meal.
 - tapOn: "Food"
 - tapOn: "+ Add to breakfast"
-- tapOn: "Add Roti / chapati.*"
+- tapOn: "Roti / chapati.*"
 - tapOn: "Done"
 - assertVisible: ".* of .* kcal eaten"
 # A set.

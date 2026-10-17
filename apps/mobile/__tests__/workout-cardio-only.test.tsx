@@ -118,7 +118,7 @@ describe('Cardio on a day with no started session (#619)', () => {
     await waitFor(() => expect(workoutOn(db, THU).cardio_min).toBe(15));
     const names = workoutOn(db, THU).exercises.map((e) => e.name);
     for (const n of names) {
-      await press(`Remove ${n} from today`);
+      await press(`Remove exercise ${n} from today`);
       await press(`Tap again to remove ${n} from today`);
     }
     await screen.findByText('Push B day');
@@ -134,7 +134,7 @@ describe('Cardio on a day with no started session (#619)', () => {
     await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
     await screen.findByText('Push B');
     for (const n of workoutOn(db, THU).exercises.map((e) => e.name)) {
-      await press(`Remove ${n} from today`);
+      await press(`Remove exercise ${n} from today`);
       await press(`Tap again to remove ${n} from today`);
     }
     await screen.findByText('Push B day');
