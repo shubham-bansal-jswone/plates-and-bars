@@ -385,6 +385,7 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     expect(Object.keys(settingsOf(db).exercise_overrides)).toHaveLength(OVERRIDES_MAX);
     expect(settingsOf(db).exercise_overrides[BENCH]).toBeUndefined();
     expect(screen.queryByText(NOT_STORED)).toBeNull();
+    expect(screen.queryByText('Saved for this exercise')).toBeNull(); // the cap toast replaced it
   });
 
   it('Reset says so when the write to the device fails', async () => {

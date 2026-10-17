@@ -157,8 +157,11 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
       const tell = (ok: boolean) => {
         try {
           done?.(ok);
-        } catch {
-          /* the caller's problem, not the save's */
+        } catch (e) {
+          // Reported outside the save queue, so the dev error screen and Sentry still see it.
+          setTimeout(() => {
+            throw e;
+          });
         }
       };
       queue.current = queue.current

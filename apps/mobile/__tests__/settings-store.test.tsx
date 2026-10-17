@@ -221,6 +221,23 @@ describe('settings reload with a write in flight (#597)', () => {
 });
 
 describe('update done callback', () => {
+  // Captures what the provider rethrows from a timer (jest would otherwise fail on the uncaught error).
+  const reported: unknown[] = [];
+  beforeEach(() => {
+    reported.length = 0;
+    const real = globalThis.setTimeout;
+    jest.spyOn(globalThis, 'setTimeout').mockImplementation(((cb: () => void, ms?: number) =>
+      real(() => {
+        try {
+          cb();
+        } catch (e) {
+          if ((e as Error).message !== 'callback bug') throw e;
+          reported.push(e);
+        }
+      }, ms)) as unknown as typeof setTimeout);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
   it('a callback that throws does not fail the save queue: the next write is stored and reported stored', async () => {
     const db = memoryDb();
     const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
@@ -233,6 +250,7 @@ describe('update done callback', () => {
       result.current.update({ rest_off: true }, second);
     });
     await waitFor(() => expect(second).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(reported).toHaveLength(1)); // not swallowed
     expect(await loadSettings(db)).toMatchObject({ focus: ['chest'], rest_off: true });
   });
 
@@ -251,6 +269,7 @@ describe('update done callback', () => {
     const next = jest.fn();
     await act(async () => void result.current.update({ rest_off: true }, next));
     await waitFor(() => expect(next).toHaveBeenCalledWith(true));
+    expect(reported).toHaveLength(1);
     expect(await loadSettings(db)).toMatchObject({ focus: ['chest'], rest_off: true });
   });
 });
