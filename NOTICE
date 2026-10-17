@@ -1,9 +1,9 @@
 Plate & Bar (plates-and-bars)
 Copyright 2026 The Plate & Bar authors
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+The code is licensed under the Apache License, Version 2.0 (see LICENSE).
 Our own written content (the cards, recipe text and exercise notes in
-content/, and user-facing app and website copy) is also licensed under the
+content/, and user-facing app and website copy) is licensed under the
 Creative Commons Attribution 4.0 International licence (see CONTENT-LICENSE).
 
 This product includes or is derived from the following third-party material,
@@ -21,7 +21,8 @@ links.
 - Ionicons tab icons (via @expo/vector-icons), Copyright (c) 2015-present
   Ionic (http://ionic.io/). MIT License.
 - Placeholder app icon and splash images in apps/mobile/assets from the
-  Expo project template, Copyright (c) Expo. MIT License.
+  Expo project template,
+  Copyright (c) 2015-present 650 Industries, Inc. (aka Expo). MIT License.
 - Food composition values from USDA FoodData Central (SR Legacy),
   U.S. Department of Agriculture, Agricultural Research Service.
   Public domain (CC0 1.0).
