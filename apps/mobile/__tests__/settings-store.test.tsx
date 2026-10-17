@@ -292,7 +292,7 @@ describe('update done callback', () => {
     const next = jest.fn();
     await act(async () => void result.current.update({ rest_off: true }, next));
     await waitFor(() => expect(next).toHaveBeenCalledWith(true));
-    expect(reported).toHaveLength(1);
+    await waitFor(() => expect(reported).toHaveLength(1)); // the rethrow comes from a timer: wait for it, like the test above (#773)
     expect(await loadSettings(db)).toMatchObject({ focus: ['chest'], rest_off: true });
   });
 });
