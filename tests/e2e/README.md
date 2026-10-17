@@ -9,6 +9,9 @@ Specs (one concern each, every test starts with an empty browser profile):
 - `rest-bar.spec.mjs`: the rest panel's bounding box against the page column at 1200 and 800 px, and inside the screen at 390 px (#630).
 - `data.spec.mjs`: export (JSON and CSV, offline) and delete everything (local only).
 - `screens.spec.mjs`: exercise library, About, recipe builder and kitchen tests.
+- `food-plan.spec.mjs`: a planned meal's "Log it" (offline, once, survives a reload, and belongs to the day shown).
+- `photos.spec.mjs`: progress photos on web (no camera, choose a photo, delete asks twice, cancelling the picker).
+- `workout-edit.spec.mjs`: Add exercise, a typed exercise with muscle tags, Can't do and Remove exercise, offline, each checked again after a reload.
 - `sheet-focus.spec.mjs`: a sheet opens with focus on its title and gives focus back to the opener on Escape (#661).
 - `a11y.spec.mjs`: axe-core on the main screens and with each sheet open (food add, exercise settings, can't do, how to, add exercise, custom exercise, photo check-in, exercise to avoid; #661), light and dark. Known failures are listed by rule and element with their issue number (`support/axe.mjs`, tested in `axe-known.spec.mjs`); a new violation fails, a fixed one goes stale and fails.
 
