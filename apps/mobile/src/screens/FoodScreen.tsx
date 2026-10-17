@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, planForMeal, proteinUpgrade, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type ProteinUpgrade } from '@plate-and-bar/core';
+import { checkinBannerDue, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logTotals, planFlex, planForMeal, proteinUpgrade, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type ProteinUpgrade } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
+import { localDate } from '../setup/logic';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { lowProtein, PLAN_ITEM_GONE, plannedLogged, toastMs, upgradeAdded } from '../food/copy';
+import { CHECKIN_READY, CHECKIN_SEE, lowProtein, PLAN_ITEM_GONE, plannedLogged, toastMs, upgradeAdded } from '../food/copy';
 import { getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
@@ -139,6 +140,12 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             {todaysPlan ? <Button label="Undo" a11yLabel="Undo bigger day" kind="link" onPress={() => undo(todaysPlan.id)} /> : null}
           </View>
         ) : null}
+        {checkinBannerDue({ date: f.date, today: localDate(now()), seen: settings.checkin_seen }) ? (
+          <View style={[styles.banner, { backgroundColor: c.tint }]}>
+            <Text style={{ color: c.ink, flex: 1 }}>{CHECKIN_READY}</Text>
+            <Button label={CHECKIN_SEE} a11yLabel="See it: your weekly check-in" onPress={() => router.navigate('/progress' as never)} />
+          </View>
+        ) : null}
         <IdeasCard
           today={f.date}
           hour={now().getHours()}
@@ -240,6 +247,7 @@ function MealSection({ meal, items, facts, upgrade, onUpgrade, planned, onLogPla
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12, borderRadius: radius.md },
   gap: { gap: 4, marginTop: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },

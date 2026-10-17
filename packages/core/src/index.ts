@@ -612,3 +612,6 @@ export type { FeelResult } from './feel';
  */
 export { learnList, dailyRead, LEARN_DAYS_PER_CARD } from './learn';
 export type { LearnCard, LearnState, DailyRead } from './learn';
+
+/** `checkinBannerDue` mirrors prototype `checkinBanner()`: Food's "weekly check-in is ready" banner (Sunday or Monday, today, not yet seen this week). */
+export { checkinBannerDue } from './progress';
