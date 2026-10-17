@@ -183,6 +183,21 @@ export interface paths {
          *     conflict log. `conflicts[].resolution` says which side won and `server_record` is
          *     the record as now stored; the device replaces its local copy with it.
          *
+         *     **Replaced record.** A `client_won` conflict also carries `replaced_record`: the
+         *     server's copy that the device's edit replaced, exactly as it was stored, at version
+         *     `server_version` - 1. It is the same copy the conflict log keeps, so the device can
+         *     combine it with its own edit without the log. The server never merges records:
+         *     `server_record` is still the device's edit as stored. A device that merges stores
+         *     the result locally and pushes it as an ordinary edit at version `server_version`,
+         *     version-checked like any other push. Which tables can be merged, and when a merge is
+         *     safe, is the app's rule; a device that does not merge ignores the field. On
+         *     `server_won` (idempotent retries included) the field is absent, because the losing
+         *     copy is the device's own push. Servers built against contract 0.1.19 or earlier
+         *     never send it, so a `client_won` conflict without it leaves the replaced copy only
+         *     in the conflict log, and the device keeps `server_record` as before. A response
+         *     carries at most one `replaced_record` per pushed record; they do not count toward
+         *     the 500-record page limit on pulled `changes`.
+         *
          *     **Conflict log retention.** The log is bounded per user: the server keeps each
          *     user's newest 1,000 entries and drops entries older than 90 days. Pruning runs when
          *     a later conflict is logged for that user, so until then an entry can be older than
@@ -1015,6 +1030,17 @@ export interface components {
              */
             resolution: "client_won" | "server_won";
             server_record: components["schemas"]["SyncRecord"];
+            /**
+             * @description Only on `client_won`: the server's copy that the device's edit replaced, exactly
+             *     as it was stored (`version` = `server_version` - 1, `deleted_at` set if it was a
+             *     tombstone). It is the copy the conflict log keeps for this conflict
+             *     (`ConflictLogEntry.record` with `loser: server`). Absent on `server_won`,
+             *     idempotent retries included. Same record schema and bounds as `server_record`
+             *     (`maxLength`, `maxItems`, `maxProperties`, `x-max-json-bytes`); pick the schema
+             *     by `table`. Optional: servers built against contract 0.1.19 or earlier never
+             *     send it (see `POST /sync`, Replaced record).
+             */
+            replaced_record?: components["schemas"]["SyncRecord"];
         };
         /** @description Changed records grouped by table. Omit tables with no changes. */
         SyncChanges: {

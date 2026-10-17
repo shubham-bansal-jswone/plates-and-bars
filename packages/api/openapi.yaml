@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.19
+  version: 0.1.20
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -611,6 +611,21 @@ paths:
         conflict log. `conflicts[].resolution` says which side won and `server_record` is
         the record as now stored; the device replaces its local copy with it.
 
+        **Replaced record.** A `client_won` conflict also carries `replaced_record`: the
+        server's copy that the device's edit replaced, exactly as it was stored, at version
+        `server_version` - 1. It is the same copy the conflict log keeps, so the device can
+        combine it with its own edit without the log. The server never merges records:
+        `server_record` is still the device's edit as stored. A device that merges stores
+        the result locally and pushes it as an ordinary edit at version `server_version`,
+        version-checked like any other push. Which tables can be merged, and when a merge is
+        safe, is the app's rule; a device that does not merge ignores the field. On
+        `server_won` (idempotent retries included) the field is absent, because the losing
+        copy is the device's own push. Servers built against contract 0.1.19 or earlier
+        never send it, so a `client_won` conflict without it leaves the replaced copy only
+        in the conflict log, and the device keeps `server_record` as before. A response
+        carries at most one `replaced_record` per pushed record; they do not count toward
+        the 500-record page limit on pulled `changes`.
+
         **Conflict log retention.** The log is bounded per user: the server keeps each
         user's newest 1,000 entries and drops entries older than 90 days. Pruning runs when
         a later conflict is logged for that user, so until then an entry can be older than
@@ -865,6 +880,58 @@ paths:
                           deleted_at: null
                           date: '2026-10-08'
                           weight_kg: 81.4
+                clientWonWithReplaced:
+                  summary: The device's later edit replaced another device's copy of the same workout day
+                  description: |
+                    The device pushed a session for a day it had never synced (`client_version` 0)
+                    after another device stored cardio minutes for that day as version 1. The
+                    device's edit is later, so it is stored as version 2 (`server_record`), and
+                    `replaced_record` is the other device's copy at version 1. The natural-key id
+                    is the real UUIDv5 of `workouts:2026-10-08` for the example user
+                    `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`; see `test-vectors/sync-ids.json`.
+                  value:
+                    cursor: c_000000000000a41d
+                    has_more: false
+                    applied: []
+                    conflicts:
+                      - table: workouts
+                        id: 1f4a42d9-c524-5352-88d6-369ef187a482
+                        client_version: 0
+                        server_version: 2
+                        resolution: client_won
+                        server_record:
+                          id: 1f4a42d9-c524-5352-88d6-369ef187a482
+                          version: 2
+                          updated_at: '2026-10-08T12:40:00Z'
+                          deleted_at: null
+                          date: '2026-10-08'
+                          template: Upper A
+                          base: Upper A
+                          where: null
+                          cardio_min: null
+                          mods: {}
+                          exercises:
+                            - name: Barbell Bench Press
+                              part: 1
+                              bridge: false
+                              form: 'yes'
+                              found_kg: null
+                              skip_ramp: false
+                          ci_choice: null
+                        replaced_record:
+                          id: 1f4a42d9-c524-5352-88d6-369ef187a482
+                          version: 1
+                          updated_at: '2026-10-08T12:35:00Z'
+                          deleted_at: null
+                          date: '2026-10-08'
+                          template: null
+                          base: null
+                          where: null
+                          cardio_min: 25
+                          mods: {}
+                          exercises: []
+                          ci_choice: null
+                    changes: {}
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':
@@ -2517,6 +2584,17 @@ components:
             entries, older than 90 days dropped; see `POST /sync`).
         server_record:
           $ref: '#/components/schemas/SyncRecord'
+        replaced_record:
+          $ref: '#/components/schemas/SyncRecord'
+          description: |
+            Only on `client_won`: the server's copy that the device's edit replaced, exactly
+            as it was stored (`version` = `server_version` - 1, `deleted_at` set if it was a
+            tombstone). It is the copy the conflict log keeps for this conflict
+            (`ConflictLogEntry.record` with `loser: server`). Absent on `server_won`,
+            idempotent retries included. Same record schema and bounds as `server_record`
+            (`maxLength`, `maxItems`, `maxProperties`, `x-max-json-bytes`); pick the schema
+            by `table`. Optional: servers built against contract 0.1.19 or earlier never
+            send it (see `POST /sync`, Replaced record).
 
     SyncChanges:
       type: object
