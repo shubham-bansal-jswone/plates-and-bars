@@ -79,6 +79,30 @@ class SyncIsolationIT extends SyncITBase {
     }
 
     @Test
+    void anotherUsersPushOfAnIdAlreadyStoredByAIsAppliedAtV1WithNoReplacedRecordAndLeavesAUntouched() {
+        String a = newUser();
+        String b = newUser();
+        String rid = id();
+        // A has a conflict log entry of its own, so "unchanged" covers the log too.
+        ok(a, Req.of(null).add(SyncTable.water_logs, waterLog(rid, 0, MID, null, 250)).build());
+        ok(a, Req.of(null).add(SyncTable.water_logs, waterLog(rid, 0, NEW, null, 260)).build());
+        String aRecord = ok(a, Req.of(null).build()).body().path("changes").path("water_logs").toString();
+        List<Map<String, Object>> aLog = jdbc.queryForList("SELECT * FROM sync_conflicts WHERE user_id = ?", a);
+        assertThat(aLog).hasSize(1);
+
+        // B's push is newer than A's copy, which would be client_won if B's id collided with A's record.
+        Resp r = ok(b, Req.of(null).add(SyncTable.water_logs, waterLog(rid, 0, "2026-10-08T11:45:00Z", null, 999)).build());
+        assertThat(r.body().path("conflicts")).isEmpty();
+        assertThat(r.body().toString()).doesNotContain("replaced_record").doesNotContain("260");
+        assertThat(r.body().path("applied")).hasSize(1);
+        assertThat(r.body().path("applied").get(0).path("version").asInt()).isEqualTo(1);
+
+        assertThat(ok(a, Req.of(null).build()).body().path("changes").path("water_logs").toString()).isEqualTo(aRecord);
+        assertThat(jdbc.queryForList("SELECT * FROM sync_conflicts WHERE user_id = ?", a)).isEqualTo(aLog);
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", b)).isZero();
+    }
+
+    @Test
     void whenAAndBHoldTheSameIdBsEditsAndDeleteNeverTouchAs() {
         String a = newUser();
         String b = newUser();
