@@ -1,0 +1,110 @@
+name: Web app deploy
+
+# Builds the Expo web export (apps/mobile) and publishes it to the Caddy VM that also runs the API (#683, Caddyfile.web;
+# the web app must be on the same site as the API for the refresh cookie, #644). Disabled until the owner sets the
+# repository variable WEB_DEPLOY_ENABLED to 'true' (Settings > Secrets and variables > Actions > Variables).
+# Unset or any other value: the deploy job is skipped. Push to main deploys to the `staging` environment, a v* tag to
+# `production` (protect it with required reviewers); manual runs from main use `staging`.
+# Each environment holds:
+#   variables  EXPO_PUBLIC_API_URL (https://<API_HOST>/api/v1, baked into the bundle), WEB_SSH_HOST, WEB_SSH_USER,
+#              WEB_ROOT (the VM directory mounted at /srv/web, for example /opt/plateandbar/infra/staging/web)
+#   secrets    WEB_SSH_KEY (private key of a user that can write only WEB_ROOT), WEB_SSH_KNOWN_HOSTS (ssh-keyscan -t ed25519 host)
+# See infra/README.md (Web app deploy) and infra/RUNBOOK.md section 6.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    # No path filter on push: GitHub does not reliably combine `tags` with `paths`, and the export also bundles
+    # packages/core, packages/api and content/, so a rebuild per merge is the simple, correct rule.
+  pull_request:
+    paths:
+      - 'infra/caddy/**'
+      - 'apps/mobile/public/_headers'
+      - 'infra/scripts/check-api-url.sh'
+      - 'infra/scripts/test-check-api-url.sh'
+      - 'infra/scripts/test-web-caddy.sh'
+      - 'infra/scripts/check-caddy-headers.sh'
+      - '.github/workflows/web-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # PR validation must never cancel a queued deploy
+  group: ${{ github.event_name == 'pull_request' && format('web-validate-{0}', github.ref) || 'web-deploy' }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: validate web Caddyfile
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: shellcheck infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/test-web-caddy.sh
+      - name: API URL check (test)
+        run: infra/scripts/test-check-api-url.sh
+      - name: Caddyfile.web serves the isolation headers, caching and SPA fallback (official Caddy image, Apache-2.0)
+        run: infra/scripts/test-web-caddy.sh
+
+  deploy:
+    name: deploy (web, Caddy VM)
+    if: >-
+      vars.WEB_DEPLOY_ENABLED == 'true' && github.event_name != 'pull_request'
+      && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+    env:
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+      SSH_HOST: ${{ vars.WEB_SSH_HOST }}
+      SSH_USER: ${{ vars.WEB_SSH_USER }}
+      WEB_ROOT: ${{ vars.WEB_ROOT }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the settings before building
+        run: |
+          infra/scripts/check-api-url.sh "$EXPO_PUBLIC_API_URL"
+          : "${SSH_HOST:?WEB_SSH_HOST is not set}" "${SSH_USER:?WEB_SSH_USER is not set}" "${WEB_ROOT:?WEB_ROOT is not set}"
+          # rsync --delete: only a directory under /srv, /var/www or /opt (never / or a home directory)
+          case "$WEB_ROOT" in
+            *..*|*[[:space:]]*) echo "::error::WEB_ROOT must not contain '..' or spaces"; exit 1 ;;
+          esac
+          if ! printf '%s' "$WEB_ROOT" | grep -Eq '^/(srv|opt|var/www)/[^/]+'; then
+            echo "::error::WEB_ROOT must be a directory under /srv, /var/www or /opt, for example /opt/plateandbar/infra/staging/web"
+            exit 1
+          fi
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Build the web export
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: 1 # Expo CLI sends telemetry otherwise
+        run: |
+          npm ci
+          npx expo export --platform web
+          test -s dist/index.html
+      - name: Install SSH key
+        env:
+          SSH_KEY: ${{ secrets.WEB_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.WEB_SSH_KNOWN_HOSTS }}
+        run: |
+          : "${SSH_KEY:?WEB_SSH_KEY is not set}" "${KNOWN_HOSTS:?WEB_SSH_KNOWN_HOSTS is not set}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Sync
+        working-directory: apps/mobile
+        run: |
+          ssh_cmd="ssh -i $HOME/.ssh/id_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes"
+          # _headers is for Cloudflare Pages; Caddy ignores it. First everything but index.html (new hashed files are in
+          # place before any page refers to them), then index.html, deleting what the new build no longer has.
+          rsync -az --exclude index.html --exclude _headers -e "$ssh_cmd" dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"
+          rsync -az --delete --exclude _headers -e "$ssh_cmd" dist/ "$SSH_USER@$SSH_HOST:$WEB_ROOT/"

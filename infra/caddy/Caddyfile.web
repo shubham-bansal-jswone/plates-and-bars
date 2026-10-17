@@ -1,0 +1,37 @@
+# Caddy (Apache-2.0) serving the Expo web export (apps/mobile/dist) on the same VM as the API (#683).
+# WEB_HOST must be on the same site as API_HOST (for example app.example.com and api.example.com, not a
+# public-suffix host such as *.github.io), because the refresh cookie is SameSite=Strict (#644). Put the exact origin
+# https://<WEB_HOST> in the API's CORS_ALLOWED_ORIGINS and AUTH_COOKIE_ORIGINS.
+# The deploy workflow (.github/workflows/web-deploy.yml) rsyncs dist/ into the directory mounted at /srv/web.
+# The COOP/COEP headers mirror apps/mobile/public/_headers (Cloudflare Pages format, which Caddy ignores): expo-sqlite
+# on web needs cross-origin isolation (SharedArrayBuffer). infra/scripts/check-caddy-headers.sh fails CI on drift.
+# Environment: WEB_HOST, default http://127.0.0.1:8081 so the file validates as is and, until WEB_HOST is set, serves
+# plain HTTP on loopback only (no certificate is requested; nothing is reachable).
+{$WEB_HOST:http://127.0.0.1:8081} {
+	root * /srv/web
+	encode zstd gzip
+
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Everything revalidates by default (index.html, favicon, licences): a deploy shows up on the next load. The ? prefix
+	# sets it only when nothing else did: Caddy sorts the @hashed directive below first, a plain set would override it.
+	header ?Cache-Control "no-cache"
+	# Metro writes content-hashed files under /_expo/static/ and /assets/: cache forever. The file matcher keeps a
+	# missing asset (which falls back to index.html below) from being cached as immutable.
+	@hashed {
+		path /_expo/static/* /assets/*
+		file
+	}
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# Single-page app (web.output "single"): any path that is not a file serves index.html.
+	try_files {path} /index.html
+	file_server
+}
