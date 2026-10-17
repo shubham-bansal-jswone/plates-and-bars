@@ -676,6 +676,32 @@ describe('Workout tab: first-time ramp', () => {
     expect(placeholder('Machine Shoulder Press set 1 kg')).toBe('20');
     expect(screen.getByText(/Working weight found/)).toBeTruthy();
   });
+
+  it('keeps the find-your-weight guide hidden after "I know my weight", also after a reload (#139)', async () => {
+    const db = await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    const guides = screen.getAllByText('First time: find your weight').length;
+    expect(screen.getByLabelText('Start the ramp for Machine Shoulder Press')).toBeTruthy();
+    await press('I know my weight for Machine Shoulder Press');
+    // Only that exercise's guide goes; the other new exercises keep theirs.
+    expect(screen.queryByLabelText('Start the ramp for Machine Shoulder Press')).toBeNull();
+    expect(screen.queryByLabelText('I know my weight for Machine Shoulder Press')).toBeNull();
+    expect(screen.getAllByText('First time: find your weight')).toHaveLength(guides - 1);
+    expect(screen.getByLabelText('Start the ramp for Pec Deck Fly')).toBeTruthy();
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[1]).toMatchObject({ name: 'Machine Shoulder Press', skip_ramp: true, found_kg: null }));
+    expect(storedSets(db).filter((s) => s.kind === 'ramp')).toHaveLength(0);
+    // The working sets are still there to log.
+    expect(screen.getByLabelText('Machine Shoulder Press set 1 kg')).toBeTruthy();
+
+    await screen.unmount();
+    await mount(db);
+    await screen.findByText('Push B');
+    expect(screen.queryByLabelText('Start the ramp for Machine Shoulder Press')).toBeNull();
+    expect(screen.queryByLabelText('I know my weight for Machine Shoulder Press')).toBeNull();
+    expect(screen.getAllByText('First time: find your weight')).toHaveLength(guides - 1);
+    expect(screen.getByLabelText('Start the ramp for Pec Deck Fly')).toBeTruthy();
+  });
 });
 
 describe('Workout tab: personal best', () => {
