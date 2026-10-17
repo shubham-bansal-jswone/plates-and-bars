@@ -20,6 +20,10 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
   - `POST /email/verify`: single-use code, invalidated after 5 wrong attempts, any failure is 401 `invalid_code`.
   - `POST /refresh`: opaque `rt_...` token stored as SHA-256 with a family id; 90 days, restarted on every
     rotation. Presenting a rotated token revokes the whole family. Any refusal is 401 `unauthorized`.
+  - `POST /refresh/revoke` (sign-out): revokes the whole session (token family) of any refresh token the server knows,
+    current, rotated or expired; an unknown token or no cookie revokes nothing. Always 204, so a retry is safe. Public,
+    per-IP rate limited like the rest of `/auth/*`; never logs the token.
+  - Cookie mode for the web app (#250, ADR 006, contract 0.1.17): see "Web refresh cookie" below.
   - Access token: HS256 JWT, 15 minutes, `sub` is the user id.
 - Every other route under `/api/v1` requires `Authorization: Bearer <access token>`; `JwtAuthFilter` answers 401
   `token_expired` or `unauthorized` in the contract's `Error` shape. The principal is the user id string.
@@ -28,8 +32,9 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
   `SPRING_PROFILES_ACTIVE=dev`, `LoggingMailSender` is used instead and logs only that a code was issued, never the
   code or the address. Neither sender logs the code or address; a failed send is logged by exception class only.
 - SMTP supports STARTTLS on submission ports such as 587. Implicit TLS (port 465) is out of scope for now.
-- CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
+- CORS: only the origins in `CORS_ALLOWED_ORIGINS` (and the cookie-mode origins, below) may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
   `Authorization`, `Content-Type`, `Accept` and `If-None-Match` request headers, `Retry-After` and `ETag` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
+  The one exception is `/api/v1/auth/**` for a cookie-mode origin, which gets credentials (below).
   Empty means every cross-origin call is refused.
 - Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`.
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
@@ -111,6 +116,42 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
     answer still counts against the quota; failures are never cached.
   - Logs: one line per call with user id, feature, status and duration. Bodies, prompts and replies are never logged.
 - Not yet: the foods endpoint.
+
+## Web refresh cookie
+
+Package `auth` (`CookieMode`, `CookieModeOriginFilter`, `AuthController`, `SecurityConfig`). The web app keeps its access
+token in memory and its refresh token in an httpOnly cookie, because a browser has no secure store (ADR 006). Native apps
+are unchanged: the refresh token stays in the JSON body.
+
+- **Selecting it.** Only the exact request header `X-Auth-Transport: cookie` (case-sensitive) on `POST /auth/google`,
+  `/auth/email/verify`, `/auth/refresh` and `/auth/refresh/revoke`. Any other value, or no header, is body mode: the
+  cookie is never read or set, even if the browser sends one, and everything is as before. `/auth/email/start` ignores it.
+- **The cookie.** `__Secure-pb_refresh=<token>; Path=/api/v1/auth/refresh; Max-Age=7776000; HttpOnly; Secure; SameSite=Strict`,
+  no `Domain`. Set on sign-in and refresh (rotation replaces it), and cleared (`Max-Age=0`, same name, path and
+  attributes) by every 401 from `/auth/refresh` (unknown, expired, revoked, reused, or no cookie) and every 204 from
+  `/auth/refresh/revoke`. 400, 403, 429 and 5xx leave it as it is.
+- **Tokens.** The 200 body returns `refresh_token: ""`. `/auth/refresh` and `/auth/refresh/revoke` read the token only from the
+  cookie, and refuse a body that carries `refresh_token` at all (400, even `""` or `null`). In body mode the field is
+  still required (400 when absent or blank; the `details` field name is now `refresh_token`, it was the Java name before).
+  Rotation, reuse detection and the 60 second lost-response grace are unchanged.
+- **CSRF.** A cookie-mode request needs an `Origin` header exactly equal (text, case-sensitive) to one of
+  `AUTH_COOKIE_ORIGINS` (`app.auth.cookie-origins`, comma-separated, no `*`; empty refuses cookie mode for everyone), else
+  403 `forbidden`, with nothing read or changed: no cookie, no body, no session, no sign-in code. This list is deliberately
+  separate from `CORS_ALLOWED_ORIGINS`: set it to the web app's own origin only. Another page that calls the API (the
+  website's account-deletion page) may be a CORS origin but must not be a cookie-mode origin. Order of checks:
+  body size (400, `RequestSizeGuardFilter`; a declared length is checked before anything else, a chunked body only
+  when it is read, which is after the Origin check), per-IP rate limit (429), `Origin` (403, `CookieModeOriginFilter`,
+  after the rate limit filter), then body validation (400) and the endpoint's own checks.
+- **CORS.** For a cookie-mode origin, responses on `/api/v1/auth/**` carry `Access-Control-Allow-Origin: <origin>`,
+  `Access-Control-Allow-Credentials: true` and `Vary: Origin`, and its preflights may name `X-Auth-Transport`. Every other
+  origin, and every other path, stays without credentials, and other origins cannot name the header. Cookie-mode origins are
+  also allowed on the other paths (without credentials), so the web app's own origin need not be listed twice. A
+  cookie-mode request from an origin that is neither (a non-browser caller) gets 403 `forbidden` in the `Error` shape
+  rather than CORS's plain refusal; a browser on such an origin fails the preflight first and sees a network error.
+- **Deployment.** The web app and the API must be on the same site over HTTPS (`__Secure-` and `Secure`), for example
+  `app.example.com` and `api.example.com`, not a public-suffix host such as `*.github.io`. Set `AUTH_COOKIE_ORIGINS` to the
+  web app's exact origin(s) before the web app sends the header.
+- **Logs.** Nothing logs a token, the cookie or the `Origin` value; `AuthFlowIT`-style log capture covers cookie mode in `AuthCookieIT`.
 
 ## Content bundles
 
@@ -212,6 +253,7 @@ cd backend
 
 `HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`) use Testcontainers to start MySQL 8, so Docker must be running.
 `SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
+`AuthCookieIT` (Testcontainers) covers the web refresh cookie end to end; `CookieModeControllerTest`, `CookieModeCorsTest` and `CookieModeRateLimitTest` cover it per rule.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
 `ContentBundlesTest` (loads `content-hash.json`), `ContentControllerTest`, `ContentRealFilesTest` and `ContentRateLimitTest` (WebMvc), `UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
 `JWT_SIGNING_KEY`, `GOOGLE_CLIENT_IDS`, `SMTP_HOST` and `SMTP_FROM` for tests; `CONTENT_UPDATED_AT` has one `name=timestamp` entry per file in `content/` (the build sets it for Gradle; in an IDE set it, for example to `"$(backend/scripts/content-updated-at.sh)"`). Run tests from an IDE with the same variables.
@@ -233,6 +275,7 @@ cd backend
 | `SMTP_FROM` | none, required outside the dev profile | Sender address of sign-in mails |
 | `SMTP_STARTTLS` | `true` | Require STARTTLS; set `false` only for a local test server. The app refuses to start if `SMTP_USER` or `SMTP_PASSWORD` is set while this is `false` |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated web app origins, e.g. `https://app.example.com` |
+| `AUTH_COOKIE_ORIGINS` | empty | Comma-separated exact origins of the web app itself, the only ones that may use cookie mode for the refresh token (`X-Auth-Transport: cookie`). Separate from `CORS_ALLOWED_ORIGINS`; empty refuses cookie mode. See "Web refresh cookie" |
 | `SPRING_PROFILES_ACTIVE` | empty | `dev` swaps SMTP for the logging mail sender |
 | `GOOGLE_CLIENT_IDS` | empty | Comma-separated OAuth client ids accepted as the Google ID token audience; empty refuses every Google sign-in |
 

@@ -57,6 +57,9 @@ app:
     jwt-signing-key: ${JWT_SIGNING_KEY:}
     # Comma-separated OAuth client ids (audiences) accepted in Google ID tokens.
     google-client-ids: ${GOOGLE_CLIENT_IDS:}
+    # Comma-separated exact origins of the web app itself, the only ones allowed to use cookie mode for the refresh token
+    # (X-Auth-Transport: cookie, ADR 006). Separate from CORS_ALLOWED_ORIGINS on purpose; empty refuses cookie mode.
+    cookie-origins: ${AUTH_COOKIE_ORIGINS:}
   mail:
     # Environment only. Host and from are required unless the dev profile (LoggingMailSender) is active.
     host: ${SMTP_HOST:}
