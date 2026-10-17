@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import type { ExerciseTag } from '@plate-and-bar/core';
 import { useAi } from '../ai/AiProvider';
 import { AI_COPY, failureMessage } from '../ai/copy';
@@ -56,7 +57,7 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
     onSave({ ...base, primary, secondary });
   };
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
           {name}
@@ -84,7 +85,7 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
         )}
         <Button label="Cancel" kind="ghost" onPress={onClose} />
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 
