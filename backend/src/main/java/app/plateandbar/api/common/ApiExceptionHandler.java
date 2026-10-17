@@ -27,7 +27,8 @@ public class ApiExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(ApiException.class)
-    ResponseEntity<ErrorResponse> api(ApiException e) {
+    ResponseEntity<ErrorResponse> api(ApiException e, jakarta.servlet.http.HttpServletRequest request) {
+        request.setAttribute(SecuritySignalFilter.REASON, e.code()); // read by SecuritySignalFilter for 401 and 403
         return respond(e.status(), e.code(), e.getMessage(), e.details());
     }
 
@@ -39,7 +40,8 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(RateLimitedException.class)
-    ResponseEntity<ErrorResponse> rateLimited(RateLimitedException e) {
+    ResponseEntity<ErrorResponse> rateLimited(RateLimitedException e, jakarta.servlet.http.HttpServletRequest request) {
+        request.setAttribute(SecuritySignalFilter.BUCKET, "address"); // the per-address caps in AuthService
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", Long.toString(e.retryAfterSeconds()))
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
@@ -78,7 +80,7 @@ public class ApiExceptionHandler {
         Throwable t = e.getCause();
         for (int depth = 0; t != null && depth < 8; depth++, t = t.getCause()) {
             if (t instanceof RequestSizeGuardFilter.TooLarge tooLarge) {
-                return api(tooLarge);
+                return respond(tooLarge.status(), tooLarge.code(), tooLarge.getMessage(), tooLarge.details());
             }
         }
         return respond(HttpStatus.BAD_REQUEST, "invalid_request", "The request is not valid.", null);
