@@ -6,11 +6,13 @@ import { completeSetup, expect, label, reloadTo, saved, tab, test } from '../sup
 test.beforeEach(async ({ page }) => {
   await completeSetup(page);
   await tab(page, 'Workout');
-  await page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"])').first().click();
-  await expect(page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]').first()).toBeVisible();
+  await start(page).click();
+  await expect(cards(page).first()).toBeVisible();
   await page.context().setOffline(true);
 });
 
+// A Start button for a session: not the rest timer switch on Targets, nor a "Start the ramp for ..." button on an exercise card.
+const start = (page) => page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"]):not([aria-label^="Start the ramp for"]) >> visible=true').first();
 const cards = (page) => page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]');
 const names = async (page) => (await cards(page).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).map((l) => l.slice('Mark '.length, -' set 1 done'.length));
 const dialog = (page, name) => page.locator(`[role="dialog"][aria-label=${JSON.stringify(name)}]`);
@@ -35,6 +37,8 @@ async function savedWithToast(page, action, text) {
   await saved(page, action);
   await toast;
 }
+// The name of an exercise card's remove chip. One place, so a rename (#804) is one line; the "Tap again to remove ..." name is separate.
+const removeLabel = (name) => `Remove ${name} from today`;
 const mark = (name) => `Mark ${name} set 1 done`;
 
 test('Add exercise: a library exercise goes at the end, can be removed, and both survive a reload', async ({ page }) => {
@@ -52,7 +56,7 @@ test('Add exercise: a library exercise goes at the end, can be removed, and both
 
   // Remove asks twice: the first tap arms it.
   await page.context().setOffline(true);
-  await label(page, `Remove ${name} from today`).click();
+  await label(page, removeLabel(name)).click();
   await expectNames(page, [...before, name]);
   await savedWithToast(page, () => label(page, `Tap again to remove ${name} from today`).click(), `${name} removed`);
   await expectNames(page, before);
@@ -95,8 +99,9 @@ test('typed exercise: a blank or over-long name is refused before any tags are a
   await label(page, 'Your own exercise').fill('x'.repeat(201));
   await label(page, 'Add the exercise you typed').click();
   await expect(page.getByText('That exercise name is too long. Shorten it.')).toBeVisible();
-  await expect(sheet.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0); // still on the Add exercise sheet, not the tag sheet
-  await expect(dialog(page, 'Add exercise')).toBeVisible();
+  // Still on the Add exercise sheet: the tag sheet would be a second dialog, named after the typed text.
+  await expect(sheet).toBeVisible();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(1);
 });
 
 test('typed exercise: a new name needs a main muscle, then it is added and survives a reload', async ({ page }) => {
@@ -113,8 +118,8 @@ test('typed exercise: a new name needs a main muscle, then it is added and survi
   await label(page, `Add ${name} with these muscles`).click();
   await expect(page.getByText('Pick at least one main muscle.')).toBeVisible();
 
-  const mainChip = page.locator('[aria-label^="Main muscle: "] >> visible=true').first();
-  const alsoChip = page.locator('[aria-label^="Also working: "] >> visible=true').nth(1);
+  const mainChip = tags.locator('[aria-label^="Main muscle: "]').first();
+  const alsoChip = tags.locator('[aria-label^="Also working: "]').nth(1);
   await mainChip.click();
   await expect(mainChip).toHaveAttribute('aria-pressed', 'true');
   await alsoChip.click();
@@ -147,14 +152,13 @@ test('typed exercise: Cancel on the tag sheet adds nothing', async ({ page }) =>
 test('can’t do: "Just today" with a replacement swaps the exercise and survives a reload', async ({ page }) => {
   const before = await names(page);
   const [victim] = before;
-  await openSheet(page, label(page, `Can’t do ${victim}`), `Can’t do ${victim}?`);
+  const sheet = await openSheet(page, label(page, `Can’t do ${victim}`), `Can’t do ${victim}?`);
   await label(page, 'Equipment isn’t available').click();
   await label(page, 'Just today').click();
-  // The replacements are the buttons just before "Skip it"; their label is the name, then why it fits.
-  const skip = page.locator('[aria-label^="Skip it, no replacement"] >> visible=true');
-  await expect(skip).toBeVisible();
-  const first = skip.locator('xpath=preceding::*[@role="button"][1]');
-  const replacement = (await first.getAttribute('aria-label')).split('. ')[0];
+  // On the pick step every button but "Skip it" and "Close" is a replacement; its first line is the exercise name, then why it fits.
+  const first = sheet.getByRole('button', { name: /^(?!Skip it|Close)/ }).first();
+  await expect(first).toBeVisible();
+  const replacement = (await first.innerText()).split('\n')[0];
   expect(replacement).not.toBe(victim);
   await saved(page, () => first.click());
   await expect(label(page, mark(replacement))).toBeVisible();
@@ -192,15 +196,18 @@ test('can’t do: closing the sheet changes nothing', async ({ page }) => {
 
 test('Remove exercise: removing every exercise ends the session, and a new one can be started', async ({ page }) => {
   for (const name of await names(page)) {
-    await label(page, `Remove ${name} from today`).click();
+    await label(page, removeLabel(name)).click();
     await saved(page, () => label(page, `Tap again to remove ${name} from today`).click());
   }
-  await expect(page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"]) >> visible=true').first()).toBeVisible();
+  await expect(start(page)).toBeVisible();
   await expectNames(page, []);
 
   await page.context().setOffline(false);
   await reloadTo(page, 'Workout');
+  // The planned view ("Exercise 1: ...") is what shows when no session was stored; waiting for it keeps this from passing
+  // on the empty moment before the day has been read back.
+  await expect(page.locator('[aria-label^="Exercise 1: "] >> visible=true')).toBeVisible();
   await expectNames(page, []);
-  await page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"])').first().click();
+  await start(page).click();
   await expect(cards(page).first()).toBeVisible();
 });

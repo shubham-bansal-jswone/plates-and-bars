@@ -19,8 +19,10 @@ test('planned meal: Log it logs the whole planned breakfast, once, and it surviv
   const items = (await line.first().innerText()).slice('From your plan: '.length).split(' + ');
 
   await page.context().setOffline(true);
+  // The toast lasts about two seconds, so it is awaited while the write settles, not after it.
+  const toast = expect(page.getByText('Logged your planned breakfast', { exact: true })).toBeVisible();
   await saved(page, () => label(page, 'Log your planned breakfast').click());
-  await expect(page.getByText('Logged your planned breakfast', { exact: true })).toBeVisible();
+  await toast;
   // Every planned item is now a logged row (a row can be removed by its own button), and the plan line is gone.
   for (const item of items) {
     const name = item.replace(/ ×[\d.]+$/, '');

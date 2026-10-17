@@ -53,4 +53,9 @@ test('progress photos: cancelling the file picker adds nothing and does not erro
   await (await chooser).setFiles([]);
   await expect(label(page, 'Side photo')).toHaveCount(0);
   await expect(label(page, 'Choose side')).toBeVisible();
+  // Cancelling must not leave the picker busy: choosing a side photo afterwards works.
+  const again = page.waitForEvent('filechooser');
+  await label(page, 'Choose side').click();
+  await (await again).setFiles(photo);
+  await expect(label(page, 'Side photo')).toBeVisible();
 });
