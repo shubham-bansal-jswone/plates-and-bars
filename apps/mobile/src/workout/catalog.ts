@@ -168,10 +168,11 @@ export function getCatalog(): Catalog {
  * The exercise the app already has under a name typed in any letter case, or undefined. Decided on #450: a typed name matches
  * known exercises (built-in and custom) case-insensitively, a deliberate difference from the prototype's exact `TAGS[name]`
  * check, so "goblet squat" is the built-in Goblet Squat and never a near-duplicate custom exercise. Case only: spaces and
- * spelling still count. When two names differ only by case, the first in catalog order wins.
+ * spelling still count. When two names differ only by case, the one typed exactly wins, else the first in catalog order.
  * `custom` is the set of custom exercises to look in (default: the ones the app shows); a save passes the stored record's (#664).
  */
 export function exerciseNamed(typed: string, custom: Readonly<Record<string, unknown>> = customTags): string | undefined {
   const t = typed.toLowerCase();
-  return [...Object.keys(baseCatalog().tags), ...Object.keys(custom)].find((n) => n.toLowerCase() === t);
+  const names = [...Object.keys(baseCatalog().tags), ...Object.keys(custom)];
+  return names.find((n) => n === typed) ?? names.find((n) => n.toLowerCase() === t);
 }
