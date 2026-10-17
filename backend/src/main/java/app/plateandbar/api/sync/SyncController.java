@@ -62,6 +62,6 @@ public class SyncController {
             body = null; // the validator answers 400; the parser's message may quote the body
         }
         String userId = auth.getName();
-        return sync.sync(userId, validator.validate(userId, body));
+        return sync.sync(userId, validator.validate(userId, body, raw));
     }
 }
