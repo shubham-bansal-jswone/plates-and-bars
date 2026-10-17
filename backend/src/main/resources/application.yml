@@ -11,11 +11,14 @@ spring:
   servlet:
     multipart:
       enabled: false
-  # Jackson 3 changed three request-parsing defaults; these keep what Jackson 2 did so the API behaves as before the
-  # Spring Boot 4 upgrade (#81). /ai/* is strict on purpose: AiController turns trailing-token checking on itself.
+  # Request parsing is strict on every endpoint (#720, contract 0.1.18): content after the JSON value and a key
+  # repeated in one object (compared after unescaping) are refused as a body that is not valid JSON, so 400
+  # invalid_request. The nesting limit stays at Jackson 2's 1000 (Jackson 3's default is 500; #81).
   jackson:
     deserialization:
-      fail-on-trailing-tokens: false
+      fail-on-trailing-tokens: true
+    read:
+      strict-duplicate-detection: true
     factory:
       constraints:
         read:
