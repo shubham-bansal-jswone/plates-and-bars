@@ -29,6 +29,8 @@ jobs:
         run: |
           docker compose --env-file .env.example config | grep -qx '      SENTRY_RELEASE: plateandbar-api@local'
           API_TAG=v1.2.3 docker compose --env-file .env.example config | grep -qx '      SENTRY_RELEASE: plateandbar-api@v1.2.3'
+          # deploy.sh writes API_RELEASE (the tag without its v), which wins
+          API_TAG=v1.2.3 API_RELEASE=1.2.3 docker compose --env-file .env.example config | grep -qx '      SENTRY_RELEASE: plateandbar-api@1.2.3'
       - name: required secrets must have no default
         run: |
           for v in MYSQL_ROOT_PASSWORD DB_PASSWORD JWT_SIGNING_KEY SMTP_HOST SMTP_FROM API_HOST API_TAG; do
