@@ -111,7 +111,7 @@ public class AiQuotaService {
         usage.addTokens(r.userId(), r.day(), r.feature(), inputTokens, outputTokens);
         long budget = props.getMonthlyBudgetTokens();
         LocalDate month = r.day().withDayOfMonth(1);
-        if (budget > 0 && usage.markAlertSent(month, budget, ALERT_PERCENT)) {
+        if (budget > 0 && usage.markAlertSent(month, budget)) {
             // After commit, so a rolled-back transaction (which also rolls back the flag) never leaves a stray WARN.
             if (TransactionSynchronizationManager.isSynchronizationActive()) {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

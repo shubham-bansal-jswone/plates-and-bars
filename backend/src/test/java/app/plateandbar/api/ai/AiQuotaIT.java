@@ -287,6 +287,20 @@ class AiQuotaIT extends AiITBase {
         assertThat(captureWarns(() -> quotas.recordTokens(r2, 450, 450))).hasSize(1);
     }
 
+    @Autowired AiUsageRepository usageRepo;
+
+    @Test
+    void aVeryLargeBudgetNeverFiresAFalseAlert() {
+        java.time.LocalDate month = java.time.LocalDate.of(2026, 10, 1);
+        jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES (?, 5)", month);
+        // budget * 80 would wrap negative here and make every row look over the line
+        assertThat(usageRepo.markAlertSent(month, Long.MAX_VALUE)).isFalse();
+        assertThat(usageRepo.markAlertSent(month, Long.MAX_VALUE / 10 * 9)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT alert_sent FROM ai_spend_monthly WHERE month = ?", Integer.class, month)).isZero();
+        // and the same call still fires at exactly 80% of a small budget
+        assertThat(usageRepo.markAlertSent(month, 6)).isTrue(); // threshold 6 - 1 = 5
+    }
+
     @Test
     void belowEightyPercentLogsNothing() {
         String u = newUser();
