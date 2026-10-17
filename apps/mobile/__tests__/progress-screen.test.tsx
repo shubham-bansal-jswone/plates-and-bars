@@ -557,6 +557,14 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.queryByLabelText('Use a 4-day plan next week')).toBeNull();
   });
 
+  it('"Not now" prunes dismissed keys older than 90 days before today (#721)', async () => {
+    const db = memoryDb();
+    await saveSettings(db, { ...defaultSettings('2026-10-01T00:00:00Z'), adjustments: { dismissed: { 'ci:2025-01-06': true, 'ci:2025-01-13': true } } });
+    await setup({ db });
+    await fireEvent.press(await screen.findByLabelText('Not now'));
+    await waitFor(() => expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments.dismissed).toEqual({ 'ci:2026-10-05': true }));
+  });
+
   const settingsDoc = (db: Db) => JSON.parse(db.rows.get('user_settings:me')!);
 
   it('waits for the stored settings before writing any, so a slow read cannot overwrite them with defaults', async () => {
