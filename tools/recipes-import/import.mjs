@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 
 // Bump when any value changes so synced clients see it.
-export const UPDATED_AT = '2026-10-09T00:00:00Z';
+export const UPDATED_AT = '2026-10-17T00:00:00Z';
 
 import { SOURCES as FOOD_SOURCES } from '../foods-import/import.mjs';
 
@@ -32,7 +32,8 @@ export const USDA_PROXY = {
 // FDC record behind each usda_fdc row of RAW (SR Legacy, FoodData Central April 2018 release; public domain; issue #98).
 // RAW values are per 100 g, so no serving scaling applies. Each id was matched by comparing kcal, protein, carbs, fibre and fat
 // with the SR Legacy record (all agree to the rounding RAW uses). A value after " - " says the record is a proxy or has an
-// identical twin. "Oil" has no entry: the prototype's 884 kcal / 100 g fat fits every refined cooking oil, so no one FDC record is right.
+// identical twin. "Oil" has no entry and is a typical label value instead (SOURCE_OVERRIDE): the prototype's 884 kcal / 100 g fat
+// fits every refined cooking oil, so no one FDC record is right (#576).
 export const FDC_RAW = {
   'Toor dal (dry)': [172436, 'Pigeon peas (red gram), mature seeds, raw'],
   'Urad dal (dry)': [174259, 'Mungo beans, mature seeds, raw', 'USDA name for black gram (urad)'],
@@ -56,7 +57,7 @@ export const FDC_RAW = {
   'Bhindi': [169260, 'Okra, raw'],
   'Cauliflower': [169986, 'Cauliflower, raw'],
   'Green peas': [170419, 'Peas, green, raw'],
-  'Ghee': [173412, 'Butter oil, anhydrous', 'USDA lists no ghee with these values; foods.json Ghee uses FDC 171314 (900 kcal / 100 g), see #576'],
+  'Ghee': [171314, 'Butter, Clarified butter (ghee)', 'same record as the foods.json Ghee row; the prototype\'s 876 kcal matched FDC 173412 Butter oil, anhydrous, see VALUE_OVERRIDE'],
   'Butter': [173410, 'Butter, salted', 'unsalted FDC 173430 has identical values; RAW rounds protein and carbs up'],
   'Sugar': [169655, 'Sugars, granulated'],
   'Cashews': [170162, 'Nuts, cashew nuts, raw'],
@@ -69,7 +70,12 @@ export const FDC_RAW = {
   'Cucumber': [168409, 'Cucumber, with peel, raw'],
   'Kuttu atta': [170687, 'Buckwheat flour, whole-groat'],
 };
-export const FDC_UNMATCHED = ['Oil'];
+
+// Content-over-prototype values (decided in #576, 2026-10-17): both Ghee rows use FDC 171314 (900 kcal / 100 g) so the app
+// shows one value. [kcal, protein, carbs, fat] per 100 g; `from` is the prototype's RAW row and the import fails if it changes.
+export const VALUE_OVERRIDE = {
+  'Ghee': { from: [876, 0.3, 0, 99.5], set: [900, 0, 0, 100] },
+};
 
 // The prototype's comment on RAW: "USDA SR28 / FoodData Central; paneer, curd and milk derived from FSSAI composition
 // standards; poha approximated from rice". Everything else is usda_fdc. Packaged foods are label_typical (ADR 005);
@@ -78,7 +84,7 @@ export const FDC_UNMATCHED = ['Oil'];
 export const SOURCE_OVERRIDE = {
   'Paneer': 'fssai', 'Curd': 'fssai', 'Milk (toned)': 'fssai',
   'Poha (dry)': 'own_estimate', 'Mixed vegetables': 'own_estimate',
-  'Fresh cream': 'label_typical', 'Whey protein': 'label_typical', 'Greek yogurt': 'label_typical', 'Makhana': 'label_typical',
+  'Oil': 'label_typical', 'Fresh cream': 'label_typical', 'Whey protein': 'label_typical', 'Greek yogurt': 'label_typical', 'Makhana': 'label_typical',
 };
 
 export function idFor(ns, name) {
@@ -132,13 +138,16 @@ export function importRaw(p) {
   if (badProxy.length) throw new Error(`USDA_PROXY names not usda_fdc rows in RAW: ${badProxy.join(', ')}`);
   const badFdc = Object.keys(FDC_RAW).filter((n) => !(n in p.RAW) || (SOURCE_OVERRIDE[n] ?? 'usda_fdc') !== 'usda_fdc');
   if (badFdc.length) throw new Error(`FDC_RAW names not usda_fdc rows in RAW: ${badFdc.join(', ')}`);
+  for (const [n, o] of Object.entries(VALUE_OVERRIDE)) {
+    if (JSON.stringify(p.RAW[n]) !== JSON.stringify(o.from)) throw new Error(`RAW '${n}' changed since the #576 value override was written; review VALUE_OVERRIDE`);
+  }
   const badOverride = Object.keys(SOURCE_OVERRIDE).filter((n) => !(n in p.RAW));
   if (badOverride.length) throw new Error(`SOURCE_OVERRIDE names not in RAW: ${badOverride.join(', ')}`);
   return {
     schema_version: 1,
     source: 'docs/prototype/plate-and-bar.html (RAW, RAW_FIB)',
     per: '100 g raw. Carbs are total carbohydrate including fibre.',
-    ingredients: Object.entries(p.RAW).map(([name, [kcal, protein, carbs, fat]]) => ({
+    ingredients: Object.entries(p.RAW).map(([name, row]) => [name, VALUE_OVERRIDE[name]?.set ?? row]).map(([name, [kcal, protein, carbs, fat]]) => ({
       id: idFor('raw', name),
       name,
       name_hi: null,
