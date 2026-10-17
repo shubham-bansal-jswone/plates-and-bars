@@ -13,6 +13,9 @@ import { syncDb } from '../src/sync/db';
 import { SyncBadge } from '../src/sync/SyncBadge';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider } from '../src/sync/SyncProvider';
+import { initErrorTracking } from '../src/telemetry/errors';
+
+initErrorTracking(); // no-op unless EXPO_PUBLIC_SENTRY_DSN is set
 
 async function initDb(db: SQLiteDatabase): Promise<void> {
   const version = await migrate(db);

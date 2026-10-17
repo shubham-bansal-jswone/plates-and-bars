@@ -7,6 +7,12 @@ export const shortDate = (ymd: string): string => {
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 
+/** "Monday" (the prototype's `toLocaleDateString('en-IN', { weekday: 'long' })`). */
+export const weekdayLong = (ymd: string): string => {
+  const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'long' });
+};
+
 /** Mirrors prototype `dayName`: "Mon". */
 export const dayName = (ymd: string): string => {
   const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];

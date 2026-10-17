@@ -2,16 +2,16 @@ import type { Activity, Experience, Goal, Pace, Where } from '@plate-and-bar/cor
 
 // Setup copy, taken from docs/prototype/plate-and-bar.html. Moves into a content bundle once one exists.
 
-export const CONSENT_TEXT_VERSION = '2026-10-16';
+export const CONSENT_TEXT_VERSION = '2026-10-17';
 
 export const CONSENT = {
   title: 'Before you start',
   intro:
     'Plate & Bar tracks food, training, body measurements and, if you choose, photos, cycle data and lab results. That’s health data, so here’s how it’s handled:',
   bullets: [
-    'Food, workouts, weight and measurements are saved privately to your Claude account so they sync between devices.',
+    'Your data stays on this device. If you sign in, it is also stored on our own server so it syncs between your devices.',
     'Progress photos, cycle logs and lab reports stay only on this device.',
-    'Meal photos, recipe imports and form-check frames are sent to Claude for analysis and not stored.',
+    'AI features are off by default and need their own opt-in. No photos are sent anywhere.',
     'You can download or delete everything at any time on the Targets tab.',
     'Withdrawing your consent means deleting your account.',
   ],
@@ -21,12 +21,12 @@ export const CONSENT = {
 };
 
 export const SCREEN_Q = [
-  'Has a doctor told you that you have a heart condition or high blood pressure?',
-  'Do you get chest pain at rest, during daily activities or when you exercise?',
-  'In the past 12 months, have you lost balance from dizziness or lost consciousness?',
-  'Do you have another long-term medical condition, or take prescribed medicine for one?',
-  'Do you have a bone, joint or muscle problem that more activity could make worse?',
-  'Has a doctor said you should only exercise under medical supervision?',
+  'Have you ever been diagnosed with a heart problem or high blood pressure?',
+  'Does your chest hurt when you are resting or being active?',
+  'In the last year, have you fainted, or felt so dizzy that you fell or nearly fell?',
+  'Do you live with a long-term health condition, or take regular medication for one?',
+  'Do you have a back, knee, shoulder or other bone, joint or muscle problem that being more active could make worse?',
+  'Has a doctor or other health professional said you should only exercise with supervision?',
 ] as const;
 
 type Choice = readonly [label: string, sub: string];

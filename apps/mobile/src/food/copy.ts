@@ -1,4 +1,5 @@
 import type { CustomFoodResult } from '@plate-and-bar/core';
+import { fmt } from '../format';
 
 // Messages from the prototype's food sheet, plus the ones for core's decided codes (#150).
 export const CUSTOM_MESSAGE: Record<Exclude<CustomFoodResult['kind'], 'ok'>, string> = {
@@ -30,3 +31,17 @@ export function plannedLogged(meal: string, skipped: readonly string[], logged: 
   if (!logged) return `Couldn’t log your planned ${m}: ${andList(skipped)} ${verb} in the food list any more`;
   return `Logged your planned ${m}, except ${andList(skipped)}, which ${verb} in the food list any more`;
 }
+
+/** A meal-prep batch line on Food (prototype `prepLineHtml`). */
+export const prepLine = (name: string, left: number): string => `Meal prep: ${name}, ${left} portion${left > 1 ? 's' : ''} left`;
+/** Toast after "Log 1 katori" (prototype: `Logged <name>`). */
+export const prepLogged = (name: string): string => `Logged ${name}`;
+
+/** Food's weekly check-in banner (prototype `checkinBanner`). */
+export const CHECKIN_READY = 'Your weekly check-in is ready.';
+export const CHECKIN_SEE = 'See it';
+
+/** The "Low on protein" line (prototype `upgradeHtml`); `label` is core's wording of what to add. */
+export const lowProtein = (label: string, protein_g: number, kcal: number): string => `Low on protein. Add ${label}: +${fmt(protein_g)} g protein, ${fmt(kcal)} kcal.`;
+/** Toast after the one-tap add (prototype: `Added <food>`). */
+export const upgradeAdded = (name: string): string => `Added ${name}`;
