@@ -43,7 +43,7 @@ export interface ProtoFood {
   unitGrams(f: [string, string]): number;
   /** `foodListHtml()`'s query and filter over `allFoods()`, returning the matching names. */
   search(q: string): string[];
-  /** `case 'pick'` for food `name` with grams input `g` and servings `serv`: the logged quantity, or the toast when nothing is logged. */
+  /** `case 'pick'` for food `name` with grams input `g` and servings `serv`: the logged quantity, or the toast when nothing is logged. Throws when neither (food not found). */
   pick(name: string, g: string, serv: number): { qty: number } | { toast: string };
   totals(meals: ProtoMeal[]): { kcal: number; p: number; c: number; f: number };
   fibreTotals(meals: ProtoMeal[]): { fib: number; sug: number; veg: number; unknown: number };
@@ -140,7 +140,9 @@ export function loadFood(): ProtoFood {
     '  (() => {',
     pickCase,
     '  })();',
-    '  return MEAL ? { qty:MEAL.qty } : { toast:TOAST }; }',
+    '  if(MEAL) return { qty:MEAL.qty };',
+    '  if(!TOAST) throw new Error("prototype case pick logged nothing and showed no toast (food not found?): " + name);',
+    '  return { toast:TOAST }; }',
     sliceBlock(src, 'const ACTIVITY = {', '};'),
     sliceLine(src, 'const PACE = '),
     sliceLine(src, 'const TRAIN_NET_MET = '),

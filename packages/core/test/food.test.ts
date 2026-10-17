@@ -279,6 +279,8 @@ describe('unitGrams and quantityFromGrams', () => {
     expect(quantityFromGrams(byName('Paneer'), 5)).toEqual({ kind: 'grams', qty: 0.1 });
     expect(proto.pick('Paneer', '4', 1)).toEqual({ toast: TOO_SMALL_TOAST });
     expect(proto.pick('Paneer', '5', 1)).toEqual({ qty: 0.1 });
+    // The harness refuses a pick that neither logs nor toasts, so a missing food is never read as not-in-grams.
+    expect(() => proto.pick('No such food', '50', 1)).toThrow('food not found');
   });
   it(`matches prototype case 'pick' over ${RUNS} random foods and inputs`, () => {
     const r = rng(97);
