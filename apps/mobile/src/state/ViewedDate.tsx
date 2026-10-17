@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { AccessibilityInfo } from 'react-native';
 import { addDays } from '@plate-and-bar/core';
 import { localDate } from '../setup/logic';
 
@@ -54,8 +53,6 @@ export function useViewedDate(now: () => Date): ViewedDate {
       const to = addDays(date, n);
       if (to > today) return;
       setPicked(to === today ? null : to);
-      // Announced here, not from the bar, so it is said once per change whatever the screen shows while the day loads.
-      AccessibilityInfo.announceForAccessibility(`${dateLabel(to, today)}, ${dateSub(to)}`);
     },
     [date, today, setPicked],
   );

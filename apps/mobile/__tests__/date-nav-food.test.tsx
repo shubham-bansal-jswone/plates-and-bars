@@ -1,4 +1,4 @@
-import { AccessibilityInfo, Text } from 'react-native';
+import { AccessibilityInfo, Platform, Text } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
@@ -63,14 +63,58 @@ describe('Food date navigation', () => {
     expect(screen.getByText('Today')).toBeTruthy();
   });
 
-  it('announces the new day when it changes, but not on the first show', async () => {
-    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
-    announce.mockClear(); // React Native's jest setup shares one mock across tests
-    await setup();
-    expect(announce).not.toHaveBeenCalled();
-    await back();
-    expect(announce).toHaveBeenCalledWith('Yesterday, Wednesday, 7 Oct');
-    announce.mockRestore();
+  describe('announcing the day', () => {
+    const os = Platform.OS;
+    afterEach(() => {
+      Platform.OS = os;
+    });
+    // Holds the viewed day's read, so the screen shows Loading (and swaps its tree) while the day changes.
+    const slowDay = (db: Db) => {
+      const read = db.getAllAsync.bind(db);
+      let open!: () => void;
+      const gate = new Promise<void>((r) => (open = r));
+      db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+        if (sql.includes('FROM food_logs WHERE log_date')) await gate;
+        return read(sql, ...p);
+      }) as typeof db.getAllAsync;
+      return open;
+    };
+
+    it('on iOS, announces once per change and not on the first show; the live region stays empty', async () => {
+      Platform.OS = 'ios';
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+      announce.mockClear(); // React Native's jest setup shares one mock across tests
+      const db = await setup();
+      expect(announce).not.toHaveBeenCalled();
+      const open = slowDay(db);
+      await back();
+      await act(async () => open());
+      await screen.findByText('Wednesday, 7 Oct');
+      expect(announce).toHaveBeenCalledTimes(1);
+      expect(announce).toHaveBeenCalledWith('Yesterday, Wednesday, 7 Oct');
+      expect(screen.getByTestId('date-announce')).toHaveTextContent('');
+      announce.mockRestore();
+    });
+
+    it.each(['android', 'web'] as const)('on %s, one polite live region says it once, with no explicit announcement and none on the bar label', async (os) => {
+      Platform.OS = os;
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+      announce.mockClear();
+      const db = await setup();
+      expect(screen.getByTestId('date-announce')).toHaveTextContent('');
+      const region = screen.getByTestId('date-announce');
+      const open = slowDay(db);
+      await back();
+      expect(screen.getByText('Loading…')).toBeTruthy(); // the screen's tree is swapped here
+      await act(async () => open());
+      await screen.findByText('Wednesday, 7 Oct');
+      expect(screen.getByTestId('date-announce')).toBe(region); // same instance: not remounted, so the change is spoken
+      expect(screen.getByTestId('date-announce')).toHaveTextContent('Yesterday, Wednesday, 7 Oct');
+      expect(screen.getByTestId('date-announce').props.accessibilityLiveRegion).toBe('polite');
+      expect(screen.getByLabelText('Yesterday, Wednesday, 7 Oct').props.accessibilityLiveRegion).toBeUndefined(); // the bar's own label is not a second one
+      expect(announce).not.toHaveBeenCalled();
+      announce.mockRestore();
+    });
   });
 
   it('shows the viewed day’s own logs', async () => {
@@ -151,6 +195,26 @@ describe('Food date navigation', () => {
     expect(screen.queryByText('Your weekly check-in is ready.')).toBeNull();
   });
 
+  it('does not let Undo last water delete today’s drink while the other day’s water is still being read', async () => {
+    const db = await setup(NOW, (d) => {
+      d.rows.set('water_logs:w1', JSON.stringify({ id: 'w1', version: 0, updated_at: '2026-10-08T05:00:00.000Z', deleted_at: null, date: TODAY, ml: 250 }));
+    });
+    await screen.findByLabelText('Undo last water');
+    const read = db.getAllAsync.bind(db);
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM water_logs')) await gate;
+      return read(sql, ...p);
+    }) as typeof db.getAllAsync;
+    await back();
+    await screen.findByText('Wednesday, 7 Oct');
+    expect(screen.queryByLabelText('Undo last water')).toBeNull(); // the card waits for the viewed day
+    await act(async () => open());
+    await waitFor(() => expect(screen.getByLabelText('0 of about 3.3 litres')).toBeTruthy());
+    expect(docs(db, 'water_logs')[0]).toMatchObject({ id: 'w1', deleted_at: null });
+  });
+
   it('shows the banner again when back on today', async () => {
     await setup(MONDAY);
     await back();
@@ -200,5 +264,20 @@ describe('useViewedDate', () => {
     clock = () => new Date(2026, 9, 10, 0, 5, 0);
     await act(async () => screen.rerender(ui()));
     expect(screen.getByTestId('a-date').props.children).toBe('2026-10-08');
+  });
+  it('going back to today clears the pick, so the screen follows midnight again (prev, next, cross midnight)', async () => {
+    let clock = NOW;
+    const ui = () => (
+      <ViewedDateProvider>
+        <Probe id="a" now={clock} />
+      </ViewedDateProvider>
+    );
+    await render(ui());
+    await fireEvent.press(screen.getByTestId('a-prev'));
+    await fireEvent.press(screen.getByTestId('a-next'));
+    expect(screen.getByTestId('a-date').props.children).toBe(TODAY);
+    clock = () => new Date(2026, 9, 9, 0, 5, 0);
+    await act(async () => screen.rerender(ui()));
+    expect(screen.getByTestId('a-date').props.children).toBe('2026-10-09'); // a stuck pick of today would stay on the 8th
   });
 });
