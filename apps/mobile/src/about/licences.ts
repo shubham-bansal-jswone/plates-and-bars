@@ -21,15 +21,17 @@ export const LICENCES_COPY = {
   section: 'Open-source licences',
   title: 'Open-source licences',
   intro: 'The open-source software and fonts inside Plate & Bar. Tap an entry to read its licence notice.',
-  summary: (n: number) => `Plate & Bar is built on ${n} open-source components. Each keeps its own licence.`,
+  summary: 'Plate & Bar is built on open-source software and fonts. Each component keeps its own licence.',
   open: 'View open-source licences',
   licence: (l: string) => `Licence: ${l}`,
   noNotice: 'This package ships no separate licence file. The licence above is the one it declares.',
+  noText: 'Read the licence at the link above.',
+  loading: 'Loading licences',
   assets: 'Fonts and icons',
   npm: 'JavaScript packages',
   npmHint: 'Production dependencies of the app, from its lockfile.',
   android: 'Android libraries',
-  androidHint: 'Libraries declared by React Native and the Expo modules. Libraries they pull in further down are not listed.',
+  androidHint: 'Libraries declared by React Native and the Expo modules, with the standard text of each licence. Libraries those pull in further down are not listed.',
   repoDocs: 'Plate & Bar licence files',
 };
 
@@ -40,26 +42,21 @@ export const REPO_FILES = [
   { label: 'THIRD_PARTY.md', url: 'https://github.com/shubham-bansal-jswone/plates-and-bars/blob/main/THIRD_PARTY.md' },
 ] as const;
 
-let cache: LicenceData | null = null;
-export function getLicences(): LicenceData {
-  return (cache ??= require('./licences.json') as LicenceData);
-}
-
-export function licenceCount(): number {
-  const d = getLicences();
-  return d.packages.length + d.android.length + d.assets.length;
+let cache: Promise<LicenceData> | null = null;
+/**
+ * Loads the generated JSON (about 0.5 MB) with a dynamic import, so the web export puts it in its own chunk that is fetched
+ * when the list opens, and Hermes only evaluates it then.
+ */
+export function loadLicences(): Promise<LicenceData> {
+  return (cache ??= import('./licences.json').then((m) => (m.default ?? m) as unknown as LicenceData));
 }
 
 /** Flat list rows (headings and entries) for a virtualised list. */
-export function licenceRows(): { rows: LicenceRow[]; texts: Record<string, string> } {
-  const d = getLicences();
+export function licenceRows(d: LicenceData): LicenceRow[] {
   const t = LICENCES_COPY;
   const group = (id: string, title: string, hint: string | undefined, list: LicenceEntry[]): LicenceRow[] => [
     { kind: 'heading', key: `h:${id}`, title, hint },
     ...list.map((entry, i): LicenceRow => ({ kind: 'entry', key: `${id}:${i}`, entry })),
   ];
-  return {
-    rows: [...group('assets', t.assets, undefined, d.assets), ...group('android', t.android, t.androidHint, d.android), ...group('npm', t.npm, t.npmHint, d.packages)],
-    texts: d.texts,
-  };
+  return [...group('assets', t.assets, undefined, d.assets), ...group('android', t.android, t.androidHint, d.android), ...group('npm', t.npm, t.npmHint, d.packages)];
 }

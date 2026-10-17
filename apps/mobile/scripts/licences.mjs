@@ -9,7 +9,8 @@
 //     is the same on every machine; they are build tools, not part of the app.
 //   - Android: Maven libraries declared in the Gradle files of those packages (android/build.gradle) and in React Native's
 //     libs.versions.toml. This is a static scan, not a resolved Gradle build, so transitive libraries are not included.
-//     Licences come from the table below; an unknown library fails the script so it cannot be listed without a licence.
+//     Every declared library must resolve to a version (literal, a def/ext in the same file, the React Native catalogue, or
+//     the tables below) and to a licence; anything else fails the script instead of being skipped.
 //   - Assets: the bundled fonts (public/licenses) and Ionicons.
 // Output is deterministic (sorted, no dates).
 import { createHash } from 'node:crypto';
@@ -34,9 +35,14 @@ const textId = (text) => {
   return id;
 };
 
+// The licence file, plus the NOTICE file if there is one (Apache-2.0 section 4(d) asks for it to be reproduced).
 const noticeFile = (dir) => {
-  const f = readdirSync(dir).filter((n) => /^(licen[sc]e|copying|unlicen[sc]e)(\.(md|txt|markdown))?$/i.test(n)).sort();
-  return f.length ? read(join(dir, f[0])) : null;
+  const names = readdirSync(dir);
+  const pick = (re) => names.filter((n) => re.test(n)).sort()[0];
+  const lic = pick(/^(licen[sc]e|copying|unlicen[sc]e)(\.(md|txt|markdown))?$/i);
+  const notice = pick(/^notice(\.(md|txt|markdown))?$/i);
+  if (!lic && !notice) return null;
+  return [lic && read(join(dir, lic)), notice && `NOTICE\n\n${read(join(dir, notice))}`].filter(Boolean).join('\n\n');
 };
 const repoUrl = (r) => {
   const u = typeof r === 'string' ? r : r?.url;
@@ -50,60 +56,122 @@ const licenceOf = (p) => (typeof p.license === 'string' ? p.license : p.license?
 const lock = readJson(join(root, 'package-lock.json')).packages;
 const npm = new Map();
 const missing = [];
+const stale = [];
+const dirOf = new Map(); // name@version -> directory (not written to the output)
 for (const [path, e] of Object.entries(lock)) {
-  if (!path || e.dev || e.optional || e.link || e.os || e.cpu || !path.includes('node_modules/')) continue;
-  const dir = join(root, path);
+  if (!path || e.dev || e.optional || e.os || e.cpu) continue;
+  // A link inside this app (the @sentry/cli stub) is listed from its target; links to other workspaces packages are our own code.
+  const target = e.link ? e.resolved : path;
+  if (!target || target.startsWith('..') || (!e.link && !path.includes('node_modules/'))) continue;
+  if (e.link && !target.startsWith('stubs/')) continue;
+  const dir = join(root, target);
   if (!existsSync(join(dir, 'package.json'))) { missing.push(path); continue; }
   const p = readJson(join(dir, 'package.json'));
+  if (!e.link && e.version && p.version !== e.version) { stale.push(`${p.name} ${p.version} installed, ${e.version} in the lockfile`); continue; }
   const licence = licenceOf(p) || e.license;
   if (!licence) { console.error(`no licence recorded for ${p.name}@${p.version}`); process.exit(1); }
   const text = noticeFile(dir);
+  dirOf.set(`${p.name}@${p.version}`, dir);
   npm.set(`${p.name}@${p.version}`, { name: p.name, version: p.version, licence, url: repoUrl(p.repository) ?? p.homepage ?? null, text: text ? textId(text) : null });
 }
+if (stale.length) { console.error(`node_modules does not match package-lock.json (run npm ci): ${stale.slice(0, 5).join('; ')}`); process.exit(1); }
 if (missing.length) { console.error(`not installed (run npm ci): ${missing.slice(0, 5).join(', ')}`); process.exit(1); }
 const packages = [...npm.values()].sort((a, b) => (a.name + a.version).localeCompare(b.name + b.version));
 
 // Android libraries
-const NATIVE_LICENCE = {
-  'androidx.': 'Apache-2.0',
-  'com.google.android.material:': 'Apache-2.0',
-  'org.jetbrains.kotlin': 'Apache-2.0',
-  'org.jetbrains.kotlinx:': 'Apache-2.0',
-  'com.squareup.': 'Apache-2.0',
-  'com.google.code.gson:': 'Apache-2.0',
-  'commons-io:': 'Apache-2.0',
-  'commons-codec:': 'Apache-2.0',
-  'javax.inject:': 'Apache-2.0',
-  'javax.annotation:': 'CDDL-1.1 OR GPL-2.0-only WITH Classpath-exception-2.0',
-  'com.google.code.findbugs:jsr305': 'BSD-3-Clause',
-  'com.github.bumptech.glide:': 'BSD-2-Clause AND MIT AND Apache-2.0',
-  'com.facebook.': 'MIT',
-  'io.github.expo': 'MIT',
-  'org.brotli:': 'MIT',
-  'com.vanniktech:': 'Apache-2.0',
+// Standard licence texts, attached to every Android row (MIT and Apache-2.0 require the text to accompany the work). The
+// Apache-2.0 text is taken from an installed npm package; the others are the standard SPDX wording, which names no holder.
+const apacheText = [...npm.values()].map((e) => ({ e, t: noticeFile(dirOf.get(`${e.name}@${e.version}`)) })).find(({ e, t }) => e.licence === 'Apache-2.0' && t?.includes('Version 2.0, January 2004'))?.t;
+if (!apacheText) { console.error('no Apache-2.0 licence text found among the npm packages'); process.exit(1); }
+const SPDX_TEXT = {
+  'Apache-2.0': apacheText.split('\n\nNOTICE\n\n')[0],
+  MIT: 'MIT License\n\nCopyright (c) the authors of the library\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.',
+  'BSD-2-Clause': 'BSD 2-Clause License\n\nCopyright (c) the authors of the library. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.',
+  'BSD-3-Clause': 'BSD 3-Clause License\n\nCopyright (c) the authors of the library. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\n3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.',
 };
-const licenceFor = (coord) => Object.entries(NATIVE_LICENCE).find(([k]) => coord.startsWith(k))?.[1];
+const LICENCE_URL = {
+  'Apache-2.0': 'https://www.apache.org/licenses/LICENSE-2.0',
+  MIT: 'https://opensource.org/license/mit',
+  'BSD-2-Clause': 'https://opensource.org/license/bsd-2-clause',
+  'BSD-3-Clause': 'https://opensource.org/license/bsd-3-clause',
+  'CDDL-1.1': 'https://github.com/javaee/javax.annotation/blob/master/LICENSE',
+};
+// First matching prefix wins, so specific entries come before general ones. Each library is mapped by artifact, not by
+// vendor: com.facebook.soloader and fbjni are Apache-2.0 while Fresco, Yoga and Infer annotations are MIT.
+const NATIVE_LICENCE = [
+  ['com.facebook.soloader:', 'Apache-2.0'],
+  ['com.facebook.fbjni:', 'Apache-2.0'],
+  ['com.facebook.fresco:', 'MIT'],
+  ['com.facebook.yoga:', 'MIT'],
+  ['com.facebook.infer.annotation:', 'MIT'],
+  ['androidx.', 'Apache-2.0'],
+  ['com.google.android.material:', 'Apache-2.0'],
+  ['org.jetbrains.kotlin:', 'Apache-2.0'],
+  ['org.jetbrains.kotlinx:', 'Apache-2.0'],
+  ['com.squareup.', 'Apache-2.0'],
+  ['com.google.code.gson:', 'Apache-2.0'],
+  ['commons-io:', 'Apache-2.0'],
+  ['commons-codec:', 'Apache-2.0'],
+  ['javax.inject:', 'Apache-2.0'],
+  ['javax.annotation:', 'CDDL-1.1 OR GPL-2.0-only WITH Classpath-exception-2.0'],
+  // jsr305 3.0.2: the Maven POM declares Apache-2.0 and the JSR-305 sources are BSD-3-Clause; both are listed.
+  ['com.google.code.findbugs:jsr305', 'Apache-2.0 AND BSD-3-Clause'],
+  ['com.github.bumptech.glide:', 'BSD-2-Clause AND MIT AND Apache-2.0'],
+  ['io.github.expo', 'MIT'],
+  ['io.sentry:', 'MIT'],
+  ['org.brotli:', 'MIT'],
+  ['com.vanniktech:', 'Apache-2.0'],
+];
+const nativeLicence = (coord) => NATIVE_LICENCE.find(([k]) => coord.startsWith(k))?.[1];
+const licenceText = (expr) => {
+  const ids = expr.split(/ AND | OR /).filter((id) => SPDX_TEXT[id]);
+  return ids.length ? textId(ids.map((id) => SPDX_TEXT[id]).join('\n\n----------\n\n')) : null;
+};
+const licenceUrl = (expr) => LICENCE_URL[expr] ?? expr.split(/ AND | OR /).map((id) => LICENCE_URL[id.split(' ')[0]]).filter(Boolean)[0] ?? null;
+
+// Versions the Gradle files take from the host app or a BOM instead of declaring them. null means the library is listed without a version.
+const VERSION_VARS = { kotlinVersion: 'kotlin', kotlin_version: 'kotlin' }; // names in React Native's libs.versions.toml
+const MANUAL_VERSIONS = { 'io.github.expo.kolibri:kolibri-android': null };
+
+const toml = read(join(nm, 'react-native/gradle/libs.versions.toml'));
+const tomlVersions = Object.fromEntries([...toml.split('[libraries]')[0].matchAll(/^([\w-]+)\s*=\s*"([^"]+)"/gm)].map((m) => [m[1], m[2]]));
+const tomlVersionVars = { FRESCO_VERSION: tomlVersions.fresco };
+
 const native = new Map();
 const addNative = (coord, version, from) => {
-  const licence = licenceFor(coord);
+  if (coord.startsWith('com.facebook.react:')) return; // React Native itself, listed as the react-native npm package
+  const licence = nativeLicence(coord);
   if (!licence) { console.error(`Android library ${coord} (from ${from}) has no licence in scripts/licences.mjs`); process.exit(1); }
   const key = `${coord}:${version}`;
   const prev = native.get(key);
-  native.set(key, { name: coord, version, licence, from: [...new Set([...(prev?.from ?? []), from])].sort() });
+  native.set(key, { name: coord, version, licence, url: licenceUrl(licence), text: licenceText(licence), from: [...new Set([...(prev?.from ?? []), from])].sort() });
 };
-const prodDirs = packages.map((p) => ({ p, dir: join(nm, p.name) })).filter((x) => existsSync(join(x.dir, 'android/build.gradle')));
-for (const { p, dir } of prodDirs) {
-  const gradle = read(join(dir, 'android/build.gradle'));
-  for (const m of gradle.matchAll(/^\s*(?:api|implementation)\s*\(?\s*["']([\w.-]+:[\w.-]+):(\d[\w.-]*)["']/gm)) addNative(m[1], m[2], p.name);
+const resolveVersion = (coord, v, gradle, from) => {
+  if (v === undefined) {
+    if (coord in MANUAL_VERSIONS) return MANUAL_VERSIONS[coord];
+    console.error(`Android library ${coord} (from ${from}) declares no version: add it to MANUAL_VERSIONS in scripts/licences.mjs`);
+    process.exit(1);
+  }
+  const ref = v.match(/^\$\{?(\w+)\}?$/)?.[1];
+  if (!ref) return v;
+  const def = gradle.match(new RegExp(`(?:def|ext\\.|val)\\s*${ref}\\s*=\\s*["']([^"']+)["']`))?.[1];
+  const resolved = def ?? (VERSION_VARS[ref] ? tomlVersions[VERSION_VARS[ref]] : undefined) ?? tomlVersionVars[ref];
+  if (!resolved) { console.error(`Android library ${coord} (from ${from}) uses version variable ${ref} that scripts/licences.mjs cannot resolve`); process.exit(1); }
+  return resolved;
+};
+for (const p of packages) {
+  const f = join(dirOf.get(`${p.name}@${p.version}`), 'android/build.gradle');
+  if (!existsSync(f)) continue;
+  const gradle = read(f);
+  for (const m of gradle.matchAll(/^\s*(?:api|implementation)\s*\(?\s*["']([\w.-]+:[\w.-]+)(?::([^"':]+))?["']/gm)) { if (m[1].startsWith("com.facebook.react:")) continue; addNative(m[1], resolveVersion(m[1], m[2], gradle, p.name), p.name); }
 }
-const toml = read(join(nm, 'react-native/gradle/libs.versions.toml'));
-const versions = Object.fromEntries([...toml.split('[libraries]')[0].matchAll(/^([\w-]+)\s*=\s*"([^"]+)"/gm)].map((m) => [m[1], m[2]]));
+const catalogue = toml.split('[libraries]')[1].split('[plugins]')[0];
 const SKIP = /^(junit|assertj|mockito|robolectric|thoughtworks|androidx-test|androidx-espresso|androidx-junit|androidx-uiautomator|androidx-benchmark|jsc-android)/;
-for (const m of toml.split('[libraries]')[1].split('[plugins]')[0].matchAll(/^([\w-]+)\s*=\s*\{[^}]*?(?:module\s*=\s*"([^"]+)"|group\s*=\s*"([^"]+)",\s*name\s*=\s*"([^"]+)")[^}]*version\.ref\s*=\s*"([^"]+)"/gm)) {
+for (const m of catalogue.matchAll(/^([\w-]+)\s*=\s*\{[^}]*?(?:module\s*=\s*"([^"]+)"|group\s*=\s*"([^"]+)",\s*name\s*=\s*"([^"]+)")[^}]*version\.ref\s*=\s*"([^"]+)"/gm)) {
   if (SKIP.test(m[1])) continue;
-  addNative(m[2] ?? `${m[3]}:${m[4]}`, versions[m[5]], 'react-native');
+  addNative(m[2] ?? `${m[3]}:${m[4]}`, tomlVersions[m[5]], 'react-native');
 }
-const android = [...native.values()].sort((a, b) => (a.name + a.version).localeCompare(b.name + b.version));
+const android = [...native.values()].sort((a, b) => (a.name + (a.version ?? '')).localeCompare(b.name + (b.version ?? '')));
 
 // Bundled fonts and icons
 const MIT_IONIC = 'MIT License\n\nCopyright (c) 2015-present Ionic (http://ionic.io/)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.';

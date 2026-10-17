@@ -1,10 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { Text } from '../components/Text';
 import { Button, Heading, Hint, H1, Press, a11yState } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { LICENCES_COPY as t, licenceRows, type LicenceEntry, type LicenceRow } from './licences';
+import { LICENCES_COPY as t, licenceRows, loadLicences, type LicenceData, type LicenceEntry, type LicenceRow } from './licences';
 
 function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | null; open: boolean; onToggle: () => void }) {
   const c = useTheme();
@@ -24,7 +24,7 @@ function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | nu
       {open ? (
         <View style={{ paddingBottom: 10 }}>
           {e.url ? <Text selectable style={[type.caption, { color: c.link }]}>{e.url}</Text> : null}
-          <Text selectable style={[type.caption, { color: c.body }]}>{text ?? t.noNotice}</Text>
+          <Text selectable style={[type.caption, { color: c.body }]}>{text ?? (e.from ? t.noText : t.noNotice)}</Text>
         </View>
       ) : null}
     </View>
@@ -34,7 +34,16 @@ function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | nu
 /** Every open-source package, Android library and bundled asset with its licence, from the build-time `licences.json`. Virtualised: there are hundreds of rows. */
 export function LicencesScreen({ onBack }: { onBack: () => void }) {
   const c = useTheme();
-  const { rows, texts } = useMemo(() => licenceRows(), []);
+  const [data, setData] = useState<LicenceData | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadLicences().then((d) => live && setData(d));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const rows = useMemo(() => (data ? licenceRows(data) : []), [data]);
+  const texts = data?.texts ?? {};
   const [openKey, setOpenKey] = useState<string | null>(null);
   const render = useCallback(
     ({ item }: { item: LicenceRow }) =>
@@ -46,7 +55,8 @@ export function LicencesScreen({ onBack }: { onBack: () => void }) {
       ) : (
         <Entry e={item.entry} text={item.entry.text ? texts[item.entry.text] ?? null : null} open={openKey === item.key} onToggle={() => setOpenKey((k) => (k === item.key ? null : item.key))} />
       ),
-    [c, texts, openKey],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [c, data, openKey],
   );
   return (
     <View role="main" style={{ flex: 1, backgroundColor: c.bg }}>
@@ -64,6 +74,7 @@ export function LicencesScreen({ onBack }: { onBack: () => void }) {
             <Button label="Back" kind="link" onPress={onBack} />
             <H1>{t.title}</H1>
             <Hint>{t.intro}</Hint>
+            {data ? null : <Hint>{t.loading}</Hint>}
           </View>
         }
       />

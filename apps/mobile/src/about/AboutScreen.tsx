@@ -4,7 +4,7 @@ import { Text } from '../components/Text';
 import { DATA_COPY } from '../account/copy';
 import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
 import { LicencesScreen } from './LicencesScreen';
-import { LICENCES_COPY as lc, REPO_FILES, licenceCount } from './licences';
+import { LICENCES_COPY as lc, REPO_FILES } from './licences';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ABOUT_COPY as t, BODY_MAP_LICENCE, BODY_MAP_SOURCE, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
@@ -47,7 +47,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <Source s={BODY_MAP_SOURCE} />
       <Hint>{BODY_MAP_LICENCE}</Hint>
       <Label>{lc.section}</Label>
-      <Hint>{lc.summary(licenceCount())}</Hint>
+      <Hint>{lc.summary}</Hint>
       <Button label={lc.open} kind="ghost" onPress={() => setShowLicences(true)} />
       <Label>{lc.repoDocs}</Label>
       <View style={{ gap: 4 }}>
