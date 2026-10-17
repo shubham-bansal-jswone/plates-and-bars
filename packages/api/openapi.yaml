@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.18
+  version: 0.1.19
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -37,7 +37,8 @@ info:
       `ai` tag's order of checks.
     - A JSON request body is exactly one JSON value. On every endpoint that takes one
       (`/auth/*`, `/sync`, `/ai/*`) the server refuses these with 400 `invalid_request`,
-      as it does a body that is not JSON, and names no key or value in `details`:
+      as it does a body that is not JSON, and names no key or value in `details` (on
+      `/sync` and `/ai/*` its one entry has an empty `field` and the issue `type`):
       content after the value other than whitespace (`{...} junk`, `{...}{...}`); an
       object that has the same key twice, at any depth, comparing keys after unescaping
       (`{"a":1,"\u0061":2}` repeats `a`); and arrays and objects nested more than 1,000
@@ -54,7 +55,9 @@ info:
       null. The objects whose shape `packages/core` owns (`Settings.adjustments`,
       `adaptive`, `learn`, `meal_plan` and each `prep` item) are bounded by
       `maxProperties` and by `x-max-json-bytes`: the most UTF-8 bytes the object may take
-      written as compact JSON (as `JSON.stringify` writes it). The top level of a record
+      written as compact JSON: strings escaped as `JSON.stringify` writes them, and each
+      number's text counted exactly as sent (`1e2` is 3 bytes, `1.0` is 3), which is
+      `JSON.stringify`'s output for a body it built. The top level of a record
       is not closed: keys its schema does not list are accepted, ignored and not stored.
       The app keeps what it stores locally within these bounds, because a record that
       breaks one fails the `/sync` request with 400 `invalid_request` naming that record.
