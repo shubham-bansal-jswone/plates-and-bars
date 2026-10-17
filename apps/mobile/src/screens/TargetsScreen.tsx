@@ -85,7 +85,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={{ flex: 1 }}>
       <Page>
-        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets />
+        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets hideHeadline />
         <View style={{ gap: 8, marginTop: 8 }}>
           <H1 level={2}>Your setup</H1>
           <Text style={{ color: c.ink, lineHeight: 22 }}>{summary.line}</Text>

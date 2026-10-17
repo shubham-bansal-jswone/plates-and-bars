@@ -53,7 +53,9 @@ describe('TargetsScreen', () => {
     expect(screen.getByLabelText('Protein (g)').props.value).toBe(String(g.output.protein));
     expect(screen.getByLabelText('Carbs (g)').props.value).toBe(String(g.output.carbs));
     expect(screen.getByLabelText('Fat (g)').props.value).toBe(String(g.output.fat));
-    expect(screen.getByText('You burn about 2,493 kcal a day')).toBeTruthy();
+    // The burn is stated once, in Your setup, as on the prototype's Targets.
+    expect(screen.queryByText('You burn about 2,493 kcal a day')).toBeNull();
+    expect(screen.getAllByText(/^(You burn|Estimated burn)/)).toHaveLength(1);
   });
 
   it('Your setup summarises the answers in the prototype wording, with the burn from core', async () => {

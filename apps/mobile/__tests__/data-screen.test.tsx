@@ -24,10 +24,16 @@ const base: SyncState = {
   exportFromServer: async () => ({ kind: 'not_signed_in' }),
   deleteEverything: async () => ({ kind: 'deleted', server: false, linked: false }),
 };
-const show = (s: Partial<SyncState>) =>
+const consentRow = JSON.stringify({ id: 'c1', version: 1, updated_at: '2026-10-01T00:00:00.000Z', deleted_at: null, kind: 'data_storage', given_at: '2026-10-01T00:00:00.000Z', text_version: '1' });
+const consented = () => {
+  const db = memoryDb();
+  db.rows.set('consents:c1', consentRow);
+  return db;
+};
+const show = (s: Partial<SyncState>, db = memoryDb()) =>
   render(
     <SyncContext.Provider value={{ ...base, ...s }}>
-      <DataScreen db={memoryDb()} />
+      <DataScreen db={db} />
     </SyncContext.Provider>,
   );
 
@@ -49,8 +55,8 @@ describe('data screen (#27)', () => {
     expect(screen.getByText(DATA_COPY.storageDevice)).toBeTruthy();
     expect(screen.queryByText(/waiting to sync/)).toBeNull();
     await first.unmount();
-    const second = await show({ signedIn: true });
-    expect(screen.getByText('Saved privately to your account; photos, cycle and lab data stay on this device.')).toBeTruthy();
+    const second = await show({ signedIn: true }, consented());
+    expect(await screen.findByText('Saved privately to your account.')).toBeTruthy();
     await second.unmount();
     const was = Platform.OS;
     Platform.OS = 'web';
@@ -60,6 +66,22 @@ describe('data screen (#27)', () => {
     } finally {
       Platform.OS = was;
     }
+  });
+
+  it('a signed-in user without the data_storage consent is told the data stays on the device, as nothing uploads', async () => {
+    await show({ signedIn: true });
+    expect(screen.getByText(DATA_COPY.storageDevice)).toBeTruthy();
+    expect(screen.queryByText(/Saved privately to your account/)).toBeNull();
+    const withdrawn = memoryDb();
+    withdrawn.rows.set('consents:c1', JSON.stringify({ ...JSON.parse(consentRow), deleted_at: '2026-10-02T00:00:00.000Z' }));
+    await show({ signedIn: true }, withdrawn);
+    expect(screen.queryByText(/Saved privately to your account/)).toBeNull();
+  });
+
+  it('says the photos, cycle and lab data stay on this device once, not twice, when signed in', async () => {
+    await show({ signedIn: true }, consented());
+    await screen.findByText('Saved privately to your account.');
+    expect(screen.getAllByText(/photos, cycle and lab data stay on this device/i)).toHaveLength(1);
   });
 
   it('adds "Some changes are waiting to sync." while the queue holds records, and drops it when it empties', async () => {
@@ -72,8 +94,8 @@ describe('data screen (#27)', () => {
     );
     expect(screen.getByText('Saved on this device only.')).toBeTruthy();
     expect(screen.queryByText(/waiting to sync/)).toBeNull();
-    const signed = await show({ signedIn: true, pending: 1 });
-    expect(screen.getByText('Saved privately to your account; photos, cycle and lab data stay on this device. Some changes are waiting to sync.')).toBeTruthy();
+    const signed = await show({ signedIn: true, pending: 1 }, consented());
+    expect(await screen.findByText('Saved privately to your account. Some changes are waiting to sync.')).toBeTruthy();
     await signed.unmount();
   });
 

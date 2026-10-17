@@ -2,7 +2,7 @@
 export const DATA_COPY = {
   title: 'Your data',
   intro: 'Download a copy of what the app stores, or delete everything.',
-  storageAccount: 'Saved privately to your account; photos, cycle and lab data stay on this device.',
+  storageAccount: 'Saved privately to your account.',
   storageDevice: 'Saved on this device only.',
   storageBrowser: 'Saved in this browser only.',
   storageWaiting: ' Some changes are waiting to sync.',
