@@ -4,6 +4,7 @@ import type { StoreDb } from '../db/records';
 import type { PullDb } from '../db/outbox';
 import { acceptTokenPair, type SignInOutcome } from './guard';
 import type { TokenStore } from './tokens';
+import { probeSettled, signInUnavailable, trackCookieCall } from './cookieHealth';
 import { authInit, cookieMode } from './transport';
 import { clearSignOutPending, markSignOutPending, revokeCookie } from './webSession';
 
@@ -16,7 +17,7 @@ export function makeApi(baseUrl: string, tokens: TokenStore): ApiClient {
 }
 
 export type StartResult = { ok: true; resendAfterSec: number } | { ok: false; reason: 'invalid_email' | 'rate_limited' | 'unavailable'; retryAfterSec?: number };
-export type VerifyResult = SignInOutcome | { kind: 'error'; reason: 'invalid_code' | 'rate_limited' | 'unavailable' | 'offline'; retryAfterSec?: number };
+export type VerifyResult = SignInOutcome | { kind: 'error'; reason: 'invalid_code' | 'rate_limited' | 'unavailable' | 'offline' | 'sign_in_unavailable'; retryAfterSec?: number };
 
 /** Asks the server to email a one-time code. Never logs the address. */
 export async function startEmailSignIn(api: ApiClient, email: string): Promise<StartResult> {
@@ -34,7 +35,7 @@ export async function startEmailSignIn(api: ApiClient, email: string): Promise<S
 /** Exchanges the emailed code, then applies the device-ownership guard before the tokens are kept. */
 export async function verifyEmailCode(db: StoreDb & PullDb, api: ApiClient, tokens: TokenStore, email: string, code: string): Promise<VerifyResult> {
   try {
-    const { data, response } = await api.POST('/auth/email/verify', { body: { email, code }, ...authInit() });
+    const { data, response } = await trackCookieCall(api, () => api.POST('/auth/email/verify', { body: { email, code }, ...authInit() }));
     if (data) {
       let outcome: SignInOutcome | undefined;
       try {
@@ -55,6 +56,8 @@ export async function verifyEmailCode(db: StoreDb & PullDb, api: ApiClient, toke
     if (response.status === 429) return { kind: 'error', reason: 'rate_limited', retryAfterSec: Number(response.headers.get('Retry-After')) || 60 };
     return { kind: 'error', reason: 'unavailable' };
   } catch {
-    return { kind: 'error', reason: 'offline' };
+    // Web: after repeated network failures the probe may find this is the site, not the connection (#744).
+    await probeSettled();
+    return { kind: 'error', reason: signInUnavailable() ? 'sign_in_unavailable' : 'offline' };
   }
 }
