@@ -2,6 +2,8 @@ import { inRange, ladderCard, missed as missedDay, recoveryCard, reentryCard, la
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
+import { ownGet, withEntry } from '../content/own';
+import { localDate } from '../setup/logic';
 import { shortDate, weekdayLong } from '../format';
 import { adjOf, answered, endAdj, muted, rangesOf, shiftWeek, startDeload, startReentry } from './adjust';
 import { getCatalog } from './catalog';
@@ -34,12 +36,13 @@ interface Props {
 }
 
 /** The stall card, or else the ladder card, under an exercise's suggestion (prototype `stallCard` then `ladderCard`). */
-export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: Props & { ex: ExState; info: ExInfo; /** Where today's session happens (the day's `where`, else the profile's). */ where: Where }) {
+export function ExerciseCards({ ex, info, date, lifts, rules, notify, where, now }: Props & { /** The clock: a card answer is stamped with the real date, not `date`. */ now: () => Date; ex: ExState; info: ExInfo; /** Where today's session happens (the day's `where`, else the profile's). */ where: Where }) {
   const { settings, update: write, loadFailed } = useSettings();
   const update = guarded(write, loadFailed, notify);
+  const today = localDate(now());
   const adj = adjOf(settings.adjustments);
   const exclusions = rules.rules.exclusions;
-  const dismiss = (key: string, type: string, decline = false) => update((s) => ({ adjustments: answered(s.adjustments, key, decline ? type : undefined) }));
+  const dismiss = (key: string, type: string, decline = false) => update((s) => ({ adjustments: answered(s.adjustments, key, today, decline ? type : undefined) }));
   const common = (type: string, key: string) => ({ declines: adj.declines[type] ?? 0, onNo: () => dismiss(key, type, true), onMute: () => update((s) => ({ adjustments: muted(s.adjustments, type) })) && notify(MUTED) });
 
   const stall = stallCard(ex, lifts, info, adj);
@@ -64,7 +67,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
           {...common('stall', stall.key)}
           onRange={() => {
             const [lo, hi] = stall.range;
-            if (update((s) => ({ exercise_overrides: { ...s.exercise_overrides, [ex.name]: stallRangeOverride(s.exercise_overrides[ex.name], info, stall.range) }, adjustments: answered(s.adjustments, stall.key) })))
+            if (update((s) => ({ exercise_overrides: withEntry(s.exercise_overrides, ex.name, stallRangeOverride(ownGet(s.exercise_overrides, ex.name), info, stall.range)), adjustments: answered(s.adjustments, stall.key, today) })))
               notify(`${ex.name}: now ${lo}–${hi} reps`);
           }}
           onSide={() => side && switchTo('side', side, stall.key, `Switched to ${side}`)}
@@ -76,7 +79,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
           name={ex.name}
           {...common('ladder', ladder.key)}
           onSwitch={() => switchTo(ladder.kind, ladder.to, ladder.key, ladder.kind === 'up' ? `${ladder.to} starts next session` : `Switched to ${ladder.to}`)}
-          onStay={() => update((s) => ({ ladder_stay: { ...s.ladder_stay, [ex.name]: ladderStayUntil(date) }, adjustments: answered(s.adjustments, ladder.key) }))}
+          onStay={() => update((s) => ({ ladder_stay: withEntry(s.ladder_stay, ex.name, ladderStayUntil(date)), adjustments: answered(s.adjustments, ladder.key, today) }))}
         />
       ) : null}
     </>
@@ -112,9 +115,10 @@ export function RecheckCards({ date, lifts, rules, notify }: Props) {
 }
 
 /** The adjustment cards from prototype `renderStart()`: "Welcome back", the optional lighter week, the recovery week, and the note while one runs. */
-export function StartCards({ date, lifts, sessions, profile, plan, notify }: Omit<Props, 'rules'> & { sessions: SessionLog; profile: PlanProfile; /** Today's planned template, for the "Stick to" button. */ plan: string | null }) {
+export function StartCards({ date, lifts, sessions, profile, plan, notify, now }: Omit<Props, 'rules'> & { now: () => Date; sessions: SessionLog; profile: PlanProfile; /** Today's planned template, for the "Stick to" button. */ plan: string | null }) {
   const { settings, update: write, loadFailed } = useSettings();
   const update = guarded(write, loadFailed, notify);
+  const today = localDate(now());
   const a = settings.adjustments;
   const { deload, reentry } = rangesOf(a);
   const adj = { ...adjOf(a), deload, reentry };
@@ -130,9 +134,9 @@ export function StartCards({ date, lifts, sessions, profile, plan, notify }: Omi
         <ReentryCardView
           card={back}
           declines={adj.declines.break ?? 0}
-          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, back.key, 'break') }))}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, back.key, today, 'break') }))}
           onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'break') })) && notify(MUTED)}
-          onEase={() => update((s) => ({ adjustments: startReentry(s.adjustments, date, back.key, back.pct) }))}
+          onEase={() => update((s) => ({ adjustments: startReentry(s.adjustments, date, back.key, back.pct, today) }))}
         />
       ) : null}
       {showMiss ? (
@@ -141,27 +145,27 @@ export function StartCards({ date, lifts, sessions, profile, plan, notify }: Omi
           weekday={weekdayLong(showMiss.date)}
           stick={plan ?? 'the plan'}
           declines={adj.declines.missed ?? 0}
-          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, missKey, 'missed') }))}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, missKey, today, 'missed') }))}
           onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'missed') })) && notify(MUTED)}
-          onShift={() => update((s) => ({ adjustments: shiftWeek(s.adjustments, missKey) })) && notify('Week shifted forward')}
+          onShift={() => update((s) => ({ adjustments: shiftWeek(s.adjustments, missKey, today) })) && notify('Week shifted forward')}
         />
       ) : null}
       {steady ? (
         <SteadyCardView
           card={steady}
           declines={adj.declines['deload-plan'] ?? 0}
-          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, steady.key, 'deload-plan') }))}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, steady.key, today, 'deload-plan') }))}
           onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'deload-plan') })) && notify(MUTED)}
-          onStart={() => update((s) => ({ adjustments: startDeload(s.adjustments, date, steady.key) })) && notify('Recovery week started')}
+          onStart={() => update((s) => ({ adjustments: startDeload(s.adjustments, date, steady.key, today) })) && notify('Recovery week started')}
         />
       ) : null}
       {card ? (
         <RecoveryCardView
           card={card}
           declines={adj.declines.deload ?? 0}
-          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, card.key, 'deload') }))}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, card.key, today, 'deload') }))}
           onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'deload') })) && notify(MUTED)}
-          onStart={() => update((s) => ({ adjustments: startDeload(s.adjustments, date, card.key) })) && notify('Recovery week started')}
+          onStart={() => update((s) => ({ adjustments: startDeload(s.adjustments, date, card.key, today) })) && notify('Recovery week started')}
         />
       ) : null}
       {deload && inRange(deload, date) ? <RangeNote text={`Recovery week until ${shortDate(deload.until)}.`} action="End it early" onEnd={() => update((s) => ({ adjustments: endAdj(s.adjustments, 'deload') }))} /> : null}

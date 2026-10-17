@@ -24,6 +24,7 @@ public class AiQuotaService {
     public record Reservation(String userId, LocalDate day, AiFeature feature, AiQuota quota) {}
 
     private static final Logger log = LoggerFactory.getLogger(AiQuotaService.class);
+    /** Log text only; the threshold itself is {@code budget - budget / 5} in {@code AiUsageRepository.markAlertSent}. Change both together. */
     static final int ALERT_PERCENT = 80;
 
     private final AiUsageRepository usage;
@@ -111,7 +112,7 @@ public class AiQuotaService {
         usage.addTokens(r.userId(), r.day(), r.feature(), inputTokens, outputTokens);
         long budget = props.getMonthlyBudgetTokens();
         LocalDate month = r.day().withDayOfMonth(1);
-        if (budget > 0 && usage.markAlertSent(month, budget, ALERT_PERCENT)) {
+        if (budget > 0 && usage.markAlertSent(month, budget)) {
             // After commit, so a rolled-back transaction (which also rolls back the flag) never leaves a stray WARN.
             if (TransactionSynchronizationManager.isSynchronizationActive()) {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

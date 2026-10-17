@@ -7,12 +7,14 @@ import { AiProvider } from '../ai/AiProvider';
 import { onStoreWrite } from '../db/lockedDb';
 import { pendingCount } from '../db/outbox';
 import { API_URL, makeApi, startEmailSignIn, verifyEmailCode, type StartResult, type VerifyResult } from './auth';
-import { syncOnce, type SyncDb, type SyncResult } from './engine';
-import { completePhotoWipe, discardAll, signOut as guardedSignOut } from './guard';
+import { refreshSession, syncOnce, type SyncDb, type SyncResult } from './engine';
+import { completePhotoWipe, discardAll, signOut as guardedSignOut, withSyncPaused } from './guard';
 import { discardQuarantined, quarantineCount, retryQuarantined } from './quarantine';
 import { isAccountFull } from './held';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
+import { cookieMode } from './transport';
+import { dropLegacyWebTokens, markSignOutPending, revokeCookie, signOutPending } from './webSession';
 
 /** How often a signed-in device syncs, besides on app start, on returning to the app and when the network is back. */
 export const SYNC_INTERVAL_MS = 30_000;
@@ -101,6 +103,11 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
         setLinked(false);
         setWipePending(false);
         setLastDeletion({ server: r.server, linked: r.linked });
+        // Web: the account is gone, but the cookie is still in the browser; the revoke call only clears it.
+        if (r.server && api && cookieMode()) {
+          markSignOutPending();
+          void revokeCookie(api);
+        }
         setEpoch((e) => e + 1);
         setPending(await pendingCount(db));
       } else if (r.kind === 'local_failed') {
@@ -109,7 +116,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       } else if (r.kind === 'unconfirmed' && !(await tokens.load())) setSignedIn(false);
       return r;
     },
-    [db, tokens],
+    [db, tokens, api],
   );
   const refreshPending = useCallback(async () => {
     setPending(await pendingCount(db));
@@ -146,7 +153,16 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       const t = await tokens.load();
       if (!live) return;
       const user = await getUserId(db);
-      setSignedIn(!!t && !!user);
+      let session = !!t && !!user;
+      if (cookieMode() && api) {
+        // Web (ADR 006): the access token is in memory, so after a reload it comes back from the cookie. Only a 401 ends the
+        // session; offline or 503 keeps it and the scheduler retries. While a sign-out is pending the cookie is not used.
+        await dropLegacyWebTokens(api);
+        if (signOutPending()) await revokeCookie(api);
+        else if (!t && user) session = (await withSyncPaused(() => refreshSession({ db, api, tokens }))) !== 'ended';
+        if (!live) return;
+      }
+      setSignedIn(session);
       setLinked(!!user);
       // An account deletion that did not finish clearing this device (app closed, wipe failed): finish it now.
       if (await readWipePending(db)) {
@@ -186,6 +202,13 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       if (Platform.OS === 'web' && typeof window !== 'undefined') window.removeEventListener('online', online);
     };
   }, [configured, signedIn, syncNow, refreshPending]);
+
+  // Web: a sign-out that did not reach the server is retried until it does (the cookie would otherwise sign the user back in).
+  useEffect(() => {
+    if (!api || !cookieMode()) return;
+    const timer = setInterval(() => signOutPending() && void revokeCookie(api), SYNC_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [api]);
 
   const value = useMemo<SyncState>(
     () => ({
@@ -232,6 +255,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       signOut: async (opts) => {
         const blocked = await guardedSignOut(db, tokens, opts);
         if (blocked === 0) {
+          if (api) void revokeCookie(api); // web: clears the cookie, or leaves the pending flag to retry; no-op on native
           clearOldExports();
           setSignedIn(false);
           if (opts?.discard) {
@@ -244,6 +268,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       },
       discardAndSignOut: async () => {
         await discardAll(db, tokens);
+        if (api) void revokeCookie(api);
         clearOldExports();
         setSignedIn(false);
         setLinked(false);

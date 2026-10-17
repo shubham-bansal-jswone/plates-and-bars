@@ -48,6 +48,7 @@ class AiQuotaIT extends AiITBase {
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean AiProvider provider; // not the stub: the stub keeps everything off
     @Autowired AiQuotaService quotas;
+    @Autowired AiUsageRepository usageRepo;
 
     @BeforeEach
     void resetClock() {
@@ -285,6 +286,20 @@ class AiQuotaIT extends AiITBase {
         clock.advance(Duration.ofDays(24));
         var r2 = quotas.reserve(u, AiFeature.ASK_WHY);
         assertThat(captureWarns(() -> quotas.recordTokens(r2, 450, 450))).hasSize(1);
+    }
+
+    @Test
+    void aVeryLargeBudgetNeverFiresAFalseAlert() {
+        java.time.LocalDate month = java.time.LocalDate.of(2026, 10, 1);
+        jdbc.update("INSERT INTO ai_spend_monthly (month, tokens) VALUES (?, 5)", month);
+        // budget * 80 would wrap negative here and make every row look over the line
+        assertThat(usageRepo.markAlertSent(month, Long.MAX_VALUE)).isFalse();
+        assertThat(usageRepo.markAlertSent(month, Long.MAX_VALUE / 10 * 9)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT alert_sent FROM ai_spend_monthly WHERE month = ?", Integer.class, month)).isZero();
+        // 5 of 7 is below the threshold (7 - 1 = 6), so it stays quiet
+        assertThat(usageRepo.markAlertSent(month, 7)).isFalse();
+        // fires at the first whole token at or above 80% (ceil(4.8) = 5)
+        assertThat(usageRepo.markAlertSent(month, 6)).isTrue(); // threshold 6 - 1 = 5
     }
 
     @Test

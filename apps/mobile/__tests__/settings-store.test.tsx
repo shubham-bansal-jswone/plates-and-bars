@@ -5,6 +5,7 @@ import { defaultSettings } from '../src/settings/types';
 import { CUSTOM_EXERCISES_MAX, DEFAULT_WATER_SIZES } from '@plate-and-bar/core';
 import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { getCatalog, setCustomTags } from '../src/workout/catalog';
+import { withEntry } from '../src/content/own';
 import { memoryDb } from './helpers';
 
 const wrap = (db: ReturnType<typeof memoryDb>) => {
@@ -114,6 +115,28 @@ describe('settings store', () => {
       await waitFor(async () => expect((await loadSettings(db))?.custom_tags.E0).toMatchObject({ primary: ['glutes'] }));
     });
 
+    it('addCustomTags refuses a new Object.prototype name, keeps and replaces one already stored as data (#715)', async () => {
+      const db = memoryDb();
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      let ok = true;
+      for (const name of ['__proto__', 'constructor', 'toString']) {
+        await act(async () => void (ok = await result.current.addCustomTags(name, tag)));
+        expect(ok).toBe(false);
+      }
+      expect(Object.keys((await loadSettings(db))?.custom_tags ?? {})).toEqual([]);
+      await act(async () => void result.current.update({ custom_tags: withEntry({}, '__proto__', tag) }));
+      await act(async () => void (ok = await result.current.addCustomTags('Mine', tag)));
+      expect(ok).toBe(true);
+      await act(async () => void (ok = await result.current.addCustomTags('__proto__', { ...tag, primary: ['glutes'] })));
+      expect(ok).toBe(true);
+      await waitFor(async () => expect(Object.getOwnPropertyDescriptor((await loadSettings(db))!.custom_tags, '__proto__')?.value).toMatchObject({ primary: ['glutes'] }));
+      const saved = (await loadSettings(db))!.custom_tags;
+      expect(Object.keys(saved).sort()).toEqual(['Mine', '__proto__']);
+      expect(Object.getPrototypeOf(saved)).toBe(Object.prototype);
+      expect(Object.getPrototypeOf(result.current.settings.custom_tags)).toBe(Object.prototype);
+    });
+
     it('addCustomTags refuses a name that is a known exercise in another letter case, built-in or custom (#450)', async () => {
       const db = memoryDb();
       const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
@@ -129,6 +152,19 @@ describe('settings store', () => {
       await act(async () => void (ok = await result.current.addCustomTags('Cossack Squat', { ...tag, primary: ['glutes'] })));
       expect(ok).toBe(true); // the exact name is a replace, as before
       expect(Object.keys((await loadSettings(db))?.custom_tags ?? {})).toEqual(['Cossack Squat']);
+    });
+
+    it('addCustomTags replaces the exact stored name even when two case variants are stored (#734)', async () => {
+      const db = memoryDb();
+      await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), custom_tags: { 'Cossack Squat': tag, 'COSSACK SQUAT': tag } });
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      let ok = false;
+      await act(async () => void (ok = await result.current.addCustomTags('COSSACK SQUAT', { ...tag, primary: ['glutes'] })));
+      expect(ok).toBe(true);
+      await act(async () => void (ok = await result.current.addCustomTags('cossack squat', tag)));
+      expect(ok).toBe(false); // a third spelling is still a near-duplicate
+      expect((await loadSettings(db))?.custom_tags['COSSACK SQUAT']).toMatchObject({ primary: ['glutes'] });
     });
 
     it('addCustomTags resolves true for an accepted name, also when the write then fails, and false when the save is dropped', async () => {
@@ -204,5 +240,59 @@ describe('settings reload with a write in flight (#597)', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] });
     expect(result.current.settings.focus).toEqual(['chest']);
+  });
+});
+
+describe('update done callback', () => {
+  // Captures what the provider rethrows from a timer (jest would otherwise fail on the uncaught error).
+  const reported: unknown[] = [];
+  beforeEach(() => {
+    reported.length = 0;
+    const real = globalThis.setTimeout;
+    jest.spyOn(globalThis, 'setTimeout').mockImplementation(((cb: () => void, ms?: number) =>
+      real(() => {
+        try {
+          cb();
+        } catch (e) {
+          if ((e as Error).message !== 'callback bug') throw e;
+          reported.push(e);
+        }
+      }, ms)) as unknown as typeof setTimeout);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('a callback that throws does not fail the save queue: the next write is stored and reported stored', async () => {
+    const db = memoryDb();
+    const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    const second = jest.fn();
+    await act(async () => {
+      result.current.update({ focus: ['chest'] }, () => {
+        throw new Error('callback bug');
+      });
+      result.current.update({ rest_off: true }, second);
+    });
+    await waitFor(() => expect(second).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(reported).toHaveLength(1)); // not swallowed
+    expect(await loadSettings(db)).toMatchObject({ focus: ['chest'], rest_off: true });
+  });
+
+  it('a callback that throws on a failed write still keeps the edit for the next save', async () => {
+    const db = memoryDb();
+    const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    db.failWrites = true;
+    await act(async () => {
+      result.current.update({ focus: ['chest'] }, () => {
+        throw new Error('callback bug');
+      });
+    });
+    await waitFor(() => expect(result.current.saveFailed).toBe(true));
+    db.failWrites = false;
+    const next = jest.fn();
+    await act(async () => void result.current.update({ rest_off: true }, next));
+    await waitFor(() => expect(next).toHaveBeenCalledWith(true));
+    expect(reported).toHaveLength(1);
+    expect(await loadSettings(db)).toMatchObject({ focus: ['chest'], rest_off: true });
   });
 });

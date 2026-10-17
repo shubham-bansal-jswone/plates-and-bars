@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
@@ -21,6 +22,11 @@ class RecordRecountIT extends SyncITBase {
     static final String T = "2026-10-08T11:00:00Z";
 
     @Autowired RecordRecount recount;
+
+    @BeforeEach
+    void startupWalkIsDone() throws InterruptedException {
+        recount.awaitStartupWalk(); // it must not correct this test's drifted counters first
+    }
 
     private long counter(String user) {
         Long n = jdbc.queryForObject("SELECT records FROM sync_state WHERE user_id = ?", Long.class, user);
@@ -64,6 +70,19 @@ class RecordRecountIT extends SyncITBase {
         assertThat(counter(other)).isEqualTo(3);
         assertThat(counter(right)).isEqualTo(2);
         assertThat(recount.recountAll()).as("idempotent").isZero();
+    }
+
+    @Test
+    void everyOneOfTheSixteenTablesIsCounted() {
+        String user = newUser();
+        Req r = Req.of(null);
+        SyncFixtures.oneOfEach(user, T).forEach(r::add);
+        ok(user, r.build());
+        assertThat(rows(user)).isEqualTo(16);
+        jdbc.update("UPDATE sync_state SET records = 0 WHERE user_id = ?", user);
+
+        assertThat(recount.recount(user)).isTrue();
+        assertThat(counter(user)).isEqualTo(16);
     }
 
     @Test

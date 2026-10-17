@@ -75,6 +75,23 @@ describe('a settings save queued before sign-out or a wipe (#645)', () => {
     expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull();
   });
 
+  it('addCustomTags resolves false when its save is dropped by a sign-out, and true only for a save that was not dropped (#713)', async () => {
+    const { db, r, holdNext } = await setup();
+    const held = holdNext();
+    await act(async () => r.result.current.setFocus(['chest'])); // inside its transaction, holding the write lock
+    await held.reached;
+    const tag = { pattern: 'h-press', family: 'custom', equipment: 'machine', difficulty: 2, primary: ['quads'], secondary: [], joints: [] };
+    let ok: boolean | undefined;
+    await act(async () => void r.result.current.addCustomTags('Mine', tag as never).then((v) => (ok = v))); // queued behind it
+    const out = signOut(db, memoryTokens({ access: 'a', refresh: 'r' }), { discard: true });
+    await sleep(20);
+    await act(async () => held.open());
+    expect(await out).toBe(0);
+    await waitFor(() => expect(ok).toBeDefined());
+    expect(ok).toBe(false); // accepted at first, but the save never landed: the caller must not add the exercise to the workout
+    expect(await loadSettings(db)).toBeNull();
+  });
+
   it('a save inside its transaction when the provider unmounts is not written', async () => {
     const { db, r, holdNext, rows } = await setup();
     const held = holdNext();
