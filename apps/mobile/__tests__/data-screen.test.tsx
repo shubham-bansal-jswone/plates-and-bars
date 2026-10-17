@@ -68,9 +68,27 @@ describe('data screen (#27)', () => {
     }
   });
 
+  it('shows no storage line to a signed-in user until the consent has been read, so it never flashes "device only"', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const db = consented();
+    const read = db.getAllAsync.bind(db);
+    // Hold the consent read open to observe the unresolved state.
+    db.getAllAsync = (async (...a: Parameters<typeof read>) => {
+      await gate;
+      return read(...a);
+    }) as typeof db.getAllAsync;
+    await show({ signedIn: true }, db);
+    expect(screen.queryByText(DATA_COPY.storageDevice)).toBeNull();
+    expect(screen.queryByText('Saved privately to your account.')).toBeNull();
+    release();
+    expect(await screen.findByText('Saved privately to your account.')).toBeTruthy();
+    expect(screen.queryByText(DATA_COPY.storageDevice)).toBeNull();
+  });
+
   it('a signed-in user without the data_storage consent is told the data stays on the device, as nothing uploads', async () => {
     await show({ signedIn: true });
-    expect(screen.getByText(DATA_COPY.storageDevice)).toBeTruthy();
+    expect(await screen.findByText(DATA_COPY.storageDevice)).toBeTruthy();
     expect(screen.queryByText(/Saved privately to your account/)).toBeNull();
     const withdrawn = memoryDb();
     withdrawn.rows.set('consents:c1', JSON.stringify({ ...JSON.parse(consentRow), deleted_at: '2026-10-02T00:00:00.000Z' }));

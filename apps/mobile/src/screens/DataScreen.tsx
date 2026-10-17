@@ -30,7 +30,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   const [deleted, setDeleted] = useState<DeleteResult | null>(null);
   const [deviceOnly, setDeviceOnly] = useState(false);
   // Signed in is not enough: without the data_storage consent the engine stops at consent_required and uploads nothing.
-  const [consented, setConsented] = useState(false);
+  const [consented, setConsented] = useState<boolean | null>(null);
   useEffect(() => {
     let live = true;
     void hasConsent(db).then((ok) => live && setConsented(ok), () => live && setConsented(false));
@@ -138,7 +138,10 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
-      <Hint>{`${s.signedIn && consented ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
+      {/* A signed-in user's consent is read async; show no storage line until it is known rather than a wrong one. */}
+      {s.signedIn && consented === null ? null : (
+        <Hint>{`${s.signedIn && consented ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
+      )}
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
       {message ? <Note>{message}</Note> : null}
