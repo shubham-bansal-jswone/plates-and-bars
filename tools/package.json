@@ -1,6 +1,7 @@
 {
   "name": "plates-and-bars-tools",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "description": "Content tooling: importers and validators. No runtime dependencies.",
   "engines": { "node": ">=22" },
