@@ -1,0 +1,69 @@
+# Backend stack for the sync end-to-end tests (tests/e2e/playwright.sync.config.mjs): MySQL, the API built from this
+# checkout, and Mailpit as the SMTP sink that receives the sign-in codes. Not for staging or production: SMTP runs
+# without TLS, rate limits are raised, and the ports are published on 127.0.0.1 only.
+#   CONTENT_UPDATED_AT="$(../../../backend/scripts/content-updated-at.sh)" docker compose build api
+#   docker compose up -d --wait
+#   docker compose down -v      # also drops the database
+# Images: mysql (GPL-2.0), axllent/mailpit (MIT), the API (this repository's backend/Dockerfile).
+name: plateandbar-e2e
+
+services:
+  mysql:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_ROOT_PASSWORD: e2e-root
+      MYSQL_DATABASE: plateandbar
+      MYSQL_USER: plateandbar
+      MYSQL_PASSWORD: e2e-password
+    tmpfs:
+      - /var/lib/mysql # throwaway data, and faster
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -uroot --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  mailpit:
+    image: axllent/mailpit:v1.30
+    ports:
+      - "127.0.0.1:18025:8025" # HTTP API the tests read codes from
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    image: plateandbar-api:e2e
+    build:
+      context: ../../..
+      dockerfile: backend/Dockerfile
+      args:
+        CONTENT_UPDATED_AT: ${CONTENT_UPDATED_AT:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/plateandbar
+      DB_USER: plateandbar
+      DB_PASSWORD: e2e-password
+      JWT_SIGNING_KEY: e2e-only-signing-key-0123456789-abcdefghij
+      CORS_ALLOWED_ORIGINS: http://127.0.0.1:4174
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: e2e@plateandbar.test
+      SMTP_STARTTLS: "false"
+      # Every test run signs in twice from one address; the production caps (10 codes per hour per IP) would stop a rerun.
+      APP_RATELIMIT_EMAILSTARTPERIP_CAPACITY: 1000
+      APP_RATELIMIT_EMAILVERIFYPERIP_CAPACITY: 1000
+    ports:
+      - "127.0.0.1:18080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /api/v1/health HTTP/1.0\\r\\n\\r\\n\" >&3 && head -1 <&3 | grep -q 200'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
