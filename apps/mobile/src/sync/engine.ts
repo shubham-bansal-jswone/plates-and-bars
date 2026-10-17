@@ -58,9 +58,10 @@ export interface SyncResult {
   /** For `error`: the exception's class name only. */
   errorName?: string;
   /**
-   * The run failed (`offline` or `unavailable`) on the `/auth/refresh` request itself, a lost response or a timeout. The server may
-   * have rotated the token meanwhile, and a retry is only safe inside its 60 s grace window, so the caller retries within 30 s
-   * and does not back off further (#762).
+   * The run failed (`offline` or `unavailable`) on the `/auth/refresh` request itself with an ambiguous outcome: no connection, a
+   * timeout or a 5xx. The server may have rotated the token meanwhile, and a retry is only safe inside its 60 s grace window, so
+   * the caller retries after `REFRESH_RETRY_MS` (20 s) instead of backing off (#762, #809). A definite refusal (a 4xx such as the
+   * Origin 403 of ADR 006) is not tagged: nothing was rotated, so it follows the normal schedule.
    */
   viaRefresh?: boolean;
 }
@@ -197,7 +198,7 @@ async function refreshForRun(d: SyncDeps, owner: string | null): Promise<boolean
 /** Tags a failure of the refresh request so the run's result can say so (`SyncResult.viaRefresh`). */
 function markViaRefresh(e: unknown): unknown {
   if (e instanceof NetworkError) e.viaRefresh = true;
-  else if (e instanceof TransientError) e.outcome.result.viaRefresh = true;
+  else if (e instanceof TransientError && e.outcome.result.status === 'unavailable') e.outcome.result.viaRefresh = true;
   return e;
 }
 
