@@ -68,7 +68,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
             // Judged against the stored record inside the save (a pull may have filled the list), like the exercise settings sheet:
             // past the contract's cap the override is refused, and the card stays.
             let full = false;
-            const ok = update(
+            update(
               (s) => {
                 if (exerciseOverridesWouldExceed(s.exercise_overrides, ex.name)) {
                   full = true;
@@ -76,9 +76,8 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where }: P
                 }
                 return { exercise_overrides: { ...s.exercise_overrides, [ex.name]: stallRangeOverride(s.exercise_overrides[ex.name], info, stall.range) }, adjustments: answered(s.adjustments, stall.key) };
               },
-              () => full && notify(OVERRIDES_FULL),
+              (stored) => (full ? notify(OVERRIDES_FULL) : stored && notify(`${ex.name}: now ${lo}–${hi} reps`)),
             );
-            if (ok && !exerciseOverridesWouldExceed(settings.exercise_overrides, ex.name)) notify(`${ex.name}: now ${lo}–${hi} reps`);
           }}
           onSide={() => side && switchTo('side', side, stall.key, `Switched to ${side}`)}
         />

@@ -9,6 +9,7 @@ Specs (one concern each, every test starts with an empty browser profile):
 - `rest-bar.spec.mjs`: the rest panel's bounding box against the page column at 1200 and 800 px, and inside the screen at 390 px (#630).
 - `data.spec.mjs`: export (JSON and CSV, offline) and delete everything (local only).
 - `screens.spec.mjs`: exercise library, About, recipe builder and kitchen tests.
+- `sheet-focus.spec.mjs`: a sheet opens with focus on its title and gives focus back to the opener on Escape (#661).
 - `a11y.spec.mjs`: axe-core on the main screens, light and dark. Known failures are listed by rule and element with their issue number (`support/axe.mjs`, tested in `axe-known.spec.mjs`); a new violation fails, a fixed one goes stale and fails.
 
 Rules: only `127.0.0.1` is reachable (every other request is aborted and every test fails at teardown if there was one); no sign-in and no server, so sync and AI are off; selectors are `aria-label`s; there are no fixed sleeps (`saved()` waits for the app's SQLite worker to answer its writes).

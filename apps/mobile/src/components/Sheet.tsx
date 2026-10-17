@@ -11,6 +11,7 @@ const activeElement = (): HTMLElement | null => (typeof document !== 'undefined'
 export function focusSheetTitle(title: string): void {
   if (typeof document === 'undefined') return;
   const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find((d) => d.getAttribute('aria-label') === title);
+  // Unquoted on purpose: the heading-levels guard flags the quoted form as an assignment of the role.
   const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
   if (!heading) return;
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
@@ -24,20 +25,27 @@ export function focusSheetTitle(title: string): void {
 export function SheetModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const opener = useRef<HTMLElement | null | undefined>(undefined);
   if (opener.current === undefined) opener.current = Platform.OS === 'web' ? activeElement() : null; // before the modal takes focus
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    // The modal's content mounts after this effect, and its focus trap moves focus when it does: wait a tick, then take focus.
-    const t = setTimeout(() => focusSheetTitle(title), 0);
-    return () => {
-      clearTimeout(t);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Unmount only (not on a title change): give focus back to the opener and cancel a pending title focus.
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
       opener.current?.focus();
-    };
-  }, [title]);
+    },
+    [],
+  );
+  // react-native-web activates the dialog (role, focus trap) in `onShow`, at the end of the slide animation, and the trap's effect
+  // runs after that re-render and focuses the first button: take focus one tick later.
+  const onShow = () => {
+    if (Platform.OS !== 'web') return;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => focusSheetTitle(title), 0);
+  };
   // `aria-label` reaches the web dialog (react-native-web passes extra props on). Native starts on the title already (and a
   // modal labelled like the button that opened it would only be a second match for that label).
   const named = (Platform.OS === 'web' ? { 'aria-label': title } : {}) as object;
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose} {...named}>
+    <Modal visible animationType="slide" onRequestClose={onClose} onShow={onShow} {...named}>
       {children}
     </Modal>
   );
