@@ -13,6 +13,8 @@ const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 interface Options {
   db: WorkoutDb;
+  /** The day shown (the viewed day); today's date when not given. */
+  date?: string;
   now: () => Date;
   /** Short message for the toast. */
   notify: (msg: string) => void;
@@ -28,9 +30,10 @@ const blankTape = (date: string): Measurement => ({ id: null, version: 0, update
  * Body data for the day: weigh-ins, tape measurements and the day note's steps and sleep, read from SQLite. Every save
  * shows at once and its write goes through one FIFO queue (nothing waits on the network). Deletes are tombstones.
  */
-export function useProgress({ db, now, notify, reloadKey = 0 }: Options) {
-  const date = localDate(now());
-  const [ready, setReady] = useState(false);
+export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Options) {
+  const date = shown ?? localDate(now());
+  /** The day the shown data was read for: not ready while the viewed day is another one, so a save cannot land on stale rows. */
+  const [loaded, setLoaded] = useState<string | null>(null);
   const [weights, setWeights] = useState<Weight[]>([]);
   const [tapes, setTapes] = useState<Measurement[]>([]);
   /** Day notes for the 7 days before `date` and `date` itself (what `stepsTarget` reads). */
@@ -54,7 +57,7 @@ export function useProgress({ db, now, notify, reloadKey = 0 }: Options) {
         setWeights(w);
         setTapes(m);
         setNotes(notesRef.current);
-        setReady(true);
+        setLoaded(date);
       });
     })().catch(() => {
       if (live) notify('Couldn’t read your saved progress.');
@@ -138,5 +141,6 @@ export function useProgress({ db, now, notify, reloadKey = 0 }: Options) {
 
   const dismissJump = useCallback(() => setJump(null), []);
 
+  const ready = loaded === date;
   return { date, ready, weights, tapes, notes, today: notes.find((n) => n.date === date) ?? null, scaleJump: jump && jump.date === date ? jump : null, dismissJump, saveWeightText, saveTape, saveStepsSleep };
 }
