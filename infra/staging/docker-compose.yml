@@ -11,6 +11,9 @@ name: plateandbar-staging
 # installed once per VM with infra/journald/install.sh). `docker compose logs` still works with this driver.
 x-logging: &logging
   driver: journald
+  options:
+    tag: "{{.Name}}"
+    labels: com.docker.compose.service
 
 services:
   mysql:

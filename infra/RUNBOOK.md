@@ -28,10 +28,11 @@ Any S3-compatible bucket works: `backup.sh` only needs `BACKUP_S3_*` variables, 
    curl -fsS https://$API_HOST/api/v1/health
    ```
    The first request makes Caddy fetch the certificate; it needs ports 80 and 443 reachable from the internet.
+8. **Owner:** once, after the first deploy, check that logs come back through journald: `docker compose logs --tail 5 api` must print lines (and `journalctl CONTAINER_NAME=plateandbar-staging-api-1 -n 5` too).
 
 ## 2. Update and rollback
 
-Update: `git pull`, then repeat the commands of step 6. Each build tags the image `plateandbar-api:<API_TAG>`, so earlier tags stay on the VM. `API_TAG` lives in `.env`, so any later plain `docker compose up -d` runs the same tag.
+Update: `git pull`, then repeat the commands of step 7. Each build tags the image `plateandbar-api:<API_TAG>`, so earlier tags stay on the VM. `API_TAG` lives in `.env`, so any later plain `docker compose up -d` runs the same tag.
 
 Rollback = previous image tag: `docker image ls plateandbar-api`, set `API_TAG=<previous tag>` in `.env`, then `docker compose up -d api` (no `build`). Flyway migrations are forward-only: if the bad release added a migration, restore the last backup (section 4) as well, or ship a fix forward.
 

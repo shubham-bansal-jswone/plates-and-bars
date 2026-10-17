@@ -21,9 +21,13 @@ if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
   echo "journald drop-in already installed: $dest"; exit 0
 fi
 if [ "$dry" = 1 ]; then
-  echo "would install $src to $dest and restart systemd-journald"; exit 0
+  echo "would install $src to $dest and restart systemd-journald"
+  if [ -f "$dest" ]; then diff -u "$dest" "$src" || true; else echo "(new file)"; fi
+  exit 0
 fi
 install -d -m 0755 "$dir"
 install -m 0644 "$src" "$dest"
 systemctl restart systemd-journald
 echo "installed $dest and restarted systemd-journald"
+# Show what journald now runs with (the drop-in must appear last); informational, so a missing tool is not an error.
+systemd-analyze cat-config systemd/journald.conf || echo "warning: could not print the effective journald config" >&2
