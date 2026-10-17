@@ -1,0 +1,8 @@
+{
+  "name": "@sentry/cli",
+  "version": "0.0.0-stub",
+  "description": "Empty stand-in for @sentry/cli, which is FSL-1.1-MIT (not open source). We upload no source maps, so nothing needs it.",
+  "license": "MIT",
+  "private": true,
+  "main": "index.js"
+}

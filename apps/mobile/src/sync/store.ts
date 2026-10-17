@@ -6,6 +6,8 @@ export const KEY_USER = 'sync.user_id';
 export const KEY_SERVER_DELETED = 'device.server_deleted';
 /** Set in the same transaction as a store wipe and cleared once the photo vault is wiped too (#251). */
 export const KEY_PHOTOS_WIPE = 'device.photos_wipe_pending';
+/** Settings edits whose save failed, kept across restarts (#651). Device-only, but removed by a store wipe: they belong to the account that is wiped. */
+export const KEY_SETTINGS_KEPT = 'device.settings_kept';
 export const KEY_CURSOR = 'sync.cursor';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 

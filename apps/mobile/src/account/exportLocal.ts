@@ -18,7 +18,7 @@ export interface LocalExport {
   note?: string;
   /** One array for every contract sync table, always present, rows in the contract's record shape (tombstones included). */
   tables: Record<SyncTableName, Doc[]>;
-  /** Data that never leaves the device. TODO(#251): the progress-photo vault is added here once it exists. */
+  /** Data that never leaves the device. The device export leaves out progress photos, as the prototype does. */
   device_only: Record<string, never>;
 }
 

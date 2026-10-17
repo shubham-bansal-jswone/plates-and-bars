@@ -102,14 +102,14 @@ describe('settings store', () => {
       const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
       await waitFor(() => expect(result.current.ready).toBe(true));
       let ok = false;
-      await act(async () => void (ok = result.current.addCustomTags('Mine', tag)));
+      await act(async () => void (ok = await result.current.addCustomTags('Mine', tag)));
       expect(ok).toBe(true);
       expect(getCatalog().tags.Mine).toEqual(tag);
       const full = Object.fromEntries(Array.from({ length: CUSTOM_EXERCISES_MAX }, (_, i) => [`E${i}`, tag]));
       await act(async () => void result.current.update({ custom_tags: full }));
-      await act(async () => void (ok = result.current.addCustomTags('One too many', tag)));
+      await act(async () => void (ok = await result.current.addCustomTags('One too many', tag)));
       expect(ok).toBe(false);
-      await act(async () => void (ok = result.current.addCustomTags('E0', { ...tag, primary: ['glutes'] })));
+      await act(async () => void (ok = await result.current.addCustomTags('E0', { ...tag, primary: ['glutes'] })));
       expect(ok).toBe(true);
       await waitFor(async () => expect((await loadSettings(db))?.custom_tags.E0).toMatchObject({ primary: ['glutes'] }));
     });
@@ -119,16 +119,51 @@ describe('settings store', () => {
       const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
       await waitFor(() => expect(result.current.ready).toBe(true));
       let ok = true;
-      await act(async () => void (ok = result.current.addCustomTags('goblet squat', tag)));
+      await act(async () => void (ok = await result.current.addCustomTags('goblet squat', tag)));
       expect(ok).toBe(false);
       expect(getCatalog().tags['goblet squat']).toBeUndefined();
-      await act(async () => void (ok = result.current.addCustomTags('Cossack Squat', tag)));
+      await act(async () => void (ok = await result.current.addCustomTags('Cossack Squat', tag)));
       expect(ok).toBe(true);
-      await act(async () => void (ok = result.current.addCustomTags('COSSACK SQUAT', tag)));
+      await act(async () => void (ok = await result.current.addCustomTags('COSSACK SQUAT', tag)));
       expect(ok).toBe(false);
-      await act(async () => void (ok = result.current.addCustomTags('Cossack Squat', { ...tag, primary: ['glutes'] })));
+      await act(async () => void (ok = await result.current.addCustomTags('Cossack Squat', { ...tag, primary: ['glutes'] })));
       expect(ok).toBe(true); // the exact name is a replace, as before
       expect(Object.keys((await loadSettings(db))?.custom_tags ?? {})).toEqual(['Cossack Squat']);
+    });
+
+    it('addCustomTags resolves true for an accepted name, also when the write then fails, and false when the save is dropped', async () => {
+      const db = memoryDb();
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      const run = db.runAsync.bind(db);
+      db.runAsync = (async (sql: string, ...p: (string | number)[]) => {
+        if (sql.includes('user_settings')) throw new Error('disk full');
+        return run(sql, ...p);
+      }) as typeof db.runAsync;
+      let ok = false;
+      await act(async () => void (ok = await result.current.addCustomTags('Mine', tag)));
+      expect(ok).toBe(true); // accepted; the failed write is kept and shown, as offline
+      await waitFor(() => expect(result.current.saveFailed).toBe(true));
+    });
+
+    it('the case-insensitive guard and the 500 cap look at the stored record, not at what shows (#664)', async () => {
+      const db = memoryDb();
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      // Another device's names are stored (a pull) but this provider has not reloaded them yet.
+      await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), custom_tags: { 'Cossack Squat': tag } });
+      let ok = true;
+      await act(async () => void (ok = await result.current.addCustomTags('COSSACK SQUAT', tag)));
+      expect(ok).toBe(false); // resolved by the save's decision, so the caller does not add the exercise to the workout
+      await waitFor(() => expect(result.current.settings.custom_tags).toEqual({ 'Cossack Squat': tag })); // what shows is what is stored
+      expect(Object.keys((await loadSettings(db))!.custom_tags)).toEqual(['Cossack Squat']);
+      const full = Object.fromEntries(Array.from({ length: CUSTOM_EXERCISES_MAX }, (_, i) => [`E${i}`, tag]));
+      await saveSettings(db, { ...defaultSettings('2026-10-08T10:00:00Z'), custom_tags: full });
+      await act(async () => void (ok = await result.current.addCustomTags('One too many', tag)));
+      expect(ok).toBe(false);
+      await waitFor(() => expect(result.current.settings.custom_tags['One too many']).toBeUndefined());
+      expect(Object.keys((await loadSettings(db))!.custom_tags)).toHaveLength(CUSTOM_EXERCISES_MAX);
+      expect((await loadSettings(db))!.custom_tags['One too many']).toBeUndefined();
     });
   });
 });

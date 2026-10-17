@@ -2878,7 +2878,7 @@ function openWhy(id){
     <p class="hint">Source: ${esc(c.src)}. Draft card, not yet reviewed by a coach or dietitian. Not medical advice.</p>
     ${sampleFn ? `<div class="ask"><label for="askQ" class="lbl">Ask a follow-up</label><div class="inline"><input id="askQ" value="${esc(WHY.q)}" placeholder="e.g. Is 150 g too much protein?" style="max-width:none"><button class="ghost sm" data-act="why-ask" ${WHY.busy ? 'disabled' : ''}>${WHY.busy ? 'Thinking…' : 'Ask'}</button></div>
       ${WHY.ans ? `<p class="ask-a">${esc(WHY.ans)}</p>` : ''}${WHY.err ? `<p class="err">${esc(WHY.err)}</p>` : ''}
-      <p class="hint">Answers come only from the app’s cards. If they don’t cover it, it will say so.</p></div>` : ''}`);
+      <p class="hint">Answers come only from the app’s cards. If they don’t cover it, the answer will say so.</p></div>` : ''}`);
 }
 async function askWhy(){
   const q = ($('#askQ')?.value || '').trim(); if(!q || !sampleFn) return;
@@ -3732,14 +3732,14 @@ function consentHtml(){
     <div><button class="primary" data-act="consent">Continue</button></div></div>`;
 }
 
-/* ---------- 2. health screening (topics based on the PAR-Q+) ---------- */
+/* ---------- 2. health screening (our own wording; PAR-Q+ is only a reference) ---------- */
 const SCREEN_Q = [
-  'Has a doctor told you that you have a heart condition or high blood pressure?',
-  'Do you get chest pain at rest, during daily activities or when you exercise?',
-  'In the past 12 months, have you lost balance from dizziness or lost consciousness?',
-  'Do you have another long-term medical condition, or take prescribed medicine for one?',
-  'Do you have a bone, joint or muscle problem that more activity could make worse?',
-  'Has a doctor said you should only exercise under medical supervision?',
+  'Have you ever been diagnosed with a heart problem or high blood pressure?',
+  'Does your chest hurt when you are resting or being active?',
+  'In the last year, have you fainted, or felt so dizzy that you fell or nearly fell?',
+  'Do you live with a long-term health condition, or take regular medication for one?',
+  'Do you have a back, knee, shoulder or other bone, joint or muscle problem that being more active could make worse?',
+  'Has a doctor or other health professional said you should only exercise with supervision?',
 ];
 function screenHtml(p){
   p.screen = p.screen || {};
@@ -3891,7 +3891,7 @@ Object.assign(CARDS, {
 });
 Object.assign(KB, {
   screening:{ t:'Why a health check before training?', s:'A few questions catch the people who should see a doctor before starting.', ev:'Strong',
-    b:() => 'These questions cover the same topics as the PAR-Q+, the widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
+    b:() => 'These questions are our own wording of the safety topics that pre-exercise screening tools such as the PAR-Q+ cover: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
     src:'Warburton et al., PAR-Q+ (Physical Activity Readiness Questionnaire for Everyone)' },
   alcohol:{ t:'Alcohol and training', s:'Alcohol adds calories without protein and slows recovery.', ev:'Moderate',
     b:() => 'Alcohol has about 7 kcal per gram, so drinks add up quickly. In a study of men drinking alcohol after a hard workout, muscle-building after the session dropped noticeably, even with protein. An occasional drink fits into a plan; regular heavy drinking makes fat loss and recovery harder.',

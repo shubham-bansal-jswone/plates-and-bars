@@ -109,10 +109,13 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
     const next = nextAdaptive(adaptive, date, burn);
     if (next.value !== adaptive.value || next.week !== adaptive.week || next.prev !== adaptive.prev) update({ adaptive: { ...next } });
   }, [burn, usable, adaptive, date, update]);
-  const seen = usable && !!checkin && settings.checkin_seen !== mondayOf(date);
+  // Food's check-in banner goes once Progress has been shown this week. As the prototype's `renderCheckin` does, that is
+  // marked whenever the check-in is shown, even if the 21-day read failed or there is no profile (the banner must not stay all day).
+  const thisMonday = mondayOf(today);
+  const seen = usable && settings.checkin_seen !== thisMonday;
   useEffect(() => {
-    if (seen) update({ checkin_seen: mondayOf(date) });
-  }, [seen, date, update]);
+    if (seen) update({ checkin_seen: thisMonday });
+  }, [seen, thisMonday, update]);
 
   // Each change builds on the provider's latest record, so two quick taps both count.
   const dismiss = (key: string, extra: (a: Adjustments) => Partial<Adjustments> = () => ({})) =>
