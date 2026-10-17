@@ -15,9 +15,9 @@
     "updated_at": "2026-10-08T14:57:42Z"
   },
   "foods": {
-    "sha256": "e9e4d958034700bbbf1acbf16ef4f3241b600ee93d9b0abd1a890c01697c2110",
+    "sha256": "005335d67010c04e8df4dc85e57687eae39760f54abba2e80f85cd4c25d07353",
     "schema_version": 1,
-    "updated_at": "2026-10-17T23:49:14Z"
+    "updated_at": "2026-10-17T23:51:35Z"
   },
   "labels": {
     "sha256": "1a99999d971fb741839a805e6924951546be5c71a376b33be08243c3cab3ea40",
