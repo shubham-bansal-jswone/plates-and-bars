@@ -50,6 +50,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       # Per-account record cap on POST /sync (413 account_full). Unset or empty = no cap; leave unset until the app handles account_full.
       SYNC_MAX_RECORDS_PER_ACCOUNT: ${SYNC_MAX_RECORDS_PER_ACCOUNT:-}
+      # Error tracking (Sentry SDK to GlitchTip). Empty = off, nothing is sent.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
