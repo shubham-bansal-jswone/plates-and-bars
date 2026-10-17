@@ -1,6 +1,7 @@
 import type { Schemas } from '@plate-and-bar/api';
 import { SYNC_TABLES, inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { bumpStoreEpoch } from '../db/storeEpoch';
 import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
 import { KEY_PHOTOS_WIPE, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
@@ -54,6 +55,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", KEY_PHOTOS_WIPE);
+    bumpStoreEpoch();
     pending = 0;
   });
   if (pending === 0) await finishPhotoWipe(db);
