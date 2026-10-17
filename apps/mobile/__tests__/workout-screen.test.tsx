@@ -312,6 +312,22 @@ describe('Workout tab: logging sets', () => {
     expect(screen.getByText('Cossack Squat')).toBeTruthy();
   });
 
+  it('a typed name the save refuses (a near-duplicate a pull stored meanwhile) is not added to the workout (#664)', async () => {
+    const db = await started();
+    // Another device's 'Cossack Squat' is stored, but this screen has not reloaded it yet, so it asks for the muscles.
+    const tag = { pattern: 'h-press', family: 'custom', equipment: 'machine', difficulty: 2, primary: ['quads'], secondary: [], joints: [] } as const;
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), custom_tags: { 'Cossack Squat': tag } });
+    await press('Add exercise');
+    await fireEvent.changeText(screen.getByLabelText('Your own exercise'), 'COSSACK SQUAT');
+    await press('Add the exercise you typed');
+    await press('Main muscle: quads');
+    await press('Add COSSACK SQUAT with these muscles');
+    expect(await screen.findByText('Couldn’t save that exercise. Try again.')).toBeTruthy();
+    const names = stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name);
+    expect(names).not.toContain('COSSACK SQUAT');
+    expect(Object.keys(JSON.parse(db.rows.get('user_settings:me')!).custom_tags)).toEqual(['Cossack Squat']);
+  });
+
   it('shows core’s suggestion, target and warm-up line', async () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.

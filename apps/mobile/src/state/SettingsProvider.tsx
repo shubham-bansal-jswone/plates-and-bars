@@ -24,8 +24,12 @@ interface SettingsState {
   setDiet(diet: Settings['diet']): void;
   /** Saves the weekly meal plan. */
   setMealPlan(plan: MealPlan): void;
-  /** Saves a custom exercise's tags (prototype `tg-save`); false when the record cannot be written or the limit is reached. */
-  addCustomTags(name: string, tags: ExerciseTag): boolean;
+  /**
+   * Saves a custom exercise's tags (prototype `tg-save`). Resolves once the save has decided: false when the name is refused (a
+   * known exercise in another letter case, or the limit is reached, judged against the stored record) or the record cannot be
+   * written at all; true when it is accepted, also if the write itself fails later (the edit is kept and shows, as offline).
+   */
+  addCustomTags(name: string, tags: ExerciseTag): Promise<boolean>;
   /** Merges a change into the record (the Progress check-in's adjustments and real-burn state). */
   update(patch: Partial<Settings> | ((s: Settings) => Partial<Settings>), done?: (stored: boolean) => void): boolean;
 }
@@ -33,6 +37,16 @@ interface SettingsState {
 const Ctx = createContext<SettingsState | null>(null);
 /** Thrown inside a save that found its provider gone or the store wiped since it was queued. */
 class Dropped extends Error {}
+/**
+ * True when a custom exercise `name` cannot be added to `have`. A name that is a known exercise in another letter case would be
+ * a near-duplicate (#450): the typed-name flow adds the known one. The contract keeps at most 500 custom exercises; replacing
+ * one already there is always fine.
+ */
+function customRefused(have: Settings['custom_tags'], name: string): boolean {
+  const known = exerciseNamed(name, have);
+  if (known !== undefined && known !== name) return true;
+  return !Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_EXERCISES_MAX;
+}
 const stamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /**
@@ -189,14 +203,24 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
   const setMealPlan = useCallback((meal_plan: MealPlan) => change({ meal_plan }), [change]);
 
   const addCustomTags = useCallback(
-    (name: string, tags: ExerciseTag) => {
-      const have = ref.current.custom_tags;
-      // A name that is a known exercise in another letter case would be a near-duplicate (#450): refused, the typed-name flow adds the known one.
-      const known = exerciseNamed(name);
-      if (known !== undefined && known !== name) return false;
-      // The contract keeps at most 500 custom exercises; replacing one already there is always fine.
-      if (!Object.prototype.hasOwnProperty.call(have, name) && Object.keys(have).length >= CUSTOM_EXERCISES_MAX) return false;
-      return change((s) => ({ custom_tags: { ...s.custom_tags, [name]: tags } }));
+    (name: string, tags: ExerciseTag): Promise<boolean> => {
+      // Refused at once against what is shown, and again inside the save against the record re-read there: a pull may have
+      // stored a name this copy does not have yet (#664), and the save is where the record is known. The caller waits for
+      // that decision, so a refused name is not added to the workout either.
+      if (customRefused(ref.current.custom_tags, name)) return Promise.resolve(false);
+      return new Promise<boolean>((resolve) => {
+        let refused = false;
+        const queued = change(
+          (s) => {
+            if (!customRefused(s.custom_tags, name)) return { custom_tags: { ...s.custom_tags, [name]: tags } };
+            refused = true;
+            return {};
+          },
+          // Not stored is a refusal, a write that failed (accepted all the same, as offline) or a save dropped with its account (not accepted).
+          (stored) => resolve(!refused && (stored || !stale())),
+        );
+        if (!queued) resolve(false);
+      });
     },
     [change],
   );

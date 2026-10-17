@@ -14,7 +14,7 @@ import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
-import { getCatalog } from '../workout/catalog';
+import { exerciseNamed, getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
@@ -266,7 +266,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
     if (isBlank(typed)) return notify('Type an exercise name.');
     if (exerciseNameTooLong(typed)) return notify('That exercise name is too long. Shorten it.');
     // A name the library knows (any case) is that exercise; a new one needs its muscles first (prototype exCustom).
-    const known = Object.keys(getCatalog().tags).find((n) => n.toLowerCase() === typed.toLowerCase());
+    const known = exerciseNamed(typed);
     setAdding(false);
     if (known) {
       if (w.addExercise(known)) notify(`${known} added`);
@@ -352,10 +352,11 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
           name={tagging}
           notify={notify}
           onClose={() => setTagging(null)}
-          onSave={(tags) => {
+          onSave={async (tags) => {
             const name = tagging;
             setTagging(null);
-            if (!addCustomTags(name, tags)) return notify('Couldn’t save that exercise. Try again.');
+            // Only after the save has decided: a name it refuses (a near-duplicate a pull stored meanwhile) must not reach the workout.
+            if (!(await addCustomTags(name, tags))) return notify('Couldn’t save that exercise. Try again.');
             notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
           }}
         />
