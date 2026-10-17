@@ -50,6 +50,8 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       # Exact origin(s) of the web app itself allowed to use cookie mode for the refresh token (ADR 006). Empty refuses cookie mode.
       AUTH_COOKIE_ORIGINS: ${AUTH_COOKIE_ORIGINS:-}
+      # Per-account record cap on POST /sync (413 account_full). Unset or empty = no cap; leave unset until the app handles account_full.
+      SYNC_MAX_RECORDS_PER_ACCOUNT: ${SYNC_MAX_RECORDS_PER_ACCOUNT:-}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
