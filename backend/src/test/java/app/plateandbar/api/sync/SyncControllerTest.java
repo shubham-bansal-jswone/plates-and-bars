@@ -96,6 +96,15 @@ class SyncControllerTest {
         String deep = "[".repeat(max) + "]".repeat(max);
         send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + ok + "}").andExpect(status().isOk());
         send(USER, "{\"cursor\":null,\"changes\":{},\"x\":" + deep + "}").andExpect(status().isBadRequest());
+
+        // At the limit the byte measuring still runs (it parses with the same limits): an oversized learn is refused.
+        ObjectNode settings = SyncFixtures.oneOfEach(USER, T).get(SyncTable.settings);
+        settings.put("learn", "PLACEHOLDER");
+        String body = Req.of(null).add(SyncTable.settings, settings).build().toString();
+        String over = "{\"k\":\"" + "x".repeat(65537 - 8) + "\"}";
+        send(USER, ("{\"x\":" + ok + "," + body.substring(1)).replace("\"PLACEHOLDER\"", over))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0].issue").value("max_json_bytes"));
     }
 
     /** x-max-json-bytes (#720) through the controller: the raw bytes are measured, so 1e2 counts as sent and the 400 names the field. */

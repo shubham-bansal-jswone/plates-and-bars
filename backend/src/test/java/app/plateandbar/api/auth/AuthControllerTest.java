@@ -115,6 +115,16 @@ class AuthControllerTest {
         return StrictJsonVectors.mustAccept("/auth/email/start").stream();
     }
 
+    /** The shared vectors file is contract-owned and has no duplicate-key vector for refresh, so it is pinned here. */
+    @Test
+    void refreshRefusesADuplicateKeyWithoutUsingEitherToken() throws Exception {
+        mvc.perform(json("/api/v1/auth/refresh", "{\"refresh_token\":\"rt_abc\",\"refresh_token\":\"rt_def\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(content().string(not(containsString("rt_"))));
+        verifyNoInteractions(auth);
+    }
+
     /** The revoke endpoint reads the same TokenBody as refresh, so it is as strict. */
     @Test
     void revokeRefusesTrailingContentAndDuplicateKeysWithoutRevoking() throws Exception {
