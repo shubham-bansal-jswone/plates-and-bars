@@ -39,7 +39,7 @@ export const CARD_OVERRIDES = {
     from: { evidence: 'Moderate', source: 'Schoenfeld, Ogborn & Krieger, 2017 (volume dose-response); Nunes et al., 2021, Sports Medicine (exercise order review)' },
     set: {
       evidence: 'Emerging',
-      source: 'The focus rule is a coaching convention, not a tested protocol; Schoenfeld, Ogborn & Krieger, 2017 (volume dose-response); Nunes et al., 2021, Sports Medicine (exercise order review)',
+      source: 'The focus rule is a coaching convention, not a tested protocol; Schoenfeld, Ogborn & Krieger, 2017 (volume dose-response); Nunes et al., 2021, European Journal of Sport Science 21(2):149-157, doi:10.1080/17461391.2020.1733672 (exercise order review)',
     },
   },
   older: {
@@ -69,7 +69,7 @@ export const CARD_OVERRIDES = {
     },
     set: {
       evidence: 'Moderate',
-      source: 'Warburton DER, Jamnik VK, Bredin SSD, Gledhill N. The Physical Activity Readiness Questionnaire for Everyone (PAR-Q+) and electronic PAR-Q+. Health & Fitness Journal of Canada 2011;4(2):3-23',
+      source: 'Warburton DER, Jamnik VK, Bredin SSD, Gledhill N. The Physical Activity Readiness Questionnaire for Everyone (PAR-Q+) and Electronic Physical Activity Readiness Medical Examination (ePARmed-X+). Health & Fitness Journal of Canada 2011;4(2):3-23',
       body: 'These questions cover similar topics to the PAR-Q+, a widely used pre-exercise screening tool: heart conditions, chest pain, dizziness or fainting, long-term conditions and medicines, and joint problems. They are a short summary, not the PAR-Q+ itself; the official form is free at eparmedx.com. Answering yes doesn’t mean you can’t train; it means a doctor should check first and may tailor what’s safe for you. Until then the app keeps sessions light.',
     },
   },
