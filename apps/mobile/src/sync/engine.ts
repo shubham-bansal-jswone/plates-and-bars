@@ -1,5 +1,5 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
-import { applyPulled, clearPushed, inTransaction, isQueued, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
+import { applyPulled, clearPushed, hasPending, inTransaction, isQueued, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
 import { loadWorkout, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { unionWorkout } from '../workout/model';
 import type { Workout } from '../workout/types';
@@ -338,8 +338,9 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   const heldDue = () => full && !heldDone && !pushBlocked && (!heldTried || heldTried.user !== userId || now() - heldTried.at >= DAY_MS);
   // A queued workout day is pulled before it is pushed (see `unionWorkout`): the push settles a stale one whole-record, which would
   // drop what another device stored for the day, and the server does not send the loser's copy back.
-  let prePull = (await pendingChanges(d.db, MAX_PUSH)).some((e) => e.tbl === 'workouts');
+  let prePull = false;
   try {
+    prePull = await hasPending(d.db, 'workouts');
     // Web after a reload (or a refresh that could not finish): no access token in memory, so restore it from the cookie first.
     if (cookieMode() && !(await d.tokens.load()) && !(await refresh(d, userId))) return { status: 'signed_out', conflicts: 0 };
     for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -510,11 +511,13 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         }
         conflicts++;
         let adopted = false;
+        // Only a day this request sent for the first time never saw a server copy; one an earlier lost answer may have stored did.
+        const priorSend = (key: string) => !fresh.some((f) => f.tbl === 'workouts' && f.key === key);
         let union: Workout | null = null;
         await settle(d.db, s.entry, guard, async (txn, clean) => {
           if (clean) {
             // Another device's day against this device's: keep what this one added (see `unionWorkout`), pushed again below.
-            if (s.entry.tbl === 'workouts') union = await unionOf(txn, s.entry.key, server);
+            if (s.entry.tbl === 'workouts' && !priorSend(s.entry.key)) union = await unionOf(txn, s.entry.key, server);
             await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
             adopted = true;
           } else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
@@ -537,8 +540,11 @@ async function run(d: SyncDeps): Promise<SyncResult> {
       });
       if (prePull) {
         // Pulled what the server holds for the queued days; now the main rounds push them.
-        if (!res.has_more) prePull = false;
-        round--;
+        // Only the last page gives its round back, so a server that always says has_more cannot keep the run going.
+        if (!res.has_more) {
+          prePull = false;
+          round--;
+        }
         continue;
       }
       if (phase === 'held') {
@@ -608,11 +614,11 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
   return { stored, skipped };
 }
 
-/** The union of this device's live workout row and the server's, when they differ; null when there is nothing to keep (or either is a tombstone). */
+/** The union of this device's never-synced live workout row and the server's, when they differ; null when there is nothing to keep (or either is a tombstone). */
 async function unionOf(db: StoreDb, date: string, server: Doc): Promise<Workout | null> {
   const mine = await loadWorkout(db, date);
   const theirs = normalizeTimestamps(server) as Workout;
-  if (!mine || mine.deleted_at || theirs.deleted_at) return null;
+  if (!mine || mine.version !== 0 || mine.deleted_at || theirs.deleted_at) return null;
   const merged = unionWorkout(mine, theirs);
   return sameContent(merged as unknown as Doc, theirs as unknown as Doc) ? null : merged;
 }
@@ -633,11 +639,12 @@ async function requeueUnion(db: SyncDb, date: string, server: Doc, union: Workou
 async function unionPulled(db: SyncDb, date: string, rec: Doc, guard: Guard): Promise<boolean> {
   let done = false;
   await inTransaction(db, async (txn) => {
-    if (!(await isQueued(txn, 'workouts', date))) return;
+    if (!(await hasPending(txn, 'workouts', date))) return; // not queued, or set aside: left to the usual path
     await guard(txn);
     const mine = await loadWorkout(txn, date);
     const theirs = normalizeTimestamps(rec) as Workout;
-    if (!mine || mine.deleted_at || theirs.deleted_at || theirs.version <= mine.version) return;
+    // Only a day that never saw a server copy: otherwise both sides had a common base this merge does not have, and a removal would come back.
+    if (!mine || mine.version !== 0 || (await wasSent(txn, { tbl: 'workouts', key: date })) || mine.deleted_at || theirs.deleted_at) return;
     await saveWorkout(txn, unionWorkout(mine, theirs));
     done = true;
   });

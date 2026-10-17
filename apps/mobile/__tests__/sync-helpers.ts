@@ -104,6 +104,8 @@ export function fakeServer(userId: string) {
     byUpdatedAt: false,
     /** Several devices share this server: a stored record comes back as a change to every other request, by cursor (`s<n>`). */
     relay: false,
+    /** Every /sync answer says `has_more` (a faulty server or proxy). */
+    alwaysMore: false,
     log: [] as { n: number; table: string; rec: Rec }[],
     put(table: string, rec: Rec) {
       store.set(`${table}:${rec.id}`, rec);
@@ -199,7 +201,7 @@ export function fakeServer(userId: string) {
         const mine = new Set(Object.entries(body.changes ?? {}).flatMap(([t, rs]) => rs.map((r) => `${t}:${r.id}`)));
         const out: Record<string, Rec[]> = {};
         for (const e of s.log) if (e.n > from && !mine.has(`${e.table}:${e.rec.id}`)) (out[e.table] ??= []).push(e.rec);
-        return json(200, { cursor: `s${s.log.length}`, has_more: false, applied, conflicts, changes: out });
+        return json(200, { cursor: `s${s.log.length}`, has_more: s.alwaysMore, applied, conflicts, changes: out });
       }
       const changes = { ...pending };
       for (const k of Object.keys(pending)) delete pending[k];

@@ -3,6 +3,7 @@ import { createClient } from '@plate-and-bar/api';
 import { syncOnce } from '../src/sync/engine';
 import { saveSet, saveWorkout, loadSets, loadWorkout } from '../src/db/workouts';
 import { setKv, KEY_USER } from '../src/sync/store';
+import { quarantineKey } from '../src/sync/quarantine';
 import { naturalId } from '../src/sync/ids';
 import { exercisesFrom } from '../src/workout/model';
 import type { Workout, WorkoutSet } from '../src/workout/types';
@@ -82,5 +83,80 @@ describe('two devices edit the same workout day (#647)', () => {
     expect(await shows(b.db)).toEqual(BOTH);
     await b.sync(); // the merged day goes out with the next sync
     expect(server.get('workouts', id)).toMatchObject({ cardio_min: 30, template: 'Upper A' });
+  });
+
+  /** Both devices hold the day at v1 (a session and 30 min of cardio); A then has a queued edit and B stores a later one first. */
+  async function seen() {
+    const d = await devices();
+    await saveWorkout(d.a.db, { ...sessionDay('2026-10-08T09:00:00.000Z'), cardio_min: 30 });
+    await saveSet(d.a.db, DATE, benchSet('2026-10-08T09:00:00.000Z'));
+    await d.a.sync();
+    await d.b.sync();
+    const edit = async (db: typeof d.a.db, change: Partial<Workout>) => saveWorkout(db, { ...((await loadWorkout(db, DATE)) as Workout), ...change });
+    return { ...d, edit, id: await naturalId(USER, 'workouts', DATE) };
+  }
+
+  it('a session removed on the other device stays removed (both had seen the day)', async () => {
+    const { server, a, b, edit, id } = await seen();
+    await edit(a.db, { cardio_min: 40, updated_at: '2026-10-08T11:00:00.000Z' });
+    await edit(b.db, { template: null, base: null, exercises: [], updated_at: '2026-10-08T12:00:00.000Z' });
+    await b.sync();
+    await a.sync();
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ template: null, exercises: [] });
+    expect(((await loadWorkout(a.db, DATE)) as Workout).exercises).toEqual([]);
+  });
+
+  it('cardio minutes cleared on the other device stay cleared (both had seen the day)', async () => {
+    const { server, a, b, edit, id } = await seen();
+    await edit(a.db, { ci_choice: 'light', updated_at: '2026-10-08T11:00:00.000Z' });
+    await edit(b.db, { cardio_min: null, updated_at: '2026-10-08T12:00:00.000Z' });
+    await b.sync();
+    await a.sync();
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ cardio_min: null });
+    expect(((await loadWorkout(a.db, DATE)) as Workout).cardio_min).toBeNull();
+  });
+
+  it('a queued live day against a day deleted on the other device is not merged', async () => {
+    const { server, a, b } = await devices();
+    const id = await naturalId(USER, 'workouts', DATE);
+    await saveWorkout(b.db, { ...cardioDay(0, '2026-10-08T10:00:00.000Z'), deleted_at: '2026-10-08T10:00:00.000Z' });
+    await saveWorkout(a.db, sessionDay('2026-10-08T11:00:00.000Z'));
+    await b.sync();
+    await a.sync(); // later edit: it stands as it is, nothing is mixed in from the tombstone
+    expect(server.get('workouts', id)).toMatchObject({ deleted_at: null, template: 'Upper A' });
+  });
+
+  it('a queued deleted day against a live day from the other device is not merged', async () => {
+    const { server, a, b } = await devices();
+    const id = await naturalId(USER, 'workouts', DATE);
+    await saveWorkout(b.db, cardioDay(30, '2026-10-08T10:00:00.000Z'));
+    await saveWorkout(a.db, { ...sessionDay('2026-10-08T11:00:00.000Z'), deleted_at: '2026-10-08T11:00:00.000Z' });
+    await b.sync();
+    await a.sync();
+    expect(server.get('workouts', id)).toMatchObject({ deleted_at: '2026-10-08T11:00:00.000Z', cardio_min: null });
+  });
+
+  it('a set-aside day is not merged or sent again without an edit', async () => {
+    const { server, a, b } = await devices();
+    await saveWorkout(b.db, cardioDay(30, '2026-10-08T10:00:00.000Z'));
+    await b.sync();
+    await saveWorkout(a.db, sessionDay('2026-10-08T11:00:00.000Z'));
+    const e = await a.db.getFirstAsync<{ seq: number; tbl: 'workouts'; key: string }>("SELECT seq, tbl, key FROM sync_outbox WHERE tbl = 'workouts'");
+    await a.db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', quarantineKey(e as never), 'x');
+    const before = server.pushed().length;
+    await a.sync();
+    expect(server.pushed().length).toBe(before);
+    expect(((await loadWorkout(a.db, DATE)) as Workout).cardio_min).toBeNull();
+    expect(await a.db.getFirstAsync("SELECT 1 FROM sync_outbox WHERE tbl = 'workouts' AND seq = ?", (e as { seq: number }).seq)).not.toBeNull();
+  });
+
+  it('a server that always says has_more does not keep the run going', async () => {
+    const { server, a } = await devices();
+    server.alwaysMore = true;
+    await saveWorkout(a.db, cardioDay(30, '2026-10-08T10:00:00.000Z'));
+    await a.sync();
+    expect(server.calls.filter((c) => c.path === '/sync').length).toBeLessThanOrEqual(41);
   });
 });
