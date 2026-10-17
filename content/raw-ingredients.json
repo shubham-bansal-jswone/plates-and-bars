@@ -24,7 +24,7 @@
         "reference": "FDC 172436 (SR Legacy: Pigeon peas (red gram), mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "ed466628-5764-50f4-82b1-358f4bd5b655",
@@ -47,7 +47,7 @@
         "reference": "FDC 174259 (SR Legacy: Mungo beans, mature seeds, raw), per 100 g - USDA name for black gram (urad)"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "d7f7e170-c732-559e-b29c-a04b00a7f0ef",
@@ -70,7 +70,7 @@
         "reference": "FDC 174256 (SR Legacy: Mung beans, mature seeds, raw), per 100 g - whole beans used as a proxy for split dal"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "6973b054-32a8-591e-aa70-f303461db8fe",
@@ -93,7 +93,7 @@
         "reference": "FDC 172420 (SR Legacy: Lentils, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "afa033d3-cdbd-5395-a4af-acf857cc1636",
@@ -116,7 +116,7 @@
         "reference": "FDC 173756 (SR Legacy: Chickpeas (garbanzo beans, bengal gram), mature seeds, raw), per 100 g - proxy: the split-gram dal itself is not an SR Legacy item"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "d9da8cd1-591d-5395-889c-575e55f89f58",
@@ -139,7 +139,7 @@
         "reference": "FDC 173744 (SR Legacy: Beans, kidney, red, mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "4cef1c03-f414-5d00-9f2d-d55312c7acef",
@@ -162,7 +162,7 @@
         "reference": "FDC 173756 (SR Legacy: Chickpeas (garbanzo beans, bengal gram), mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "cacd697e-c078-520a-9ebb-deb0abcb4ee3",
@@ -185,7 +185,7 @@
         "reference": "FDC 168877 (SR Legacy: Rice, white, long-grain, regular, raw, enriched), per 100 g - unenriched FDC 169756 has identical values"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "496ada3d-9651-5bbf-8d21-a0061c2d09ad",
@@ -208,7 +208,7 @@
         "reference": "FDC 168893 (SR Legacy: Wheat flour, whole-grain), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "3b776336-a5b4-5d29-a13d-5bf426de530d",
@@ -231,7 +231,7 @@
         "reference": "FDC 174288 (SR Legacy: Chickpea flour (besan)), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "a88c7116-6e32-598d-b7e0-7657c17c90d0",
@@ -254,7 +254,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "494193d0-b7fe-55b7-b2d6-230b5dd2bce0",
@@ -277,7 +277,7 @@
         "reference": "FDC 169705 (SR Legacy: Oats), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "173f621a-7612-5a52-8e52-5348b2ba6b91",
@@ -300,7 +300,7 @@
         "reference": "FDC 174275 (SR Legacy: Soy flour, defatted), per 100 g - proxy: closest SR Legacy item to dry textured soya, not the branded product"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "3e407214-5bff-55cc-a87a-665fb718811a",
@@ -323,7 +323,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "b1d699a3-7db1-5832-937c-9ce8f6756753",
@@ -346,7 +346,7 @@
         "reference": "FDC 171077 (SR Legacy: Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "94164558-30d8-5f5b-bbd4-366f3bf7ffa9",
@@ -369,7 +369,7 @@
         "reference": "FDC 173627 (SR Legacy: Chicken, broilers or fryers, dark meat, thigh, meat only, raw), per 100 g - proxy for curry-cut pieces"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "87d50086-6429-5a9f-a7c8-78a947b494c3",
@@ -392,7 +392,7 @@
         "reference": "FDC 171287 (SR Legacy: Egg, whole, raw, fresh), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "6af416d1-e684-500d-a996-d63c329ac138",
@@ -415,7 +415,7 @@
         "reference": "FDC 170026 (SR Legacy: Potatoes, flesh and skin, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "a378fe38-ad10-513c-b901-b6ca41e04b83",
@@ -438,7 +438,7 @@
         "reference": "FDC 170000 (SR Legacy: Onions, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "4efe7f47-7b41-5b35-b550-048287e6b2a1",
@@ -461,7 +461,7 @@
         "reference": "FDC 170457 (SR Legacy: Tomatoes, red, ripe, raw, year round average), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "25bd2829-e8ca-5968-8e64-af8f8a297b2a",
@@ -484,7 +484,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "ecf66531-7324-547e-b1f4-304681d3f788",
@@ -507,7 +507,7 @@
         "reference": "FDC 168462 (SR Legacy: Spinach, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "ef666522-8f88-5979-86f5-9667d24c5444",
@@ -530,7 +530,7 @@
         "reference": "FDC 169260 (SR Legacy: Okra, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "0891c620-bb6d-5f6d-af61-925a8236f0ef",
@@ -553,7 +553,7 @@
         "reference": "FDC 169986 (SR Legacy: Cauliflower, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "09c30cab-f18c-5b36-953e-49b10b4dd41b",
@@ -576,7 +576,7 @@
         "reference": "FDC 170419 (SR Legacy: Peas, green, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "d74fa151-a150-5fff-aac5-ed8e8e69b535",
@@ -592,14 +592,14 @@
         "fat_g": 100
       },
       "source": {
-        "code": "usda_fdc",
-        "name": "USDA FoodData Central (SR Legacy)",
-        "licence": "Public domain (CC0 1.0)",
-        "url": "https://fdc.nal.usda.gov/",
+        "code": "label_typical",
+        "name": "Typical label values (packaged food)",
+        "licence": "Nutrition facts read from product labels; no label database copied",
+        "url": null,
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "010fbcbf-2cc5-5d33-8e8e-1134ddae0b4f",
@@ -608,21 +608,21 @@
       "aliases": [],
       "fatty": true,
       "per_100g": {
-        "kcal": 876,
-        "protein_g": 0.3,
+        "kcal": 900,
+        "protein_g": 0,
         "carbs_g": 0,
         "fibre_g": 0,
-        "fat_g": 99.5
+        "fat_g": 100
       },
       "source": {
         "code": "usda_fdc",
         "name": "USDA FoodData Central (SR Legacy)",
         "licence": "Public domain (CC0 1.0)",
         "url": "https://fdc.nal.usda.gov/",
-        "reference": "FDC 173412 (SR Legacy: Butter oil, anhydrous), per 100 g - USDA lists no ghee with these values; foods.json Ghee uses FDC 171314 (900 kcal / 100 g), see #576"
+        "reference": "FDC 171314 (SR Legacy: Butter, Clarified butter (ghee)), per 100 g - same record as the foods.json Ghee row; the prototype's 876 kcal matched FDC 173412 Butter oil, anhydrous, see VALUE_OVERRIDE"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "e2467d30-c6d6-5b58-9409-47f72b2659db",
@@ -645,7 +645,7 @@
         "reference": "FDC 173410 (SR Legacy: Butter, salted), per 100 g - unsalted FDC 173430 has identical values; RAW rounds protein and carbs up"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "5cd3dddf-5f40-5d5d-be60-eb17d0fef9f9",
@@ -668,7 +668,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "d45b811b-22e1-5188-b87c-7c450e65219c",
@@ -691,7 +691,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "a8409de7-b414-5246-a8f7-9027da904f50",
@@ -714,7 +714,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "4eda30ae-c56f-5a6a-be8a-1e8f85f1a5be",
@@ -737,7 +737,7 @@
         "reference": "FDC 169655 (SR Legacy: Sugars, granulated), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "37072c70-78bc-539b-8535-86fb1c3dc1eb",
@@ -760,7 +760,7 @@
         "reference": "FDC 170162 (SR Legacy: Nuts, cashew nuts, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "e316b2f0-0e3e-566f-ae87-1453d7bf9555",
@@ -783,7 +783,7 @@
         "reference": "FDC 170169 (SR Legacy: Nuts, coconut meat, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "622d7a78-e927-58d0-a4f2-e06ad4edb225",
@@ -806,7 +806,7 @@
         "reference": "FDC 169717 (SR Legacy: Tapioca, pearl, dry), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "9a6a4a00-a4b8-5f0d-9e87-f2de2df655fa",
@@ -829,7 +829,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "5b65fc58-7228-57bb-97af-f81e26423f31",
@@ -852,7 +852,7 @@
         "reference": "FDC 172430 (SR Legacy: Peanuts, all types, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "1ca3e0bd-efd0-5399-b4d7-d5a9cf3c67b4",
@@ -875,7 +875,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "2c3ec77e-f172-5fc6-9b19-f48ade44b79d",
@@ -898,7 +898,7 @@
         "reference": "FDC 174256 (SR Legacy: Mung beans, mature seeds, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "cf21dd4e-f906-58b3-a0dc-f25a86f22e91",
@@ -921,7 +921,7 @@
         "reference": "FDC 169715 (SR Legacy: Semolina, enriched), per 100 g - unenriched FDC 168933 has identical values"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "08646a5b-ce2b-554f-9bb4-7235e4fe652f",
@@ -944,7 +944,7 @@
         "reference": "FDC 170427 (SR Legacy: Peppers, sweet, green, raw), per 100 g - green only; other colours differ"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "9059c5f5-cf0a-5eeb-8a27-91ca68d5c7da",
@@ -967,7 +967,7 @@
         "reference": "FDC 168409 (SR Legacy: Cucumber, with peel, raw), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "7a43439a-35ff-5de3-87e5-1b231645f722",
@@ -990,7 +990,7 @@
         "reference": null
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     },
     {
       "id": "ce9ec3ca-b946-5e1c-bb88-972f9edbfe7b",
@@ -1013,7 +1013,7 @@
         "reference": "FDC 170687 (SR Legacy: Buckwheat flour, whole-groat), per 100 g"
       },
       "needs_dietitian_review": true,
-      "updated_at": "2026-10-09T00:00:00Z"
+      "updated_at": "2026-10-17T00:00:00Z"
     }
   ]
 }

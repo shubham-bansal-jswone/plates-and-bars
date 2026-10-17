@@ -18,6 +18,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - `ktSave` (both "Save test" and "Save and use for my logging"), after the empty-name check: a name over 200 characters gives "That name is too long. Keep it under 200 characters.", then an ingredient amount, empty-pot, pot-with-food, cooked or serving weight below 0 gives "An amount or weight can’t be below 0." (core `kitchenTestFood`).
 - No golden fixture covers these steps; `node golden-gen/cli.mjs` gives no diff. "Save as meal prep" (`case 'rb-prep'`) still saves the prep after `rb-save` refuses, as it already did for its other checks; it is not ported, so it is left as is.
 
+**2026-10-17 — setup consent text matches the real design (spec-change; prototype behaviour and golden fixtures unchanged).**
+- #361: the first-run consent said data is "saved privately to your Claude account" and that meal photos, recipe imports and form-check frames "are sent to Claude". Both were wrong (ADR 004, privacy page). New bullets: data stays on this device, and if you sign in it is also stored on our own server (upload needs sign-in plus a `data_storage` consent record, given by the setup tick or via "Agree and sync"); AI features are off by default and need their own opt-in, and no photos are sent anywhere. The prototype also gains the "Withdrawing your consent means deleting your account." bullet the app already had (#507). Section 7 reworded to match. The app is unreleased, so no re-consent flow is built; pre-launch test consent records should be wiped. The app's `CONSENT_TEXT_VERSION` is now `2026-10-17`; it applies to new consent records only, existing records keep their version.
+
 **2026-10-17 — kept behaviours recorded (spec-change; prototype and golden fixtures unchanged).**
 - Decisions to keep the prototype's behaviour, now written into the sections they belong to; nothing in `docs/prototype/plate-and-bar.html`, `docs/spec/golden/` or core changes. Section 1: setup limits checked before rounding (#131). Section 2: coverage meter simplifications (#155). Section 3: personal-best edge cases (#123), bodyweight rep targets, big-jump wording and returning plus deload stacking (#104). Section 5: food lookups by name, alias joining, `unitGrams` decimals, the unrounded added-sugar check, items counted as meals, Cola's sugar only in the eat-out table (#151), and grams logging by the bracketed weight (#97). Core already pins each one in its tests.
 
@@ -250,6 +253,6 @@ Still open (#155): after M0, the planned count may move to the built session's r
 ## 7. Privacy rules (non-negotiable)
 
 - Progress photos, cycle log, lab reports: device only, never sent to the server or Claude.
-- Meal photos, recipe imports, form-check frames: sent to Claude for analysis only, never stored.
+- Data stays on the device. Upload needs sign-in plus a `data_storage` consent record, given at setup or via "Agree and sync"; then it is stored on our own server. AI features are off by default and need their own opt-in. No photos (meal, progress or form-check) are sent anywhere in v1.
 - Lab reports, if ever shipped, stay out of v1 public (medical and legal review first).
 - No health data in logs. Export and delete must cover everything.

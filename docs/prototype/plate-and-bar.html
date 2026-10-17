@@ -3722,10 +3722,11 @@ setInterval(checkRollover, 60000);
 function consentHtml(){
   return `<div class="su"><h1 class="su-h">Before you start</h1>
     <p>Plate &amp; Bar tracks food, training, body measurements and, if you choose, photos, cycle data and lab results. That’s health data, so here’s how it’s handled:</p>
-    <ul class="howto"><li>Food, workouts, weight and measurements are saved privately to your Claude account so they sync between devices.</li>
+    <ul class="howto"><li>Your data stays on this device. If you sign in, it is also stored on our own server so it syncs between your devices.</li>
       <li>Progress photos, cycle logs and lab reports stay only on this device.</li>
-      <li>Meal photos, recipe imports and form-check frames are sent to Claude for analysis and not stored.</li>
-      <li>You can download or delete everything at any time on the Targets tab.</li></ul>
+      <li>AI features are off by default and need their own opt-in. No photos are sent anywhere.</li>
+      <li>You can download or delete everything at any time on the Targets tab.</li>
+      <li>Withdrawing your consent means deleting your account.</li></ul>
     <p class="note">This app gives general fitness and nutrition guidance. It isn’t medical advice. It’s for adults 18 and over; if you have a medical condition, are pregnant, or are unsure whether exercise is safe for you, check with a doctor first.</p>
     <label class="inline"><input type="checkbox" id="cnsOk" style="width:20px;height:20px"> I understand and agree to my data being stored as described</label>
     <div><button class="primary" data-act="consent">Continue</button></div></div>`;
