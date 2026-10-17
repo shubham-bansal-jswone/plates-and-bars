@@ -83,13 +83,18 @@ keyword is registered with the schema library as a non-validation keyword so it 
     database connection and a thread for the whole download. A third gets 429 `rate_limited` with `Retry-After: 30`
     (the contract's existing answer for this endpoint; no new response). The place is given back when the body ends,
     fails or never runs.
+    Known and accepted: a timed-out writer thread may keep running for a moment after its place is given back, so two
+    exports can briefly overlap (its next write fails, and its transaction ends at 600 s); an account deleted between
+    the 401 check and the writer gives 500 instead of 401; and with the default cap of 2, two slow downloads can block
+    other exports for up to 10 minutes (raise `EXPORT_MAX_CONCURRENT` if that matters). The capacity check runs before
+    the IP and user limits, so a refusal for capacity spends neither allowance.
     A failure after streaming starts: nothing in the contract fixes this, so the rule is that a client must never get
     a complete-looking document from a failed export. Before the response buffer (8 KB) is flushed the failure is an
     ordinary 500 `Error`. After that the 200 is already sent, so the generator does not auto-close open arrays and
     objects (`AUTO_CLOSE_CONTENT` off) and `ApiExceptionHandler` rethrows when the response is committed instead of
-    appending an `Error` object; the container then aborts the connection, with no final chunk, so the client sees an
+    appending an `Error` object, and `ApiErrorController` (the container's `/error` page, in the contract `Error` shape) writes nothing on a committed response; the container then aborts the connection, with no final chunk, so the client sees an
     unterminated chunked body (an I/O error) and truncated, invalid JSON. The stream throws a fixed-message
-    `ExportAbortedException` without a cause, so the container's log line holds no row or message; the server logs the
+    `ExportAbortedException` without a cause (a timeout is turned into the same exception), so the container's log line holds no row or message; the server logs the
     original exception class, user id and time only. A client treats any error or unparsable body as a failed export
     and retries (5 per hour).
     `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.

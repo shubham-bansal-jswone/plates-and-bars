@@ -154,6 +154,15 @@ class AccountControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
         verify(service, never()).writeExport(any(), any(), any());
+        // The refusals gave their place back: more of them than the default cap of 2 changes nothing for a good one.
+        for (int i = 0; i < 4; i++) {
+            String gone = uid();
+            doThrow(app.plateandbar.api.common.ApiException.unauthorized()).when(service).requireAccount(gone);
+            export(gone, "198.51.100." + (40 + i)).andExpect(status().isUnauthorized());
+        }
+        String other = uid();
+        streamsDocument();
+        export(other, "198.51.100.31").andExpect(status().isOk());
     }
 
     @Test

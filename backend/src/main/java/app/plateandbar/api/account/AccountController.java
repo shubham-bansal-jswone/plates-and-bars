@@ -65,11 +65,12 @@ public class AccountController {
     @GetMapping(path = "/export", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<StreamingResponseBody> export(Authentication auth, HttpServletRequest request) {
         String userId = auth.getName();
-        // IP first: a refusal there must not spend the user's own allowance.
-        limiter.consume("export-ip", ips.resolve(request), limits.getExportPerIp());
+        // Capacity first, so a refusal for it spends neither allowance (a client retrying while the server is busy
+        // must not use up its hour); then the IP, so a refusal there does not spend the user's own allowance.
         Permit permit = takePermit();
         boolean streaming = false;
         try {
+            limiter.consume("export-ip", ips.resolve(request), limits.getExportPerIp());
             limiter.consume("export-user", userId, limits.getExportPerUser());
             accounts.requireAccount(userId); // a 401 must be sent before the first byte of the body
             Instant now = clock.instant();
@@ -89,6 +90,13 @@ public class AccountController {
             // If the body never runs (timeout while queued, client gone), the permit is still given back.
             WebAsyncUtils.getAsyncManager(request)
                     .registerCallableInterceptor("export-permit", new CallableProcessingInterceptor() {
+                        /** Past the async timeout the 200 is long sent: end like any other failure, by aborting. */
+                        @Override
+                        public <T> Object handleTimeout(NativeWebRequest r, Callable<T> task) {
+                            log.error("Export timed out: user {} at {}", userId, now);
+                            return new ExportAbortedException(); // Spring's own timeout error would be ignored once committed
+                        }
+
                         @Override
                         public <T> void afterCompletion(NativeWebRequest r, Callable<T> task) {
                             permit.release();

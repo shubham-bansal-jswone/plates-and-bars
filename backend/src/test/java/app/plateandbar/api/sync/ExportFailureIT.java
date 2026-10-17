@@ -43,12 +43,12 @@ class ExportFailureIT extends SyncITBase {
     }
 
     /** Raw HTTP/1.1 over a socket, so the chunked framing is visible: everything the server sent until it closed. */
-    private String raw(String user) throws Exception {
+    static String raw(int port, String token) throws Exception {
         try (java.net.Socket sock = new java.net.Socket("localhost", port)) {
             sock.setSoTimeout(20000);
             sock.getOutputStream()
                     .write(("GET /api/v1/me/export HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer "
-                                    + jwt.issue(user).value() + "\r\nConnection: close\r\n\r\n")
+                                    + token + "\r\nConnection: close\r\n\r\n")
                             .getBytes(java.nio.charset.StandardCharsets.US_ASCII));
             java.io.ByteArrayOutputStream all = new java.io.ByteArrayOutputStream();
             byte[] buf = new byte[8192];
@@ -73,10 +73,13 @@ class ExportFailureIT extends SyncITBase {
                     user, ExportGoldenIT.rid(i), i, "{\"date\":\"2026-10-08\",\"ml\":250,\"t\":\"2026-10-08T11:00:00Z\"}");
         }
         doThrow(new IllegalStateException("boom")).when(exporter).writeConflictLog(any(), any());
-        String wire = raw(user);
+        String wire = raw(port, jwt.issue(user).value());
         assertThat(wire).startsWith("HTTP/1.1 200");
         assertThat(wire).contains("\"tables\""); // the stream really had started
         assertThat(wire).doesNotContain("\r\n0\r\n\r\n"); // no terminating chunk: the client sees an aborted transfer
         assertThat(wire).doesNotContain("\"code\":\"internal\""); // and no Error object appended to the document
+        assertThat(wire).doesNotContain("\"timestamp\""); // nor Boot's error page
+        // Nothing follows the last byte the export wrote except the CRLF that closes its (last) data chunk.
+        assertThat(wire).endsWith("\"conflict_log\"\r\n");
     }
 }
