@@ -24,7 +24,9 @@ class AiReplies {
     private final AiContent content;
 
     AiReplies(ObjectMapper json, AiSchemas schemas, AiContent content) {
-        this.json = json;
+        // A model often adds text after the JSON, so a reply is read up to the end of its first value, as before #720;
+        // duplicate keys stay refused (the shared mapper's setting).
+        this.json = json.rebuild().disable(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
         this.schemas = schemas;
         this.content = content;
     }
