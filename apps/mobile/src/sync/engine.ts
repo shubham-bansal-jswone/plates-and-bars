@@ -5,10 +5,12 @@ import type { StoreDb } from '../db/records';
 import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
 import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
 import { quarantine } from './quarantine';
+import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, markSent, setAccountFull, stampOf, touchHeld, unmarkSent, wasSent } from './held';
 import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { deleteKitchenPhoto } from '../photos/vault';
+import { NATURAL_KEY_TABLES } from './ids';
 
 export type SyncDb = WorkoutDb & PullDb;
 
@@ -44,6 +46,8 @@ export interface SyncResult {
   skipped?: number;
   /** Records the server refused (400) this run and that were set aside so the rest could sync. */
   quarantined?: number;
+  /** The server said the account is full (413 `account_full`) and may still say so: new records are held on this device, edits and deletes sync. The run itself went fine. */
+  accountFull?: boolean;
   /** For `error`: the exception's class name only. */
   errorName?: string;
 }
@@ -52,6 +56,8 @@ export interface SyncDeps {
   db: SyncDb;
   api: ApiClient;
   tokens: TokenStore;
+  /** The clock in ms (tests set it); the held-record retry is once a day by this clock. */
+  now?: () => number;
 }
 
 // Pulled records go in this order so a workout is stored before its sets.
@@ -66,19 +72,31 @@ const MAX_PUSH = 500;
 const MAX_SPLIT_ROUNDS = 200;
 /** Halvings of the batch per run after a `too_large`: enough to go from 500 records to 1 several times over. */
 const MAX_HALVINGS = 30;
+/** Held records per request in a retry while the account is full: small, so a batch with a really new record costs few. */
+const HELD_BATCH = 20;
+/** Requests per retry session (50 x 20 = 1000 records, least recently tried first); the rest wait for the next one. */
+const MAX_HELD_BATCHES = 50;
+const DAY_MS = 86_400_000;
 
 type Guard = (db: StoreDb) => Promise<void>;
-type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean };
+type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean; /** A 413 whose body is the `account_full` error (a 413 with any other body is a proxy refusing the size). */ accountFull?: { /** `record_cap.new_records`: how many records in the refused request the server does not store; unknown when absent. */ newRecords?: number } };
 type Outcome<T> = { ok: true; data: T } | Failure;
 const fail = (status: SyncStatus, retryAfterSec?: number): Failure => ({ ok: false, result: { status, conflicts: 0, ...(retryAfterSec ? { retryAfterSec } : {}) } });
 
-function failFrom(res: Response, error?: { code?: string; details?: { field?: unknown; issue?: unknown }[] }): Failure {
+type ErrorBody = { code?: string; details?: { field?: unknown; issue?: unknown }[]; record_cap?: { new_records?: unknown } };
+function failFrom(res: Response, body?: unknown): Failure {
+  // An empty or non-JSON error body (a proxy) comes through as a string or nothing: no code to read.
+  const error = body && typeof body === 'object' ? (body as ErrorBody) : undefined;
+  if (res.status === 413 && error?.code === 'account_full') {
+    const n = error.record_cap?.new_records;
+    return { ...fail('rejected'), accountFull: typeof n === 'number' ? { newRecords: n } : {} };
+  }
   if (res.status === 400 && error?.code === 'invalid_request' && Array.isArray(error.details)) {
     const fields = error.details.flatMap((d) => (typeof d?.field === 'string' ? [d.field] : []));
     const tooLarge = error.details.some((d) => (d as { issue?: unknown } | null)?.issue === 'too_large');
     return { ...fail('rejected'), fields, ...(tooLarge ? { tooLarge } : {}) };
   }
-  // A proxy in front of the API may refuse a large body with 413 before the server sees it: the same as `too_large`.
+  // Any other 413: a proxy in front of the API refusing a large body before the server sees it, the same as `too_large`.
   if (res.status === 413) return { ...fail('rejected'), tooLarge: true };
   if (res.status === 429) return fail('rate_limited', Math.max(1, Number(res.headers.get('Retry-After')) || DEFAULT_RETRY_SEC));
   return res.status >= 500 ? fail('unavailable') : fail('rejected');
@@ -103,7 +121,7 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
     const { data, error, response } = await net(() => d.api.POST('/sync', { body }));
     if (data) return { ok: true, data };
     if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
-    if (response.status !== 401) return failFrom(response, error as Parameters<typeof failFrom>[1]);
+    if (response.status !== 401) return failFrom(response, error);
     if (attempt === 1 || !(await refresh(d, owner))) return fail('signed_out');
     // The rotated pair is saved even when paused, but a paused run must not go on to push: the user may have chosen to discard.
     await guard(d.db);
@@ -221,12 +239,19 @@ async function settle(db: PullDb, e: OutboxEntry, guard: Guard, write: (txn: Wor
     const clean = (await seqOf()) === e.seq;
     await guard(txn);
     await write(txn as WorkoutDb, clean);
+    await forgetSent(txn, e);
     const after = await seqOf();
     if (clean && after !== null) await clearPushed(txn, { tbl: e.tbl, key: e.key, seq: after });
   });
 }
 
 let running: Promise<SyncResult> | null = null;
+/** When held records were last retried in this app run, per user: due on launch (nothing yet), then at most once a day. */
+let heldTried: { user: string; at: number } | null = null;
+/** Makes the next run retry held records, as a fresh app launch does. */
+export function forgetHeldRetry(): void {
+  heldTried = null;
+}
 let pauses = 0; // a counter, so overlapping pauses nest: sync resumes only when the last one ends
 
 /** Thrown inside a run when it must stop writing: paused, or the store is bound to a different user now. */
@@ -288,13 +313,30 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let splitRounds = 0;
   let halvings = 0;
   let cap = MAX_PUSH; // records per request; halved when the server says a request was too large
+  const now = d.now ?? Date.now;
+  let full = await isAccountFull(d.db); // see sync/held.ts
+  let phase: 'main' | 'held' = 'main'; // 'held': retrying held records in small batches, after everything else
+  let sessionStamp = '';
+  let heldBatches = 0;
+  let heldPlan: OutboxEntry[][] = []; // halves of a refused batch that held some records the server already stores, still to send
+  let heldDone = false; // the held phase runs at most once per run
+  let pushBlocked = false; // a full account refused a request of records it should store: the rest of the run only pulls
+  const heldDue = () => full && !heldDone && !pushBlocked && (!heldTried || heldTried.user !== userId || now() - heldTried.at >= DAY_MS);
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const entries = await pendingChanges(d.db, MAX_PUSH);
+      const entries = pushBlocked ? [] : phase === 'held' ? (heldPlan.shift() ?? (await heldEntries(d.db, HELD_BATCH, sessionStamp))) : await pendingChanges(d.db, MAX_PUSH);
+      if (phase === 'held' && entries.length === 0) {
+        // Every held record was tried this session: one more main round pulls what is left, then the run ends.
+        heldTried = { user: userId, at: now() };
+        phase = 'main';
+        round--;
+        continue;
+      }
       const cursor = await getCursor(d.db);
       const size = new BodySize(cursor);
       let consumed = 0; // entries handled this round: in the request, set aside as too big alone, or gone
       let tooBig = 0;
+      const hold: OutboxEntry[] = []; // version-0 records held back while the account is full
       const sent = new Map<string, { entry: OutboxEntry; record: Doc }>();
       const changes: Record<string, Doc[]> = {};
       const order: Record<string, OutboxEntry[]> = {}; // the entry behind changes[tbl][i], to find what a 400 names
@@ -302,6 +344,16 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         const record = await buildRecord(d.db, userId, e);
         if (!record) {
           await clearPushed(d.db, e);
+          await forgetSent(d.db, e);
+          consumed++;
+          continue;
+        }
+        if (full && phase === 'main' && !record.version) {
+          // The account is full: a new record would be refused, and refusing the request would hold up the edits with it.
+          // A tombstone no request ever carried never left this device and holds no data: it is dropped. Anything else stays held.
+          // Not in a natural-key table: another device may have made the same id on the server, and the held push settles it (server_won).
+          if (record.deleted_at && !NATURAL_KEY_TABLES.has(e.tbl) && !(await wasSent(d.db, e))) await clearPushed(d.db, e);
+          else hold.push(e);
           consumed++;
           continue;
         }
@@ -322,13 +374,62 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         (order[e.tbl] ??= []).push(e);
       }
       quarantined += tooBig;
-      if (sent.size === 0 && tooBig > 0) {
+      if (hold.length > 0) await holdEntries(d.db, hold, guard);
+      if (sent.size === 0 && (tooBig > 0 || hold.length > 0)) {
         // Only records that were too big alone were queued: they are set aside, so the next round sees what is behind them.
         if (splitRounds++ < MAX_SPLIT_ROUNDS) round--;
         continue;
       }
+      // A version-0 record in a request may be stored even if the answer is lost: mark it, so a tombstone made of it is retried, not dropped.
+      const unsent = [...sent.values()].filter((s) => !s.record.version).map((s) => s.entry);
+      const fresh = unsent.length > 0 ? await markSent(d.db, unsent, guard) : [];
       const out = await post(d, { cursor, changes: changes as Schemas['SyncChanges'] }, guard, userId);
+      // The server answered a batch with some records it stores and some it does not: the stored ones are behind the new ones. Halve it.
+      const refused = out.ok ? undefined : out.accountFull;
+      // Only the records actually sent count (the byte budget or a gone record can leave some of the loaded ones out).
+      const sentEntries = [...sent.values()].map((s) => s.entry);
+      const mixed = phase === 'held' && !!refused && sentEntries.length > 1 && (refused.newRecords ?? sentEntries.length) < sentEntries.length;
+      if (phase === 'held' && (out.ok || refused)) {
+        heldTried = { user: userId, at: now() };
+        // This batch counts as tried, so the session moves on to other records even if these stay queued.
+        if (!mixed) await touchHeld(d.db, sentEntries, sessionStamp, guard);
+      }
       if (!out.ok) {
+        if (out.accountFull) {
+          // Refused whole: nothing was stored, so this request's marks are undone. Not a too-large body: the batch is not split.
+          await unmarkSent(d.db, fresh, guard);
+          // Nothing was sent (a pull-only request) or pushing is already off for this run: the server cannot be refusing records,
+          // so this is a fault; end the run instead of asking again.
+          if (sent.size === 0 || pushBlocked) return { ...out.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
+          if (phase === 'held') {
+            // Really new records in this batch: they stay held. A mixed batch is halved, so the ones the server stores are found.
+            // (A mixed batch is judged and halved by the records sent, in order: the first half then the second.)
+            if (mixed) heldPlan.unshift(sentEntries.slice(0, Math.ceil(sentEntries.length / 2)), sentEntries.slice(Math.ceil(sentEntries.length / 2)));
+            else if (sentEntries.length > 0 && (refused?.newRecords ?? 0) === sentEntries.length) {
+              // None of these is stored: their marks go, and a tombstone that is not in a natural-key table is dropped (it holds no data).
+              // A natural-key one stays: another device may hold that id, and its held push settles it (server_won).
+              for (const s of sent.values()) {
+                if (s.record.version) continue;
+                if (s.record.deleted_at && !NATURAL_KEY_TABLES.has(s.entry.tbl)) await clearPushed(d.db, s.entry);
+                await forgetSent(d.db, s.entry);
+              }
+            }
+            if (++heldBatches >= MAX_HELD_BATCHES) phase = 'main';
+            round--;
+            continue;
+          }
+          if (!full) {
+            full = true;
+            await setAccountFull(d.db, guard);
+            round--; // the same records again, now holding the new ones back
+            continue;
+          }
+          // Full already and still refused: the batch holds a record the server does not store although it has a version. Nothing to
+          // split: stop pushing for this run and keep pulling.
+          pushBlocked = true;
+          round--;
+          continue;
+        }
         if (out.tooLarge && sent.size > 0) {
           // The 400 names no record. Send half as many; one record alone that is still too large is set aside.
           if (sent.size > 1) {
@@ -399,6 +500,11 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         // The server's copy of a kitchen test is a tombstone and now stands here: its vault photo goes too.
         if (adopted && s.entry.tbl === 'kitchen_tests' && server.deleted_at) await deleteKitchenPhoto(s.entry.key).catch(() => undefined);
       }
+      // A new record was stored: there is room again. Held records are pending again and go out with the next rounds.
+      if (full && [...sent.values()].some((s) => !s.record.version && res.applied.some((a) => a.table === s.entry.tbl && a.id === s.record.id))) {
+        await clearAccountFull(d.db, guard);
+        full = false;
+      }
       const p = await pull(d.db, res.changes as unknown as Record<string, Doc[]>, ctx, guard);
       pulled += p.stored;
       skipped += p.skipped;
@@ -406,8 +512,26 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         await guard(txn);
         await setKv(txn, KEY_CURSOR, res.cursor);
       });
+      if (phase === 'held') {
+        // The next batch of held records; at the cap or when the account has room again, back to the main rounds.
+        if (!full || ++heldBatches >= MAX_HELD_BATCHES) phase = 'main';
+        round--;
+        continue;
+      }
       // Done when nothing more is queued: every loaded entry was handled and fewer than a full load came back.
-      if (!res.has_more && consumed === entries.length && entries.length < MAX_PUSH) break;
+      if (!res.has_more && consumed === entries.length && entries.length < MAX_PUSH) {
+        if (heldDue()) {
+          // Everything else is pushed and pulled: now the held records, once per launch and then once a day.
+          phase = 'held';
+          heldDone = true;
+          sessionStamp = stampOf(now());
+          heldBatches = 0;
+          heldPlan = [];
+          round--;
+          continue;
+        }
+        break;
+      }
       if (consumed < entries.length && splitRounds++ < MAX_SPLIT_ROUNDS) round--; // cut short by the byte budget: progress, bounded
     }
   } catch (e) {
@@ -417,7 +541,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
     // Anything else is a bug or a local failure, not the network: report it as an error state (class name only).
     return { status: 'error', conflicts, pulled, skipped, errorName: e instanceof Error ? e.constructor.name : 'Unknown' };
   }
-  return { status: 'ok', conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
+  return { status: 'ok', conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}), ...(full ? { accountFull: true } : {}) };
 }
 
 async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, guard: Guard): Promise<{ stored: number; skipped: number }> {

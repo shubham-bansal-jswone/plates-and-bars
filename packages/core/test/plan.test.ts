@@ -1,7 +1,9 @@
 import {
+  CONDENSED,
   dayTemplate,
   daysBetween,
   exerciseCap,
+  missed,
   mondayOf,
   planned,
   planList,
@@ -150,5 +152,62 @@ describe('planned: differential against the prototype source', () => {
       }
     }
     expect(mismatches).toEqual([]);
+  });
+});
+
+describe('CONDENSED and missed', () => {
+  it('CONDENSED is the prototype table', () => {
+    expect(JSON.parse(JSON.stringify(CONDENSED))).toEqual(loadProto().CONDENSED);
+  });
+
+  const s = (sessions: SessionLog, extra: Partial<PlanState> = {}): PlanState => ({ profile: { days: 6 }, sessions, ...extra });
+
+  it('finds the first skipped planned day since the last session', () => {
+    // Mon Push A done; Tue Pull A skipped; today Wed.
+    expect(missed('2026-10-07', s({ '2026-10-05': { t: 'Push A', n: 4 } }))).toEqual({ date: '2026-10-06', t: 'Pull A' });
+  });
+
+  it('is null for a gap under 2 or over 6 days, no session, a done day, or a rest day between', () => {
+    expect(missed('2026-10-06', s({ '2026-10-05': { t: 'Push A', n: 4 } }))).toBeNull();
+    expect(missed('2026-10-13', s({ '2026-10-05': { t: 'Push A', n: 4 } }))).toBeNull();
+    expect(missed('2026-10-07', s({}))).toBeNull();
+    expect(missed('2026-10-07', s({ '2026-10-05': { t: 'Push A', n: 4 } }, { profile: { days: 0 } }))).toBeNull();
+    // Saturday session, today Monday: Sunday is a rest day.
+    expect(missed('2026-10-12', s({ '2026-10-10': { t: 'Legs B', n: 3 } }))).toBeNull();
+  });
+
+  it('is null in sequence mode and in a week with a week plan', () => {
+    const log = { '2026-10-05': { t: 'Push A', n: 4 } };
+    expect(missed('2026-10-07', s(log, { mode: 'sequence' }))).toBeNull();
+    expect(missed('2026-10-07', s(log, { weekPlan: { start: '2026-10-05', list: ['Push A'] } }))).toBeNull();
+    expect(missed('2026-10-07', s(log, { weekPlan: { start: '2026-10-12', list: ['Push A'] } }))).toEqual({ date: '2026-10-06', t: 'Pull A' });
+  });
+
+  it('differential: matches the prototype on 3,000 random states', () => {
+    const proto = loadProto();
+    const r = rng(86);
+    const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)] as T;
+    const dates = Array.from({ length: 21 }, (_, i) => new Date(Date.UTC(2026, 8, 28 + i)).toISOString().slice(0, 10));
+    const tpls = Object.keys(TEMPLATES);
+    const mismatches: unknown[] = [];
+    let found = 0;
+    for (let k = 0; k < 3000; k++) {
+      const d = pick<number | null | undefined>([undefined, null, 0, 2, 3, 4, 5, 6, 7]);
+      const profile: PlanProfile | null = d === undefined && r() < 0.5 ? null : d === undefined ? {} : { days: d };
+      const sessions: Record<string, { t?: string; n?: number }> = {};
+      for (const date of dates) if (r() < 0.2) sessions[date] = { t: pick(tpls), n: pick([0, 3, 12]) };
+      const st: PlanState = { profile, sessions };
+      if (r() < 0.15) st.mode = 'sequence';
+      if (r() < 0.15) st.weekPlan = { start: pick(['2026-09-28', '2026-10-05', '2026-10-12']), list: [pick(tpls)] };
+      Object.assign(proto.S, { date: dates[0], settings: { profile, adj: { mode: st.mode, weekPlan: st.weekPlan } }, sessions: { entries: sessions } });
+      for (const date of dates) {
+        const ours = missed(date, st);
+        const theirs = proto.missed(date);
+        if (theirs) found++;
+        if (JSON.stringify(ours) !== JSON.stringify(theirs)) mismatches.push({ date, st, ours, theirs });
+      }
+    }
+    expect(mismatches).toEqual([]);
+    expect(found).toBeGreaterThan(500);
   });
 });

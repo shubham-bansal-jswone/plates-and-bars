@@ -5,8 +5,9 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, planList, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, exerciseNameTooLong, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
+import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
@@ -14,7 +15,7 @@ import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
-import { getCatalog } from '../workout/catalog';
+import { exerciseNamed, getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseSheet } from '../workout/AddExerciseSheet';
@@ -25,6 +26,7 @@ import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
 import { CardioBlock } from '../workout/CardioBlock';
+import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
@@ -122,13 +124,15 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
+  const { markCleared } = useProfile();
   const [ci, setCi] = useState<Checkin>({});
   const [choice, setChoice] = useState<Workout['ci_choice']>(null);
   // Today's "where" override (prototype whereNow): null keeps the profile's. Stored on the workout at Start.
   const [override, setOverride] = useState<Workout['where']>(null);
   const [away, setAway] = useState(false);
   const where = override ?? profile.where;
-  const plan = planned(date, { profile, sessions: day.sessions });
+  const weekPlan = settings.adjustments.weekPlan as WeekPlan | undefined;
+  const plan = planned(date, { profile, sessions: day.sessions, weekPlan, mode: settings.adjustments.mode as string | undefined });
   const nextT = plan ? nextInList(plan, profile) : null;
   const flags = checkinFlags(ci, nextT);
   const startT = choice === 'swap' && nextT ? nextT : plan;
@@ -143,7 +147,8 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
   const names = built ? built.exercises.map((e) => e.name) : [];
   const { primary: prim, secondary: sec } = musclesOf(names);
   const eachSets = built && built.exercises.length && built.exercises.every((e) => e.sets === built.exercises[0]?.sets) ? built.exercises[0]?.sets : null;
-  const others = (planList(profile) as readonly string[]).filter((k) => k !== plan);
+  // This week's hand-picked plan replaces the usual list while it is the current week (prototype chipList).
+  const others = (coverageTemplates(date, profile, weekPlan) as readonly string[]).filter((k) => k !== plan);
 
   const awayLabel =
     where === profile.where
@@ -152,12 +157,15 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
 
   return (
     <Page>
+      <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
-      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} notify={notify} />
+      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} />
       <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
         {plan
-          ? 'Start with the planned exercises, then swap or add anything you like.'
+          ? weekPlan && weekPlan.start === mondayOf(date)
+            ? `This week’s ${weekPlan.list.length}-day plan.`
+            : 'Start with the planned exercises, then swap or add anything you like.'
           : 'Rest and recovery today. A walk and enough protein count. You can still log a session.'}
       </Hint>
       {plan && built && startT ? (
@@ -225,6 +233,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
           <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice, override)} />
         ))}
       </View>
+      <WeekTools date={date} notify={notify} />
       <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
         <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
       </Press>
@@ -243,6 +252,7 @@ function StartView({ w, profile, focus, rules, notify, tune }: { w: W; profile: 
           ))}
         </View>
       ) : null}
+      <ModeNote notify={notify} />
       <CardioBlock value={day.workout?.cardio_min ?? null} onSave={w.setCardio} />
     </Page>
   );
@@ -262,7 +272,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
     if (isBlank(typed)) return notify('Type an exercise name.');
     if (exerciseNameTooLong(typed)) return notify('That exercise name is too long. Shorten it.');
     // A name the library knows (any case) is that exercise; a new one needs its muscles first (prototype exCustom).
-    const known = Object.keys(getCatalog().tags).find((n) => n.toLowerCase() === typed.toLowerCase());
+    const known = exerciseNamed(typed);
     setAdding(false);
     if (known) {
       if (w.addExercise(known)) notify(`${known} added`);
@@ -327,7 +337,7 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null}
-            <ExerciseCard lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
+            <ExerciseCard notify={notify} lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} where={wk.where ?? profile.where} />} />
           </View>
         );
       })}
@@ -348,10 +358,11 @@ function SessionView({ db, reloadKey, w, profile, focus, rules, notify, tune, on
           name={tagging}
           notify={notify}
           onClose={() => setTagging(null)}
-          onSave={(tags) => {
+          onSave={async (tags) => {
             const name = tagging;
             setTagging(null);
-            if (!addCustomTags(name, tags)) return notify('Couldn’t save that exercise. Try again.');
+            // Only after the save has decided: a name it refuses (a near-duplicate a pull stored meanwhile) must not reach the workout.
+            if (!(await addCustomTags(name, tags))) return notify('Couldn’t save that exercise. Try again.');
             notify(w.addExercise(name) ? `${name} added` : `${name} is already in today’s session.`);
           }}
         />

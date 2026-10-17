@@ -11,11 +11,14 @@ spring:
   servlet:
     multipart:
       enabled: false
-  # Jackson 3 changed three request-parsing defaults; these keep what Jackson 2 did so the API behaves as before the
-  # Spring Boot 4 upgrade (#81). /ai/* is strict on purpose: AiController turns trailing-token checking on itself.
+  # Request parsing is strict on every endpoint (#720, contract 0.1.18): content after the JSON value and a key
+  # repeated in one object (compared after unescaping) are refused as a body that is not valid JSON, so 400
+  # invalid_request. The nesting limit stays at Jackson 2's 1000 (Jackson 3's default is 500; #81).
   jackson:
     deserialization:
-      fail-on-trailing-tokens: false
+      fail-on-trailing-tokens: true
+    read:
+      strict-duplicate-detection: true
     factory:
       constraints:
         read:
@@ -37,6 +40,16 @@ logging:
     org.springframework.jdbc.core.StatementCreatorUtils: INFO
     # Tomcat's HTTP/1.1 processor can print raw request bytes at DEBUG or TRACE.
     org.apache.coyote.http11: INFO
+
+# Error tracking (#687). Off, with no network use, unless SENTRY_DSN is set. SentryScrubber runs on every event.
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:${spring.profiles.active:dev}}
+  send-default-pii: false
+  max-request-body-size: none
+  max-breadcrumbs: 0
+  attach-server-name: false
+  enable-external-configuration: false
 
 server:
   port: ${PORT:8080}
@@ -60,6 +73,9 @@ app:
     jwt-signing-key: ${JWT_SIGNING_KEY:}
     # Comma-separated OAuth client ids (audiences) accepted in Google ID tokens.
     google-client-ids: ${GOOGLE_CLIENT_IDS:}
+    # Comma-separated exact origins of the web app itself, the only ones allowed to use cookie mode for the refresh token
+    # (X-Auth-Transport: cookie, ADR 006). Separate from CORS_ALLOWED_ORIGINS on purpose; empty refuses cookie mode.
+    cookie-origins: ${AUTH_COOKIE_ORIGINS:}
   mail:
     # Environment only. Host and from are required unless the dev profile (LoggingMailSender) is active.
     host: ${SMTP_HOST:}

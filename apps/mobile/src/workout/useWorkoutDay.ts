@@ -200,8 +200,8 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
   };
   const ids = (rows: readonly Row[]) => rows.map((r) => r.id);
 
-  /** Cardio minutes to keep: the screen's when the user changed them since `base`, else the stored row's (a pull may have changed them). */
-  const minutes = (screen: number | null, base: Workout | null, stored: Workout): number | null => (screen === (base?.cardio_min ?? null) ? stored.cardio_min : screen);
+  /** Cardio minutes to keep: the screen's when the user changed them since `base`, else the stored row's (a pull may have changed them). A tombstoned base counts as no minutes: the screen showed none. */
+  const minutes = (screen: number | null, base: Workout | null, stored: Workout): number | null => (screen === (base && !base.deleted_at ? base.cardio_min : null) ? stored.cardio_min : screen);
 
   const start = useCallback(
     async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) => {
@@ -263,6 +263,7 @@ export function useWorkoutDay({ db, profile, now, focus, adjustments, notify, st
           if (stored && !stored.deleted_at && mine) {
             const keep = minutes(mine.cardio_min, synced.current, stored);
             if (keep !== mine.cardio_min) {
+              // The ref changes now (the workout row below is built from it); the screen shows it once the transaction has committed.
               ref.current = { ...ref.current, workout: { ...mine, cardio_min: keep } };
               deferred.current.push(() => setDay(ref.current));
             }
