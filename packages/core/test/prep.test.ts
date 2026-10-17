@@ -84,7 +84,7 @@ describe('meal prep (prototype rb-prep, prepLineHtml, prep-log)', () => {
     expect(logPrep(once.prep, 'a')).toBeNull();
   });
 
-  it('keeps items it does not recognise, through adding and logging, as the prototype keeps what it does not read', () => {
+  it('keeps items it does not recognise, through adding and logging (deliberate: the prototype’s rb-prune would drop them, prep-log keeps them)', () => {
     const other = { id: 'z', shape: 'newer', left: 9 };
     const odd = { ...entry({ id: 'n' }), meal: 'Brunch' };
     const mixed = [other, entry({ id: 'live' }), odd, entry({ id: 'dead', left: 0 }), 5, null];

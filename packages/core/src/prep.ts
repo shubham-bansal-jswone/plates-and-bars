@@ -58,7 +58,8 @@ export interface AddPrepInput {
  * Mirrors the prep step of prototype `case 'rb-prep'`.
  */
 export function addPrep(prep: readonly unknown[], input: AddPrepInput): unknown[] {
-  // An item this build does not recognise is kept as it is (the prototype keeps what it does not read); only batches known to be over go.
+  // Deliberate difference: an item this build does not recognise is kept as it is, although the prototype's `rb-prep` prune (`left > 0 && until >= today`)
+  // would drop it (an unreadable item fails that test). Dropping another client's data on a local add would lose it; only batches known to be over go.
   const kept = prep.filter((p) => !isPrepEntry(p) || live(p, input.today));
   const { perKatori: per } = input;
   const entry: PrepEntry = {
