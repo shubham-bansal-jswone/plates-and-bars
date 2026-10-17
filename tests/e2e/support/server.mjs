@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { takenMessage } from './port.mjs';
 
 const root = process.env.E2E_DIST
   ? fileURLToPath(new URL(`../${process.env.E2E_DIST}/`, import.meta.url))
@@ -25,10 +26,11 @@ const apiOrigin = (() => {
 const csp = apiOrigin && !declared.includes(apiOrigin)
   ? declared.replace(/connect-src([^;]*)/, (_match, sources) => `connect-src${sources} ${apiOrigin}`)
   : declared;
+// The Playwright config resolves the port and passes it in E2E_PORT; run by hand, unset means 4173.
 const port = Number(process.env.E2E_PORT ?? 4173);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.ttf': 'font/ttf' };
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   const headers = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Content-Security-Policy': csp };
   const p = normalize(decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname));
   const file = p === sep || p === '/' ? 'index.html' : p.replace(/^[/\\]+/, '');
@@ -43,4 +45,10 @@ createServer(async (req, res) => {
     type = types['.html'];
   }
   res.writeHead(200, { ...headers, 'content-type': type }).end(body);
-}).listen(port, '127.0.0.1', () => console.log(`serving ${root} on http://127.0.0.1:${port}/`));
+});
+server.once('error', (error) => {
+  if (error.code !== 'EADDRINUSE') throw error;
+  console.error(takenMessage(port));
+  process.exit(1);
+});
+server.listen(port, '127.0.0.1', () => console.log(`serving ${root} on http://127.0.0.1:${port}/`));
