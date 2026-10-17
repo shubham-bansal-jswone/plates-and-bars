@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 test('log a food: it counts toward the day and is still there after a reload', async ({ page }) => {
   await tab(page, 'Food');
   await label(page, '+ Add to breakfast').click();
-  await page.locator('[aria-label^="Add Roti / chapati"]').first().click();
+  await page.locator('[aria-label^="Roti / chapati"]').first().click();
   await label(page, 'Done').click();
   await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
   await saved(page, () => label(page, 'I’ve logged everything I ate today').click());

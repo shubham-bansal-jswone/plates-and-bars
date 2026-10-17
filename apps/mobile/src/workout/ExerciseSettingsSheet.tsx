@@ -148,7 +148,7 @@ function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; no
           {error ? <ErrorText>{error}</ErrorText> : null}
           <View style={styles.chips}>
             <Button label="Save" a11yLabel={`Save settings for ${name}`} onPress={save} />
-            <Button label="Reset to default" a11yLabel={`Reset ${name} to default`} kind="ghost" onPress={reset} />
+            <Button label="Reset to default" a11yLabel={`Reset to default for ${name}`} kind="ghost" onPress={reset} />
           </View>
         </View>
       </ScrollView>

@@ -298,10 +298,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       ) : null}
       {allDone && !nl && ex.form ? <Button label={`Change form answer for ${ex.name}`} kind="link" onPress={() => act.form(null)} /> : null}
       <View style={styles.setRow}>
-        <Chip label={`Add a set to ${ex.name}`} text="Add set" onPress={act.addSet} />
-        {ex.sets.length > 1 ? <Chip label={`Remove the last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
+        <Chip label={`Add set to ${ex.name}`} text="Add set" onPress={act.addSet} />
+        {ex.sets.length > 1 ? <Chip label={`Remove last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
         <Chip
-          label={armed ? `Tap again to remove ${ex.name} from today` : `Remove ${ex.name} from today`}
+          label={armed ? `Tap again to remove ${ex.name} from today` : `Remove exercise ${ex.name} from today`}
           text={armed ? 'Tap again to remove' : 'Remove exercise'}
           onPress={() => (armed ? act.remove() : setArmed(true))}
         />
