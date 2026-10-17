@@ -45,6 +45,15 @@ npx expo export --platform web   # production web bundle; proves Metro resolves 
 - Placeholder screens for Food, Workout and Progress come with later issues.
 - Verified with the commands above, not on an Android emulator or device.
 
+## Error tracking (#687)
+
+`@sentry/react-native` (MIT, version pinned by Expo SDK 58's `bundledNativeModules.json`) sends crashes and errors to a self-hosted GlitchTip. It is off by default: `initErrorTracking` (`src/telemetry/errors.ts`) returns without calling `Sentry.init` unless `EXPO_PUBLIC_SENTRY_DSN` is set at build time, so there is no SDK start-up and no network traffic without it. The DSN is a build-time environment variable (never committed).
+
+- `sendDefaultPii` false, no screenshots, no view hierarchy, no tracing, no failed-request capture, the default breadcrumbs integration removed.
+- `src/telemetry/scrub.ts` runs in `beforeSend` and `beforeBreadcrumb`: user data is reduced to a random install id (kept in the keystore, not tied to an account); request bodies, cookies, headers and query strings are removed; console and network breadcrumbs are dropped; navigation breadcrumbs lose their route values; stack-frame variables are removed; any value under a key matching food, meal, weight, measure, health, answer, token, email, password, secret, authorization, cookie, profile, photo or lab becomes `[Filtered]`. Messages of exceptions are not rewritten, so never put submitted values in an error message.
+- No source-map upload: the `@sentry/react-native/expo` config plugin is not added (it uploads at build time). Add it only behind an opt-in flag with an auth token from CI secrets.
+- Test: `__tests__/error-tracking.test.ts`.
+
 ## Run it in a browser
 
 Dev server (sends `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, set in `metro.config.js`):
