@@ -30,3 +30,7 @@ export function plannedLogged(meal: string, skipped: readonly string[], logged: 
   if (!logged) return `Couldn’t log your planned ${m}: ${andList(skipped)} ${verb} in the food list any more`;
   return `Logged your planned ${m}, except ${andList(skipped)}, which ${verb} in the food list any more`;
 }
+
+/** Food's weekly check-in banner (prototype `checkinBanner`). */
+export const CHECKIN_READY = 'Your weekly check-in is ready.';
+export const CHECKIN_SEE = 'See it';

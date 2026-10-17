@@ -19,8 +19,9 @@ jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
 
 const mockFocus = { n: 0 };
 const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ replace: jest.fn(), push: mockPush }),
+  useRouter: () => ({ replace: jest.fn(), push: mockPush, navigate: mockNavigate }),
   // Runs the callback when the screen mounts and each time `mockFocus.n` changes on a re-render (the tab being shown again).
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [mockFocus.n]),
 }));
@@ -37,11 +38,11 @@ function profile() {
 }
 
 type Db = ReturnType<typeof memoryDb>;
-async function setup(opts: { flex?: number; withProfile?: boolean; db?: Db } = {}) {
+async function setup(opts: { flex?: number; withProfile?: boolean; db?: Db; now?: () => Date } = {}) {
   const db = opts.db ?? memoryDb();
   if (opts.withProfile !== false) await saveProfile(db, profile());
   if (opts.flex) await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: [{ id: 'flex-1', date: DATE, kcal_delta: opts.flex }] });
-  await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+  await render(withProfile(db, <FoodScreen db={db} now={opts.now ?? NOW} />));
   await screen.findByRole('header', { name: 'Food' });
   return db;
 }
@@ -654,5 +655,40 @@ describe('Estimated burn today so far', () => {
     expect(screen.getByLabelText('Resting, 1,706 kilocalories')).toBeTruthy();
     expect(screen.getByLabelText('Daily movement, from your activity level, 256 kilocalories')).toBeTruthy();
     expect(screen.getByLabelText('Training, nothing logged yet, 0 kilocalories')).toBeTruthy();
+  });
+});
+
+describe('Weekly check-in banner', () => {
+  const SUNDAY = () => new Date(2026, 9, 18, 10, 0, 0);
+  const MONDAY = () => new Date(2026, 9, 19, 10, 0, 0);
+  const TUESDAY = () => new Date(2026, 9, 20, 10, 0, 0);
+  async function on(now: () => Date, seen: string | null = null) {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), checkin_seen: seen });
+    await setup({ db, now });
+  }
+
+  it('shows on a Sunday, and See it opens Progress', async () => {
+    mockNavigate.mockClear();
+    await on(SUNDAY);
+    expect(screen.getByText('Your weekly check-in is ready.')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'See your weekly check-in' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/progress');
+  });
+
+  it('shows on a Monday when only last week’s check-in was seen', async () => {
+    await on(MONDAY, '2026-10-12');
+    expect(screen.getByText('Your weekly check-in is ready.')).toBeTruthy();
+  });
+
+  it('is gone once this week’s check-in was seen', async () => {
+    await on(MONDAY, '2026-10-19');
+    expect(screen.queryByText('Your weekly check-in is ready.')).toBeNull();
+  });
+
+  it('does not show on a Tuesday or the usual test Thursday', async () => {
+    await on(TUESDAY);
+    expect(screen.queryByText('Your weekly check-in is ready.')).toBeNull();
   });
 });
