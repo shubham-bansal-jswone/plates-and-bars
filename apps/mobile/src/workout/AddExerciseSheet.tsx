@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Field, Heading, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
@@ -11,7 +12,7 @@ export function AddExerciseSheet({ inSession, onPick, onCustom, onClose }: { inS
   const [typed, setTyped] = useState('');
   const have = new Set(inSession);
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title="Add exercise" onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
@@ -42,7 +43,7 @@ export function AddExerciseSheet({ inSession, onPick, onCustom, onClose }: { inS
           <Button label="Close" kind="ghost" onPress={onClose} />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 

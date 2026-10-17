@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Modal, PanResponder, Platform, ScrollView, StyleSheet, View, type ImageStyle } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { Image, PanResponder, Platform, ScrollView, StyleSheet, View, type ImageStyle } from 'react-native';
 import { measureAt, round1, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Heading, Hint, Note } from '../components/ui';
@@ -230,7 +231,7 @@ function CheckinSheet({ ph, notify, onClose }: { ph: Photos; notify: (msg: strin
     }
   };
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={CHECKIN_TITLE} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{CHECKIN_TITLE}</Heading>
         <Hint>{CHECKIN_HOW}</Hint>
@@ -259,7 +260,7 @@ function CheckinSheet({ ph, notify, onClose }: { ph: Photos; notify: (msg: strin
         <Hint>{CHECKIN_PRIVATE}</Hint>
         <Button label="Done" onPress={onClose} />
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 

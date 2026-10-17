@@ -22,6 +22,8 @@ on:
       - 'apps/mobile/public/_headers'
       - 'infra/scripts/check-caddy-headers.sh'
       - 'infra/scripts/test-check-caddy-headers.sh'
+      - 'infra/scripts/check-caddy-access-log.sh'
+      - 'infra/scripts/test-check-caddy-access-log.sh'
       - '.github/workflows/site-deploy.yml'
   workflow_dispatch:
 
@@ -54,6 +56,11 @@ jobs:
         run: |
           shellcheck infra/scripts/check-caddy-headers.sh infra/scripts/test-check-caddy-headers.sh
           infra/scripts/test-check-caddy-headers.sh
+      - name: access log keeps its privacy filters (test)
+        run: |
+          infra/scripts/check-caddy-access-log.sh
+          shellcheck infra/scripts/check-caddy-access-log.sh infra/scripts/test-check-caddy-access-log.sh
+          infra/scripts/test-check-caddy-access-log.sh
 
   build:
     name: build site

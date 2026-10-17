@@ -22,6 +22,8 @@ import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { SummaryCard } from '../ai/SummaryCard';
 import { PhotosSection } from '../photos/PhotosSection';
+import { DateAnnouncer, DateBar } from '../components/DateBar';
+import { useViewedDate } from '../state/ViewedDate';
 
 interface Props {
   db: WorkoutDb;
@@ -45,23 +47,26 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const dataVersion = useDataVersion();
-  const p = useProgress({ db, now, notify, reloadKey: dataVersion });
+  const v = useViewedDate(now);
+  const p = useProgress({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
   const ready = status === 'ready' && p.ready;
   return (
     <View style={styles.fill}>
+      <DateAnnouncer v={v} />
       <Page>
+        {ready ? <H1>Progress</H1> : null}
+        <DateBar v={v} />
         {ready ? (
           <>
-            <H1>Progress</H1>
             <CheckinCard date={p.date} c={ci} />
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
-            <MeasureSection p={p} />
-            <PhotosSection db={db} date={p.date} weights={p.weights} tapes={p.tapes} notify={notify} />
+            <MeasureSection p={p} isToday={v.isToday} />
+            <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
             <StepsSleepSection p={p} />
             <WeekCard date={p.date} days={ci.days} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
           </>
@@ -120,7 +125,7 @@ function WeightSection({ p }: { p: Progress }) {
   );
 }
 
-function MeasureSection({ p }: { p: Progress }) {
+function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
   const c = useTheme();
   const { profile } = useProfile();
   const MEASURES = getMeasures();
@@ -142,7 +147,7 @@ function MeasureSection({ p }: { p: Progress }) {
           <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
         </View>
       ))}
-      <Button label="Save for today" onPress={() => p.saveTape(text)} />
+      <Button label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
       {waist.length >= 2 ? (
         <>
           <Heading level={3} style={[typeScale.label, { color: c.ink }]}>Waist</Heading>

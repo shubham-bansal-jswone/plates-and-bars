@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { SheetModal } from '../components/Sheet';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { a11yState, Heading, Button, ErrorText, Field, Caption, Hint, Note, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
@@ -43,7 +44,7 @@ export function AskWhySheet({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <SheetModal title={AI_COPY.askTitle} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.askTitle}</Heading>
@@ -70,7 +71,7 @@ export function AskWhySheet({ onClose }: { onClose: () => void }) {
           <Button kind="ghost" label="Close" onPress={onClose} />
         </View>
       </ScrollView>
-    </Modal>
+    </SheetModal>
   );
 }
 
