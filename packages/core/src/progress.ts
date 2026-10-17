@@ -1,4 +1,4 @@
-import { addDays, daysBetween, mondayOf } from './dates';
+import { addDays, daysBetween, mondayOf, weekdayOf } from './dates';
 import { dayComplete, logTotals, type FoodLogFacts } from './food';
 import { num } from './num';
 import { planList, splitFor, type PlanProfile, type SessionLog, type WeekPlan } from './plan';
@@ -883,4 +883,16 @@ export function burnToday(
   const train = workout.extra;
   const dig = kcalEaten * 0.1;
   return { bmr, move, train, dig, total: bmr + move + train + dig, steps: st };
+}
+
+/**
+ * Whether Food shows "Your weekly check-in is ready": for today only, on a Sunday or Monday, until this week's check-in
+ * (Progress) has been seen (`seen` is `Settings.checkin_seen`, the Monday of the week it was last seen).
+ *
+ * Mirrors prototype `checkinBanner()` (the date shown, today and the stored value passed in).
+ */
+export function checkinBannerDue(input: { date: string; today: string; seen: string | null | undefined }): boolean {
+  if (input.date !== input.today || input.seen === mondayOf(input.today)) return false;
+  const day = weekdayOf(input.today);
+  return day === 0 || day === 1;
 }

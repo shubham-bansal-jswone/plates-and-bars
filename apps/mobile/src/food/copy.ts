@@ -32,6 +32,10 @@ export function plannedLogged(meal: string, skipped: readonly string[], logged: 
   return `Logged your planned ${m}, except ${andList(skipped)}, which ${verb} in the food list any more`;
 }
 
+/** Food's weekly check-in banner (prototype `checkinBanner`). */
+export const CHECKIN_READY = 'Your weekly check-in is ready.';
+export const CHECKIN_SEE = 'See it';
+
 /** The "Low on protein" line (prototype `upgradeHtml`); `label` is core's wording of what to add. */
 export const lowProtein = (label: string, protein_g: number, kcal: number): string => `Low on protein. Add ${label}: +${fmt(protein_g)} g protein, ${fmt(kcal)} kcal.`;
 /** Toast after the one-tap add (prototype: `Added <food>`). */
