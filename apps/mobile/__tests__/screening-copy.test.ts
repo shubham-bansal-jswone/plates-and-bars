@@ -11,7 +11,7 @@ const REPLACED = [
   'Do you have a bone, joint or muscle problem that more activity could make worse?',
   'Has a doctor said you should only exercise under medical supervision?',
 ];
-const TOPICS = [/heart.*blood pressure/i, /chest/i, /fainted.*dizzy/i, /long-term.*medication/i, /bone, joint or soft-tissue/i, /supervision/i];
+const TOPICS = [/heart.*blood pressure/i, /chest/i, /fainted.*fell or nearly fell/i, /long-term.*medication/i, /more active could make worse/i, /health professional.*supervision/i];
 
 describe('health-check copy', () => {
   it('keeps six questions, each in the same slot as the question it replaces, in new words', () => {
