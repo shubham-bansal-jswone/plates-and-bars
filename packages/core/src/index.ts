@@ -227,6 +227,14 @@ export type {
  */
 export { sessionScore, stalled, stalledList, inRange, recoveryCard, recoveryWeek, reentryCard, reentryRange, steadyCard, stallCard, stallRange, stallRangeOverride, checkBest, updateLift } from './stalls';
 export type { AdjRange, AdjState, RecoveryCard, ReentryCard, SteadyCard, StallCard, LiftUpdate } from './stalls';
+
+/**
+ * Answered adjustment cards (`adj.dismissed`), kept within the contract's size cap (#721). Not in the prototype, which never prunes.
+ * - `dismissKey` mirrors the `A.dismissed[key] = true` step of prototype `adjAction`, `exAction` and `checkinAction`, then prunes.
+ * - `pruneDismissed` drops keys dated over `DISMISSED_MAX_AGE_DAYS` (90) days ago (the newest of each group stays),
+ *   then keeps at most `DISMISSED_MAX_KEYS` (300) keys and `DISMISSED_MAX_BYTES` (32 KB).
+ */
+export { dismissKey, pruneDismissed, DISMISSED_MAX_AGE_DAYS, DISMISSED_MAX_KEYS, DISMISSED_MAX_BYTES } from './dismissed';
 export { addDays } from './dates';
 
 /**
@@ -525,6 +533,8 @@ export { proteinFloor, PROTEIN_PER_KG } from './protein';
  * - `ideasPage` mirrors the paging and protein note in `guidanceHtml()`; `IDEAS_PER_PAGE` and
  *   `IDEAS_KCAL_LEFT_MIN` are its 3 and 120.
  * - `MEAL_ORDER` mirrors prototype `MEALS`.
+ * - `proteinUpgrade` mirrors prototype `upgradeHtml(meal, items)` (the "Low on protein" add-on); `UPGRADE_PROTEIN_BELOW_G` and
+ *   `UPGRADE_KCAL_SLACK` are its 20 and 50.
  */
 export {
   nextMealInfo,
@@ -537,8 +547,11 @@ export {
   IDEAS_PER_PAGE,
   IDEAS_KCAL_LEFT_MIN,
   MEAL_ORDER,
+  proteinUpgrade,
+  UPGRADE_PROTEIN_BELOW_G,
+  UPGRADE_KCAL_SLACK,
 } from './meals';
-export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea, MealIdeaItem, MealTarget, MealIdeasInput, NextMealInput, NextMeal } from './meals';
+export type { Meal, MealDiet, MealRole, MealPlanningContent, MealFood, MealIdea, MealIdeaItem, MealTarget, MealIdeasInput, NextMealInput, NextMeal, ProteinUpgradeInput, ProteinUpgrade } from './meals';
 
 /**
  * Weekly meal plan and grocery list. The plan is contract `Settings.meal_plan` in the prototype's

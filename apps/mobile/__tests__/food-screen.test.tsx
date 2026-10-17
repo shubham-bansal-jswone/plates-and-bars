@@ -656,3 +656,72 @@ describe('Estimated burn today so far', () => {
     expect(screen.getByLabelText('Training, nothing logged yet, 0 kilocalories')).toBeTruthy();
   });
 });
+
+describe('Low on protein add-on', () => {
+  const seed = (db: Db, rows: { id: string; meal: string; name: string; kcal: number; protein_g: number; qty?: number }[]) => {
+    for (const r of rows) db.rows.set(`food_logs:${r.id}`, JSON.stringify({ version: 0, updated_at: '2026-10-08T00:00:00Z', deleted_at: null, date: DATE, qty: 1, carbs_g: 0, fat_g: 0, food_id: null, ...r }));
+  };
+  const lunch = [{ id: 'l1', meal: 'Lunch', name: 'Roti / chapati', kcal: 102, protein_g: 4 }];
+
+  it('shows the prototype line for a main meal under 20 g, with a labelled Add', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    seed(db, lunch);
+    await setup({ db });
+    expect(await screen.findByText('Low on protein. Add whey protein (1 scoop): +24 g protein, 120 kcal.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add whey protein (1 scoop) to lunch' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Why\? .*low protein in lunch$/ })).toBeTruthy();
+  });
+
+  it('one tap logs the food under that meal and the line moves on', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    seed(db, lunch);
+    await setup({ db });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add whey protein (1 scoop) to lunch' }));
+    await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.name === 'Whey protein')).toHaveLength(1));
+    expect(docs(db, 'food_logs').find((l) => l.name === 'Whey protein')).toMatchObject({ meal: 'Lunch', qty: 1, kcal: 120, protein_g: 24, deleted_at: null });
+    expect(screen.getByText('Added Whey protein')).toBeTruthy();
+    // 28 g now: no longer low
+    expect(screen.queryByText(/^Low on protein/)).toBeNull();
+  });
+
+  it('suits the diet: a veg diet is not offered egg whites when about 40 kcal are left', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), diet: 'veg' });
+    seed(db, [{ id: 'big', meal: 'Dinner', name: 'X', kcal: 1848, protein_g: 40 }, ...lunch]);
+    await setup({ db });
+    expect(await screen.findByText(/^Low on protein\. Add greek yogurt, plain \(100 g\)/)).toBeTruthy();
+    expect(screen.queryByText(/egg whites/)).toBeNull();
+  });
+
+  it('logs three egg whites for the egg-white add-on (qty 3, three times the values)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    seed(db, [{ id: 'big', meal: 'Dinner', name: 'X', kcal: 1848, protein_g: 40 }, ...lunch]);
+    await setup({ db });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add 3 egg whites to lunch' }));
+    await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.name === 'Egg white')).toHaveLength(1));
+    expect(docs(db, 'food_logs').find((l) => l.name === 'Egg white')).toMatchObject({ meal: 'Lunch', qty: 3, kcal: 17, protein_g: 3.6 });
+  });
+
+  it('works out the room from the base target, not the target a flex day raises', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    // base 1,990: 40 kcal left, so egg whites fit; with +300 flex shown (2,290) whey (120 kcal) would fit and win
+    await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), flex: [{ id: 'flex-1', date: DATE, kcal_delta: 300 }] });
+    seed(db, [{ id: 'big', meal: 'Dinner', name: 'X', kcal: 1848, protein_g: 40 }, ...lunch]);
+    await setup({ db });
+    expect(await screen.findByText(/^Low on protein\. Add 3 egg whites/)).toBeTruthy();
+  });
+
+  it('is not shown for Snacks, for an empty meal or at 20 g or more', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    seed(db, [{ id: 's', meal: 'Snacks', name: 'Almonds', kcal: 100, protein_g: 3 }, { id: 'b', meal: 'Breakfast', name: 'Eggs', kcal: 200, protein_g: 20 }]);
+    await setup({ db });
+    await screen.findByText('Almonds');
+    expect(screen.queryByText(/^Low on protein/)).toBeNull();
+  });
+});

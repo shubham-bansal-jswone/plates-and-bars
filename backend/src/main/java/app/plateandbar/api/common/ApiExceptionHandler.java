@@ -109,6 +109,8 @@ public class ApiExceptionHandler {
         }
         // Class name only: the message could contain user data.
         log.error("Unhandled exception of type {}", e.getClass().getName());
+        // The handler consumes the exception before the SDK's resolver sees it. No-op when Sentry is disabled.
+        io.sentry.Sentry.captureException(e);
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, "internal", "Something went wrong.", null);
     }
 
