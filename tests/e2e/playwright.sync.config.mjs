@@ -27,7 +27,9 @@ export default defineConfig({
     command: 'node support/server.mjs',
     url: `http://127.0.0.1:${port}/`,
     reuseExistingServer: !process.env.CI,
-    env: { E2E_PORT: String(port), E2E_DIST: '.sync-dist' },
+    // E2E_API_URL lets the static server allow this build's API origin in the CSP connect-src (the export is compiled
+    // against it; apps/mobile/public/_headers names the production host instead).
+    env: { E2E_PORT: String(port), E2E_DIST: '.sync-dist', E2E_API_URL: API },
   },
   use: {
     baseURL: `http://127.0.0.1:${port}/`,
