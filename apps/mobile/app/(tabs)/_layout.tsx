@@ -6,6 +6,7 @@ import { Platform, View } from 'react-native';
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Press } from '../../src/components/ui';
+import { ViewedDateProvider } from '../../src/state/ViewedDate';
 import { type } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
 
@@ -54,6 +55,7 @@ export default function TabsLayout() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
   return (
+    <ViewedDateProvider>
     <Tabs
       // The tab bar is the page's navigation landmark.
       tabBar={(props) =>
@@ -103,5 +105,6 @@ export default function TabsLayout() {
         />
       ))}
     </Tabs>
+    </ViewedDateProvider>
   );
 }
