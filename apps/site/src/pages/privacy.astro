@@ -14,6 +14,7 @@ import Base from "../layouts/Base.astro";
   <p>Plate &amp; Bar is an app that is still in development and not yet released. It is run by [operator name]. Contact: [privacy contact email].</p>
 
   <h2>The short version</h2>
+  <p>In short:</p>
   <ul>
     <li>Your data stays on this device. If you sign in, it is also stored on our own server so it syncs between your devices.</li>
     <li>Progress photos, cycle logs and lab reports stay only on this device.</li>
@@ -27,8 +28,8 @@ import Base from "../layouts/Base.astro";
 
   <h2>What we store on our server</h2>
   <p>Before you sign in: if you ask for an email sign-in code, the server stores your email address, a hashed copy of the code and a record of failed code attempts, which it uses to limit guessing.</p>
-  <p>When you sign in, the server creates your account and your sign-in sessions. If you use Google sign-in, it stores the Google account identifier tied to your email.</p>
-  <p>Syncing your records is separate. The app asks for your consent to store your records on our server, and nothing is uploaded until you give it. After that, the server stores:</p>
+  <p>When you sign in, the server creates your account and your sign-in sessions. </p>
+  <p>Syncing your records is separate. You give consent on the "Before you start" screen, or with "Agree and sync" when you sign in, and nothing is uploaded until you do. After that, the server stores:</p>
   <ul>
     <li>profile and targets, and settings;</li>
     <li>food, water and workout logs, and day notes;</li>
@@ -41,7 +42,6 @@ import Base from "../layouts/Base.astro";
 
   <h2>Who else handles your data</h2>
   <ul>
-    <li><strong>Google</strong>, only if you choose Google sign-in. Google handles that sign-in under its own terms; our server checks the sign-in token Google issues and keeps your Google identifier and email.</li>
     <li><strong>Email delivery</strong>: if you sign in with an email code, your email address and the code go through our email provider, [SMTP provider].</li>
     <li><strong>Hosting</strong>: our server runs at [hosting provider].</li>
     <li><strong>Backups</strong>: [backup arrangement: where nightly database backups are kept, and whether they are encrypted].</li>
@@ -84,7 +84,7 @@ import Base from "../layouts/Base.astro";
   <h2 id="your-rights">Your rights under the DPDP Act, 2023</h2>
   <p>Under India's Digital Personal Data Protection Act, 2023 you are a data principal and have these rights over your personal data:</p>
   <ul>
-    <li><strong>Access</strong>: ask for a summary of the personal data we hold about you and how we use it. In the app, "Your data" downloads a copy straight away when you are signed in.</li>
+    <li><strong>Access</strong>: ask for a summary of the personal data we hold about you and how we use it, including who we have shared it with (see "Who else handles your data"). In the app, "Your data" downloads a copy made on your device, and that works signed out and offline; when signed in it can also download a copy from our server.</li>
     <li><strong>Correction and updating</strong>: ask us to correct wrong data or complete and update it. You can edit your own records in the app, and edits sync to our server.</li>
     <li><strong>Erasure</strong>: ask for your personal data to be erased. In the app, "Delete everything" does this at any time. See <a href="/delete-account/">how to delete your account</a> for what is and is not deleted.</li>
     <li><strong>Grievance redressal</strong>: complain to us about how we handle your data or your rights. Contact the grievance officer below first.</li>
