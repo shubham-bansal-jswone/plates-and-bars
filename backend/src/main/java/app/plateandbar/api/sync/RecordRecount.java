@@ -91,8 +91,9 @@ class RecordRecount {
                     if (recount(user)) {
                         corrected++;
                     }
-                } catch (org.springframework.dao.DataAccessException e) {
-                    skipped++; // for example a lock-wait timeout: carry on, the next start repeats it
+                } catch (org.springframework.dao.DataAccessException | org.springframework.transaction.TransactionException e) {
+                    // For example a lock-wait timeout or no connection to begin the transaction: carry on, the next start repeats it.
+                    skipped++;
                 }
                 checked++;
             }
