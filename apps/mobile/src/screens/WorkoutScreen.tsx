@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { profileWhyValues } from '../why/values';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
@@ -78,55 +78,54 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
-  if (status !== 'ready' || !ready || !day.ready || !rules.ready) return (
-      <View style={styles.fill}>
-        <DateAnnouncer v={v} />
-        <Page><DateBar v={v} /><Hint>Loading…</Hint></Page>
-        {/* Outside the loading swap, as the prototype keeps #restbar and #toast outside #view: a day read does not hide a running rest or a message. */}
-        <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />
-        <ToastBar message={toast} />
-      </View>
+  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />;
+  // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,
+  // which would repeat "Rest done, go!" and re-read the toast) while a day is read. They sit outside it as the prototype's #restbar and #toast sit outside #view.
+  let content: ReactNode;
+  if (status !== 'ready' || !ready || !day.ready || !rules.ready) content = <Page><DateBar v={v} /><Hint>Loading…</Hint></Page>;
+  else if (!profile)
+    content = (
+      <Page>
+        <H1>Workout</H1>
+        <DateBar v={v} />
+        <Hint>Finish setup first, so the app can plan your sessions.</Hint>
+      </Page>
     );
-  if (!profile)
-    return (
-      <View style={styles.fill}>
-        <DateAnnouncer v={v} />
-        <Page>
-          <H1>Workout</H1>
-          <DateBar v={v} />
-          <Hint>Finish setup first, so the app can plan your sessions.</Hint>
-        </Page>
-      </View>
+  else {
+    const body =
+      day.exs.length === 0 ? (
+        <StartView key={w.date} v={v} now={now} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+      ) : (
+        <SessionView key={w.date} v={v} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+      );
+    const where = day.workout?.where ?? profile.where;
+    const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
+    content = (
+      <>
+        {body}
+        <HowToSheet name={howTo} onClose={() => setHowTo(null)} />
+        <CantSheet
+          name={cantName?.name ?? null}
+          {...(cantName?.reason ? { reason: cantName.reason } : {})}
+          where={where}
+          inSession={day.exs.map((e) => e.name)}
+          exclusions={rules.exclusions}
+          lifts={day.lifts}
+          setsFor={(m) => planned()[m] ?? 0}
+          onPick={(draft, choice) => {
+            w.cant(cantName ? cantName.i : null, draft, choice);
+            setCantName(null);
+          }}
+          onClose={() => setCantName(null)}
+        />
+      </>
     );
-
-  const body =
-    day.exs.length === 0 ? (
-      <StartView key={w.date} v={v} now={now} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
-    ) : (
-      <SessionView key={w.date} v={v} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
-    );
-  const where = day.workout?.where ?? profile.where;
-  const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
+  }
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      {body}
-      <HowToSheet name={howTo} onClose={() => setHowTo(null)} />
-      <CantSheet
-        name={cantName?.name ?? null}
-        {...(cantName?.reason ? { reason: cantName.reason } : {})}
-        where={where}
-        inSession={day.exs.map((e) => e.name)}
-        exclusions={rules.exclusions}
-        lifts={day.lifts}
-        setsFor={(m) => planned()[m] ?? 0}
-        onPick={(draft, choice) => {
-          w.cant(cantName ? cantName.i : null, draft, choice);
-          setCantName(null);
-        }}
-        onClose={() => setCantName(null)}
-      />
-      <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />
+      {content}
+      {restBar}
       <ToastBar message={toast} />
     </View>
   );
