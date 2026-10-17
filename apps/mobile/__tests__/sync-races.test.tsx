@@ -30,6 +30,12 @@ const gate = () => {
   return { p, release };
 };
 
+// Nothing may leave the engine paused or a run in flight: a later syncOnce/pauseSync in this module would hang or say 'paused'.
+afterEach(async () => {
+  const deps = { db: await openDb(), api: createClient(API, async () => null), tokens: memoryTokens({ access: 'a', refresh: 'r' }) };
+  expect((await syncOnce(deps)).status).toBe('signed_out'); // 'paused' if the pause counter is not back to 0
+});
+
 async function setup(tokens = memoryTokens({ access: 'access-1', refresh: 'refresh-1' })) {
   const db = await openDb();
   const server = fakeServer(USER);
@@ -244,9 +250,20 @@ describe('a full account in the provider', () => {
     expect(latest.pending).toBe(1); // kept, not dropped
     await first.unmount();
     // After a restart the flag is read from the device before any request answers.
-    server.hold = new Promise<void>(() => undefined);
+    const release = server.block();
     await render(ui());
     await waitFor(() => expect(latest.accountFull).toBe(true));
-    server.hold = null;
+    release(); // a hold left pending would keep the engine's run in flight for the rest of the file
+  });
+});
+
+describe('after a restart with a held server', () => {
+  it('a later sync in the same module still completes', async () => {
+    const { deps, server } = await setup();
+    server.accessValid = 'access-1';
+    await saveWeightDoc(deps.db, w('2026-10-07', 80));
+    expect((await syncOnce(deps)).status).toBe('ok');
+    await pauseSync(); // would never resolve while an earlier run is stuck
+    resumeSync();
   });
 });
