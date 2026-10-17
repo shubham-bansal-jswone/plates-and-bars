@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
+import { saveWorkout } from '../src/db/workouts';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { musclesOf } from '../src/workout/muscles';
+import type { Workout } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
@@ -15,10 +17,9 @@ const profile = () =>
 
 /** Thursday 2026-10-08 plans Push B: chest, front and side shoulders, triceps. */
 const THURSDAY = () => new Date(2026, 9, 8, 10, 0, 0);
-const MAIN = 'chest, front shoulders, side shoulders and triceps'.replace(', front', ', front');
+const MAIN = 'chest, front shoulders, side shoulders and triceps';
 
-async function mount(now = THURSDAY) {
-  const db = memoryDb();
+async function mount(now = THURSDAY, db = memoryDb()) {
   // Rest timer off: ticking a set then starts no interval.
   await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), rest_off: true });
   await saveProfile(db, { ...profile(), where: 'gym' });
@@ -105,5 +106,47 @@ describe('Workout session: Muscles today', () => {
     await press(`Muscles today: ${MAIN}`);
     expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
     expect(screen.getByLabelText(`Muscles today: ${MAIN}`).props.accessibilityState).toMatchObject({ expanded: true });
+  });
+
+  it('shows the also-working muscles on the session map when the session has any', async () => {
+    // Pull A (Tuesday): the forearms are also working, not main.
+    await mount(() => new Date(2026, 9, 6, 10, 0, 0));
+    await screen.findByText('Pull A day');
+    await press('Start Pull A');
+    await screen.findByText('Pull A');
+    const label = screen.getByLabelText(/^Muscles worked: /).props.accessibilityLabel as string;
+    expect(label).toMatch(/\. Also working: forearms$/);
+    expect(screen.getByText('Also working')).toBeTruthy();
+  });
+
+  it('has no disclosure when none of the session exercises has tagged muscles', async () => {
+    const db = memoryDb();
+    const untagged: Workout = { id: null, version: 1, updated_at: '2026-10-08T08:00:00Z', deleted_at: null, date: '2026-10-08', template: 'Push B', base: 'Push B', where: null, cardio_min: null, mods: {}, exercises: [{ name: 'Not An Exercise', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], ci_choice: null };
+    await saveWorkout(db, untagged);
+    await mount(THURSDAY, db);
+    await screen.findByText('Not An Exercise');
+    expect(screen.queryByLabelText(/^Muscles today: /)).toBeNull();
+    expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull();
+  });
+
+  it('does not carry a tap choice to another day: each date starts from its own default', async () => {
+    const db = memoryDb();
+    // Thursday's session is stored first; then Tuesday's is started and its map closed by a tap.
+    await mount(THURSDAY, db);
+    await screen.findByText('Push B day');
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await screen.unmount();
+    let clock = new Date(2026, 9, 6, 10, 0, 0);
+    const ui = () => withProfile(db, <WorkoutScreen db={db} now={() => clock} />);
+    const view = await render(ui());
+    await press((await screen.findByLabelText('Start Pull A')).props.accessibilityLabel);
+    await screen.findByText('Pull A');
+    await press(screen.getByLabelText(/^Muscles today: /).props.accessibilityLabel);
+    expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull();
+    clock = THURSDAY();
+    await view.rerender(ui());
+    await screen.findByText('Push B');
+    expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
   });
 });
