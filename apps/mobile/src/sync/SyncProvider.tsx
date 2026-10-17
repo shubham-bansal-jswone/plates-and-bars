@@ -14,7 +14,7 @@ import { isAccountFull } from './held';
 import { getUserId } from './store';
 import { secureTokens, type TokenStore } from './tokens';
 import { cookieMode } from './transport';
-import { dropLegacyWebTokens, markSignOutPending, revokeCookie, signOutPending } from './webSession';
+import { dropLegacyWebTokens, markSignOutPending, onRemoteSignOut, revokeCookie, signOutPending } from './webSession';
 
 /** How often a signed-in device syncs, besides on app start, on returning to the app and when the network is back. */
 export const SYNC_INTERVAL_MS = 30_000;
@@ -133,9 +133,15 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       if ((r.pulled ?? 0) > 0) setDataVersion((v) => v + 1);
       if (r.status === 'ok') backoff.current = SYNC_INTERVAL_MS;
       else if (r.status === 'rate_limited') holdUntil.current = Date.now() + (r.retryAfterSec ?? 60) * 1000;
-      else if (r.status === 'unavailable' || r.status === 'rejected') {
-        holdUntil.current = Date.now() + backoff.current;
-        backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
+      else if (r.status === 'unavailable' || r.status === 'rejected' || r.status === 'offline') {
+        // Offline backs off like a server problem (30 s, 1 min, 2 min, up to 5 min) so a long outage is not retried every 30 s.
+        // A failed refresh request is the exception: the server may have rotated the token, and a retry must land inside its 60 s
+        // grace window or it is read as reuse and ends the session, so wait 30 s at most and do not escalate (#762).
+        if (r.viaRefresh) holdUntil.current = Date.now() + SYNC_INTERVAL_MS;
+        else {
+          holdUntil.current = Date.now() + backoff.current;
+          backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
+        }
       } else if (r.status === 'signed_out') setSignedIn(false);
       return r;
     } finally {
@@ -190,9 +196,16 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
     };
     tick();
     const timer = setInterval(tick, SYNC_INTERVAL_MS);
-    const app = AppState.addEventListener('change', (s) => s === 'active' && tick());
+    const app = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') return;
+      // Back in the app (native has no `online` event): the user is here now, so start from the short wait again.
+      holdUntil.current = 0;
+      backoff.current = SYNC_INTERVAL_MS;
+      tick();
+    });
     const online = () => {
       holdUntil.current = 0;
+      backoff.current = SYNC_INTERVAL_MS; // the network is back: start again from the short wait
       tick();
     };
     if (Platform.OS === 'web' && typeof window !== 'undefined') window.addEventListener('online', online);
@@ -202,6 +215,16 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       if (Platform.OS === 'web' && typeof window !== 'undefined') window.removeEventListener('online', online);
     };
   }, [configured, signedIn, syncNow, refreshPending]);
+
+  // Web: another tab signed out (all tabs share one cookie). Drop this tab's access token and show signed out at once, instead
+  // of keeping it until it expires (#762). Local data stays.
+  useEffect(() => {
+    if (!cookieMode()) return;
+    return onRemoteSignOut(() => {
+      void tokens.clear();
+      setSignedIn(false);
+    });
+  }, [tokens]);
 
   // Web: a sign-out that did not reach the server is retried until it does (the cookie would otherwise sign the user back in).
   useEffect(() => {
