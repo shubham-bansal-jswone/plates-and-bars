@@ -111,4 +111,4 @@ Check that data survives a reload (needs a local Chrome; set `CHROME_PATH` if it
 npx expo export --platform web && node scripts/web-reload.mjs
 ```
 
-It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the script's own static server has no service worker, so the page itself cannot load offline; that is expected and only logged; the offline-start e2e spec covers the real thing), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.
+It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the export carries `sw.js` now, so this usually comes back from the service worker; the script logs whichever way it goes, and `tests/e2e/specs/offline.spec.mjs` is what asserts the offline start), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.

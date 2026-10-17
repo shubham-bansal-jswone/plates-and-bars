@@ -17,10 +17,10 @@ function cacheable(url, origin) {
   return u.origin === origin && !/^\/(?:api|auth)\//.test(u.pathname);
 }
 
-/** Hashed asset paths mentioned in index.html or in a bundle: quoted "/assets/..." or "/_expo/static/..." strings and src/href. */
+/** Hashed asset paths mentioned in index.html or in a bundle: quoted "/assets/..." or "/_expo/static/..." strings (double, single or backtick quotes) and src/href. */
 function assetPaths(text) {
   const found = new Set();
-  const re = /["'(](\/(?:assets|_expo\/static)\/[^"'()\s\\]+)/g;
+  const re = /["'(`](\/(?:assets|_expo\/static)\/[^"'()`\s\\]+)/g;
   let m;
   while ((m = re.exec(text))) found.add(m[1]);
   return [...found];

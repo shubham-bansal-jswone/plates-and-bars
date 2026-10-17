@@ -122,15 +122,15 @@ try {
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 }); // only Targets has it (the setup results also show 1,990 kcal)
   await kcalIs('1990');
   console.log('offline: setup completed and Targets shows 1,990 kcal with the network off');
-  // The static export has no service worker or other offline cache for the app shell, so loading it with the network off
-  // fails; that is expected and only logged. It is probed on a throwaway page: a failed navigation on `page` would leave
+  // The export ships the service worker now (#718), so this usually loads from its cache; before that it failed, and
+  // either way is only logged. It is probed on a throwaway page: a failed navigation on `page` would leave
   // Chrome's offline error page there, and Chrome reloads that page by itself once the network is back, at a moment we do
   // not control. That history navigation swaps the main frame by back/forward-cache restore and absorbs the explicit
   // reload below, so the app came back with its in-memory state and never read its profile back from SQLite. It is a
   // plausible source of the intermittent "Attempted to use detached Frame" (#578), not a shown one.
   const probe = await browser.newPage();
   await probe.setOfflineMode(true);
-  const offlineLoad = await probe.goto(url, { waitUntil: 'load' }).then(() => 'page loaded', (e) => (e.message.includes('ERR_INTERNET_DISCONNECTED') ? 'page request failed (no offline cache), as expected' : Promise.reject(e)));
+  const offlineLoad = await probe.goto(url, { waitUntil: 'load' }).then(() => 'page loaded (from the service worker cache)', (e) => (e.message.includes('ERR_INTERNET_DISCONNECTED') ? 'page request failed (no offline cache)' : Promise.reject(e)));
   await probe.close();
   console.log('load while offline:', offlineLoad);
   await page.setOfflineMode(false);

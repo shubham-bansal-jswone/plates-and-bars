@@ -46,7 +46,7 @@ describe('service worker helpers', () => {
     expect(sw.cacheable(`${ORIGIN}/assets/x.png`, ORIGIN)).toBe(true);
   });
   it('finds hashed paths in html and bundles, and names the cache from the entry bundle', () => {
-    expect(sw.assetPaths(`${HTML} a("${WORKER}") b('${FONT}') c(/assets/z.png)`).sort()).toEqual([ENTRY, WORKER, FONT, '/assets/z.png'].sort());
+    expect(sw.assetPaths(`${HTML} a("${WORKER}") b('${FONT}') c(/assets/z.png) d(\`/assets/q.png\`)`).sort()).toEqual([ENTRY, WORKER, FONT, '/assets/z.png', '/assets/q.png'].sort());
     expect(sw.versionOf(HTML)).toBe(`pb-shell-${ENTRY}`);
     expect(sw.versionOf('<html></html>')).toBeNull();
   });
@@ -70,9 +70,24 @@ describe('precache and fetch', () => {
     expect(await asset.text()).toBe('f');
   });
 
-  it('the install and the first navigation building at once end with one complete cache', async () => {
+  it('the install and the first navigation building at once end with one complete cache and never build at the same time', async () => {
     const { stores } = install(files);
+    // Count the concurrent `/` reads of a build: the second `precache()` has to wait for the first (#718), otherwise the
+    // two builds can delete each other's half-built cache. Without the queue this reaches 2.
+    let reads = 0;
+    let most = 0;
+    const real = (globalThis as unknown as { fetch: (r: string | Request) => Promise<Response> }).fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (r: string | Request) => {
+      if ((typeof r === 'string' ? r : new URL(r.url).pathname) === '/') {
+        reads += 1;
+        most = Math.max(most, reads);
+        await new Promise((done) => setTimeout(done, 1));
+        reads -= 1;
+      }
+      return real(r);
+    };
     await Promise.all([sw.precache(), sw.precache()]);
+    expect(most).toBe(1);
     expect([...stores.get(`pb-shell-${ENTRY}`)!.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());
   });
 
