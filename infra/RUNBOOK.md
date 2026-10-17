@@ -68,3 +68,7 @@ Rehearsal: the dump and restore commands (not the bucket transfer) were run on 2
 ## 5. Monitoring
 
 Add an Uptime Kuma (MIT, self-hosted; the host is an **Owner** decision) HTTP(s) monitor on `https://<API_HOST>/api/v1/health` with an e-mail alert. `/health` answers 503 when the database is unreachable, so one monitor covers API and database. Check that the cron backup ran: the newest object in the bucket should be less than 25 hours old; the log is `~/plateandbar-backup.log` of the user whose crontab runs it.
+
+## 6. Turning on the per-account record cap (#349, #667)
+
+The cap is off by default (`SYNC_MAX_RECORDS_PER_ACCOUNT` empty). Do not set it until the mobile app handles 413 `account_full` (app PR #662). Order: (1) deploy a version that contains the recount (`RecordRecount`) with the cap still off; (2) set `SYNC_MAX_RECORDS_PER_ACCOUNT` (the contract suggests 200000) in `.env` and run `docker compose up -d api`; the restart starts the recount in the background, which re-checks every account's `sync_state.records` against the 16 tables, in short per-account transactions beside live traffic. (3) Check the log for `record recount done, counters corrected: N` (N is normally 0; the log has counts only). If the API restarts mid-run the next start repeats it; changing the limit needs the same restart, so it recounts then too. To switch the cap off, empty the variable and restart; nothing needs undoing.
