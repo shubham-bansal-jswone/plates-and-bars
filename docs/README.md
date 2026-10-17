@@ -12,3 +12,7 @@ Where to find things. The prototype is the behaviour specification; everything e
     spec/ISSUES.md                 work items from the 2026-10-07 handoff, with acceptance criteria
 
 When the prototype changes, follow "When the prototype changes" in AGENTS.md.
+
+## Licence
+
+Code is licensed under the [Apache License 2.0](../LICENSE). Our own written content (the cards, recipe text and exercise notes in `content/`, and app and website copy) is licensed under [CC BY 4.0](../CONTENT-LICENSE). Third-party data and assets keep their own licences: see [NOTICE](../NOTICE) and [THIRD_PARTY.md](../THIRD_PARTY.md).
