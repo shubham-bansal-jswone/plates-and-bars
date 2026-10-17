@@ -4,6 +4,8 @@
 #   15 3 * * * cd /opt/plateandbar/infra/staging && ./backup.sh >> "$HOME/plateandbar-backup.log" 2>&1
 # Optional BACKUP_HEARTBEAT_URL (an Uptime Kuma push URL or similar): requested with GET after a fully successful run
 # (dump, upload and retention). A failed run sends nothing, so the monitor alerts when the ping goes missing. Unset = off.
+# Also caps container logs at 14 days (logcap.sh, run first so a failed dump cannot skip it; a failure there fails the
+# run after the backup, with no heartbeat).
 # Needs .env (see .env.example) and a running stack. The dump holds user data: keep the bucket private.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -27,6 +29,11 @@ rclone() {
     "$rclone_image" "$@"
 }
 
+# Container-log cap: runs in a throwaway busybox container because /var/lib/docker is root-only (the deploy user
+# is in the docker group, not root). Read-write mount: logcap.sh deletes rotated files and truncates active ones.
+logcap_rc=0
+docker run --rm -i -v /var/lib/docker/containers:/containers busybox:1.37.0 sh -s /containers < ./logcap.sh || logcap_rc=$?
+
 name="plateandbar-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
 dest="bk:$BACKUP_S3_BUCKET/$prefix"
 # Upload under a .partial name and rename only after mysqldump and gzip succeeded, so a failed dump never
@@ -39,6 +46,12 @@ echo "backup ok: $name"
 
 # 30-day retention (also removes stale .partial files)
 rclone delete --min-age 30d "$dest"
+
+# A failed log cap is reported like a failed backup: non-zero exit, no heartbeat.
+if [ "$logcap_rc" -ne 0 ]; then
+  echo "container log cap failed (exit $logcap_rc); the backup itself succeeded" >&2
+  exit 1
+fi
 
 # Heartbeat. The URL holds a secret token, so it goes to curl on stdin (-K -), not on the command line (ps). A failing
 # monitor must not fail a backup that succeeded: warn only.

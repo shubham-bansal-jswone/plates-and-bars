@@ -38,7 +38,7 @@ Automatic staging deploy (#411): `.github/workflows/staging-deploy.yml` does the
 
 ## 3. Nightly backup
 
-`backup.sh` streams `mysqldump --single-transaction` through gzip to the bucket as `<prefix>/plateandbar-<UTC timestamp>.sql.gz` (uploaded as `.partial`, renamed only if the dump succeeded) and then deletes objects older than 30 days. rclone runs from the pinned `rclone/rclone` image with the remote defined from environment variables, so no credentials are written to disk besides `.env`.
+`backup.sh` streams `mysqldump --single-transaction` through gzip to the bucket as `<prefix>/plateandbar-<UTC timestamp>.sql.gz` (uploaded as `.partial`, renamed only if the dump succeeded) and then deletes objects older than 30 days. Before the dump it also runs `logcap.sh`, the 14-day hard cap on container logs (`infra/OBSERVABILITY.md`, "Container logs"); `docker compose up -d` applies the compose `logging:` block to new containers, so run it once after pulling this change. rclone runs from the pinned `rclone/rclone` image with the remote defined from environment variables, so no credentials are written to disk besides `.env`.
 
 1. **Owner:** create a private bucket and an API token limited to it (R2: Object Read and Write on that bucket only). Put the endpoint, bucket and keys in `.env` (`BACKUP_S3_*`).
 2. Run it once by hand: `./backup.sh`, then list the bucket to see the object.
