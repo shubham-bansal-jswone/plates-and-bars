@@ -4,7 +4,7 @@ import { Text } from 'react-native';
 import { applyPulled, pendingCount } from '../src/db/outbox';
 import { lockedDb } from '../src/db/lockedDb';
 import { writeLock } from '../src/db/writeLock';
-import { pauseSync, resumeSync, syncOnce } from '../src/sync/engine';
+import { pauseSync, resumeSync, syncIdle, syncOnce } from '../src/sync/engine';
 import { discardAll } from '../src/sync/guard';
 import { naturalId } from '../src/sync/ids';
 import { Stores } from '../src/sync/Stores';
@@ -253,7 +253,11 @@ describe('a full account in the provider', () => {
     const release = server.block();
     await render(ui());
     await waitFor(() => expect(latest.accountFull).toBe(true));
-    release(); // a hold left pending would keep the engine's run in flight for the rest of the file
+    await act(async () => {
+      release();
+      await syncIdle(); // the released run ends and its state updates land inside act
+    });
+    // a hold left pending would keep the engine's run in flight for the rest of the file
   });
 });
 
