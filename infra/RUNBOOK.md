@@ -18,7 +18,8 @@ Any S3-compatible bucket works: `backup.sh` only needs `BACKUP_S3_*` variables, 
 3. Install Docker Engine and the Compose plugin from Docker's apt repository (<https://docs.docker.com/engine/install/ubuntu/>).
 4. `git clone` the repository to `/opt/plateandbar` (full history: the API needs `CONTENT_UPDATED_AT`).
 5. `cd /opt/plateandbar/infra/staging && cp .env.example .env && chmod 600 .env`, then fill every value. `APP_RATELIMIT_TRUSTEDPROXIES` is fixed in `docker-compose.yml` to the pinned Compose subnet `172.28.0.0/24`, which is where Caddy connects from; see `infra/caddy/Caddyfile.api` and `infra/README.md` for why.
-6. First start:
+6. **Owner:** before the first start, `sudo /opt/plateandbar/infra/journald/install.sh` (once per VM; idempotent). It bounds container logs (the API's and Caddy's error lines) to 14 days; without it journald keeps them under its distribution defaults (`infra/OBSERVABILITY.md`, "Container logs"). On an existing VM, run it, then `docker compose up -d` so the containers use the journald log driver.
+7. First start:
    ```
    tag="$(git rev-parse --short HEAD)"
    CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" API_TAG="$tag" docker compose build api
@@ -38,7 +39,7 @@ Automatic staging deploy (#411): `.github/workflows/staging-deploy.yml` does the
 
 ## 3. Nightly backup
 
-`backup.sh` streams `mysqldump --single-transaction` through gzip to the bucket as `<prefix>/plateandbar-<UTC timestamp>.sql.gz` (uploaded as `.partial`, renamed only if the dump succeeded) and then deletes objects older than 30 days. Before the dump it also runs `logcap.sh`, the 14-day hard cap on container logs (`infra/OBSERVABILITY.md`, "Container logs"); `docker compose up -d` applies the compose `logging:` block to new containers, so run it once after pulling this change. rclone runs from the pinned `rclone/rclone` image with the remote defined from environment variables, so no credentials are written to disk besides `.env`.
+`backup.sh` streams `mysqldump --single-transaction` through gzip to the bucket as `<prefix>/plateandbar-<UTC timestamp>.sql.gz` (uploaded as `.partial`, renamed only if the dump succeeded) and then deletes objects older than 30 days. rclone runs from the pinned `rclone/rclone` image with the remote defined from environment variables, so no credentials are written to disk besides `.env`.
 
 1. **Owner:** create a private bucket and an API token limited to it (R2: Object Read and Write on that bucket only). Put the endpoint, bucket and keys in `.env` (`BACKUP_S3_*`).
 2. Run it once by hand: `./backup.sh`, then list the bucket to see the object.

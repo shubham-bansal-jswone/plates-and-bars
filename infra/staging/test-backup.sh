@@ -7,7 +7,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir "$tmp/bin" "$tmp/stack"
-cp "$here/backup.sh" "$here/logcap.sh" "$tmp/stack/"
+cp "$here/backup.sh" "$tmp/stack/"
 cp "$here/.env.example" "$tmp/stack/.env"
 cat > "$tmp/bin/docker" <<'STUB'
 #!/usr/bin/env bash
@@ -15,9 +15,6 @@ echo "$*" >> "$STUB_LOG"
 if [ "$1" = compose ]; then
   [ -z "${STUB_DUMP_FAIL:-}" ] || exit 1
   echo "-- dump"
-elif [[ " $* " == *" busybox:"* ]]; then
-  cat > /dev/null
-  [ -z "${STUB_LOGCAP_FAIL:-}" ] || exit 1
 elif [[ " $* " == *" rcat "* ]]; then
   cat > /dev/null
 elif [[ " $* " == *" delete "* ]]; then
@@ -43,8 +40,6 @@ export PATH="$tmp/bin:$PATH" STUB_LOG="$tmp/log" STUB_CURL_LOG="$tmp/curl"
 grep -Eq ' rcat bk:plateandbar-backups/staging/plateandbar-[0-9]{8}T[0-9]{6}Z\.sql\.gz\.partial$' "$STUB_LOG" || fail "no .partial upload"
 grep -q ' moveto .*\.partial bk:.*\.sql\.gz$' "$STUB_LOG" || fail "upload not renamed"
 grep -q ' delete --min-age 30d bk:plateandbar-backups/staging$' "$STUB_LOG" || fail "no 30-day retention delete"
-grep -q '^run --rm -i -v /var/lib/docker/containers:/containers busybox:[0-9.]* sh -s /containers$' "$STUB_LOG" || fail "no container log cap run"
-[ "$(grep -n 'busybox:' "$STUB_LOG" | head -1 | cut -d: -f1)" -lt "$(grep -n ' rcat ' "$STUB_LOG" | head -1 | cut -d: -f1)" ] || fail "log cap does not run before the dump"
 ! grep -q 'change-me' "$STUB_LOG" || fail "a secret appears on a docker command line"
 for v in TYPE PROVIDER NO_CHECK_BUCKET ENDPOINT ACCESS_KEY_ID SECRET_ACCESS_KEY; do
   grep -q " -e RCLONE_CONFIG_BK_$v " "$STUB_LOG" || fail "rclone is not given RCLONE_CONFIG_BK_$v"
@@ -55,16 +50,6 @@ grep -q 'mysqldump .*--single-transaction' "$STUB_LOG" || fail "mysqldump withou
 : > "$STUB_LOG"
 if STUB_DUMP_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2>&1; then fail "failed dump: backup.sh exited 0"; fi
 ! grep -Eq ' (moveto|delete) ' "$STUB_LOG" || fail "failed dump was renamed or followed by a delete"
-
-# the log cap runs even when the dump fails (it is first), and a failed cap fails the run after a good backup, no heartbeat
-grep -q 'busybox:' "$STUB_LOG" || fail "failed dump skipped the log cap"
-: > "$STUB_LOG"; : > "$STUB_CURL_LOG"
-echo "BACKUP_HEARTBEAT_URL='https://kuma.test/api/push/tok3n?status=up'" >> "$tmp/stack/.env"
-if STUB_LOGCAP_FAIL=1 "$tmp/stack/backup.sh" > /dev/null 2> "$tmp/err"; then fail "failed log cap: backup.sh exited 0"; fi
-grep -q ' moveto .*\.partial ' "$STUB_LOG" || fail "failed log cap stopped the backup"
-grep -q 'log cap failed' "$tmp/err" || fail "no message for a failed log cap"
-[ ! -s "$STUB_CURL_LOG" ] || fail "heartbeat sent after a failed log cap"
-sed -i.bak '/tok3n/d' "$tmp/stack/.env"
 
 # heartbeat: with the URL set it is requested once after success, from stdin (not on a command line or the docker log)
 hb='https://kuma.test/api/push/tok3n-s3cret?status=up&msg=OK&ping='

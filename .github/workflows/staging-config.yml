@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'infra/staging/**'
+      - 'infra/journald/**'
       - 'infra/caddy/**'
       - '.github/workflows/staging-config.yml'
   workflow_dispatch:
@@ -34,11 +35,9 @@ jobs:
             grep -q "required variable $v" err.txt
           done
       - name: shellcheck
-        run: shellcheck backup.sh test-backup.sh logcap.sh test-logcap.sh deploy.sh test-deploy.sh release.sh test-release.sh
+        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh release.sh test-release.sh
       - name: backup.sh against a stub docker
         run: ./test-backup.sh
-      - name: logcap.sh on a fake containers tree (14-day cap)
-        run: ./test-logcap.sh
       - name: deploy.sh against stubs (rollback on a failed health check)
         run: ./test-deploy.sh
       - name: release.sh against stubs (backup first, no deploy after a failed backup)
@@ -49,9 +48,9 @@ jobs:
             echo "::error::unpinned image"; exit 1
           fi
           grep -Eq '^rclone_image="rclone/rclone:[0-9]+\.[0-9]+\.[0-9]+"$' backup.sh
-          grep -Eq 'busybox:[0-9]+\.[0-9]+\.[0-9]+ sh -s' backup.sh
-      - name: every service uses the local log driver with a size bound
+      - name: every service logs to journald
+        run: test "$(docker compose --env-file .env.example config | grep -c -E '^      driver: journald$')" = 3
+      - name: journald drop-in and installer
         run: |
-          test "$(docker compose --env-file .env.example config | grep -c -E '^      driver: local$')" = 3
-          docker compose --env-file .env.example config | grep -q 'max-size: 10m'
-          docker compose --env-file .env.example config | grep -q 'max-file: "5"'
+          shellcheck ../journald/install.sh ../journald/test-install.sh
+          ../journald/test-install.sh

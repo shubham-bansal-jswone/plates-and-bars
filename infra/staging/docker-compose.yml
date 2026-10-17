@@ -7,14 +7,10 @@
 # Nothing here deploys anything: see RUNBOOK.md.
 name: plateandbar-staging
 
-# Docker's `local` log driver, rotated at 10 MB with 5 files per service (about 50 MB each): the API's own logs and
-# Caddy's stderr error lines are kept until that is reached. Docker cannot expire logs by age, so backup.sh also
-# runs logcap.sh nightly, which makes 14 days a hard cap (RUNBOOK.md section 3).
+# Container logs go to journald (the VM's age and size bounds are the drop-in infra/journald/plate-and-bar.conf,
+# installed once per VM with infra/journald/install.sh). `docker compose logs` still works with this driver.
 x-logging: &logging
-  driver: local
-  options:
-    max-size: 10m
-    max-file: "5"
+  driver: journald
 
 services:
   mysql:
