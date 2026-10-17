@@ -11,7 +11,7 @@ const activeElement = (): HTMLElement | null => (typeof document !== 'undefined'
 export function focusSheetTitle(title: string): void {
   if (typeof document === 'undefined') return;
   const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find((d) => d.getAttribute('aria-label') === title);
-  const heading = dialog?.querySelector<HTMLElement>('[role="heading"]');
+  const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
   if (!heading) return;
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
   heading.focus();

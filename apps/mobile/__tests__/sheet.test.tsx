@@ -1,13 +1,24 @@
-/**
- * @jest-environment jsdom
- */
+/** @jest-environment node */
+import { JSDOM } from 'jsdom';
 import { Platform, Text } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
 import { focusSheetTitle, SheetModal } from '../src/components/Sheet';
 import { AddExerciseSheet } from '../src/workout/AddExerciseSheet';
 
 /** Sheets are named dialogs with initial focus on the title on the web, and give focus back on close (#661). */
+// jest-expo's jsdom environment cannot run under the React Native preset (it redefines `window`), so the node environment
+// gets a jsdom document for just these tests.
 describe('SheetModal', () => {
+  const g = globalThis as Record<string, unknown>;
+  beforeAll(() => {
+    const { window } = new JSDOM('<!doctype html><body></body>');
+    g.document = window.document;
+    g.HTMLElement = window.HTMLElement;
+  });
+  afterAll(() => {
+    delete g.document;
+    delete g.HTMLElement;
+  });
   beforeEach(() => jest.replaceProperty(Platform, 'OS', 'web'));
   afterEach(() => jest.restoreAllMocks());
 
