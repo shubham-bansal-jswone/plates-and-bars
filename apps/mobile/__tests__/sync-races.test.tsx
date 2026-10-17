@@ -224,7 +224,7 @@ describe('refused records in the provider', () => {
 });
 
 describe('a full account in the provider', () => {
-  it('shows the notice flag once the server says full, keeps it across a restart, and clears it when a new record is stored', async () => {
+  it('shows the notice flag once the server says full, and keeps it across a restart', async () => {
     const { db, server, tokens, api } = await setup();
     server.accessValid = 'access-1';
     server.recordCap = 0;

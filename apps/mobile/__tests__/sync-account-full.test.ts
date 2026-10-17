@@ -2,7 +2,7 @@
 import { createClient } from '@plate-and-bar/api';
 import { pendingChanges, pendingCount } from '../src/db/outbox';
 import { forgetHeldRetry, syncOnce } from '../src/sync/engine';
-import { isAccountFull } from '../src/sync/held';
+import { KEY_ACCOUNT_FULL, isAccountFull } from '../src/sync/held';
 import { naturalId } from '../src/sync/ids';
 import { listQuarantined } from '../src/sync/quarantine';
 import { KEY_USER, getKv, setKv } from '../src/sync/store';
@@ -40,6 +40,9 @@ async function synced(c: Ctx, d: string, kg: number, over: Partial<WeightDoc> = 
   await saveWeightDoc(c.db, doc);
   await c.db.runAsync('DELETE FROM sync_outbox WHERE key = ?', d);
 }
+/** A water log (random id, so not a natural-key table), as a live entry or a tombstone. */
+const saveWater = (c: Ctx, id: string, deleted: boolean) =>
+  c.db.runAsync('INSERT OR REPLACE INTO water_logs (key, log_date, data) VALUES (?, ?, ?)', id, '2026-10-08', JSON.stringify({ id, version: 0, updated_at: '2026-10-09T06:00:00Z', deleted_at: deleted ? '2026-10-10T06:00:00Z' : null, date: '2026-10-08', ml: 250 }));
 const syncCalls = (c: Ctx) => c.server.calls.filter((x) => x.path === '/sync');
 const recordsIn = (c: Ctx) => syncCalls(c).map((x) => Object.values(x.body.changes ?? {}).flat().length);
 const pendingKeys = async (c: Ctx) => (await pendingChanges(c.db)).map((e) => e.key);
@@ -192,16 +195,25 @@ describe('while the account is full', () => {
     expect(JSON.parse((await c.db.getFirstAsync<{ data: string }>("SELECT data FROM weights WHERE key = ?", date(5)))!.data).weight_kg).toBe(89);
   });
 
-  it('a full account that refuses a record the server does not store although it has a version ends the run, without a loop', async () => {
+  it('a full account that refuses records the server lost (they have a version) still pulls, and does not loop', async () => {
     const c = await setup();
     c.server.recordCap = 0;
     await saveWeightDoc(c.db, weight(date(5), 90));
     await syncOnce(c.deps); // full
     await saveWeightDoc(c.db, weight(date(6), 91, { version: 3 })); // the server lost it
+    c.server.put('weights', { id: await naturalId(USER, 'weights', date(9)), version: 1, updated_at: '2026-10-09T05:00:00Z', deleted_at: null, date: date(9), weight_kg: 70 } as never);
     const n = syncCalls(c).length;
-    expect(await syncOnce(c.deps)).toMatchObject({ status: 'rejected', accountFull: true });
-    expect(syncCalls(c).length).toBe(n + 1);
+    expect(await syncOnce(c.deps)).toMatchObject({ status: 'ok', accountFull: true, pulled: 1 });
+    expect(recordsIn(c).slice(n)).toEqual([1, 0]); // the refused request, then a pull-only one
+    expect(await localVersion(c, date(9))).toBe(1);
     expect(await pendingCount(c.db)).toBe(2);
+  });
+
+  it('with the full flag set and nothing held, a run ends after the pull: the held phase does not loop', async () => {
+    const c = await setup();
+    await setKv(c.db, KEY_ACCOUNT_FULL, '1');
+    await syncOnce(c.deps);
+    expect(syncCalls(c).length).toBeLessThanOrEqual(2);
   });
 
   it('the full flag survives a restart: the first run after launch holds new records without sending them first', async () => {
@@ -268,21 +280,63 @@ describe('the retry of held records', () => {
     c.server.recordCap = 0;
     await saveWeightDoc(c.db, weight(date(5), 90));
     await syncOnce(c.deps); // full
-    await saveWeightDoc(c.db, weight(date(6), 91, { deleted_at: '2026-10-10T06:00:00Z' }));
+    await saveWater(c, 'w-never', true);
     await syncOnce(c.deps);
     expect(await outboxKeys(c)).toEqual([date(5)]);
-    expect(c.server.pushed().some((p) => p.date === date(6))).toBe(false); // it never left this device
+    expect(c.server.pushed().some((p) => p.id === 'w-never')).toBe(false); // it never left this device
     // The record stays on the device (it holds no data); only the queue entry is gone.
-    expect(await localVersion(c, date(6))).toBe(0);
+    expect(await c.db.getFirstAsync("SELECT key FROM water_logs WHERE key = 'w-never'")).not.toBeNull();
   });
 
   it('a tombstone carried only by the request that found the account full is dropped too (the server stored nothing)', async () => {
     const c = await setup();
     c.server.recordCap = 0;
     await saveWeightDoc(c.db, weight(date(5), 90));
-    await saveWeightDoc(c.db, weight(date(6), 91, { deleted_at: '2026-10-10T06:00:00Z' }));
+    await saveWater(c, 'w-refused', true);
     await syncOnce(c.deps);
     expect(await outboxKeys(c)).toEqual([date(5)]);
+  });
+
+  it('a never-sent tombstone of a natural-key record is held, not dropped: the server may hold that id from another device', async () => {
+    const c = await setup();
+    const id = await naturalId(USER, 'weights', date(0));
+    c.server.seed('weights', weight(date(0), 60, { id, version: 1 }) as never); // another device made it
+    await saveWeightDoc(c.db, weight(date(0), 75)); // this device, the same date
+    await saveWeightDoc(c.db, weight(date(1), 80));
+    c.server.recordCap = 1;
+    await syncOnce(c.deps); // full
+    await saveWeightDoc(c.db, weight(date(0), 75, { deleted_at: '2026-10-10T06:00:00Z' })); // the user deletes it
+    expect(await outboxKeys(c)).toContain(date(0));
+    c.clock.t += 60_000;
+    forgetHeldRetry();
+    await syncOnce(c.deps);
+    // The held push came back server_won: this device takes the server's 60 kg, as before the cap existed.
+    const row = JSON.parse((await c.db.getFirstAsync<{ data: string }>('SELECT data FROM weights WHERE key = ?', date(0)))!.data);
+    expect(row).toMatchObject({ weight_kg: 60, deleted_at: null, version: 1 });
+    expect(await outboxKeys(c)).toEqual([date(1)]);
+  });
+
+  it('marks of a refused batch of only new records are cleared: a random-id tombstone behind a lost request is dropped', async () => {
+    const c = await setup();
+    await saveWater(c, 'w-offline', true);
+    c.server.online = false;
+    expect((await syncOnce(c.deps)).status).toBe('offline'); // the request never reached the server, the mark stays
+    c.server.online = true;
+    c.server.recordCap = 0;
+    await saveWeightDoc(c.db, weight(date(5), 90));
+    await syncOnce(c.deps);
+    expect(await outboxKeys(c)).toEqual([date(5)]);
+  });
+
+  it('a batch cut short by the byte budget is judged and tried by what was sent: 14 then 6, not 14, 10, 10', async () => {
+    const c = await setup();
+    c.server.recordCap = 0;
+    for (let i = 0; i < 20; i++) {
+      await c.db.runAsync('INSERT INTO day_notes (key, data) VALUES (?, ?)', date(i), JSON.stringify({ id: null, version: 0, deleted_at: null, updated_at: '2026-10-09T06:00:00Z', date: date(i), complete: null, steps: null, sleep: null, fast: false, pad: 'x'.repeat(110_000) }));
+    }
+    await syncOnce(c.deps);
+    expect(recordsIn(c).slice(1).filter((n) => n > 0)).toEqual([14, 6]);
+    expect(await pendingCount(c.db)).toBe(20);
   });
 
   it('a record that was sent, then deleted offline, is kept as a tombstone: its first push may have been stored', async () => {
