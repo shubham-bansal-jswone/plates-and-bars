@@ -329,7 +329,15 @@ Merged this session (verdict comments verified, nits confirmed on the head, CI g
 
 Main is now `597b941` and **every PR that was open during this stretch is merged**, including **#776** (App: date navigation on Workout and Progress, closes #682) — that one was merged by the app session at 20:08 while its review was finishing, at the same head the reviewer checked (`0266615`, 104 suites / 2310 tests green).
 
-No open PRs at this update. What is left is follow-up work, not review:
+No open PRs at that moment — but the parallel sessions opened eight more within the hour, **all with no verdict yet**, and this session started one reviewer subagent per group to get them through the gate:
+- **#779** app (web): "sign-in is unavailable" on a misconfigured site instead of "offline", and stop retrying (#744) **and #777** app (web): cross-tab sign-out, bounded refresh under the tab lock, offline backoff (#762) — one reviewer; both are the web refresh path, so check them against each other and against #742.
+- **#781**, **#782**, **#783** — the #660 series (Progress/Kitchen/Recipes; Food/AI/photos; workout/recovery/targets toasts). Test-only; the risk is a gate that is too loose and stops catching the bug.
+- **#786** app: iOS announces a date change once, from the focused tab only (#780) — this is finding 1 of #787 — **and #785** infra: backup heartbeat to an uptime monitor (#687) — one reviewer.
+- **#784** infra: Caddy JSON access log, privacy-filtered (#714) — one reviewer (the kept field map is the privacy surface; check rotation too).
+
+When a verdict lands: apply the nits (or say why one is deliberately skipped, in the PR body), merge `origin/main`, and merge with one `gh pr merge N --squash --delete-branch` once the checks are green. Then update this file.
+
+What is left after those, as follow-up work rather than review:
 - **#787** — the four nits from the #776 review: one `‹` tap announces three times when Food, Workout and Progress are all mounted (each screen has its own `DateAnnouncer`, and iOS tabs stay mounted — reproduced: two screens under one `ViewedDateProvider` → 2 identical announcements); `useCheckin.ts:47`'s `daysRead.date === date` gate and `ProgressScreen.tsx:69`'s `PhotosSection date={v.today}` are not pinned by any test (removing either leaves all 2310 green); and `RestBar`/`ToastBar` hide for the whole read on a day change while the prototype keeps `#restbar`/`#toast` outside `#view`. The #776 review also found there is no e2e/device date-bar spec at all.
 - **#775** — `sync-races.test.tsx` hangs a later test in its own module (cause and fix shape in the issue).
 - #660 remains the umbrella for taking tests off the wall clock.
