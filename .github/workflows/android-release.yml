@@ -11,7 +11,7 @@ name: Android release build
 #   ANDROID_KEY_PASSWORD       key password
 #
 # Repository variable (Settings > Secrets and variables > Actions > Variables):
-#   EXPO_PUBLIC_API_URL        https://<API_HOST>/api/v1, baked into the build. REQUIRED on v* tags (the job fails
+#   ANDROID_API_URL            https://<API_HOST>/api/v1, baked into the build as EXPO_PUBLIC_API_URL. REQUIRED on v* tags (the job fails
 #                              without it); optional, with a warning, on manual and PR runs. Not a secret.
 # android.versionCode comes from the tag (v1.2.3 -> 1002003) or, on non-tag runs, the run number; see
 # infra/scripts/android-release-config.sh.
@@ -29,6 +29,7 @@ on:
       - 'infra/scripts/android-signing.sh'
       - 'infra/scripts/android-release-config.sh'
       - 'infra/scripts/test-android-release-config.sh'
+      - 'infra/scripts/check-api-url.sh'
   workflow_dispatch:
 
 permissions:
@@ -49,7 +50,7 @@ jobs:
     # PR runs use no environment (and get no secrets); others use the protected one
     environment: ${{ github.event_name != 'pull_request' && 'android-release' || '' }}
     env:
-      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+      EXPO_PUBLIC_API_URL: ${{ vars.ANDROID_API_URL }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -69,7 +70,8 @@ jobs:
         if: github.event_name == 'pull_request'
         working-directory: .
         run: |
-          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh
+          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh
+          infra/scripts/test-check-api-url.sh
           infra/scripts/test-android-release-config.sh
       - name: Set versionCode and check the API URL (CI checkout only, not committed)
         run: ../../infra/scripts/android-release-config.sh app.json

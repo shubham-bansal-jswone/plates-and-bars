@@ -35,20 +35,20 @@ run tag v2099.999.999 1 "$url" || fail "largest tag failed"; [ "$(field code)" -
 run tag v1.2.3 99 "$url"; [ "$(field code)" = 1002003 ] || fail "code depends on the run number"
 
 # tags that cannot be mapped
-for bad in v1.2 v1.2.3-rc1 1.2.3 v01.2.3 v1.2.03 v1.1000.0 v1.0.1000 v2100.0.0 vx.y.z; do
+for bad in v1.2 v1.2.3-rc1 1.2.3 v01.2.3 v1.2.03 v1.1000.0 v1.0.1000 v2100.0.0 vx.y.z v0.0.0; do
   if run tag "$bad" 1 "$url"; then fail "accepted tag $bad"; fi
 done
 
 # API URL: required and well formed on a tag
 if run tag v1.2.3 1 ""; then fail "tag build passed without EXPO_PUBLIC_API_URL"; fi
-grep -q 'EXPO_PUBLIC_API_URL is not set' "$tmp/out" || fail "wrong error: $(cat "$tmp/out")"
+grep -q 'ANDROID_API_URL is not set' "$tmp/out" || fail "wrong error: $(cat "$tmp/out")"
 for bad in http://api.example.com/api/v1 https://api.example.com https://api.example.com/api/v1/; do
   if run tag v1.2.3 1 "$bad"; then fail "tag build accepted $bad"; fi
 done
 
 # manual and PR builds: run number, URL optional (warning), a malformed URL still fails
 run workflow_dispatch main 57 ""; [ "$(field code)" = 57 ] || fail "manual run number not used"
-grep -q '::warning::EXPO_PUBLIC_API_URL is not set' "$tmp/out" || fail "no warning without the URL"
+grep -q '::warning::ANDROID_API_URL is not set' "$tmp/out" || fail "no warning without the URL"
 [ "$(field version)" = "$(node -e 'console.log(require(process.argv[1]).expo.version)' "$root/apps/mobile/app.json")" ] || fail "version changed on a non-tag run"
 run pull_request 12/merge 3 "$url" || fail "PR run failed"
 if run branch main 1 "http://x/api/v1"; then fail "non-tag run accepted a malformed URL"; fi

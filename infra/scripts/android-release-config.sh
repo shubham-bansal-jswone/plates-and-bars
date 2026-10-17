@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prepares apps/mobile/app.json for an Android release build in CI, before `expo prebuild` (#684). Nothing is committed:
 # the edit lives in the runner's checkout only.
-#   - EXPO_PUBLIC_API_URL (the repository variable) is required on a v* tag and must be https://<host>/api/v1: a release
+#   - ANDROID_API_URL (the repository variable, passed in as EXPO_PUBLIC_API_URL) is required on a v* tag and must be https://<host>/api/v1: a release
 #     build without it has sync, sign-in, AI and content refresh switched off (apps/mobile/src/sync/auth.ts).
 #   - android.versionCode: on a tag vX.Y.Z it is X*1000000 + Y*1000 + Z (v1.2.3 -> 1002003), so it rises with every
 #     release and the same tag always gives the same code (a re-run is reproducible). `version` is set to X.Y.Z. A tag
@@ -19,15 +19,14 @@ is_tag=false
 [ "$ref_type" = tag ] && is_tag=true
 
 if [ "$is_tag" = true ] && [ -z "$api_url" ]; then
-  echo "::error::EXPO_PUBLIC_API_URL is not set. Add the repository variable (Settings > Secrets and variables > Actions > Variables), for example https://api.example.com/api/v1; a release build without it has sync switched off."
+  echo "::error::ANDROID_API_URL is not set. Add the repository variable (Settings > Secrets and variables > Actions > Variables), for example https://api.example.com/api/v1; a release build without it has sync switched off."
   exit 1
 fi
-if [ -n "$api_url" ] && ! printf '%s' "$api_url" | grep -Eq '^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?/api/v1$'; then
-  echo "::error::EXPO_PUBLIC_API_URL must be https://<host>/api/v1 with no trailing slash"
-  exit 1
+if [ -n "$api_url" ]; then
+  "$(dirname "$0")/check-api-url.sh" "$api_url" > /dev/null # one rule for the URL shape, shared with the web deploy
 fi
 if [ -z "$api_url" ]; then
-  echo "::warning::EXPO_PUBLIC_API_URL is not set: this build has sync, sign-in, AI and content refresh switched off (fine for a test build)"
+  echo "::warning::ANDROID_API_URL is not set: this build has sync, sign-in, AI and content refresh switched off (fine for a test build)"
 fi
 
 version=""
@@ -39,6 +38,7 @@ if [ "$is_tag" = true ]; then
   IFS=. read -r major minor patch <<< "${ref_name#v}"
   [ "$major" -lt 2100 ] || { echo "::error::major version $major is too large for android.versionCode"; exit 1; }
   code=$((major * 1000000 + minor * 1000 + patch))
+  [ "$code" -ge 1 ] || { echo "::error::$ref_name cannot be released: android.versionCode must be at least 1"; exit 1; }
   version="${ref_name#v}"
 else
   printf '%s' "$run_number" | grep -Eq '^[1-9][0-9]{0,8}$' || { echo "::error::GITHUB_RUN_NUMBER is missing or not a positive number"; exit 1; }
