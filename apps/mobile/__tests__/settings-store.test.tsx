@@ -5,6 +5,7 @@ import { defaultSettings } from '../src/settings/types';
 import { CUSTOM_EXERCISES_MAX, DEFAULT_WATER_SIZES } from '@plate-and-bar/core';
 import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { getCatalog, setCustomTags } from '../src/workout/catalog';
+import { withEntry } from '../src/content/own';
 import { memoryDb } from './helpers';
 
 const wrap = (db: ReturnType<typeof memoryDb>) => {
@@ -112,6 +113,28 @@ describe('settings store', () => {
       await act(async () => void (ok = await result.current.addCustomTags('E0', { ...tag, primary: ['glutes'] })));
       expect(ok).toBe(true);
       await waitFor(async () => expect((await loadSettings(db))?.custom_tags.E0).toMatchObject({ primary: ['glutes'] }));
+    });
+
+    it('addCustomTags refuses a new Object.prototype name, keeps and replaces one already stored as data (#715)', async () => {
+      const db = memoryDb();
+      const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      let ok = true;
+      for (const name of ['__proto__', 'constructor', 'toString']) {
+        await act(async () => void (ok = await result.current.addCustomTags(name, tag)));
+        expect(ok).toBe(false);
+      }
+      expect(Object.keys((await loadSettings(db))?.custom_tags ?? {})).toEqual([]);
+      await act(async () => void result.current.update({ custom_tags: withEntry({}, '__proto__', tag) }));
+      await act(async () => void (ok = await result.current.addCustomTags('Mine', tag)));
+      expect(ok).toBe(true);
+      await act(async () => void (ok = await result.current.addCustomTags('__proto__', { ...tag, primary: ['glutes'] })));
+      expect(ok).toBe(true);
+      await waitFor(async () => expect(Object.getOwnPropertyDescriptor((await loadSettings(db))!.custom_tags, '__proto__')?.value).toMatchObject({ primary: ['glutes'] }));
+      const saved = (await loadSettings(db))!.custom_tags;
+      expect(Object.keys(saved).sort()).toEqual(['Mine', '__proto__']);
+      expect(Object.getPrototypeOf(saved)).toBe(Object.prototype);
+      expect(Object.getPrototypeOf(result.current.settings.custom_tags)).toBe(Object.prototype);
     });
 
     it('addCustomTags refuses a name that is a known exercise in another letter case, built-in or custom (#450)', async () => {

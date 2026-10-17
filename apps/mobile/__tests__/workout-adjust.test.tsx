@@ -127,6 +127,16 @@ describe('ladder cards', () => {
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ dismissed: { [`up:Machine Shoulder Press:${LAST}`]: true } }));
   });
 
+  it('Stay on this step keeps an existing own __proto__ entry of the stay list (#715)', async () => {
+    const db = await started(async (d) => {
+      seed(d, 'Machine Shoulder Press', lift());
+      await saveSettings(d, { ...defaultSettings('2026-10-01T00:00:00Z'), ladder_stay: JSON.parse('{"__proto__":"2026-12-01"}') });
+    });
+    await press('Stay on this step, Machine Shoulder Press');
+    await waitFor(() => expect(Object.keys(settingsOf(db).ladder_stay).sort()).toEqual(['Machine Shoulder Press', '__proto__']));
+    expect(Object.getOwnPropertyDescriptor(settingsOf(db).ladder_stay, '__proto__')?.value).toBe('2026-12-01');
+  });
+
   it('Stay on this step hides the card for 42 days', async () => {
     const db = await started((d) => seed(d, 'Machine Shoulder Press', lift()));
     await press('Stay on this step, Machine Shoulder Press');
@@ -176,6 +186,17 @@ describe('stall card', () => {
     expect(screen.getByText('Pec Deck Fly: now 6–8 reps')).toBeTruthy();
     expect(screen.queryByText('No progress in 3 sessions')).toBeNull();
     expect(screen.getByText(/Machine, 6–8 reps/)).toBeTruthy();
+  });
+
+  it('Switch to 6–8 keeps an existing own __proto__ entry of the overrides (#715)', async () => {
+    const kept = { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 };
+    const db = await started(async (d) => {
+      seed(d, 'Pec Deck Fly', stalledLift());
+      await saveSettings(d, { ...defaultSettings('2026-10-01T00:00:00Z'), exercise_overrides: JSON.parse(`{"__proto__":${JSON.stringify(kept)}}`) });
+    });
+    await press('Switch to 6–8, Pec Deck Fly');
+    await waitFor(() => expect(Object.keys(settingsOf(db).exercise_overrides).sort()).toEqual(['Pec Deck Fly', '__proto__']));
+    expect(Object.getOwnPropertyDescriptor(settingsOf(db).exercise_overrides, '__proto__')?.value).toEqual(kept);
   });
 
   it('Or switch to a similar exercise saves a swap with no bridge', async () => {

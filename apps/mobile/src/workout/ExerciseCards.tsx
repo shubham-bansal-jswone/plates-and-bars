@@ -2,6 +2,7 @@ import { inRange, ladderCard, missed as missedDay, recoveryCard, reentryCard, la
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
+import { ownGet, withEntry } from '../content/own';
 import { localDate } from '../setup/logic';
 import { shortDate, weekdayLong } from '../format';
 import { adjOf, answered, endAdj, muted, rangesOf, shiftWeek, startDeload, startReentry } from './adjust';
@@ -66,7 +67,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where, now
           {...common('stall', stall.key)}
           onRange={() => {
             const [lo, hi] = stall.range;
-            if (update((s) => ({ exercise_overrides: { ...s.exercise_overrides, [ex.name]: stallRangeOverride(s.exercise_overrides[ex.name], info, stall.range) }, adjustments: answered(s.adjustments, stall.key, today) })))
+            if (update((s) => ({ exercise_overrides: withEntry(s.exercise_overrides, ex.name, stallRangeOverride(ownGet(s.exercise_overrides, ex.name), info, stall.range)), adjustments: answered(s.adjustments, stall.key, today) })))
               notify(`${ex.name}: now ${lo}–${hi} reps`);
           }}
           onSide={() => side && switchTo('side', side, stall.key, `Switched to ${side}`)}
@@ -78,7 +79,7 @@ export function ExerciseCards({ ex, info, date, lifts, rules, notify, where, now
           name={ex.name}
           {...common('ladder', ladder.key)}
           onSwitch={() => switchTo(ladder.kind, ladder.to, ladder.key, ladder.kind === 'up' ? `${ladder.to} starts next session` : `Switched to ${ladder.to}`)}
-          onStay={() => update((s) => ({ ladder_stay: { ...s.ladder_stay, [ex.name]: ladderStayUntil(date) }, adjustments: answered(s.adjustments, ladder.key, today) }))}
+          onStay={() => update((s) => ({ ladder_stay: withEntry(s.ladder_stay, ex.name, ladderStayUntil(date)), adjustments: answered(s.adjustments, ladder.key, today) }))}
         />
       ) : null}
     </>
