@@ -8,11 +8,12 @@ import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { TYPE_LABEL } from './copy';
-import { EQUIPMENT, overrideFromDraft, RANGE_INVALID, STEP_CHOICES, withoutOverride } from './exerciseSettings';
+import { EQUIPMENT, OVERRIDES_FULL, OVERRIDES_MAX, overrideFromDraft, RANGE_INVALID, STEP_CHOICES, withoutOverride } from './exerciseSettings';
 import { Chip } from './parts';
 
 const SAVED = 'Saved for this exercise';
 const RESET = 'Back to defaults';
+const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 const NOT_STORED = 'Couldn’t save that on this device. Try again.';
 
 /**
@@ -27,15 +28,17 @@ export function ExerciseSettings({ name, info, notify }: { name: string; info: E
 function Gear({ name, info, notify }: { name: string; info: ExInfo; notify?: (msg: string) => void }) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
-  const { saveFailed } = useOptionalSettings()!;
-  // The edit shows at once and is written in the background; if that write then fails, say so (the edit stays on screen and is written with the next save).
-  const awaiting = useRef(false);
+  const { saveFailed, settings } = useOptionalSettings()!;
+  // The edit shows at once and is written in the background. Track this sheet's own save: 'new' until the render that shows the edit,
+  // 'shown' until the saved record replaces it (the write worked: nothing more to say), or the write fails and it is reported once.
+  const awaiting = useRef<'none' | 'new' | 'shown'>('none');
   useEffect(() => {
-    if (saveFailed && awaiting.current) {
-      awaiting.current = false;
+    if (awaiting.current === 'none') return;
+    if (saveFailed) {
+      awaiting.current = 'none';
       notify?.(NOT_STORED);
-    }
-  }, [saveFailed, notify]);
+    } else awaiting.current = awaiting.current === 'new' ? 'shown' : 'none';
+  }, [saveFailed, settings, notify]);
   return (
     <>
       <Press
@@ -55,7 +58,7 @@ function Gear({ name, info, notify }: { name: string; info: ExInfo; notify?: (ms
           onClose={(done) => {
             setOpen(false);
             if (done) {
-              awaiting.current = true;
+              awaiting.current = 'new';
               notify?.(done);
             }
           }}
@@ -68,7 +71,7 @@ function Gear({ name, info, notify }: { name: string; info: ExInfo; notify?: (ms
 /** Mounted per opening, so it always starts from the exercise's current type, step and range (prototype `ES.v = { ...info }`). */
 function Sheet({ name, info, onClose }: { name: string; info: ExInfo; onClose: (done?: string) => void }) {
   const c = useTheme();
-  const { update } = useOptionalSettings()!;
+  const { update, settings } = useOptionalSettings()!;
   const [type, setType] = useState<ExType>(info.type);
   const [step, setStep] = useState(info.step);
   const [lo, setLo] = useState(String(info.lo));
@@ -78,6 +81,7 @@ function Sheet({ name, info, onClose }: { name: string; info: ExInfo; onClose: (
   const save = () => {
     const o = overrideFromDraft({ type, step, lo, hi });
     if (!o) return setError(RANGE_INVALID);
+    if (!has(settings.exercise_overrides, name) && Object.keys(settings.exercise_overrides).length >= OVERRIDES_MAX) return setError(OVERRIDES_FULL);
     // The edit is applied to the stored record when it is written. Refused when the stored settings could not be read: the values stay here.
     if (!update((s) => ({ exercise_overrides: { ...s.exercise_overrides, [name]: o } }))) return setError(SETTINGS_UNREADABLE);
     onClose(SAVED);
