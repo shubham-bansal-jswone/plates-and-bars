@@ -118,3 +118,27 @@ export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Wor
 
 /** A workout row as text without its `version`: a sync push patches only the version, so it does not count as a change. */
 export const unversioned = ({ version: _v, ...w }: Workout): string => JSON.stringify(w);
+
+const hasSession = (w: Workout): boolean => !isCardioOnly(w);
+const later = (a: Workout, b: Workout): boolean => Date.parse(a.updated_at) > Date.parse(b.updated_at);
+
+/**
+ * One workout row from two copies of the same day that no three-way merge can relate: this device's unpushed `mine` and the
+ * server's `theirs`, edited on two devices that had not seen each other (#647; the caller checks that this row never saw a server copy, since without a base a removal cannot be told from an addition). The contract settles such a push whole-record
+ * by `updated_at`; this keeps what the loser added. The later row (a tie goes to `theirs`, as on the server) supplies the
+ * fields; a session on only one side is kept even when the other row is later (a cardio-only day has none), and the cardio
+ * minutes survive from either side. Two sessions are not combined: the later one stands. The result carries `theirs.version`,
+ * so pushing it is not a conflict.
+ */
+export function unionWorkout(mine: Workout, theirs: Workout): Workout {
+  const win = later(mine, theirs) ? mine : theirs;
+  const lose = win === mine ? theirs : mine;
+  const base = hasSession(win) || !hasSession(lose) ? win : lose;
+  return {
+    ...base,
+    cardio_min: win.cardio_min ?? lose.cardio_min,
+    id: theirs.id,
+    version: theirs.version,
+    updated_at: win.updated_at,
+  };
+}

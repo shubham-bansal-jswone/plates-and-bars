@@ -1,4 +1,4 @@
-import { exerciseRecord, mergeWorkout, type ExState } from '../src/workout/model';
+import { exerciseRecord, mergeWorkout, unionWorkout, type ExState } from '../src/workout/model';
 import type { Workout, WorkoutExercise } from '../src/workout/types';
 
 const ex = (name: string, o: Partial<WorkoutExercise> = {}): WorkoutExercise => ({ name, part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false, ...o });
@@ -65,5 +65,23 @@ describe('exerciseRecord (#527)', () => {
 
   it('without a stored copy it writes the known keys only', () => {
     expect(exerciseRecord(state())).toEqual(ex('Bench', { form: 'yes', found_kg: 40 }));
+  });
+});
+
+describe('unionWorkout (#647)', () => {
+  const cardio = (o: Partial<Workout> = {}) => row([], { template: null, base: null, cardio_min: 30, version: 1, updated_at: '2026-10-08T12:00:00Z', ...o });
+  const session = (o: Partial<Workout> = {}) => row([ex('Bench')], { version: 0, updated_at: '2026-10-08T11:00:00Z', ...o });
+
+  it('keeps the session and the minutes whichever row is later, at the server version', () => {
+    for (const [mine, theirs] of [[session(), cardio()], [cardio({ version: 0 }), session({ version: 1, updated_at: '2026-10-08T13:00:00Z' })]] as const) {
+      const out = unionWorkout(mine, theirs);
+      expect([out.template, out.exercises.map((e) => e.name), out.version]).toEqual(['Upper A', ['Bench'], theirs.version]);
+    }
+    expect(unionWorkout(session(), cardio()).cardio_min).toBe(30);
+  });
+
+  it('two sessions: the later stands and the minutes from the other are kept', () => {
+    const out = unionWorkout(session({ template: 'Lower', exercises: [ex('Squat')], updated_at: '2026-10-08T14:00:00Z' }), session({ cardio_min: 20, version: 3 }));
+    expect([out.template, out.exercises.map((e) => e.name), out.cardio_min, out.version]).toEqual(['Lower', ['Squat'], 20, 3]);
   });
 });
