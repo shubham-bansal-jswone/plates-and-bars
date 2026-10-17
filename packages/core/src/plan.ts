@@ -1,4 +1,4 @@
-import { daysBetween, mondayOf, weekdayOf } from './dates';
+import { addDays, daysBetween, mondayOf, weekdayOf } from './dates';
 
 /** Where the user trains. Mirrors the prototype's `profile.where` / `workout.where` values. */
 export type Where = 'gym' | 'dumbbells' | 'bodyweight';
@@ -80,6 +80,13 @@ export const SPLITS: Readonly<Record<2 | 3 | 4 | 5 | 6, Split>> = {
   6: { list: ORDER, days: [1, 2, 3, 4, 5, 6] },
 };
 
+/** Mirrors prototype `CONDENSED`: the plans "Fewer days this week?" offers, keyed by days (3, 4 or 5). */
+export const CONDENSED: Readonly<Record<3 | 4 | 5, readonly string[]>> = {
+  3: ['Full body A', 'Full body B', 'Full body C'],
+  4: ['Upper A', 'Lower A', 'Upper B', 'Lower B'],
+  5: ['Push A', 'Pull A', 'Legs A', 'Upper B', 'Lower B'],
+};
+
 const NO_PLAN: Split = { list: [], days: [] };
 
 /**
@@ -139,6 +146,34 @@ export function planned(date: string, state: PlanState): string | null {
     return PL[(i + 1) % PL.length] as string;
   }
   return dayTemplate(date, state.profile);
+}
+
+/** A planned day that went by without a session. */
+export interface MissedDay {
+  date: string;
+  t: string;
+}
+
+/**
+ * The first planned weekday since the last session that was skipped, when the gap is 2 to 6 days; else `null`.
+ * Always `null` in sequence mode or while a week plan covers `date`'s week.
+ *
+ * Mirrors prototype `missed(date)` (state passed in instead of read from `S`).
+ */
+export function missed(date: string, state: PlanState): MissedDay | null {
+  const wp = state.weekPlan;
+  if (state.mode === 'sequence' || (wp && wp.start === mondayOf(date))) return null;
+  const ds = sessionDates(state.sessions, date);
+  const last = ds[ds.length - 1];
+  if (last === undefined) return null;
+  const gap = daysBetween(last, date);
+  if (gap < 2 || gap > 6) return null;
+  for (let i = 1; i < gap; i++) {
+    const d = addDays(last, i);
+    const t = dayTemplate(d, state.profile);
+    if (t && !state.sessions[d]?.n) return { date: d, t };
+  }
+  return null;
 }
 
 /** Exercises per session for the session length. Mirrors prototype `exerciseCap()` (profile passed in). */

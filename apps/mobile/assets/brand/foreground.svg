@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Plate &amp; Bar mark, white</title>
+  <g transform="translate(512 512) scale(0.82) translate(-512 -512)">
+  <g fill="#FFFFFF">
+    <rect x="200" y="312" width="62" height="400" rx="22"/>
+    <rect x="274" y="367" width="52" height="290" rx="20"/>
+    <rect x="326" y="494" width="372" height="36"/>
+    <rect x="698" y="367" width="52" height="290" rx="20"/>
+    <rect x="762" y="312" width="62" height="400" rx="22"/>
+    <circle cx="512" cy="512" r="170"/>
+  </g>
+  <circle cx="512" cy="512" r="104" fill="none" stroke="#2457E6" stroke-width="22"/>
+</g>
+</svg>
