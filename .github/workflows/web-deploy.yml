@@ -24,6 +24,8 @@ on:
       - 'apps/mobile/public/_headers'
       - 'infra/scripts/check-api-url.sh'
       - 'infra/scripts/test-check-api-url.sh'
+      - 'infra/scripts/check-web-root.sh'
+      - 'infra/scripts/test-check-web-root.sh'
       - 'infra/scripts/test-web-caddy.sh'
       - 'infra/scripts/check-caddy-headers.sh'
       - '.github/workflows/web-deploy.yml'
@@ -48,9 +50,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/test-web-caddy.sh
-      - name: API URL check (test)
-        run: infra/scripts/test-check-api-url.sh
+        run: shellcheck infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-web-root.sh infra/scripts/test-check-web-root.sh infra/scripts/test-web-caddy.sh
+      - name: API URL and web root checks (test)
+        run: |
+          infra/scripts/test-check-api-url.sh
+          infra/scripts/test-check-web-root.sh
       - name: Caddyfile.web serves the isolation headers, caching and SPA fallback (official Caddy image, Apache-2.0)
         run: infra/scripts/test-web-caddy.sh
 
@@ -92,15 +96,8 @@ jobs:
           # the values end up in ssh and rsync arguments and in a remote path: plain characters only
           printf '%s' "$SSH_USER" | grep -Eq '^[A-Za-z_][A-Za-z0-9_-]*$' || { echo "::error::WEB_SSH_USER must be a plain user name"; exit 1; }
           printf '%s' "$SSH_HOST" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9.-]*$' || { echo "::error::WEB_SSH_HOST must be a plain host name or IPv4 address"; exit 1; }
-          # rsync --delete: a plain absolute path under /srv, /var/www or /opt (never / or a home directory)
-          if ! printf '%s' "$WEB_ROOT" | grep -Eq '^/[A-Za-z0-9_./-]+$' || printf '%s' "$WEB_ROOT" | grep -Fq '..'; then
-            echo "::error::WEB_ROOT must be a plain absolute path without '..', for example /opt/plateandbar/infra/staging/web"
-            exit 1
-          fi
-          if ! printf '%s' "$WEB_ROOT" | grep -Eq '^/(srv|opt|var/www)/[^/]+'; then
-            echo "::error::WEB_ROOT must be a directory under /srv, /var/www or /opt, for example /opt/plateandbar/infra/staging/web"
-            exit 1
-          fi
+          # rsync --delete: a plain absolute path under /srv, /var/www or /opt, no '.' or '..' segment
+          infra/scripts/check-web-root.sh "$WEB_ROOT"
       - uses: actions/setup-node@v7
         with:
           node-version: 22

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { planned, waterTarget } from '@plate-and-bar/core';
+import { planned, waterTarget, type WeekPlan } from '@plate-and-bar/core';
 import { newId } from '../db/records';
 import { loadSessionLog, loadSets, type WorkoutDb } from '../db/workouts';
 import type { Profile } from '../setup/types';
@@ -18,6 +18,8 @@ interface Options {
   date: string;
   now: () => Date;
   profile: Profile | null;
+  /** Settings `adjustments`: the week plan and sequence mode decide today's planned session. */
+  adjustments?: Readonly<Record<string, unknown>>;
   notify: (msg: string) => void;
   /** Changes when sync stored pulled records: the drinks and the target are read again (after queued local writes). */
   reloadKey?: number;
@@ -27,7 +29,7 @@ interface Options {
  * Today's water: each tap shows at once and its write goes through one FIFO queue, like food logs. Undo
  * tombstones the last drink. The target is core's `waterTarget` over the weigh-ins, ticked sets and plan.
  */
-export function useWater({ db, date, now, profile, notify, reloadKey = 0 }: Options) {
+export function useWater({ db, date, now, profile, adjustments, notify, reloadKey = 0 }: Options) {
   const [logs, setLogs] = useState<WaterLog[]>([]);
   const [target, setTarget] = useState<{ ml: number; trained: boolean } | null>(null);
   const logsRef = useRef(logs);
@@ -71,7 +73,7 @@ export function useWater({ db, date, now, profile, notify, reloadKey = 0 }: Opti
               weighIns,
               profileWeightKg: profile?.weight_kg,
               anySetDone: sets.some((s) => s.done && !s.deleted_at),
-              planned: planned(date, { profile, sessions }),
+              planned: planned(date, { profile, sessions, weekPlan: adjustments?.weekPlan as WeekPlan | undefined, mode: adjustments?.mode as string | undefined }),
             }),
           ),
       );
@@ -81,7 +83,7 @@ export function useWater({ db, date, now, profile, notify, reloadKey = 0 }: Opti
     return () => {
       live = false;
     };
-  }, [db, date, profile, notify, shown, reloadKey]);
+  }, [db, date, profile, adjustments, notify, shown, reloadKey]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {

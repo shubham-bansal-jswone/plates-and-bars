@@ -2,6 +2,8 @@
 # Deploys the checked-out commit to staging, run ON the VM by .github/workflows/staging-deploy.yml after it has
 # fast-forwarded the checkout (RUNBOOK.md section 2): build the API image tagged with the short commit sha, point
 # API_TAG in .env at it, `docker compose up -d`, poll /api/v1/health, and on failure restore the previous tag.
+# DEPLOY_TAG (optional): image tag to use instead of the short commit sha, e.g. the release tag v1.2.3 (release.sh
+# sets it for production). Letters, digits, '.', '_' and '-' only.
 # Exit status: 0 deployed and healthy; 1 failed (rolled back, or nothing to roll back to).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -26,7 +28,8 @@ healthy() {
 api_host="$(env_get API_HOST)"
 prev="$(env_get API_TAG)"
 [ -n "$api_host" ] || { echo "API_HOST is not set in .env" >&2; exit 1; }
-tag="$(git rev-parse --short=12 HEAD)"
+tag="${DEPLOY_TAG:-$(git rev-parse --short=12 HEAD)}"
+printf '%s' "$tag" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' || { echo "invalid image tag '$tag'" >&2; exit 1; }
 
 echo "deploying $tag (previous: ${prev:-none})"
 CONTENT_UPDATED_AT="$(../../backend/scripts/content-updated-at.sh)" API_TAG="$tag" docker compose build api
