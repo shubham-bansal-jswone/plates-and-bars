@@ -31,7 +31,7 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
 - CORS: only the origins in `CORS_ALLOWED_ORIGINS` may call the API from a browser (exact match, no `*`), with the methods GET, POST and DELETE,
   `Authorization`, `Content-Type`, `Accept` and `If-None-Match` request headers, `Retry-After` and `ETag` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   Empty means every cross-origin call is refused.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter).
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
@@ -83,6 +83,7 @@ Request parsing is kept as it was on Spring Boot 3 (#81): `application.yml` turn
     and the export omits it (`AccountRightsIT` lists it as the one table without an owner column, on purpose).
     V6 backfills it from `ai_usage` once. Rolling back to an image without V6 and then forward again under-counts: spend
     recorded in between is only in `ai_usage`, not in the ledger (and is lost from it if accounts were deleted).
+  - Budget alert (#689): when a month's recorded tokens reach 80% of `AI_MONTHLY_BUDGET_TOKENS`, `AiQuotaService` logs exactly one WARN for that month (month and budget only, no user data). The "already fired" flag is `ai_spend_monthly.alert_sent` (V9), claimed with one conditional UPDATE, so it is restart-safe and race-safe. The WARN is the hook for a notifier later.
   - Limits: `app.rate-limit.ai-per-user` (5 per minute, the four POSTs) and `ai-per-ip` (60 per minute, all four).
   - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`, `/ai/suggest-tags` (contract 0.1.11). Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
