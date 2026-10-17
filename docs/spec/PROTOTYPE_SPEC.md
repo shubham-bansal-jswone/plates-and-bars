@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-17 — prototype copy: no vendor name in user-facing text (spec-change; golden fixtures unchanged).**
+- #673: v1 AI is text-only, provider-neutral and opt-in; it has no meal-photo estimation, camera form check or lab-report reading. Every user-facing "Claude" string in `docs/prototype/plate-and-bar.html` is reworded: "AI estimates", "AI suggestion", "Saved privately to your account", "never uploaded or sent anywhere", and the not-granted messages now say "needs you to turn on AI features". Behaviour is unchanged. The prototype's photo, form-check and lab-report paths stay as reference behaviour, but their copy is not ported to v1. The `window.claude` runtime hook in the prototype is code, not copy, and is unchanged. `apps/mobile` and `apps/site` already had no such wording.
+
 **2026-10-17 — prototype fix: grams too small to log, and the custom-food, recipe and kitchen-test checks (spec-change; golden fixtures unchanged).**
 - #150, the parts left after the day-complete fix. Each check stops the log or save and shows a toast; nothing is logged or saved. The toasts are the wording the app already shows for core's results (`apps/mobile/src/food/copy.ts`, `recipes/copy.ts`, `kitchen/copy.ts`; decided 2026-10-17, decisions delegated to Claude Code). Core already does each check (PRs #156, #211), and its prototype tests now compare exactly.
 - `case 'pick'`: grams that round to 0 servings (such as 4 g paneer) are not logged: "That amount is too small to log. Enter more grams or use servings." Before, the prototype logged quantity 0, which the contract rejects (core `too-small`).
