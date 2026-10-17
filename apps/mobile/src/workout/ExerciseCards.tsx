@@ -1,11 +1,11 @@
-import { inRange, ladderCard, recoveryCard, reentryCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, steadyCard, type ExInfo, type LiftRecord, type SessionLog, type Where } from '@plate-and-bar/core';
+import { inRange, ladderCard, missed as missedDay, recoveryCard, reentryCard, ladderStayUntil, ladderSwap, recheckBack, recheckDue, recheckKeep, recheckLater, sidewaysOf, stallCard, stallRangeOverride, steadyCard, type ExInfo, type LiftRecord, type PlanProfile, type SessionLog, type Where, type WeekPlan } from '@plate-and-bar/core';
 import type { ExclusionRecord } from '../db/rules';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
-import { shortDate } from '../format';
-import { adjOf, answered, endAdj, muted, rangesOf, startDeload, startReentry } from './adjust';
+import { shortDate, weekdayLong } from '../format';
+import { adjOf, answered, endAdj, muted, rangesOf, shiftWeek, startDeload, startReentry } from './adjust';
 import { getCatalog } from './catalog';
-import { LadderCardView, RangeNote, RecheckCard, RecoveryCardView, ReentryCardView, StallCardView, SteadyCardView } from './AdjustCards';
+import { LadderCardView, MissedCardView, RangeNote, RecheckCard, RecoveryCardView, ReentryCardView, StallCardView, SteadyCardView } from './AdjustCards';
 import type { ExState } from './model';
 import type { useRules } from './useRules';
 
@@ -112,13 +112,16 @@ export function RecheckCards({ date, lifts, rules, notify }: Props) {
 }
 
 /** The adjustment cards from prototype `renderStart()`: "Welcome back", the optional lighter week, the recovery week, and the note while one runs. */
-export function StartCards({ date, lifts, sessions, notify }: Omit<Props, 'rules'> & { sessions: SessionLog }) {
+export function StartCards({ date, lifts, sessions, profile, plan, notify }: Omit<Props, 'rules'> & { sessions: SessionLog; profile: PlanProfile; /** Today's planned template, for the "Stick to" button. */ plan: string | null }) {
   const { settings, update: write, loadFailed } = useSettings();
   const update = guarded(write, loadFailed, notify);
   const a = settings.adjustments;
   const { deload, reentry } = rangesOf(a);
   const adj = { ...adjOf(a), deload, reentry };
   const back = reentryCard(sessions, date, adj);
+  const miss = missedDay(date, { profile, sessions, weekPlan: a.weekPlan as WeekPlan | undefined, mode: a.mode as string | undefined });
+  const missKey = `missed:${date}`;
+  const showMiss = miss && !adj.muted?.missed && !adj.dismissed?.[missKey] ? miss : null;
   const steady = steadyCard(sessions, date, adj);
   const card = recoveryCard(lifts, date, adj);
   return (
@@ -130,6 +133,17 @@ export function StartCards({ date, lifts, sessions, notify }: Omit<Props, 'rules
           onNo={() => update((s) => ({ adjustments: answered(s.adjustments, back.key, 'break') }))}
           onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'break') })) && notify(MUTED)}
           onEase={() => update((s) => ({ adjustments: startReentry(s.adjustments, date, back.key, back.pct) }))}
+        />
+      ) : null}
+      {showMiss ? (
+        <MissedCardView
+          missed={showMiss}
+          weekday={weekdayLong(showMiss.date)}
+          stick={plan ?? 'the plan'}
+          declines={adj.declines.missed ?? 0}
+          onNo={() => update((s) => ({ adjustments: answered(s.adjustments, missKey, 'missed') }))}
+          onMute={() => update((s) => ({ adjustments: muted(s.adjustments, 'missed') })) && notify(MUTED)}
+          onShift={() => update((s) => ({ adjustments: shiftWeek(s.adjustments, missKey) })) && notify('Week shifted forward')}
         />
       ) : null}
       {steady ? (
