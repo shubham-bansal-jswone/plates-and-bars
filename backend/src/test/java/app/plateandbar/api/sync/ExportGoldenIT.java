@@ -13,8 +13,9 @@ import org.springframework.http.HttpMethod;
 /**
  * The bytes of {@code GET /me/export} for a fixed account are pinned in {@code golden/me-export.json}, which was
  * written by the original in-memory implementation. The streamed writer must reproduce them exactly. Row ids, seq
- * values (with ties across what would be a page boundary) and the clock are fixed so the bytes are stable.
+ * values (with ties across a page boundary: the page size is 2 here, so a tie of three rows spans a boundary) and the clock are fixed so the bytes are stable.
  */
+@org.springframework.test.context.TestPropertySource(properties = "app.export.page-size=2")
 class ExportGoldenIT extends SyncITBase {
 
     static final String USER = "0a0a0a0a-0a0a-4a0a-8a0a-0a0a0a0a0a0a";

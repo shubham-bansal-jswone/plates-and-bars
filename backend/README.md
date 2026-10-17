@@ -70,7 +70,19 @@ keyword is registered with the schema library as a non-validation keyword so it 
 - Account rights (#192), package `account`:
   - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
     the 16 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
-    One read-only transaction. `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
+    Streamed (#349): the body is written with a Jackson `JsonGenerator` from a `StreamingResponseBody`, reading each
+    table in keyset pages of `app.export.page-size` rows (default 500, ordered by `(seq, id)`), so memory is bounded
+    by one page whatever the account holds. All pages come from one read-only transaction (InnoDB repeatable read),
+    opened on the thread that writes the body. Rate limits, the user's existence (401) and the headers are decided
+    before the first byte; the response has no `Content-Length` (chunked). The security chain permits the container's
+    ASYNC dispatch that writes the body (the request was authorized on its first dispatch; see `SecurityConfig`).
+    A failure after streaming starts: nothing in the contract fixes this, so the rule is that a client must never get
+    a complete-looking document from a failed export. Before the response buffer (8 KB) is flushed the failure is an
+    ordinary 500 `Error`; after that the 200 is already sent, so the generator does not auto-close open arrays and
+    objects (`AUTO_CLOSE_CONTENT` off), the exception aborts the connection and the client sees an unterminated chunked
+    body (an I/O error) and truncated, invalid JSON. The server logs the exception class, user id and time, never a
+    message or row. A client treats any error or unparsable body as a failed export and retries (5 per hour).
+    `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
     Limited to 5 per hour per user and 20 per hour per IP (`app.rate-limit.export-per-user`, `export-per-ip`);
     429 `rate_limited` with `Retry-After`. Credentials (tokens, codes) are not included. Not compressed by the app.
   - `DELETE /me`: one transaction removes the user's email-keyed rows (`email_sign_in_codes`, `email_verify_failures`

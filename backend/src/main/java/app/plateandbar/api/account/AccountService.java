@@ -3,7 +3,11 @@ package app.plateandbar.api.account;
 import app.plateandbar.api.common.ApiException;
 import app.plateandbar.api.sync.SyncExporter;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.StreamWriteFeature;
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
@@ -30,24 +34,66 @@ public class AccountService {
         this.clock = clock;
     }
 
-    /** One consistent snapshot: a single read-only transaction. */
+    /** The account row, or 401 when it is gone. Checked before the response starts, while a status can still be sent. */
+    public void requireAccount(String userId) {
+        accounts.find(userId).orElseThrow(ApiException::unauthorized);
+    }
+
+    /**
+     * Streams the export document to {@code out}. One consistent snapshot: a single read-only transaction (MySQL
+     * InnoDB repeatable read) around every read, so the pages of every table agree with each other. Runs on the
+     * thread that writes the response, so the transaction must start here and not in the controller.
+     *
+     * <p>Any failure propagates and leaves the document unfinished: the generator is configured not to close open
+     * arrays and objects, so a truncated body is never repaired into valid-looking JSON (see {@code backend/README.md}).
+     * Returns the number of bytes written.
+     */
     @Transactional(readOnly = true)
-    public ObjectNode export(String userId, Instant at) {
+    public long writeExport(String userId, Instant at, OutputStream out) throws IOException {
         AccountRepository.Account a = accounts.find(userId).orElseThrow(ApiException::unauthorized);
-        ObjectNode out = json.createObjectNode();
-        out.put("format_version", 1);
-        out.put("exported_at", DateTimeFormatter.ISO_INSTANT.format(at));
-        ObjectNode user = out.putObject("user");
-        user.put("id", a.id());
-        if (a.email() == null) {
-            user.putNull("email");
-        } else {
-            user.put("email", a.email());
+        CountingOutputStream counted = new CountingOutputStream(out);
+        try (JsonGenerator g = json.writer().without(StreamWriteFeature.AUTO_CLOSE_CONTENT).createGenerator(counted)) {
+            g.writeStartObject();
+            g.writeNumberProperty("format_version", 1);
+            g.writeStringProperty("exported_at", DateTimeFormatter.ISO_INSTANT.format(at));
+            g.writeName("user");
+            g.writeStartObject();
+            g.writeStringProperty("id", a.id());
+            if (a.email() == null) {
+                g.writeNullProperty("email");
+            } else {
+                g.writeStringProperty("email", a.email());
+            }
+            g.writeStringProperty("created_at", DateTimeFormatter.ISO_INSTANT.format(a.createdAt()));
+            g.writeEndObject();
+            g.writeName("tables");
+            sync.writeTables(userId, g);
+            g.writeName("conflict_log");
+            sync.writeConflictLog(userId, g);
+            g.writeEndObject();
+            g.flush();
         }
-        user.put("created_at", DateTimeFormatter.ISO_INSTANT.format(a.createdAt()));
-        out.set("tables", sync.tables(userId));
-        out.set("conflict_log", sync.conflictLog(userId));
-        return out;
+        return counted.count;
+    }
+
+    private static final class CountingOutputStream extends FilterOutputStream {
+        long count;
+
+        CountingOutputStream(OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            out.write(b);
+            count++;
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+            count += len;
+        }
     }
 
     /** Idempotent: deleting an account that is already gone succeeds. */
