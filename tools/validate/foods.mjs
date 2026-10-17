@@ -13,7 +13,7 @@ const norm = (s) => s.trim().toLowerCase();
 
 // kcal should be close to 4*protein + 4*carbs + 9*fat. Rounding and fibre (about 2 kcal/g, counted as carbs)
 // make exact equality wrong, so allow 15 kcal or 15 % of the label value, whichever is larger.
-// Alcohol (eat-out drinks flagged `alcohol: true`) is exempt from the upper bound; see validateEatOut.
+// Alcohol (drinks flagged `alcohol: true`, in foods.json and eatout.json) is exempt from the upper bound.
 export const kcalTolerance = (kcal) => Math.max(15, kcal * 0.15);
 
 // opts.extraKeys: allowed fields beyond FOOD_KEYS. opts.alcohol: kcal may exceed 4/4/9 (alcohol is 7 kcal/g and not in the macros).
@@ -71,7 +71,8 @@ export function validateFoods(content) {
   const names = new Map();
   const ids = new Set();
   for (const f of content.foods) {
-    checkFood(f, errors);
+    if ('alcohol' in f && f.alcohol !== true) errors.push(`${f.name}: alcohol must be true when present`);
+    checkFood(f, errors, { extraKeys: ['alcohol'], alcohol: f.alcohol === true });
     if (typeof f.name === 'string') {
       const k = norm(f.name);
       if (names.has(k)) errors.push(`${f.name}: duplicate name (also "${names.get(k)}")`);

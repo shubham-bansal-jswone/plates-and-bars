@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateEatOut } from '../validate/foods.mjs';
-import { dishId, extractEatOut, importEatOut, serialize } from '../eatout-import/import.mjs';
+import { dishId, extractEatOut, extractFib, importEatOut, serialize } from '../eatout-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
@@ -27,6 +27,17 @@ test('prototype values are carried over unchanged, in prototype order', () => {
   }
   assert.deepEqual(dish(c, 'Butter naan').per_serving, { kcal: 300, protein_g: 8, carbs_g: 45, fibre_g: null, added_sugar_g: null, fat_g: 10 });
   assert.equal(dishId('Butter naan'), dish(c, 'Butter naan').id);
+});
+
+test('#824: fibre and added sugar come from the prototype FIB by dish name, so Cola counts 35 g added sugar', () => {
+  const fib = extractFib(html);
+  const c = load();
+  assert.deepEqual(dish(c, 'Cola (330 ml)').per_serving, { kcal: 140, protein_g: 0, carbs_g: 35, fibre_g: 0, added_sugar_g: 35, fat_g: 0 });
+  const withFib = c.cuisines.flatMap((x) => x.dishes).filter((d) => d.per_serving.fibre_g !== null || d.per_serving.added_sugar_g !== null);
+  assert.deepEqual(withFib.map((d) => d.name), ['Cola (330 ml)']);
+  for (const d of c.cuisines.flatMap((x) => x.dishes)) {
+    assert.deepEqual([d.name, d.per_serving.fibre_g, d.per_serving.added_sugar_g], [d.name, ...(Object.hasOwn(fib, d.name) ? fib[d.name] : [null, null])]);
+  }
 });
 
 test('alcoholic drinks are flagged and only they', () => {
@@ -74,9 +85,16 @@ test('structure: cuisine mismatch, empty tips, unknown fields, empty file', () =
   assert.deepEqual(validateEatOut({ cuisines: [] }), ['cuisines must be a non-empty array']);
 });
 
-test('foods.json rows may not carry eat-out only fields', async () => {
+test('foods.json rows may not carry eat-out only fields; alcohol there follows the eat-out rule (#824)', async () => {
   const { validateFoods } = await import('../validate/foods.mjs');
-  const c = JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8'));
-  c.foods[0].alcohol = true;
-  assert.ok(validateFoods(c).some((e) => e.includes('unknown field "alcohol"')));
+  const loadFoods = () => JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8'));
+  const mutateFoods = (fn) => { const c = loadFoods(); fn(c); return validateFoods(c); };
+  const beer = (c) => c.foods.find((f) => f.name === 'Beer');
+  assert.deepEqual(validateFoods(loadFoods()), []);
+  assert.ok(mutateFoods((c) => { c.foods[0].cuisine = 'Drinks'; }).some((e) => e.includes('unknown field "cuisine"')));
+  assert.ok(mutateFoods((c) => { delete beer(c).alcohol; }).some((e) => e.includes('does not match macros')));
+  assert.ok(mutateFoods((c) => { beer(c).alcohol = false; }).some((e) => e.includes('alcohol must be true')));
+  assert.ok(mutateFoods((c) => { beer(c).per_serving.kcal = 1; }).some((e) => e.includes('below what the macros give')));
+  // The flag lifts only the upper kcal bound: on a food without alcohol it still fails a low kcal.
+  assert.ok(mutateFoods((c) => { c.foods[0].alcohol = true; c.foods[0].per_serving.kcal = 1; }).some((e) => e.includes('below what the macros give')));
 });

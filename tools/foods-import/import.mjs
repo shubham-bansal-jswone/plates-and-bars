@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 
 // Any change to a food's values must bump this, or synced clients never see it. Ids come from names,
 // so renaming a food changes its id.
-export const UPDATED_AT = '2026-10-08T00:00:00Z';
+export const UPDATED_AT = '2026-10-18T00:00:00Z';
 const ID_NAMESPACE = 'plate-and-bar/foods/v1';
 
 // FoodSource.code values from the contract, with the descriptive fields the contract asks for.
@@ -51,12 +51,14 @@ export const SOURCES = {
 // follow FSSAI composition standards; packaged foods (whey, Greek yogurt, makhana) use typical label
 // values", plus ADR 005 (USDA for plain foods, own recipes for dishes). Single plain foods are usda_fdc and
 // composed dishes are own_recipe. Chicken breast, cooked is the raw value divided by a cooking yield and
-// buttermilk is 80 g curd in the prototype's grocery map, so both are own_recipe.
+// buttermilk is 80 g curd in the prototype's grocery map, so both are own_recipe. The three drinks are single plain
+// items with a matching SR Legacy record (#824), so usda_fdc too.
 const FSSAI = ['Paneer', 'Curd / dahi', 'Toned milk'];
 const LABEL = ['Whey protein', 'Greek yogurt, plain', 'Makhana, roasted'];
 const USDA = [
   'Egg, whole', 'Egg white', 'Soya chunks, dry', 'Oats, dry', 'Ghee', 'Banana',
   'Apple', 'Almonds', 'Roasted chana', 'Peanuts, roasted', 'Sweet potato, boiled', 'Brown bread', 'Peanut butter',
+  'Beer', 'Whisky, rum or vodka', 'Wine',
 ];
 const RECIPE = [
   'Roti / chapati', 'Rice, cooked', 'Dal', 'Rajma / chole', 'Mixed veg sabzi', 'Paneer bhurji', 'Chicken curry',
@@ -78,6 +80,9 @@ export const FDC_REFERENCE = {
   "Ghee": "FDC 171314 (SR Legacy: Butter, Clarified butter (ghee)), per 100 g x 4.9 g (1 tsp)",
   "Sweet potato, boiled": "FDC 168484 (SR Legacy: Sweet potato, cooked, boiled, without skin), per 100 g x 150 g",
   "Peanuts, roasted": "FDC 172430 (SR Legacy: Peanuts, all types, raw), per 100 g x 30 g; values are for raw peanuts",
+  "Beer": "FDC 168746 (SR Legacy: Alcoholic beverage, beer, regular, all), per 100 g x 356 g (1 can, 12 fl oz) gives 153 kcal, 1.6 g protein, 12.6 g carbs, rounded; kcal include the alcohol; a 330 ml can (about 331 g) is about 7 % less",
+  "Whisky, rum or vodka": "FDC 171919 (SR Legacy: Alcoholic beverage, distilled, all (gin, rum, vodka, whiskey) 86 proof), per 100 g x 28 g (30 ml; 1 fl oz is 27.8 g); kcal are the alcohol; a 40 % spirit (FDC 174815, 80 proof) gives 65 kcal",
+  "Wine": "FDC 173190 (SR Legacy: Alcoholic beverage, wine, table, red), per 100 g x 147 g (1 serving, 5 fl oz) gives 125 kcal, 0.1 g protein, 3.8 g carbs; kcal include the alcohol",
 };
 
 export const SOURCE_OF = {};
@@ -85,8 +90,12 @@ for (const [code, names] of [['fssai', FSSAI], ['label_typical', LABEL], ['usda_
   for (const n of names) SOURCE_OF[n] = code;
 }
 
-// Not in content until Shubham decides: the prototype note and ADR 005 do not cover alcohol. Reported in the PR.
-export const HELD_BACK = ['Beer', 'Whisky, rum or vodka', 'Wine'];
+// Golden foods left out of content because the repo does not state their source. Empty since the drinks got FDC
+// records (#824).
+export const HELD_BACK = [];
+
+// Drinks whose kcal include alcohol (7 kcal/g), which the 4/4/9 check cannot see: flagged `alcohol: true`, as in eatout.json.
+export const ALCOHOLIC = ['Beer', 'Whisky, rum or vodka', 'Wine'];
 
 // Fruit and veg servings (80 g each) per serving: PRODUCE in the prototype.
 export const PRODUCE = {
@@ -147,6 +156,7 @@ export function importFoods(golden) {
       name: f.name,
       name_hi: null,
       aliases: splitAliases(golden.aliases[f.name] ?? ''),
+      ...(ALCOHOLIC.includes(f.name) ? { alcohol: true } : {}),
       serving: { label: f.unit, grams: servingGrams(f.unit) },
       per_serving: {
         kcal: f.kcal, protein_g: f.protein, carbs_g: f.carbs, fibre_g: fibre, added_sugar_g: sugar, fat_g: f.fat,
