@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Detection signals (#714): one INFO line for each refused request (401 or 403) and each rate-limit hit (429), written
+ * Detection signals (#714): one INFO line for each refused request (401 or 403, except routine {@code token_expired}, which is DEBUG) and each rate-limit hit (429), written
  * after the response status is known, so every place that refuses (the JWT filter, the security entry point, the
  * rate-limit filter, the Origin check, controllers) is covered by one filter that wraps them.
  *
@@ -61,10 +61,15 @@ public class SecuritySignalFilter extends OncePerRequestFilter {
     private void signal(HttpServletRequest request, int status) {
         try {
             if (status == 401 || status == 403) {
-                String ip = ips.resolve(request);
-                limiter.consume("refused-auth", ip, REFUSED_PER_IP);
-                log.info("Auth refused (status={}, method={}, path={}, reason={})", status, method(request), template(request),
-                        reason(request, status));
+                String reason = reason(request, status);
+                if (reason.equals("token_expired")) {
+                    // Every active client hits this once per access-token lifetime: routine, not a signal. DEBUG, and it
+                    // must not spend the per-address allowance that real guessing (unauthorized, invalid_code) needs.
+                    log.debug("Auth refused (status={}, method={}, path={}, reason={})", status, method(request), template(request), reason);
+                    return;
+                }
+                limiter.consume("refused-auth", ips.resolve(request), REFUSED_PER_IP);
+                log.info("Auth refused (status={}, method={}, path={}, reason={})", status, method(request), template(request), reason);
             } else if (status == 429 && request.getAttribute(BUCKET) instanceof String bucket && SAFE_CODE.matcher(bucket.replace('-', '_')).matches()) {
                 limiter.consume("rate-limit-hit:" + bucket, ips.resolve(request), RATE_LIMIT_PER_IP_AND_BUCKET);
                 log.info("Rate limit hit (bucket={}, path={})", bucket, template(request));

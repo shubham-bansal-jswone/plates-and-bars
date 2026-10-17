@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import app.plateandbar.api.common.ApiException;
+import app.plateandbar.api.ratelimit.RateLimitedException;
 import app.plateandbar.api.support.WebMvcAuthSlice;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -97,11 +98,14 @@ class SecuritySignalsTest {
 
     @Test
     void expiredTokenHasItsOwnReason() throws Exception {
+        security.setLevel(Level.DEBUG);
         String expired = jwt.issue("11111111-1111-1111-1111-111111111111").value();
         when(users.exists(anyString())).thenThrow(ApiException.tokenExpired());
         mvc.perform(get("/api/v1/sync/pull").header("Authorization", "Bearer " + expired).with(from("10.1.0.3")))
                 .andExpect(status().isUnauthorized());
-        assertThat(messages("Auth refused")).hasSize(1).allMatch(m -> m.contains("reason=token_expired"));
+        // routine (once per access-token lifetime per client): not at INFO
+        assertThat(messages("Auth refused")).isEmpty();
+        assertThat(lines.list).anyMatch(e -> e.getLevel() == Level.DEBUG && e.getFormattedMessage().contains("reason=token_expired"));
     }
 
     @Test
@@ -130,6 +134,33 @@ class SecuritySignalsTest {
         assertThat(out).containsExactly("Rate limit hit (bucket=public-ip, path=/api/v1/sync/pull)");
         mvc.perform(get("/api/v1/sync/pull").with(from("10.3.0.2")));
         assertThat(messages("Rate limit hit")).hasSize(1); // the other address is still under its own limit
+    }
+
+    @Test
+    void perAddressCapIsLoggedWithItsOwnBucketName() throws Exception {
+        when(auth.startEmailSignIn(anyString())).thenThrow(new RateLimitedException("email-start-address", 30));
+        mvc.perform(post("/api/v1/auth/email/start")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"asha@example.com\"}")
+                        .with(from("10.5.0.1")))
+                .andExpect(status().isTooManyRequests());
+        assertThat(messages("Rate limit hit"))
+                .containsExactly("Rate limit hit (bucket=email-start-address, path=/api/v1/auth/email/start)");
+    }
+
+    @Test
+    void differentBucketsFromOneAddressEachGetTheirOwnLine() throws Exception {
+        when(auth.startEmailSignIn(anyString())).thenThrow(new RateLimitedException("email-start-address", 30));
+        when(auth.verifyEmailSignIn(anyString(), anyString())).thenThrow(new RateLimitedException("email-verify-address", 30));
+        for (String path : List.of("start", "verify", "start", "verify")) {
+            mvc.perform(post("/api/v1/auth/email/" + path)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"asha@example.com\",\"code\":\"123456\"}")
+                    .with(from("10.5.0.2")));
+        }
+        assertThat(messages("Rate limit hit")).containsExactlyInAnyOrder(
+                "Rate limit hit (bucket=email-start-address, path=/api/v1/auth/email/start)",
+                "Rate limit hit (bucket=email-verify-address, path=/api/v1/auth/email/verify)");
     }
 
     @Test
