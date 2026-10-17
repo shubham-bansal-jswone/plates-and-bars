@@ -22,6 +22,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,10 +39,16 @@ import org.springframework.transaction.annotation.Transactional;
  *       a retry of an earlier success: {@code server_won}, nothing written, nothing logged. Else the later
  *       {@code updated_at} wins, a tie goes to the server, and the losing copy goes to {@code sync_conflicts}.
  * </ul>
- * Never log record contents: nothing here logs at all.
+ * Per-account record cap (#349, contract 0.1.16): when {@code app.sync.max-records-per-account} is set, a push with at
+ * least one new record (an id the account does not store in that table) is refused whole with 413 {@code account_full}
+ * if stored + new is over the limit. The stored count is {@code sync_state.records}, kept in step in this transaction.
+ * <p>
+ * Never log record contents: the only log line is the refusal, with the user id and three counts.
  */
 @Service
 public class SyncService {
+
+    private static final Logger log = LoggerFactory.getLogger(SyncService.class);
 
     static final Duration FUTURE_SLACK = Duration.ofMinutes(5);
 
@@ -53,22 +61,43 @@ public class SyncService {
 
     private final Duration conflictLogRetention;
 
+    /** Most records one account may store; 0 means no cap. */
+    private final long maxRecords;
+
     SyncService(
             SyncRepository repo,
             Clock clock,
             ObjectMapper json,
             @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-max-per-user:1000}") int conflictLogKeep,
-            @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-retention-days:90}") int retentionDays) {
+            @org.springframework.beans.factory.annotation.Value("${app.sync.conflict-log-retention-days:90}") int retentionDays,
+            @org.springframework.beans.factory.annotation.Value("${app.sync.max-records-per-account:}") String maxRecords) {
         if (conflictLogKeep < 1 || retentionDays < 1) {
             // 0 would delete the whole log, including the copy just written.
             throw new IllegalArgumentException(
                     "app.sync.conflict-log-max-per-user and app.sync.conflict-log-retention-days must both be at least 1");
         }
+        this.maxRecords = parseCap(maxRecords);
         this.conflictLogKeep = conflictLogKeep;
         this.conflictLogRetention = Duration.ofDays(retentionDays);
         this.repo = repo;
         this.clock = clock;
         this.json = json;
+    }
+
+    /** Unset, blank or 0 is no cap; anything else must be a positive whole number or the app refuses to start. */
+    private static long parseCap(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        try {
+            long n = Long.parseLong(value.trim());
+            if (n >= 0) {
+                return n;
+            }
+        } catch (NumberFormatException e) {
+            // falls through to the message below
+        }
+        throw new IllegalArgumentException("app.sync.max-records-per-account must be a whole number, 0 or more");
     }
 
     private record Pulled(SyncTable table, Stored record) {}
@@ -78,13 +107,14 @@ public class SyncService {
         if (!repo.lockUser(userId)) {
             throw ApiException.sessionEnded(); // valid token, but the account no longer exists
         }
-        long before;
+        SyncRepository.State state;
         try {
             // Every read below happens after this lock, so each sees whatever the previous sync committed.
-            before = repo.lockState(userId);
+            state = repo.lockState(userId);
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw ApiException.sessionEnded(); // valid token, but the account no longer exists
         }
+        long before = state.seq();
         long after = 0;
         if (req.cursor() != null) {
             after = Cursor.parse(req.cursor()).orElseThrow();
@@ -97,6 +127,25 @@ public class SyncService {
             }
         }
 
+        Map<SyncTable, List<Incoming>> byTable = new LinkedHashMap<>();
+        for (Incoming in : req.records()) {
+            byTable.computeIfAbsent(in.table(), t -> new ArrayList<>()).add(in);
+        }
+        // What the account stores of the pushed ids, per table; an id missing here is new (whatever version was sent).
+        Map<SyncTable, Map<String, Stored>> storedByTable = new EnumMap<>(SyncTable.class);
+        long fresh = 0;
+        for (Map.Entry<SyncTable, List<Incoming>> e : byTable.entrySet()) {
+            Map<String, Stored> found = repo.find(
+                    e.getKey(), userId, e.getValue().stream().map(Incoming::id).toList());
+            storedByTable.put(e.getKey(), found);
+            fresh += e.getValue().size() - found.size();
+        }
+        if (maxRecords > 0 && fresh > 0 && state.records() + fresh > maxRecords) {
+            log.warn("Sync refused, account full: user {} limit {} stored {} new {}",
+                    userId, maxRecords, state.records(), fresh);
+            throw new AccountFullException(maxRecords, state.records(), fresh);
+        }
+
         Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         long seq = before;
         boolean logged = false;
@@ -104,14 +153,9 @@ public class SyncService {
         ArrayNode conflicts = json.createArrayNode();
         Map<SyncTable, Set<String>> pushed = new EnumMap<>(SyncTable.class);
 
-        Map<SyncTable, List<Incoming>> byTable = new LinkedHashMap<>();
-        for (Incoming in : req.records()) {
-            byTable.computeIfAbsent(in.table(), t -> new ArrayList<>()).add(in);
-        }
         for (Map.Entry<SyncTable, List<Incoming>> e : byTable.entrySet()) {
             SyncTable table = e.getKey();
-            Map<String, Stored> existing = repo.find(
-                    table, userId, e.getValue().stream().map(Incoming::id).toList());
+            Map<String, Stored> existing = storedByTable.get(table);
             Set<String> ids = pushed.computeIfAbsent(table, t -> new HashSet<>());
             for (Incoming in : e.getValue()) {
                 ids.add(in.id());
@@ -153,7 +197,7 @@ public class SyncService {
             }
         }
         if (seq != before) {
-            repo.saveSeq(userId, seq);
+            repo.saveState(userId, new SyncRepository.State(seq, state.records() + fresh));
         }
         if (logged) {
             repo.pruneConflicts(userId, now.minus(conflictLogRetention), conflictLogKeep);
