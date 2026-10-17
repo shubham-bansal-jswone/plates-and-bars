@@ -557,8 +557,30 @@ export type { MealPlan, PlanItem, PlanTargets, GroceryEntry, GroceryRow } from '
  * - `kitchenNoteTooLong` is true for a kitchen-test note over `NOTE_MAX` (2000, `KitchenTest.note`).
  * - `exerciseNameTooLong` is true for a trimmed custom exercise name over `EXERCISE_NAME_MAX` (200, `Settings.custom_tags` keys; #397).
  * - `CUSTOM_EXERCISES_MAX` (500) is the most custom exercises `Settings.custom_tags` holds (maxProperties).
+ * - `EXERCISE_OVERRIDES_MAX` (500) is the most entries `Settings.exercise_overrides` holds (maxProperties);
+ *   `exerciseOverridesWouldExceed` is true when saving a new name would go past it (#620).
  */
-export { UNIT_MAX, NOTE_MAX, EXERCISE_NAME_MAX, CUSTOM_EXERCISES_MAX, servingUnitTooLong, kitchenNoteTooLong, exerciseNameTooLong } from './inputLimits';
+export {
+  UNIT_MAX,
+  NOTE_MAX,
+  EXERCISE_NAME_MAX,
+  CUSTOM_EXERCISES_MAX,
+  EXERCISE_OVERRIDES_MAX,
+  servingUnitTooLong,
+  kitchenNoteTooLong,
+  exerciseNameTooLong,
+  exerciseOverridesWouldExceed,
+} from './inputLimits';
+
+/**
+ * Exercise settings sheet (#620):
+ * - `EXERCISE_SHEET_TYPES` mirrors the equipment list of prototype `renderExSettings()` (all `ExType` values but `other`).
+ * - `EXERCISE_STEP_CHOICES` mirrors its `steps`; the sheet hides them for `noLoad` types.
+ * - `exerciseOverrideEntry` mirrors the `es-save` step of prototype `workoutAction`, with the contract's range rule
+ *   (a low below 1 is refused; the prototype saves it).
+ */
+export { EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry } from './exerciseSettings';
+export type { ExerciseSettingsDraft, ExerciseOverrideResult } from './exerciseSettings';
 
 /**
  * The feel step after a set in learn mode (#485). `priorSessions`, `isLearning` and `showFeel` mirror prototype
