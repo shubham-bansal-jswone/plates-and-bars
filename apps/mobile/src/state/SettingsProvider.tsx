@@ -147,10 +147,10 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
         })
         .then(
           (saved) => {
+            done?.(true); // told also when this provider has gone: the record was written
             if (!mounted.current) return;
             setSaveFailed(false);
             pending.current -= 1;
-            done?.(true);
             // The last of the queued edits has landed: what shows is what is stored (it keeps the pulled fields and version).
             if (pending.current === 0) {
               ref.current = saved;
@@ -159,7 +159,8 @@ export function SettingsProvider({ db, reloadKey = 0, children }: { db: StoreDb 
             }
           },
           async (e) => {
-            if (e instanceof Dropped) return; // the account is gone: nothing to show, keep or write
+            // The account is gone: nothing to show, keep or write; the caller is told nothing was stored.
+            if (e instanceof Dropped) return done?.(false);
             pending.current -= 1;
             setSaveFailed(true);
             done?.(false);
