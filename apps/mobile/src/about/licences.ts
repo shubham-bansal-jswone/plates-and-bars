@@ -27,6 +27,8 @@ export const LICENCES_COPY = {
   noNotice: 'This package ships no separate licence file. The licence above is the one it declares.',
   noText: 'Read the licence at the link above.',
   loading: 'Loading licences',
+  failed: 'The licences could not be loaded. Check your connection and try again.',
+  retry: 'Try again',
   assets: 'Fonts and icons',
   npm: 'JavaScript packages',
   npmHint: 'Production dependencies of the app, from its lockfile.',
@@ -42,14 +44,23 @@ export const REPO_FILES = [
   { label: 'THIRD_PARTY.md', url: 'https://github.com/shubham-bansal-jswone/plates-and-bars/blob/main/THIRD_PARTY.md' },
 ] as const;
 
-let cache: Promise<LicenceData> | null = null;
+/** Wraps a loader so a success is cached and a failure is not: the next call tries again (a web fetch that failed offline). */
+export function cachedLoader<T>(load: () => Promise<T>): () => Promise<T> {
+  let cache: Promise<T> | null = null;
+  return () => {
+    cache ??= load().catch((e: unknown) => {
+      cache = null;
+      throw e;
+    });
+    return cache;
+  };
+}
+
 /**
  * Loads the generated JSON (about 0.5 MB) with a dynamic import, so the web export puts it in its own chunk that is fetched
  * when the list opens, and Hermes only evaluates it then.
  */
-export function loadLicences(): Promise<LicenceData> {
-  return (cache ??= import('./licences.json').then((m) => (m.default ?? m) as unknown as LicenceData));
-}
+export const loadLicences = cachedLoader(() => import('./licences.json').then((m) => (m.default ?? m) as unknown as LicenceData));
 
 /** Flat list rows (headings and entries) for a virtualised list. */
 export function licenceRows(d: LicenceData): LicenceRow[] {

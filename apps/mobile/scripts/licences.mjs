@@ -79,16 +79,13 @@ if (missing.length) { console.error(`not installed (run npm ci): ${missing.slice
 const packages = [...npm.values()].sort((a, b) => (a.name + a.version).localeCompare(b.name + b.version));
 
 // Android libraries
-// Standard licence texts, attached to every Android row (MIT and Apache-2.0 require the text to accompany the work). The
-// Apache-2.0 text is taken from an installed npm package; the others are the standard SPDX wording, which names no holder.
+// Licence texts attached to every Android row (the licences require the text, with its copyright notice, to accompany the work).
+// Apache-2.0 names no holder, so one standard text taken from an installed npm package serves for all. MIT and BSD texts carry a
+// copyright line, so each such artifact needs its own upstream LICENSE copied into scripts/licence-texts/ (checked against the
+// upstream repository on 2026-10-17); an MIT or BSD artifact without one fails the script.
 const apacheText = [...npm.values()].map((e) => ({ e, t: noticeFile(dirOf.get(`${e.name}@${e.version}`)) })).find(({ e, t }) => e.licence === 'Apache-2.0' && t?.includes('Version 2.0, January 2004'))?.t;
 if (!apacheText) { console.error('no Apache-2.0 licence text found among the npm packages'); process.exit(1); }
-const SPDX_TEXT = {
-  'Apache-2.0': apacheText.split('\n\nNOTICE\n\n')[0],
-  MIT: 'MIT License\n\nCopyright (c) the authors of the library\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.',
-  'BSD-2-Clause': 'BSD 2-Clause License\n\nCopyright (c) the authors of the library. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.',
-  'BSD-3-Clause': 'BSD 3-Clause License\n\nCopyright (c) the authors of the library. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\n3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.',
-};
+const SPDX_TEXT = { 'Apache-2.0': apacheText.split('\n\nNOTICE\n\n')[0] };
 const LICENCE_URL = {
   'Apache-2.0': 'https://www.apache.org/licenses/LICENSE-2.0',
   MIT: 'https://opensource.org/license/mit',
@@ -123,15 +120,32 @@ const NATIVE_LICENCE = [
   ['com.vanniktech:', 'Apache-2.0'],
 ];
 const nativeLicence = (coord) => NATIVE_LICENCE.find(([k]) => coord.startsWith(k))?.[1];
-const licenceText = (expr) => {
-  const ids = expr.split(/ AND | OR /).filter((id) => SPDX_TEXT[id]);
-  return ids.length ? textId(ids.map((id) => SPDX_TEXT[id]).join('\n\n----------\n\n')) : null;
+const UPSTREAM_TEXT = [
+  ['com.facebook.fresco:', 'fresco.txt'],
+  ['com.facebook.yoga:', 'yoga.txt'],
+  ['com.facebook.infer.annotation:', 'infer-annotation.txt'],
+  ['com.github.bumptech.glide:', 'glide.txt'], // BSD-2-Clause, with the MIT and Apache parts for its bundled third-party code
+  ['org.brotli:', 'brotli.txt'],
+  ['io.sentry:', 'sentry-java.txt'],
+  ['io.github.expo.pika:', 'expo-pika.txt'],
+  ['io.github.expo.kolibri:', 'expo-kolibri.txt'],
+  ['io.github.expo:', 'expo-modules-v2-android.txt'],
+  ['com.google.code.findbugs:jsr305', 'jsr305.txt'], // the BSD-3-Clause part; the Apache part is the standard text
+];
+const licenceText = (coord, expr) => {
+  const ids = expr.split(/ AND | OR /);
+  const parts = [];
+  const upstream = UPSTREAM_TEXT.find(([k]) => coord.startsWith(k))?.[1];
+  if (upstream) parts.push(read(join(root, 'scripts/licence-texts', upstream)).trim());
+  else if (ids.some((id) => /^(MIT|BSD)/.test(id))) { console.error(`Android library ${coord} is ${expr} and needs its upstream LICENSE in scripts/licence-texts (UPSTREAM_TEXT)`); process.exit(1); }
+  if (ids.includes('Apache-2.0')) parts.push(SPDX_TEXT['Apache-2.0']);
+  return parts.length ? textId(parts.join('\n\n----------\n\n')) : null;
 };
 const licenceUrl = (expr) => LICENCE_URL[expr] ?? expr.split(/ AND | OR /).map((id) => LICENCE_URL[id.split(' ')[0]]).filter(Boolean)[0] ?? null;
 
-// Versions the Gradle files take from the host app or a BOM instead of declaring them. null means the library is listed without a version.
+// Versions the Gradle files take from the host app or a BOM instead of declaring them. 
 const VERSION_VARS = { kotlinVersion: 'kotlin', kotlin_version: 'kotlin' }; // names in React Native's libs.versions.toml
-const MANUAL_VERSIONS = { 'io.github.expo.kolibri:kolibri-android': null };
+const MANUAL_VERSIONS = { 'io.github.expo.kolibri:kolibri-android': '0.2.3' }; // no version in the Gradle file; Expo's BOM pins it (Maven Central latest 0.2.3)
 
 const toml = read(join(nm, 'react-native/gradle/libs.versions.toml'));
 const tomlVersions = Object.fromEntries([...toml.split('[libraries]')[0].matchAll(/^([\w-]+)\s*=\s*"([^"]+)"/gm)].map((m) => [m[1], m[2]]));
@@ -144,7 +158,7 @@ const addNative = (coord, version, from) => {
   if (!licence) { console.error(`Android library ${coord} (from ${from}) has no licence in scripts/licences.mjs`); process.exit(1); }
   const key = `${coord}:${version}`;
   const prev = native.get(key);
-  native.set(key, { name: coord, version, licence, url: licenceUrl(licence), text: licenceText(licence), from: [...new Set([...(prev?.from ?? []), from])].sort() });
+  native.set(key, { name: coord, version, licence, url: licenceUrl(licence), text: licenceText(coord, licence), from: [...new Set([...(prev?.from ?? []), from])].sort() });
 };
 const resolveVersion = (coord, v, gradle, from) => {
   if (v === undefined) {

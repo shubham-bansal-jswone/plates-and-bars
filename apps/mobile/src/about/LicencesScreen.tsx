@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Button, Heading, Hint, H1, Press, a11yState } from '../components/ui';
+import { Button, ErrorText, Heading, Hint, H1, Press, a11yState } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { LICENCES_COPY as t, licenceRows, loadLicences, type LicenceData, type LicenceEntry, type LicenceRow } from './licences';
@@ -35,13 +35,18 @@ function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | nu
 export function LicencesScreen({ onBack }: { onBack: () => void }) {
   const c = useTheme();
   const [data, setData] = useState<LicenceData | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
-    void loadLicences().then((d) => live && setData(d));
+    loadLicences().then(
+      (d) => live && setData(d),
+      () => live && setFailed(true),
+    );
     return () => {
       live = false;
     };
-  }, []);
+  }, [attempt]);
   const rows = useMemo(() => (data ? licenceRows(data) : []), [data]);
   const texts = data?.texts ?? {};
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -74,7 +79,17 @@ export function LicencesScreen({ onBack }: { onBack: () => void }) {
             <Button label="Back" kind="link" onPress={onBack} />
             <H1>{t.title}</H1>
             <Hint>{t.intro}</Hint>
-            {data ? null : <Hint>{t.loading}</Hint>}
+            {data ? null : failed ? (
+              <View>
+                <ErrorText>{t.failed}</ErrorText>
+                <Button label={t.retry} kind="ghost" onPress={() => {
+                    setFailed(false);
+                    setAttempt((n) => n + 1);
+                  }} />
+              </View>
+            ) : (
+              <Hint>{t.loading}</Hint>
+            )}
           </View>
         }
       />
