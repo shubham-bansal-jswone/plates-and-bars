@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRaw, validateRecipes, validatePlanning } from '../validate/recipes.mjs';
-import { extractRecipeData, importAll, serialize, idFor, SOURCE_OVERRIDE, FDC_UNMATCHED } from '../recipes-import/import.mjs';
+import { extractRecipeData, importAll, serialize, idFor, SOURCE_OVERRIDE, VALUE_OVERRIDE } from '../recipes-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
@@ -32,7 +32,7 @@ test('raw ingredients carry the prototype numbers, including fibre, in prototype
   const c = load('raw-ingredients.json');
   assert.deepEqual(c.ingredients.map((i) => i.name), Object.keys(p.RAW));
   for (const i of c.ingredients) {
-    const [kcal, protein, carbs, fat] = p.RAW[i.name];
+    const [kcal, protein, carbs, fat] = VALUE_OVERRIDE[i.name]?.set ?? p.RAW[i.name]; // Ghee: #576
     assert.deepEqual(i.per_100g, { kcal, protein_g: protein, carbs_g: carbs, fibre_g: p.RAW_FIB[i.name] ?? 0, fat_g: fat });
   }
   const toor = c.ingredients.find((i) => i.name === 'Toor dal (dry)');
@@ -169,7 +169,9 @@ test('golden cross-check: raw100g and rawFibre100g in docs/spec/golden/foods.jso
   const c = load('raw-ingredients.json').ingredients;
   assert.deepEqual(c.map((i) => i.name), Object.keys(g.raw100g));
   for (const i of c) {
-    const [kcal, protein, carbs, fat] = g.raw100g[i.name];
+    // Ghee is the one deliberate content-over-prototype value (#576): FDC 171314 instead of the prototype's 876 kcal row.
+    const [kcal, protein, carbs, fat] = VALUE_OVERRIDE[i.name]?.set ?? g.raw100g[i.name];
+    if (VALUE_OVERRIDE[i.name]) assert.deepEqual(g.raw100g[i.name], VALUE_OVERRIDE[i.name].from, i.name);
     assert.deepEqual(i.per_100g, { kcal, protein_g: protein, carbs_g: carbs, fibre_g: g.rawFibre100g[i.name] ?? 0, fat_g: fat }, i.name);
   }
   for (const n of Object.keys(g.rawFibre100g)) assert.ok(n in g.raw100g, n);
@@ -187,8 +189,21 @@ test('fresh cream is a label value; borrowed USDA entries are recorded in the so
 test('every usda_fdc raw row names its FDC id, except the listed generic one; other sources carry none (#98)', () => {
   for (const i of load('raw-ingredients.json').ingredients) {
     if (i.source.code !== 'usda_fdc') assert.equal(i.source.reference, null, i.name);
-    else if (FDC_UNMATCHED.includes(i.name)) assert.equal(i.source.reference, null, i.name);
     else assert.match(i.source.reference, /^FDC \d+ \(SR Legacy: .+\), per 100 g/, i.name);
   }
-  assert.deepEqual(FDC_UNMATCHED, ['Oil']);
+  assert.deepEqual(Object.keys(VALUE_OVERRIDE), ['Ghee']);
+});
+
+test('#576: Ghee uses FDC 171314 in both files with one value; Oil stays generic with source label typical', () => {
+  const ing = (n) => load('raw-ingredients.json').ingredients.find((i) => i.name === n);
+  const ghee = ing('Ghee');
+  assert.match(ghee.source.reference, /^FDC 171314 /);
+  assert.deepEqual(ghee.per_100g, { kcal: 900, protein_g: 0, carbs_g: 0, fibre_g: 0, fat_g: 100 });
+  const foodsGhee = load('foods.json').foods.find((f) => f.name === 'Ghee');
+  assert.match(foodsGhee.source.reference, /^FDC 171314 /);
+  assert.equal(foodsGhee.per_serving.kcal, Math.round(ghee.per_100g.kcal * 4.9 / 100));
+  const oil = ing('Oil');
+  assert.equal(oil.source.code, 'label_typical');
+  assert.equal(oil.source.reference, null);
+  assert.deepEqual(oil.per_100g, { kcal: 884, protein_g: 0, carbs_g: 0, fibre_g: 0, fat_g: 100 });
 });

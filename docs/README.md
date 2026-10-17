@@ -10,5 +10,11 @@ Where to find things. The prototype is the behaviour specification; everything e
     spec/PROTOTYPE_SPEC.md         behaviour spec; section 0 lists what changed and when
     spec/golden/*.json             fixtures generated from the prototype; never edit by hand
     spec/ISSUES.md                 work items from the 2026-10-07 handoff, with acceptance criteria
+    INCIDENT-RESPONSE.md           personal data breach runbook (DPDP notification, templates)
+    PLAY-DATA-SAFETY.md            Play Console Data safety and Health apps declaration answers
 
 When the prototype changes, follow "When the prototype changes" in AGENTS.md.
+
+## Licence
+
+Code is licensed under the [Apache License 2.0](../LICENSE). Our own written content (the cards, recipe text and exercise notes in `content/`, and app and website copy) is licensed under [CC BY 4.0](../CONTENT-LICENSE). Third-party data and assets keep their own licences: see [NOTICE](../NOTICE) and [THIRD_PARTY.md](../THIRD_PARTY.md).

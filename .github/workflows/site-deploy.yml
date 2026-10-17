@@ -19,6 +19,7 @@ on:
     paths:
       - 'infra/caddy/**'
       - 'apps/site/public/_headers'
+      - 'apps/mobile/public/_headers'
       - 'infra/scripts/check-caddy-headers.sh'
       - 'infra/scripts/test-check-caddy-headers.sh'
       - '.github/workflows/site-deploy.yml'
@@ -43,11 +44,11 @@ jobs:
       # Official Caddy image (Apache-2.0); a non-zero exit from any file fails the job (set -e is the default shell)
       - name: caddy validate
         run: |
-          for f in Caddyfile.site Caddyfile.api; do
+          for f in Caddyfile.site Caddyfile.api Caddyfile.web Caddyfile.stack; do
             echo "== $f"
             docker run --rm -v "$PWD/infra/caddy:/c:ro" caddy:2.11.7 caddy validate --config "/c/$f" --adapter caddyfile
           done
-      - name: site headers match apps/site/public/_headers, API Caddyfile keeps HSTS
+      - name: site and web headers match their _headers, API Caddyfile keeps HSTS
         run: infra/scripts/check-caddy-headers.sh
       - name: header drift check catches drift (test)
         run: |

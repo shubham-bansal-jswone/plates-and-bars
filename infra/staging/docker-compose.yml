@@ -48,8 +48,13 @@ services:
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY (at least 32 bytes)}
       GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # Exact origins of the web app that may use the refresh cookie (#644); empty refuses cookie mode
+      AUTH_COOKIE_ORIGINS: ${AUTH_COOKIE_ORIGINS:-}
       # Per-account record cap on POST /sync (413 account_full). Unset or empty = no cap; leave unset until the app handles account_full.
       SYNC_MAX_RECORDS_PER_ACCOUNT: ${SYNC_MAX_RECORDS_PER_ACCOUNT:-}
+      # Error tracking (Sentry SDK to GlitchTip). Empty = off, nothing is sent.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -71,8 +76,14 @@ services:
     environment:
       API_HOST: ${API_HOST:?set API_HOST}
       API_UPSTREAM: api:8080
+      # Web app host (same site as API_HOST). Unset: plain HTTP on port 8081 inside the container, which is not published, so nothing is reachable.
+      WEB_HOST: ${WEB_HOST:-http://127.0.0.1:8081}
+    # Caddyfile.stack imports Caddyfile.api and Caddyfile.web from the mounted directory.
+    command: caddy run --config /etc/caddy/sites/Caddyfile.stack --adapter caddyfile
     volumes:
-      - ../caddy/Caddyfile.api:/etc/caddy/Caddyfile:ro
+      - ../caddy:/etc/caddy/sites:ro
+      # Expo web export, written by web-deploy.yml (rsync). Create it as the deploy user first: RUNBOOK.md section 7.
+      - ${WEB_DIR:-./web}:/srv/web:ro
       - caddy_data:/data # certificates: keep, or Let's Encrypt rate limits bite after a rebuild
       - caddy_config:/config
     networks: [backend]
