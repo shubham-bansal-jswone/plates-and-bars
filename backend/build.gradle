@@ -83,6 +83,8 @@ tasks.named('test') {
     // Full-context tests start outside the dev profile, which needs an SMTP host; nothing connects to it.
     environment 'SMTP_HOST', 'localhost'
     environment 'SMTP_FROM', 'noreply@example.invalid'
+    // The erasure ledger is required outside the dev profile; full-context tests append to a throwaway file.
+    environment 'ERASURE_LEDGER_PATH', layout.buildDirectory.file('tmp/erasure-ledger/erasures.log').get().asFile.path
     // Every content file needs an updated_at or the app refuses to start; tests use a fixed one for each file.
     environment 'CONTENT_UPDATED_AT', fileTree('../content') { include '*.json' }.files
             .collect { it.name.replace('.json', '') + '=2026-01-02T03:04:05Z' }.sort().join(',')
