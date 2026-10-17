@@ -1,10 +1,13 @@
 package app.plateandbar.api.auth;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,9 +15,13 @@ import app.plateandbar.api.auth.AuthDtos.EmailStartResponse;
 import app.plateandbar.api.auth.AuthDtos.TokenPair;
 import app.plateandbar.api.auth.AuthDtos.UserDto;
 import app.plateandbar.api.common.ApiException;
+import app.plateandbar.api.support.StrictJsonVectors;
 import app.plateandbar.api.support.WebMvcAuthSlice;
 import java.time.Instant;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -24,6 +31,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 @WebMvcTest(AuthController.class)
 @WebMvcAuthSlice
+// The strict-JSON vectors send more email/start requests than its 10 per hour per IP.
+@org.springframework.test.context.TestPropertySource(properties = "app.rate-limit.email-start-per-ip.capacity=100000")
 class AuthControllerTest {
 
     @Autowired MockMvc mvc;
@@ -76,28 +85,70 @@ class AuthControllerTest {
         verifyNoInteractions(auth);
     }
 
-    /** Spring Boot 4 / Jackson 3 refuses trailing content by default; the API keeps accepting it as before (#81). */
-    @Test
-    void contentAfterTheJsonBodyIsStillAccepted() throws Exception {
-        when(auth.startEmailSignIn("b@example.com"))
-                .thenReturn(new EmailStartResponse(Instant.parse("2026-10-08T06:40:00Z"), 60));
-        mvc.perform(json("/api/v1/auth/email/start", "{\"email\":\"b@example.com\"} junk"))
-                .andExpect(status().isAccepted());
-        mvc.perform(json("/api/v1/auth/email/start", "{\"email\":\"b@example.com\"}{\"x\":1}"))
-                .andExpect(status().isAccepted());
+    /** Contract 0.1.18 wire conventions (#720): the shared vectors, on the /auth/* bodies they name. */
+    @ParameterizedTest(name = "refused: {0}")
+    @MethodSource("refusedVectors")
+    void strictJsonVectorsAreRefused(StrictJsonVectors.Vector v) throws Exception {
+        mvc.perform(json("/api/v1" + v.path(), v.body()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(content().string(not(containsString("asha@"))))
+                .andExpect(content().string(not(containsString("rt_9f2c"))));
+        verifyNoInteractions(auth);
     }
 
-    /**
-     * A duplicate key: the last value wins (202). Spring Boot 3 answered 500 here, which was a bug; a follow-up makes
-     * it 400 like /ai/*. This pins the current answer so a change is deliberate.
-     */
-    @Test
-    void aDuplicateKeyTakesTheLastValue() throws Exception {
-        when(auth.startEmailSignIn("d@example.com"))
+    static Stream<StrictJsonVectors.Vector> refusedVectors() {
+        return Stream.concat(
+                StrictJsonVectors.mustRefuse("/auth/email/start").stream(),
+                StrictJsonVectors.mustRefuse("/auth/refresh").stream());
+    }
+
+    @ParameterizedTest(name = "accepted: {0}")
+    @MethodSource("acceptedVectors")
+    void strictJsonVectorsThatAreValidAreAccepted(StrictJsonVectors.Vector v) throws Exception {
+        when(auth.startEmailSignIn("asha@example.com"))
                 .thenReturn(new EmailStartResponse(Instant.parse("2026-10-08T06:40:00Z"), 60));
-        mvc.perform(json("/api/v1/auth/email/start", "{\"email\":\"c@example.com\",\"email\":\"d@example.com\"}"))
-                .andExpect(status().isAccepted());
-        verify(auth).startEmailSignIn("d@example.com");
+        mvc.perform(json("/api/v1" + v.path(), v.body())).andExpect(status().isAccepted());
+    }
+
+    static Stream<StrictJsonVectors.Vector> acceptedVectors() {
+        return StrictJsonVectors.mustAccept("/auth/email/start").stream();
+    }
+
+    /** The shared vectors file is contract-owned and has no duplicate-key vector for refresh, so it is pinned here. */
+    @Test
+    void refreshRefusesADuplicateKeyWithoutUsingEitherToken() throws Exception {
+        mvc.perform(json("/api/v1/auth/refresh", "{\"refresh_token\":\"rt_abc\",\"refresh_token\":\"rt_def\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_request"))
+                .andExpect(content().string(not(containsString("rt_"))));
+        verifyNoInteractions(auth);
+    }
+
+    /** The revoke endpoint reads the same TokenBody as refresh, so it is as strict. */
+    @Test
+    void revokeRefusesTrailingContentAndDuplicateKeysWithoutRevoking() throws Exception {
+        for (String bad : new String[] {"{\"refresh_token\":\"rt_abc\"} junk",
+                "{\"refresh_token\":\"rt_abc\",\"refresh_token\":\"rt_def\"}"}) {
+            mvc.perform(json("/api/v1/auth/refresh/revoke", bad))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("invalid_request"))
+                    .andExpect(content().string(not(containsString("rt_"))));
+        }
+        verifyNoInteractions(auth);
+    }
+
+    /** The nesting limit stays 1000 (Jackson 3 defaults to 500): 1000 deep parses, 1001 is refused (#81, #720). */
+    @Test
+    void nestingIsLimitedTo1000() throws Exception {
+        int max = StrictJsonVectors.maxNestingDepth();
+        when(auth.startEmailSignIn("asha@example.com"))
+                .thenReturn(new EmailStartResponse(Instant.parse("2026-10-08T06:40:00Z"), 60));
+        // The object is level 1, the array chain the rest.
+        String ok = "{\"email\":\"asha@example.com\",\"x\":" + "[".repeat(max - 1) + "]".repeat(max - 1) + "}";
+        String deep = "{\"email\":\"asha@example.com\",\"x\":" + "[".repeat(max) + "]".repeat(max) + "}";
+        mvc.perform(json("/api/v1/auth/email/start", ok)).andExpect(status().isAccepted());
+        mvc.perform(json("/api/v1/auth/email/start", deep)).andExpect(status().isBadRequest());
     }
 
     @Test
