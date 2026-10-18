@@ -1,7 +1,7 @@
 import { completeSetup, expect, label, tab, test } from '../support/app.mjs';
 
-// 360 px is a common Android width. The Workout screen once scrolled sideways there (#900): set rows and the effort chips forced
-// the page column wider than the screen. Layout is not computed under jest, so this measures the real boxes on the web build.
+// 360 px is a common Android width. The Workout screen once scrolled sideways there (#900): the ramp buttons ("Start the ramp for
+// <exercise>", "I know my weight for <exercise>") put the exercise name in their visible text and forced the page column wider than the screen. Layout is not computed under jest, so this measures the real boxes on the web build.
 test.use({ viewport: { width: 360, height: 640 } });
 
 test('the Workout screen fits 360 px with a started session and a ticked set', async ({ page }) => {
