@@ -16,6 +16,12 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - The base applies only while at least one seeded exercise remains picked, whatever the order of taps; if none does, the session is plain hand-picked. While picks are seeded the "Training away" toggle is hidden so `where` cannot change under the list; Back to workouts brings it back.
 - Fully hand-picked sessions (no preview) are unchanged: a "Session" with `base` null and `mods: {}`, as in `exPick`.
 
+**2026-10-19 — in sequence mode, hand-picked sessions do not reset the workout order (deliberate difference; prototype and golden fixtures unchanged).**
+- #1019 (implemented in PR #1029). In sequence mode the next workout follows the most recent day that has a real template:
+- Hand-picked days (no template, or "Session", core's `HAND_PICKED`) are skipped, so a one-off session does not send the sequence back to the start.
+- A template that is no longer in the plan (for example after a split change) restarts at the first entry.
+- Prototype difference: `docs/prototype/plate-and-bar.html:1552` takes the last session as is and restarts at the first entry on any template not found in the plan, which includes a hand-picked "Session".
+
 **2026-10-19 — v1.1 form check accepts photos and sends frames (spec-change; prototype and golden fixtures unchanged).**
 - #1012 (from PR #1003, the v1.1 form check port under #946; decided by the coordinator under the owner's delegation). Two deliberate differences from the prototype, recorded here instead of kept silently.
 - Photos as well as video: the prototype's form check takes only a video and cuts frames in the browser with `<video>` and canvas. The app also accepts 2 to 4 photos (picked or taken), and cuts video frames on the phone with `expo-video-thumbnails`, which has no web implementation, so on web only the photos path is offered. Decision: keep both, because photos make the feature usable on web and on phones where a video pick fails. Web video (porting the prototype's canvas cut) is a nice-to-have and can wait.
