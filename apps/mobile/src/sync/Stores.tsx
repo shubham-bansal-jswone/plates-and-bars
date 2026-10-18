@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PullDb } from '../db/outbox';
 import type { WorkoutDb } from '../db/workouts';
+import { ReminderRestore } from '../reminders/ReminderRestore';
 import { ProfileProvider } from '../state/ProfileProvider';
 import { SettingsProvider } from '../state/SettingsProvider';
 import { useSync } from './SyncProvider';
@@ -15,6 +16,7 @@ export function Stores({ db, children }: { db: WorkoutDb & PullDb; children: Rea
   return (
     <ProfileProvider key={epoch} db={db} reloadKey={dataVersion}>
       <SettingsProvider db={db} reloadKey={dataVersion}>
+        <ReminderRestore db={db} />
         {children}
       </SettingsProvider>
     </ProfileProvider>

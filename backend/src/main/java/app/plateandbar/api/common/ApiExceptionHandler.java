@@ -32,6 +32,15 @@ public class ApiExceptionHandler {
         return respond(e.status(), e.code(), e.getMessage(), e.details());
     }
 
+    @ExceptionHandler(UpstreamException.class)
+    ResponseEntity<ErrorResponse> upstream(UpstreamException e) {
+        ResponseEntity.BodyBuilder out = ResponseEntity.status(e.status());
+        if (e.retryAfterSeconds() != null) {
+            out.header("Retry-After", Long.toString(e.retryAfterSeconds()));
+        }
+        return out.contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(ErrorResponse.of(e.code(), e.getMessage()));
+    }
+
     @ExceptionHandler(AccountFullException.class)
     ResponseEntity<ErrorResponse> accountFull(AccountFullException e) {
         return ResponseEntity.status(e.status())
