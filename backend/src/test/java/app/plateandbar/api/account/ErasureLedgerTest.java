@@ -9,6 +9,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.util.List;
 import java.util.TimeZone;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -69,6 +71,40 @@ class ErasureLedgerTest {
         }
         assertThat(Files.readAllLines(dir.resolve("erasures-2026-10-18.log"))).containsExactly(A + "\t2026-10-18T20:00:00Z");
         assertThat(Files.readAllLines(dir.resolve("erasures-2026-10-19.log"))).containsExactly(B + "\t2026-10-19T03:00:00Z");
+    }
+
+    @Test
+    void aSecondEntryOfANewDayWaitsUntilTheFirstHasSyncedTheDirectory() throws Exception {
+        CountDownLatch inSync = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ErasureLedger ledger = new ErasureLedger(dir.toString(), false) {
+            @Override
+            void syncDirectory() throws java.io.IOException {
+                inSync.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS); // the first entry is still making the new file durable
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                super.syncDirectory();
+            }
+        };
+        Thread first = new Thread(() -> ledger.record(A, AT));
+        first.start();
+        assertThat(inSync.await(10, TimeUnit.SECONDS)).isTrue();
+        // the file exists now, so the second entry would skip the directory sync: it must wait for the first instead
+        Thread second = new Thread(() -> ledger.record(B, AT.plusSeconds(1)));
+        second.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (second.getState() != Thread.State.BLOCKED && second.isAlive() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertThat(second.getState()).isEqualTo(Thread.State.BLOCKED);
+        release.countDown();
+        first.join(10_000);
+        second.join(10_000);
+        assertThat(Files.readAllLines(dir.resolve(DAY)))
+                .isEqualTo(List.of(A + "\t2026-10-18T10:15:30Z", B + "\t2026-10-18T10:15:31Z"));
     }
 
     @Test

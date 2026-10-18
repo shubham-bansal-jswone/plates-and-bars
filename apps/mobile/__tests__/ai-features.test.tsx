@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
 import { AiSection } from '../src/ai/AiSection';
@@ -11,7 +11,7 @@ import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryTokenStore } from '../src/sync/tokens';
 import { KEY_USER } from '../src/sync/store';
 import { withSyncPaused } from '../src/sync/guard';
-import { Pressable, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { WhyLink } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
@@ -165,6 +165,153 @@ describe('Describe a meal', () => {
     await fireEvent.press(screen.getByLabelText('Add 1 item to breakfast'));
     await waitFor(() => expect(logs(db)).toHaveLength(1));
     expect(logs(db)[0]).toMatchObject({ name: 'Roti (2 medium)', kcal: 200, protein_g: 7, meal: 'Breakfast', food_id: null });
+  });
+
+  describe('from the add sheet (#874)', () => {
+    const openAdd = async (meal = 'breakfast') => fireEvent.press(await screen.findByLabelText(`+ Add to ${meal}`));
+    const count = (n: unknown, type: string): number => {
+      if (Array.isArray(n)) return n.reduce((t: number, x) => t + count(x, type), 0);
+      if (!n || typeof n !== 'object') return 0;
+      const o = n as { type?: string; children?: unknown };
+      return (o.type === type ? 1 : 0) + count(o.children, type);
+    };
+    const modals = () => ({ length: count(screen.toJSON(), 'Modal') });
+
+    it('has a Describe it tab that runs the same Describe flow in the same sheet and logs to that meal and the viewed day', async () => {
+      const { api, POST } = on();
+      POST.mockResolvedValue({ data: { items: [ROTI], quota: QUOTA }, response: res(200) });
+      const db = await food(optedIn(), api);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Previous day' }));
+      await openAdd('lunch');
+      const before = modals().length;
+      expect(before).toBe(1);
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      expect(screen.queryByLabelText('Search foods')).toBeNull();
+      // One sheet, no second Modal presented (the iOS limitation): the count does not change.
+      expect(modals()).toHaveLength(before);
+      await fireEvent.changeText(await screen.findByLabelText('Describe your meal'), '2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      await fireEvent.press(await screen.findByLabelText('Add 1 item to lunch'));
+      await waitFor(() => expect(logs(db)).toHaveLength(1));
+      expect(logs(db)[0]).toMatchObject({ name: 'Roti (2 medium)', meal: 'Lunch', date: '2026-10-07' });
+      expect(screen.queryByLabelText('+ Add to lunch')).toBeTruthy();
+      expect(screen.queryByLabelText('Describe your meal')).toBeNull();
+    });
+
+    it('keeps the tab and shows the switched-off message when the server turns Describe off while on it', async () => {
+      // The status read after the failure says the feature is off, so the gate closes while the tab is selected.
+      const get = jest.fn().mockResolvedValueOnce({ data: status({ describe_meal: true }), response: res(200) }).mockResolvedValue({ data: status(), response: res(200) });
+      const { api, POST, GET } = fakeApi({ get });
+      POST.mockResolvedValue({ error: { code: 'feature_disabled', message: 'x' }, response: res(503) });
+      await food(optedIn(), api);
+      await openAdd();
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      await fireEvent.changeText(await screen.findByLabelText('Describe your meal'), '2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      expect(await screen.findByText(/AI features are switched off right now\./)).toBeTruthy();
+      await waitFor(() => expect(GET.mock.calls.length).toBeGreaterThan(1));
+      expect(screen.getByRole('tab', { name: 'Describe it' })).toBeTruthy();
+      expect(screen.getByLabelText('Describe your meal')).toBeTruthy();
+    });
+
+    it('keeps the text and the estimate across tab switches and sends one request while one is pending', async () => {
+      const { api, POST } = on();
+      let done!: (v: unknown) => void;
+      POST.mockReturnValue(new Promise((r) => (done = r)));
+      await food(optedIn(), api);
+      await openAdd();
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      await fireEvent.changeText(await screen.findByLabelText('Describe your meal'), '2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+      await fireEvent.press(screen.getByRole('tab', { name: 'Food list' }));
+      expect(screen.queryByLabelText('Describe your meal')).toBeNull();
+      await fireEvent.press(screen.getByRole('tab', { name: 'Describe it' }));
+      expect(screen.getByLabelText('Describe your meal').props.value).toBe('2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      expect(POST).toHaveBeenCalledTimes(1);
+      await act(async () => done({ data: { items: [ROTI], quota: QUOTA }, response: res(200) }));
+      expect(await screen.findByLabelText('Item 1 Roti calories (kcal)')).toBeTruthy();
+      await fireEvent.press(screen.getByRole('tab', { name: 'Custom' }));
+      await fireEvent.press(screen.getByRole('tab', { name: 'Describe it' }));
+      expect(screen.getByLabelText('Item 1 Roti calories (kcal)').props.value).toBe('240');
+      expect(POST).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides the kept Describe body, but not from the tree, while another tab is shown', async () => {
+      const { api } = on();
+      await food(optedIn(), api);
+      await openAdd();
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      expect(screen.getByLabelText('Describe your meal')).toBeVisible();
+      await fireEvent.press(screen.getByRole('tab', { name: 'Food list' }));
+      const kept = screen.getByLabelText('Describe your meal', { includeHiddenElements: true });
+      expect(kept).not.toBeVisible();
+      // Also on its own: not shown (display none) even for a viewer that ignores the accessibility-hiding props.
+      let n = kept.parent;
+      let none = false;
+      while (n && !none) {
+        none = StyleSheet.flatten(n.props.style)?.display === 'none';
+        n = n.parent;
+      }
+      expect(none).toBe(true);
+    });
+
+    it('shows the quota message in the tab when the quota is used up', async () => {
+      const { api, POST } = fakeApi({ get: jest.fn(async () => ({ data: status({ describe_meal: true }, { ...QUOTA, remaining: 0 }), response: res(200) })) });
+      await food(optedIn(), api);
+      await openAdd();
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      expect(screen.queryByLabelText('Estimate')).toBeNull();
+      expect(POST).not.toHaveBeenCalled();
+    });
+
+    it('the tablist holds only tabs, and the no-match hint points at Describe', async () => {
+      const { api } = on();
+      await food(optedIn(), api);
+      await openAdd();
+      let list = screen.getByRole('tab', { name: 'Food list' }).parent;
+      while (list && list.props.accessibilityRole !== 'tablist') list = list.parent;
+      expect(list).toBeTruthy();
+      expect(within(list!).getAllByRole('tab', { hidden: true })).toHaveLength(4);
+      expect(within(list!).queryAllByRole('button', { hidden: true })).toHaveLength(0);
+      await fireEvent.changeText(screen.getByLabelText('Search foods'), 'zzzz');
+      expect(screen.getByText('No match. Use Custom to enter it yourself, or Describe to have AI estimate it.')).toBeTruthy();
+    });
+
+    it('with the feature off, the sheet has no tab and the hint does not mention Describe', async () => {
+      const { api, GET } = fakeApi();
+      await food(optedIn(), api);
+      await waitFor(() => expect(GET).toHaveBeenCalledWith('/ai/status', expect.anything()));
+      await openAdd();
+      expect(screen.queryByRole('tab', { name: 'Describe it' })).toBeNull();
+      await fireEvent.changeText(screen.getByLabelText('Search foods'), 'zzzz');
+      expect(screen.getByText('No match. Use Custom to enter it yourself.')).toBeTruthy();
+    });
+
+    it('without consent, the sheet has no tab', async () => {
+      const { api } = on();
+      await food(kvDb({ [KEY_USER]: 'u1' }), api);
+      await openAdd();
+      expect(screen.queryByRole('tab', { name: 'Describe it' })).toBeNull();
+    });
+
+    it('signed out, the sheet has no tab and nothing is sent', async () => {
+      const { api, GET, POST } = on();
+      const db = memoryDb();
+      await saveProfile(db, profile());
+      const t = await tokens();
+      await render(
+        <AiProvider db={optedIn() as never} api={api} tokens={t} signedIn={false} now={NOW}>
+          {withProfile(db, <FoodScreen db={db} now={NOW} />)}
+        </AiProvider>,
+      );
+      await screen.findByRole('header', { name: 'Food' });
+      await openAdd();
+      expect(screen.queryByRole('tab', { name: 'Describe it' })).toBeNull();
+      expect(GET).not.toHaveBeenCalled();
+      expect(POST).not.toHaveBeenCalled();
+    });
   });
 
   it('removing a suggestion keeps it out of the log', async () => {

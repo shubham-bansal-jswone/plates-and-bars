@@ -414,7 +414,7 @@ A backup restore brings back every account deleted after the dump was taken. To 
 UTC day (#887): the opaque user id, a tab and the UTC time cut to whole seconds (`ErasureLedger`). Nothing else is
 ever written (no email, no content); an id that is not a lower-case UUID is refused, and the replay (#853) must use
 the same pattern, `ErasureLedger.ID`. Each file is append-only (`O_APPEND`), mode 0600 in a 0700 directory, and forced
-to disk (and the directory, when the day's file is created) before the delete runs. Outside the `dev` profile an empty path refuses to start; in dev it logs a WARN and
+to disk (and the directory, when the day's file is created) before the delete runs. Outside the `dev` profile an empty directory setting refuses to start; in dev it logs a WARN and
 the ledger is off. `O_APPEND` keeps lines whole only on a local filesystem, not NFS: use a local named volume on one host.
 A repeat `DELETE /me` (the access token outlives the account by up to 15 minutes) appends nothing once the account row is gone.
 
@@ -431,6 +431,9 @@ A repeat `DELETE /me` (the access token outlives the account by up to 15 minutes
   ledger write failed, so nothing was deleted and the user can retry) lands on the next line, nothing is lost; the cut
   line only holds a request that answered 500. A disk-full event is also an ERROR in Sentry (`ErasureLedgerException`).
 - The fsync is real (`FileChannel.force(true)`) but no test can observe it; a mutation that removes it survives.
+- `record` is `synchronized`: the first entry of a day creates the file and syncs the directory, and a second deletion
+  racing it must not skip that sync and delete before the directory entry is durable (`ErasureLedgerTest` holds the
+  directory sync open and checks the second entry waits).
 - Retention (#887): entries are kept 45 days. One file per UTC day lets that be done by whole files: infra's
   `ledger-upload.sh` copies each day file to its own bucket object and deletes the day files (and objects) more than
   45 days old, and splits a single `erasures.log` left by the first version of the ledger into day files once. The API
