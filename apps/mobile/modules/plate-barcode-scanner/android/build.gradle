@@ -12,6 +12,10 @@ android {
     versionCode 1
     versionName '0.1.0'
   }
+  // The Expo module Gradle plugin turns abortOnError off; a lint error must fail the build (#1023).
+  lint {
+    abortOnError true
+  }
 }
 
 // Open-source only (#944): CameraX (Apache-2.0, Google Maven) and zxing-cpp (Apache-2.0, Maven Central). No ML Kit, no Play services.
