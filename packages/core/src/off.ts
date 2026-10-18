@@ -209,7 +209,8 @@ export function offToUserFood(p: OffProduct): OffMapResult {
  * Plausibility on per 100 g values: protein + carbs + fat above 100 g, or stated energy differing from
  * 4P + 4C + 9F by more than 50 kcal and more than 40 percent of the stated energy (all four must be known).
  * Also (#971): stated energy of exactly 0 while 4P + 4C + 9F is above 20 kcal (a missing macro counts as 0),
- * as a diet drink with 10.6 g carbs per 100 ml. Real zero-kcal products have near-zero macros and pass.
+ * as a diet drink with 10.6 g carbs per 100 ml. Energy of 0 from `energy-kj_100g` (kcal missing) counts as
+ * stated 0, since the draft then shows 0 kcal; 0.4 kcal is not 0. Real zero-kcal products have near-zero macros and pass.
  */
 function looksOff(kcal: number | null, p: number | null, c: number | null, f: number | null): boolean {
   if ((p ?? 0) + (c ?? 0) + (f ?? 0) > 100) return true;
