@@ -55,8 +55,9 @@ async function runSet(page, requests) {
   // Nothing of the model (weights, .wasm files, its chunk) has been requested before the user starts the camera.
   const before = requests.map((r) => r.url.pathname);
   expect(before.filter((p) => /\/pose\//.test(p) || /pose-detector/.test(p))).toEqual([]);
-  requests.startedAt = requests.length;
   await label(page, 'Start camera').click();
+  // the model chunk is its own file: a merge into the pose-session chunk would leave this empty
+  await expect.poll(() => requests.some((r) => /\/pose-detector-[^/]*\.js$/.test(r.url.pathname))).toBe(true);
   await expect(page.getByText(/Get in position\. Starting in \d\./)).toBeVisible();
   // 5 s countdown, then tracking runs on the fake frames
   await expect(label(page, 'Finish set')).toBeVisible({ timeout: 60_000 });
@@ -75,7 +76,7 @@ async function runSet(page, requests) {
 }
 
 function expectOwnOriginOnly(all, page) {
-  const requests = all.slice(all.startedAt); // from the moment the camera started
+  const requests = all; // from the first navigation, so the sheet-open requests (session chunk) are checked too
   const origin = new URL(page.url()).origin;
   for (const r of requests) expect(r.url.origin, `request to ${r.url}`).toBe(origin);
   const pose = requests.filter((r) => r.url.pathname.startsWith('/pose/'));

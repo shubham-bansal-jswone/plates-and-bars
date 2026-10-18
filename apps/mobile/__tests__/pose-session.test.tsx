@@ -270,4 +270,18 @@ describe('PoseSession: a hidden tab and a broken backend', () => {
     expect(track.stop).toHaveBeenCalled();
     expect(broken.dispose).toHaveBeenCalled();
   });
+
+  it('a good frame resets the failure count: 9 failures, one good frame, 9 more failures keep tracking', async () => {
+    let n = 0;
+    const base = scriptedDetector(repH(-0.2));
+    const flaky: PoseDetector = {
+      estimate: (v) => (++n <= 9 || (n > 10 && n <= 19) ? Promise.reject(new Error('gl lost')) : base.estimate(v)),
+      dispose: () => base.dispose(),
+    };
+    await mount({ detector: flaky });
+    await press('Start camera');
+    expect(await screen.findByText('Rep 1')).toBeTruthy();
+    expect(n).toBeGreaterThan(19);
+    expect(screen.queryByText(/tracking model could not load/)).toBeNull();
+  });
 });
