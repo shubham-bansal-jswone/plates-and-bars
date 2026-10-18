@@ -37,12 +37,22 @@ export function toWeight(w: unknown): FontWeight {
   return '700';
 }
 
-/** fontFamily for a weight, or undefined (system font) until the fonts have loaded. */
+/** True once the bundled fonts have loaded (false while loading and if loading failed). */
+export function useFontsReady(): boolean {
+  return useContext(FontsReady);
+}
+
+/**
+ * fontFamily for a weight. Until the fonts have loaded, or if loading failed, it is the DESIGN.md 4.1 fallback
+ * stack on web (SVG text would otherwise fall back to the browser's serif) and undefined on native, where
+ * undefined is the system font.
+ */
 export function useFontFamily(): (weight?: unknown) => string | undefined {
   const ready = useContext(FontsReady);
   return (weight) => {
-    if (!ready) return undefined;
+    const web = Platform.OS === 'web';
+    if (!ready) return web ? WEB_FALLBACK : undefined;
     const f = FAMILY[toWeight(weight)];
-    return Platform.OS === 'web' ? `${f}, ${WEB_FALLBACK}` : f;
+    return web ? `${f}, ${WEB_FALLBACK}` : f;
   };
 }
