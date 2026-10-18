@@ -37,6 +37,11 @@ const show = (s: Partial<SyncState>, db = memoryDb()) =>
     </SyncContext.Provider>,
   );
 
+const siteUrl = process.env.EXPO_PUBLIC_SITE_URL;
+afterEach(() => {
+  if (siteUrl === undefined) delete process.env.EXPO_PUBLIC_SITE_URL;
+  else process.env.EXPO_PUBLIC_SITE_URL = siteUrl;
+});
 beforeEach(() => {
   mockSave.mockClear();
   mockReplace.mockClear();
@@ -95,6 +100,7 @@ describe('data screen (#27)', () => {
       await gate;
       return read(...a);
     }) as typeof db.getAllAsync;
+    process.env.EXPO_PUBLIC_SITE_URL = 'https://plate.example/';
     await show({ signedIn: true }, db);
     // Position of a control = number of nodes rendered before it; content inserted above it would shift this.
     const position = (label: string) => {
@@ -108,7 +114,7 @@ describe('data screen (#27)', () => {
       walk(screen.toJSON());
       return nodes.findIndex((n) => n.props?.accessibilityLabel === label);
     };
-    const labels = ['Delete everything', 'Download my data'];
+    const labels = ['Download my data', 'Delete everything', 'Back', 'Privacy policy', 'Terms', 'Delete your account'];
     const before = labels.map(position);
     expect(before.every((i) => i >= 0)).toBe(true);
     release();
