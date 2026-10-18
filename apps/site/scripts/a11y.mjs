@@ -1,7 +1,7 @@
 // Serves dist/ on a local port and runs axe-core in headless Chrome on every built page,
 // in light and dark colour schemes. Needs a local Chrome/Chromium (set CHROME_PATH if not found).
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,8 @@ const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".svg":
 // add per-path handling before adding a second block. Served with those headers, a CSP that breaks a page fails here.
 const headerLines = (await readFile(join(root, "_headers"), "utf8")).split("\n").map((l) => l.trim());
 const prodHeaders = Object.fromEntries(headerLines.filter((l) => /^[A-Za-z-]+: /.test(l)).map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 2)]));
-const pages = ["/", "/privacy/", "/terms/", "/delete-account/", "/licenses/"];
+const blogIds = (await readdir(`${root}blog`, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+const pages = ["/", "/privacy/", "/terms/", "/delete-account/", "/licenses/", "/blog/", ...blogIds.map((id) => `/blog/${id}/`)];
 const viewports = [{ width: 1280, height: 800 }, { width: 360, height: 740 }, { width: 320, height: 640 }];
 
 const chrome = [
