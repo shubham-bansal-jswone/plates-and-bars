@@ -204,6 +204,32 @@ describe('settings reload with an edit while it reads (#614)', () => {
   });
 });
 
+describe('settings reload with saves still queued (#919)', () => {
+  it('waits for the queued saves before it reads: a held save and one behind it still show after the reload, and stay after the saves finish', async () => {
+    const { result, reload, holdWrite } = await setup();
+    const open = holdWrite();
+    try {
+      await act(async () => {
+        result.current.setFocus(['chest']); // A: inside its transaction, its write held
+      });
+      await turns();
+      await act(async () => {
+        result.current.update({ diet: 'veg' }); // B: queued behind A, not started
+      });
+      await reload();
+      await turns();
+      // Reading around the queue would show the record without B (A's edit is replayed, B's is not known yet).
+      expect(result.current.settings).toMatchObject({ focus: ['chest'], diet: 'veg' });
+      await act(async () => open());
+      await waitFor(() => expect(result.current.settings).toMatchObject({ focus: ['chest'], diet: 'veg' }));
+      await turns();
+      expect(result.current.settings).toMatchObject({ focus: ['chest'], diet: 'veg' });
+    } finally {
+      open(); // a failing assertion must not leave the write held for the tests after this one
+    }
+  });
+});
+
 describe('settings saves outside a reload', () => {
   it('save as before: each edit is stored in order, with the stored version and fields kept, and memory matches', async () => {
     const { db, result } = await setup();
