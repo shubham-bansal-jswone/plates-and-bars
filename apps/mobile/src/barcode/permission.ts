@@ -6,13 +6,15 @@ import { BARCODE_COPY as t } from './copy';
  */
 export type CameraPermission = 'granted' | 'denied' | 'blocked' | 'unavailable';
 
-const CAMERA = PermissionsAndroid.PERMISSIONS.CAMERA;
+// Read when used: on the web `PermissionsAndroid.PERMISSIONS` does not exist, so a top-level read would throw when the module loads, and
+// the Add sheet imports this module, so it would take the whole web app down.
+const camera = () => PermissionsAndroid.PERMISSIONS.CAMERA;
 
 /** Whether the camera may be used now. Never asks. `denied` also covers "blocked", which only a request can tell apart. */
 export async function checkCamera(): Promise<CameraPermission> {
   if (Platform.OS !== 'android') return 'unavailable';
   try {
-    return (await PermissionsAndroid.check(CAMERA)) ? 'granted' : 'denied';
+    return (await PermissionsAndroid.check(camera())) ? 'granted' : 'denied';
   } catch {
     return 'denied';
   }
@@ -22,7 +24,7 @@ export async function checkCamera(): Promise<CameraPermission> {
 export async function requestCamera(): Promise<CameraPermission> {
   if (Platform.OS !== 'android') return 'unavailable';
   try {
-    const r = await PermissionsAndroid.request(CAMERA, { title: t.rationaleTitle, message: t.rationale, buttonPositive: t.allow, buttonNegative: t.cancel });
+    const r = await PermissionsAndroid.request(camera(), { title: t.rationaleTitle, message: t.rationale, buttonPositive: t.allow, buttonNegative: t.cancel });
     return r === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : r === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ? 'blocked' : 'denied';
   } catch {
     return 'denied';
