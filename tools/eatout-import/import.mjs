@@ -1,10 +1,11 @@
 // Extracts EATOUT (and the 'Drinks' entry added later) from the prototype and maps it to content/eatout.json.
+// Fibre and added sugar come from the prototype's FIB table, which fibOf reads by the logged name (#824: Cola).
 // Pure and deterministic: cuisine and dish order follow the prototype; ids are derived from names.
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 
 // Bump when any value changes so synced clients see it.
-export const UPDATED_AT = '2026-10-08T00:00:00Z';
+export const UPDATED_AT = '2026-10-18T00:00:00Z';
 const ID_NAMESPACE = 'plate-and-bar/eatout/v1';
 
 // The prototype calls these "rough restaurant estimates" (not weighed, not from a database): the project's own
@@ -38,8 +39,19 @@ export function extractEatOut(html) {
   return JSON.parse(JSON.stringify(ctx.EATOUT));
 }
 
+// Evaluates only the prototype's FIB statement: { name: [fibre g, added sugar g] } per serving.
+export function extractFib(html) {
+  const fib = /^const FIB = \{[\s\S]*?^\};$/m.exec(html);
+  if (!fib) throw new Error('FIB not found in the prototype');
+  const ctx = vm.createContext({});
+  vm.runInContext(`${fib[0]}\nthis.FIB = FIB;`, ctx, { timeout: 1000 });
+  return JSON.parse(JSON.stringify(ctx.FIB));
+}
+
 export function importEatOut(html) {
   const eatout = extractEatOut(html);
+  const fib = extractFib(html);
+  const fibOf = (dn) => (Object.hasOwn(fib, dn) ? fib[dn] : [null, null]);
   const cuisines = Object.entries(eatout).map(([name, c]) => ({
     name,
     tips: c.tips,
@@ -51,7 +63,7 @@ export function importEatOut(html) {
       cuisine: name,
       ...(ALCOHOLIC.includes(dn) ? { alcohol: true } : {}),
       serving: { label: '1 serving', grams: null },
-      per_serving: { kcal, protein_g: p, carbs_g: carbs, fibre_g: null, added_sugar_g: null, fat_g: fat },
+      per_serving: { kcal, protein_g: p, carbs_g: carbs, fibre_g: fibOf(dn)[0], added_sugar_g: fibOf(dn)[1], fat_g: fat },
       fruit_veg_servings: 0,
       source: SOURCE,
       updated_at: UPDATED_AT,

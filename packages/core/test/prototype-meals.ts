@@ -65,7 +65,7 @@ function sliceUntil(src: string, start: string, end: string): string {
 }
 
 /**
- * Runs the prototype's meal-idea rules, sliced out of the HTML: `FOODS` (with the fasting-day foods),
+ * Runs the prototype's meal-idea rules, sliced out of the HTML: `FOODS` (with the fasting-day foods and drinks),
  * `ROLE` (with its fasting-day roles), `MEAL_W`, `PROT_W`, `MAXQ`, `dietOK`, `F`, `round05`, `combos`,
  * `combosFast`, `nextMealInfo` and `totals`. The clock (`mealByTime`, `TODAY`), `kcalTarget` and
  * `older` read the state passed in.
@@ -105,6 +105,7 @@ function mealsCode(src: string): string[] {
     sliceLine(src, 'const older = '),
     sliceBlock(src, 'const FOODS = [', '];'),
     sliceUntil(src, "FOODS.push(['Sabudana khichdi'", ');'),
+    sliceLine(src, "FOODS.push(['Beer'"), // the drinks: no ROLE, so meal ideas never pick them (#824)
     sliceBlock(src, 'const ROLE = {', '};'),
     sliceLine(src, "Object.assign(ROLE, { 'Sabudana khichdi'"),
     sliceLine(src, 'const MEAL_W = '),

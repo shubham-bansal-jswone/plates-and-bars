@@ -5,6 +5,8 @@ import { nonEmpty } from './text.mjs';
 
 // Keep in sync with FoodSource.code in packages/api/openapi.yaml.
 export const SOURCE_CODES = ['usda_fdc', 'fssai', 'own_recipe', 'own_estimate', 'kitchen_test', 'label_typical'];
+// Keep in sync with isFoodSource in apps/mobile/src/content/reader.ts.
+export const REFERENCE_MAX = 200;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FOOD_KEYS = ['id', 'name', 'name_hi', 'aliases', 'serving', 'per_serving', 'fruit_veg_servings', 'source', 'updated_at'];
 const NUTRIENTS = ['kcal', 'protein_g', 'carbs_g', 'fibre_g', 'added_sugar_g', 'fat_g'];
@@ -13,7 +15,8 @@ const norm = (s) => s.trim().toLowerCase();
 
 // kcal should be close to 4*protein + 4*carbs + 9*fat. Rounding and fibre (about 2 kcal/g, counted as carbs)
 // make exact equality wrong, so allow 15 kcal or 15 % of the label value, whichever is larger.
-// Alcohol (eat-out drinks flagged `alcohol: true`) is exempt from the upper bound; see validateEatOut.
+// Alcohol (drinks flagged `alcohol: true`, in foods.json and eatout.json) is exempt from the upper bound,
+// and the flag is rejected on a row whose kcal already fits 4/4/9.
 export const kcalTolerance = (kcal) => Math.max(15, kcal * 0.15);
 
 // opts.extraKeys: allowed fields beyond FOOD_KEYS. opts.alcohol: kcal may exceed 4/4/9 (alcohol is 7 kcal/g and not in the macros).
@@ -52,6 +55,8 @@ function checkFood(f, errors, opts = {}) {
     const calc = 4 * n.protein_g + 4 * n.carbs_g + 9 * n.fat_g;
     if (opts.alcohol) {
       if (n.kcal < calc - kcalTolerance(n.kcal)) err(`kcal ${n.kcal} is below what the macros give (4/4/9 gives ${calc.toFixed(0)})`);
+      // The flag only belongs where it is needed, so a stray one cannot quietly drop the upper bound.
+      else if (n.kcal <= calc + kcalTolerance(n.kcal)) err(`alcohol: true but kcal ${n.kcal} already fits the macros (4/4/9 gives ${calc.toFixed(0)})`);
     } else if (Math.abs(calc - n.kcal) > kcalTolerance(n.kcal)) err(`kcal ${n.kcal} does not match macros (4/4/9 gives ${calc.toFixed(0)})`);
   }
 
@@ -62,6 +67,8 @@ function checkFood(f, errors, opts = {}) {
     if (!nonEmpty(src.name)) err('source.name missing');
     if (!nonEmpty(src.licence)) err('source.licence missing');
     for (const k of ['url', 'reference']) if (!(k in src) || (src[k] !== null && !nonEmpty(src[k]))) err(`source.${k} must be a string or null`);
+    // The app's isFoodSource rejects a longer reference, and with it the whole stored copy.
+    if (typeof src.reference === 'string' && src.reference.length > REFERENCE_MAX) err(`source.reference is longer than ${REFERENCE_MAX} characters`);
   }
 }
 
@@ -71,7 +78,8 @@ export function validateFoods(content) {
   const names = new Map();
   const ids = new Set();
   for (const f of content.foods) {
-    checkFood(f, errors);
+    if ('alcohol' in f && f.alcohol !== true) errors.push(`${f.name}: alcohol must be true when present`);
+    checkFood(f, errors, { extraKeys: ['alcohol'], alcohol: f.alcohol === true });
     if (typeof f.name === 'string') {
       const k = norm(f.name);
       if (names.has(k)) errors.push(`${f.name}: duplicate name (also "${names.get(k)}")`);
