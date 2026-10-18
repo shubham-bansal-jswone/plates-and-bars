@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs deploy.sh against stub docker, git, curl and sleep: a healthy deploy moves API_TAG to the new sha; an unhealthy
 # one, or a failed `compose up`, rolls API_TAG back to the previous tag and exits non-zero; with no previous image or
-# no API_TAG in .env it exits non-zero and does not roll back; a failed build leaves API_TAG alone. No Docker, network or VM needed. Run from anywhere: infra/staging/test-deploy.sh
+# no API_TAG in .env, or a previous image built before #887 (no erasure-ledger label), it exits non-zero and does not
+# roll back; a failed build leaves API_TAG alone. No Docker, network or VM needed. Run from anywhere: infra/staging/test-deploy.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
@@ -15,6 +16,8 @@ cat > "$tmp/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 echo "docker $* [API_TAG=${API_TAG:-}]" >> "$STUB_LOG"
 if [ "$1" = image ] && [ -n "${STUB_NO_PREV_IMAGE:-}" ]; then exit 1; fi
+# the erasure-ledger label (#887) of the previous image: "1" unless STUB_PREV_LABEL says otherwise
+if [ "$1 $2 $3" = "image inspect -f" ]; then printf '%s\n' "${STUB_PREV_LABEL-1}"; fi
 if [ "$*" = "compose build api" ] && [ -n "${STUB_BUILD_FAIL:-}" ]; then exit 1; fi
 # STUB_UP_FAIL: only `compose up -d` without a service fails (the rollback's `up -d api` works)
 if [ "$*" = "compose up -d" ] && [ -n "${STUB_UP_FAIL:-}" ]; then exit 1; fi
@@ -78,6 +81,18 @@ reset
 printf 'API_HOST=api.test\nDB_PASSWORD=x\n' > "$stack/.env"
 if STUB_HEALTHY=none "$stack/deploy.sh" > /dev/null 2>&1; then fail "deploy with no API_TAG in .env exited 0 while unhealthy"; fi
 ! grep -q 'docker compose up -d api' "$STUB_LOG" || fail "rolled back although .env had no API_TAG"
+
+# no automatic rollback to an image built before #887 (it cannot start without ERASURE_LEDGER_PATH)
+for old in '<no value>' ''; do
+  reset
+  if STUB_PREV_LABEL="$old" STUB_HEALTHY=oldtag "$stack/deploy.sh" > "$tmp/out" 2>&1; then fail "unhealthy deploy over a pre-#887 image exited 0"; fi
+  [ "$(tag_now)" = abc123def456 ] || fail "API_TAG was rolled back to a pre-#887 image"
+  ! grep -q 'docker compose up -d api' "$STUB_LOG" || fail "rolled back to a pre-#887 image"
+  grep -q 'predates the per-day erasure ledger (#887)' "$tmp/out" || fail "the refused rollback was not explained"
+done
+grep -q "docker image inspect -f {{ index .Config.Labels \"app.plateandbar.erasure-ledger-dir\" }} plateandbar-api:oldtag" "$STUB_LOG" || fail "the label was not read from the previous image"
+# the compose file puts that label on every image it builds
+grep -q '^        app.plateandbar.erasure-ledger-dir: "1"$' "$here/docker-compose.yml" || fail "the compose build no longer labels the image"
 
 # a failed build stops the deploy before API_TAG is touched and before anything is started
 reset

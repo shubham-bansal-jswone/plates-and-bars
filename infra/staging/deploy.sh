@@ -48,6 +48,12 @@ if [ -z "$prev" ] || [ "$prev" = "$tag" ] || ! docker image inspect "plateandbar
   echo "no previous image to roll back to (API_TAG was '${prev:-}')" >&2
   exit 1
 fi
+# An image built before #887 reads ERASURE_LEDGER_PATH, which this compose file no longer sets: it cannot start, so
+# going back below #887 is a manual step (RUNBOOK.md section 3a). Images built from #887 on carry this label.
+if [ "$(docker image inspect -f '{{ index .Config.Labels "app.plateandbar.erasure-ledger-dir" }}' "plateandbar-api:$prev" 2> /dev/null)" != 1 ]; then
+  echo "previous image $prev predates the per-day erasure ledger (#887) and cannot start with this compose file: no automatic rollback, see RUNBOOK.md section 3a" >&2
+  exit 1
+fi
 echo "rolling back to $prev" >&2
 set_tag "$prev"
 docker compose up -d api

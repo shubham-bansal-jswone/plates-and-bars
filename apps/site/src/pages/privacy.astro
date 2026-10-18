@@ -44,7 +44,7 @@ import Base from "../layouts/Base.astro";
   <ul>
     <li><strong>Email delivery</strong>: if you sign in with an email code, your email address and the code go through our email provider, [SMTP provider].</li>
     <li><strong>Hosting</strong>: our server runs at [hosting provider].</li>
-    <li><strong>Backups</strong>: [backup arrangement: where nightly database backups are kept, and whether they are encrypted].</li>
+    <li><strong>Backups</strong>: [backup arrangement: where nightly database backups and the erasure ledger copy are kept, and whether they are encrypted].</li>
     <li><strong>Error tracking</strong>: when crash reporting is on, reports go to [error-tracking service host] (see "Crash and error reports").</li>
     <li><strong>AI service</strong>: AI features are off by default and you switch them on yourself; the app works without them. When you use one, the app sends the items below to our server, which passes them to [AI provider]. It never sends your name, email, photos, cycle or lab data.</li>
   </ul>
@@ -88,6 +88,7 @@ import Base from "../layouts/Base.astro";
     <li>Your account and records stay until you delete your account. The conflict log is bounded as described above.</li>
     <li>The anonymous monthly AI token total has no user id and stays when an account is deleted, so deleting an account does not give its AI use back to the shared budget.</li>
     <li>Backups: [planned policy to confirm: nightly backups kept for 30 days; after you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later].</li>
+    <li>Erasure ledger: when an account is deleted, the server records only the account's opaque user id and the time of deletion, with nothing else about you, so that restoring a backup cannot bring the account back. A copy is kept with the backups. In both places, each entry is kept for about 45 days (at most 46), then deleted.</li>
     <li>Crash and error reports: kept for [error report retention period], then deleted. A report holds no health data and only an opaque id, so deleting your account does not remove it. [Lawyer review: the hashed account id in server reports is a pseudonym that we can recompute while your account exists, so confirm whether reports must be deleted with the account.]</li>
     <li>Access logs of the web servers: kept for at most about 15 days, then deleted.</li>
     <li>Server logs record opaque user ids and are kept for a bounded period. Retention: the API's own logs and the web server's error lines are kept for at most 14 days, and for less if the logs reach about 200 MB on the server.</li>

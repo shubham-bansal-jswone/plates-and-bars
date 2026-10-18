@@ -541,3 +541,100 @@ describe('add and remove exercises (#147)', () => {
   });
 });
 
+
+// A tick queued against the local build that Start dropped for another device's session (#898).
+describe('a write queued during Start, when Start adopts another device\'s session (#898)', () => {
+  type Db = Awaited<ReturnType<typeof openDb>>;
+  const outbox = async (db: Db) => (await db.getAllAsync<{ tbl: string; key: string }>('SELECT tbl, key FROM sync_outbox ORDER BY seq')).map((o) => `${o.tbl}:${o.key}`);
+  const plank = { name: 'Plank (seconds)', part: 1 as const, bridge: false, form: null, found_kg: null, skip_ramp: false };
+
+  /** Holds the day queue, presses Start and edits then ticks set 1 of the first exercise on the local build. */
+  async function waiting(other: (local: string) => { exercises: (typeof plank)[]; sets: { exercise: string; id: string; set_index: number; done?: boolean; w?: number; r?: number }[] }, pullLater?: (db: Db) => Promise<void>) {
+    const db = await openDb();
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const view = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(view.result.current.day.ready).toBe(true));
+    let release = () => {};
+    dayQueue.current = dayQueue.current.then(() => new Promise<void>((r) => (release = r)));
+    let started: Promise<unknown> = Promise.resolve();
+    await act(async () => void (started = view.result.current.start('Upper A', {}, null)));
+    await waitFor(() => expect(view.result.current.day.workout).not.toBeNull());
+    const local = view.result.current.day.exs[0]!.name;
+    const theirs = other(local);
+    await act(async () => view.result.current.editSet(0, 'work', 0, 'w', '40'));
+    await act(async () => view.result.current.editSet(0, 'work', 0, 'r', '8'));
+    await act(async () => view.result.current.tick(0, 0));
+    expect(view.result.current.day.exs[0]!.sets[0]!.done).toBe(true);
+    // Another device's session lands (a pull): server id, version 3, its sets at version 2.
+    const row = { id: 'srv-w1', version: 3, updated_at: '2026-10-08T09:30:00Z', deleted_at: null, date: DATE, template: 'Session', base: null, where: null, cardio_min: null, mods: {}, exercises: theirs.exercises, ci_choice: null };
+    await saveWorkout(db, row as never);
+    for (const s of theirs.sets) await saveSet(db, DATE, { id: s.id, version: 2, updated_at: '2026-10-08T09:30:00Z', deleted_at: null, workout_id: null, exercise: s.exercise, kind: 'work', set_index: s.set_index, weight_kg: s.w ?? null, reps: s.r ?? null, done: s.done ?? s.exercise === 'Plank (seconds)', rate: null, t: null } as never);
+    await db.runAsync('DELETE FROM sync_outbox');
+    let txns = 0;
+    // The second transaction is the queued tick's (the first is Start's): a pull lands just before it.
+    if (pullLater) db.beforeTxn = async () => void (++txns === 2 && (await pullLater(db)));
+    await act(async () => {
+      release();
+      await started;
+      await dayQueue.current;
+    });
+    return { db, local, ...view };
+  }
+
+  it('keeps the other device\'s session, id, version and sets; the tick on an exercise it lacks is dropped with no orphan sets', async () => {
+    const { db, local, result } = await waiting(() => ({ exercises: [plank], sets: [{ exercise: 'Plank (seconds)', id: 'p1', set_index: 0 }] }));
+    const w = (await loadWorkout(db, DATE)) as unknown as { id: string; version: number; exercises: { name: string }[] };
+    expect(w.exercises.map((e) => e.name)).toEqual(['Plank (seconds)']);
+    expect(w).toMatchObject({ id: 'srv-w1', version: 3 });
+    const sets = (await loadSets(db, DATE)).filter((s) => !s.deleted_at);
+    expect(sets.map((s) => `${s.exercise}:${s.id}:${s.version}:${s.done}`)).toEqual(['Plank (seconds):p1:2:true']); // no Upper A set, none orphaned
+    expect(sets.some((s) => s.exercise === local)).toBe(false);
+        // Nothing was carried, so the tick has nothing to save: no workout row, no set, no lift record is queued.
+    expect(await outbox(db)).toEqual([]);
+    await waitFor(() => expect(result.current.day.exs.map((e) => e.name)).toEqual(['Plank (seconds)']));
+  });
+
+  it('applies the tick to the matching set of the adopted session, keeping its ids and versions', async () => {
+    let first = '';
+    const { db, result } = await waiting((local) => {
+      first = local;
+      return { exercises: [{ ...plank, name: local }, plank], sets: [0, 1, 2].map((k) => ({ exercise: local, id: `f${k}`, set_index: k })).concat([{ exercise: 'Plank (seconds)', id: 'p1', set_index: 0 }]) };
+    });
+    const w = (await loadWorkout(db, DATE)) as unknown as { id: string; version: number; exercises: { name: string }[] };
+    expect(w.exercises.map((e) => e.name)).toEqual([first, 'Plank (seconds)']);
+    expect(w).toMatchObject({ id: 'srv-w1', version: 3 });
+    const sets = (await loadSets(db, DATE)).filter((s) => !s.deleted_at);
+    expect(sets.map((s) => s.id).sort()).toEqual(['f0', 'f1', 'f2', 'p1']);
+    expect(sets.find((s) => s.id === 'f0')).toMatchObject({ weight_kg: 40, reps: 8, done: true, version: 2 });
+    expect(sets.find((s) => s.id === 'f1')).toMatchObject({ done: false });
+    expect(sets.find((s) => s.id === 'p1')).toMatchObject({ done: true, version: 2 });
+    // The carried set, the workout row, and the lift record the tick updates; the other device's sets are not queued again.
+    expect((await outbox(db)).sort()).toEqual([`lift_stats:${first}`, `workout_sets:f0`, `workouts:${DATE}`].sort());
+    await waitFor(() => expect(result.current.day.exs[0]!.sets[0]).toMatchObject({ id: 'f0', done: true }));
+  });
+
+  const withFirst = (local: string, first: object[]) => ({ exercises: [{ ...plank, name: local }, plank], sets: [...first, { exercise: 'Plank (seconds)', id: 'p1', set_index: 0 }] as never });
+
+  it('a pull that lands after the adoption and before the queued tick is written is merged, not overwritten', async () => {
+    const { db, local } = await waiting(
+      (l) => withFirst(l, [0, 1, 2].map((k) => ({ exercise: l, id: `f${k}`, set_index: k }))),
+      async (d) => {
+        const w = (await loadWorkout(d, DATE))!;
+        await saveWorkout(d, { ...w, version: 4, exercises: [...w.exercises, { ...plank, name: 'Dead Bug' }], updated_at: '2026-10-08T09:40:00Z' });
+      },
+    );
+    const w = (await loadWorkout(db, DATE)) as unknown as { id: string; version: number; exercises: { name: string }[] };
+    expect(w.exercises.map((e) => e.name)).toEqual([local, 'Plank (seconds)', 'Dead Bug']);
+    expect(w).toMatchObject({ id: 'srv-w1', version: 4 });
+    expect((await loadSets(db, DATE)).find((s) => s.id === 'f0')).toMatchObject({ done: true, weight_kg: 40 });
+  });
+
+  it('a set the other device already ticked stays as it is: the tick is dropped and nothing is queued, not even a lift record', async () => {
+    const { db } = await waiting((l) => withFirst(l, [{ exercise: l, id: 'f0', set_index: 0, done: true, w: 50, r: 5 }, { exercise: l, id: 'f1', set_index: 1, done: false }]));
+    const sets = (await loadSets(db, DATE)).filter((s) => !s.deleted_at);
+    expect(sets.map((s) => s.id).sort()).toEqual(['f0', 'f1', 'p1']);
+    expect(sets.find((s) => s.id === 'f0')).toMatchObject({ done: true, weight_kg: 50, reps: 5, version: 2 });
+    expect(await outbox(db)).toEqual([]);
+    expect(await db.getAllAsync('SELECT 1 FROM lift_stats')).toEqual([]);
+  });
+});
