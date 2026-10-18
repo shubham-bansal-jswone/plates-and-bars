@@ -442,6 +442,9 @@ export interface paths {
          *     anonymous monthly AI token total (month and token count only, no user id) kept to
          *     enforce the shared AI budget (see the `ai` tag). There is no undo and no grace
          *     period. The app asks the user to confirm before calling this.
+         *     The server also records the account's opaque user id and the deletion time, and
+         *     nothing else, in an erasure ledger kept outside the database for about 45 days (at
+         *     most 46), so that restoring a backup cannot bring the account back.
          *
          *     **What is deleted, and when.** Before the server answers 204, in one transaction:
          *     every row of every synced table (tombstones included), the conflict log, the
@@ -456,7 +459,9 @@ export interface paths {
          *     record opaque user ids with operational events (never food, weight, health answers
          *     or tokens) and expire after a bounded retention period. If anything fails, the
          *     transaction rolls back, the server answers 500 and nothing is deleted; the app
-         *     retries.
+         *     retries. If the database delete fails after the erasure-ledger line was written,
+         *     that line stays, so a later backup restore still deletes the account; a retry
+         *     finishes it.
          *
          *     **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
          *     `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
