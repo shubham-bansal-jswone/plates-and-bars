@@ -396,7 +396,7 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     await redo();
     expect(screen.queryByText(/Mifflin-St Jeor/)).toBeNull();
     await press('Why these numbers?');
-    // The redo form shows the stored 165 cm as 5 ft 5 in, which is 165.1 cm, so the screen's BMR is the golden 1,706 plus 0.6.
+    // The redo form shows the stored 165 cm as 5 ft 5 in, which is 165.1 cm, so the screen's BMR is the golden 1,706 plus 0.6. Pinned as is until #872 (recalc silently changes the stored height) is fixed; then this is 1,706.
     expect(screen.getByText(/Resting, 1,707 kcal\./)).toBeTruthy();
     expect(screen.getByText(/Mifflin-St Jeor/)).toBeTruthy();
     expect(screen.getByText(/Calories, 1,990\./)).toBeTruthy();
