@@ -141,12 +141,21 @@ describe('scripts/licences.mjs --native-libs', () => {
   });
 
   it('lists every .so of the committed list in the Native section, and no component that no .so links', () => {
-    const data = JSON.parse(readFileSync(join(app, 'src/about/licences.json'), 'utf8')) as { native: { name: string; in: string[]; text: string }[]; texts: Record<string, string> };
+    const data = JSON.parse(readFileSync(join(app, 'src/about/licences.json'), 'utf8')) as { native: { name: string; licence: string; in: string[]; text: string }[]; texts: Record<string, string> };
     const names = soCommitted.split('\n').filter(Boolean);
     for (const c of data.native) {
       expect(data.texts[c.text]).toBeTruthy();
+      expect(c.in.length).toBeGreaterThan(0);
       for (const n of c.in) expect(names).toContain(n);
     }
+  });
+
+  it('ships each MIT notice whole: it ends with its last sentence, not cut off', () => {
+    const data = JSON.parse(readFileSync(join(app, 'src/about/licences.json'), 'utf8')) as { native: { name: string; text: string }[]; texts: Record<string, string> };
+    // The two MIT notices copied from a source header (sentry-native), where a cut-off is easy; {fmt}'s text goes on after it on purpose.
+    const mit = data.native.filter((c) => c.name === 'jsmn' || c.name === 'MPack');
+    expect(mit).toHaveLength(2);
+    for (const c of mit) expect(data.texts[c.text]!.trim()).toMatch(/DEALINGS IN\s+(THE\s+)?SOFTWARE\.$/);
   });
 });
 

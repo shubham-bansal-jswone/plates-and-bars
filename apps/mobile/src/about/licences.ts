@@ -32,7 +32,7 @@ export const LICENCES_COPY = {
   retry: 'Try again',
   assets: 'Fonts and icons',
   native: 'Native code inside the app',
-  nativeHint: 'Third-party C and C++ code compiled into the Android native libraries (.so files), such as Hermes, React Native, image decoders and SQLite.',
+  nativeHint: 'Third-party C and C++ code linked into the native libraries (.so files) of Hermes, React Native, the image decoders and SQLite.',
   linkedInto: (files: string[]) => `Linked into: ${files.join(', ')}`,
   npm: 'JavaScript packages',
   npmHint: 'Production dependencies of the app, from its lockfile.',
