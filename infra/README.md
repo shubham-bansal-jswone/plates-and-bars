@@ -38,6 +38,10 @@ CI runs exactly these commands from the folder. Match them; do not expect other 
 
 Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (needed by `npm ci` and the npm cache), and the scripts `lint`, `typecheck`, `test` in `package.json`. For `backend`: a committed Gradle wrapper (`gradlew`, executable) and tests wired into `build`. If the lane needs different commands or a Node/JDK version, change them via an Infra issue.
 
+### Play listing check (`play listing`, #851)
+
+`node docs/check-play-listing.mjs` checks `docs/PLAY-STORE-LISTING.md` against Google's character limits, leftover `[placeholder]` text, AI vendor or model names, and that the medical disclaimer matches `apps/mobile/src/setup/copy.ts` word for word. The `play listing (check)` job (Node only, no install) runs when `docs/PLAY-STORE-LISTING.md`, `docs/check-play-listing.mjs` or `apps/mobile/src/setup/copy.ts` change (`detect-changes.sh`). It is in the required list below: it is skipped, and so counts as passing, when none of them change.
+
 ### Golden fixtures check (`golden`, #29)
 
 `docs/spec/golden/*.json` is generated from `docs/prototype/plate-and-bar.html` by `tools/golden-gen` and is never edited by hand. The `golden (fixtures match prototype)` job runs `node golden-gen/cli.mjs --check` in `tools` (no install, no dependencies) when `docs/spec/golden/`, `docs/prototype/` or `tools/golden-gen/` change, and fails if a fixture differs from what the prototype produces, so a hand edit, or a prototype change without regeneration, cannot merge. The other half, `packages/core` golden tests no longer matching the fixtures, is the `core` job (it also runs on those paths). `tools` re-checks the same thing through `golden-gen.test.mjs`; the separate job gives it its own name to require. Required checks for branch protection are listed below.
@@ -73,6 +77,7 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 - `mobile (lint, types, tests)`
 - `tools (lint, tests, validate)`
 - `golden (fixtures match prototype)`
+- `play listing (check)`
 - `content-meta (bundled.json)`
 - `e2e (web, Playwright)`
 - `e2e (sync, Playwright + backend stack)`
