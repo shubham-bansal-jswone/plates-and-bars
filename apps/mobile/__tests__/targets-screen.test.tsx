@@ -49,8 +49,9 @@ describe('TargetsScreen', () => {
     await render(withProfile(db, <TargetsScreen db={db} />));
     await screen.findByLabelText('Calories (kcal)');
     // The captions are aria-hidden (the field already speaks the same name), so ask for hidden elements too.
-    for (const name of ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)']) {
+    for (const name of ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Glass (ml)', 'Bottle (ml)']) {
       expect(screen.getByText(name, { includeHiddenElements: true })).toBeTruthy();
+      expect(screen.queryByText(name)).toBeNull(); // hidden from accessibility: the field already speaks the name
       expect(screen.getByLabelText(name)).toBeTruthy();
     }
   });
