@@ -1,6 +1,8 @@
+import type { CycleData } from '@plate-and-bar/core';
 import { MEALS } from '../food/types';
 import { SYNC_TABLES, type SyncTableName } from '../db/outbox';
 import type { WorkoutDb } from '../db/workouts';
+import { loadCycle } from '../db/cycle';
 import { buildRecord, type Doc } from '../sync/records';
 import { getUserId } from '../sync/store';
 
@@ -18,8 +20,8 @@ export interface LocalExport {
   note?: string;
   /** One array for every contract sync table, always present, rows in the contract's record shape (tombstones included). */
   tables: Record<SyncTableName, Doc[]>;
-  /** Data that never leaves the device. The device export leaves out progress photos, as the prototype does. */
-  device_only: Record<string, never>;
+  /** Data that never leaves the device. `cycle` is the cycle log when there is one (#625). The device export leaves out progress photos, as the prototype does. */
+  device_only: { cycle?: CycleData };
 }
 
 /** Every local table as contract records plus the food-log CSV of the prototype. Reads only; never needs the network. */
@@ -39,7 +41,8 @@ export async function buildLocalExport(db: WorkoutDb, now: Date = new Date()): P
     }
     tables[tbl] = out;
   }
-  const file: LocalExport = { format_version: 1, exported_at: exportedAt, source: 'device', user_id: userId, ...(userId ? {} : { note: 'Record ids were made on this device because you never signed in, so they differ from the ids of any account.' }), tables, device_only: {} };
+  const cycle = await loadCycle(db);
+  const file: LocalExport = { format_version: 1, exported_at: exportedAt, source: 'device', user_id: userId, ...(userId ? {} : { note: 'Record ids were made on this device because you never signed in, so they differ from the ids of any account.' }), tables, device_only: cycle.on || cycle.starts.length ? { cycle } : {} };
   return { file, csv: foodCsv(tables.food_logs) };
 }
 
