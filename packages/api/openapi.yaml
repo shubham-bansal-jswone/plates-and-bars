@@ -2636,10 +2636,19 @@ components:
                 message: Couldn't get an answer just now. Try again.
     AiImageUnavailable:
       description: |
-        As `AiUnavailable`, plus one more `unavailable` case for the image calls: the server is
-        busy decoding other images (it decodes a few at a time and waits a moment for a turn).
-        It happens before the quota unit is reserved, so it costs nothing, and `Retry-After`
-        says how long to wait. `Retry-After` is set only in that busy case.
+        `feature_disabled`: the feature is switched off on the server (kill switch, budget
+        cap, or not yet launched); show the non-AI fallback. `unavailable`: no usable
+        answer; the user may try again. Either the provider failed or timed out before any
+        billed reply (the quota unit is released), or the provider's reply could not be
+        parsed or failed the output checks (the provider billed it, so the unit is kept).
+        The body is the same in both cases and carries no `quota`; the app reads
+        `GET /ai/status` for the remaining quota.
+
+        The image calls have one more `unavailable` case: the server is busy decoding other
+        images (it decodes a few at a time and waits a moment for a turn). The quota unit is
+        not taken (the refusal comes before it is reserved), so the call costs nothing, and
+        `Retry-After` says how long to wait before retrying. `Retry-After` is set only in
+        that busy case.
       headers:
         Retry-After:
           description: How long to wait, in seconds, before retrying because the server is busy decoding images.
@@ -2657,12 +2666,21 @@ components:
                 code: feature_disabled
                 message: This feature isn't available right now. You can enter it yourself instead.
             unavailable:
-              summary: Provider failed or timed out, or the billed reply was unusable
+              summary: Provider failed or timed out; the quota unit is released
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
+            unavailable_unusable_reply:
+              summary: Billed reply could not be used; the quota unit is kept
+              description: |
+                The provider answered (and billed the call) but the reply did not parse or
+                failed the output checks. Same body as a provider failure; the call still
+                counts against the daily quota, so `GET /ai/status` shows one fewer remaining.
               value:
                 code: unavailable
                 message: Couldn't get an answer just now. Try again.
             unavailable_busy:
-              summary: Server busy decoding images; nothing counted; Retry-After is set
+              summary: Server busy decoding images; the quota unit is not taken; Retry-After is set
               value:
                 code: unavailable
                 message: Couldn't get an answer just now. Try again.

@@ -2342,10 +2342,19 @@ export interface components {
             };
         };
         /**
-         * @description As `AiUnavailable`, plus one more `unavailable` case for the image calls: the server is
-         *     busy decoding other images (it decodes a few at a time and waits a moment for a turn).
-         *     It happens before the quota unit is reserved, so it costs nothing, and `Retry-After`
-         *     says how long to wait. `Retry-After` is set only in that busy case.
+         * @description `feature_disabled`: the feature is switched off on the server (kill switch, budget
+         *     cap, or not yet launched); show the non-AI fallback. `unavailable`: no usable
+         *     answer; the user may try again. Either the provider failed or timed out before any
+         *     billed reply (the quota unit is released), or the provider's reply could not be
+         *     parsed or failed the output checks (the provider billed it, so the unit is kept).
+         *     The body is the same in both cases and carries no `quota`; the app reads
+         *     `GET /ai/status` for the remaining quota.
+         *
+         *     The image calls have one more `unavailable` case: the server is busy decoding other
+         *     images (it decodes a few at a time and waits a moment for a turn). The quota unit is
+         *     not taken (the refusal comes before it is reserved), so the call costs nothing, and
+         *     `Retry-After` says how long to wait before retrying. `Retry-After` is set only in
+         *     that busy case.
          */
         AiImageUnavailable: {
             headers: {
