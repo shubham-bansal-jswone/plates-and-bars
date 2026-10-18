@@ -104,6 +104,8 @@ export function fakeServer(userId: string) {
     conflictResolution: null as null | 'server_won',
     /** Settles a version mismatch like the contract: the later `updated_at` wins the whole record (a tie goes to the server). */
     byUpdatedAt: false,
+    /** A `client_won` conflict leaves out `replaced_record`, as a server built against contract 0.1.19 does. */
+    omitReplaced: false,
     /** Several devices share this server: a stored record comes back as a change to every other request, by cursor (`s<n>`). */
     relay: false,
     /** Every /sync answer says `has_more` (a faulty server or proxy). */
@@ -188,7 +190,7 @@ export function fakeServer(userId: string) {
             const next = { ...r, version: cur.version + 1 };
             store.set(`${table}:${r.id}`, next);
             s.log.push({ n: s.log.length + 1, table, rec: next });
-            conflicts.push({ table, id: r.id, client_version: r.version, server_version: next.version, resolution: 'client_won', server_record: next });
+            conflicts.push({ table, id: r.id, client_version: r.version, server_version: next.version, resolution: 'client_won', server_record: next, ...(s.omitReplaced ? {} : { replaced_record: cur }) });
           } else {
             conflicts.push({ table, id: r.id, client_version: r.version, server_version: cur.version, resolution: s.conflictResolution ?? 'server_won', server_record: cur });
           }
@@ -259,4 +261,20 @@ export function failInTxn(db: Awaited<ReturnType<typeof openDb>>, table: string)
       db.withExclusiveTransactionAsync = exclusive;
     },
   };
+}
+
+/**
+ * Waits for observable state by counting event-loop turns (`setImmediate`), never wall-clock time, so a loaded
+ * machine only makes it slower, not wrong. Use it instead of "sleep 10 ms, then assume the request is in flight".
+ */
+export async function until(what: string, ok: () => boolean): Promise<void> {
+  for (let i = 0; !ok(); i++) {
+    if (i > 20_000) throw new Error(`timed out waiting for ${what}`);
+    await new Promise<void>((r) => setImmediate(r));
+  }
+}
+
+/** A fixed number of event-loop turns: what a "nothing happened yet" check looks at, in place of a sleep. */
+export async function turns(n = 10): Promise<void> {
+  for (let i = 0; i < n; i++) await new Promise<void>((r) => setImmediate(r));
 }
