@@ -218,11 +218,11 @@ tags:
       with AI off. Signed-in users only (sign-in is optional, so signed-out users get the
       fallbacks).
 
-      **Content.** The backend bundles `content/exercises.json`, `content/cards.json` and
-      `content/raw-ingredients.json` and `content/foods.json` at build time: the exercise catalogue that
-      `SummaryExercise` ids are checked against (and whose `cards` hold the cues Form
-      check judges), the cards Ask why is grounded on, and the raw ingredient names
-      Import recipe matches to, plus `content/foods.json`, which Meal photo matches to. All are the
+      **Content.** The backend bundles `content/exercises.json`, `content/cards.json`,
+      `content/raw-ingredients.json` and `content/foods.json` at build time: the exercise
+      catalogue that `SummaryExercise` ids are checked against (and whose `cards` hold the
+      cues Form check judges), the cards Ask why is grounded on, the raw ingredient names
+      Import recipe matches to, and the built-in foods Meal photo matches to. All are the
       versions in the deployed build.
 
       **Order of checks.** Access token (401), per-user and per-IP rate limit (429
@@ -326,10 +326,12 @@ tags:
       - the server decodes one image at a time, so a form check never holds more than
         one decoded frame in memory;
       - metadata is never read: the decoder skips every ancillary chunk and segment (EXIF,
-        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation. If
-        a decoder cannot skip them, a PNG text or profile chunk (`zTXt`, `iTXt`, `iCCP`)
-        that inflates to more than 65,536 bytes is refused as `unreadable_image`, so a
-        small file cannot expand into memory.
+        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation;
+      - and, whether or not the decoder would have skipped it, a PNG `zTXt`, `iTXt`
+        (compression flag 1) or `iCCP` chunk that inflates to more than 65,536 bytes is
+        always refused as `unreadable_image`. The server checks this with a bounded
+        inflate that stops at 65,537 bytes, before decoding, so a small file cannot expand
+        into memory.
 
       Image checks run in the request-validation step (before the quota) and each
       failure is 400 `invalid_request` with `details[].field` naming the image
@@ -1784,7 +1786,7 @@ paths:
                         carbs_g: 46
                         fat_g: 3
                         confidence: high
-                        match: Roti
+                        match: Roti / chapati
                         servings: 2
                       - name: Bhindi sabzi
                         qty: 1 katori (150 g)

@@ -487,23 +487,30 @@ const pngBytes = (w, h) => {
   b.writeUInt32BE(0, 33); b.write("IEND", 37);
   return b;
 };
-// The first case's 8x8 PNG with a zTXt chunk (keyword "k", valid zlib) that inflates to n zero bytes, before IDAT.
-const withZtxt = (png, n) => {
-  const z = pngChunk("zTXt", Buffer.concat([Buffer.from("k\0\0"), deflateSync(Buffer.alloc(n))]));
+// The first case's 8x8 PNG with a zTXt, iTXt or iCCP chunk (keyword "k", valid zlib) that inflates to n zero bytes, before IDAT.
+const withText = (png, type, n) => {
+  const body = deflateSync(Buffer.alloc(n));
+  const head = { zTXt: "k\0\0", iCCP: "k\0\0", iTXt: "k\0\x01\0\0\0" }[type]; // iTXt: keyword, flag 1, method 0, language, translated keyword
+  const z = pngChunk(type, Buffer.concat([Buffer.from(head, "latin1"), body]));
   const at = png.indexOf("IDAT") - 4;
   return Buffer.concat([png.subarray(0, at), z, png.subarray(at)]);
 };
-// Walk PNG chunks; text and profile chunks must inflate to at most max_metadata_inflated_bytes (the decoder skips them).
+// Walk PNG chunks; a zTXt, compressed iTXt or iCCP chunk that inflates past max_metadata_inflated_bytes is refused,
+// found by an inflate that stops at max + 1 bytes (whether or not the decoder would skip the chunk).
 function pngMetadataBomb(buf) {
   let i = 8;
   while (i + 12 <= buf.length) {
     const len = buf.readUInt32BE(i), type = buf.toString("latin1", i + 4, i + 8);
     if (type === "zTXt" || type === "iCCP" || type === "iTXt") {
       const d = buf.subarray(i + 8, i + 8 + len);
-      const z = type === "zTXt" ? d.indexOf(0) + 2 : type === "iCCP" ? d.indexOf(0) + 2 : null;
-      if (z !== null) {
-        try { inflateSync(d.subarray(z), { maxOutputLength: imgv.max_metadata_inflated_bytes }); } catch { return true; }
+      let z = d.indexOf(0) + 2; // after the keyword, its NUL and the compression method (zTXt, iCCP)
+      if (type === "iTXt") {
+        if (d[d.indexOf(0) + 1] !== 1) { i += 12 + len; continue; } // uncompressed text: bounded by the 2 MB body
+        z = d.indexOf(0, d.indexOf(0, d.indexOf(0) + 3) + 1) + 1; // skip language and translated keyword
       }
+      try {
+        if (inflateSync(d.subarray(z), { maxOutputLength: imgv.max_metadata_inflated_bytes + 1 }).length > imgv.max_metadata_inflated_bytes) return true;
+      } catch { return true; }
     }
     i += 12 + len;
   }
@@ -557,7 +564,7 @@ for (const c of imgv.cases) {
   let data = c.data;
   if (c.build?.pad_to_bytes) data = Buffer.concat([Buffer.from(imgv.cases[0].data, "base64"), Buffer.alloc(c.build.pad_to_bytes)]).subarray(0, c.build.pad_to_bytes).toString("base64");
   if (c.build?.png_dims) data = pngBytes(...c.build.png_dims).toString("base64");
-  if (c.build?.png_ztxt_inflated_bytes !== undefined) data = withZtxt(Buffer.from(imgv.cases[0].data, "base64"), c.build.png_ztxt_inflated_bytes).toString("base64");
+  if (c.build?.png_text_chunk) data = withText(Buffer.from(imgv.cases[0].data, "base64"), c.build.png_text_chunk.type, c.build.png_text_chunk.inflated_bytes).toString("base64");
   const got = imageFault(c.media_type, data, c.kind);
   if (got !== c.issue) failures.push(`ai-images.json "${c.name}": checker says ${got}, vector says ${c.issue}`);
   if (c.issue !== null && !imgv.order.includes(c.issue)) failures.push(`ai-images.json "${c.name}": issue ${c.issue} is not in order`);
@@ -566,7 +573,7 @@ for (const c of imgv.cases) {
   if (c.jpeg_dims && JSON.stringify(jpegSof(Buffer.from(c.data, "base64"))) !== JSON.stringify(c.jpeg_dims)) failures.push(`ai-images.json "${c.name}": SOF does not say ${c.jpeg_dims}`);
 }
 for (const issue of imgv.order) if (!imgv.cases.some((c) => c.issue === issue)) failures.push(`ai-images.json: no case for ${issue}`);
-if (!imgv.cases.some((c) => c.exif_gps) || !imgv.cases.some((c) => c.jpeg_dims) || !imgv.cases.some((c) => c.build?.png_ztxt_inflated_bytes > imgv.max_metadata_inflated_bytes)) failures.push("ai-images.json: needs a GPS EXIF, a JPEG dimensions and a zTXt bomb vector");
+if (!imgv.cases.some((c) => c.exif_gps) || !imgv.cases.some((c) => c.jpeg_dims) || !["zTXt", "iTXt", "iCCP"].every((t) => imgv.cases.some((c) => c.build?.png_text_chunk?.type === t && c.build.png_text_chunk.inflated_bytes > imgv.max_metadata_inflated_bytes))) failures.push("ai-images.json: needs a GPS EXIF, a JPEG dimensions and a zTXt, iTXt and iCCP bomb vector");
 if (!imgv.cases.some((c) => c.exif_marker)) failures.push("ai-images.json: no case with EXIF to strip");
 for (const issue of imgv.order) if (!JSON.stringify(parsed.components.responses.InvalidRequest).includes(issue) && !parsed.tags.find((t) => t.name === "ai").description.includes(`\`${issue}\``)) failures.push(`ai tag does not name the image issue ${issue}`);
 let imageExamples = 0;
@@ -584,6 +591,20 @@ for (const p of aiImageOps) {
   for (const code of ["400", "401", "429", "500", "503"]) if (!parsed.paths[p].post.responses[code]) failures.push(`${p}: no ${code}`);
 }
 if (imageExamples === 0) failures.push("no image request examples found");
+// Meal photo (#946): every `match` in an example is a built-in food name in content/foods.json (the server turns any
+// other into null), `servings` stays within the prototype's clamp of 0.25 to 6, and an example's `servings` is inside it.
+const foodNames = new Set(JSON.parse(readFileSync(new URL("../../../content/foods.json", import.meta.url), "utf8")).foods.map((f) => f.name));
+const servingsSchema = parsed.components.schemas.MealPhotoItem.allOf[1].properties.servings;
+if (servingsSchema.minimum !== 0.25 || servingsSchema.maximum !== 6) failures.push(`MealPhotoItem.servings must be 0.25 to 6 (the prototype's clamp), found ${servingsSchema.minimum} to ${servingsSchema.maximum}`);
+if (!aiTag.includes("0.25 to 6") || !servingsSchema.description.includes("0.25 to 6")) failures.push("ai tag and servings description must state 0.25 to 6");
+let matchExamples = 0;
+for (const ex of Object.values(parsed.paths["/ai/meal-photo"].post.responses["200"].content["application/json"].examples)) {
+  for (const it of ex.value.items) {
+    if (it.match !== undefined && it.match !== null) { matchExamples++; if (!foodNames.has(it.match)) failures.push(`/ai/meal-photo example: match ${JSON.stringify(it.match)} is not a name in content/foods.json`); }
+    if (it.servings !== undefined && !(it.servings >= servingsSchema.minimum && it.servings <= servingsSchema.maximum)) failures.push(`/ai/meal-photo example: servings ${it.servings} out of range`);
+  }
+}
+if (matchExamples === 0) failures.push("/ai/meal-photo: no example with a matched food");
 // Must-fail vectors for the checker: a wrong expectation must be noticed.
 if (imageFault("image/png", Buffer.from("x").toString("base64"), "photo") === null) failures.push("image checker accepts a one-byte png");
 if (imageFault("image/png", Buffer.from("QUJD", "base64").toString("base64").slice(0, 3), "photo") !== "invalid_base64") failures.push("image checker accepts a base64 length that is not a multiple of 4");
