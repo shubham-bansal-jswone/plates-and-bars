@@ -360,6 +360,31 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect(await loadProfile(db)).toMatchObject({ height_cm: 165, weight_kg: 82 });
   });
 
+  it('Back to step 0 on Recalculate, inches changed to 6, saves 167.6 cm (#872)', async () => {
+    const db = await redo();
+    for (let i = 0; i < 4; i++) await press('‹ Back');
+    await fireEvent.changeText(screen.getByLabelText('Height inches'), '6');
+    for (let i = 0; i < 3; i++) await press('Continue');
+    await press('See my targets');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))!.height_cm).toBe(167.6);
+  });
+
+  it('switching to cm, typing 170 and switching back leaves the shown, untouched 5 ft 5 in at the stored 165 cm (#872)', async () => {
+    const db = await redo();
+    for (let i = 0; i < 4; i++) await press('‹ Back');
+    await press('Use cm');
+    await fireEvent.changeText(screen.getByLabelText('Height in cm'), '170');
+    await press('Use feet and inches');
+    expect(screen.getByLabelText('Height inches').props.value).toBe('5');
+    for (let i = 0; i < 3; i++) await press('Continue');
+    await press('See my targets');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))!.height_cm).toBe(165);
+  });
+
   it('Recalculate then Use these targets leaves the stored 165 cm (#872)', async () => {
     const db = await redo();
     await press('Use these targets');

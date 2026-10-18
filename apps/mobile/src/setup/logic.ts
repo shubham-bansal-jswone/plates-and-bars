@@ -109,7 +109,7 @@ export function draftFromProfile(p: Profile): Draft {
  */
 export function keepStoredHeight(d: Draft, stored: Profile): Draft {
   const filled = draftFromProfile(stored);
-  const same = d.unit === filled.unit && d.ft === filled.ft && d.inch === filled.inch && d.cm === filled.cm;
+  const same = d.unit === 'ft' ? d.ft === filled.ft && d.inch === filled.inch : d.cm === filled.cm; // only the fields shown
   return same ? { ...d, unit: 'cm', cm: String(stored.height_cm) } : d;
 }
 
