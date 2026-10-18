@@ -26,9 +26,6 @@ links.
 - Food composition values from USDA FoodData Central (SR Legacy),
   U.S. Department of Agriculture, Agricultural Research Service.
   Public domain (CC0 1.0).
-- Exercise photos embedded in docs/prototype/plate-and-bar.html from
-  Free Exercise DB (https://github.com/yuhonas/free-exercise-db).
-  Public domain (The Unlicense).
 - Gradle wrapper (backend/gradlew, backend/gradlew.bat,
   backend/gradle/wrapper/gradle-wrapper.jar), Copyright 2015 the original
   authors. Apache License, Version 2.0.
