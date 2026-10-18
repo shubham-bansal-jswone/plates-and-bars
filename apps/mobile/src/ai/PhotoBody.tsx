@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { searchFoods } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Card, ErrorText, Field, Hint, Label, Press } from '../components/ui';
+import { a11yState, Button, Card, ErrorText, Field, Hint, Label, Press } from '../components/ui';
 import type { CatalogFood } from '../food/catalog';
 import { CUSTOM_MESSAGE } from '../food/copy';
 import { fmt } from '../format';
@@ -13,11 +13,16 @@ import type { NewLog } from '../food/useFoodDay';
 import { useAi } from './AiProvider';
 import type { AiImage } from './client';
 import { AI_COPY, failureMessage, imageFailureMessage } from './copy';
-import { logFromRow, PHOTO_ADJ_MAX, PHOTO_ADJ_MIN, rowMacros, rowsFromItems, stepAdj, swapFood, type PhotoRow } from './mealPhoto';
+import { foodToSave, logFromRow, PHOTO_ADJ_MAX, PHOTO_ADJ_MIN, rowMacros, rowsFromItems, stepAdj, swapFood, type PhotoRow } from './mealPhoto';
 import { pickPhotoForAi } from './photo';
+import { useRequest } from './useRequest';
+import type { UserFood } from '../food/types';
+import type { CustomFoodResult } from '@plate-and-bar/core';
 
 const NOTE_MAX = 300;
 const SWAP_SHOWN = 6;
+/** The longest the busy-server wait (503 with `Retry-After`) keeps Analyse off. */
+const COOLDOWN_MAX_S = 10;
 
 /**
  * Meal photo (AI): take or choose a photo, add a note if wanted, then check the items before anything is logged. The photo
@@ -25,7 +30,7 @@ const SWAP_SHOWN = 6;
  * one request. `foods` are the foods on the device (the user's own first), used to match and to swap. `onClose` runs after
  * the items are logged; `onAdd` logs to the meal and the day the sheet was opened for.
  */
-export function PhotoBody({ meal, foods, onAdd, onClose }: { meal: string; foods: readonly CatalogFood[]; onAdd: (n: NewLog) => void; onClose: () => void }) {
+export function PhotoBody({ meal, foods, onAdd, onSaveMine, onAdded, onClose }: { meal: string; foods: readonly CatalogFood[]; onAdd: (n: NewLog) => void; onSaveMine: (f: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => UserFood; onAdded?: (n: number) => void; onClose: () => void }) {
   const ai = useAi();
   const c = useTheme();
   const [image, setImage] = useState<AiImage | null>(null);
@@ -35,33 +40,43 @@ export function PhotoBody({ meal, foods, onAdd, onClose }: { meal: string; foods
   const [error, setError] = useState<string | null>(null);
   const [swapping, setSwapping] = useState<number | null>(null);
   const [query, setQuery] = useState('');
-  const alive = useRef(true);
-  const inFlight = useRef(false);
-  useEffect(() => () => void (alive.current = false), []);
+  const [save, setSave] = useState(false);
+  const [wait, setWait] = useState(0);
+  const req = useRequest();
+
+  // Busy-server wait: counts down once a second; Analyse is back at zero.
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
 
   const pick = async (source: 'camera' | 'library') => {
-    if (inFlight.current) return;
+    // Choosing a photo drops any answer still on its way for the old one.
+    const t = req.begin();
+    setBusy(false);
     setError(null);
     try {
       const got = await pickPhotoForAi(source);
-      if (!alive.current || !got) return;
+      if (!req.settle(t) || !got) return;
       setImage(got);
       setRows(null);
     } catch (e) {
-      if (alive.current) setError(e instanceof CameraDenied ? AI_COPY.photoCameraOff : AI_COPY.photoUnreadable);
+      if (req.settle(t)) setError(e instanceof CameraDenied ? AI_COPY.photoCameraOff : AI_COPY.photoUnreadable);
     }
   };
 
   const exhausted = ai.quotaUsed();
   const analyse = async () => {
-    if (inFlight.current || !image || ai.quotaUsed()) return;
-    inFlight.current = true;
+    if (req.pending() || !image || ai.quotaUsed() || wait > 0) return;
+    const t = req.begin();
     setBusy(true);
     setError(null);
     const r = await ai.mealPhoto(image, isBlank(hint) ? undefined : hint.trim());
-    inFlight.current = false;
-    if (!alive.current) return;
+    // Cancelled, another photo chosen or the sheet closed while it was out: the answer is dropped.
+    if (!req.settle(t)) return;
     setBusy(false);
+    if (r.kind === 'unavailable' && r.retryAfterSec) setWait(Math.min(r.retryAfterSec, COOLDOWN_MAX_S));
     if (r.kind !== 'ok') return setError(imageFailureMessage(r, AI_COPY.photoFallback));
     if (r.data.not_food || !r.data.items.length) return setError(AI_COPY.photoNone);
     setRows(rowsFromItems(r.data.items, foods));
@@ -70,13 +85,23 @@ export function PhotoBody({ meal, foods, onAdd, onClose }: { meal: string; foods
   const update = (key: number, f: (r: PhotoRow) => PhotoRow) => setRows((rs) => rs && rs.map((r) => (r.key === key ? f(r) : r)));
   const addAll = () => {
     if (!rows) return;
-    const logs: NewLog[] = [];
+    const planned: { row: PhotoRow; log: NewLog }[] = [];
     for (const r of rows) {
       const res = logFromRow(r);
       if (res.kind !== 'ok') return setError(`${r.name || 'An item'}: ${CUSTOM_MESSAGE[res.kind]}`);
-      logs.push(res.log);
+      planned.push({ row: r, log: res.log });
     }
-    logs.forEach(onAdd);
+    for (const { row, log } of planned) {
+      const food = save ? foodToSave(row) : null;
+      if (!food) {
+        onAdd(log);
+        continue;
+      }
+      const mine = onSaveMine(food);
+      // An estimate is logged as the food it was just saved as; a matched food keeps its own macros and qty.
+      onAdd(row.food ? log : { ...log, name: food.name, foodId: mine.id });
+    }
+    onAdded?.(planned.length);
     onClose();
   };
 
@@ -90,7 +115,9 @@ export function PhotoBody({ meal, foods, onAdd, onClose }: { meal: string; foods
       </View>
       <Field label={AI_COPY.photoNoteLabel} placeholder={AI_COPY.photoNotePlaceholder} multiline maxLength={NOTE_MAX} value={hint} onChangeText={setHint} />
       {exhausted ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.photoFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
-      {image && !exhausted ? <Button label={busy ? AI_COPY.photoBusy : AI_COPY.photoAnalyse} a11yLabel={AI_COPY.photoAnalyse} busy={busy} onPress={() => void analyse()} /> : null}
+      {wait > 0 ? <Hint>{AI_COPY.photoServerBusy(wait)}</Hint> : null}
+      {image && !exhausted && wait <= 0 ? <Button label={busy ? AI_COPY.photoBusy : AI_COPY.photoAnalyse} a11yLabel={AI_COPY.photoAnalyse} busy={busy} onPress={() => void analyse()} /> : null}
+      {busy ? <Button kind="ghost" label="Cancel" a11yLabel="Cancel analysis" onPress={() => { req.cancel(); setBusy(false); }} /> : null}
       <Hint>{AI_COPY.photoPrivacy}</Hint>
       {rows ? (
         <View style={styles.inner}>
@@ -101,7 +128,7 @@ export function PhotoBody({ meal, foods, onAdd, onClose }: { meal: string; foods
             const who = `Item ${n + 1} ${r.name || 'unnamed'}`;
             return (
               <Card key={r.key} style={styles.gap}>
-                <Field label={`Item ${n + 1} name`} value={r.name} onChangeText={(v) => update(r.key, (x) => ({ ...x, name: v }))} />
+                <Field label={`Item ${n + 1} name`} value={r.name} onChangeText={(v) => update(r.key, (x) => ({ ...x, name: v, renamed: true }))} />
                 <Text style={{ color: c.muted, fontSize: 14 }}>{r.portion}{r.food ? '' : ' · estimate'}{r.unsure ? ' · unsure' : ''}</Text>
                 <View style={styles.row}>
                   <Press accessibilityRole="button" accessibilityLabel={`Smaller portion for ${who}`} onPress={() => update(r.key, (x) => ({ ...x, adj: stepAdj(x.adj, -1) }))} disabled={r.adj <= PHOTO_ADJ_MIN} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>−</Text></Press>
@@ -127,6 +154,10 @@ export function PhotoBody({ meal, foods, onAdd, onClose }: { meal: string; foods
               </Card>
             );
           })}
+          <Press accessibilityRole="checkbox" accessibilityLabel={AI_COPY.photoSave} {...a11yState({ checked: save })} onPress={() => setSave((v) => !v)} style={styles.saveRow}>
+            <View style={[styles.box, { borderColor: c.brand, backgroundColor: save ? c.brand : 'transparent' }]}>{save ? <Text style={{ color: c.onBrand, fontWeight: '700' }}>✓</Text> : null}</View>
+            <Text style={{ color: c.ink, flex: 1 }}>{AI_COPY.photoSave}</Text>
+          </Press>
           <Hint>{AI_COPY.photoOilHint}</Hint>
           {rows.length ? <Button label={`Add ${rows.length} item${rows.length > 1 ? 's' : ''} to ${meal.toLowerCase()}`} onPress={addAll} /> : <Hint>Nothing left to add.</Hint>}
           <Hint>{AI_COPY.aiNote}</Hint>
@@ -142,5 +173,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   preview: { width: '100%', height: 200, borderRadius: 8 },
   step: { minWidth: 44, minHeight: 44, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  saveRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  box: { width: 24, height: 24, borderWidth: 2, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   pickRow: { minHeight: 44, padding: 10, borderRadius: 8, justifyContent: 'center' },
 });
