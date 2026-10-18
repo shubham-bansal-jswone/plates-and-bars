@@ -90,6 +90,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getHeaders().getFirst("Cache-Control")).isEqualTo("no-store");
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("DescribeMealResponse", b)).isEmpty();
+        ContractSchemas.assertResponse("POST /ai/describe-meal", 200, res.getBody());
         assertThat(b.path("items").get(0).path("name").asString()).isEqualTo("Roti");
         assertThat(b.path("quota").path("remaining").asInt()).isEqualTo(9);
         assertThat(calls(u)).isEqualTo(1);
@@ -269,6 +270,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("AskWhyResponse", b)).isEmpty();
+        ContractSchemas.assertResponse("POST /ai/ask-why", 200, res.getBody());
         assertThat(b.path("card_id").asString()).isEqualTo("protein");
         ArgumentCaptor<String> in = ArgumentCaptor.forClass(String.class);
         verify(provider).complete(eq(AiFeature.ASK_WHY), any(), in.capture());
@@ -309,6 +311,7 @@ class AiEndpointsIT extends AiITBase {
         var res = post(u, WEEKLY, WEEK);
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         assertThat(ContractSchemas.validate("WeeklySummaryResponse", body(res))).isEmpty();
+        ContractSchemas.assertResponse("POST /ai/weekly-summary", 200, res.getBody());
         ArgumentCaptor<String> in = ArgumentCaptor.forClass(String.class);
         verify(provider).complete(eq(AiFeature.WEEKLY_SUMMARY), any(), in.capture());
         JsonNode sent = json.readTree(in.getValue());
@@ -457,6 +460,7 @@ class AiEndpointsIT extends AiITBase {
         assertThat(res.getHeaders().getFirst("Cache-Control")).isEqualTo("no-store");
         JsonNode b = body(res);
         assertThat(ContractSchemas.validate("SuggestTagsResponse", b)).isEmpty();
+        ContractSchemas.assertResponse("POST /ai/suggest-tags", 200, res.getBody());
         assertThat(b.path("primary").get(0).asString()).isEqualTo("chest");
         assertThat(b.path("quota").path("remaining").asInt()).isEqualTo(9);
         assertThat(calls(u)).isEqualTo(1);

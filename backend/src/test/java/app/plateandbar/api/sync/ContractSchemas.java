@@ -51,6 +51,57 @@ public final class ContractSchemas {
                 .validate(value);
     }
 
+    /** The contract's {@code paths} object, for the per-operation guard. */
+    static JsonNode paths() {
+        try {
+            return new YAMLMapper().readTree(Files.readAllBytes(CONTRACT)).path("paths");
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Checks a real response against the contract for {@code operation} (for example {@code "POST /auth/google"}) and
+     * {@code status}. The status must be documented. If the contract gives it a JSON schema (inline or through
+     * {@code components.responses}) the body must conform; if it gives none (204, 304) the body must be empty.
+     * The literal operation string and status are what {@code ContractCoverageTest} looks for, so pass them as literals.
+     */
+    public static void assertResponse(String operation, int status, String body) {
+        String[] parts = operation.split(" ", 2);
+        JsonNode response = paths().path(parts[1]).path(parts[0].toLowerCase()).path("responses").path(String.valueOf(status));
+        if (response.isMissingNode()) {
+            throw new AssertionError(operation + " documents no " + status + " response");
+        }
+        if (response.has("$ref")) {
+            String ref = response.path("$ref").asString();
+            response = COMPONENTS.path("responses").path(ref.substring(ref.lastIndexOf('/') + 1));
+        }
+        JsonNode schema = response.path("content").path("application/json").path("schema");
+        String text = body == null ? "" : body;
+        if (schema.isMissingNode()) {
+            if (!text.isEmpty()) {
+                throw new AssertionError(operation + " " + status + " documents no body, got: " + text.length() + " chars");
+            }
+            return;
+        }
+        JsonNode value;
+        try {
+            value = new ObjectMapper().readTree(text);
+        } catch (RuntimeException e) {
+            throw new AssertionError(operation + " " + status + " body is not JSON", e);
+        }
+        ObjectNode wrapper = ((ObjectNode) schema).deepCopy();
+        wrapper.put("$schema", "https://json-schema.org/draft/2020-12/schema");
+        wrapper.set("components", COMPONENTS);
+        List<com.networknt.schema.Error> problems = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12,
+                        b -> b.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build()))
+                .getSchema(wrapper)
+                .validate(value);
+        if (!problems.isEmpty()) {
+            throw new AssertionError(operation + " " + status + " does not match the contract: " + problems);
+        }
+    }
+
     static String schemaNameOf(SyncTable t) {
         return switch (t) {
             case profiles -> "Profile";
