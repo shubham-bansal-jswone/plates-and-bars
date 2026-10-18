@@ -55,9 +55,14 @@ export async function framesFromVideo(): Promise<AiFrame[] | null> {
 export async function framesFromPhotos(): Promise<AiFrame[] | null> {
   const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: FRAMES_MAX, orderedSelection: true, quality: 1, exif: false });
   if (picked.canceled || !picked.assets.length) return null;
-  const out: AiFrame[] = [];
-  for (const a of picked.assets.slice(0, FRAMES_MAX)) out.push(await frame(a));
-  return out;
+  try {
+    const out: AiFrame[] = [];
+    for (const a of picked.assets.slice(0, FRAMES_MAX)) out.push(await frame(a));
+    return out;
+  } finally {
+    // Every picked copy in the cache goes, whether or not a frame failed and including any past the fourth.
+    for (const a of picked.assets) discard(a.uri);
+  }
 }
 
 /** Takes one photo as a frame; null when the user cancels. */

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SheetModal } from '../components/Sheet';
 import { Text } from '../components/Text';
@@ -9,6 +9,7 @@ import { getCatalog } from '../workout/catalog';
 import { useAi } from './AiProvider';
 import type { AiFrame } from './client';
 import { AI_COPY, failureMessage, formCheckFailureMessage } from './copy';
+import { useRequest } from './useRequest';
 import { frameFromCamera, framesFromPhotos, framesFromVideo, FRAMES_MAX, FRAMES_MIN, VideoUnreadable } from './frames';
 import type { Schemas } from '@plate-and-bar/api';
 
@@ -40,41 +41,70 @@ function FormCheckSheet({ name, onClose }: { name: string; onClose: () => void }
   const [error, setError] = useState<string | null>(null);
   const [reply, setReply] = useState<Reply | null>(null);
   const [ticked, setTicked] = useState<ReadonlySet<number>>(new Set());
-  const alive = useRef(true);
-  const inFlight = useRef(false);
-  useEffect(() => () => void (alive.current = false), []);
+  // Where the frames on screen came from: a camera photo adds to camera photos only; a video or chosen photos replace everything.
+  const [source, setSource] = useState<'video' | 'photos' | 'camera' | null>(null);
+  const req = useRequest();
 
-  const choose = async (load: () => Promise<AiFrame[] | null>, failed: string) => {
-    if (inFlight.current || cutting) return;
+  const choose = async (load: () => Promise<AiFrame[] | null>, kind: 'video' | 'photos', failed: string) => {
+    if (cutting) return;
+    // Choosing frames drops any answer still on its way for the old ones.
+    const t = req.begin();
+    setBusy(false);
     setError(null);
     setCutting(true);
     try {
       const got = await load();
-      if (!alive.current || !got) return;
+      if (!req.settle(t) || !got) return;
       setFrames(got);
+      setSource(kind);
       setReply(null);
-      if (got.length < FRAMES_MIN) setError(AI_COPY.formFew);
     } catch (e) {
-      if (alive.current) setError(e instanceof CameraDenied ? AI_COPY.photoCameraOff : e instanceof VideoUnreadable ? AI_COPY.formVideoFailed : failed);
+      if (req.settle(t)) setError(e instanceof VideoUnreadable ? AI_COPY.formVideoFailed : failed);
     } finally {
-      if (alive.current) setCutting(false);
+      if (req.settle(t)) setCutting(false);
     }
   };
-  const take = () =>
-    choose(async () => {
+  const take = async () => {
+    if (cutting) return;
+    // Camera photos never mix with video or chosen-photo frames, and a fifth is refused rather than dropping the oldest.
+    const base = source === 'camera' ? frames : [];
+    if (base.length >= FRAMES_MAX) return setError(AI_COPY.formMax);
+    const t = req.begin();
+    setBusy(false);
+    setError(null);
+    setCutting(true);
+    try {
       const f = await frameFromCamera();
-      return f ? [...frames, f].slice(-FRAMES_MAX) : null;
-    }, AI_COPY.photoUnreadable);
+      if (!req.settle(t) || !f) return;
+      setFrames([...base, f]);
+      setSource('camera');
+      setReply(null);
+    } catch (e) {
+      if (req.settle(t)) setError(e instanceof CameraDenied ? AI_COPY.photoCameraOff : AI_COPY.photoUnreadable);
+    } finally {
+      if (req.settle(t)) setCutting(false);
+    }
+  };
+  const clear = () => {
+    req.cancel();
+    setBusy(false);
+    setCutting(false);
+    setFrames([]);
+    setSource(null);
+    setReply(null);
+    setError(null);
+  };
 
   const exhausted = ai.quotaUsed();
   const run = async () => {
-    if (inFlight.current || ai.quotaUsed() || frames.length < FRAMES_MIN) return;
-    inFlight.current = true;
+    // Never while frames are being cut: the frames on screen are about to be replaced.
+    if (req.pending() || cutting || ai.quotaUsed() || frames.length < FRAMES_MIN) return;
+    const t = req.begin();
     setBusy(true);
     setError(null);
     const r = await ai.formCheck(name, frames);
-    inFlight.current = false;
-    if (!alive.current) return;
+    // Cancelled, frames replaced or cleared, or the sheet closed while it was out: the answer is dropped.
+    if (!req.settle(t)) return;
     setBusy(false);
     if (r.kind !== 'ok') return setError(formCheckFailureMessage(r, AI_COPY.formFallback));
     setReply(r.data);
@@ -85,12 +115,12 @@ function FormCheckSheet({ name, onClose }: { name: string; onClose: () => void }
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.formTitle(name)}</Heading>
-          <Hint>{AI_COPY.formHow}</Hint>
+          <Hint>{Platform.OS === 'web' ? AI_COPY.formHowWeb : AI_COPY.formHow}</Hint>
           <View style={styles.row}>
-            {Platform.OS === 'web' ? null : <Button kind="ghost" label={frames.length ? AI_COPY.formVideoAnother : AI_COPY.formVideo} onPress={() => void choose(framesFromVideo, AI_COPY.formVideoFailed)} />}
-            <Button kind="ghost" label={AI_COPY.formPhotos} onPress={() => void choose(framesFromPhotos, AI_COPY.photoUnreadable)} />
+            {Platform.OS === 'web' ? null : <Button kind="ghost" label={frames.length ? AI_COPY.formVideoAnother : AI_COPY.formVideo} onPress={() => void choose(framesFromVideo, 'video', AI_COPY.formVideoFailed)} />}
+            <Button kind="ghost" label={AI_COPY.formPhotos} onPress={() => void choose(framesFromPhotos, 'photos', AI_COPY.photoUnreadable)} />
             <Button kind="ghost" label={AI_COPY.formTake} onPress={() => void take()} />
-            {frames.length ? <Button kind="link" label={AI_COPY.formClear} onPress={() => { setFrames([]); setReply(null); setError(null); }} /> : null}
+            {frames.length ? <Button kind="link" label={AI_COPY.formClear} onPress={clear} /> : null}
           </View>
           {cutting ? <Text accessibilityLiveRegion="polite" style={{ color: c.muted }}>{AI_COPY.formCutting}</Text> : null}
           {frames.length ? (
@@ -100,14 +130,15 @@ function FormCheckSheet({ name, onClose }: { name: string; onClose: () => void }
                   <Image key={i} source={{ uri: `data:${f.media_type};base64,${f.data}` }} accessibilityLabel={AI_COPY.formFrame(i + 1)} resizeMode="cover" style={[styles.frame, { backgroundColor: c.surfaceSoft }]} />
                 ))}
               </View>
-              <Hint>{AI_COPY.formFrames(frames.length)}</Hint>
+              <Hint>{frames.length < FRAMES_MIN ? AI_COPY.formOneFrame : AI_COPY.formFrames(frames.length)}</Hint>
             </>
           ) : (
             <Hint>{AI_COPY.formNeedTwo}</Hint>
           )}
           {exhausted ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.formFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
           {busy ? <Text accessibilityLiveRegion="polite" style={{ color: c.muted }}>{AI_COPY.formBusy}</Text> : null}
-          {frames.length >= FRAMES_MIN && !exhausted ? <Button label={busy ? AI_COPY.formBusy : AI_COPY.formRun} a11yLabel={AI_COPY.formRun} busy={busy} onPress={() => void run()} /> : null}
+          {frames.length >= FRAMES_MIN && !exhausted && !cutting ? <Button label={busy ? AI_COPY.formBusy : AI_COPY.formRun} a11yLabel={AI_COPY.formRun} busy={busy} onPress={() => void run()} /> : null}
+          {busy ? <Button kind="ghost" label={AI_COPY.formCancel} a11yLabel="Cancel the check" onPress={() => { req.cancel(); setBusy(false); }} /> : null}
           <View style={styles.gap}>
             <Label>{AI_COPY.formCues}</Label>
             {cues.map((q, k) => (

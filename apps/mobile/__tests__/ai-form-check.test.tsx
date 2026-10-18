@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Platform } from 'react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
 import { IMAGE_ISSUES } from '../src/ai/client';
@@ -39,6 +40,7 @@ jest.mock('expo-image-manipulator', () => ({
       mockSaved.ops.push(`manipulate ${uri}`);
       const ctx = {
         resize: (s: object) => (mockSaved.ops.push(`resize ${JSON.stringify(s)}`), ctx),
+        release: () => undefined,
         renderAsync: async () => ({
           saveAsync: async (o: { compress: number; format: string; base64: boolean }) => {
             mockSaved.ops.push(`save ${o.compress} ${o.format} ${o.base64}`);
@@ -97,13 +99,13 @@ const tokens = async () => {
 
 const CARD = 'Goblet Squat';
 const CUES = getCatalog().cards[CARD]!.key_cues;
-const act = new Proxy({}, { get: () => jest.fn() }) as Actions;
+const actions = new Proxy({}, { get: () => jest.fn() }) as Actions;
 const state = (name: string): ExState => ({ name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, ramp: [], sets: [{ ...blankRow() }], ...{} });
 async function card(kv: ReturnType<typeof kvDb>, api: ApiClient, name = CARD, signedIn = true) {
   const t = await tokens();
   await render(
     <AiProvider db={kv as never} api={api} tokens={t} signedIn={signedIn} now={NOW}>
-      <ExerciseCard ex={state(name)} info={exInfo(name, getCatalog())} sug={{ mode: 'new', reps: 8, text: '', reason: '' }} focus={[]} warm={null} act={act} infoOf={(n) => exInfo(n, getCatalog())} />
+      <ExerciseCard ex={state(name)} info={exInfo(name, getCatalog())} sug={{ mode: 'new', reps: 8, text: '', reason: '' }} focus={[]} warm={null} act={actions} infoOf={(n) => exInfo(n, getCatalog())} />
     </AiProvider>,
   );
 }
@@ -229,6 +231,11 @@ describe('the flow', () => {
     expect(Object.keys(POST.mock.calls[0][1].body).sort()).toEqual(['exercise', 'frames']);
     expect(POST.mock.calls[0][1].body.exercise).toBe(CARD);
     expect(sentFrames(POST)).toEqual(Array(4).fill({ media_type: 'image/jpeg', data: 'cmVzaXplZA==' }));
+    // Every re-encode ran on a cut from the video, never on the video file itself.
+    const manipulated = mockSaved.ops.filter((o) => o.startsWith('manipulate '));
+    expect(manipulated).toHaveLength(4);
+    for (const o of manipulated) expect(o).toContain('VideoThumbnails/');
+    expect(mockSaved.ops.join('\n')).not.toContain('set.mp4');
     // Nothing in the body is the video: no uri, no file.
     expect(JSON.stringify(POST.mock.calls[0][1].body)).not.toMatch(/mp4|file:/);
   });
@@ -250,7 +257,7 @@ describe('the flow', () => {
     expect(screen.getByText(/Second opinion, not a coach\./)).toBeTruthy();
   });
 
-  it('photos: two to four, in the order picked, are the frames; a camera photo adds one', async () => {
+  it('photos: two to four, in the order picked, are the frames', async () => {
     const { api, POST } = fakeApi();
     POST.mockResolvedValue(ok());
     await card(optedIn(), api);
@@ -258,11 +265,50 @@ describe('the flow', () => {
     await fireEvent.press(await screen.findByLabelText('Choose 2 to 4 photos'));
     expect(await screen.findByText('3 frames ready. Only these are sent.')).toBeTruthy();
     expect(mockPicker.calls).toEqual(['photos']);
-    await fireEvent.press(screen.getByLabelText('Take a photo'));
-    expect(await screen.findByText('4 frames ready. Only these are sent.')).toBeTruthy();
     await run();
     await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
-    expect(sentFrames(POST)).toHaveLength(4);
+    expect(sentFrames(POST)).toHaveLength(3);
+  });
+
+  describe('camera photos one at a time', () => {
+    const take = async () => fireEvent.press(await screen.findByLabelText('Take a photo'));
+
+    it('the first photo is a hint, not an error; the second makes it sendable; the fifth is refused and nothing is dropped', async () => {
+      const { api, POST } = fakeApi();
+      POST.mockResolvedValue(ok());
+      await card(optedIn(), api);
+      await open();
+      await take();
+      expect(await screen.findByText(/^One frame is ready\. Add at least one more/)).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByLabelText('Get a second opinion')).toBeNull();
+      await take();
+      await screen.findByText('2 frames ready. Only these are sent.');
+      await take();
+      await take();
+      await screen.findByText('4 frames ready. Only these are sent.');
+      await take();
+      expect(await screen.findByText('That’s 4 frames, the most that can be sent. Clear frames to start over.')).toBeTruthy();
+      expect(mockPicker.calls.filter((c) => c === 'camera')).toHaveLength(4);
+      expect(screen.getByText('4 frames ready. Only these are sent.')).toBeTruthy();
+      await run();
+      await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+      expect(sentFrames(POST)).toHaveLength(4);
+    });
+
+    it('a camera photo replaces frames from a video or chosen photos instead of mixing with them, and Clear starts over', async () => {
+      const { api } = fakeApi();
+      await card(optedIn(), api);
+      await open();
+      await chooseVideo();
+      await screen.findByText('4 frames ready. Only these are sent.');
+      await take();
+      expect(await screen.findByText(/^One frame is ready\./)).toBeTruthy();
+      expect(screen.queryByLabelText('Frame 2 from your set')).toBeNull();
+      await fireEvent.press(screen.getByLabelText('Clear frames'));
+      expect(screen.queryByLabelText('Frame 1 from your set')).toBeNull();
+      expect(screen.getByText('Choose a video, or 2 to 4 photos in the order they happened.')).toBeTruthy();
+    });
   });
 
   it('with fewer than two frames there is no way to send', async () => {
@@ -271,7 +317,8 @@ describe('the flow', () => {
     await card(optedIn(), api);
     await open();
     await fireEvent.press(await screen.findByLabelText('Choose 2 to 4 photos'));
-    expect(await screen.findByText('Choose at least 2 photos.')).toBeTruthy();
+    expect(await screen.findByText(/^One frame is ready\. Add at least one more/)).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByLabelText('Get a second opinion')).toBeNull();
     expect(POST).not.toHaveBeenCalled();
   });
@@ -338,6 +385,91 @@ describe('the flow', () => {
     expect(POST).toHaveBeenCalledTimes(1);
     await (async () => done(ok()))();
     expect(await screen.findByText('Second opinion')).toBeTruthy();
+  });
+});
+
+describe('review fixes (#1003)', () => {
+  it('every picked photo is deleted from the cache when a frame fails, including those after it and past the fourth', async () => {
+    const { api } = fakeApi();
+    const uris = [1, 2, 3, 4, 5].map((n) => `${CACHE}ImagePicker/p${n}.jpg`);
+    mockPicker.photos = photos(...uris);
+    // The first photo shrinks; the second is over the size limit at every quality.
+    mockSaved.base64 = ['cmVzaXplZA==', 'x'.repeat(466_700)];
+    await card(optedIn(), api);
+    await open();
+    await fireEvent.press(await screen.findByLabelText('Choose 2 to 4 photos'));
+    expect(await screen.findByText('Couldn’t use that photo. Try another one.')).toBeTruthy();
+    for (const u of uris) expect(mockSaved.deleted).toContain(u);
+  });
+
+  it('on the web the hint does not mention a video or a camera app', async () => {
+    jest.replaceProperty(Platform, 'OS', 'web');
+    try {
+      const { api } = fakeApi();
+      await card(optedIn(), api);
+      await open();
+      expect(await screen.findByText(/take 2 to 4 photos of one set/)).toBeTruthy();
+      expect(screen.queryByText(/choose the video here/)).toBeNull();
+      expect(screen.queryByLabelText('Choose a video')).toBeNull();
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  it('Get a second opinion is not offered, and sends nothing, while new frames are being cut', async () => {
+    const { api, POST } = fakeApi();
+    await card(optedIn(), api);
+    await open();
+    await chooseVideo();
+    await screen.findByLabelText('Frame 1 from your set');
+    let release!: (v: unknown) => void;
+    mockPicker.video = new Promise((r) => (release = r));
+    await fireEvent.press(await screen.findByLabelText('Use a different video'));
+    expect(await screen.findByText('Cutting frames…')).toBeTruthy();
+    expect(screen.queryByLabelText('Get a second opinion')).toBeNull();
+    expect(POST).not.toHaveBeenCalled();
+    await act(async () => release({ canceled: true, assets: null }));
+  });
+
+  describe('a reply nobody is waiting for is dropped', () => {
+    const pending = async () => {
+      const { api, POST } = fakeApi();
+      let done!: (v: unknown) => void;
+      POST.mockReturnValue(new Promise((r) => (done = r)));
+      await card(optedIn(), api);
+      await open();
+      await chooseVideo();
+      await screen.findByLabelText('Frame 1 from your set');
+      await run();
+      await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+      return { resolve: done };
+    };
+
+    it('Cancel, clear and choose other frames, then a late answer changes nothing', async () => {
+      const { resolve } = await pending();
+      await fireEvent.press(screen.getByLabelText('Cancel the check'));
+      await fireEvent.press(screen.getByLabelText('Clear frames'));
+      await act(async () => resolve(ok()));
+      expect(screen.queryByText('Second opinion')).toBeNull();
+      expect(screen.queryByLabelText('Frame 1 from your set')).toBeNull();
+      expect(screen.queryByLabelText('Cancel the check')).toBeNull();
+    });
+
+    it('Cancel, then a late error shows no message', async () => {
+      const { resolve } = await pending();
+      await fireEvent.press(screen.getByLabelText('Cancel the check'));
+      await act(async () => resolve({ error: { code: 'unavailable', message: 'x' }, response: res(503) }));
+      expect(screen.queryByText(/Couldn’t get an answer/)).toBeNull();
+      expect(screen.getByLabelText('Get a second opinion')).toBeTruthy();
+    });
+
+    it('choosing other frames while it is out drops the answer for the old ones', async () => {
+      const { resolve } = await pending();
+      await fireEvent.press(screen.getByLabelText('Choose 2 to 4 photos'));
+      await screen.findByText('3 frames ready. Only these are sent.');
+      await act(async () => resolve(ok()));
+      expect(screen.queryByText('Second opinion')).toBeNull();
+    });
   });
 });
 
