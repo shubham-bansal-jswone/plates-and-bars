@@ -230,10 +230,10 @@ const NATIVE = [
   ['folly', 'Folly', '2024.11.18.00', 'Apache-2.0', 'https://github.com/facebook/folly', ['folly.txt']],
   ['glog', 'glog', '0.3.5', 'BSD-3-Clause', 'https://github.com/google/glog', ['glog.txt']],
   ['double-conversion', 'double-conversion', '1.1.6', 'BSD-3-Clause', 'https://github.com/google/double-conversion', ['double-conversion.txt']],
-  ['fast-float', 'fast_float', '8.0.0 (React Native), 8.1.0 (Hermes)', 'MIT', 'https://github.com/fastfloat/fast_float', ['fast-float.txt']],
+  ['fast-float', 'fast_float', '8.0.0 (React Native), 8.1.0 (Hermes)', 'MIT', 'https://github.com/fastfloat/fast_float', ['fast-float.txt']], // offered under Apache-2.0, MIT and BSL-1.0; MIT is the one taken
   ['fmt', '{fmt}', '12.1.0', 'MIT', 'https://github.com/fmtlib/fmt', ['fmt.txt']],
   ['boost', 'Boost', '1.83.0 (React Native, headers), 1.86.0 (Hermes, Context)', 'BSL-1.0', 'https://www.boost.org', ['boost.txt']],
-  ['libcxx', 'LLVM libc++, libc++abi and libunwind (Android NDK)', '27.1.12297006 (LLVM 18)', 'Apache-2.0 WITH LLVM-exception AND NCSA AND MIT', 'https://libcxx.llvm.org', ['libcxx.txt']],
+  ['libcxx', 'LLVM libc++, libc++abi and libunwind (Android NDK)', '27.1.12297006 (LLVM 18)', 'Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)', 'https://libcxx.llvm.org', ['libcxx.txt']], // LLVM 18 offers the older libc++ code under NCSA or MIT, at the user's choice
   ['llvh', 'LLVM support library (llvh, in Hermes)', 'Hermes 260318099.0.4', 'Apache-2.0 WITH LLVM-exception AND NCSA', 'https://github.com/facebook/hermes/tree/main/external/llvh', ['llvh.txt']],
   ['unicode', 'Unicode character data tables (in Hermes)', 'Unicode 17.0.0, Hermes 260318099.0.4', 'Unicode-3.0', 'https://www.unicode.org/license.txt', ['unicode.txt']],
   ['dtoa', 'dtoa (David M. Gay)', 'netlib, 2016-01-18', 'Lucent permissive notice', 'https://www.netlib.org/fp/', ['dtoa.txt']],
