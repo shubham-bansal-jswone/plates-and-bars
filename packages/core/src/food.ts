@@ -496,14 +496,96 @@ export function customFood(input: CustomFoodInput): CustomFoodResult {
  */
 export const MY_FOODS_MAX = 60;
 
+/** A food that may carry the barcode it was scanned from (contract `UserFood.barcode`). */
+export interface BarcodedFood {
+  name: string;
+  barcode?: string | null | undefined;
+}
+
+/**
+ * The comparison key of a barcode: a 12-digit UPC-A and the 13-digit EAN-13 with a leading 0 are one product,
+ * so a 12-digit code gets a leading 0. Other codes are returned as given.
+ *
+ * A new rule from the #944 review (no prototype function).
+ */
+export function normaliseBarcode(code: string): string {
+  return code.length === 12 ? `0${code}` : code;
+}
+
+/** True when both codes are the same product (`normaliseBarcode` equal). Empty or missing codes never match. */
+export function sameBarcode(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && normaliseBarcode(a) === normaliseBarcode(b);
+}
+
+const hasBarcode = (f: { barcode?: string | null | undefined }): boolean => !!f.barcode;
+
 /**
  * "My foods" after saving `food`: it goes first, any food of the same name is dropped, and only the
  * first 60 are kept. Pass the list newest first; foods missing from the result are to be deleted.
  *
+ * Two additions from the #944 review: a saved food that has a barcode is never dropped by name (a plain save
+ * must not replace a scanned food), and a `food` that itself has a barcode is saved with `saveScannedFood`.
+ * For foods without barcodes this is the prototype's rule unchanged.
+ *
  * Mirrors the save step of prototype `case 'addcustom'`.
  */
 export function saveMyFood<T extends { name: string }>(myFoods: readonly T[], food: T): T[] {
-  return [food, ...myFoods.filter((x) => x.name !== food.name)].slice(0, MY_FOODS_MAX);
+  if (hasBarcode(food as BarcodedFood)) return saveScannedFood(myFoods as readonly (T & BarcodedFood)[], food as T & BarcodedFood);
+  return [food, ...myFoods.filter((x) => x.name !== food.name || hasBarcode(x as BarcodedFood))].slice(0, MY_FOODS_MAX);
+}
+
+/**
+ * "My foods" after saving a food with a barcode: it goes first and only a food with the same product
+ * (`sameBarcode`, so UPC-A and its leading-0 EAN-13 are one) is replaced. Never a food with another barcode or
+ * none, even when the names match. Capped at 60 like `saveMyFood`. A `food` without a barcode is saved as
+ * `saveMyFood` does. Foods missing from the result are to be deleted.
+ *
+ * A new rule from the #944 review (no prototype function).
+ */
+export function saveScannedFood<T extends BarcodedFood>(myFoods: readonly T[], food: T): T[] {
+  if (!hasBarcode(food)) return saveMyFood(myFoods, food);
+  return [food, ...myFoods.filter((x) => !sameBarcode(x.barcode, food.barcode))].slice(0, MY_FOODS_MAX);
+}
+
+/** A value as the review form holds it: a number, the typed text, or nothing. */
+export type ScannedNumber = string | number | null | undefined;
+
+/** What `scannedFood` reads: `customFood`'s form, but a calorie or macro value may be missing. */
+export interface ScannedFoodInput {
+  name: string;
+  kcal: ScannedNumber;
+  protein: ScannedNumber;
+  carbs: ScannedNumber;
+  fat: ScannedNumber;
+  qty: string | number;
+  unit: string;
+}
+
+/** A number or numeric text (comma decimal allowed) is present, a genuine 0 included; empty, null, undefined or junk is missing. */
+const present = (v: ScannedNumber): boolean => v !== null && v !== undefined && Number.isFinite(parseFloat(String(v).replace(',', '.')));
+
+/**
+ * The scanned-food review form (#944, spec D4.6 "A genuine 0 must be typed"). Like `customFood`, but all four
+ * of calories, protein, carbs and fat must be present and a 0 is a real value: a product with every one at 0
+ * (water, diet soda) is valid, and a typed 0 kcal stays 0 and is never swapped for a macro estimate.
+ * A missing value gives `no-kcal`. Checks run in `customFood`'s order (name, name length, negatives and
+ * quantity, then missing). The result has `customFood`'s shape; the caller adds the barcode.
+ *
+ * A new rule from the #944 review (no prototype function; `customFood` keeps the prototype's rule for the Custom tab).
+ */
+export function scannedFood(input: ScannedFoodInput): CustomFoodResult {
+  const name = input.name.trim();
+  if (!name) return { kind: 'no-name' };
+  if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
+  const k = num(input.kcal), p = num(input.protein), c = num(input.carbs), f = num(input.fat);
+  const qty = num(input.qty) || 1;
+  if (k < 0 || p < 0 || c < 0 || f < 0 || qty <= 0) return { kind: 'invalid' };
+  if (![input.kcal, input.protein, input.carbs, input.fat].every(present)) return { kind: 'no-kcal' };
+  return {
+    kind: 'ok',
+    log: { name, qty, kcal: k, protein_g: p, carbs_g: c, fat_g: f },
+    food: { name, unit: input.unit.trim() || '1 serving', kcal: k, protein_g: p, carbs_g: c, fat_g: f, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' },
+  };
 }
 
 /** A user food in the shape every food-maths function reads (see `userFoodFacts`). */

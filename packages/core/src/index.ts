@@ -299,7 +299,11 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  * - `highProtein` mirrors the "high protein" badge check in prototype `foodListHtml()`.
  * - `customFood` mirrors prototype `case 'addcustom'`, `name-too-long` (names over `FOOD_NAME_MAX`, 200, the
  *   contract limit) and `invalid` included (#150); `saveMyFood` its save step, `MY_FOODS_MAX` its 60 (the my-foods list only;
- *   recipe and kitchen-test saves keep the prototype's 80).
+ *   recipe and kitchen-test saves keep the prototype's 80). From #944, `saveMyFood` never drops a food that has a
+ *   barcode by name.
+ * - `saveScannedFood`, `scannedFood`, `normaliseBarcode` and `sameBarcode` are new #944 rules, not prototype ports: a barcode-keyed
+ *   save (only the same product is replaced; UPC-A and its leading-0 EAN-13 are one), the scanned-food form check that
+ *   accepts genuine zeros, and the shared barcode comparison.
  * - `userFoodFacts` mirrors the `myFoods` mapping of prototype `allFoods()`, `fibOf` and `produceOf` (contract `UserFood` in).
  */
 export {
@@ -317,11 +321,15 @@ export {
   highProtein,
   customFood,
   saveMyFood,
+  saveScannedFood,
+  scannedFood,
+  normaliseBarcode,
+  sameBarcode,
   MY_FOODS_MAX,
   FOOD_NAME_MAX,
   userFoodFacts,
 } from './food';
-export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts } from './food';
+export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts, BarcodedFood, ScannedFoodInput, ScannedNumber } from './food';
 
 /**
  * Macro targets before setup (no profile), for the Food tab's ring and legend.
