@@ -442,6 +442,9 @@ export interface paths {
          *     anonymous monthly AI token total (month and token count only, no user id) kept to
          *     enforce the shared AI budget (see the `ai` tag). There is no undo and no grace
          *     period. The app asks the user to confirm before calling this.
+         *     The server also records the account's random user id and the deletion time, and
+         *     nothing else, in an erasure ledger kept outside the database for 45 days, so that
+         *     restoring a backup cannot bring the account back.
          *
          *     **What is deleted, and when.** Before the server answers 204, in one transaction:
          *     every row of every synced table (tombstones included), the conflict log, the
