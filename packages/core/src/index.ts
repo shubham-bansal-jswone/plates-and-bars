@@ -683,3 +683,14 @@ export type { OffProduct, OffNutriments, OffNumber, OffMapResult, OffUserFoodDra
  */
 export { cycInfo, waterRetentionPhase, sameDayLastCycle, addCycleStart, removeLastCycleStart, emptyCycle } from './cycle';
 export type { CycleData, CycleInfo, CyclePhase } from './cycle';
+
+/**
+ * Meal photo rules (#1011). `capPhotoItems` mirrors `raw.slice(0, 12)` and `clampPhotoServings` the 0.25 to 6 clamp in prototype
+ * `analysePhoto`; `photoMacros` mirrors `phMacros`; `photoLogQty` and `photoEstimateLog` the `r1` / `Math.round` amounts in `ph-add`;
+ * `stepPhotoAdj` the 0.5 to 2 step 0.25 portion slider; `photoAdjLabel` its `r1(it.adj)` label.
+ */
+export {
+  PHOTO_ITEMS_MAX, PHOTO_SERVINGS_MIN, PHOTO_SERVINGS_MAX, PHOTO_ADJ_MIN, PHOTO_ADJ_MAX, PHOTO_ADJ_STEP,
+  capPhotoItems, clampPhotoServings, stepPhotoAdj, photoMacros, photoLogQty, photoEstimateLog, photoAdjLabel,
+} from './photoMeal';
+export type { PhotoMacros } from './photoMeal';
