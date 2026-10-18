@@ -51,7 +51,8 @@ export function renderBody(body: string): Rendered {
       trimmed = true;
       return "";
     });
-  const kept = text.split(/(?<=[.!?])\s+/).filter((s) => {
+  // split after . ! ? before a capital or digit, but not after an abbreviation such as "e.g." or "et al."
+  const kept = text.split(/(?<=[.!?])(?<!\b(?:e\.g|i\.e|etc|vs|al|approx|cf|no)\.)\s+(?=[A-Z0-9"'\u2018\u201C(])/).filter((s) => {
     if (!/\{[a-z_]+\}/.test(s)) return true;
     trimmed = true;
     return false;

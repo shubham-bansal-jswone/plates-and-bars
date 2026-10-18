@@ -10,16 +10,25 @@ const root = fileURLToPath(new URL("../../../", import.meta.url));
 const failures = [];
 const fail = (m) => failures.push(m);
 const decode = (s) => s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+// same sentence split as src/lib/cards.ts
+const SPLIT = /(?<=[.!?])(?<!\b(?:e\.g|i\.e|etc|vs|al|approx|cf|no)\.)\s+(?=[A-Z0-9"'\u2018\u201C(])/;
 const exists = (p) => access(p).then(() => true, () => false);
 const read = (p) => readFile(join(dist, p), "utf8");
 
 // The hidden list must match the app's (apps/mobile/src/why/cards.ts), so site and app show the same cards.
 const appSrc = await readFile(join(root, "apps/mobile/src/why/cards.ts"), "utf8");
-const appHidden = [...(/HIDDEN_CARDS[^=]*=\s*\[([^\]]*)\]/.exec(appSrc)?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+const appHidden = [...(/HIDDEN_CARDS[^=]*=\s*\[([^\]]*)\]/.exec(appSrc)?.[1] ?? "").matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
 const siteSrc = await readFile(new URL("../src/lib/cards.ts", import.meta.url), "utf8");
-const siteHidden = [...(/HIDDEN_CARDS[^=]*=\s*\[([^\]]*)\]/.exec(siteSrc)?.[1] ?? "").matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+const siteHidden = [...(/HIDDEN_CARDS[^=]*=\s*\[([^\]]*)\]/.exec(siteSrc)?.[1] ?? "").matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
 if (appHidden.length === 0) fail("could not read HIDDEN_CARDS from the app");
 if (appHidden.join() !== siteHidden.join()) fail(`HIDDEN_CARDS differ: app [${appHidden}] site [${siteHidden}]`);
+
+// The evidence wording must match the app's Why sheet.
+const evOf = (src, re) => Object.fromEntries([...(re.exec(src)?.[1] ?? "").matchAll(/(Strong|Moderate|Emerging):\s*['"]([^'"]+)['"]/g)].map((m) => [m[1], m[2]]));
+const appEv = evOf(await readFile(join(root, "apps/mobile/src/why/WhyLink.tsx"), "utf8"), /EVIDENCE_NOTE\s*=\s*\{([^}]*)\}/);
+const siteEv = evOf(siteSrc, /EVIDENCE_NOTE\s*=\s*\{([^}]*)\}/);
+if (Object.keys(appEv).length !== 3) fail("could not read EVIDENCE_NOTE from the app");
+if (JSON.stringify(appEv) !== JSON.stringify(siteEv)) fail(`EVIDENCE_NOTE differs: app ${JSON.stringify(appEv)} site ${JSON.stringify(siteEv)}`);
 
 const { cards } = JSON.parse(await readFile(join(root, "content/cards.json"), "utf8"));
 const shown = cards.filter((c) => !appHidden.includes(c.id));
@@ -37,8 +46,19 @@ for (const c of cards) {
     continue;
   }
   const html = decode(await read(page));
-  for (const [what, text] of [["title", c.title], ["summary", c.summary], ["source", c.source], ["evidence", c.evidence]])
-    if (!html.includes(text)) fail(`${c.id}: ${what} missing`);
+  const article = html.match(/<article[\s\S]*<\/article>/)?.[0] ?? "";
+  if (!article) fail(`${c.id}: no <article>`);
+  const h1 = (article.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? "").replace(/<[^>]*>/g, "").trim();
+  if (h1 !== c.title) fail(`${c.id}: h1 is "${h1}", not the card title`);
+  const text = article.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  const paras = [...article.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((m) => m[1].replace(/<[^>]*>/g, "").trim());
+  if (!paras.includes(c.summary)) fail(`${c.id}: summary paragraph missing`);
+  for (const [what, t] of [["source", c.source], ["evidence", c.evidence]]) if (!text.includes(t)) fail(`${c.id}: ${what} missing`);
+  // body: every sentence of the card body that needs no personal number must be on the page
+  const stripped = c.body.replace(/\{\?([a-z_]+)\}[\s\S]*?\{\/\1\}/g, "{}");
+  const sentences = stripped.split(SPLIT).filter((x) => !x.includes("{"));
+  if (sentences.length === 0) fail(`${c.id}: no checkable body sentence`);
+  for (const x of sentences) if (!text.includes(x.replace(/\s+/g, " "))) fail(`${c.id}: body sentence missing: ${x.slice(0, 50)}`);
   if (!c.source.trim()) fail(`${c.id}: empty source in content`);
   if (!/<html lang="en"/.test(html)) fail(`${c.id}: no lang`);
   if ((html.match(/<h1[ >]/g) ?? []).length !== 1) fail(`${c.id}: need exactly one h1`);
