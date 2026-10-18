@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-18 — Bodyweight Squat and Goblet Squat cards get a depth cue (spec-change; golden `exercises.json` changed).**
+- #981 (part of #947): the depth line "Lower until your thighs are about parallel" (the wording the Hack Squat card already uses) replaces one `key_cues` line on each card in `docs/prototype/plate-and-bar.html`, so every card keeps exactly 3 key cues. Bodyweight Squat: replaces "Sit back and down between your heels" (now the first line). Goblet Squat: replaces "Stand up by pushing through your whole foot" (now the third line). `docs/spec/golden/exercises.json` and `content/exercises.json` are regenerated; no calculation changes. Core's `DEPTH_CUES` (live pose tracking) points at this line.
+
 **2026-10-18 — cycle log: "Turn off and delete" takes a second tap (spec-change; prototype and golden fixtures unchanged).**
 - Prototype `cyc-off` (line 3369) deletes the cycle log on one tap with no confirmation. The app deliberately differs: the first tap arms the button ("Tap again to delete the cycle log", disarms after 4 seconds), the second deletes. The data is sensitive and the deletion cannot be undone; the app already uses this pattern for deleting a photo check-in. No calculation changes (#625).
 
