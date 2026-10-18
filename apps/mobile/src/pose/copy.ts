@@ -8,6 +8,7 @@ export const POSE_COPY = {
   privacy: 'The camera view stays on this phone. Nothing is recorded or sent.',
   start: 'Start camera',
   starting: 'Starting the camera and loading the model. The first time this downloads about 5 MB.',
+  startingApp: 'Starting the camera and loading the model.',
   countdown: (s: number) => `Get in position. Starting in ${s}.`,
   tracking: 'Tracking. Do your set.',
   noReps: 'No reps yet',
@@ -29,10 +30,16 @@ export const POSE_COPY = {
   close: 'Close',
   retry: 'Try again',
   denied: 'The camera is blocked. Allow it for this site in your browser settings to track a set. Your set works the same without it.',
+  deniedApp: 'The camera is blocked. Allow it for Plate & Bar in your phone settings to track a set. Your set works the same without it.',
   noCamera: 'No camera was found on this device.',
   cameraFailed: 'The camera could not start. Close other apps that use it and try again.',
   modelFailed: 'The tracking model could not load. Check your connection and try again. Your set works the same without it.',
+  modelFailedApp: 'The tracking model could not load. Your set works the same without it.',
   camera: 'Camera view',
+  rationaleTitle: 'Camera for form tracking',
+  rationale: 'Plate & Bar uses the camera on this phone to count your reps. Nothing is recorded or sent.',
+  allow: 'Allow camera',
+  notNow: 'Not now',
 } as const;
 
 function secs(ms: number): string {
