@@ -93,7 +93,7 @@ Aim: stop further access without destroying evidence. Work from `infra/staging` 
    - Deploy access: the repository secrets `STAGING_SSH_KEY` and `SITE_SSH_KEY` (new key pairs), and remove the old public keys from `~/.ssh/authorized_keys` of the deploy-only users on the VMs.
    - Check `GOOGLE_CLIENT_IDS` is unchanged.
 6. **AI**: AI is off today. Every `AI_*_ENABLED` flag defaults to `false`, `AI_MONTHLY_BUDGET_TOKENS` defaults to 0, and `StubAiProvider` is the only provider (`backend/src/main/resources/application.yml`, `backend/.../ai/`). `infra/staging/docker-compose.yml` does not pass any `AI_*` variable to the API, so setting them in `.env` has no effect. Once a provider is deployed and those variables are passed through, the off switch is `AI_*_ENABLED=false` or `AI_MONTHLY_BUDGET_TOKENS=0` in what the API container reads, then recreate the API.
-7. **Bring the API back only with a fix**: a rolled-back tag (`infra/RUNBOOK.md` section 2: set `API_TAG`, then `docker compose up -d api`) or a fixed build. If data was altered or destroyed, restore per section 4 into a scratch database first and compare.
+7. **Bring the API back only with a fix**: a rolled-back tag (`infra/RUNBOOK.md` section 2: set `API_TAG`, then `docker compose up -d api`) or a fixed build. If data was altered or destroyed, restore per section 4 into a scratch database first and compare. Every restore must be followed by the erasure-ledger replay (`infra/RUNBOOK.md` section 4 step 4), or accounts deleted since that backup come back; the ledger objects live outside the backup prefix, so copy `erasure-ledger/` too if you move the evidence to another bucket.
 8. Record each action with the time in the incident log.
 
 ## 3. Assess

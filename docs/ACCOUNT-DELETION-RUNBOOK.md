@@ -27,7 +27,7 @@ Checked against `AccountService.delete`, `AccountRepository.deleteAll`, the fore
 - **Outside the server:** data on the requester's own devices stays there until they clear it (a signed-in device is signed out the next time it contacts the server). Progress and kitchen-test photos never reach the server.
 - **Kept by this process:** the request email thread in [privacy contact email] (it holds the address and a used, expired code), the request log, and the SMTP provider's delivery record of each code email (address, subject, time, for the provider's retention period). **Counsel:** confirm how long to keep both.
 
-Known gap, not specific to this runbook: restoring a backup brings back every account deleted after that backup was taken, whichever way it was deleted. Tracked in #850 (an erasure ledger kept outside the database and replayed after a restore); until it lands, do not restore production from a backup older than the newest deletion without deciding with **Counsel** how to redo those deletions.
+Restoring a backup would bring back every account deleted after that backup was taken, whichever way it was deleted. The erasure ledger prevents that: every `DELETE /me` (including the one in step 3 below, so the email path is covered) appends the opaque user id and time to a ledger that `infra/staging/ledger-upload.sh` copies to the bucket hourly and keeps 45 days, and `infra/RUNBOOK.md` section 4 replays it after every restore (#850, #853). Nothing is added by hand. A deletion in the last hour before a total loss of the VM can be missing from the bucket copy (`infra/RUNBOOK.md` section 3a); after any restore, check the replay line says it ran.
 
 ## Before you start
 

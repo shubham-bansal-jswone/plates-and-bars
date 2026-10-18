@@ -47,6 +47,15 @@ Automatic staging deploy (#411): `.github/workflows/staging-deploy.yml` does the
 3. Add to the VM's crontab (`crontab -e`): `15 3 * * * cd /opt/plateandbar/infra/staging && ./backup.sh >> "$HOME/plateandbar-backup.log" 2>&1`
 4. The dump contains user data: keep the bucket private and do not widen the token. Enable the provider's encryption at rest if it is not on by default.
 
+## 3a. Erasure ledger upload (#853)
+
+Restoring a dump brings back every account deleted after it was taken. The API therefore appends `<user id>` TAB `<UTC time>` to a file on the `erasure_ledger` volume on every `DELETE /me` (#854), and `ledger-upload.sh` copies that file to the bucket every hour as `erasure-ledger/<prefix>/ledger-<UTC date>.log`, outside `BACKUP_S3_PREFIX` so the 30-day backup retention never touches it. Each run merges the day's object with the local file (union of valid lines) and uploads the union, so a shorter local file (a fresh volume after VM loss) can never replace a longer bucket copy. Entries and objects older than 45 days (the 30-day backups plus margin) are dropped from the uploaded copy; the live file is never rewritten. The ledger holds opaque ids and times only. Same `.env` credentials and pinned rclone as `backup.sh`; free tier as at the top of this file (a few hundred requests a day against 1 million a month, checked 2026-10-12).
+
+1. **Owner**, once per VM, before `ERASURE_LEDGER_PATH` matters (the API already requires it): add to the crontab of the user that runs `backup.sh`: `5 * * * * cd /opt/plateandbar/infra/staging && ./ledger-upload.sh >> "$HOME/plateandbar-ledger-upload.log" 2>&1`. Run it once by hand and list `erasure-ledger/<prefix>/` in the bucket. With no deletion yet it uploads an empty object; that is correct, because replay fails when it finds no object at all.
+2. **Owner**, optional: an Uptime Kuma **Push** monitor with a heartbeat interval of about 2 hours, URL in `.env` as `LEDGER_HEARTBEAT_URL` (single quotes, as `BACKUP_HEARTBEAT_URL`). A failed upload sends nothing.
+3. Remaining window: deletions made since the last successful upload (up to about an hour) are lost if the VM and its volume are lost at once; there is no fix inside the free tier short of writing to the bucket on every request. Replay covers every older deletion. After VM loss the replacement starts a new local ledger; the old objects stay in the bucket and are still replayed until they pass 45 days.
+4. A line that is not `<uuid> TAB <ISO UTC time>` is skipped and counted: upload warns, replay reports. A cut line comes only from a request that answered 500 and deleted nothing.
+
 ## 4. Restore
 
 Use a scratch database first if you are only checking a backup.
@@ -64,8 +73,9 @@ Use a scratch database first if you are only checking a backup.
    gunzip -c restore.sql.gz | docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot plateandbar'
    ```
    `DROP DATABASE` removes only the tables and data. The `MYSQL_USER` account and its grants on `plateandbar` live in the `mysql` system schema, so they still apply to the recreated database.
-4. `docker compose start api` and check `curl -fsS https://$API_HOST/api/v1/health`.
-5. Delete `restore.sql.gz` from the VM.
+4. **Replay the erasure ledger before the API starts** (#853): `./ledger-upload.sh` first if the VM is alive (it adds the last hour's deletions), then `./ledger-replay.sh live`. It fetches every object under `erasure-ledger/<prefix>/`, merges them and deletes every ledgered user id the dump still contains, printing only counts: `ledger replay ok: removed N user(s)`. A line that does not match is skipped and counted (`malformed line(s) skipped`; read the count, it is normally 0). The script fails only when the ledger is missing or unreadable: then do **not** start the API; fix the bucket access, or decide with **Counsel** how to redo the deletions. Do this after every dump load, including into a scratch database (`./ledger-replay.sh container <name>`).
+5. `docker compose start api` and check `curl -fsS https://$API_HOST/api/v1/health`.
+6. Delete `restore.sql.gz` from the VM.
 
 Rehearsal: the dump and restore commands (not the bucket transfer) were run on 2026-10-12 against a throwaway `mysql:8.4.11` container with a table and a trigger; the row count matched after restore. **Owner:** the full rehearsal against the real bucket, as required by #36, still has to be done once the bucket exists. Record the date here when done.
 
