@@ -22,12 +22,16 @@ export async function checkCamera(): Promise<CameraPermission> {
   }
 }
 
-/** Asks for the camera with the rationale (Android shows it when the user refused once before). */
-export async function requestCamera(): Promise<CameraPermission> {
+/** The text of the system dialog Android shows when the user refused once before. */
+export type Rationale = { title: string; message: string; buttonPositive: string; buttonNegative: string };
+const BARCODE_RATIONALE: Rationale = { title: t.rationaleTitle, message: t.rationale, buttonPositive: t.allow, buttonNegative: t.cancel };
+
+/** Asks for the camera with the rationale (Android shows it when the user refused once before). The default is the barcode text; other features pass their own. */
+export async function requestCamera(rationale: Rationale = BARCODE_RATIONALE): Promise<CameraPermission> {
   if (Platform.OS === 'web') return checkCamera();
   if (Platform.OS !== 'android') return 'unavailable';
   try {
-    const r = await PermissionsAndroid.request(camera(), { title: t.rationaleTitle, message: t.rationale, buttonPositive: t.allow, buttonNegative: t.cancel });
+    const r = await PermissionsAndroid.request(camera(), rationale);
     return r === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : r === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ? 'blocked' : 'denied';
   } catch {
     return 'denied';
