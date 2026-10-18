@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { profileWhyValues } from '../why/values';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
@@ -169,14 +169,22 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
   // This week's hand-picked plan replaces the usual list while it is the current week (prototype chipList).
   const weekTemplates = coverageTemplates(date, profile, weekPlan) as readonly string[];
   const others = weekTemplates.filter((k) => k !== plan);
-  const lists = workoutLists(weekTemplates, where);
+  const lists = workoutLists(weekTemplates, where, { date, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, lifts: day.lifts });
+  // Focus would fall to the document when the pressed chip or button unmounts: say where the user is now (a live region; iOS has no live regions, so it announces).
+  const [said, setSaid] = useState('');
+  const say = (msg: string) => {
+    setSaid(msg);
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(msg);
+  };
   const back = () => {
     setPreviewT(null);
     setPicked([]);
+    say('Back to the list of workouts.');
   };
   const preview = (k: string) => {
     if (choice === 'swap') setChoice(null);
     setPreviewT(k);
+    say(`${k} day preview. Nothing is saved until you start.`);
   };
   const { primary: pickedPrim, secondary: pickedSec } = musclesOf(picked);
 
@@ -188,6 +196,7 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
   return (
     <Page>
       <DateBar v={v} />
+      <Text testID="start-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{Platform.OS === 'ios' ? '' : said}</Text>
       <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
       <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} now={now} />
@@ -207,10 +216,13 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
         <Card>
           <BodyMap primary={pickedPrim} secondary={pickedSec} />
           {picked.map((n, i) => (
-            <Text key={n} accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15 }}>
-              {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
-              <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
-            </Text>
+            <View key={n} style={styles.pickRow}>
+              <Text accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15, flex: 1 }}>
+                {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
+                <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
+              </Text>
+              <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => setPicked(picked.filter((x) => x !== n))} />
+            </View>
           ))}
           <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice)} />
           <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
@@ -274,7 +286,18 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
             {built?.mods.short ? <Hint>{ci.time} minutes: the main {built.exercises.length} exercises only.</Hint> : null}
           </View>
           <Button label={`Start ${startT}`} onPress={() => void w.start(startT, ci, choice, override)} />
-          {previewT ? <Button label="Pick exercises" kind="ghost" onPress={() => setPicking(true)} /> : null}
+          {previewT ? (
+            <Button
+              label="Pick exercises"
+              kind="ghost"
+              onPress={() => {
+                // Starts from this workout's exercises: drop some, add others from any workout, then Start.
+                setPicked(names);
+                setPreviewT(null);
+                setPicking(true);
+              }}
+            />
+          ) : null}
           {previewT ? <Button label="Back to workouts" kind="link" onPress={back} /> : null}
         </Card>
       ) : null}
@@ -388,7 +411,7 @@ function SessionView({ v, now, db, reloadKey, w, profile, focus, rules, notify, 
         );
       })}
       <Button label="Add exercise" kind="ghost" onPress={() => setAdding(true)} />
-      <AddExerciseFlow open={adding} onClose={() => setAdding(false)} inSession={day.exs.map((e) => e.name)} workouts={workoutLists(coverageTemplates(date, profile, settings.adjustments.weekPlan as WeekPlan | undefined) as readonly string[], wk.where ?? profile.where)} add={w.addExercise} notify={notify} />
+      <AddExerciseFlow open={adding} onClose={() => setAdding(false)} inSession={day.exs.map((e) => e.name)} workouts={workoutLists(coverageTemplates(date, profile, settings.adjustments.weekPlan as WeekPlan | undefined) as readonly string[], wk.where ?? profile.where, { date, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, lifts: day.lifts })} add={w.addExercise} notify={notify} />
       <Hint>Tap the tick with a field empty to use the suggested number. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
       {choices ? (
         <Card>
@@ -415,4 +438,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   checkin: { borderTopWidth: 1, paddingTop: 10, gap: 10 },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
 });

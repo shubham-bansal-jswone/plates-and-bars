@@ -27,8 +27,8 @@ async function openSheet(page, opener, name) {
 // The Workout screen has its own "Add exercise" button; the sheet is a dialog with the same name, so the opener is found by role.
 const addExercise = (page) => page.getByRole('button', { name: 'Add exercise', exact: true });
 const openAdd = (page) => openSheet(page, addExercise(page), 'Add exercise');
-// A chip in the Add exercise sheet: "Add <exercise>", not the "Add the exercise you typed" button.
-const sheetChip = (sheet) => sheet.locator('[aria-label^="Add "]:not([aria-label^="Add the exercise"])').first();
+// A chip in the Add exercise sheet's library list: "Add <exercise>", not the "Add the exercise you typed" button nor the per-workout "Add <exercise> from <workout>" chips (#1005).
+const sheetChip = (sheet) => sheet.locator('[aria-label^="Add "]:not([aria-label^="Add the exercise"]):not([aria-label*=" from "])').first();
 // Polls: right after a reload the session is read back asynchronously.
 const expectNames = (page, want) => expect.poll(() => names(page), { timeout: 20_000 }).toEqual(want);
 // The toast lasts about two seconds, so it is awaited while the write settles, not after it.
