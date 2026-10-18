@@ -6,6 +6,7 @@ import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
 import { DEFAULT_KCAL_TARGET, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
+import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
 import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -16,6 +17,7 @@ import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { TrendChart } from '../progress/TrendChart';
 import { useProgress } from '../progress/useProgress';
+import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -48,7 +50,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const dataVersion = useDataVersion();
+  const dataVersion = useDataVersion() + useStepsVersion(); // a pulled record or a phone step reading changed a day note
   const v = useViewedDate(now);
   const p = useProgress({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const cycle = useCycle({ db, date: v.date, notify, reloadKey: dataVersion });
@@ -71,7 +73,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
             <CycleSection key={v.date} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
-            <StepsSleepSection key={`${p.today?.steps}:${p.today?.sleep}`} p={p} />
+            <StepsSleepSection key={p.date} p={p} />
             <WeekCard date={p.date} days={ci.days} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
           </>
         ) : (
@@ -174,8 +176,8 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
 
 function StepsSleepSection({ p }: { p: Progress }) {
   const c = useTheme();
-  const [steps, setSteps] = useState(p.today?.steps != null ? String(p.today.steps) : ''); // 0 is a real count (#303)
-  const [sleep, setSleep] = useState(p.today?.sleep != null ? String(p.today.sleep) : ''); // 0 h is valid (contract 0-24)
+  const [steps, setSteps] = useStoredText(p.today?.steps != null ? String(p.today.steps) : ''); // 0 is a real count (#303)
+  const [sleep, setSleep] = useStoredText(p.today?.sleep != null ? String(p.today.sleep) : ''); // 0 h is valid (contract 0-24)
   return (
     <View style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Heading>
