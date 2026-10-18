@@ -40,6 +40,7 @@ const webApp = webAppUrl(import.meta.env.PUBLIC_WEB_APP_URL);
   <ul>
     <li>On our server, immediately and with no undo: your account, your email sign-in identity, all sessions, all synced records, the conflict log copies, your daily AI usage counters and, for your email address, any pending one-time codes and records of wrong codes kept for rate limiting.</li>
     <li>Not deleted: one anonymous monthly total of AI tokens (the month and the token count only, with no user id) kept to enforce the shared AI budget. It cannot be linked to your account, so your AI use still counts toward that month's budget. Server logs are also not deleted; see below.</li>
+    <li>Also kept: your account's random id and the time of deletion, with nothing else, in an erasure ledger for 45 days, so that restoring a backup cannot bring your account back.</li>
     <li>On the device you delete from: your profile and targets, consent record, food, water and workout logs (including sets and lift history), day notes, weights, measurements, your own foods, recipes and kitchen tests, exclusions, swaps, settings and anything waiting to sync.</li>
     <li>Other devices where you were signed in are signed out the next time they contact the server. Data already on them stays on them until you clear it there.</li>
   </ul>
