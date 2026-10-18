@@ -31,3 +31,17 @@ Run before each release, on the release candidate build. Automated coverage: the
 
 - [ ] CI is green on the release commit, including `e2e (web, Playwright)`.
 - [ ] No open `bug` issue with label `accessibility` or data loss on the release milestone.
+
+## Play staged rollout and halt
+
+Detail, thresholds and the content-only path are in `infra/RUNBOOK.md` section 8. The numbers below are starting values chosen without real traffic data (#931); the owner may change them. Play Console menu and button names change: the steps say what to look for, not where it is. Build and upload by hand, nothing uploads to Play for us.
+
+- [ ] Before the first step: the AAB is from a `v*` tag build (a non-tag AAB must never be uploaded), release-signed, and its `versionCode` is higher than the one in production. The production API is already on that tag and healthy (`infra/RUNBOOK.md` section 4a).
+- [ ] Internal testing: the build installed from Play on a real phone, setup and one meal and one set work, About shows the release version.
+- [ ] Production release created with a staged rollout of 10 %. Note the date and time here: ______
+- [ ] Hold at 10 % for at least 48 hours. In that time check twice a day: crash-free users and crash rate of the new version in Play Console's Android vitals (compared with the previous version), new or rising issues for this release in GlitchTip (once it is running; release name `plate-and-bar@X.Y.Z+code`), errors for `plateandbar-api@X.Y.Z`, the support mailbox, and the Uptime Kuma alerts.
+- [ ] Raise to 50 % only if nothing in the halt list below has happened. Note date and time: ______
+- [ ] Hold at 50 % for at least 24 hours, same checks.
+- [ ] Raise to 100 %. Keep watching the same sources for a week.
+
+Halt the rollout (stop further users getting this version) when any of these happens: a report of lost, duplicated or another person's data; a crash or ANR rate clearly above the previous version, or crash-free users below 98 %; a sign-in, sync or setup failure reported by more than one user; an error spike in GlitchTip tied to this release. In Play Console open the production release and use its halt-rollout action (it is next to the rollout percentage; the label can differ). A halt does not uninstall or roll back phones that already updated. Then follow `infra/RUNBOOK.md` section 8.2, and for a possible data leak `docs/INCIDENT-RESPONSE.md` first.
