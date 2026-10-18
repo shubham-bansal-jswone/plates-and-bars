@@ -1,0 +1,44 @@
+// Renders the start and end SVG frames of every exercise the rig has a pose for, and builds the
+// content/exercise-images.json bundle (issue #653). Pure: no clock, no randomness, no network.
+import { AN } from './rig.mjs';
+import { LICENCES } from '../validate/exercise-images.mjs';
+
+// No literal colours: the body uses currentColor, the rest are theme tokens the app (or a stylesheet) defines.
+export const COLOURS = { body: 'currentColor', arm: 'var(--fig-arm)', hl: 'var(--fig-hl)', eq: 'var(--fig-eq)', bg: 'var(--fig-bg)' };
+export const VIEW = { w: 320, h: 240 };
+export const RIG_VERSION = 'rig-v1';
+export const AUTHOR = 'Plate & Bar authors';
+
+export const slug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** k = 0 is the start pose, k = 1 the end pose. */
+export function renderFrame(name, k) {
+  const body = AN.frame(name, k, COLOURS).replace(/(\d)\.0(?=["\s])/g, '$1'); // "12.0" -> "12": about 6% smaller
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW.w} ${VIEW.h}">${body}</svg>`;
+}
+
+export function buildEntry(name) {
+  const id = slug(name);
+  return {
+    frames: [['a', 0], ['b', 1]].map(([suffix, k]) => ({ file: `svg/${id}-${suffix}.svg`, w: VIEW.w, h: VIEW.h, svg: renderFrame(name, k) })),
+    source: 'own_drawing',
+    source_id: `${RIG_VERSION}/${id}`,
+    licence: 'CC-BY-4.0',
+    licence_url: LICENCES['CC-BY-4.0'],
+    author: AUTHOR,
+    author_url: null,
+    source_url: null,
+    changes: null,
+    alt: null,
+    note: null,
+  };
+}
+
+/** @param exerciseNames names in exercises.json order; the bundle keeps that order and skips exercises with no pose */
+export function buildBundle(exerciseNames) {
+  const images = {};
+  for (const name of exerciseNames) if (AN.has(name)) images[name] = buildEntry(name);
+  return { schema_version: 1, images };
+}
+
+export const serialize = (bundle) => `${JSON.stringify(bundle, null, 2)}\n`;
