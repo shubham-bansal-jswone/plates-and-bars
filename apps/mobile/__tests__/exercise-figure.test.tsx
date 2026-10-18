@@ -224,9 +224,9 @@ describe('About: Exercise drawings', () => {
 
 describe('SVG allowlist parity with tools/validate/svg-allowlist.mjs', () => {
   // The same corpus is run by tools/test/exercise-images.test.mjs; both must give each entry's expected verdict.
-  const frames = corpus.frames as { name: string; w: number; h: number; ok: boolean; svg: string }[];
+  const frames = corpus as { name: string; w: number; h: number; ok: boolean; svg: string }[];
   it('has both accepted and refused entries', () => {
-    expect(frames.length).toBeGreaterThanOrEqual(60);
+    expect(frames.length).toBeGreaterThanOrEqual(100);
     expect(frames.some((f) => f.ok) && frames.some((f) => !f.ok)).toBe(true);
   });
   it.each(frames.map((f) => [f.name, f] as const))('%s', (_n, f) => {
