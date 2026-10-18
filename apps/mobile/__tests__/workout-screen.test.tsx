@@ -9,6 +9,7 @@ import { loadSessionLog, saveSet } from '../src/db/workouts';
 import { setRecord, blankRow, type ExState } from '../src/workout/model';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { getCatalog } from '../src/workout/catalog';
+import { HAND_PICKED } from '@plate-and-bar/core';
 import type { ExType, LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
@@ -1050,6 +1051,15 @@ describe('stored set records', () => {
     expect(await loadSessionLog(db)).toEqual({ [DATE]: { t: 'Push B', n: 1 } });
     await saveSet(db, DATE, { ...setRecord(e, 'work', 0, new Date(2026, 9, 8)), deleted_at: '2026-10-08T10:00:00Z' });
     expect(await loadSessionLog(db)).toEqual({});
+  });
+
+  it("labels a session with no base or template with core's HAND_PICKED", async () => {
+    const db = memoryDb();
+    const e = ex();
+    e.sets[0] = { ...blankRow(), w: '20', r: '10', done: true };
+    db.rows.set(`workouts:${DATE}`, JSON.stringify({ date: DATE, base: null, template: null, deleted_at: null }));
+    await saveSet(db, DATE, setRecord(e, 'work', 0, new Date(2026, 9, 8)));
+    expect((await loadSessionLog(db))[DATE]?.t).toBe(HAND_PICKED);
   });
 });
 
