@@ -88,9 +88,13 @@ public class ErasureLedger {
      * then starts on a new line, so a good entry is never glued onto a cut-off one; the replay must skip a line that
      * does not match, and that line's user, if its id is cut, is re-ledgered by the retry (README, "Erasure ledger").
      *
+     * <p>Synchronized: the first entry of a day creates the file and then syncs the directory. Without the lock a
+     * second deletion racing it could see the file already there, skip the directory sync, and return (and delete)
+     * before the new directory entry is durable. Deletions are rare, so serialising them costs nothing.
+     *
      * @throws ErasureLedgerException if it cannot be written; the caller must then not delete anything
      */
-    public void record(String userId, Instant at) {
+    public synchronized void record(String userId, Instant at) {
         if (dir == null) {
             return;
         }
@@ -119,13 +123,17 @@ public class ErasureLedger {
                 ch.force(true);
             }
             if (created && posix) {
-                // The new directory entry is not durable until the directory itself is synced.
-                try (FileChannel d = FileChannel.open(dir, StandardOpenOption.READ)) {
-                    d.force(true);
-                }
+                syncDirectory();
             }
         } catch (IOException e) {
             throw new ErasureLedgerException("erasure ledger not writable", e);
+        }
+    }
+
+    /** The new directory entry is not durable until the directory itself is synced. Package-private for a test. */
+    void syncDirectory() throws IOException {
+        try (FileChannel d = FileChannel.open(dir, StandardOpenOption.READ)) {
+            d.force(true);
         }
     }
 
