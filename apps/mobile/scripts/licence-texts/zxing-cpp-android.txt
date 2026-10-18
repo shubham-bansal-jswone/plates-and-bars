@@ -1,0 +1,5 @@
+zxing-cpp (the Android wrapper, io.github.zxing-cpp:android)
+
+Copyright 2016 Nu-book Inc.
+Copyright 2016 ZXing authors
+and the zxing-cpp contributors
