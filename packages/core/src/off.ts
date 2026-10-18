@@ -107,7 +107,7 @@ function read(v: OffNumber): number | null {
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const alnum = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
-/** Name: `product_name`, plus the first brand when it is not already in the name; at most 200 characters. */
+/** Name: `name`, plus the first brand when it is not already in the name; at most 200 characters. */
 function nameOf(p: OffProduct): string {
   const name = (p.name ?? '').trim();
   if (!name) return '';
