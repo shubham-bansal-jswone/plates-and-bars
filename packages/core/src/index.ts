@@ -624,6 +624,40 @@ export type { PrepEntry, AddPrepInput } from './prep';
 export { checkinBannerDue } from './progress';
 
 /**
+ * Device step count from the Android since-boot counter (#300), no prototype counterpart. `advanceSteps` turns a reading and the stored
+ * baseline into the new baseline and the day totals to write (`msSinceMidnight` is the reading's local time; a gap across midnight is credited to the day before only within `MIDNIGHT_WINDOW_MS` of it, else dropped); `isReboot` is its reboot check.
+ */
+export { advanceSteps, isReboot, MIDNIGHT_WINDOW_MS } from './deviceSteps';
+export type { StepReading, StepBaseline, StepCredit, StepAdvance } from './deviceSteps';
+
+/**
+ * Live pose tracking (#947 slice 1; new in v1.1, no prototype function): `analyseSquat` runs `squatSignal` (hip height above
+ * the knee in shin lengths, from MoveNet's 17 keypoints) through the smoothed rep state machine (`initRepCounter`,
+ * `stepRepCounter`, `repInProgress`) and returns rep count, depth against about parallel, tempo and card cue keys (`DEPTH_CUES`).
+ */
+export {
+  analyseSquat,
+  squatSignal,
+  initRepCounter,
+  stepRepCounter,
+  repInProgress,
+  DEPTH_CUES,
+  MOVENET,
+  MIN_SCORE,
+  MIN_SHIN,
+  SMOOTH_TAU_MS,
+  TOP_H,
+  DOWN_H,
+  PARALLEL_H,
+  BOTTOM_BAND,
+  MAX_GAP_MS,
+  JUMP_H,
+  MAX_SPEED_H_PER_S,
+  JUMP_DWELL_MS,
+} from './pose';
+export type { PoseKeypoint, PoseFrame, PoseCue, PoseExercise, SquatRep, SquatReport, RepCounterState } from './pose';
+
+/**
  * Open Food Facts barcode lookup (v1.1, #944). New rules from the #944 spec, not prototype ports.
  * - `offToUserFood` maps a trimmed OFF product to a draft user food (per 100 g or per serving, nulls for missing
  *   fields with a `missing` list, plausibility and data-quality warnings); `OffProduct` is the input subset.
