@@ -24,7 +24,7 @@ function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | nu
       {open ? (
         <View style={{ paddingBottom: 10 }}>
           {e.url ? <Text selectable style={[type.caption, { color: c.link }]}>{e.url}</Text> : null}
-          <Text selectable style={[type.caption, { color: c.body }]}>{text ?? (e.from ? t.noText : t.noNotice)}</Text>
+          <Text selectable style={[type.caption, { color: c.body }]}>{text ?? t.noNotice}</Text>
         </View>
       ) : null}
     </View>
