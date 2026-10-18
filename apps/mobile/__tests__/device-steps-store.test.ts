@@ -4,7 +4,7 @@ import type { DayNote } from '../src/food/types';
 import { wipeLocalStore } from '../src/sync/guard';
 import { openDb } from './sync-helpers';
 
-jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
+jest.mock('expo-crypto', () => require('./sync-crypto-mock')); // eslint-disable-line @typescript-eslint/no-require-imports
 
 const D1 = '2026-10-08';
 const D2 = '2026-10-09';

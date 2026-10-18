@@ -5,9 +5,19 @@ import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
+import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
+import { STEPS_COPY } from '../src/steps/copy';
 import { memoryDb, withProfile } from './helpers';
 
 
+// A phone with a step sensor, so the step counter section is shown.
+jest.mock('../src/steps/sensor', () => ({
+  deviceStepsSupported: () => true,
+  stepSensorPresent: async () => true,
+  stepPermissionGranted: async () => true,
+  requestStepPermission: async () => true,
+  readStepCounter: async () => null,
+}));
 const mockPush = jest.fn();
 const mockFocus = { n: 0 };
 jest.mock('expo-router', () => ({
@@ -54,6 +64,22 @@ describe('TargetsScreen', () => {
       expect(screen.queryByText(name)).toBeNull(); // hidden from accessibility: the field already speaks the name
       expect(screen.getByLabelText(name)).toBeTruthy();
     }
+  });
+
+  it('mounts the phone step counter and Reminders sections on the full screen', async () => {
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(
+      withProfile(
+        db,
+        <DeviceStepsProvider db={db}>
+          <TargetsScreen db={db} />
+        </DeviceStepsProvider>,
+      ),
+    );
+    expect(await screen.findByText(STEPS_COPY.title)).toBeTruthy();
+    expect(screen.getByLabelText(STEPS_COPY.label)).toBeTruthy();
+    expect(screen.getByText('Reminders')).toBeTruthy();
   });
 
   it('shows the golden targets for the stored profile, en-IN formatted', async () => {

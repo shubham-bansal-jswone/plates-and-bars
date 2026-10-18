@@ -8,7 +8,7 @@ import { loadStepsOn, saveStepsOn } from '../src/steps/store';
 import { wipeLocalStore } from '../src/sync/guard';
 import { openDb } from './sync-helpers';
 
-jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
+jest.mock('expo-crypto', () => require('./sync-crypto-mock')); // eslint-disable-line @typescript-eslint/no-require-imports
 const mockSensor = {
   supported: true,
   present: true,
