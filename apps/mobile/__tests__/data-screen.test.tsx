@@ -37,6 +37,11 @@ const show = (s: Partial<SyncState>, db = memoryDb()) =>
     </SyncContext.Provider>,
   );
 
+const siteUrl = process.env.EXPO_PUBLIC_SITE_URL;
+afterEach(() => {
+  if (siteUrl === undefined) delete process.env.EXPO_PUBLIC_SITE_URL;
+  else process.env.EXPO_PUBLIC_SITE_URL = siteUrl;
+});
 beforeEach(() => {
   mockSave.mockClear();
   mockReplace.mockClear();
@@ -84,6 +89,41 @@ describe('data screen (#27)', () => {
     release();
     expect(await screen.findByText('Saved privately to your account.')).toBeTruthy();
     expect(screen.queryByText(DATA_COPY.storageDevice)).toBeNull();
+  });
+
+  it('keeps the buttons where they were when the consent read resolves, so a tap never lands on the late storage line (#1035)', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const db = consented();
+    const read = db.getAllAsync.bind(db);
+    db.getAllAsync = (async (...a: Parameters<typeof read>) => {
+      await gate;
+      return read(...a);
+    }) as typeof db.getAllAsync;
+    process.env.EXPO_PUBLIC_SITE_URL = 'https://plate.example/';
+    await show({ signedIn: true }, db);
+    // Position of a control = number of nodes rendered before it; content inserted above it would shift this.
+    const position = (label: string) => {
+      const nodes: { props?: Record<string, unknown> }[] = [];
+      const walk = (n: unknown) => {
+        if (n === null || typeof n !== 'object') return;
+        if (Array.isArray(n)) return n.forEach(walk);
+        nodes.push(n as { props?: Record<string, unknown> });
+        walk((n as { children?: unknown }).children);
+      };
+      walk(screen.toJSON());
+      return nodes.findIndex((n) => n.props?.accessibilityLabel === label);
+    };
+    const labels = ['Download my data', 'Delete everything', 'Back', 'Privacy policy', 'Terms', 'Delete your account'];
+    const before = labels.map(position);
+    // The placeholder holds the slot but is hidden from screen readers (aria-hidden also covers web).
+    expect(screen.queryByText('\u00a0')).toBeNull();
+    expect(screen.getByText('\u00a0', { includeHiddenElements: true })).toBeTruthy();
+    expect(before.every((i) => i >= 0)).toBe(true);
+    release();
+    expect(await screen.findByText('Saved privately to your account.')).toBeTruthy();
+    expect(labels.map(position)).toEqual(before);
+    expect(screen.queryByText('\u00a0', { includeHiddenElements: true })).toBeNull();
   });
 
   it('a signed-in user without the data_storage consent is told the data stays on the device, as nothing uploads', async () => {
