@@ -213,7 +213,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           </Press>
         ) : null}
       </Page>
-      {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} /> : null}
+      {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} canDescribe={ai.available('describe_meal')} /> : null}
       {describing ? <DescribeSheet meal={describing} onAdd={(n) => f.add(describing, n)} onClose={() => setDescribing(null)} /> : null}
       <ToastBar message={toast} />
     </View>
