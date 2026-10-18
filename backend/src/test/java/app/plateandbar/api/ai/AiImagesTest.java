@@ -142,8 +142,21 @@ class AiImagesTest {
             } else {
                 String field = (kind == AiImages.Kind.PHOTO ? "image." : "frames[0].")
                         + (c.path("issue").asString().equals("unsupported_type") ? "media_type" : "data");
-                assertThatThrownBy(() -> run(kind, slot)).as(c.path("name").asString())
-                        .satisfies(t -> assertThat(detailOf(t)).isEqualTo(new ErrorResponse.Detail(field, c.path("issue").asString())));
+                // Refused on the header or the text: no permit is taken. Hold both so a missing check is a 503, not a pass
+                // by a later decode failure. (An unreadable_image that is a decode failure does take a permit.)
+                boolean beforePermit = !c.path("issue").asString().equals("unreadable_image")
+                        || c.path("build").has("png_bit_depth");
+                if (beforePermit) {
+                    AiImages.PERMITS.acquireUninterruptibly(AiImages.MAX_CONCURRENT);
+                }
+                try {
+                    assertThatThrownBy(() -> run(kind, slot)).as(c.path("name").asString())
+                            .satisfies(t -> assertThat(detailOf(t)).isEqualTo(new ErrorResponse.Detail(field, c.path("issue").asString())));
+                } finally {
+                    if (beforePermit) {
+                        AiImages.PERMITS.release(AiImages.MAX_CONCURRENT);
+                    }
+                }
             }
         }
     }

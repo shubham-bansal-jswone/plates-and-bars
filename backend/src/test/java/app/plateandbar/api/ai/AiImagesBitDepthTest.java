@@ -58,6 +58,9 @@ class AiImagesBitDepthTest {
             assertThat(ok[24] & 0xFF).isEqualTo(8);
             assertThat(AiImages.reencode(slot("image/png", ok), "image", AiImages.Kind.PHOTO)[1] & 0xFF).isEqualTo(0xD8);
         }
+        byte[] oneBit = png(BufferedImage.TYPE_BYTE_BINARY);
+        assertThat(oneBit[24] & 0xFF).as("IHDR bit depth of the fixture").isEqualTo(1);
+        assertThat(AiImages.reencode(slot("image/png", oneBit), "image", AiImages.Kind.PHOTO)[1] & 0xFF).isEqualTo(0xD8);
         ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB), "jpeg", jpeg);
         assertThat(AiImages.reencode(slot("image/jpeg", jpeg.toByteArray()), "image", AiImages.Kind.PHOTO)[1] & 0xFF).isEqualTo(0xD8);
