@@ -86,6 +86,32 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
   }));
 }
 
+const touched = (r: Row): boolean => r.done || r.w !== '' || r.r !== '' || r.rate !== null;
+
+/**
+ * Start dropped the local build for a session another device stored (#898). What was typed or ticked on the dropped build is
+ * carried onto the adopted session where it has the same exercise and set position, and only onto a set nobody has touched
+ * there; anything else is dropped, so the adopted session is never overwritten and no set rows are left without an exercise.
+ * Returns the adopted list with the carried values (the adopted set ids and versions are kept) and the sets that changed.
+ */
+export function carryOnto(adopted: readonly ExState[], local: readonly ExState[]): { exs: ExState[]; changed: { name: string; ids: string[] }[] } {
+  const changed: { name: string; ids: string[] }[] = [];
+  const exs = structuredClone(adopted) as ExState[];
+  for (const ex of exs) {
+    const mine = local.find((l) => l.name === ex.name);
+    if (!mine) continue;
+    const ids: string[] = [];
+    mine.sets.forEach((m, j) => {
+      const row = ex.sets[j];
+      if (!row || !touched(m) || touched(row)) return;
+      Object.assign(row, { w: m.w, r: m.r, done: m.done, rate: m.rate, t: m.t });
+      ids.push(row.id);
+    });
+    if (ids.length) changed.push({ name: ex.name, ids });
+  }
+  return { exs, changed };
+}
+
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 /** Each field: this device's value where it changed it since `base`, else the stored one. */
 function pick<T extends object>(base: T | undefined, mine: T, theirs: T): T {
