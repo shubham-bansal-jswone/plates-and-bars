@@ -102,6 +102,17 @@ export function draftFromProfile(p: Profile): Draft {
   };
 }
 
+/**
+ * Recalculate keeps the stored height (prototype `su-recalc` skips `validateStep`): when the height fields still hold
+ * what `draftFromProfile` filled in, the answers carry the stored cm instead of the rounded feet and inches.
+ * Once any height field is edited, the form's height is used.
+ */
+export function keepStoredHeight(d: Draft, stored: Profile): Draft {
+  const filled = draftFromProfile(stored);
+  const same = d.unit === filled.unit && d.ft === filled.ft && d.inch === filled.inch && d.cm === filled.cm;
+  return same ? { ...d, unit: 'cm', cm: String(stored.height_cm) } : d;
+}
+
 /** The Profile record for complete answers: core's `normaliseSetup` plus local sync metadata. A redo keeps `created` and `cleared`. */
 export function buildProfile(d: Draft, now: Date, previous?: Profile | null): Profile {
   return {
