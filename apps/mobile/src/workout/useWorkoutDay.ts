@@ -94,6 +94,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   const enqueue = useCallback((write: () => Promise<void>) => enqueueDay(write, () => notify('Couldn’t save that. Try again.')), [notify]);
   /** Start and second session build from stored history; a second tap while one runs is ignored. */
   const building = useRef(false);
+  /** Settles when the running Start has saved; an "Add ..." tapped meanwhile waits for it instead of being dropped (#864). */
+  const starting = useRef<Promise<'saved' | 'adopted' | 'failed'> | null>(null);
   /** The stored workout row as this screen last loaded or wrote it: a different stored stamp means it changed elsewhere. */
   const synced = useRef<Workout | null>(null);
   /** Bumped after a write merged a change made elsewhere, so the screen reloads and shows the merged session. */
@@ -223,6 +225,9 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       // A cardio-only day (minutes logged, no session) is not a started session: Start turns it into one and keeps the minutes.
       if (!profile || building.current || (ref.current.workout && !isCardioOnly(ref.current.workout))) return;
       building.current = true;
+      let finished: (outcome: 'saved' | 'adopted' | 'failed') => void = () => {};
+      let outcome: 'saved' | 'adopted' | 'failed' = 'failed';
+      starting.current = new Promise((r) => (finished = r));
       try {
         const sessions = await loadSessionLog(db);
         if (dateRef.current !== date) return; // the day changed while the history was read
@@ -233,36 +238,43 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         d.exs = made.exs;
         commit(d);
         // One transaction: the old sets' tombstones, the workout row and the new sets are stored together or not at all (#516).
-        await enqueue(() => atomic(async (h) => {
-          // Started over a session deleted on another device: its sets go with it, so the new session does not
-          // pick them up (the contract does not promise that the deleting device tombstoned them).
-          const stored = await loadWorkout(h, date);
-          if (stored && !stored.deleted_at && !isCardioOnly(stored)) {
-            // A live session is already stored (pulled from another device, or kept after a removal) that this screen
-            // has not shown yet: never overwrite it; read it again so it shows instead.
-            setMerged((n) => n + 1);
-            return;
-          }
-          const overTombstone = !!stored?.deleted_at;
-          if (overTombstone) {
-            const at = stamp(now());
-            for (const s of await loadSets(h, date)) if (!s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
-          }
-          // A cardio-only row pulled but not shown yet: its minutes carry over unless the user changed them on this screen.
-          const mine = ref.current.workout;
-          if (stored && !stored.deleted_at && mine) {
-            const keep = minutes(mine.cardio_min, synced.current, stored);
-            if (keep !== mine.cardio_min) {
-              // The ref changes now (the workout row below is built from it); the screen shows it once the transaction has committed.
-              ref.current = { ...ref.current, workout: { ...mine, cardio_min: keep } };
-              deferred.current.push(() => setDay(ref.current));
+        await enqueue(async () => {
+          await atomic(async (h) => {
+            // Started over a session deleted on another device: its sets go with it, so the new session does not
+            // pick them up (the contract does not promise that the deleting device tombstoned them).
+            const stored = await loadWorkout(h, date);
+            if (stored && !stored.deleted_at && !isCardioOnly(stored)) {
+              // A live session is already stored (pulled from another device, or kept after a removal) that this screen
+              // has not shown yet: never overwrite it; read it again so it shows instead.
+              // That session is stored, so Start counts as saved and a waiting Add applies to it, not to the one built here.
+              setMerged((n) => n + 1);
+              outcome = 'adopted';
+              return;
             }
-          }
-          await writeWorkout(overTombstone, h);
-          for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets), h);
-        }));
+            const overTombstone = !!stored?.deleted_at;
+            if (overTombstone) {
+              const at = stamp(now());
+              for (const s of await loadSets(h, date)) if (!s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
+            }
+            // A cardio-only row pulled but not shown yet: its minutes carry over unless the user changed them on this screen.
+            const mine = ref.current.workout;
+            if (stored && !stored.deleted_at && mine) {
+              const keep = minutes(mine.cardio_min, synced.current, stored);
+              if (keep !== mine.cardio_min) {
+                // The ref changes now (the workout row below is built from it); the screen shows it once the transaction has committed.
+                ref.current = { ...ref.current, workout: { ...mine, cardio_min: keep } };
+                deferred.current.push(() => setDay(ref.current));
+              }
+            }
+            await writeWorkout(overTombstone, h);
+            for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets), h);
+          });
+          if (outcome !== 'adopted') outcome = 'saved'; // only once the transaction has resolved: a failed COMMIT throws before this
+        });
       } finally {
         building.current = false;
+        starting.current = null;
+        finished(outcome);
       }
   };
 
@@ -291,9 +303,22 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
 
   const addSecond = useCallback(
     async (template: string) => {
-      if (!profile || building.current || !ref.current.workout) return;
+      // A tap during the Start save waits for it, then adds (the screen already shows the chips once Start has committed).
+      // If that save failed, give up: the failure toast stays and the user taps again. A date change while waiting drops the Add on purpose: the user left that day.
+      const started = starting.current ? await starting.current : 'saved';
+      if (started === 'failed') return;
+      if (!profile || building.current) return;
       building.current = true;
       try {
+        if (started === 'adopted') {
+          // Start kept the stored session; take it as the base, as the reload that is under way will. Done after `building` is claimed, so a double tap commits it once.
+          const [stored, storedSets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
+          if (dateRef.current !== date) return;
+          if (!stored || stored.deleted_at) return;
+          synced.current = stored;
+          commit({ ...ref.current, workout: stored, exs: exercisesFrom(stored, storedSets) });
+        }
+        if (!ref.current.workout) return;
         const sessions = await loadSessionLog(db);
         if (dateRef.current !== date) return; // the day changed while the history was read
         const d = clone(ref.current);
