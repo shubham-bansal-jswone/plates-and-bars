@@ -260,3 +260,19 @@ export function failInTxn(db: Awaited<ReturnType<typeof openDb>>, table: string)
     },
   };
 }
+
+/**
+ * Waits for observable state by counting event-loop turns (`setImmediate`), never wall-clock time, so a loaded
+ * machine only makes it slower, not wrong. Use it instead of "sleep 10 ms, then assume the request is in flight".
+ */
+export async function until(what: string, ok: () => boolean): Promise<void> {
+  for (let i = 0; !ok(); i++) {
+    if (i > 20_000) throw new Error(`timed out waiting for ${what}`);
+    await new Promise<void>((r) => setImmediate(r));
+  }
+}
+
+/** A fixed number of event-loop turns: what a "nothing happened yet" check looks at, in place of a sleep. */
+export async function turns(n = 10): Promise<void> {
+  for (let i = 0; i < n; i++) await new Promise<void>((r) => setImmediate(r));
+}
