@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-18 — cycle log: "Turn off and delete" takes a second tap (spec-change; prototype and golden fixtures unchanged).**
+- Prototype `cyc-off` (line 3369) deletes the cycle log on one tap with no confirmation. The app deliberately differs: the first tap arms the button ("Tap again to delete the cycle log", disarms after 4 seconds), the second deletes. The data is sensitive and the deletion cannot be undone; the app already uses this pattern for deleting a photo check-in. No calculation changes (#625).
+
 **2026-10-18 — the prototype no longer embeds exercise demo photos (spec-change; golden fixtures unchanged).**
 - #653: `DEMO` in `docs/prototype/plate-and-bar.html` held 126 JPEGs (63 exercises, two photos each) labelled Free Exercise DB and claimed to be Unlicense, but their provenance is unknown. They are removed, so `DEMO` is empty and `demoHtml` returns nothing. The 32 of those 63 exercises with no movement diagram now show no visual in the how-to sheet and Learn mode; the other 31 show their diagram. The caption "Photos: Free Exercise DB (public domain)." is gone too.
 - The app never ported these photos. Do not add visuals in the prototype: #653 replaces them with our own figures. No calculation changes, so no fixture changes.
