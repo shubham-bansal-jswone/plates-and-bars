@@ -25,7 +25,7 @@ test('the ported rig draws exactly what the prototype rig draws, for every pose'
   const end = html.indexOf('\n})();', start) + '\n})();'.length;
   assert.ok(start > 0 && end > start);
   const proto = vm.runInNewContext(`${html.slice(start, end)}; AN`, {});
-  assert.deepEqual(proto.names, AN.names);
+  assert.deepEqual([...proto.names], AN.names);
   const C = { body: 'B', arm: 'A', hl: 'H', eq: 'E', bg: 'G' };
   for (const n of AN.names) for (const k of [0, 0.25, 0.5, 1]) assert.equal(AN.frame(n, k, C), proto.frame(n, k, C), `${n} at ${k}`);
 });
