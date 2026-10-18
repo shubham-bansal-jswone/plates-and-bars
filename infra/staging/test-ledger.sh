@@ -21,19 +21,30 @@ bucket_path() { local p="${1#bk:plateandbar-backups/}"; echo "$STUB_BUCKET/$p"; 
 case "$1" in
   volume) [ -z "${STUB_NO_VOLUME:-}" ] ;;
   compose | exec)
-    # the fake database: users.txt (ids) and weights.txt (user_id per child row, deleted with the user: ON DELETE CASCADE)
+    if [ "$1 $2" = "compose ps" ]; then [ -z "${STUB_API_RUNNING:-}" ] || echo "abc123api"; exit 0; fi
+    # the fake database: users.txt (ids), weights.txt (user_id per child row, deleted with the user: ON DELETE CASCADE),
+    # user_emails.txt (id TAB email: users.email and auth_identities), codes.txt and failures.txt (email_sign_in_codes and
+    # email_verify_failures: one e-mail per row, NO foreign key, deleted only by the joins on the user's e-mail)
     sql="$(cat)"
     echo "$sql" >> "$STUB_SQL"
     if [ -n "${STUB_DELETE_FAIL:-}" ]; then echo "ERROR 1451 (23000): Cannot delete 'secret-row-content'" >&2; exit 1; fi
     count=0
     while IFS= read -r line; do
       case "$line" in
-        DELETE*)
+        "DELETE c FROM email_sign_in_codes"* | "DELETE f FROM email_verify_failures"*)
+          case "$line" in *email_sign_in_codes*) t=codes ;; *) t=failures ;; esac
+          for id in $(printf '%s' "$line" | grep -Eo '[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}'); do
+            for e in $(awk -F'\t' -v i="$id" '$1 == i {print $2}' "$STUB_DB/user_emails.txt"); do
+              grep -vx "$e" "$STUB_DB/$t.txt" > "$STUB_DB/e.tmp" || true; mv "$STUB_DB/e.tmp" "$STUB_DB/$t.txt"
+            done
+          done ;;
+        "DELETE FROM users"*)
           count=0
           for id in $(printf '%s' "$line" | grep -Eo '[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}'); do
             if grep -qx "$id" "$STUB_DB/users.txt"; then count=$((count + 1)); fi
             grep -vx "$id" "$STUB_DB/users.txt" > "$STUB_DB/u.tmp" || true; mv "$STUB_DB/u.tmp" "$STUB_DB/users.txt"
             grep -vx "$id" "$STUB_DB/weights.txt" > "$STUB_DB/w.tmp" || true; mv "$STUB_DB/w.tmp" "$STUB_DB/weights.txt"
+            grep -v "^$id	" "$STUB_DB/user_emails.txt" > "$STUB_DB/m.tmp" || true; mv "$STUB_DB/m.tmp" "$STUB_DB/user_emails.txt"
           done ;;
         SELECT*) echo "$count" ;;
       esac
@@ -50,9 +61,9 @@ case "$1" in
     rest=("${args[@]:$((i + 2))}")
     case "$cmd" in
       lsf)
-        [ -z "${STUB_LSF_FAIL:-}" ] || { echo "rclone: access denied" >&2; exit 1; }
+        [ -z "${STUB_LSF_FAIL:-}" ] || { echo "rclone: access denied" >&2; exit "$STUB_LSF_FAIL"; }
         d="$(bucket_path "${rest[1]}")"
-        [ -d "$d" ] || exit 3
+        [ -d "$d" ] || exit 0 # rclone v1.74.0: an empty prefix lists nothing, exit 0
         ls -1 "$d" ;;
       cat)
         [ -z "${STUB_CAT_FAIL:-}" ] || exit 1
@@ -100,6 +111,9 @@ reset() {
   mkdir -p "$tmp/db"
   printf '%s\n' "$A" "$B" "$C" "$D" > "$tmp/db/users.txt"
   printf '%s\n' "$A" "$A" "$B" "$C" > "$tmp/db/weights.txt"
+  printf '%s\t%s\n' "$A" a@x.test "$B" b@x.test "$C" c@x.test "$D" d@x.test > "$tmp/db/user_emails.txt"
+  printf '%s\n' a@x.test b@x.test c@x.test d@x.test > "$tmp/db/codes.txt"
+  printf '%s\n' a@x.test a@x.test b@x.test c@x.test > "$tmp/db/failures.txt"
   : > "$STUB_LOG"; : > "$STUB_SQL"; : > "$STUB_CURL_LOG"
 }
 up() { "$tmp/stack/ledger-upload.sh" > "$tmp/out" 2>&1; }
@@ -119,7 +133,8 @@ printf '%s\t%s\n%s\t%s\n' "$A" "$(ago 1)" "$B" "$(ago 0)" > "$STUB_LOCAL"
 up || fail "first upload exited non-zero"
 obj="$dir/ledger-$today.log"
 [ "$(count "$obj")" = 2 ] || fail "expected 2 entries in $obj"
-[ ! -e "$obj.partial" ] || fail ".partial left behind"
+[ -z "$(find "$dir" -name '*partial*')" ] || fail ".partial left behind"
+grep -Eq ' rcat bk:plateandbar-backups/erasure-ledger/staging/ledger-[0-9]+\.log\.partial\.[0-9]+$' "$STUB_LOG" || fail "the .partial name has no per-run suffix"
 grep -q ' delete --min-age 45d bk:plateandbar-backups/erasure-ledger/staging$' "$STUB_LOG" || fail "no 45-day delete"
 ! grep -q 'change-me' "$STUB_LOG" || fail "a secret appears on a docker command line"
 for v in TYPE PROVIDER NO_CHECK_BUCKET ENDPOINT ACCESS_KEY_ID SECRET_ACCESS_KEY; do
@@ -202,6 +217,19 @@ printf '%s\t%s\n%s\t%s' "$C" "$(ago 1)" "$A" "$(ago 1)" > "$dir/ledger-20261003.
 replay live || fail "replay exited non-zero"
 [ "$(tr '\n' ' ' < "$tmp/db/users.txt")" = "$B $D " ] || fail "users left: $(cat "$tmp/db/users.txt")"
 [ "$(tr '\n' ' ' < "$tmp/db/weights.txt")" = "$B " ] || fail "child rows left: $(cat "$tmp/db/weights.txt")"
+# the e-mail tables have no foreign key: the ledgered users' e-mails go, the others' stay
+[ "$(tr '\n' ' ' < "$tmp/db/codes.txt")" = "b@x.test d@x.test " ] || fail "email_sign_in_codes left: $(cat "$tmp/db/codes.txt")"
+[ "$(tr '\n' ' ' < "$tmp/db/failures.txt")" = "b@x.test " ] || fail "email_verify_failures left: $(cat "$tmp/db/failures.txt")"
+for t in 'email_sign_in_codes c JOIN users u ON c.email = u.email' \
+  "email_sign_in_codes c JOIN auth_identities a ON a.provider = 'email' AND c.email = a.provider_subject" \
+  'email_verify_failures f JOIN users u ON f.email = u.email' \
+  "email_verify_failures f JOIN auth_identities a ON a.provider = 'email' AND f.email = a.provider_subject"; do
+  grep -qF "FROM $t WHERE" "$STUB_SQL" || fail "missing delete: $t"
+done
+# the e-mail rows go before the users row, and ROW_COUNT() follows the users delete directly
+[ "$(grep -n 'email_verify_failures f JOIN auth' "$STUB_SQL" | head -1 | cut -d: -f1)" -lt "$(grep -n '^DELETE FROM users' "$STUB_SQL" | head -1 | cut -d: -f1)" ] || fail "e-mail rows are not deleted before users"
+grep -A1 '^DELETE FROM users' "$STUB_SQL" | grep -q '^SELECT ROW_COUNT();$' || fail "ROW_COUNT() does not follow the users delete"
+grep -q '^target: compose project' "$tmp/out" || fail "live mode did not print its target"
 grep -q 'removed 2 user' "$tmp/out" || fail "wrong removed count"
 grep -q '3 object(s), 4 line(s), 2 distinct user id(s), 0 malformed' "$tmp/out" || fail "wrong ledger summary"
 grep -q '^compose exec -T mysql ' "$STUB_LOG" || fail "live mode did not use the stack's mysql"
@@ -214,8 +242,21 @@ cp "$tmp/many" "$dir/ledger-20261001.log"
 cut -f1 "$tmp/many" > "$tmp/db/users.txt"; printf '%s\n' "$B" >> "$tmp/db/users.txt"
 replay container plateandbar-restore-check-1 || fail "batched replay exited non-zero"
 [ "$(cat "$tmp/db/users.txt")" = "$B" ] || fail "batched replay left $(count "$tmp/db/users.txt") users"
-[ "$(grep -c '^DELETE' "$STUB_SQL")" = 3 ] || fail "expected 3 batches of at most 500"
+[ "$(grep -c '^DELETE FROM users' "$STUB_SQL")" = 3 ] || fail "expected 3 batches of at most 500"
 grep -q '^exec -i plateandbar-restore-check-1 ' "$STUB_LOG" || fail "container mode did not use docker exec"
+grep -q '^target: container plateandbar-restore-check-1' "$tmp/out" || fail "container mode did not print its target"
+! grep -q '^compose' "$STUB_LOG" || fail "container mode used docker compose"
+
+echo "replay: live mode refuses while the API container is running and deletes nothing"
+reset; mkdir -p "$dir"; printf '%s\t%s\n' "$A" "$(ago 1)" > "$dir/ledger-20261001.log"
+if STUB_API_RUNNING=1 replay live; then fail "API running: exited 0"; fi
+grep -q 'the API container is running' "$tmp/out" || fail "API running not explained"
+[ ! -s "$STUB_SQL" ] || fail "SQL ran while the API was running"
+grep -q '^compose ps -q --status running api$' "$STUB_LOG" || fail "the API state was not checked"
+
+echo "replay: the compose ledger path is the one the uploader reads"
+grep -q 'ERASURE_LEDGER_PATH: /var/lib/plateandbar/erasure/erasures.log$' "$here/docker-compose.yml" || fail "ERASURE_LEDGER_PATH changed: ledger-upload.sh reads erasures.log"
+grep -q '/ledger/erasures.log' "$here/ledger-upload.sh" || fail "ledger-upload.sh does not read erasures.log"
 
 echo "replay: a malformed or cut line is skipped and reported"
 reset; mkdir -p "$dir"
@@ -247,6 +288,8 @@ grep -q 'no ledger object' "$tmp/out" || fail "missing ledger not explained"
 reset; mkdir -p "$dir"; printf '%s\t%s\n' "$A" "$(ago 1)" > "$dir/ledger-20261001.log"
 if STUB_LSF_FAIL=1 replay live; then fail "failed listing: exited 0"; fi
 if STUB_CAT_FAIL=1 replay live; then fail "failed download: exited 0"; fi
+if STUB_LSF_FAIL=3 replay live; then fail "rclone exit 3 (missing bucket): exited 0"; fi
+grep -q 'cannot list' "$tmp/out" || fail "exit 3 was not reported as a failed listing"
 [ ! -s "$STUB_SQL" ] || fail "SQL ran although the ledger could not be read"
 [ "$(count "$tmp/db/users.txt")" = 4 ] || fail "users deleted without a ledger"
 mkdir -p "$dir"; printf '%s\t%s\n' "$A" "$(ago 1)" > "$dir/ledger-20261001.log"; : > "$dir/ledger-20261001.log.partial"

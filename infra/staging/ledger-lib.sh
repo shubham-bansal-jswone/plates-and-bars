@@ -3,6 +3,7 @@
 # (the same credentials handling as backup.sh: values exported and passed by name, never on a command line) and the
 # one line format of the erasure ledger. Must be sourced after `cd` to this directory.
 # shellcheck source=/dev/null
+export LC_ALL=C # grep, sort and awk behave the same on every host
 set -a
 . ./.env
 set +a
@@ -29,10 +30,10 @@ ledger_retention_days=45 # 30-day backups plus margin (decided in #853)
 ledger_line=$'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\t[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z'
 
 # Lists the ledger object names. Prints them (one per line) and returns 0; a prefix with no objects is also 0 with no
-# output (S3 has no directories, but rclone may report "directory not found", exit code 3). Any other failure returns 1.
+# output (rclone v1.74.0 lists an empty prefix with exit 0; exit 3 means a missing bucket or a wrong endpoint, so it is
+# a failure like any other non-zero exit). Any failure returns 1.
 list_ledger_objects() {
-  local rc=0 out
-  out="$(rclone lsf --files-only "$ledger_dest")" || rc=$?
-  if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then return 1; fi
+  local out
+  out="$(rclone lsf --files-only "$ledger_dest")" || return 1
   printf '%s' "$out" | { grep -E '^ledger-[0-9]{8}\.log$' || true; }
 }

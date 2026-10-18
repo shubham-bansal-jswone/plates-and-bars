@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Replays the erasure ledger (#850, #853) into a database that was just loaded from a dump, so accounts deleted after
 # that dump was taken are deleted again before the API serves. Run it after EVERY dump load:
-#   ./ledger-replay.sh live              the stack's MySQL (RUNBOOK.md section 4, API stopped)
+#   ./ledger-replay.sh live              the stack's MySQL (RUNBOOK.md section 4); refuses while the API container runs
 #   ./ledger-replay.sh container NAME    a throwaway container (restore-check.sh)
 # It fetches every object under bk:<bucket>/erasure-ledger/<prefix>/ (see ledger-upload.sh), merges them, and runs
-# DELETE FROM users WHERE id IN (...) for every distinct user id. Every per-user table cascades from users.
+# the same per-user deletion as DELETE /me for every distinct user id: the rows of email_sign_in_codes and
+# email_verify_failures keyed by the user's e-mail (they have no foreign key to users, so they do not cascade; found
+# through users and auth_identities, so they go first), then DELETE FROM users, from which the other per-user tables
+# cascade.
 # A line that is not "<ErasureLedger.ID> TAB <ISO UTC time>" is skipped, counted and reported (a cut line comes only from
 # a request that answered 500 and deleted nothing). The run fails only when the ledger is missing (no object in the
 # bucket, or the bucket cannot be read) or the delete itself fails. Prints counts, never ids or row contents.
@@ -19,10 +22,14 @@ fail() { echo "ledger-replay FAILED: $*" >&2; exit 1; }
 inner='MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -N -B plateandbar'
 case "${1:-}" in
   live) [ "$#" -eq 1 ] || fail "usage: ledger-replay.sh live | container NAME"
+    # the API must not serve (or write) between the dump load and the replay
+    [ -z "$(docker compose ps -q --status running api)" ] || fail "the API container is running: docker compose stop api first"
+    echo "target: compose project in $PWD, service mysql, database plateandbar"
     sql() { docker compose exec -T mysql sh -c "$inner"; } ;;
   container) [ "$#" -eq 2 ] || fail "usage: ledger-replay.sh live | container NAME"
     [ -n "$2" ] || fail "usage: ledger-replay.sh live | container NAME"
     name="$2"
+    echo "target: container $name, database plateandbar"
     sql() { docker exec -i "$name" sh -c "$inner"; } ;;
   *) fail "usage: ledger-replay.sh live | container NAME" ;;
 esac
@@ -51,10 +58,20 @@ if [ "$skipped" -gt 0 ]; then echo "warning: $skipped malformed ledger line(s) s
 
 if [ "$n_ids" -eq 0 ]; then echo "ledger replay ok: nothing to delete"; exit 0; fi
 
-# ids match the strict pattern above, so they are safe to put in SQL. 500 per statement.
+# ids match the strict pattern above, so they are safe to put in SQL; check once more right before building it.
+if grep -Evxq '[0-9a-f-]{36}' "$work/ids"; then fail "an id is not a 36-character lower-case id; nothing was deleted"; fi
+# 500 per batch. The e-mail rows go first: they are found through users and auth_identities, which the users delete
+# removes. ROW_COUNT() stays right after the users delete, so the count is the number of users.
 split -l 500 "$work/ids" "$work/batch."
 for b in "$work"/batch.*; do
-  printf "DELETE FROM users WHERE id IN (%s);\nSELECT ROW_COUNT();\n" "$(sed "s/.*/'&'/" "$b" | paste -sd, -)"
+  in="$(sed "s/.*/'&'/" "$b" | paste -sd, -)"
+  printf '%s\n' \
+    "DELETE c FROM email_sign_in_codes c JOIN users u ON c.email = u.email WHERE u.id IN ($in);" \
+    "DELETE c FROM email_sign_in_codes c JOIN auth_identities a ON a.provider = 'email' AND c.email = a.provider_subject WHERE a.user_id IN ($in);" \
+    "DELETE f FROM email_verify_failures f JOIN users u ON f.email = u.email WHERE u.id IN ($in);" \
+    "DELETE f FROM email_verify_failures f JOIN auth_identities a ON a.provider = 'email' AND f.email = a.provider_subject WHERE a.user_id IN ($in);" \
+    "DELETE FROM users WHERE id IN ($in);" \
+    "SELECT ROW_COUNT();"
 done > "$work/delete.sql"
 # mysql error text can quote row values: print only the error numbers
 sql < "$work/delete.sql" > "$work/counts" 2> "$work/err" || {

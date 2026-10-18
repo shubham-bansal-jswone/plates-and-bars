@@ -54,8 +54,9 @@ if printf '%s\n' "$listing" | grep -qx "$obj" && cmp -s "$work/merged" "$work/ex
   echo "ledger unchanged: $obj ($(wc -l < "$work/merged" | tr -d ' ') entries)"
 else
   # .partial first, renamed only after the whole upload succeeded (as backup.sh does)
-  rclone rcat "$ledger_dest/$obj.partial" < "$work/merged"
-  rclone moveto "$ledger_dest/$obj.partial" "$ledger_dest/$obj"
+  # (a per-run suffix: a manual run overlapping the cron run must not share the name)
+  rclone rcat "$ledger_dest/$obj.partial.$$" < "$work/merged"
+  rclone moveto "$ledger_dest/$obj.partial.$$" "$ledger_dest/$obj"
   echo "ledger uploaded: $obj ($(wc -l < "$work/merged" | tr -d ' ') entries)"
 fi
 
