@@ -15,7 +15,8 @@ const norm = (s) => s.trim().toLowerCase();
 
 // kcal should be close to 4*protein + 4*carbs + 9*fat. Rounding and fibre (about 2 kcal/g, counted as carbs)
 // make exact equality wrong, so allow 15 kcal or 15 % of the label value, whichever is larger.
-// Alcohol (drinks flagged `alcohol: true`, in foods.json and eatout.json) is exempt from the upper bound.
+// Alcohol (drinks flagged `alcohol: true`, in foods.json and eatout.json) is exempt from the upper bound,
+// and the flag is rejected on a row whose kcal already fits 4/4/9.
 export const kcalTolerance = (kcal) => Math.max(15, kcal * 0.15);
 
 // opts.extraKeys: allowed fields beyond FOOD_KEYS. opts.alcohol: kcal may exceed 4/4/9 (alcohol is 7 kcal/g and not in the macros).
@@ -54,6 +55,8 @@ function checkFood(f, errors, opts = {}) {
     const calc = 4 * n.protein_g + 4 * n.carbs_g + 9 * n.fat_g;
     if (opts.alcohol) {
       if (n.kcal < calc - kcalTolerance(n.kcal)) err(`kcal ${n.kcal} is below what the macros give (4/4/9 gives ${calc.toFixed(0)})`);
+      // The flag only belongs where it is needed, so a stray one cannot quietly drop the upper bound.
+      else if (n.kcal <= calc + kcalTolerance(n.kcal)) err(`alcohol: true but kcal ${n.kcal} already fits the macros (4/4/9 gives ${calc.toFixed(0)})`);
     } else if (Math.abs(calc - n.kcal) > kcalTolerance(n.kcal)) err(`kcal ${n.kcal} does not match macros (4/4/9 gives ${calc.toFixed(0)})`);
   }
 

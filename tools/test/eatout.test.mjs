@@ -98,3 +98,18 @@ test('foods.json rows may not carry eat-out only fields; alcohol there follows t
   // The flag lifts only the upper kcal bound: on a food without alcohol it still fails a low kcal.
   assert.ok(mutateFoods((c) => { c.foods[0].alcohol = true; c.foods[0].per_serving.kcal = 1; }).some((e) => e.includes('below what the macros give')));
 });
+
+test('alcohol: true is rejected where kcal already fits 4/4/9, so a stray flag cannot drop the upper kcal check', async () => {
+  const { validateFoods } = await import('../validate/foods.mjs');
+  const loadFoods = () => JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8'));
+  const mutateFoods = (fn) => { const c = loadFoods(); fn(c); return validateFoods(c); };
+  const food = (c, name) => c.foods.find((f) => f.name === name);
+  const stray = (e) => e.includes('alcohol: true but kcal');
+  assert.deepEqual(mutateFoods((c) => { food(c, 'Ghee').alcohol = true; }).filter(stray), ['Ghee: alcohol: true but kcal 44 already fits the macros (4/4/9 gives 45)']);
+  // At the edge: kcal exactly at 4/4/9 + tolerance still fits, one more needs the flag.
+  const atEdge = (kcal) => mutateFoods((c) => { Object.assign(food(c, 'Beer').per_serving, { kcal, protein_g: 0, carbs_g: 0, fat_g: 0 }); });
+  assert.ok(atEdge(15).some(stray));
+  assert.ok(!atEdge(16).some(stray));
+  // The eat-out file follows the same rule: Cola is in Drinks but fits 4/4/9.
+  assert.ok(mutate((c) => { dish(c, 'Cola (330 ml)').alcohol = true; }).some((e) => e.startsWith('Cola (330 ml): alcohol: true but kcal')));
+});
