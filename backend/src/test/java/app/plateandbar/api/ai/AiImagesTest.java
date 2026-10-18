@@ -89,7 +89,7 @@ class AiImagesTest {
         }
         if (build.has("png_dims")) {
             ByteBuffer ihdr = ByteBuffer.allocate(13).putInt(build.path("png_dims").get(0).asInt())
-                    .putInt(build.path("png_dims").get(1).asInt()).put(new byte[] {8, 2, 0, 0, 0});
+                    .putInt(build.path("png_dims").get(1).asInt()).put(new byte[] {(byte) build.path("png_bit_depth").asInt(8), 2, 0, 0, 0});
             return concat(Arrays.copyOfRange(PNG_8X8, 0, 8), chunk("IHDR", ihdr.array()));
         }
         if (build.has("png_text_chunk")) {
@@ -142,8 +142,21 @@ class AiImagesTest {
             } else {
                 String field = (kind == AiImages.Kind.PHOTO ? "image." : "frames[0].")
                         + (c.path("issue").asString().equals("unsupported_type") ? "media_type" : "data");
-                assertThatThrownBy(() -> run(kind, slot)).as(c.path("name").asString())
-                        .satisfies(t -> assertThat(detailOf(t)).isEqualTo(new ErrorResponse.Detail(field, c.path("issue").asString())));
+                // Refused on the header or the text: no permit is taken. Hold both so a missing check is a 503, not a pass
+                // by a later decode failure. (An unreadable_image that is a decode failure does take a permit.)
+                boolean beforePermit = !c.path("issue").asString().equals("unreadable_image")
+                        || c.path("build").has("png_bit_depth");
+                if (beforePermit) {
+                    AiImages.PERMITS.acquireUninterruptibly(AiImages.MAX_CONCURRENT);
+                }
+                try {
+                    assertThatThrownBy(() -> run(kind, slot)).as(c.path("name").asString())
+                            .satisfies(t -> assertThat(detailOf(t)).isEqualTo(new ErrorResponse.Detail(field, c.path("issue").asString())));
+                } finally {
+                    if (beforePermit) {
+                        AiImages.PERMITS.release(AiImages.MAX_CONCURRENT);
+                    }
+                }
             }
         }
     }
