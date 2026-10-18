@@ -13,7 +13,7 @@ import { useViewedDate } from '../state/ViewedDate';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
 import { CHECKIN_READY, CHECKIN_SEE, lowProtein, PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, toastMs, upgradeAdded } from '../food/copy';
-import { getFoodCatalog, type CatalogFood } from '../food/catalog';
+import { getCuisines, getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
@@ -68,7 +68,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
   const target = kcalTarget(f.date, { flex: settings.flex }, profile);
-  const facts: FoodFacts[] = [...getFoodCatalog(), ...f.mineFacts];
+  // Shared foods, then eat-out dishes, then the user's foods: the first of a name with fibre data wins (prototype `FIB` before `myFoods`, #151).
+  const facts: FoodFacts[] = [...getFoodCatalog(), ...getCuisines().flatMap((c) => c.dishes), ...f.mineFacts];
   const t = logTotals(f.logs, facts);
   const left = target - t.kcal;
   const complete = f.note?.complete === true;

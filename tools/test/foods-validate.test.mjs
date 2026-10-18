@@ -61,6 +61,9 @@ test('each remaining field check fails on a bad value', () => {
   assert.ok(withFood((f) => { delete f.fruit_veg_servings; }).some((e) => e.includes('"fruit_veg_servings" missing')));
   assert.ok(withFood((f) => { f.source.name = ' '; }).some((e) => e.includes('source.name missing')));
   assert.ok(withFood((f) => { f.per_serving.added_sugar_g = 99; }).some((e) => e.includes('added_sugar_g exceeds carbs_g')));
+  // #824: the app rejects a stored foods copy whose reference is over 200 characters (isFoodSource).
+  assert.ok(withFood((f) => { f.source.reference = 'x'.repeat(201); }).some((e) => e.includes('source.reference is longer than 200')));
+  assert.ok(!withFood((f) => { f.source.reference = 'x'.repeat(200); }).some((e) => e.includes('source.reference')));
 });
 
 test('schema: unknown and missing fields, bad id', () => {

@@ -19,6 +19,15 @@ jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
   return { __esModule: true, default: (p: Record<string, unknown>) => { mockPressed.push(p); return React.createElement(Actual, p); } };
 });
 
+// Fixture until the drinks content (#858) gives the eat-out Cola its fibre (0 g) and added sugar (35 g), as the prototype's FIB does.
+jest.mock('../src/food/catalog', () => {
+  const actual = jest.requireActual('../src/food/catalog');
+  return {
+    ...actual,
+    getCuisines: () => actual.getCuisines().map((c: { dishes: { name: string; per_serving: object }[] }) => ({ ...c, dishes: c.dishes.map((d) => (d.name === 'Cola (330 ml)' ? { ...d, per_serving: { ...d.per_serving, fibre_g: 0, added_sugar_g: 35 } } : d)) })),
+  };
+});
+
 const mockFocus = { n: 0 };
 const mockPush = jest.fn();
 const mockNavigate = jest.fn();
@@ -377,6 +386,30 @@ describe('Food screen', () => {
     await screen.findByText(`Added ${beer.name}`);
     await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(1));
     expect(docs(db, 'food_logs')[0]).toMatchObject({ name: beer.name, qty: 1, kcal: beer.per_serving.kcal, food_id: beer.id });
+  });
+
+  const logCola = async () => {
+    await open();
+    await fireEvent.press(screen.getByLabelText('Eating out'));
+    await fireEvent.press(screen.getByLabelText('Fast food'));
+    await fireEvent.press(screen.getByLabelText(/^Cola \(330 ml\).*tap to add$/));
+    await screen.findByText('Added Cola (330 ml)');
+    await fireEvent.press(screen.getByText('Done'));
+  };
+
+  it('counts a logged eat-out Cola in the added-sugar total and not as without fibre data (#856)', async () => {
+    await setup();
+    await logCola();
+    expect(screen.getByText(/^Added sugar 35 g$/)).toBeTruthy();
+    expect(screen.queryByText(/without fibre data/)).toBeNull();
+  });
+
+  it('a food of the same name in my foods does not override the eat-out dish (#151 lookup order)', async () => {
+    const db = memoryDb();
+    db.rows.set('user_foods:f-cola', JSON.stringify({ id: 'f-cola', version: 1, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, name: 'Cola (330 ml)', unit: '1 can', kcal: 100, protein_g: 0, carbs_g: 25, fat_g: 0, fibre_g: 1, added_sugar_g: 5, fruit_veg_servings: null, origin: 'custom' }));
+    await setup({ db });
+    await logCola();
+    expect(screen.getByText(/^Added sugar 35 g$/)).toBeTruthy();
   });
 
   it('every food row is named from its visible text: name, kcal, then the detail line (WCAG 2.5.3, #800)', async () => {

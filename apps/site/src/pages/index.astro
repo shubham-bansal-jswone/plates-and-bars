@@ -1,5 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
+import { webAppUrl } from "../lib/web-app-url.mjs";
+
+const webApp = webAppUrl(import.meta.env.PUBLIC_WEB_APP_URL);
 ---
 
 <Base landing title="Plate & Bar" description="Plate & Bar helps you log meals and workouts and see your daily targets in one place.">
@@ -7,7 +10,8 @@ import Base from "../layouts/Base.astro";
     <div class="wrap">
       <h1>Plate &amp; Bar</h1>
       <p class="lede">Log your meals and workouts, and see your daily targets in one place.</p>
-      <p><span class="badge">Coming to Android and web</span></p>
+      <p><span class="badge">{webApp ? "Use it on the web, coming to Android" : "Coming to Android and web"}</span></p>
+      {webApp && <p class="hero-cta"><a class="btn btn-primary" href={webApp}>Open the web app</a></p>}
     </div>
   </section>
 
