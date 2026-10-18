@@ -23,9 +23,7 @@ Create each as type **Push**, copy its push URL, and put it in the named variabl
 | --- | --- | --- | --- | --- |
 | Nightly backup | `BACKUP_HEARTBEAT_URL` | `infra/staging/backup.sh`, after dump, upload and retention succeed (also the backup before a production release) | 25 h (90000 s) | no ping for 25 h; a failed run sends nothing, so it alerts too |
 | Restore rehearsal | `RESTORE_HEARTBEAT_URL` | `infra/staging/restore-check.sh`, after a fully successful monthly run | about 32 days (2764800 s) | no ping for 32 days. Kuma 2.5.6's source has no upper bound on the interval; confirm the UI accepts the value when you create it |
-| Erasure ledger upload | not yet defined | the ledger upload job of #850 (the script does not exist yet) | 25 h if it runs nightly (the same cadence as the backup; #850 decides) | no ping for 25 h |
-
-The ledger row is a placeholder: #850 owns the script and should name the variable and the interval; update this row when it merges.
+| Erasure ledger upload | `LEDGER_HEARTBEAT_URL` | `infra/staging/ledger-upload.sh`, after a fully successful upload (cron, hourly: `infra/RUNBOOK.md` section 3a) | about 2 h (7200 s) | no ping for 2 h; a failed upload sends nothing |
 
 ## Not monitored here
 
