@@ -57,6 +57,10 @@ export function validateCards(content) {
       orders.add(c.learn_order);
     }
     if (c.learn_insert_at !== undefined && !Number.isInteger(c.learn_insert_at)) errors.push(`${at}: learn_insert_at must be an integer`);
+    // `hidden` (held back from the app and the site; absent means shown) is true when present, and says why.
+    if (c.hidden !== undefined && c.hidden !== true) errors.push(`${at}: hidden must be true (or left out)`);
+    if (c.hidden === true && !nonEmpty(c.hidden_reason)) errors.push(`${at}: hidden_reason missing`);
+    if (c.hidden === undefined && c.hidden_reason !== undefined) errors.push(`${at}: hidden_reason without hidden`);
     errors.push(...bodyErrors(c, at));
     if (c.review_status !== 'draft' && c.review_status !== 'reviewed') errors.push(`${at}: review_status must be draft or reviewed`);
   }

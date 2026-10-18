@@ -28,6 +28,13 @@ describe('advanceSteps', () => {
     expect(r.baseline!).toMatchObject({ date: '2026-03-11', steps: 0, counter: 58000 });
   });
 
+  it('two midnights, even with the reading inside the 5-minute window: dropped', () => {
+    // 03-10 baseline, reading at 00:03 on 03-12: the day before it (03-11) has no baseline, and 03-10 must not get two days of steps
+    const r = advanceSteps(base(), read(50400), '2026-03-12', 3 * MIN);
+    expect(r.credits).toEqual([]);
+    expect(r.baseline).toMatchObject({ date: '2026-03-12', steps: 0, counter: 50400 });
+  });
+
   it('the window is 5 minutes after midnight, inclusive', () => {
     expect(MIDNIGHT_WINDOW_MS).toBe(5 * MIN);
     expect(advanceSteps(base(), read(50400), '2026-03-11', 5 * MIN).credits).toHaveLength(1);

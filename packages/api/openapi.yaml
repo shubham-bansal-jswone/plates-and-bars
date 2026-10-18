@@ -1,14 +1,15 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.21
+  version: 0.1.23
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
     food maths) runs on the phone in `packages/core`.
 
     Scope: auth, sync, food search, content bundles (`/content/*`), health, account
-    rights (`GET /me/export`, `DELETE /me`) and the v1 AI calls (`/ai/*`).
+    rights (`GET /me/export`, `DELETE /me`), the AI calls (`/ai/*`: text calls in v1, image calls
+    in v1.1) and the barcode lookup (`GET /foods/barcode/{code}`, Open Food Facts, ADR 009).
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
@@ -30,10 +31,11 @@ info:
       `[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]`.
       `test-vectors/blank-text.json` has shared must-fail and must-pass texts.
     - Request bodies are at most 2 MB (2,097,152 bytes) on every endpoint, and at most
-      16 KB (16,384 bytes) on the `POST /ai/*` endpoints. A larger body is refused without
+      16 KB (16,384 bytes) on the four text `POST /ai/*` endpoints (the three image endpoints
+      keep the 2 MB limit, see the `ai` tag, Images). A larger body is refused without
       being read in full, with 400 `invalid_request` and one `details` entry whose `field`
       is empty and whose `issue` is `too_large`. The 2 MB check runs before anything
-      else, sign-in included; the 16 KB AI check is the request-validation step of the
+      else, sign-in included; the AI body check is the request-validation step of the
       `ai` tag's order of checks.
     - A JSON request body is exactly one JSON value. On every endpoint that takes one
       (`/auth/*`, `/sync`, `/ai/*`) the server refuses these with 400 `invalid_request`,
@@ -156,7 +158,15 @@ tags:
   - name: sync
     description: Offline-first sync of user-owned records.
   - name: foods
-    description: Shared food database search.
+    description: |
+      Shared food database search and the barcode lookup. `GET /foods/barcode/{code}` is
+      public (no sign-in) and online-only. The server asks Open Food Facts for one barcode
+      at a time and keeps the answer in a per-barcode cache; there is no list, search or
+      bulk endpoint for that data (ADR 009). It never sends the caller's IP, name or
+      account upstream. The API does not log the barcode. The barcode is a path segment,
+      so this holds for the access log only once the reverse proxy redacts
+      `/foods/barcode/<digits>` (an infra step of #944, done before the backend proxy
+      ships).
   - name: account
     description: Account rights for the signed-in user (export and deletion).
   - name: system
@@ -208,25 +218,31 @@ tags:
       new revert to `main`, which gets a later `updated_at`.
   - name: ai
     description: |
-      v1 AI calls: Describe a meal, Ask why, Weekly summary, Suggest tags, and `GET /ai/status` for
-      which of them are on. Text only; no images in v1.
+      AI calls: Describe a meal, Ask why, Weekly summary and Suggest tags (text, v1); Meal photo,
+      Import recipe and Form check (images, v1.1, see Images below); and `GET /ai/status` for
+      which of them are on.
       Every AI call goes through the backend, which holds the provider key; the app never
       calls a model directly. Each feature has a non-AI fallback, so the app works fully
       with AI off. Signed-in users only (sign-in is optional, so signed-out users get the
       fallbacks).
 
-      **Content.** The backend bundles `content/exercises.json` and `content/cards.json`
-      at build time: the exercise catalogue that `SummaryExercise` ids are checked against,
-      and the cards Ask why is grounded on. Both are the versions in the deployed build.
+      **Content.** The backend bundles `content/exercises.json`, `content/cards.json`,
+      `content/raw-ingredients.json` and `content/foods.json` at build time: the exercise
+      catalogue that `SummaryExercise` ids are checked against (and whose `cards` hold the
+      cues Form check judges), the cards Ask why is grounded on, the raw ingredient names
+      Import recipe matches to, and the built-in foods Meal photo matches to. All are the
+      versions in the deployed build.
 
       **Order of checks.** Access token (401), per-user and per-IP rate limit (429
       `rate_limited`), feature switch (503 `feature_disabled`), request validation (400,
-      including a body over 16 KB: issue `too_large`), daily quota (429
+      including a body over the endpoint's limit: issue `too_large`; and for the image
+      calls the image checks under Images), daily quota (429
       `quota_exceeded`), then the provider call. A request rejected at any of these steps
       does not count against the quota.
 
-      **Daily quota (`ai_usage`).** Each user has one daily allowance shared by all four
-      endpoints, by default 10 text calls a day. The limit is server configuration, so the
+      **Daily quota (`ai_usage`).** Each user has one daily allowance shared by all seven
+      endpoints, by default 10 calls a day, and each call costs one unit, an image call too
+      (the monthly budget cap below is what bounds vision spend). The limit is server configuration, so the
       app reads `quota.limit` and never hard-codes 10. The day is the UTC calendar day:
       the count resets at 00:00:00Z (05:30 in India), which `quota.resets_at` gives. The
       server reserves the unit before calling the provider, so concurrent calls cannot
@@ -250,14 +266,14 @@ tags:
       not give its spend back to the budget.
 
       **Rate limit.** On top of the daily quota, at most 5 AI requests per user per minute
-      across the four POST endpoints, plus the per-IP limit every endpoint has. Requests
+      across the seven POST endpoints, plus the per-IP limit every endpoint has. Requests
       rejected for validation (400) or quota (429 `quota_exceeded`) still count toward the
       5 per minute. Beyond that, 429 `rate_limited` with `Retry-After` (prototype message:
       "Too many requests right now. Wait a minute and try again."). `GET /ai/status` is
       not part of this limit, only the per-IP one.
 
       **Kill switch.** One server flag per feature (`describe_meal`, `ask_why`,
-      `weekly_summary`, `suggest_tags`) turns it off instantly, without a deploy; requests already with the
+      `weekly_summary`, `suggest_tags`, `meal_photo`, `import_recipe`, `form_check`) turns it off instantly, without a deploy; requests already with the
       provider finish. While a feature is off its endpoint answers 503 `feature_disabled`
       and nothing counts against the quota. Reaching the monthly AI budget cap turns every
       AI feature off the same way until the cap is raised or the month ends. All flags
@@ -288,7 +304,7 @@ tags:
       provider billed it) and the app shows the manual tag sheet. It is 503 `unavailable`
       only when the reply does not parse.
 
-      **No logging.** Request and response bodies of `/ai/*` (meal text, questions,
+      **No logging.** Request and response bodies of `/ai/*` (meal text, images, questions,
       answers, check-in numbers, exercise ids, exercise names) are never logged, written to the database or
       sent to error reporting, and 400 `details[].issue` never echoes a submitted value.
       The identical-request cache, if used, is per user (never shared across users), in
@@ -298,6 +314,79 @@ tags:
       receives only the request content and the instructions, never the user id, email or
       any other account data, and is configured not to retain or train on it where the
       provider offers that.
+
+      **Images (Meal photo, Import recipe, Form check).** Each image is sent in the JSON
+      body as `{media_type, data}`: base64 text (standard alphabet, padded, no line breaks
+      and no `data:` prefix), not multipart. One body format keeps the strict-JSON rules,
+      the bounds and the generated client the same for every AI call, and the app already
+      shrinks photos before sending (the prototype's `shrinkImage()`, 1,600 px, JPEG), so
+      the 33% base64 overhead is small. The three image endpoints keep the 2 MB body
+      limit instead of the 16 KB one. Limits per image:
+      - types `image/jpeg` and `image/png` only (the app re-encodes anything else, such
+        as HEIC, to JPEG);
+      - at most 1,200,000 decoded bytes for a photo (`AiImage`), 350,000 for a form-check
+        frame (`AiFrame`, so four frames fit in 2 MB); the base64 `maxLength` of each
+        is that size rounded up to base64;
+      - a photo is at most 4,096 px on either side and 16 megapixels, a form-check frame at
+        most 640 px on either side (the prototype cuts frames at 640 px), read from the
+        header before any pixel is decoded (the server refuses the rest without decoding
+        it);
+      - the server decodes one image at a time, so a form check never holds more than
+        one decoded frame in memory;
+      - metadata is never read: the decoder skips every ancillary chunk and segment (EXIF,
+        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation;
+      - and, whether or not the decoder would have skipped it, a PNG `zTXt`, `iTXt`
+        (compression flag 1) or `iCCP` chunk that inflates to more than 65,536 bytes is
+        always refused as `unreadable_image`. The server checks this with a bounded
+        inflate that stops at 65,537 bytes, before decoding, so a small file cannot expand
+        into memory.
+
+      Image checks run in the request-validation step (before the quota) and each
+      failure is 400 `invalid_request` with `details[].field` naming the image
+      (`image.data`, `frames[1].data`, ...) and one `issue`: `too_large`,
+      `invalid_base64`, `unsupported_type` (not JPEG or PNG), `type_mismatch` (the bytes
+      are not the declared `media_type`; the server reads the magic bytes, not the
+      label), `unreadable_image` (does not decode) or `dimensions`. The first fault in
+      that order of checks wins: `unsupported_type`, `invalid_base64`, `too_large`,
+      `type_mismatch`, `dimensions`, `unreadable_image`. These values replace the schema
+      keyword the validator would otherwise report: a `media_type` that fails the
+      `enum` is `unsupported_type`; a `data` that fails `pattern` (not base64, or a
+      length that is not a multiple of 4) or `minLength` is `invalid_base64`; a `data`
+      over `maxLength` is `too_large`, never `maxLength`. The backend maps those schema
+      failures to these issues, and `test-vectors/ai-images.json` has one case for each.
+      An issue never echoes the image. A rejected image does not count against the
+      quota.
+
+      **Images are never stored or logged, and have no retention.** The decoded image,
+      the re-encoded copy and the model's reply live in memory for the length of the
+      request and are never written to disk or a temp file, the database, object
+      storage, a cache, logs, metrics, traces or error reports; the identical-request
+      cache is not used for any of the three image endpoints, a text-only Import recipe
+      call included. Nothing about an image is kept beyond the
+      `ai_usage` counts above, and `GET /me/export` and `DELETE /me` have nothing of it
+      to export or delete.
+
+      **EXIF and other metadata are stripped on the server.** The server decodes every
+      image, applies its orientation, and re-encodes the pixels as a new JPEG (long side
+      at most 1,600 px). The original bytes are never forwarded, so EXIF (GPS position,
+      time, device), XMP, IPTC, embedded thumbnails and comments do not reach the
+      provider; a file that cannot be decoded is refused, never forwarded as is. The app
+      also re-encodes on the device, but the server does not rely on that.
+
+      The provider receives only the re-encoded images, the user's text and the
+      instructions (the Provider rule above); a provider that cannot be set to no
+      retention and no training on the request is not used for these calls (ADR 008).
+      The app sends images only after the user has turned AI features on, and keeps the
+      photo only in memory while the sheet is open; it is never added to progress
+      photos. Text inside an image (a note in the photo, a recipe page) is data, like any
+      user text: it is never followed as an instruction. The output checks drop what does
+      not fit the schema: Meal photo drops items with non-finite or out-of-range numbers
+      and keeps 12 at most, reads an unknown `confidence` as `medium`, turns a `match` that is not
+      a `content/foods.json` name into null and clamps `servings` to 0.25 to 6; Import recipe
+      moves ingredients that are not in `content/raw-ingredients.json` or whose weight is
+      unusable to `unmatched`; Form check drops checks whose `cue` is not one of the
+      card's `key_cues` and reads an unknown `status` as `unclear`. A reply that does not
+      parse is 503 `unavailable`, with the quota unit kept as for any billed reply.
 
 paths:
   /auth/google:
@@ -1024,6 +1113,172 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
 
+  /foods/barcode/{code}:
+    get:
+      tags: [foods]
+      operationId: getFoodByBarcode
+      summary: Look up one packaged food by barcode (Open Food Facts)
+      security: []
+      description: |
+        Returns a trimmed subset of the Open Food Facts product for one barcode, so the app
+        can show a review screen. The server maps nothing: turning this into a `UserFood`
+        (per-serving values, kJ to kcal, missing fields) is a rule in `packages/core`.
+        Public like `/content/*`. Needs a connection; a barcode the user already saved is found
+        locally (`UserFood.barcode`) with no call.
+
+        **Limits and order of checks.** This operation allows 20 requests per minute per
+        client IP. Calls from the server to Open Food Facts share one limit of 12 per
+        minute (Open Food Facts allows 15 per minute per IP). The server checks, in this
+        order: (1) the per-IP limit, 429 `rate_limited`, so invalid codes count toward it; (2)
+        the code's pattern and GS1 check digit, 400 `invalid_barcode`; (3) the cache, a hit (found or not found) is
+        answered with no upstream call; (4) the upstream limit, 503 `upstream_busy` with
+        `Retry-After`. Cache hits and 400s never use the upstream limit.
+
+        **Code.** Digits only, length 8, 12 or 13, with a valid GS1 mod-10 check digit
+        (`test-vectors/barcode-gs1.json`). 8 digits is EAN-8 (GTIN-8); 12 is UPC-A; 13 is
+        EAN-13. GTIN-14 is not accepted. A UPC-E code (8 digits on the pack) must be expanded to its
+        12-digit UPC-A by the client first. A code that fails the length or check digit is
+        400 `invalid_barcode`, with no upstream call.
+
+        **404 `not_found`.** Open Food Facts has no such product, or has it with no
+        nutrition values at all. Also cached (a miss for 24 hours; a hit for 30 days).
+
+        **Data.** Community-contributed and unchecked: the app must show it as such and let
+        the user edit every number. Strings are trimmed, stripped of control characters and
+        length-capped; only the fields below are ever returned. No images. A nutriment or
+        `serving_quantity` value from Open Food Facts that is negative, not a finite number
+        or not numeric is dropped and treated as missing (never clamped or set to zero); a
+        numeric string such as "12.5" is read as that number.
+
+        **Licence.** Every 200 carries `source` (code `open_food_facts`, ODbL 1.0 / DbCL
+        1.0, link to the product page); the app shows that credit on each scanned food.
+
+        **503.** `upstream_unavailable`: Open Food Facts failed, timed out or answered
+        with an error. `upstream_busy`: the server's shared limit of 12 calls per minute to
+        Open Food Facts is used up; `Retry-After` says when to retry. The app offers manual entry.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: The barcode digits. See above for the accepted lengths and check digit.
+          schema:
+            $ref: '#/components/schemas/Barcode'
+          example: '8901491101837'
+      responses:
+        '200':
+          description: The product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OffProduct'
+              examples:
+                default:
+                  summary: Per-100 g values only, no serving size
+                  value:
+                    code: '8901491101837'
+                    name: India's Magic Masala
+                    brands: Lay's
+                    quantity: 50g
+                    serving_size: null
+                    serving_quantity: null
+                    nutrition_data_per: 100g
+                    nutriments:
+                      energy-kcal_100g: 554
+                      energy-kj_100g: 2311.4
+                      proteins_100g: 6.5
+                      carbohydrates_100g: 52
+                      fat_100g: 35
+                      fiber_100g: 3.5
+                    completeness: 0.8875
+                    states_tags: [en:nutrition-facts-completed]
+                    data_quality_errors_tags: []
+                    countries_tags: [en:india]
+                    last_modified_at: '2026-06-02T09:14:31Z'
+                    source:
+                      code: open_food_facts
+                      name: Open Food Facts
+                      licence: ODbL 1.0 / DbCL 1.0
+                      url: https://world.openfoodfacts.org/product/8901491101837
+                      reference: '8901491101837'
+                per_serving:
+                  summary: Per-serving values with a serving size in grams
+                  value:
+                    code: '5000159407236'
+                    name: Milk chocolate bar
+                    brands: Example Brand
+                    quantity: 45g
+                    serving_size: 1 bar (45 g)
+                    serving_quantity: 45
+                    nutrition_data_per: serving
+                    nutriments:
+                      energy-kcal_100g: 534
+                      energy-kcal_serving: 240
+                      proteins_100g: 7.6
+                      proteins_serving: 3.4
+                      carbohydrates_100g: 57
+                      carbohydrates_serving: 25.7
+                      fat_100g: 30
+                      fat_serving: 13.5
+                      added-sugars_100g: 54
+                    completeness: 0.95
+                    states_tags: [en:nutrition-facts-completed]
+                    data_quality_errors_tags: []
+                    countries_tags: [en:united-kingdom]
+                    last_modified_at: '2026-03-14T18:02:11Z'
+                    source:
+                      code: open_food_facts
+                      name: Open Food Facts
+                      licence: ODbL 1.0 / DbCL 1.0
+                      url: https://world.openfoodfacts.org/product/5000159407236
+                      reference: '5000159407236'
+        '400':
+          description: The code is not a valid barcode (length or check digit).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: invalid_barcode
+                    message: That is not a valid barcode. Check the digits.
+        '404':
+          description: Open Food Facts has no usable product for this barcode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: not_found
+                    message: No product found for this barcode.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          description: Open Food Facts could not be reached, or the server's own limit on calls to it is used up.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying. Always present on `upstream_busy`; may be absent on `upstream_unavailable`.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                upstream_unavailable:
+                  value:
+                    code: upstream_unavailable
+                    message: Open Food Facts is not answering. Try again later or enter the food by hand.
+                upstream_busy:
+                  value:
+                    code: upstream_busy
+                    message: Open Food Facts is busy. Try again in a minute.
+
   /health:
     get:
       tags: [system]
@@ -1327,6 +1582,9 @@ paths:
                       ask_why: false
                       weekly_summary: false
                       suggest_tags: false
+                      meal_photo: false
+                      import_recipe: false
+                      form_check: false
                     quota:
                       limit: 10
                       remaining: 10
@@ -1625,6 +1883,271 @@ paths:
                       weight dropped 0.5 kg, with a 6% gain on the goblet squat. Protein was
                       the gap: you averaged 118 g against 140 g and hit it on 3 days. Next
                       week, aim to reach 140 g on at least 5 days by adding a protein snack.
+                    quota:
+                      limit: 10
+                      remaining: 4
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/meal-photo:
+    post:
+      tags: [ai]
+      operationId: mealPhoto
+      summary: Estimate a meal's macros from a photo
+      description: |
+        Looks at one photo of a meal and estimates each food or drink visible, assuming
+        typical home-style cooking in India. Mirrors the prototype's `analysePhoto()`. The
+        optional `hint` is the prototype's "Anything the photo can't show?" note (hidden
+        oil or ghee, a count the photo hides).
+
+        **Grounding.** As in the prototype, the server sends the model the built-in food
+        list (`content/foods.json`: name, serving, macros per serving; content, not account
+        data) and never the user's own foods. For each item the model sets `match` to the
+        exact name of a built-in food that fits, with `servings` of that food's serving
+        shown, or null with its own estimate. The app uses the food table's macros times
+        `servings` for a matched item, and the item's own numbers otherwise (`src` db or
+        est in the prototype), and offers a swap to any food on the device.
+
+        Items have the `MealEstimateItem` shape (numbers are for the whole portion shown,
+        carbohydrate includes fibre) plus `confidence`, `match` and `servings`. `not_food` is true, with `items` empty,
+        when the photo shows no food (prototype: "Couldn't spot food in this photo."). The
+        app shows the items for the user to confirm before logging (suggest and confirm);
+        nothing is logged or stored by this call.
+
+        Image rules (type, size, EXIF, privacy) are in the `ai` tag, Images. Non-AI
+        fallback: Describe it, the food list and Custom entry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MealPhotoRequest'
+            examples:
+              default:
+                value:
+                  image:
+                    media_type: image/png
+                    data: iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=
+                  hint: 2 rotis, cooked in 1 tsp ghee
+      responses:
+        '200':
+          description: The estimated items and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealPhotoResponse'
+              examples:
+                default:
+                  value:
+                    not_food: false
+                    items:
+                      - name: Roti
+                        qty: 2 medium
+                        kcal: 240
+                        protein_g: 7
+                        carbs_g: 46
+                        fat_g: 3
+                        confidence: high
+                        match: Roti / chapati
+                        servings: 2
+                      - name: Bhindi sabzi
+                        qty: 1 katori (150 g)
+                        kcal: 130
+                        protein_g: 3
+                        carbs_g: 12
+                        fat_g: 8
+                        confidence: low
+                        match: null
+                        servings: 1
+                    quota:
+                      limit: 10
+                      remaining: 7
+                      resets_at: '2026-10-10T00:00:00Z'
+                not_food:
+                  value:
+                    not_food: true
+                    items: []
+                    quota:
+                      limit: 10
+                      remaining: 6
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/import-recipe:
+    post:
+      tags: [ai]
+      operationId: importRecipe
+      summary: Turn recipe text or a photo of a recipe into a draft recipe
+      description: |
+        Reads pasted recipe text, a photo of a cookbook page, or both (send at least one),
+        and returns a draft in the recipe builder's terms. Mirrors the prototype's
+        `importRecipe()`. Each ingredient is matched to a name in
+        `content/raw-ingredients.json` (the version the server deploys) and given a raw
+        weight in grams, converting cups, spoons and pieces. The yield is estimated in
+        katoris (about 150 g cooked, `Recipe.yield_mode` = `katori`).
+
+        An ingredient that is not in the raw table, or whose weight is unusable (not
+        finite, zero or less, or over 10,000 g), is not returned in `ingredients`; its
+        text as written goes in `unmatched` so the app can show what to add by hand.
+        `ingredients` is empty when nothing matched; the app then shows "Couldn't read
+        that recipe. Try pasting the ingredient list." The draft is not a saved `Recipe`
+        (no id, version or timestamps): the app opens it in the recipe builder for the
+        user to check the amounts and save (suggest and confirm); nothing is stored by
+        this call.
+
+        Image rules are in the `ai` tag, Images. Non-AI fallback: the recipe builder.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRecipeRequest'
+            examples:
+              text:
+                value:
+                  text: |-
+                    Dal tadka (serves 4). 1 cup toor dal, 2 tsp ghee, 1 onion, 1 tomato, jeera, salt.
+                    Pressure cook the dal for 15 min with turmeric. Temper with ghee and jeera.
+              photo:
+                value:
+                  image:
+                    media_type: image/png
+                    data: iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=
+      responses:
+        '200':
+          description: The draft recipe and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRecipeResponse'
+              examples:
+                default:
+                  value:
+                    name: Dal tadka
+                    katoris: 6
+                    ingredients:
+                      - ingredient: Toor dal (dry)
+                        amount: 200
+                        unit: g
+                      - ingredient: Ghee
+                        amount: 10
+                        unit: g
+                    steps:
+                      - Pressure cook the dal with turmeric for 15 min.
+                      - Temper with ghee and jeera and pour over the dal.
+                    unmatched: [salt, jeera]
+                    quota:
+                      limit: 10
+                      remaining: 7
+                      resets_at: '2026-10-10T00:00:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/AiLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/form-check:
+    post:
+      tags: [ai]
+      operationId: formCheck
+      summary: Second opinion on exercise form from a few still frames
+      description: |
+        Judges 2 to 4 still frames, in order, from the user's own video of one set of a
+        catalogue exercise. Mirrors the prototype's film-and-check form review
+        (`onFormVideo()`). The video never leaves the phone: the app cuts the frames on the
+        device and sends only those, only when the user has turned AI features on.
+
+        **Grounding.** The server looks up the exercise in `content/exercises.json`
+        `cards` (the version it deploys) and sends the model that card's `key_cues` and
+        `common_mistakes` and the frames. For each key cue the model judges only what is
+        clearly visible, answers `unclear` when the angle or quality does not show it, and
+        is told to be specific and kind and never to diagnose an injury. A request
+        `exercise` that is not a key of `cards` (a custom exercise has no cues) is 400
+        `invalid_request` with `details[].field` = `exercise`; the app does not offer the
+        check for it.
+
+        `visible` is false when the user's body was not clearly in frame; the app then asks
+        for a side view with the whole body in frame. Each `checks[].cue` is one of the
+        card's `key_cues` verbatim (the server drops any other). The app always shows
+        the "second opinion, not a coach" note; nothing is stored by this call.
+
+        Image rules are in the `ai` tag, Images. Non-AI fallback: the cue checklist on the
+        exercise card.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormCheckRequest'
+            examples:
+              default:
+                value:
+                  exercise: Goblet Squat
+                  frames:
+                    - media_type: image/png
+                      data: iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=
+                    - media_type: image/png
+                      data: iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=
+      responses:
+        '200':
+          description: The cue checks and the user's remaining quota.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormCheckResponse'
+              examples:
+                default:
+                  value:
+                    visible: true
+                    checks:
+                      - cue: Sit down between your heels with your chest up
+                        status: good
+                        note: ''
+                      - cue: Push your knees out in line with your toes
+                        status: watch
+                        note: Your knees drift in a little on the way up.
+                    summary: Depth and chest position look solid. Focus on pushing your knees out as you stand.
+                    quota:
+                      limit: 10
+                      remaining: 5
+                      resets_at: '2026-10-10T00:00:00Z'
+                not_visible:
+                  value:
+                    visible: false
+                    checks: []
+                    summary: ''
                     quota:
                       limit: 10
                       remaining: 4
@@ -1954,13 +2477,24 @@ components:
                     issue: must be greater than or equal to 0
             too_large:
               summary: Body over the size limit
-              description: The request body is over 2 MB (16 KB on `POST /ai/*`); see the wire conventions.
+              description: The request body is over 2 MB (16 KB on the text `POST /ai/*` calls); see the wire conventions.
               value:
                 code: invalid_request
                 message: The request is not valid.
                 details:
                   - field: ''
                     issue: too_large
+            image_unreadable:
+              summary: An image the AI image calls cannot use
+              description: |
+                `issue` is one of `too_large`, `invalid_base64`, `unsupported_type`, `type_mismatch`,
+                `unreadable_image` or `dimensions` (see the `ai` tag, Images). `field` names the image.
+              value:
+                code: invalid_request
+                message: That photo couldn't be read. Try a JPEG or PNG.
+                details:
+                  - field: image.data
+                    issue: unreadable_image
     Unauthorized:
       description: Missing, invalid or expired credentials.
       content:
@@ -2119,11 +2653,19 @@ components:
             - feature_disabled
             - account_full
             - forbidden
+            - invalid_barcode
+            - upstream_unavailable
+            - upstream_busy
           description: |
             Stable machine-readable code. `token_expired`: refresh the access token and
             retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
             or expired. `not_found` (404): the named resource does not exist; today only
-            `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
+            `GET /content/{bundle}` for a bundle not in the manifest, and
+            `GET /foods/barcode/{code}` for a barcode Open Food Facts has no usable product
+            for. `invalid_barcode` (400, `GET /foods/barcode/{code}` only): the code fails
+            the length or GS1 check digit. `upstream_unavailable` and `upstream_busy` (503,
+            `GET /foods/barcode/{code}` only): Open Food Facts failed, or the server's own
+            limit on calls to it is used up (`Retry-After` is set). `quota_exceeded` (429): the daily AI quota is used up until
             `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
             the server; use the non-AI fallback. `account_full` (413, `POST /sync` only):
             the push would take the account over its record cap; nothing was applied (see
@@ -2472,19 +3014,22 @@ components:
       type: object
       description: |
         Where a row's values come from. Only the sources listed in ADR 005
-        (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed.
+        (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed, plus Open Food
+        Facts for barcode lookups only (ADR 009).
       required: [code, name, licence, url, reference]
       properties:
         code:
           type: string
-          enum: [usda_fdc, fssai, own_recipe, kitchen_test, label_typical, own_estimate]
+          enum: [usda_fdc, fssai, own_recipe, kitchen_test, label_typical, own_estimate, open_food_facts]
           description: |
             `usda_fdc`: USDA FoodData Central. `fssai`: values derived from FSSAI standards
             (paneer, curd, milk). `own_recipe`: calculated from our recipes. `kitchen_test`:
             weighed in our kitchen tests. `label_typical`: packaged foods using typical
             nutrition-label values across common brands; in the prototype these are whey
             protein, Greek yogurt and makhana. `own_estimate`: our own rough estimate, not
-            weighed or cooked to a recipe (for example restaurant dishes).
+            weighed or cooked to a recipe (for example restaurant dishes). `open_food_facts`:
+            a community-contributed product from Open Food Facts (ODbL 1.0 / DbCL 1.0, ADR
+            009); only `GET /foods/barcode/{code}` returns it, never `/foods` or `content/`.
         name:
           type: string
           examples: [USDA FoodData Central (SR Legacy), Typical label values (packaged food)]
@@ -2497,6 +3042,129 @@ components:
         reference:
           type: [string, 'null']
           description: Identifier in the source, such as a USDA FDC id.
+
+    Barcode:
+      type: string
+      description: |
+        Digits of a barcode: 8 (EAN-8), 12 (UPC-A) or 13 (EAN-13) with a valid
+        GS1 mod-10 check digit. The pattern checks length and digits only; the check digit
+        is checked separately (`test-vectors/barcode-gs1.json`).
+      pattern: '^([0-9]{8}|[0-9]{12,13})$'
+      examples: ['8901491101837']
+
+    OffNutriments:
+      type: object
+      description: |
+        The only nutriment keys the server returns, numbers as Open Food Facts gives them
+        (the key names are Open Food Facts', so hyphens stay). Energy `-kcal_` is kilocalories
+        and `-kj_` is kilojoules; the rest are grams, and `_100g` is per 100 g (or 100 ml)
+        while `_serving` is per serving. A key is absent when Open Food Facts has no value,
+        so absence is not zero. `sugars` (total sugars) and bare `energy` (kilojoules) are
+        deliberately not here.
+      additionalProperties: false
+      properties:
+        energy-kcal_100g: { type: number, minimum: 0 }
+        energy-kj_100g: { type: number, minimum: 0 }
+        proteins_100g: { type: number, minimum: 0 }
+        carbohydrates_100g: { type: number, minimum: 0 }
+        fat_100g: { type: number, minimum: 0 }
+        fiber_100g: { type: number, minimum: 0 }
+        added-sugars_100g: { type: number, minimum: 0 }
+        energy-kcal_serving: { type: number, minimum: 0 }
+        energy-kj_serving: { type: number, minimum: 0 }
+        proteins_serving: { type: number, minimum: 0 }
+        carbohydrates_serving: { type: number, minimum: 0 }
+        fat_serving: { type: number, minimum: 0 }
+        fiber_serving: { type: number, minimum: 0 }
+        added-sugars_serving: { type: number, minimum: 0 }
+
+    OffProduct:
+      type: object
+      description: |
+        A trimmed subset of an Open Food Facts product (ADR 009). Community data, unchecked.
+        Text is untrusted: show it as text, never interpret it.
+
+        `code` is always the code from the request path, unchanged (Open Food Facts may
+        store a UPC-A as 13 digits with a leading 0; the server does not pass that
+        through), so the app can save it as `UserFood.barcode` and find it again locally.
+
+        Field names are this contract's, not Open Food Facts': `name` (OFF `product_name`),
+        `brands`, `quantity`, `serving_size`, `serving_quantity` (grams or millilitres),
+        `nutrition_data_per`, `nutriments`, `completeness`, `states_tags`,
+        `data_quality_errors_tags`, `countries_tags`, and `last_modified_at` (OFF
+        `last_modified_t` converted to ISO 8601 UTC). Only the `nutriments` keys keep OFF's
+        own names.
+      additionalProperties: false
+      required:
+        - code
+        - name
+        - brands
+        - quantity
+        - serving_size
+        - serving_quantity
+        - nutrition_data_per
+        - nutriments
+        - completeness
+        - states_tags
+        - data_quality_errors_tags
+        - countries_tags
+        - last_modified_at
+        - source
+      properties:
+        code:
+          $ref: '#/components/schemas/Barcode'
+        name:
+          type: [string, 'null']
+          maxLength: 200
+          description: Product name; null or empty when Open Food Facts has none (the user types one).
+        brands:
+          type: [string, 'null']
+          maxLength: 200
+          description: Comma-separated brands as Open Food Facts gives them.
+        quantity:
+          type: [string, 'null']
+          maxLength: 100
+          description: Pack size as printed, e.g. "50g" or "1 l".
+        serving_size:
+          type: [string, 'null']
+          maxLength: 100
+          description: Serving as printed, e.g. "1 bar (45 g)".
+        serving_quantity:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          description: Serving size in grams (or millilitres for drinks); null when unknown.
+        nutrition_data_per:
+          type: [string, 'null']
+          enum: [100g, serving, null]
+          description: What the pack's own nutrition table is printed per. The `_100g` values are present either way.
+        nutriments:
+          $ref: '#/components/schemas/OffNutriments'
+        completeness:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: Open Food Facts' own completeness score of the entry.
+        states_tags:
+          type: array
+          maxItems: 50
+          items: { type: string, maxLength: 100 }
+          description: Open Food Facts state tags, e.g. `en:nutrition-facts-completed`.
+        data_quality_errors_tags:
+          type: array
+          maxItems: 50
+          items: { type: string, maxLength: 100 }
+          description: Open Food Facts data quality error tags; non-empty means the entry has known problems.
+        countries_tags:
+          type: array
+          maxItems: 50
+          items: { type: string, maxLength: 100 }
+          description: Countries the product is sold in, e.g. `en:india`.
+        last_modified_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the entry was last edited upstream. Open Food Facts sends epoch seconds (`last_modified_t`); the server converts.
+        source:
+          $ref: '#/components/schemas/FoodSource'
 
     # ---------- sync envelope ----------
     SyncRequest:
@@ -2858,6 +3526,15 @@ components:
             suggest_tags:
               type: boolean
               description: Custom exercise tag suggestion. Optional, so a server that does not send it has the feature off.
+            meal_photo:
+              type: boolean
+              description: Meal photo (`POST /ai/meal-photo`). Optional, so a server that does not send it has the feature off.
+            import_recipe:
+              type: boolean
+              description: Recipe import (`POST /ai/import-recipe`). Optional, so a server that does not send it has the feature off.
+            form_check:
+              type: boolean
+              description: Form check (`POST /ai/form-check`). Optional, so a server that does not send it has the feature off.
         quota:
           $ref: '#/components/schemas/AiQuota'
 
@@ -3130,6 +3807,225 @@ components:
           minLength: 1
           maxLength: 1200
           description: Three plain sentences; no headings, lists or emojis.
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    AiImage:
+      type: object
+      additionalProperties: false
+      description: |
+        One photo sent to an AI image call, base64 in the JSON body (see the `ai` tag,
+        Images, for why and for the type, size and metadata rules). Up to 1,200,000 decoded
+        bytes and 4,096 px a side. The app sends the re-encoded, resized copy it shows the
+        user, never the original file.
+      required: [media_type, data]
+      properties:
+        media_type:
+          type: string
+          enum: [image/jpeg, image/png]
+        data:
+          type: string
+          contentEncoding: base64
+          minLength: 4
+          maxLength: 1600000
+          pattern: '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$'
+          description: |
+            The image bytes, standard base64 with padding (a multiple of 4 characters), no line
+            breaks, no `data:` prefix.
+            1,600,000 characters is 1,200,000 bytes.
+
+    AiFrame:
+      type: object
+      additionalProperties: false
+      description: |
+        One still frame of a form check: the same shape as `AiImage` but at most 350,000
+        decoded bytes and 640 px a side (so four frames fit under the 2 MB body limit and
+        in memory; the server decodes one at a time). The prototype cuts frames at 640 px,
+        JPEG quality 0.75.
+      required: [media_type, data]
+      properties:
+        media_type:
+          type: string
+          enum: [image/jpeg, image/png]
+        data:
+          type: string
+          contentEncoding: base64
+          minLength: 4
+          maxLength: 466668
+          pattern: '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$'
+          description: Standard base64 with padding, a multiple of 4 characters. 466,668 characters is 350,000 bytes.
+
+    MealPhotoRequest:
+      type: object
+      additionalProperties: false
+      required: [image]
+      properties:
+        image:
+          $ref: '#/components/schemas/AiImage'
+        hint:
+          type: string
+          minLength: 1
+          maxLength: 300
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
+          description: |
+            What the photo cannot show (hidden oil or ghee, a count). Optional; when sent it
+            must not be blank (see the wire conventions), so the app leaves it out when empty.
+            Prototype: `#phHint`.
+
+    MealPhotoResponse:
+      type: object
+      required: [not_food, items, quota]
+      properties:
+        not_food:
+          type: boolean
+          description: 'True when the photo shows no food; `items` is then empty. Prototype: `notFood`.'
+        items:
+          type: array
+          maxItems: 12
+          description: One entry per distinct food or drink visible; empty when none.
+          items:
+            $ref: '#/components/schemas/MealPhotoItem'
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    MealPhotoItem:
+      description: |
+        A `MealEstimateItem` (`qty` is the portion judged from the plate), how sure the model is, and
+        the built-in food it matched, if any.
+      allOf:
+        - $ref: '#/components/schemas/MealEstimateItem'
+        - type: object
+          required: [confidence]
+          properties:
+            confidence:
+              type: string
+              enum: [high, medium, low]
+              description: 'Prototype: `confidence`. The app marks `low` as unsure.'
+            match:
+              type: [string, 'null']
+              maxLength: 200
+              description: |
+                The exact `name` of a built-in food in `content/foods.json` that this item is,
+                or null when none fits (the server checks it and sends null otherwise). Optional,
+                so a server that does not send it means null. Prototype: `match`.
+            servings:
+              type: number
+              minimum: 0.25
+              maximum: 6
+              description: |
+                How many of the matched food's serving size are shown; 1 when `match` is null.
+                Optional, read as 1 when absent. Prototype: `servings`, clamped to 0.25 to 6.
+
+    ImportRecipeRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Send `text`, `image` or both; a body with neither is 400 `invalid_request`.
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 6000
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
+          description: 'The recipe as pasted. Must not be blank (see the wire conventions). Prototype: `#impTxt`, cut at 6,000 characters.'
+        image:
+          $ref: '#/components/schemas/AiImage'
+
+    ImportRecipeResponse:
+      type: object
+      description: |
+        A draft for the recipe builder, not a saved `Recipe`: the fields the builder needs,
+        in the same units, with no id, version or timestamps.
+      required: [name, katoris, ingredients, steps, unmatched, quota]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The recipe's title; the server uses "Imported recipe" when the model gives none.
+        katoris:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1000
+          description: Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`; the server uses 4 when the model gives none (as the prototype does).
+        ingredients:
+          type: array
+          maxItems: 100
+          description: Matched ingredients, in grams (`unit` is always `g`); empty when none matched.
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Ingredient'
+              - type: object
+                properties:
+                  unit:
+                    const: g
+        steps:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 500
+        unmatched:
+          type: array
+          maxItems: 100
+          description: Ingredients as written that could not be matched, for the user to add by hand.
+          items:
+            type: string
+            maxLength: 200
+        quota:
+          $ref: '#/components/schemas/AiQuota'
+
+    FormCheckRequest:
+      type: object
+      additionalProperties: false
+      required: [exercise, frames]
+      properties:
+        exercise:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: |
+            A key of `content/exercises.json` `cards` (for example `Goblet Squat`); anything
+            else is 400 with `details[].field` = `exercise`. A custom exercise has no cues, so
+            the app does not offer the check for it.
+        frames:
+          type: array
+          minItems: 2
+          maxItems: 4
+          description: Still frames in the order they occur in the set. The video itself never leaves the phone.
+          items:
+            $ref: '#/components/schemas/AiFrame'
+
+    FormCheckResponse:
+      type: object
+      required: [visible, checks, summary, quota]
+      properties:
+        visible:
+          type: boolean
+          description: False when the user's body was not clearly in frame; `checks` is then empty.
+        checks:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            required: [cue, status, note]
+            properties:
+              cue:
+                type: string
+                maxLength: 200
+                description: One of the exercise card's `key_cues`, verbatim.
+              status:
+                type: string
+                enum: [good, watch, unclear]
+                description: '`unclear` when the angle or quality does not let the model tell.'
+              note:
+                type: string
+                maxLength: 300
+                description: A specific, kind remark; may be empty.
+        summary:
+          type: string
+          maxLength: 600
+          description: One short overall remark; may be empty. Never a diagnosis.
         quota:
           $ref: '#/components/schemas/AiQuota'
 
@@ -3650,6 +4546,15 @@ components:
             name:
               type: string
               maxLength: 200
+            barcode:
+              type: [string, 'null']
+              pattern: '^([0-9]{8}|[0-9]{12,13})$'
+              description: |
+                Optional. Set when the food was made from a barcode scan (Open Food Facts);
+                the app then shows the Open Food Facts credit on it and finds it again
+                without a network call. `origin` stays `custom`. Absent or null on every
+                other food, and on rows from older clients. Same digits as
+                `GET /foods/barcode/{code}`.
             unit:
               type: string
               maxLength: 100
