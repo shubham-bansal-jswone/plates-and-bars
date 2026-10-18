@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { WhyLink } from '../why/WhyLink';
+import { CYCLE_CHECKIN_NOTE } from '../cycle/copy';
 import { CARDIO_WEEK_MIN, RAPID_LOSS_KCAL, round1 } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Card, Hint } from '../components/ui';
@@ -40,7 +41,8 @@ export function RapidLossCard({ c: ci }: { c: Checkin }) {
 }
 
 /** Progress tab: weekly check-in with its one suggestion, the real-burn card and gentle habits (no AI summary). */
-export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
+/** `cycleNote`: the viewed day is in the period or luteal phase of a cycle log kept on this device, so the weight line adds the water-retention sentence. */
+export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; c: Checkin; cycleNote?: boolean }) {
   const t = useTheme();
   const { profile } = useProfile();
   const k = ci.checkin;
@@ -76,7 +78,7 @@ export function CheckinCard({ date, c: ci }: { date: string; c: Checkin }) {
         <Stat big={k.logged ? fmt(k.avgK) : '–'} label={`avg kcal${k.logged ? ` (target ${fmt(target)})` : ''}`} />
         <Stat big={k.logged ? `${fmt(k.avgP)} g` : '–'} label={`avg protein, ${k.pDays} day${k.pDays === 1 ? '' : 's'} on target`} />
       </View>
-      <Text style={{ color: t.ink }}>{weekly}</Text>
+      <Text style={{ color: t.ink }}>{cycleNote ? `${weekly} ${CYCLE_CHECKIN_NOTE}` : weekly}</Text>
       <Text style={{ color: t.ink }}>{cardio}</Text>
       <WhyLink id="activity" />
       <Text style={{ color: t.ink }}>{lifts}</Text>

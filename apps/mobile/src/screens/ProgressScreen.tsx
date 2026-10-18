@@ -4,7 +4,7 @@ import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
@@ -22,6 +22,8 @@ import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { SummaryCard } from '../ai/SummaryCard';
 import { PhotosSection } from '../photos/PhotosSection';
+import { CycleSection } from '../cycle/CycleSection';
+import { useCycle } from '../cycle/useCycle';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
 
@@ -49,6 +51,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const dataVersion = useDataVersion();
   const v = useViewedDate(now);
   const p = useProgress({ db, date: v.date, now, notify, reloadKey: dataVersion });
+  const cycle = useCycle({ db, date: v.date, notify });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
   const ready = status === 'ready' && p.ready;
@@ -60,13 +63,14 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
         <DateBar v={v} />
         {ready ? (
           <>
-            <CheckinCard date={p.date} c={ci} />
+            <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
+            <CycleSection key={v.date} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
             <StepsSleepSection key={`${p.today?.steps}:${p.today?.sleep}`} p={p} />
             <WeekCard date={p.date} days={ci.days} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
           </>
