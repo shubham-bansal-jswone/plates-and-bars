@@ -194,6 +194,7 @@ keyword is registered with the schema library as a non-validation keyword so it 
   - Content: Gradle copies every `content/*.json` into the jar under `/content` (`processResources`; the Dockerfile
     copies them too, and the build fails if `cards.json`, `exercises.json`, `foods.json` or `raw-ingredients.json` is missing). Ask why sends every
     card with conditional blocks `{?x}..{/x}` dropped (else branch kept) and bare `{x}` replaced by a neutral phrase.
+    A card with `hidden: true` in `cards.json` (held back, #212) is skipped when the file is read: it is not in the prompt, `hasCard` is false for it, so a request naming it is 400 `card_id` and a reply naming it gets `card_id` null.
   - Cache (the four text calls only): per user, in memory, Caffeine, 12 hours, keyed by user id and a hash of the normalised request. A cached
     answer still counts against the quota; failures are never cached.
   - Logs: one line per call with user id, feature, status and duration. Bodies, prompts and replies are never logged.
