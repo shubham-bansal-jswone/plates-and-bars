@@ -1,5 +1,6 @@
 // The science cards for the blog, read at build time from content/cards.json: the same file the app ships.
 import bundle from "../../../../content/cards.json";
+import { SENTENCE_SPLIT } from "./sentences.mjs";
 
 export interface Card {
   id: string;
@@ -52,7 +53,7 @@ export function renderBody(body: string): Rendered {
       return "";
     });
   // split after . ! ? before a capital or digit, but not after an abbreviation such as "e.g." or "et al."
-  const kept = text.split(/(?<=[.!?])(?<!\b(?:e\.g|i\.e|etc|vs|al|approx|cf|no)\.)\s+(?=[A-Z0-9"'\u2018\u201C(])/).filter((s) => {
+  const kept = text.split(SENTENCE_SPLIT).filter((s) => {
     if (!/\{[a-z_]+\}/.test(s)) return true;
     trimmed = true;
     return false;

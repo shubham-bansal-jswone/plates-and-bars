@@ -4,14 +4,13 @@
 import { readFile, access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { SENTENCE_SPLIT } from "../src/lib/sentences.mjs";
 
 const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const failures = [];
 const fail = (m) => failures.push(m);
 const decode = (s) => s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-// same sentence split as src/lib/cards.ts
-const SPLIT = /(?<=[.!?])(?<!\b(?:e\.g|i\.e|etc|vs|al|approx|cf|no)\.)\s+(?=[A-Z0-9"'\u2018\u201C(])/;
 const exists = (p) => access(p).then(() => true, () => false);
 const read = (p) => readFile(join(dist, p), "utf8");
 
@@ -58,7 +57,7 @@ for (const c of cards) {
   if (!text.includes(`${c.evidence}. ${appEv[c.evidence]}`)) fail(`${c.id}: evidence line "${c.evidence}. ${appEv[c.evidence]}" missing`);
   // body: every sentence of the card body that needs no personal number must be on the page
   const stripped = c.body.replace(/\{\?([a-z_]+)\}[\s\S]*?\{\/\1\}/g, "{}");
-  const sentences = stripped.split(SPLIT).filter((x) => !x.includes("{"));
+  const sentences = stripped.split(SENTENCE_SPLIT).filter((x) => !x.includes("{"));
   if (sentences.length === 0) fail(`${c.id}: no checkable body sentence`);
   for (const x of sentences) if (!text.includes(x.replace(/\s+/g, " "))) fail(`${c.id}: body sentence missing: ${x.slice(0, 50)}`);
   if (!c.source.trim()) fail(`${c.id}: empty source in content`);
