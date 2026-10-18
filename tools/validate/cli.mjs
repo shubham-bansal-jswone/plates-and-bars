@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateExercises } from './exercises.mjs';
 import { validateFoods } from './foods.mjs';
+import { validateExerciseImages } from './exercise-images.mjs';
 import { scanContent } from '../check-no-ifct/check.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -23,8 +24,10 @@ console.log(`exercises ok: ${Object.keys(content.tags).length} exercises, ` +
   `${Object.keys(templates).length} templates checked`);
 
 const foods = JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8'));
+const images = JSON.parse(readFileSync(`${repo}/content/exercise-images.json`, 'utf8'));
 const problems = [
   ...validateFoods(foods),
+  ...validateExerciseImages(images, Object.keys(content.tags)).map((e) => `exercise-images.json: ${e}`),
   ...scanContent(`${repo}/content`).map((h) => `IFCT/INDB (ADR 005 forbids it): ${h}`),
 ];
 if (problems.length) {
@@ -32,4 +35,4 @@ if (problems.length) {
   console.error(`${problems.length} problem(s)`);
   process.exit(1);
 }
-console.log(`foods ok: ${foods.foods.length} foods; no IFCT/INDB under content/`);
+console.log(`foods ok: ${foods.foods.length} foods; exercise images ok: ${Object.keys(images.images).length} exercises; no IFCT/INDB under content/`);
