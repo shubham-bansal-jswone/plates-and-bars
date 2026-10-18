@@ -1,18 +1,18 @@
 import type { SyncMeta } from '../setup/types';
 
 // Contract records (packages/api/openapi.yaml). Weight and Measurement are natural-key tables (one per day): their
-// contract id is a UUIDv5 that needs the user's namespace, so `id` stays null locally (see food/types.ts, #31).
+// contract id is a UUIDv5 that needs the user's namespace, so `id` is null on a row made on the device and the server id on a pulled one (see food/types.ts).
 
 /** Contract `Weight`: body weight on a day. */
 export interface Weight extends Omit<SyncMeta, 'id'> {
-  id: null;
+  id: string | null;
   date: string;
   weight_kg: number;
 }
 
 /** Contract `Measurement`: tape measurements on a day, in cm; null when not measured. */
 export interface Measurement extends Omit<SyncMeta, 'id'> {
-  id: null;
+  id: string | null;
   date: string;
   waist_cm: number | null;
   neck_cm: number | null;
