@@ -9,6 +9,8 @@ const supported = Platform.OS !== 'web';
 /** Also read by the web migration that removes them from web storage. */
 export const ACCESS_KEY = 'pb.access_token';
 export const REFRESH_KEY = 'pb.refresh_token';
+/** The random install id (telemetry/errors.ts). Deleted with everything else by "Delete everything". */
+export const INSTALL_ID_KEY = 'pb.install_id';
 const ACCESS = ACCESS_KEY;
 const REFRESH = REFRESH_KEY;
 
@@ -36,4 +38,10 @@ export async function clearTokens(): Promise<void> {
   if (!supported) return;
   await SecureStore.deleteItemAsync(ACCESS);
   await SecureStore.deleteItemAsync(REFRESH);
+}
+
+/** Forgets the install id, so the next launch of error tracking makes a new one. */
+export async function clearInstallId(): Promise<void> {
+  if (!supported) return;
+  await SecureStore.deleteItemAsync(INSTALL_ID_KEY);
 }

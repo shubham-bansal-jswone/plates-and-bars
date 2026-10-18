@@ -11,6 +11,18 @@ import { fakeServer, memoryTokens, openDb, turns, until } from './sync-helpers';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 
+// The keystore: only the install id is touched by deleteEverything (the tokens go through the injected store).
+const mockKeys = new Map<string, string>();
+const mockKeystore = { failDelete: false };
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: async (k: string) => mockKeys.get(k) ?? null,
+  setItemAsync: async (k: string, v: string) => void mockKeys.set(k, v),
+  deleteItemAsync: async (k: string) => {
+    if (mockKeystore.failDelete && k === 'pb.install_id') throw new Error('keystore');
+    mockKeys.delete(k);
+  },
+}));
+
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const BASE = 'http://fake/api/v1';
 const meta = { version: 1, updated_at: '2026-10-08T06:00:00.000Z', deleted_at: null };
@@ -228,6 +240,28 @@ describe('delete everything (#27)', () => {
     expect(await outbox(db)).toBe(0);
     expect(await getUserId(db)).toBeNull();
     expect(tokens.current).toBeNull();
+  });
+
+  it('deletes the install id with everything else, and keeps it when nothing was deleted', async () => {
+    const { db, tokens, api, handler } = await signedIn();
+    mockKeys.set('pb.install_id', 'install-1');
+    handler.current = () => new Response('', { status: 503 });
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'unavailable' });
+    expect(mockKeys.get('pb.install_id')).toBe('install-1');
+    handler.current = () => new Response(null, { status: 204 });
+    expect(await deleteEverything({ db, api, tokens })).toMatchObject({ kind: 'deleted' });
+    expect(mockKeys.has('pb.install_id')).toBe(false);
+  });
+
+  it('a keystore failure while removing the install id does not turn a finished delete into an error', async () => {
+    const { db, tokens, api } = await signedIn();
+    mockKeys.set('pb.install_id', 'install-1');
+    mockKeystore.failDelete = true;
+    try {
+      expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'deleted', server: true, linked: true });
+    } finally {
+      mockKeystore.failDelete = false;
+    }
   });
 
   it('server unavailable (503): nothing local is touched and it says so; same for 500 and 429 (with the wait)', async () => {
