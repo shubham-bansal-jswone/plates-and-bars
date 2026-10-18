@@ -29,6 +29,6 @@ What changed: ADR 002 limits food values to five sources and bans IFCT and INDB.
 
 - Some Indian dishes need recipes or kitchen tests before they appear, so the initial list is smaller and grows with testing.
 - Restaurant dishes can be listed before they are tested, and their source tells the user they are rough estimates. A row moves to `own_recipe` or `kitchen_test` once it is cooked to a recipe or weighed.
-- A CI check fails any change that mentions IFCT or INDB as a source in any of these scanned roots: `content`, `apps/mobile/src/content`, `apps/mobile/src/about/licences.json`, `apps/site/src`, `tests/e2e/store`, `backend/src/main/resources`, `backend/src/test/resources`. It runs in the CI `tools` job and fails if a root is missing, so a moved or renamed folder cannot silently stop being scanned.
+- A CI check fails any change that mentions IFCT or INDB (or their full names) anywhere, in file names or contents, under any of these scanned roots: `content`, `apps/mobile/src/content`, `apps/mobile/src/about/licences.json`, `apps/site/src`, `tests/e2e/store`, `backend/src/main/resources`, `backend/src/test/resources`. It runs in the CI `tools` job and fails if a root is missing, so a moved or renamed folder cannot silently stop being scanned.
 - Values may differ a little from figures users see elsewhere; source per row lets us explain and correct them.
 - Adding a new source (for example Open Food Facts in v1.1) needs its own licence check and a new ADR that supersedes this one.
