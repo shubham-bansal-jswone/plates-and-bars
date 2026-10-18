@@ -1,0 +1,94 @@
+{
+  "description": "Barcode codes for GET /foods/barcode/{code} (#944, ADR 009). Valid = digits only, length 8, 12 or 13, GS1 mod-10 check digit: from the digit before the check digit going left, weights 3,1,3,1,..., check = (10 - sum mod 10) mod 10. 8 digits is always read as EAN-8; a UPC-E code from a pack is expanded to 12-digit UPC-A by the client first (upc_e_expansion). The backend must answer 400 invalid_barcode for every invalid code, with no upstream call; the app's manual digit field must reject the same codes. verify.mjs recomputes every check digit and every expansion. GTIN-14 is not accepted. upc_e_expansion is client-side reference data only: the server never sees a UPC-E and accepts only the expanded 12-digit UPC-A.",
+  "valid": [
+    {
+      "code": "8901491101837",
+      "format": "EAN-13",
+      "note": "Lay's, used in the /foods/barcode example"
+    },
+    {
+      "code": "4006381333931",
+      "format": "EAN-13"
+    },
+    {
+      "code": "96385074",
+      "format": "EAN-8"
+    },
+    {
+      "code": "036000291452",
+      "format": "UPC-A"
+    }
+  ],
+  "invalid": [
+    {
+      "code": "8901491101838",
+      "reason": "EAN-13 wrong check digit"
+    },
+    {
+      "code": "96385075",
+      "reason": "EAN-8 wrong check digit"
+    },
+    {
+      "code": "036000291453",
+      "reason": "UPC-A wrong check digit"
+    },
+    {
+      "code": "890149110183",
+      "reason": "12 digits that are the EAN-13 minus its last digit: wrong check digit"
+    },
+    {
+      "code": "1234567",
+      "reason": "7 digits: too short"
+    },
+    {
+      "code": "123456789",
+      "reason": "9 digits: not a barcode length"
+    },
+    {
+      "code": "12345678901",
+      "reason": "11 digits: not a barcode length"
+    },
+    {
+      "code": "123456789012345",
+      "reason": "15 digits: too long"
+    },
+    {
+      "code": "89014911018x7",
+      "reason": "not only digits"
+    },
+    {
+      "code": "8901491101837 ",
+      "reason": "trailing space"
+    },
+    {
+      "code": "٨٩٠١٤٩١١٠١٨٣٧",
+      "reason": "Arabic-Indic digits are not [0-9]"
+    },
+    {
+      "code": "",
+      "reason": "empty"
+    },
+    {
+      "code": "00012345678905",
+      "reason": "GTIN-14 (valid check digit) is out of scope"
+    }
+  ],
+  "upc_e_expansion": [
+    {
+      "upc_e": "01234565",
+      "upc_a": "012345000065"
+    },
+    {
+      "upc_e": "04252614",
+      "upc_a": "042100005264"
+    },
+    {
+      "upc_e": "01234531",
+      "upc_a": "012300000451"
+    },
+    {
+      "upc_e": "01234543",
+      "upc_a": "012340000053"
+    }
+  ]
+}
