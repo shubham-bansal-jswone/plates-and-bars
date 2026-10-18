@@ -9,14 +9,16 @@ import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Pres
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AI_COPY } from '../ai/copy';
+import { DescribeBody } from '../ai/DescribeSheet';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
 import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, noMatch, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
 
 import type { UserFood } from './types';
 
-type Mode = 'list' | 'out' | 'custom';
+type Mode = 'list' | 'out' | 'custom' | 'describe';
 const MODES: [Mode, string][] = [['list', 'Food list'], ['out', 'Eating out'], ['custom', 'Custom']];
+const DESCRIBE_MODE: [Mode, string] = ['describe', AI_COPY.describeButton];
 
 interface Props {
   meal: string;
@@ -25,12 +27,12 @@ interface Props {
   onAdd: (n: NewLog) => void;
   onSaveMine: (f: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => UserFood;
   onClose: () => void;
-  /** Opens the Describe flow for this meal. Given only when the describe-meal feature is available (consent, server, signed in). */
-  onDescribe?: () => void;
+  /** True when the describe-meal feature is available (consent, server, signed in): shows the Describe it tab. */
+  canDescribe?: boolean;
 }
 
 /** The add-food sheet: food list (search, servings or grams), eating out, custom food, and Describe it (AI) when it is on. */
-export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, onDescribe }: Props) {
+export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false }: Props) {
   const c = useTheme();
   const [mode, setMode] = useState<Mode>('list');
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
@@ -41,21 +43,17 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, on
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
-            {MODES.map(([k, l]) => (
+            {(canDescribe ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
               <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
             ))}
-            {onDescribe ? (
-              <Press hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={`${AI_COPY.describeButton}, AI estimate`} onPress={onDescribe} style={[styles.tab, { backgroundColor: c.surfaceSoft }]}>
-                <Text style={{ color: c.ink, ...type.buttonSm }}>{AI_COPY.describeButton}</Text>
-              </Press>
-            ) : null}
           </View>
-          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={!!onDescribe} /> : null}
+          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
+          {mode === 'describe' && canDescribe ? <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} /> : null}
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
