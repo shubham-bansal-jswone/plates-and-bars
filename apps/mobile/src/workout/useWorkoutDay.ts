@@ -307,17 +307,18 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       // If that save failed, give up: the failure toast stays and the user taps again. A date change while waiting drops the Add on purpose: the user left that day.
       const started = starting.current ? await starting.current : 'saved';
       if (started === 'failed') return;
-      if (started === 'adopted') {
-        // Start kept the stored session; take it as the base, as the reload that is under way will.
-        const [stored, sets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
-        if (dateRef.current !== date) return;
-        if (!stored || stored.deleted_at) return;
-        synced.current = stored;
-        commit({ ...ref.current, workout: stored, exs: exercisesFrom(stored, sets) });
-      }
-      if (!profile || building.current || !ref.current.workout) return;
+      if (!profile || building.current) return;
       building.current = true;
       try {
+        if (started === 'adopted') {
+          // Start kept the stored session; take it as the base, as the reload that is under way will. Done after `building` is claimed, so a double tap commits it once.
+          const [stored, storedSets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
+          if (dateRef.current !== date) return;
+          if (!stored || stored.deleted_at) return;
+          synced.current = stored;
+          commit({ ...ref.current, workout: stored, exs: exercisesFrom(stored, storedSets) });
+        }
+        if (!ref.current.workout) return;
         const sessions = await loadSessionLog(db);
         if (dateRef.current !== date) return; // the day changed while the history was read
         const d = clone(ref.current);

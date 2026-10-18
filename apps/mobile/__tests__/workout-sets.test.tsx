@@ -423,17 +423,30 @@ describe('add and remove exercises (#147)', () => {
     const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
     const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
     await waitFor(() => expect(result.current.day.ready).toBe(true));
-    // Another device's session lands after the screen loaded.
-    await saveWorkout(db, { id: null, version: 0, updated_at: '2026-10-08T09:30:00Z', deleted_at: null, date: DATE, template: 'Session', base: null, where: null, mods: {}, exercises: [{ name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }], ci_choice: null, cardio_min: null });
+    // Another device's session lands after the screen loaded: a server id, version 3, and one done set (version 2).
+    const plank = { name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false };
+    await saveWorkout(db, { id: 'srv-w1', version: 3, updated_at: '2026-10-08T09:30:00Z', deleted_at: null, date: DATE, template: 'Session', base: null, where: null, mods: {}, exercises: [plank], ci_choice: null, cardio_min: null });
+    const set = { id: 'srv-s1', version: 2, updated_at: '2026-10-08T09:31:00Z', deleted_at: null, workout_id: 'srv-w1', exercise: plank.name, kind: 'work', set_index: 0, weight_kg: null, reps: 30, done: true, rate: null, t: null } as unknown as Parameters<typeof saveSet>[2];
+    await saveSet(db, DATE, set);
+    await db.runAsync('DELETE FROM sync_outbox');
     await act(async () => {
       void result.current.start('Upper A', {}, null);
       void result.current.addSecond('Lower A');
+      void result.current.addSecond('Lower A'); // a double tap adds once
     });
     await settle();
-    expect(notify).toHaveBeenCalledWith('Lower A added to today');
-    const names = (await loadWorkout(db, DATE))!.exercises.map((e) => e.name);
-    expect(names).toContain('Plank (seconds)');
+    expect(notify.mock.calls.filter(([m]) => m === 'Lower A added to today')).toHaveLength(1);
+    const w = (await loadWorkout(db, DATE))!;
+    const lower = (await loadSets(db, DATE)).filter((x) => x.exercise !== plank.name);
+    const names = w.exercises.map((e) => e.name);
+    expect(names[0]).toBe(plank.name);
+    expect(names.slice(1)).toEqual([...new Set(lower.map((x) => x.exercise))]); // the Lower A exercises, once each
     expect(names.length).toBeGreaterThan(1);
+    expect(w).toMatchObject({ id: 'srv-w1', version: 3 });
+    const kept = (await loadSets(db, DATE)).find((x) => x.id === 'srv-s1');
+    expect(kept).toMatchObject({ version: 2, done: true, reps: 30 });
+    const queued = ((await db.getAllAsync('SELECT tbl, key FROM sync_outbox')) as { tbl: string; key: string }[]).map((r) => `${r.tbl}:${r.key}`);
+    expect(queued).not.toContain('workout_sets:srv-s1');
   });
 
   it('removing an exercise that is not in the session does nothing and says so', async () => {
