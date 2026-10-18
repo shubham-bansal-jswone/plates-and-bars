@@ -6,9 +6,8 @@ import * as SecureStore from 'expo-secure-store';
 import { randomUUID } from 'expo-crypto';
 import { errorRelease } from '../appVersion';
 import { INSTALL_ID_KEY } from '../secure/tokens';
+import { getInstallId, onInstallIdForgotten, setInstallId } from './installId';
 import { scrubBreadcrumb, scrubEvent } from './scrub';
-
-let installId: string | null = null;
 
 /** A random id created once per install and kept in the keystore. It is not tied to an account, email or device. */
 async function loadInstallId(): Promise<string> {
@@ -18,17 +17,6 @@ async function loadInstallId(): Promise<string> {
   const fresh = randomUUID();
   await SecureStore.setItemAsync(INSTALL_ID_KEY, fresh);
   return fresh;
-}
-
-/**
- * "Delete everything": the in-memory id and the Sentry user go first (so no later event carries the old id), then the
- * keystore copy is deleted. Rejects if the keystore delete fails; the caller decides whether that matters.
- */
-export async function forgetInstallId(): Promise<void> {
-  installId = null;
-  Sentry.setUser(null);
-  if (Platform.OS === 'web') return;
-  await SecureStore.deleteItemAsync(INSTALL_ID_KEY);
 }
 
 /** Initialises error tracking. Returns false (and does nothing else) without a DSN. */
@@ -55,12 +43,13 @@ export function initErrorTracking(
     // The default breadcrumbs integration records console and network calls; the scrubber drops those too, as a second guard.
     integrations: (defaults) => defaults.filter((i) => i.name !== 'Breadcrumbs'),
     beforeBreadcrumb: scrubBreadcrumb,
-    beforeSend: (event) => scrubEvent(event, installId),
+    beforeSend: (event) => scrubEvent(event, getInstallId()),
   });
+  onInstallIdForgotten(() => Sentry.setUser(null));
   if (opts.withoutInstallId) return true;
   loadInstallId()
     .then((id) => {
-      installId = id;
+      setInstallId(id);
       Sentry.setUser({ id });
     })
     .catch(() => undefined); // events then carry no user id at all

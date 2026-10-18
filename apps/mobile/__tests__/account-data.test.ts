@@ -2,6 +2,7 @@
 import { buildLocalExport, foodCsv } from '../src/account/exportLocal';
 import { deleteEverything, exportFromServer, wipePending } from '../src/account/server';
 import { SYNC_TABLES } from '../src/db/outbox';
+import { onInstallIdForgotten } from '../src/telemetry/installId';
 import { makeApi } from '../src/sync/auth';
 import { refreshSession, syncOnce } from '../src/sync/engine';
 import { acceptTokenPair, wipeLocalStore } from '../src/sync/guard';
@@ -24,7 +25,7 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 const mockSetUser = jest.fn();
-jest.mock('@sentry/react-native', () => ({ init: jest.fn(), setUser: (u: unknown) => mockSetUser(u) }));
+onInstallIdForgotten(() => mockSetUser(null)); // what error tracking registers when it is on
 
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const BASE = 'http://fake/api/v1';

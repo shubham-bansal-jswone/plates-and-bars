@@ -1,5 +1,6 @@
 import type { Breadcrumb, ErrorEvent } from '@sentry/react-native';
-import { forgetInstallId, initErrorTracking } from '../src/telemetry/errors';
+import { initErrorTracking } from '../src/telemetry/errors';
+import { forgetInstallId } from '../src/telemetry/installId';
 import { scrubBreadcrumb, scrubEvent } from '../src/telemetry/scrub';
 import { until } from './sync-helpers';
 
