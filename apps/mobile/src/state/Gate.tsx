@@ -4,6 +4,7 @@ import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useTheme } from '../theme/useTheme';
 import { gateRedirect } from './gateRedirect';
 import { useProfile } from './ProfileProvider';
+import { setSetupLeaving, setupLeaving } from './setupExit';
 
 /** Sends the user to setup or Targets as the stored profile requires; covers the screen while loading. */
 export function Gate() {
@@ -17,7 +18,8 @@ export function Gate() {
 
   useEffect(() => {
     if (status !== 'ready') return;
-    const to = gateRedirect({ status, hasProfile: !!profile, pathname, firstOpen: firstOpen.current, skipped, redo });
+    if (pathname !== '/setup') setSetupLeaving(false);
+    const to = gateRedirect({ status, hasProfile: !!profile, pathname, firstOpen: firstOpen.current, skipped, redo, leaving: setupLeaving() });
     firstOpen.current = false;
     if (to) router.replace(to as never);
   }, [status, profile, skipped, pathname, redo, router]);
