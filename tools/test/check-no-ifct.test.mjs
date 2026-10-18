@@ -40,7 +40,7 @@ function fakeRepo(plant = {}) {
   const dir = mkdtempSync(`${tmpdir()}/ifct-repo-`);
   const files = { ...Object.fromEntries(SCAN_ROOTS.map((r) => [`${r}/ok.json`, '{"source": "USDA"}'])), ...plant };
   for (const [f, text] of Object.entries(files)) {
-    if (f.endsWith('/ok.json') && SCAN_ROOTS.includes(f.slice(0, -'/ok.json'.length))) continue; // a file root: written below
+    if (f.endsWith('.json/ok.json')) continue; // a file root: written below
 
     mkdirSync(dirname(`${dir}/${f}`), { recursive: true });
     writeFileSync(`${dir}/${f}`, text);
@@ -51,10 +51,12 @@ function fakeRepo(plant = {}) {
   }
   return dir;
 }
-const textDir = (text) => {
+const scanText = (text) => {
   const d = mkdtempSync(`${tmpdir()}/ifct-text-`);
-  writeFileSync(`${d}/a.txt`, `${text}\n`);
-  return d;
+  try {
+    writeFileSync(`${d}/a.txt`, `${text}\n`);
+    return scanContent(d);
+  } finally { rmSync(d, { recursive: true }); }
 };
 const withRepo = (plant, fn) => { const d = fakeRepo(plant); try { fn(d); } finally { rmSync(d, { recursive: true }); } };
 
@@ -97,13 +99,13 @@ test('policy docs, agent prompts and negative fixtures are not scanned', () => {
 
 test('tokens glued to letters still fail', () => {
   for (const word of ['IFCTdata', 'fromIFCT', 'indbExport', 'myINDBdata', 'IFCT2017', 'Indbfile']) {
-    assert.equal(scanContent(textDir(word)).length, 1, word);
+    assert.equal(scanText(word).length, 1, word);
   }
 });
 
 test('ordinary words containing the letters pass', () => {
   for (const word of ['findByText', 'findbugs', 'windbreak', 'blindbox']) {
-    assert.deepEqual(scanContent(textDir(word)), [], word);
+    assert.deepEqual(scanText(word), [], word);
   }
 });
 
@@ -114,6 +116,21 @@ test('SKIP_DIRS lists only dependency and build output, and data folders are sca
       assert.deepEqual(scanRepo(d), [`content/${dir}/x.json:1: "IFCT"`], dir);
     });
   }
+});
+
+test('a missing scan root fails (folder and file)', () => {
+  for (const root of SCAN_ROOTS) {
+    withRepo({}, (d) => {
+      rmSync(`${d}/${root}`, { recursive: true });
+      assert.deepEqual(scanRepo(d), [`${root}: scan root missing`], root);
+    });
+  }
+});
+
+test('a nonexistent path given to the CLI fails', () => {
+  const r = run(`${here}/fixtures/no-such-folder`);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /scan root missing/);
 });
 
 test('shipped repo folders have no IFCT or INDB (the CI step)', () => {

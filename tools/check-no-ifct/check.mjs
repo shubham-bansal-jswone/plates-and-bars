@@ -37,12 +37,17 @@ export function scanContent(dir) {
       else scanFile(p, rel);
     }
   };
+  if (!existsSync(dir)) return [`${dir}: scan root missing`];
   if (statSync(dir).isDirectory()) walk(dir);
   else scanFile(dir, basename(dir));
   return hits;
 }
 
-/** Scans every SCAN_ROOTS folder that exists under the repo root; hits are prefixed with the folder. */
+/** Scans every SCAN_ROOTS entry under the repo root (a missing one is a hit); hits are prefixed with the folder. */
 export function scanRepo(repo) {
-  return SCAN_ROOTS.filter((r) => existsSync(join(repo, r))).flatMap((r) => scanContent(join(repo, r)).map((h) => (statSync(join(repo, r)).isDirectory() ? `${r}/${h}` : `${dirname(r)}/${h}`)));
+  return SCAN_ROOTS.flatMap((r) => {
+    const p = join(repo, r);
+    if (!existsSync(p)) return [`${r}: scan root missing`]; // a moved or renamed folder must not silently stop being scanned
+    return scanContent(p).map((h) => (statSync(p).isDirectory() ? `${r}/${h}` : `${dirname(r)}/${h}`));
+  });
 }
