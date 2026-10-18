@@ -43,6 +43,18 @@ function goldenProfile() {
 }
 
 describe('TargetsScreen', () => {
+  it('shows a visible name and unit over each Daily targets field (#901)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByLabelText('Calories (kcal)');
+    // The captions are aria-hidden (the field already speaks the same name), so ask for hidden elements too.
+    for (const name of ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)']) {
+      expect(screen.getByText(name, { includeHiddenElements: true })).toBeTruthy();
+      expect(screen.getByLabelText(name)).toBeTruthy();
+    }
+  });
+
   it('shows the golden targets for the stored profile, en-IN formatted', async () => {
     const db = memoryDb();
     await saveProfile(db, goldenProfile());
