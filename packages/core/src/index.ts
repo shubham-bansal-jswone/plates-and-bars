@@ -644,5 +644,8 @@ export {
   PARALLEL_H,
   BOTTOM_BAND,
   MAX_GAP_MS,
+  JUMP_H,
+  MAX_SPEED_H_PER_S,
+  JUMP_DWELL_MS,
 } from './pose';
 export type { PoseKeypoint, PoseFrame, PoseCue, PoseExercise, SquatRep, SquatReport, RepCounterState } from './pose';

@@ -1,6 +1,7 @@
 import content from '../../../content/exercises.json';
 import {
   DEPTH_CUES,
+  JUMP_DWELL_MS,
   MAX_GAP_MS,
   analyseSquat,
   initRepCounter,
@@ -9,7 +10,7 @@ import {
   stepRepCounter,
   type PoseFrame,
 } from '../src/index';
-import { frameAt, makeFrames, repeat, type Frame, type RepSpec } from './pose-fixtures';
+import { frameAt, makeFrames, shinTiltDeg, repeat, type Frame, type RepSpec } from './pose-fixtures';
 
 const rep = (bottom: number, extra: Partial<RepSpec> = {}): RepSpec => ({ down: 1500, bottom, up: 1000, ...extra });
 
@@ -187,8 +188,9 @@ describe('noise and frame rate', () => {
 describe('rep counter edge cases', () => {
   const feed = (pairs: [number, number | null][]) => pairs.reduce((s, [t, h]) => stepRepCounter(s, t, h), initRepCounter());
   it('waits for a standing sample before arming (clip starts mid-squat)', () => {
-    const s = feed([[0, 0], [100, 0], [200, 1], [300, 1], [400, 0], [500, 0], [600, 0], [700, 1.2], [800, 1.2], [900, 1.2]]);
-    expect(s.reps.length).toBe(1);
+    // 0.25 steps per 100 ms are plausible motion (the 0.4 + 2 per s jump limit is not hit)
+    const down = [[0, 0], [100, 0], [200, 0.25], [300, 0.5], [400, 0.75], [500, 1], [600, 1], [700, 0.75], [800, 0.5], [900, 0.25], [1000, 0], [1100, 0], [1200, 0.25], [1300, 0.5], [1400, 0.75], [1500, 1], [1600, 1]] as [number, number][];
+    expect(feed(down).reps.length).toBe(1);
   });
   it('ignores non-increasing times, nulls and non-finite values', () => {
     let s = feed([[0, 1], [100, 1]]);
@@ -231,5 +233,120 @@ describe('numbers only', () => {
     const json = JSON.stringify(analyseSquat(frames, 'Bodyweight Squat'));
     expect(json).not.toContain('keypoints');
     expect(json).not.toContain('score');
+  });
+});
+
+const RATES = [10, 15, 20, 30];
+
+describe('outlier frames never change the count (any frame rate)', () => {
+  const three = repeat(3, rep(-0.2)); // rep 1 is lowest at 2.5 s, rep 2 at 5.6 s, rep 3 at 8.7 s; standing between
+  const cases: [string, { atMs: number; count: number; h: number }][] = [
+    ['one frame at h=0 while standing', { atMs: 500, count: 1, h: 0 }],
+    ['one frame at h=-0.5 while standing', { atMs: 500, count: 1, h: -0.5 }],
+    ['two frames at h=-1 while standing', { atMs: 500, count: 2, h: -1 }],
+    ['one frame at h=0 between reps', { atMs: 3800, count: 1, h: 0 }],
+    ['one frame at h=1.5 at the bottom', { atMs: 2500, count: 1, h: 1.5 }],
+    ['one frame at h=3 at the bottom', { atMs: 2500, count: 1, h: 3 }],
+    ['two frames at h=1.5 at the bottom', { atMs: 2500, count: 2, h: 1.5 }],
+    ['two frames at h=3 at the bottom', { atMs: 5600, count: 2, h: 3 }],
+  ];
+  for (const fps of RATES) {
+    it.each(cases)(`%s at ${fps} fps`, (_name, o) => {
+      const base = analyseSquat(makeFrames(three, { fps }));
+      const r = analyseSquat(makeFrames(three, { fps, outliers: [o] }));
+      expect(base.count).toBe(3);
+      expect(r.count).toBe(3);
+      expect(r.parallelCount).toBe(3);
+      r.reps.forEach((x, i) => expect(Math.abs(x.depth - base.reps[i]!.depth)).toBeLessThan(0.03));
+    });
+  }
+  it('a shallow rep is not made parallel by one deep frame', () => {
+    for (const fps of RATES) {
+      const r = analyseSquat(makeFrames([rep(0.15)], { fps, outliers: [{ atMs: 2500, count: 1, h: -0.8 }] }));
+      expect(r.reps.map((x) => x.reachedParallel)).toEqual([false]);
+    }
+  });
+  it('accepts a jump that persists, so a real fast move is not lost', () => {
+    let s = initRepCounter();
+    for (const [t, h] of [[0, 1], [100, 1], [200, 0], [300, 0], [400, 0], [500, 0]] as const) s = stepRepCounter(s, t, h);
+    expect(s.phase).toBe('excursion');
+    expect(s.pending).toBeNull();
+  });
+  it('holds a jump back until the dwell is over, then takes it', () => {
+    let s = stepRepCounter(stepRepCounter(initRepCounter(), 0, 1), 100, 1);
+    s = stepRepCounter(s, 200, 0);
+    expect(s.pending).not.toBeNull();
+    expect(s.last!.t).toBe(100);
+    s = stepRepCounter(s, 200 + JUMP_DWELL_MS, 0.1);
+    expect(s.pending).toBeNull();
+    expect(s.last).toEqual({ t: 320, h: 0.1 });
+  });
+  it('restarts the dwell when the held values disagree', () => {
+    let s = stepRepCounter(stepRepCounter(initRepCounter(), 0, 1), 100, 1);
+    s = stepRepCounter(s, 200, -1);
+    s = stepRepCounter(s, 300, 3);
+    expect(s.pending).toEqual({ t: 300, h: 3 });
+  });
+});
+
+describe('frame size and tilted shins', () => {
+  it('reads the true h of a 35 degree shin in a portrait 9:16 frame', () => {
+    expect(shinTiltDeg(0.06)).toBeGreaterThan(30);
+    for (const h of [0.06, -0.2, 0.5]) {
+      expect(squatSignal(frameAt(h, 'side', 0, 1080, 1920))).toBeCloseTo(h, 6);
+      expect(squatSignal(frameAt(h, 'side', 0, 1920, 1080))).toBeCloseTo(h, 6);
+    }
+  });
+  it('would misread the same frame if the size were ignored', () => {
+    const f = frameAt(0.06, 'side', 0, 1080, 1920);
+    const blind = squatSignal({ t: 0, keypoints: f.keypoints })!;
+    expect(Math.abs(blind - 0.06)).toBeGreaterThan(0.01);
+  });
+  it('flags a portrait shallow rep as shallow and a parallel one as parallel', () => {
+    const r = analyseSquat(makeFrames([rep(0.1), rep(0.0)], { fps: 30, width: 1080, height: 1920 }));
+    expect(r.reps.map((x) => x.reachedParallel)).toEqual([false, true]);
+  });
+  it('front view reads |h| larger by 1 / cos(tilt) and still counts', () => {
+    const f = frameAt(-0.2, 'front');
+    expect(squatSignal(f)!).toBeCloseTo(-0.2 / Math.cos((35 * Math.PI) / 180), 3);
+    const r = analyseSquat(makeFrames(repeat(4, rep(-0.2)), { fps: 15, view: 'front' }));
+    expect(r.count).toBe(4);
+    expect(r.parallelCount).toBe(4);
+  });
+});
+
+describe('frame-rate independence and leg weighting', () => {
+  it('measures the same depth and tempo at 10 and 30 fps (a fixed-weight EMA would not)', () => {
+    const slow = analyseSquat(makeFrames(repeat(3, rep(-0.2)), { fps: 10 }));
+    const fast = analyseSquat(makeFrames(repeat(3, rep(-0.2)), { fps: 30 }));
+    expect(slow.count).toBe(3);
+    slow.reps.forEach((x, i) => {
+      const y = fast.reps[i]!;
+      expect(Math.abs(x.depth - y.depth)).toBeLessThanOrEqual(0.02);
+      expect(Math.abs(x.eccentricMs - y.eccentricMs)).toBeLessThanOrEqual(50);
+      expect(Math.abs(x.concentricMs - y.concentricMs)).toBeLessThanOrEqual(50);
+    });
+  });
+  it('weights two usable legs by their lowest score, not a plain average', () => {
+    const f = frameAt(1, 'front');
+    const kp = f.keypoints.map((k) => ({ ...k }));
+    for (const i of [11, 13, 15]) kp[i] = { ...kp[i]!, score: 0.9 };
+    for (const i of [12, 14, 16]) kp[i] = { ...kp[i]!, score: 0.3 };
+    kp[12] = { ...kp[12]!, y: kp[14]!.y }; // right leg reads h = 0
+    const left = squatSignal({ ...f, keypoints: kp.map((k, i) => ([12, 14, 16].includes(i) ? { ...k, score: 0 } : k)) })!;
+    const right = squatSignal({ ...f, keypoints: kp.map((k, i) => ([11, 13, 15].includes(i) ? { ...k, score: 0 } : k)) })!;
+    expect(left).toBeCloseTo(1, 2);
+    expect(right).toBeCloseTo(0, 2);
+    const both = squatSignal({ ...f, keypoints: kp })!;
+    expect(both).toBeCloseTo((0.9 * left + 0.3 * right) / 1.2, 6);
+    expect(Math.abs(both - (left + right) / 2)).toBeGreaterThan(0.2);
+  });
+  it('merges two dips without standing into one rep, pause spanning both', () => {
+    // a profile that dips, rises to 0.5 (below TOP_H) and dips again
+    let s = initRepCounter();
+    const path: [number, number][] = [[0, 1], [100, 1], [200, 0.75], [300, 0.5], [400, 0.25], [500, 0], [600, 0.25], [700, 0.5], [800, 0.25], [900, 0], [1000, 0.25], [1100, 0.5], [1200, 0.75], [1300, 1], [1400, 1]];
+    for (const [t, h] of path) s = stepRepCounter(s, t, h);
+    expect(s.reps.length).toBe(1);
+    expect(s.reps[0]!.pauseMs).toBeGreaterThan(300);
   });
 });
