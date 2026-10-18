@@ -624,6 +624,13 @@ export type { PrepEntry, AddPrepInput } from './prep';
 export { checkinBannerDue } from './progress';
 
 /**
+ * Device step count from the Android since-boot counter (#300), no prototype counterpart. `advanceSteps` turns a reading and the stored
+ * baseline into the new baseline and the day totals to write (`msSinceMidnight` is the reading's local time; a gap across midnight is credited to the day before only within `MIDNIGHT_WINDOW_MS` of it, else dropped); `isReboot` is its reboot check.
+ */
+export { advanceSteps, isReboot, MIDNIGHT_WINDOW_MS } from './deviceSteps';
+export type { StepReading, StepBaseline, StepCredit, StepAdvance } from './deviceSteps';
+
+/**
  * Live pose tracking (#947 slice 1; new in v1.1, no prototype function): `analyseSquat` runs `squatSignal` (hip height above
  * the knee in shin lengths, from MoveNet's 17 keypoints) through the smoothed rep state machine (`initRepCounter`,
  * `stepRepCounter`, `repInProgress`) and returns rep count, depth against about parallel, tempo and card cue keys (`DEPTH_CUES`).
