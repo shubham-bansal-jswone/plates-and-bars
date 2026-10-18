@@ -108,6 +108,20 @@ describe('Vibration (#823)', () => {
     expect(vibrate).toHaveBeenCalledTimes(2);
   });
 
+  it('"+30 s" long after the rest ended buzzes at once, because the new end (old end + 30 s) is still in the past', async () => {
+    const rest = (end: number) => <RestBar rest={{ id: 1, end, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />;
+    const end = Date.now() + 2000;
+    const view = await render(rest(end));
+    await act(async () => { jest.advanceTimersByTime(2500); });
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    await act(async () => { jest.advanceTimersByTime(60000); });
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    // Same as addRest in WorkoutScreen: the new end is the old end + 30 s, which is 30 s or more in the past by now.
+    await view.rerender(rest(end + 30000));
+    await act(async () => {});
+    expect(vibrate).toHaveBeenCalledTimes(2);
+  });
+
   it('a new rest buzzes again', async () => {
     const view = await render(<RestBar rest={{ id: 1, end: Date.now() + 500, total: 1, label: 'a' }} onAdd={() => {}} onSkip={() => {}} />);
     await act(async () => { jest.advanceTimersByTime(1000); });
