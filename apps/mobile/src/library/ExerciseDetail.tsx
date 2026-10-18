@@ -3,6 +3,8 @@ import { Text } from '../components/Text';
 import { Button, Card, H1, Hint, Label, Page } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { BodyMap } from '../workout/BodyMap';
+import { VideoLink } from '../workout/VideoLink';
 import { equipmentLabel, jointLabel, muscleLabel, typeLabel, type LibraryExercise } from './exercises';
 
 const list = (xs: readonly string[]) => (xs.length ? xs.join(', ') : 'None');
@@ -19,7 +21,7 @@ function Section({ title, items }: { title: string; items: readonly string[] }) 
   );
 }
 
-/** One exercise: name, tags and the how-to notes. Text only. */
+/** One exercise: name, tags, its muscle map and the how-to notes (no demo images). */
 export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExercise; onBack: () => void }) {
   const c = useTheme();
   const card = e.card;
@@ -45,6 +47,7 @@ export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExerc
       </Card>
       {card ? (
         <>
+          {e.primary.length ? <BodyMap primary={e.primary} secondary={e.secondary} /> : null}
           <View style={{ gap: 4 }}>
             <Label>Where you should feel it</Label>
             <Text style={[type.textBody, { color: c.body }]}>{card.where_to_feel}</Text>
@@ -59,6 +62,7 @@ export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExerc
       ) : (
         <Hint>No notes for this exercise yet.</Hint>
       )}
+      <VideoLink name={e.name} />
     </Page>
   );
 }

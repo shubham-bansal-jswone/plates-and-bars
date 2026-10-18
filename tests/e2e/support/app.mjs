@@ -86,10 +86,13 @@ export async function answerSetup(page, { age = '30', where = 'At a gym. Machine
   await expect(label(page, 'Use these targets')).toBeVisible();
 }
 
-/** Runs the whole setup flow and lands on Targets. */
+/** Runs the whole setup flow, checks it lands on Food with the toast (as the prototype does), then opens Targets. */
 export async function completeSetup(page) {
   await answerSetup(page);
   await label(page, 'Use these targets').click();
+  await expect(page.getByRole('heading', { name: 'Food', exact: true })).toBeVisible();
+  await expect(page.getByText('Targets updated', { exact: true })).toBeVisible();
+  await tab(page, 'Targets');
   await expect(label(page, 'Redo setup')).toBeVisible(); // only Targets has it
   // Targets shows the editable "Daily targets" fields, not the read-only tiles (#483), so read the field's value.
   await expect(label(page, 'Calories (kcal)')).toHaveValue('1990');

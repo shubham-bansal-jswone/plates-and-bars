@@ -55,7 +55,9 @@ should offer at least one "felt it in the wrong place" fix.
 
 - `source`: packaged whey, Greek yogurt and makhana are `label_typical`; paneer, curd and toned milk are `fssai`
   (prototype note); single plain foods are `usda_fdc` and composed dishes are `own_recipe` (ADR 005). Chicken breast, cooked (raw value / cooking yield) and buttermilk (80 g curd) are `own_recipe`.
-- `HELD_BACK` in `foods-import/import.mjs` lists golden foods whose source the repo does not state; they are left out
+  The drinks (beer, whisky/rum/vodka, wine) are `usda_fdc` with their SR Legacy records (#824); `source.reference` says where the prototype's rounded values differ.
+- `alcohol: true` marks the drinks (`ALCOHOLIC` in the importer), as on the eat-out drinks: their kcal include alcohol (7 kcal/g), so the validator lifts only the upper kcal bound. They have no prototype `FIB` row, so `fibre_g` and `added_sugar_g` are null (counted as without fibre data, as in the prototype).
+- `HELD_BACK` in `foods-import/import.mjs` lists golden foods whose source the repo does not state (none at present); they are left out
   of `content/foods.json` rather than guessed. A golden food that is in neither `SOURCE_OF` nor `HELD_BACK` fails the import.
 - `serving.grams` is the first "<n> g" in the serving label, as the prototype's `unitGrams` reads it, so `1 medium (30 g atta)`
   gives 30. Whether a bracketed ingredient weight should count (60 g of cooked rice logs 1.2 cups) is a spec question.
@@ -69,12 +71,12 @@ should offer at least one "felt it in the wrong place" fix.
 ## Eat-out table
 
 `content/eatout.json` holds the prototype's `EATOUT` table (cuisines with "smart picks" tips and dishes, including the Drinks group). It is a separate file from `foods.json` because it is a different shape: dishes are grouped by cuisine, carry tips, and are logged as one portion (`serving` is `1 serving`, `grams` null) rather than looked up by name.
-Dishes are Food rows plus `cuisine` (and `alcohol: true` on the four alcoholic drinks).
+Dishes are Food rows plus `cuisine` (and `alcohol: true` on the four alcoholic drinks). `fibre_g` and `added_sugar_g` come from the prototype's `FIB` by dish name, as its `fibOf` reads a logged name (only "Cola (330 ml)" has a row: 0 g fibre, 35 g added sugar); null otherwise.
 
 - `npm run import:eatout` regenerates it from `docs/prototype/plate-and-bar.html`; a test fails if the file drifts from the prototype.
 - `source` is `own_estimate` (ADR 005): our own rough estimates for a typical restaurant portion (the prototype calls them "rough restaurant estimates"; they are not weighed).
 - Validation (`npm run validate:foods`, `validateEatOut`) applies the same Food checks, with names and ids unique across the file. Rows flagged `alcohol` skip the upper kcal bound (alcohol is about 7 kcal/g and is not in the macros) but kcal may not be below what the macros give.
-- Beer, whisky/rum/vodka and wine are still held back from `foods.json` (see `HELD_BACK`); only their eat-out rows are in content.
+- Beer, whisky/rum/vodka and wine are also in `foods.json` (searchable, with the prototype's "daru" aliases); the eat-out rows stay as the restaurant portions.
 
 ## Cards, measures and labels
 

@@ -1,5 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
+import { webAppUrl } from "../lib/web-app-url.mjs";
+
+const webApp = webAppUrl(import.meta.env.PUBLIC_WEB_APP_URL);
 ---
 
 <Base title="Delete your account (draft) - Plate & Bar" description="How to delete your Plate & Bar account and data. Draft, pending lawyer review.">
@@ -11,7 +14,7 @@ import Base from "../layouts/Base.astro";
   </div>
 
   <h2>Delete in the app</h2>
-  <p>This is the way to delete your account.</p>
+  {!webApp && <p>This is the way to delete your account.</p>}
   <p>Withdrawing your consent means deleting your account, and you can delete your account at any time from "Your data" in the app.</p>
   <ol>
     <li>Open the app, go to "Your data" and choose "Delete everything".</li>
@@ -19,6 +22,19 @@ import Base from "../layouts/Base.astro";
     <li>Confirm. The app deletes your account and everything the server stores for it, signs you out and clears the data on this device. It needs a connection.</li>
   </ol>
   <p>Before you delete, "Your data" can also download a copy of your data.</p>
+
+  {webApp && (
+    <>
+      <h2>Delete on the web</h2>
+      <p>If you do not have the app on your phone, or you uninstalled it, you can delete your account in the web app. It works the same way.</p>
+      <ol>
+        <li>Open the <a href={webApp}>web app</a>.</li>
+        <li>Tap "Sign in to sync" at the top of the screen, enter the email address of your account, then the 6-digit code we email you.</li>
+        <li>On Targets, choose "Download or delete my data". On "Your data", choose "Delete everything".</li>
+        <li>Confirm. The web app deletes your account and everything the server stores for it, signs you out and clears the data in this browser. It needs a connection.</li>
+      </ol>
+    </>
+  )}
 
   <h2>What gets deleted</h2>
   <ul>

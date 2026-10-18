@@ -1,4 +1,5 @@
 import content from '../../../content/foods.json';
+import eatout from '../../../content/eatout.json';
 import {
   dayComplete,
   fibreTarget,
@@ -157,26 +158,33 @@ describe('golden foods.json against the prototype tables and content/foods.json'
     for (const f of foods) {
       const g = golden.foods.find((x) => x.name === f.name);
       expect([f.serving.label, f.per_serving.kcal, f.per_serving.protein_g, f.per_serving.carbs_g, f.per_serving.fat_g]).toEqual([g?.unit, g?.kcal, g?.protein, g?.carbs, g?.fat]);
-      expect([f.per_serving.fibre_g, f.per_serving.added_sugar_g]).toEqual(golden.fibreAndAddedSugarPerServing[f.name]);
+      expect([f.per_serving.fibre_g, f.per_serving.added_sugar_g]).toEqual(golden.fibreAndAddedSugarPerServing[f.name] ?? [null, null]);
       expect((f.aliases ?? []).join(' ')).toBe(golden.aliases[f.name] ?? '');
       expect(f.serving.grams).toBe(unitGrams(f.serving.label) || null);
       expect(f.fruit_veg_servings).toBe(proto.PRODUCE[f.name] ?? 0);
     }
   });
 
-  it('PINNED QUIRK (#151): content lacks the prototype’s drinks and the eat-out "Cola (330 ml)" fibre row', () => {
-    expect(protoCatalog.filter((p) => !foods.some((f) => f.name === p.name)).map((f) => f.name)).toEqual(['Beer', 'Whisky, rum or vodka', 'Wine', 'Cola (330 ml)']);
-    // So a logged Cola from eating out counts 35 g added sugar in the prototype, and none with content.
+  it('#824: content has the prototype’s drinks, and the eat-out "Cola (330 ml)" row counts its 35 g added sugar', () => {
+    // Cola is the one FIB name that is not a food: it is an eat-out dish (content/eatout.json).
+    expect(protoCatalog.filter((p) => !foods.some((f) => f.name === p.name)).map((f) => f.name)).toEqual(['Cola (330 ml)']);
+    const dishes: Food[] = eatout.cuisines.flatMap((c) => c.dishes);
     const cola: FoodLogFacts = { name: 'Cola (330 ml)', qty: 1, kcal: 140, protein_g: 0, carbs_g: 35, fat_g: 0 };
     expect(logTotals([cola], protoCatalog).added_sugar_g).toBe(35);
-    expect(logTotals([cola], foods)).toMatchObject({ added_sugar_g: 0, withoutFibre: 1 });
+    expect(logTotals([cola], [...foods, ...dishes])).toEqual(logTotals([cola], protoCatalog));
+    expect(logTotals([cola], [...foods, ...dishes])).toMatchObject({ added_sugar_g: 35, withoutFibre: 0 });
+    // The drinks have no FIB row in the prototype, so content counts them as without fibre data too.
+    const drinks = ['Beer', 'Whisky, rum or vodka', 'Wine'].map((n) => logOf(byName(n)));
+    expect(logTotals(drinks, foods)).toEqual(logTotals(drinks, protoCatalog));
+    expect(logTotals(drinks, foods)).toMatchObject({ kcal: 345, fibre_g: 0, added_sugar_g: 0, withoutFibre: 3 });
+    expect(searchFoods('daru', foods).map((f) => f.name)).toEqual(['Beer', 'Whisky, rum or vodka']);
   });
 
   it('one serving of each content food totals its golden values', () => {
     for (const f of foods) {
       const g = golden.foods.find((x) => x.name === f.name);
-      const [fib, sug] = golden.fibreAndAddedSugarPerServing[f.name] ?? [];
-      expect(logTotals([logOf(f)], foods)).toEqual({ kcal: g?.kcal, protein_g: g?.protein, carbs_g: g?.carbs, fat_g: g?.fat, fibre_g: fib, added_sugar_g: sug, withoutFibre: 0 });
+      const fs = golden.fibreAndAddedSugarPerServing[f.name]; // no row (the drinks): without fibre data, as in the prototype
+      expect(logTotals([logOf(f)], foods)).toEqual({ kcal: g?.kcal, protein_g: g?.protein, carbs_g: g?.carbs, fat_g: g?.fat, fibre_g: fs?.[0] ?? 0, added_sugar_g: fs?.[1] ?? 0, withoutFibre: fs ? 0 : 1 });
     }
   });
 });

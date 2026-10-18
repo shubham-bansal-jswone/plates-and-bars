@@ -7,7 +7,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | File | Trigger | What it does |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main` | `changes` job decides which jobs apply; `api`, `core`, `mobile`, `tools`, `backend` run only when relevant |
-| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), `test-deploy.sh` (deploy.sh against stubs: success, rollback on a failed `compose up` or health check, nothing to roll back to, failed build, release tag), `test-release.sh` (release.sh: backup before deploy, no deploy after a failed backup), `test-restore-check.sh` (restore-check.sh, the monthly restore rehearsal: stale dump, failed load, missing Flyway table, cleanup), images pinned (including rclone in `backup.sh`) (not a required check) |
+| `.github/workflows/staging-config.yml` | PR touching `infra/staging/` or `infra/caddy/` | `docker compose config` with `.env.example`, each required secret has no default, `shellcheck`, `test-backup.sh` (backup.sh against a stub docker), `test-deploy.sh` (deploy.sh against stubs: success, rollback on a failed `compose up` or health check, nothing to roll back to, failed build, release tag), `test-release.sh` (release.sh: backup before deploy, no deploy after a failed backup), `test-restore-check.sh` (restore-check.sh, the monthly restore rehearsal: stale dump, failed load, missing Flyway table, cleanup), `test-ledger.sh` (the erasure ledger: `ledger-upload.sh` never overwrites a longer bucket copy, prunes at 45 days, keeps credentials off command lines; `ledger-replay.sh` deletes ledgered users and their email-keyed rows, skips and reports malformed lines, fails on a missing ledger), images pinned (including rclone in `backup.sh`) (not a required check) |
 | `.github/workflows/staging-deploy.yml` | push to `main` touching `backend/`, `content/`, `packages/api/openapi.yaml`, `infra/staging/` or `infra/caddy/`; manual | SSH to the staging VM, fast-forward to the pushed commit, run `infra/staging/deploy.sh`; skipped until repository variable `STAGING_DEPLOY_ENABLED` is `true` (see Staging deploy) |
 | `.github/workflows/production-deploy.yml` | tag `v*`; PR touching `infra/staging/release.sh` (validate only) | SSH to the production VM, check out the tag, run `infra/staging/release.sh` (backup, then `deploy.sh` with the tag as image tag, health check, rollback); skipped until repository variable `PRODUCTION_DEPLOY_ENABLED` is `true` (see Production deploy) |
 | `.github/workflows/lane-check.yml` | PR | Warns (never fails) when a PR touches more than one lane in the `docs/AGENTS.md` Lanes table |
@@ -15,6 +15,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | `.github/workflows/web-deploy.yml` | push to `main` (to `staging`), tag `v*` (to `production`), manual; PR touching `infra/caddy/` or the web scripts (validate only) | Builds `npx expo export --platform web` with `EXPO_PUBLIC_API_URL` and rsyncs `dist/` to the Caddy VM; skipped until repository variable `WEB_DEPLOY_ENABLED` is `true` (see Web app deploy) |
 | `.github/workflows/android-release.yml` | tag `v*`, manual, PR touching the workflow | `expo prebuild` + Gradle `assembleRelease bundleRelease`; uploads APK and AAB as an artifact (see below) |
 | `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
+| `.github/workflows/test-under-load.yml` | nightly 03:17 UTC, manual (never PRs) | `npm run test:load` in `apps/mobile`: the jest suite under CPU load (#660). Manual inputs `stall_ms` and `pattern` reach the shell only through `env:`; read-only token, no secrets, 45 minute timeout (not a required check) |
 | `.github/dependabot.yml` | weekly | Updates for GitHub Actions, npm (`packages/api`, `packages/core`, `apps/mobile`, `tools`) and `backend` (gradle) |
 
 Why one `ci.yml` instead of a workflow per folder with `on.paths`: a path-filtered workflow that does not trigger never reports, so a required check would stay "pending" forever. Instead, `infra/scripts/detect-changes.sh` does the path filtering and non-applicable jobs are skipped, which branch protection treats as passing.
@@ -36,6 +37,10 @@ CI runs exactly these commands from the folder. Match them; do not expect other 
 | `backend` | `build.gradle` or `build.gradle.kts` | `./gradlew build --no-daemon` (JDK 21 Temurin; Docker is available for Testcontainers) | `packages/api/openapi.yaml`, `packages/api/test-vectors/` or any `content/` change (the build bundles every `content/*.json`; `backend/scripts` is inside `backend/`) |
 
 Requirements for the TS packages: Node 22 LTS, a committed `package-lock.json` (needed by `npm ci` and the npm cache), and the scripts `lint`, `typecheck`, `test` in `package.json`. For `backend`: a committed Gradle wrapper (`gradlew`, executable) and tests wired into `build`. If the lane needs different commands or a Node/JDK version, change them via an Infra issue.
+
+### Play listing check (`play listing`, #851)
+
+`node docs/check-play-listing.mjs` checks `docs/PLAY-STORE-LISTING.md` against Google's character limits, leftover `[placeholder]` text, AI vendor or model names, and that the medical disclaimer matches `apps/mobile/src/setup/copy.ts` word for word. The `play listing (check)` job (Node only, no install) runs when `docs/PLAY-STORE-LISTING.md`, `docs/check-play-listing.mjs` or `apps/mobile/src/setup/copy.ts` change (`detect-changes.sh`). It is in the required list below: it is skipped, and so counts as passing, when none of them change.
 
 ### Golden fixtures check (`golden`, #29)
 
@@ -72,6 +77,7 @@ Settings, Branches, rule for `main`: require a pull request, require status chec
 - `mobile (lint, types, tests)`
 - `tools (lint, tests, validate)`
 - `golden (fixtures match prototype)`
+- `play listing (check)`
 - `content-meta (bundled.json)`
 - `e2e (web, Playwright)`
 - `e2e (sync, Playwright + backend stack)`
@@ -113,6 +119,8 @@ The plan named Cloudflare Pages; that needs a vendor account and terms, so the w
 | --- | --- | --- |
 | `github-pages` | `npm ci`, `check`, `build`, then `actions/deploy-pages` | Settings > Pages > Source: GitHub Actions; a custom domain (the site is built for the domain root, so the default `user.github.io/repo/` path would break asset links) |
 | `caddy` | Build, then `rsync --delete` of `dist/` to the VM over SSH; Caddy serves it (`infra/caddy/Caddyfile.site`) | variables `SITE_SSH_HOST`, `SITE_SSH_USER`, `SITE_WEB_ROOT`; secrets `SITE_SSH_KEY` (private key of a deploy-only user), `SITE_SSH_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); a GitHub environment named `site`, with deployment branches restricted to `main` (Settings > Environments > site) |
+
+Optional repository variable `PUBLIC_WEB_APP_URL` (#859): the web app's https origin with nothing after the host, for example `https://app.example.com`. The `build` job passes it to `npm run check` and `npm run build`; set, the landing page shows "Open the web app" and the deletion page "Delete on the web", unset or empty neither appears, so nothing changes until you set it. The build fails on any other value (`apps/site/src/lib/web-app-url.mjs`). Launch checklist: set it once the web app is hosted, at the same origin `web-deploy.yml` deploys to. The PR `site` job runs the a11y check twice, once without the variable and once with `PUBLIC_WEB_APP_URL=https://app.example.test`, so the pieces it adds are axe-checked too.
 
 Caddy setup on the VM: install Caddy (Apache-2.0), put the Caddyfile in `/etc/caddy/Caddyfile` with your domain, create `/srv/site` owned by the deploy user, point DNS at the VM and open ports 80 and 443. Caddy gets the Let's Encrypt certificate itself. The workflow's `validate Caddyfile` job runs `caddy validate` with the pinned official Apache-2.0 Caddy image on both Caddyfiles on every PR touching `infra/caddy/` or `apps/site/public/_headers`, and `infra/scripts/check-caddy-headers.sh` fails it if a header in `_headers` is missing from, or differs in, `Caddyfile.site`, or if `Caddyfile.api` loses its `Strict-Transport-Security` header (`infra/scripts/test-check-caddy-headers.sh` tests the check). Caddy ignores `_headers`, so the CSP and security headers live in both; change them together. The Caddyfile sets long-lived immutable caching for `/_astro/*`, `no-cache` for everything else, and security headers.
 
