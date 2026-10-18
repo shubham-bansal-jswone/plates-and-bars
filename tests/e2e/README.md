@@ -73,7 +73,7 @@ Chromium starts with `--use-file-for-fake-video-capture` pointing at a clip the 
 
 ## Sync tests (real backend)
 
-`sync-specs/sync.spec.mjs`: sign in by emailed code, log a meal offline (badge says not synced), go online (badge clears), a second browser context signs in and sees the meal, delete the account on the first (the second is signed out on its next sync). It needs Docker and runs in CI as the "e2e (sync, Playwright)" job; the fast suite above never needs it.
+`sync-specs/sync.spec.mjs`: sign in by emailed code, log a meal offline (badge says not synced), go online (badge clears), a second browser context signs in and sees the meal, delete the account on the first (the second is signed out on its next sync). `sync-specs/offline-delete.spec.mjs` adds two meals queued offline that sync when the browser comes back online, and a server delete on one device that signs the other out. It needs Docker and runs in CI as the "e2e (sync, Playwright)" job; the fast suite above never needs it.
 
 ```
 cd tests/e2e/stack
