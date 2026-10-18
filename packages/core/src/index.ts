@@ -649,3 +649,11 @@ export {
   JUMP_DWELL_MS,
 } from './pose';
 export type { PoseKeypoint, PoseFrame, PoseCue, PoseExercise, SquatRep, SquatReport, RepCounterState } from './pose';
+
+/**
+ * Cycle log (device only, never synced; #625). `cycInfo` mirrors prototype `cycInfo(date)` (stored data passed in);
+ * `waterRetentionPhase` its `luteal || period` test, `sameDayLastCycle` the "Same day last cycle" date, `addCycleStart` /
+ * `removeLastCycleStart` the `cyc-log` / `cyc-undo` actions, `emptyCycle` the `cyc-off` value.
+ */
+export { cycInfo, waterRetentionPhase, sameDayLastCycle, addCycleStart, removeLastCycleStart, emptyCycle } from './cycle';
+export type { CycleData, CycleInfo, CyclePhase } from './cycle';
