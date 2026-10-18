@@ -56,5 +56,5 @@ export function photoEstimateLog(base: PhotoMacros, mult: number, adj: number): 
   return { kcal: Math.round(m.kcal), protein_g: round1(m.protein_g), carbs_g: round1(m.carbs_g), fat_g: round1(m.fat_g) };
 }
 
-/** The "x1.5" suffix shown for an adjuster: `r1(it.adj)` (prototype line 2238). */
+/** The adjuster number: `r1(it.adj)`, shown as "1.5×" beside the slider (prototype line 2158) and as the " ×1.5" suffix of a saved food's unit (line 2238). */
 export const photoAdjLabel = (adj: number): number => round1(adj);
