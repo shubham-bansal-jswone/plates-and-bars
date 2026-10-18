@@ -41,6 +41,14 @@ public class ApiExceptionHandler {
         return out.contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(ErrorResponse.of(e.code(), e.getMessage()));
     }
 
+    @ExceptionHandler(app.plateandbar.api.ai.ImageBusyException.class)
+    ResponseEntity<ErrorResponse> imageBusy(app.plateandbar.api.ai.ImageBusyException e) {
+        return ResponseEntity.status(e.status())
+                .header("Retry-After", Long.toString(e.retryAfterSeconds()))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(ErrorResponse.of(e.code(), e.getMessage()));
+    }
+
     @ExceptionHandler(AccountFullException.class)
     ResponseEntity<ErrorResponse> accountFull(AccountFullException e) {
         return ResponseEntity.status(e.status())
