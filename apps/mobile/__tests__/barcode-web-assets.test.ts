@@ -24,7 +24,7 @@ describe('self-hosted zxing reader', () => {
   it('the wasm is the one in the pinned npm package, and its sha256 is in the licence file', () => {
     const pkg = join(app, 'node_modules/zxing-wasm/dist/reader/zxing_reader.wasm');
     if (existsSync(pkg)) expect(readFileSync(pkg).equals(wasm)).toBe(true);
-    expect(read(join(dir, 'LICENSE.txt'))).toContain(`${sha}  zxing_reader.wasm`);
+    expect(read(join(dir, 'LICENSE.txt'))).toContain(`${sha}  3.1.3/zxing_reader.wasm`);
     expect(wasm.subarray(0, 4)).toEqual(Buffer.from([0x00, 0x61, 0x73, 0x6d])); // "\0asm"
   });
 
