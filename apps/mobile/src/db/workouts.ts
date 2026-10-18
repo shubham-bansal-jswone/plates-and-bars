@@ -1,3 +1,4 @@
+import { HAND_PICKED } from '@plate-and-bar/core';
 import type { LiftRecord, SessionLog } from '@plate-and-bar/core';
 import type { StoreDb } from './records';
 import type { Workout, WorkoutSet } from '../workout/types';
@@ -55,7 +56,7 @@ export async function deleteLift(db: StoreDb, exercise: string, at: string): Pro
 
 /**
  * The prototype's `sessions` store, rebuilt from the records (contract `Workout`): an entry per
- * workout that is not deleted and has at least one done work set; `t` is `base`, else `template`, else "Session".
+ * workout that is not deleted and has at least one done work set; `t` is `base`, else `template`, else core's `HAND_PICKED` ("Session").
  */
 export async function loadSessionLog(db: WorkoutDb): Promise<SessionLog> {
   const counts = await db.getAllAsync<{ workout_date: string; n: number }>(
@@ -64,7 +65,7 @@ export async function loadSessionLog(db: WorkoutDb): Promise<SessionLog> {
   const log: Record<string, { t: string; n: number }> = {};
   for (const c of counts) {
     const w = await loadWorkout(db, c.workout_date);
-    if (w && !w.deleted_at) log[c.workout_date] = { t: w.base || w.template || 'Session', n: c.n };
+    if (w && !w.deleted_at) log[c.workout_date] = { t: w.base || w.template || HAND_PICKED, n: c.n };
   }
   return log;
 }

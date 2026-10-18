@@ -61,4 +61,14 @@ describe('camera permission', () => {
     request.mockRejectedValue(new Error('boom'));
     expect(await requestCamera()).toBe('denied');
   });
+
+  it('asks with the text it is given, so another feature can say its own reason (pose tracking, #947)', async () => {
+    setOs('android');
+    const request = jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue('granted');
+    const mine = { title: 'T', message: 'M', buttonPositive: 'Yes', buttonNegative: 'No' };
+    await requestCamera(mine);
+    expect(request).toHaveBeenCalledWith('android.permission.CAMERA', mine);
+    await requestCamera();
+    expect(request).toHaveBeenLastCalledWith('android.permission.CAMERA', expect.objectContaining({ title: BARCODE_COPY.rationaleTitle }));
+  });
 });

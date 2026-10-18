@@ -1,5 +1,5 @@
 import { expect, test as base } from '@playwright/test';
-import { label, trackDbWrites } from './app.mjs';
+import { label, openApp, trackDbWrites } from './app.mjs';
 
 /** Where `docker compose up` in tests/e2e/stack publishes the Mailpit HTTP API and the API. */
 export const MAILPIT = process.env.E2E_MAILPIT_URL ?? 'http://127.0.0.1:18025';
@@ -76,4 +76,18 @@ export async function signIn(page, email) {
   await label(page, 'Sign in').click();
   await expect(page.getByText('You are signed in and everything is synced.')).toBeVisible();
   await label(page, 'Done').click();
+}
+
+/** A fresh address for one test's account. */
+export const newEmail = () => `e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
+
+/** The sync badge with this state ("Synced", "Not synced", "Sign in to sync"). */
+export const badge = (page, text) => page.locator(`[aria-label^=${JSON.stringify(`${text}.`)}]`);
+
+/** A second device: opens the app, signs in to the account and accepts the consent it is asked for again (kept per device). */
+export async function openedOn(page, email) {
+  await openApp(page);
+  await signIn(page, email);
+  await label(page, 'I understand and agree to my data being stored as described').click();
+  await label(page, 'Continue').click();
 }
