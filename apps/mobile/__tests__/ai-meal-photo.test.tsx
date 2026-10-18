@@ -585,7 +585,10 @@ describe('late results and closing (#997 nits)', () => {
   it('a request token is stale once its component unmounts', async () => {
     const probe: { g: ReturnType<typeof useRequest> | null } = { g: null };
     function P() {
-      probe.g = useRequest();
+      const g = useRequest();
+      useEffect(() => {
+        probe.g = g;
+      });
       return null;
     }
     const view = await render(<P />);
