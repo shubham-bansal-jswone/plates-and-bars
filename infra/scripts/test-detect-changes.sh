@@ -11,7 +11,7 @@ git config user.email t@example.com
 git config user.name t
 mkdir -p tools/golden-gen packages/api/test-vectors packages/core apps/mobile/scripts apps/mobile/src/content apps/site backend/scripts tools content docs tests/e2e
 for d in packages/api packages/core apps/mobile apps/site tools tests/e2e; do echo '{}' > "$d/package.json"; done
-touch tools/golden-gen/cli.mjs backend/build.gradle apps/mobile/scripts/content-meta.mjs
+touch tools/golden-gen/cli.mjs backend/build.gradle apps/mobile/scripts/content-meta.mjs docs/check-play-listing.mjs
 git add -A && git commit -qm base
 
 fail=0
@@ -22,7 +22,7 @@ expect() {
   git add -A && git commit -qm "change $file"
   : > out
   GITHUB_OUTPUT="$tmp/out" "$script" HEAD~1 > /dev/null
-  for j in api core mobile backend tools golden site content_meta e2e e2e_sync; do
+  for j in api core mobile backend tools golden play_listing site content_meta e2e e2e_sync; do
     got="$(sed -n "s/^run_$j=//p" out)"
     if [[ "$want" == *" $j "* ]]; then [ "$got" = true ] || { echo "FAIL: $file should run $j"; fail=1; }
     else [ "$got" = false ] || { echo "FAIL: $file should not run $j"; fail=1; }; fi
@@ -36,6 +36,10 @@ expect packages/api/test-vectors/sync-ids.json "api core mobile backend tools e2
 expect packages/api/openapi.yaml "api core mobile backend e2e e2e_sync"
 expect apps/site/src/a.txt "site"
 expect apps/mobile/src/content/bundled.json "mobile content_meta e2e e2e_sync"
+expect apps/mobile/src/setup/copy.ts "mobile play_listing e2e e2e_sync"
+expect apps/mobile/src/setup/other.ts "mobile e2e e2e_sync"
+expect docs/PLAY-STORE-LISTING.md "play_listing"
+expect docs/check-play-listing.mjs "play_listing"
 expect apps/mobile/scripts/content-meta.mjs "mobile content_meta e2e e2e_sync"
 expect tests/e2e/stack/docker-compose.yml "e2e e2e_sync"
 expect docs/spec/golden/foods.json "core tools golden"
