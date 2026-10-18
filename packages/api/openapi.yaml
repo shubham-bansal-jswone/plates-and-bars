@@ -1233,7 +1233,7 @@ paths:
         anonymous monthly AI token total (month and token count only, no user id) kept to
         enforce the shared AI budget (see the `ai` tag). There is no undo and no grace
         period. The app asks the user to confirm before calling this.
-        The server also records the account's random user id and the deletion time, and
+        The server also records the account's opaque user id and the deletion time, and
         nothing else, in an erasure ledger kept outside the database for 45 days, so that
         restoring a backup cannot bring the account back.
 
@@ -1250,7 +1250,8 @@ paths:
         record opaque user ids with operational events (never food, weight, health answers
         or tokens) and expire after a bounded retention period. If anything fails, the
         transaction rolls back, the server answers 500 and nothing is deleted; the app
-        retries.
+        retries. The erasure-ledger line, written before the transaction, stays after such
+        a 500, so a later backup restore still deletes the account; a retry finishes it.
 
         **Tokens.** Every refresh token is revoked, so `/auth/refresh` answers 401
         `unauthorized`. Access tokens issued before the deletion stay unexpired for up to
