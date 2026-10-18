@@ -5,6 +5,8 @@
 # Flyway version, never row contents. Exits non-zero if the dump is older than 25 hours, is not a valid gzip, fails to
 # load, lacks the Flyway history table or the users / sync_state tables. Run from cron or by hand, see RUNBOOK.md section 4:
 #   0 4 1 * * cd /opt/plateandbar/infra/staging && ./restore-check.sh >> "$HOME/plateandbar-restore-check.log" 2>&1
+# It then replays the erasure ledger into the throwaway (ledger-replay.sh, #853), so the counts printed are post-replay,
+# and fails when no ledger object exists (ledger-upload.sh not scheduled) or the replay fails.
 # Optional RESTORE_HEARTBEAT_URL (an Uptime Kuma push URL with a heartbeat interval of about 32 days): requested with GET
 # after a fully successful run, so a skipped or failed rehearsal makes the monitor alert. Unset = off.
 # Needs .env (BACKUP_S3_*, see .env.example) and Docker; the stack itself need not be running. The dump holds user data:
@@ -96,6 +98,8 @@ tables="$(echo "SELECT table_name FROM information_schema.tables WHERE table_sch
 for t in flyway_schema_history users sync_state; do
   printf '%s\n' "$tables" | grep -qx "$t" || fail "table $t is missing from the restored dump"
 done
+# Erasure ledger (#853): accounts deleted after this dump was taken must be gone before anything reads it
+./ledger-replay.sh container "$name" || fail "the erasure-ledger replay failed"
 echo "tables and row counts:"
 while IFS= read -r t; do
   [[ "$t" =~ ^[a-z0-9_]+$ ]] || fail "unexpected table name"
