@@ -427,6 +427,83 @@ for (const [where, line] of cookieLines.filter(([w]) => w !== "ClearRefreshCooki
 }
 if (parsed.components.responses.TokenPair.content["application/json"].examples.cookie?.value.refresh_token !== "") failures.push("TokenPair cookie example: refresh_token must be empty");
 
+// barcode-gs1.json (#944): GS1 mod-10 recomputed here, UPC-E expansion, and the spec's barcode pattern, examples and error codes.
+const barcode = JSON.parse(readFileSync(new URL("./barcode-gs1.json", import.meta.url), "utf8"));
+const gs1Ok = (code) => {
+  if (!/^([0-9]{8}|[0-9]{12,13})$/.test(code)) return false;
+  let sum = 0;
+  for (let i = 0; i < code.length - 1; i++) sum += Number(code[code.length - 2 - i]) * (i % 2 === 0 ? 3 : 1);
+  return (10 - (sum % 10)) % 10 === Number(code[code.length - 1]);
+};
+const upcEToA = (e) => {
+  const [ns, d1, d2, d3, d4, d5, d6, chk] = e;
+  const body = d6 <= "2" ? `${d1}${d2}${d6}00` + `00${d3}${d4}${d5}` : d6 === "3" ? `${d1}${d2}${d3}00` + `000${d4}${d5}` : d6 === "4" ? `${d1}${d2}${d3}${d4}0` + `0000${d5}` : `${d1}${d2}${d3}${d4}${d5}` + `0000${d6}`;
+  return `${ns}${body}${chk}`;
+};
+for (const v of barcode.valid) if (!gs1Ok(v.code)) failures.push(`barcode-gs1.json: valid ${v.code} fails the check`);
+for (const v of barcode.invalid) if (gs1Ok(v.code)) failures.push(`barcode-gs1.json: invalid ${JSON.stringify(v.code)} (${v.reason}) passes`);
+for (const e of barcode.upc_e_expansion) if (upcEToA(e.upc_e) !== e.upc_a || !gs1Ok(e.upc_a)) failures.push(`barcode-gs1.json: UPC-E ${e.upc_e} does not expand to a valid ${e.upc_a}`);
+const barcodeSchema = parsed.components.schemas.Barcode;
+const barcodeRe = new RegExp(barcodeSchema.pattern);
+if (barcodeSchema.pattern !== "^([0-9]{8}|[0-9]{12,13})$") failures.push("Barcode.pattern changed; update barcode-gs1.json and this check");
+for (const v of [...barcode.valid, ...barcode.invalid]) {
+  const lengthOk = /^([0-9]{8}|[0-9]{12,13})$/.test(v.code);
+  if (barcodeRe.test(v.code) !== lengthOk) failures.push(`Barcode.pattern disagrees with the vector rule on ${JSON.stringify(v.code)}`);
+}
+const barcodeOp = parsed.paths["/foods/barcode/{code}"].get;
+if (barcodeOp.security?.length !== 0) failures.push("GET /foods/barcode/{code} must be public (security: [])");
+for (const k of ["200", "400", "404", "429", "503"]) if (!barcodeOp.responses[k]) failures.push(`GET /foods/barcode/{code} lacks ${k}`);
+for (const [name, ex] of Object.entries(barcodeOp.responses["200"].content["application/json"].examples)) {
+  if (!gs1Ok(ex.value.code)) failures.push(`barcode example ${name}: code fails the GS1 check`);
+  if (!ex.value.source.url.endsWith(`/product/${ex.value.code}`) || ex.value.source.code !== "open_food_facts") failures.push(`barcode example ${name}: source must be open_food_facts linking to the product page`);
+}
+if (!parsed.components.schemas.FoodSource.properties.code.enum.includes("open_food_facts")) failures.push("FoodSource.code lacks open_food_facts");
+for (const c of ["invalid_barcode", "upstream_unavailable", "upstream_busy"]) if (!parsed.components.schemas.Error.properties.code.enum.includes(c)) failures.push(`Error.code lacks ${c}`);
+if (parsed.components.schemas.UserFood.allOf[1].properties.barcode?.pattern !== "^([0-9]{8}|[0-9]{12,13})$") failures.push("UserFood.barcode pattern missing");
+if (parsed.components.schemas.UserFood.allOf[1].required.includes("barcode")) failures.push("UserFood.barcode must stay optional (older clients do not send it)");
+
+// OffProduct and OffNutriments are responses, so the record bound checks above do not reach them (#944): pin them closed, the exact
+// nutriment key set and a bound on every string and array, then mutate each pin and require the check to notice.
+const OFF_NUTRIMENT_KEYS = ["energy-kcal", "energy-kj", "proteins", "carbohydrates", "fat", "fiber", "added-sugars"].flatMap((k) => [`${k}_100g`, `${k}_serving`]).sort();
+const checkOff = (schemas) => {
+  const out = [];
+  const nut = schemas.OffNutriments;
+  const prod = schemas.OffProduct;
+  if (nut?.additionalProperties !== false) out.push("OffNutriments must be closed (additionalProperties: false)");
+  if (prod?.additionalProperties !== false) out.push("OffProduct must be closed (additionalProperties: false)");
+  if (JSON.stringify(Object.keys(nut?.properties ?? {}).sort()) !== JSON.stringify(OFF_NUTRIMENT_KEYS)) out.push("OffNutriments keys differ from the whitelist");
+  for (const [k, v] of Object.entries(nut?.properties ?? {})) if (v.type !== "number" || v.minimum !== 0) out.push(`OffNutriments.${k} must be a number with minimum 0`);
+  const required = new Set(prod?.required ?? []);
+  for (const k of Object.keys(prod?.properties ?? {})) if (!required.has(k)) out.push(`OffProduct.${k} must be required`);
+  for (const [k, v] of Object.entries(prod?.properties ?? {})) {
+    const types = [v.type].flat();
+    if (types.includes("string") && !v.format && !v.enum && !v.$ref && v.maxLength === undefined) out.push(`OffProduct.${k} string needs maxLength`);
+    if (types.includes("array")) {
+      if (v.maxItems === undefined) out.push(`OffProduct.${k} array needs maxItems`);
+      if (v.items?.type === "string" && v.items.maxLength === undefined) out.push(`OffProduct.${k} items need maxLength`);
+    }
+  }
+  return out;
+};
+failures.push(...checkOff(parsed.components.schemas));
+const offMutants = [
+  ["open OffNutriments", (c) => delete c.OffNutriments.additionalProperties],
+  ["open OffProduct", (c) => delete c.OffProduct.additionalProperties],
+  ["add sugars_100g", (c) => (c.OffNutriments.properties.sugars_100g = { type: "number", minimum: 0 })],
+  ["drop a nutriment key", (c) => delete c.OffNutriments.properties.fat_100g],
+  ["drop name maxLength", (c) => delete c.OffProduct.properties.name.maxLength],
+  ["drop states_tags maxItems", (c) => delete c.OffProduct.properties.states_tags.maxItems],
+  ["drop tag item maxLength", (c) => delete c.OffProduct.properties.countries_tags.items.maxLength],
+  ["unrequire name", (c) => c.OffProduct.required.splice(c.OffProduct.required.indexOf("name"), 1)],
+];
+for (const [name, mutate] of offMutants) {
+  const copy = structuredClone(parsed.components.schemas);
+  mutate(copy);
+  if (checkOff(copy).length === 0) failures.push(`OffProduct check did not notice: ${name}`);
+}
+for (const [name, ex] of Object.entries(barcodeOp.responses["200"].content["application/json"].examples)) {
+  if (ex.value.code !== ex.value.source.reference) failures.push(`barcode example ${name}: code must equal source.reference`);
+}
 // ai-images.json (#946, ADR 008): the image rules of POST /ai/meal-photo, /ai/import-recipe and /ai/form-check. The
 // limits equal the schemas' (base64 maxLength = 4 * ceil(bytes / 3)), four frames and the longest recipe text fit the
 // 2 MB body limit, every case gets the issue its first fault names from a small reference checker, and every image in
@@ -625,3 +702,5 @@ console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, ea
 console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
 console.log(`ai-images.json: ${imgv.cases.length} cases, limits equal the schemas, ${imageExamples} example images pass the rules`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);
+console.log(`barcode-gs1.json: ${barcode.valid.length} valid and ${barcode.invalid.length} invalid codes, ${barcode.upc_e_expansion.length} UPC-E expansions, /foods/barcode examples and error codes verified`);
+console.log(`openapi.yaml: OffProduct and OffNutriments closed, ${OFF_NUTRIMENT_KEYS.length} nutriment keys pinned, strings and arrays bounded, ${offMutants.length} mutations caught`);

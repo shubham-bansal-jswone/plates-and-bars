@@ -24,7 +24,9 @@ class ContractCoverageTest {
 
     /** Operations with no schema-checked test, and why. Nothing else may be listed. */
     static final Map<String, String> ALLOWLIST = Map.of(
-            "GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)");
+            "GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)",
+            // TODO(#944): remove when the backend proxy lands
+            "GET /foods/barcode/{code}", "contract first; the Open Food Facts proxy is built in a later #944 PR");
 
     private static void requireUnfilteredRun() {
         if (Boolean.getBoolean("contract.coverage.enforce")) {
@@ -73,8 +75,9 @@ class ContractCoverageTest {
             String[] p = k.split(" ");
             assertThat(paths.path(p[1]).path(p[0].toLowerCase()).isMissingNode()).as(k).isFalse();
         });
-        // Pinned exactly: adding an operation here needs a reviewed change to this list.
-        assertThat(ALLOWLIST.keySet()).containsExactlyInAnyOrder("GET /foods");
+        // Pinned exactly: adding an operation here needs a reviewed change to this list. The TODO(#944) entry
+        // goes when its backend endpoint lands (the test below fails until it does).
+        assertThat(ALLOWLIST.keySet()).containsExactlyInAnyOrder("GET /foods", "GET /foods/barcode/{code}");
     }
 
     @Test
