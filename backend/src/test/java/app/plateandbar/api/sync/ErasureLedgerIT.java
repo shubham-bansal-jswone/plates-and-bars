@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpEntity;
@@ -14,14 +16,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/** DELETE /me and the erasure ledger (#850) on real MySQL and a real file. Lives in the sync package for its fixtures. */
+/** DELETE /me and the erasure ledger (#850, #887) on real MySQL and real files. Lives in the sync package for its fixtures. */
 class ErasureLedgerIT extends SyncITBase {
 
-    static final Path LEDGER = tempLedger();
+    static final Path DIR = tempLedgerDir();
+    /** The day file of START (2026-10-08T12:00:00Z, the test clock). */
+    static final Path LEDGER = DIR.resolve("erasures-2026-10-08.log");
 
-    private static Path tempLedger() {
+    private static Path tempLedgerDir() {
         try {
-            return Files.createTempDirectory("ledger-it").resolve("erasures.log");
+            return Files.createTempDirectory("ledger-it");
         } catch (java.io.IOException e) {
             throw new IllegalStateException(e);
         }
@@ -29,15 +33,16 @@ class ErasureLedgerIT extends SyncITBase {
 
     @DynamicPropertySource
     static void ledger(DynamicPropertyRegistry r) {
-        r.add("app.erasure-ledger.path", LEDGER::toString);
+        r.add("app.erasure-ledger.dir", DIR::toString);
     }
 
     @BeforeEach
     void emptyLedger() throws Exception {
-        if (Files.isDirectory(LEDGER)) {
-            Files.delete(LEDGER);
+        try (Stream<Path> files = Files.list(DIR)) {
+            for (Path f : files.toList()) {
+                Files.delete(f); // day files, and the directory the failure test puts in place of one
+            }
         }
-        Files.deleteIfExists(LEDGER);
     }
 
     private int delete(String user) {
@@ -72,5 +77,21 @@ class ErasureLedgerIT extends SyncITBase {
         assertThat(delete(a)).isEqualTo(204);
         assertThat(Files.readAllLines(LEDGER)).hasSize(1);
         assertThat(count("SELECT COUNT(*) FROM users WHERE id = ?", a)).isZero();
+    }
+
+    @Test
+    void aDeletionAfterUtcMidnightGoesToTheNextDaysFile() throws Exception {
+        String a = newUser();
+        String b = newUser();
+        clock.advance(Duration.ofHours(11).plusMinutes(59).plusSeconds(59)); // 23:59:59 on the 8th
+        assertThat(delete(a)).isEqualTo(204);
+        clock.advance(Duration.ofSeconds(1)); // midnight UTC: the 9th
+        assertThat(delete(b)).isEqualTo(204);
+
+        assertThat(Files.readAllLines(LEDGER)).containsExactly(a + "\t2026-10-08T23:59:59Z");
+        assertThat(Files.readAllLines(DIR.resolve("erasures-2026-10-09.log"))).containsExactly(b + "\t2026-10-09T00:00:00Z");
+        try (Stream<Path> files = Files.list(DIR)) {
+            assertThat(files).hasSize(2);
+        }
     }
 }
