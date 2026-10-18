@@ -73,9 +73,9 @@ services:
       # of 25, which is far more than this load needs and costs memory. (VTASKS_CONCURRENCY is not read by 6.2.6.)
       WEB_CONCURRENCY: "1"
       VTASKS_INGEST_CONCURRENCY: "2"
-      # Granian recycles a worker above this RSS (MiB). The image default is max(half the limit, 1024), which is the whole
+      # Granian recycles a worker above this RSS (MiB): 50% of the 1g limit, as upstream does. The image default is max(half the limit, 1024), which is the whole
       # limit here, so the OOM killer would fire first.
-      GRANIAN_WORKERS_MAX_RSS: "640"
+      GRANIAN_WORKERS_MAX_RSS: "512"
       # Alert e-mail through an SMTP account you already have (no vendor service).
       EMAIL_HOST: ${EMAIL_HOST:?set EMAIL_HOST}
       EMAIL_PORT: ${EMAIL_PORT:-587}

@@ -63,12 +63,14 @@ required uptime-kuma KUMA_HOST
 
 # GlitchTip privacy settings from infra/OBSERVABILITY.md
 g="$tmp/glitchtip.yml"
-for line in '      SERVER_ROLE: all_in_one' '      VTASKS_INGEST_CONCURRENCY: "2"' '      ENABLE_USER_REGISTRATION: "false"' '      ENABLE_ORGANIZATION_CREATION: "false"' \
+for line in '      SERVER_ROLE: all_in_one' '      VTASKS_INGEST_CONCURRENCY: "2"' '      GRANIAN_WORKERS_MAX_RSS: "512"' '      ENABLE_USER_REGISTRATION: "false"' '      ENABLE_ORGANIZATION_CREATION: "false"' \
             '      GLITCHTIP_RETENTION_DAYS: "30"' '      VALKEY_URL: ""'; do
   grep -qxF "$line" "$g" || fail "glitchtip: missing $line"
 done
 grep -q 'GLITCHTIP_PII_SCRUB_DEFAULT:.*"enabled": true' "$g" || fail "glitchtip: server-side scrubbing is not enabled"
 grep -q 'max_locks_per_transaction=512' "$g" || fail "glitchtip: postgres lock budget"
+# ENABLE_OPEN_USER_REGISTRATION takes precedence over ENABLE_ORGANIZATION_CREATION in 6.2.6 and would reopen creation
+if grep -q 'ENABLE_OPEN_USER_REGISTRATION' "$g"; then fail "glitchtip: ENABLE_OPEN_USER_REGISTRATION must not be set"; fi
 if grep -Eq 'valkey|redis' "$g"; then fail "glitchtip: valkey/redis must stay off"; fi
 
 # Caddy. Each file has two logs, the access log and the global error log, and each must carry every privacy filter on
