@@ -4,7 +4,7 @@ import type { SyncMeta } from '../setup/types';
 // Contract records (packages/api/openapi.yaml), snake_case. Workout is a natural-key table:
 // its contract id is a UUIDv5 that needs the user's namespace, so `id` stays null locally.
 // Lift records are not here: lift_stats keeps core's own record shape (see src/db/workouts.ts).
-// TODO(#31): fill in `id` (and `WorkoutSet.workout_id`, the UUIDv5 of `workouts:<date>`) once the store is bound to a user.
+// The id (and `WorkoutSet.workout_id`, the UUIDv5 of `workouts:<date>`) is filled in at push time for the signed-in user (sync/records.ts buildRecord).
 
 export type Form = 'yes' | 'no' | null;
 
