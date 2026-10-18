@@ -1,4 +1,4 @@
-// Checks the built blog in dist/: every card in content/cards.json (except the ones the app holds back) has a page with its
+// Checks the built blog in dist/: every card in content/cards.json (except the ones flagged `hidden`, which the app holds back too) has a page with its
 // title, summary, source and evidence; the index lists them; no leftover {placeholders}; every internal link resolves.
 // Run after `npm run build` (the a11y script does both). Exits 1 on any failure.
 import { readFile, access } from "node:fs/promises";
@@ -14,13 +14,10 @@ const decode = (s) => s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&
 const exists = (p) => access(p).then(() => true, () => false);
 const read = (p) => readFile(join(dist, p), "utf8");
 
-// The hidden list must match the app's (apps/mobile/src/why/cards.ts), so site and app show the same cards.
-const appSrc = await readFile(join(root, "apps/mobile/src/why/cards.ts"), "utf8");
-const appHidden = [...(/HIDDEN_CARDS[^=]*=\s*\[([^\]]*)\]/.exec(appSrc)?.[1] ?? "").matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
+// Held-back cards come from the `hidden` flag in content/cards.json, the one list the app reads too (#969). The site must
+// keep no list of its own; the built pages below must honour the flag.
 const siteSrc = await readFile(new URL("../src/lib/cards.ts", import.meta.url), "utf8");
-const siteHidden = [...(/HIDDEN_CARDS[^=]*=\s*\[([^\]]*)\]/.exec(siteSrc)?.[1] ?? "").matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
-if (appHidden.length === 0) fail("could not read HIDDEN_CARDS from the app");
-if (appHidden.join() !== siteHidden.join()) fail(`HIDDEN_CARDS differ: app [${appHidden}] site [${siteHidden}]`);
+if (/HIDDEN_CARDS/.test(siteSrc)) fail("src/lib/cards.ts keeps its own hidden list; read `hidden` from content/cards.json");
 
 // The evidence wording must match the app's Why sheet.
 const evOf = (src, re) => Object.fromEntries([...(re.exec(src)?.[1] ?? "").matchAll(/(Strong|Moderate|Emerging):\s*['"]([^'"]+)['"]/g)].map((m) => [m[1], m[2]]));
@@ -30,12 +27,19 @@ if (Object.keys(appEv).length !== 3) fail("could not read EVIDENCE_NOTE from the
 if (JSON.stringify(appEv) !== JSON.stringify(siteEv)) fail(`EVIDENCE_NOTE differs: app ${JSON.stringify(appEv)} site ${JSON.stringify(siteEv)}`);
 
 const { cards } = JSON.parse(await readFile(join(root, "content/cards.json"), "utf8"));
-const shown = cards.filter((c) => !appHidden.includes(c.id));
+const heldBack = (c) => c.hidden === true;
+for (const c of cards) {
+  if (c.hidden !== undefined && (c.hidden !== true || !String(c.hidden_reason ?? "").trim())) fail(`${c.id}: hidden must be true with a hidden_reason`);
+}
+const shown = cards.filter((c) => !heldBack(c));
 const index = decode(await read("blog/index.html"));
+const held = cards.length - shown.length;
+if (held > 0 && !index.includes(`${held} more cards are held back`)) fail(`index does not say that ${held} cards are held back`);
+if (held === 0 && index.includes("held back")) fail("index mentions held-back cards but none are flagged");
 
 for (const c of cards) {
   const page = `blog/${c.id}/index.html`;
-  if (appHidden.includes(c.id)) {
+  if (heldBack(c)) {
     if (await exists(join(dist, page))) fail(`${c.id}: held-back card has a page`);
     if (index.includes(`/blog/${c.id}/`)) fail(`${c.id}: held-back card is linked from the index`);
     continue;
