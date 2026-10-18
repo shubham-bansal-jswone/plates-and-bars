@@ -11,30 +11,33 @@ eq() { [ "$2" = "$3" ] || fail "$1: expected [$3] got [$2]"; }
 # npm audit: only high and critical advisory objects; dependants (string via) and moderate ones are ignored
 got="$("$here/npm-audit-to-tsv.sh" apps/mobile <<'JSON'
 {"vulnerabilities":{
- "braces":{"name":"braces","severity":"high","via":[{"source":1,"name":"braces","severity":"high","url":"https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"}]},
+ "braces":{"name":"braces","severity":"high","fixAvailable":false,"via":[{"source":1,"name":"braces","severity":"high","url":"https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"}]},
  "micromatch":{"name":"micromatch","severity":"high","via":["braces"]},
  "uuid":{"name":"uuid","severity":"moderate","via":[{"source":2,"name":"uuid","severity":"moderate","url":"https://github.com/advisories/GHSA-w5hq-g745-h8pq"}]},
- "x":{"name":"x","severity":"critical","via":[{"source":3,"name":"x","severity":"critical","url":"https://github.com/advisories/GHSA-aaaa-bbbb-cccc"},{"source":3,"name":"x","severity":"critical","url":"https://github.com/advisories/GHSA-aaaa-bbbb-cccc"}]}}}
+ "x":{"name":"x","severity":"critical","fixAvailable":{"name":"x","version":"2.0.1"},"via":[{"source":3,"name":"x","severity":"critical","url":"https://github.com/advisories/GHSA-aaaa-bbbb-cccc"},{"source":3,"name":"x","severity":"critical","url":"https://github.com/advisories/GHSA-aaaa-bbbb-cccc"}]}}}
 JSON
 )"
-eq "npm parse" "$got" "apps/mobile${tab}GHSA-aaaa-bbbb-cccc${tab}x${tab}critical
-apps/mobile${tab}GHSA-vfj7-8cjw-p6xm${tab}braces${tab}high"
+eq "npm parse" "$got" "apps/mobile${tab}GHSA-aaaa-bbbb-cccc${tab}x${tab}critical${tab}x@2.0.1
+apps/mobile${tab}GHSA-vfj7-8cjw-p6xm${tab}braces${tab}high${tab}none"
 "$here/npm-audit-to-tsv.sh" tools <<<'{"vulnerabilities":{}}' > "$tmp/empty"; [ ! -s "$tmp/empty" ] || fail "clean report printed lines"
 if "$here/npm-audit-to-tsv.sh" tools < /dev/null > /dev/null 2>&1; then fail "empty npm output accepted as clean"; fi
 if "$here/npm-audit-to-tsv.sh" tools <<<'{"error":{"code":"ENOLOCK"}}' > /dev/null 2>&1; then fail "npm error report accepted as clean"; fi
 
 # OSV: groups scored 7+, 9+ and unscored are kept with their aliases; 5.x is dropped
 got="$("$here/osv-to-tsv.sh" backend <<'JSON'
-{"results":[{"packages":[{"package":{"name":"g:a","version":"1.0"},"groups":[
+{"results":[{"packages":[{"package":{"name":"g:a","version":"1.0"},
+ "vulnerabilities":[{"id":"GHSA-1","affected":[{"package":{"name":"g:a"},"ranges":[{"events":[{"introduced":"0"},{"fixed":"1.0.1"}]}]},{"package":{"name":"other"},"ranges":[{"events":[{"fixed":"9"}]}]}]},
+  {"id":"GHSA-2","affected":[{"package":{"name":"g:a"},"ranges":[{"events":[{"introduced":"0"}]}]}]}],
+ "groups":[
  {"ids":["GHSA-1"],"aliases":["CVE-1","GHSA-1"],"max_severity":"9.8"},
  {"ids":["GHSA-2"],"aliases":["GHSA-2"],"max_severity":"7.5"},
  {"ids":["GHSA-3"],"aliases":["GHSA-3"],"max_severity":"5.6"},
  {"ids":["GHSA-4"],"aliases":["GHSA-4"],"max_severity":""}]}]}]}
 JSON
 )"
-eq "osv parse" "$got" "backend${tab}CVE-1,GHSA-1${tab}g:a@1.0${tab}critical
-backend${tab}GHSA-2${tab}g:a@1.0${tab}high
-backend${tab}GHSA-4${tab}g:a@1.0${tab}unknown"
+eq "osv parse" "$got" "backend${tab}CVE-1,GHSA-1${tab}g:a@1.0${tab}critical${tab}1.0.1
+backend${tab}GHSA-2${tab}g:a@1.0${tab}high${tab}none known
+backend${tab}GHSA-4${tab}g:a@1.0${tab}unknown${tab}none known"
 "$here/osv-to-tsv.sh" backend <<<'{"results":[]}' > "$tmp/empty"; [ ! -s "$tmp/empty" ] || fail "clean osv printed lines"
 if "$here/osv-to-tsv.sh" backend < /dev/null > /dev/null 2>&1; then fail "empty osv output accepted as clean"; fi
 if "$here/osv-to-tsv.sh" backend <<<'{"error":"x"}' > /dev/null 2>&1; then fail "osv error accepted as clean"; fi
@@ -51,10 +54,10 @@ eq "waived finding" "$(run 2026-10-18)" "findings=0
 problems=0"
 grep -q "No findings and no waiver problems" "$tmp/out/report.md" || fail "clean report text"
 
-f "apps/mobile${tab}GHSA-a${tab}braces${tab}high" "apps/mobile${tab}GHSA-b${tab}other${tab}critical"
+f "apps/mobile${tab}GHSA-a${tab}braces${tab}high${tab}none" "apps/mobile${tab}GHSA-b${tab}other${tab}critical${tab}2.0.1"
 eq "unwaived finding" "$(run 2026-10-18)" "findings=1
 problems=0"
-grep -q '| apps/mobile | GHSA-b | other | critical |' "$tmp/report.md" 2>/dev/null || grep -q '| apps/mobile | GHSA-b | other | critical |' "$tmp/out/report.md" || fail "finding row"
+grep -q '| apps/mobile | GHSA-b | other | critical | 2.0.1 |' "$tmp/out/report.md" || fail "finding row"
 grep -q GHSA-a "$tmp/out/report.md" && fail "waived finding listed"
 
 # a waiver covers only its scope, and an alias in a comma list matches
@@ -85,6 +88,12 @@ for bad in "GHSA-a${tab}apps/mobile${tab}79${tab}2026-11-18${tab}r" "GHSA-a${tab
   w "$bad"; rc=0; run 2026-10-18 > /dev/null 2>&1 || rc=$?; eq "malformed waiver rc" "$rc" 2
 done
 w "$W1"; rc=0; run tomorrow > /dev/null 2>&1 || rc=$?; eq "bad date rc" "$rc" 2
+
+# security.yml's dependency-review allow-ghsas must list exactly the GHSAs in waivers.tsv (#79): one list, two places
+repo="$(cd "$here/../.." && pwd)"
+allow="$(sed -n 's/^ *allow-ghsas: *//p' "$repo/.github/workflows/security.yml" | tr ',' '\n' | tr -d ' ' | sort)"
+listed="$(grep -v '^#' "$here/waivers.tsv" | cut -f1 | sort)"
+if [ -z "$allow" ] || [ "$allow" != "$listed" ]; then fail "allow-ghsas in security.yml differs from the first column of waivers.tsv"; fi
 
 # the committed waiver file parses and every entry is for a real scope with an issue link
 "$here/report.sh" "$here/waivers.tsv" /dev/null 2026-10-18 "$tmp/out" > /dev/null || fail "waivers.tsv does not parse"

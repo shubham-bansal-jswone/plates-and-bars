@@ -10,6 +10,7 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(pwd)"
+trap 'rm -f "$root/backend/gradle.lockfile"' EXIT # never leave the generated lockfile in a checkout
 OUT="${OUT:-dependency-scan-out}"; OSV_SCANNER="${OSV_SCANNER:-osv-scanner}"; TODAY="${TODAY:-$(date -u +%F)}"
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
 findings="$OUT/findings.tsv"; : > "$findings"
@@ -34,6 +35,5 @@ rc=0
 "$OSV_SCANNER" scan source --lockfile "$root/backend/gradle.lockfile" --format json > "$OUT/osv.json" 2> "$OUT/osv.err" || rc=$?
 [ "$rc" -le 1 ] || { cat "$OUT/osv.err" >&2; exit 1; }
 "$here/osv-to-tsv.sh" backend < "$OUT/osv.json" >> "$findings"
-rm -f "$root/backend/gradle.lockfile"
 
 "$here/report.sh" "$here/waivers.tsv" "$findings" "$TODAY" "$OUT"

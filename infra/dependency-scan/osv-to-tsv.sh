@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # Reads `osv-scanner --format json` on stdin and prints one line per vulnerability group scored high (CVSS >= 7.0),
 # critical (>= 9.0) or without a score ("unknown", reported rather than guessed low):
-#   scope <TAB> ids (comma separated: the group ids and their aliases) <TAB> package@version <TAB> severity
+#   scope <TAB> ids (comma separated: the group ids and their aliases) <TAB> package@version <TAB> severity <TAB> fixed version(s) from the advisory ("none known" if it lists none)
 # Usage: osv-scanner scan source --lockfile gradle.lockfile --format json | infra/dependency-scan/osv-to-tsv.sh backend
 set -euo pipefail
 scope="${1:?usage: osv-to-tsv.sh <scope>}"
 jq -rn --arg scope "$scope" ' input |
   if (.results | type) != "array" then error("not an osv-scanner report") else . end
-  | [ .results[].packages[] | .package as $p | .groups[]
+  | [ .results[].packages[] | .package as $p | .vulnerabilities as $vulns | .groups[]
       | (.max_severity // "") as $s
       | (if $s == "" then "unknown" elif ($s | tonumber) >= 9 then "critical" elif ($s | tonumber) >= 7 then "high" else "low" end) as $sev
       | select($sev != "low")
-      | [$scope, ((.aliases + .ids) | unique | join(",")), ($p.name + "@" + $p.version), $sev] ]
+      | .ids as $gids
+      | ([ $vulns[] | select(.id as $i | $gids | index($i)) | .affected[]? | select(.package.name == $p.name)
+           | .ranges[]?.events[]? | .fixed // empty ] | unique | if length == 0 then "none known" else join(",") end) as $fix
+      | [$scope, ((.aliases + .ids) | unique | join(",")), ($p.name + "@" + $p.version), $sev, $fix] ]
   | unique | .[] | @tsv' < /dev/stdin

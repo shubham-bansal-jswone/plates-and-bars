@@ -2,7 +2,7 @@
 # Applies the waivers to the scan findings and writes the report.
 # Usage: report.sh <waivers.tsv> <findings.tsv> <today YYYY-MM-DD> <outdir>
 #   waivers.tsv: id, scope, issue (#N), recheck date, reason; tab separated; blank lines and lines starting with # ignored
-#   findings.tsv: scope, ids (comma separated), package, severity (from npm-audit-to-tsv.sh and osv-to-tsv.sh)
+#   findings.tsv: scope, ids (comma separated), package, severity, fixed version (from npm-audit-to-tsv.sh and osv-to-tsv.sh)
 # Writes <outdir>/report.md and prints `findings=N` (findings no waiver covers) and `problems=M` (waivers that match
 # nothing, and waivers past their re-check date). Exits 2 on a malformed waiver file or date.
 set -euo pipefail
@@ -23,14 +23,14 @@ while IFS="$tab" read -r id scope issue recheck reason extra; do
 done < "$waivers"
 
 unwaived="$out/unwaived.tsv"; : > "$unwaived"
-while IFS="$tab" read -r scope ids pkg sev; do
+while IFS="$tab" read -r scope ids pkg sev fix; do
   [ -z "$scope" ] && continue
   covered=0
   for i in "${!wid[@]}"; do
     [ "${wscope[$i]}" = "$scope" ] || continue
     case ",$ids," in *",${wid[$i]},"*) wused[i]=$((wused[i] + 1)); covered=1 ;; esac
   done
-  [ "$covered" -eq 1 ] || printf '%s\t%s\t%s\t%s\n' "$scope" "$ids" "$pkg" "$sev" >> "$unwaived"
+  [ "$covered" -eq 1 ] || printf '%s\t%s\t%s\t%s\t%s\n' "$scope" "$ids" "$pkg" "$sev" "${fix:-unknown}" >> "$unwaived"
 done < "$findings"
 
 problems=()
@@ -46,9 +46,9 @@ n_find="$(wc -l < "$unwaived" | tr -d ' ')"
   if [ "$n_find" -gt 0 ]; then
     echo "### Findings without a waiver ($n_find)"
     echo
-    echo "| Scope | Advisory | Package | Severity |"
-    echo "| --- | --- | --- | --- |"
-    while IFS="$tab" read -r scope ids pkg sev; do echo "| $scope | ${ids//,/, } | $pkg | $sev |"; done < "$unwaived"
+    echo "| Scope | Advisory | Package | Severity | Fixed version |"
+    echo "| --- | --- | --- | --- | --- |"
+    while IFS="$tab" read -r scope ids pkg sev fix; do echo "| $scope | ${ids//,/, } | $pkg | $sev | $fix |"; done < "$unwaived"
     echo
   fi
   if [ "${#problems[@]}" -gt 0 ]; then
