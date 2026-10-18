@@ -368,6 +368,17 @@ if (nativeArg !== -1) {
   process.exit(0);
 }
 
+// NOTICE and THIRD_PARTY.md must agree on the app images in assets/ (#965). They are our own artwork (rendered from assets/brand/*.svg by
+// tools/brand-icons/render.mjs), so THIRD_PARTY.md lists them as own work and NOTICE, which lists third-party material only, must not credit them.
+const repo = join(root, '../..');
+if (existsSync(join(repo, 'NOTICE')) && existsSync(join(repo, 'THIRD_PARTY.md'))) {
+  const ownImages = read(join(repo, 'THIRD_PARTY.md')).split('\n').some((l) => l.includes('apps/mobile/assets/*.png') && /Own work/.test(l));
+  if (ownImages && /apps\/mobile\/assets/.test(read(join(repo, 'NOTICE')))) {
+    console.error('NOTICE credits the images in apps/mobile/assets to a third party but THIRD_PARTY.md lists them as own work: make the two agree (the repo history shows own work).');
+    process.exit(1);
+  }
+}
+
 const sortedTexts = Object.fromEntries(Object.entries(texts).sort(([a], [b]) => a.localeCompare(b)));
 const out = `${JSON.stringify({ packages, android, native, assets, texts: sortedTexts })}\n`;
 if (check) {

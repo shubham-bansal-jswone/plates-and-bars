@@ -20,9 +20,6 @@ links.
   (https://github.com/googlefonts/roboto-classic). SIL Open Font License 1.1.
 - Ionicons tab icons (via @expo/vector-icons), Copyright (c) 2015-present
   Ionic (http://ionic.io/). MIT License.
-- Placeholder app icon and splash images in apps/mobile/assets from the
-  Expo project template,
-  Copyright (c) 2015-present 650 Industries, Inc. (aka Expo). MIT License.
 - Food composition values from USDA FoodData Central (SR Legacy),
   U.S. Department of Agriculture, Agricultural Research Service.
   Public domain (CC0 1.0).
