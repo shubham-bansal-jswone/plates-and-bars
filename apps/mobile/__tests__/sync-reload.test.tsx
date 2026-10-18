@@ -13,7 +13,7 @@ import { useRecipes } from '../src/recipes/useRecipes';
 import { useRules } from '../src/workout/useRules';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { openDb } from './sync-helpers';
+import { openDb, turns } from './sync-helpers';
 
 jest.mock('expo-router', () => ({ useFocusEffect: () => {} }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
@@ -75,7 +75,7 @@ describe('a pull makes the screens read SQLite again (dataVersion)', () => {
     await act(async () => result.current.add('Lunch', { name: 'typed meanwhile', qty: 1, kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }));
     g.release();
     await waitFor(async () => expect(await real.getAllAsync('SELECT key FROM food_logs')).toHaveLength(1));
-    await act(async () => void (await new Promise((r) => setTimeout(r, 50)))); // the held read lands (or is read again)
+    await act(async () => turns()); // the held read lands (or is read again)
     expect(result.current.logs.map((l) => l.name)).toEqual(['typed meanwhile']);
   });
 
@@ -123,18 +123,22 @@ describe('a pull makes the screens read SQLite again (dataVersion)', () => {
 describe('the wait for queued writes and the write counter matter', () => {
   it('Food: a reload started while a log is still being written shows the log (it waits for the queued write)', async () => {
     const real = await openDb();
-    // Every write takes a while, so the log is still unwritten when the reload starts reading.
+    // Writes wait for `open`, so the log is still unwritten when the reload starts reading.
+    let open!: () => void;
+    const hold = new Promise<void>((r) => (open = r));
     const slow = Object.assign(Object.create(real) as Db, {
       runAsync: async (...a: Parameters<Db['runAsync']>) => {
-        await new Promise((r) => setTimeout(r, 60));
+        await hold;
         return real.runAsync(...a);
       },
     });
     const { result, rerender } = await renderHook(({ k }: { k: number }) => useFoodDay({ db: slow, date: '2026-10-08', now: NOW, notify, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(result.current.ready).toBe(true));
     await act(async () => result.current.add('Lunch', { name: 'still writing', qty: 1, kcal: 1, protein_g: 1, carbs_g: 1, fat_g: 1 }));
-    await rerender({ k: 1 });
-    await act(async () => void (await new Promise((r) => setTimeout(r, 250))));
+    await rerender({ k: 1 }); // the reload starts and waits for the queued write
+    await act(async () => open());
+    await waitFor(async () => expect(await real.getAllAsync('SELECT key FROM food_logs')).toHaveLength(1));
+    await act(async () => turns()); // the reload reads now
     expect(result.current.logs.map((l) => l.name)).toEqual(['still writing']);
   });
 
@@ -150,7 +154,8 @@ describe('the wait for queued writes and the write counter matter', () => {
     await g.hit; // the reload has read "no workout today" and waits
     await act(async () => void (await result.current.start('Upper A', {}, null)));
     g.release();
-    await act(async () => void (await new Promise((r) => setTimeout(r, 80))));
+    await waitFor(async () => expect(await real.getFirstAsync("SELECT key FROM workouts WHERE key = '2026-10-08'")).not.toBeNull());
+    await act(async () => turns()); // the held read lands
     expect(result.current.day.workout?.base).toBe('Upper A');
     expect(result.current.day.exs.length).toBeGreaterThan(0);
     expect(await real.getFirstAsync("SELECT key FROM workouts WHERE key = '2026-10-08'")).not.toBeNull();
