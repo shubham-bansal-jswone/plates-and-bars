@@ -260,14 +260,18 @@ const NATIVE = [
   // TensorFlow Lite in LiteRT 1.4.0 (live pose tracking, #947). Checked 2026-10-19 against the AAR's libtensorflowlite_jni.so (arm64-v8a,
   // stripped, built with NDK r25 clang 14.0.6): build paths of external/ruy and external/KleidiAI, XNNPACK delegate and messages,
   // cpuinfo, gemmlowp and fft2d messages, EigenForTFLite and flatbuffers symbols, and a statically linked libc++ (no libc++_shared needed).
-  // pthreadpool, FP16 and FXdiv are XNNPACK's own dependencies and NEON_2_SSE is TensorFlow Lite's x86 NEON shim: listed from their
-  // build files, not visible by name in the stripped binary. The version is whatever LiteRT 1.4.0 pins; the notice is the upstream
+  // pthreadpool, FP16 and FXdiv are XNNPACK's own dependencies, NEON_2_SSE is TensorFlow Lite's x86 NEON shim, and farmhash and Abseil are
+  // deps of TensorFlow Lite's builtin kernels (tensorflow/lite/kernels/BUILD at v2.19.0: lsh_projection.cc is in the builtin kernel sources and
+  // its library depends on @farmhash_archive//:farmhash; absl strings, types:span, algorithm and base are deps of the core and kernel
+  // libraries): listed from their build files, not visible by name in the stripped binary. The version is whatever LiteRT 1.4.0 pins; the notice is the upstream
   // licence file as of that check.
   ['xnnpack', 'XNNPACK (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'BSD-3-Clause', 'https://github.com/google/XNNPACK', ['xnnpack.txt']],
   ['kleidiai', 'KleidiAI (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0 AND BSD-3-Clause', 'https://github.com/ARM-software/kleidiai', ['kleidiai-apache.txt', 'kleidiai-bsd.txt']], // the matmul kernels in the library carry Apache-2.0 headers; the repository also holds BSD-3-Clause files
   ['ruy', 'ruy (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0', 'https://github.com/google/ruy', ['apache-2.0.txt']],
   ['gemmlowp', 'gemmlowp (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0', 'https://github.com/google/gemmlowp', ['apache-2.0.txt']],
   ['flatbuffers', 'FlatBuffers (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0', 'https://github.com/google/flatbuffers', ['apache-2.0.txt']],
+  ['farmhash', 'FarmHash (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'MIT', 'https://github.com/google/farmhash', ['farmhash.txt']],
+  ['abseil', 'Abseil C++ (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0', 'https://github.com/abseil/abseil-cpp', ['apache-2.0.txt']],
   ['cpuinfo', 'cpuinfo (in XNNPACK)', 'bundled in litert 1.4.0', 'BSD-2-Clause', 'https://github.com/pytorch/cpuinfo', ['cpuinfo.txt']],
   ['pthreadpool', 'pthreadpool (in XNNPACK)', 'bundled in litert 1.4.0', 'BSD-2-Clause', 'https://github.com/google/pthreadpool', ['pthreadpool.txt']],
   ['fp16', 'FP16 (in XNNPACK)', 'bundled in litert 1.4.0', 'MIT', 'https://github.com/Maratyszcza/FP16', ['fp16.txt']],
@@ -308,7 +312,7 @@ const NATIVE_SO = {
   'libzxingcpp_android.so': ['zxing-cpp', 'libzueci', 'libcxx'],
   'libimage_processing_util_jni.so': ['libyuv'],
   'libsurface_util_jni.so': [],
-  'libtensorflowlite_jni.so': ['xnnpack', 'kleidiai', 'ruy', 'gemmlowp', 'flatbuffers', 'cpuinfo', 'pthreadpool', 'fp16', 'fxdiv', 'eigen-threadpool', 'fft2d', 'neon-2-sse', 'libcxx'],
+  'libtensorflowlite_jni.so': ['xnnpack', 'kleidiai', 'ruy', 'gemmlowp', 'flatbuffers', 'cpuinfo', 'pthreadpool', 'fp16', 'fxdiv', 'eigen-threadpool', 'fft2d', 'neon-2-sse', 'farmhash', 'abseil', 'libcxx'],
   'libworklets.so': ['worklets-queue'],
   'libreanimated.so': [],
   'libgesturehandler.so': [],

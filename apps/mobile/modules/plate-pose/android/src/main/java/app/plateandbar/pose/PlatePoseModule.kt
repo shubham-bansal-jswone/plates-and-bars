@@ -17,8 +17,8 @@ class PlatePoseModule : Module() {
     AsyncFunction("verifyModel") {
       val context = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "no_context", null)
       try {
-        val file = ModelFile.ensure(context)
-        mapOf("sha256" to ModelFile.sha256(file), "bytes" to file.length().toDouble())
+        val model = ModelFile.ensure(context)
+        mapOf("sha256" to model.sha256, "bytes" to model.file.length().toDouble())
       } catch (e: ModelFile.Mismatch) {
         throw CodedException("ERR_MODEL_HASH", "model_hash_mismatch", e)
       }

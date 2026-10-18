@@ -117,6 +117,17 @@ describe('the detector the camera view feeds', () => {
 });
 
 describe('the camera permission', () => {
+  it('asks with the pose rationale, not the barcode one', async () => {
+    const ask = jest.fn(async () => 'granted' as const);
+    await openNativeCamera(ask);
+    expect(ask).toHaveBeenCalledWith({
+      title: 'Camera for form tracking',
+      message: 'Plate & Bar uses the camera on this phone to count your reps. Nothing is recorded or sent.',
+      buttonPositive: 'Allow camera',
+      buttonNegative: 'Not now',
+    });
+  });
+
   it('gives a handle with no tracks when granted (the native view owns the camera)', async () => {
     const s = await openNativeCamera(async () => 'granted');
     expect(s.getTracks()).toEqual([]);

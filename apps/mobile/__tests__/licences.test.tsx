@@ -116,7 +116,7 @@ describe('Native component notices', () => {
   it('lists what is compiled into the LiteRT runtime for live pose tracking (#947), with upstream texts', async () => {
     const d = await loadLicences();
     const by = (n: string) => d.native.find((c) => c.name.startsWith(n))!;
-    for (const n of ['XNNPACK', 'KleidiAI', 'ruy', 'gemmlowp', 'FlatBuffers', 'cpuinfo', 'pthreadpool', 'FP16', 'FXdiv', 'Eigen thread pool', 'FFT package', 'ARM NEON']) {
+    for (const n of ['XNNPACK', 'KleidiAI', 'ruy', 'gemmlowp', 'FlatBuffers', 'cpuinfo', 'pthreadpool', 'FP16', 'FXdiv', 'Eigen thread pool', 'FFT package', 'ARM NEON', 'FarmHash', 'Abseil']) {
       expect(by(n).in).toEqual(['libtensorflowlite_jni.so']);
     }
     expect(by('LLVM libc++').in).toEqual(expect.arrayContaining(['libtensorflowlite_jni.so']));
@@ -124,6 +124,7 @@ describe('Native component notices', () => {
     expect(d.texts[by('cpuinfo').text!]).toContain('Copyright (C) 2010-2012 Marat Dukhan');
     expect(d.texts[by('Eigen thread pool').text!]).toContain('Mozilla Public License Version 2.0');
     expect(d.texts[by('FFT package').text!]).toContain('Takuya OOURA');
+    expect(d.texts[by('FarmHash').text!]).toContain('Copyright (c) 2014 Google, Inc.');
     expect(d.texts[by('KleidiAI').text!]).toContain('Version 2.0, January 2004');
     expect(d.texts[by('KleidiAI').text!]).toContain('Redistribution and use in source and binary forms');
   });

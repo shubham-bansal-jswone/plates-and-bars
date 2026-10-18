@@ -3,6 +3,8 @@ package app.plateandbar.pose
 import android.content.Context
 import java.io.File
 import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 /**
@@ -29,29 +31,48 @@ object ModelFile {
     return digest.digest().joinToString("") { "%02x".format(it) }
   }
 
+  /** A model file whose sha256 was checked: `sha256` is the value it was checked against. */
+  class Verified(val file: File, val sha256: String)
+
+  // One lock for the whole process: verifyModel() (module queue) and the view's analysis thread can both call ensure() on a first run.
+  private val lock = Any()
+  // What was last verified, so each start hashes the 4.7 MB file once at most: the same path, size and mtime are trusted again.
+  private var cachedPath: String? = null
+  private var cachedSize = -1L
+  private var cachedTime = -1L
+
   /** The verified model file in the app's private storage (not backed up, not shared). Copies the asset when the file is missing or wrong. */
-  fun ensure(context: Context): File {
+  fun ensure(context: Context): Verified {
     val dir = File(context.noBackupFilesDir, "plate-pose")
     return ensure(dir, expected = SHA256) { context.assets.open(ASSET) }
   }
 
   /** Testable core of [ensure]: `open` gives the bundled bytes. Throws [Mismatch] when what was copied does not hash to `expected`. */
-  fun ensure(dir: File, expected: String, open: () -> InputStream): File {
+  fun ensure(dir: File, expected: String, open: () -> InputStream): Verified = synchronized(lock) {
     dir.mkdirs()
     val target = File(dir, ASSET)
-    if (target.isFile && sha256(target) == expected) return target
-    val tmp = File(dir, "$ASSET.tmp")
-    open().use { src -> tmp.outputStream().use { out -> src.copyTo(out) } }
-    val actual = sha256(tmp)
-    if (actual != expected) {
+    if (target.isFile && cachedPath == target.path && cachedSize == target.length() && cachedTime == target.lastModified()) return Verified(target, expected)
+    if (target.isFile && sha256(target) == expected) return remember(target, expected)
+    // A unique temp name, then an atomic rename: a reader never sees a half-written model.
+    val tmp = File.createTempFile(ASSET, ".tmp", dir)
+    try {
+      open().use { src -> tmp.outputStream().use { out -> src.copyTo(out) } }
+      val actual = sha256(tmp)
+      if (actual != expected) {
+        target.delete()
+        throw Mismatch(actual)
+      }
+      Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+    } finally {
       tmp.delete()
-      target.delete()
-      throw Mismatch(actual)
     }
-    if (!tmp.renameTo(target)) {
-      target.delete()
-      if (!tmp.renameTo(target)) throw IllegalStateException("model_copy_failed")
-    }
-    return target
+    remember(target, expected)
+  }
+
+  private fun remember(target: File, expected: String): Verified {
+    cachedPath = target.path
+    cachedSize = target.length()
+    cachedTime = target.lastModified()
+    return Verified(target, expected)
   }
 }

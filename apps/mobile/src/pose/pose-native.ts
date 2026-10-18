@@ -4,6 +4,7 @@
 import type { PoseKeypoint } from '@plate-and-bar/core';
 import { verifyModel, type PoseFrame } from '../../modules/plate-pose';
 import { requestCamera } from '../barcode/permission';
+import { POSE_COPY as t } from './copy';
 import type { CameraStream, PoseDetector, PoseEstimate } from './types';
 
 /**
@@ -83,7 +84,8 @@ export async function createNativePoseDetector(verify: () => Promise<{ sha256: s
  * owns the camera once it mounts, so the handle only has nothing to stop. A refusal is a `NotAllowedError`, like the browser's.
  */
 export async function openNativeCamera(ask: typeof requestCamera = requestCamera): Promise<CameraStream> {
-  const p = await ask();
+  // The dialog says what this feature uses the camera for, not the barcode scanner's reason.
+  const p = await ask({ title: t.rationaleTitle, message: t.rationale, buttonPositive: t.allow, buttonNegative: t.notNow });
   if (p === 'granted') return { getTracks: () => [] };
   throw Object.assign(new Error(`camera_${p}`), { name: p === 'unavailable' ? 'NotFoundError' : 'NotAllowedError' });
 }

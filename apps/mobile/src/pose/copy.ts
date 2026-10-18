@@ -36,6 +36,10 @@ export const POSE_COPY = {
   modelFailed: 'The tracking model could not load. Check your connection and try again. Your set works the same without it.',
   modelFailedApp: 'The tracking model could not load. Your set works the same without it.',
   camera: 'Camera view',
+  rationaleTitle: 'Camera for form tracking',
+  rationale: 'Plate & Bar uses the camera on this phone to count your reps. Nothing is recorded or sent.',
+  allow: 'Allow camera',
+  notNow: 'Not now',
 } as const;
 
 function secs(ms: number): string {

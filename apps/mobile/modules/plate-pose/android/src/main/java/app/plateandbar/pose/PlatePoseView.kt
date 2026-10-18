@@ -84,8 +84,8 @@ class PlatePoseView(context: Context, appContext: AppContext) : ExpoView(context
     run = r
     r.executor.execute {
       try {
-        val file = ModelFile.ensure(context)
-        r.interpreter = Interpreter(file, Interpreter.Options().apply { setNumThreads(2) })
+        val model = ModelFile.ensure(context)
+        r.interpreter = Interpreter(model.file, Interpreter.Options().apply { setNumThreads(2) })
       } catch (e: Exception) {
         fail(r, if (e is ModelFile.Mismatch) "model_hash_mismatch" else "model_failed")
       }

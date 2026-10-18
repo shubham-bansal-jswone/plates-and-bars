@@ -68,6 +68,7 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
   const video = useRef<HTMLVideoElement | null>(null);
   const stream = useRef<CameraStream | null>(null);
   const inferenceFails = useRef(0);
+  const asking = useRef(false); // the camera permission request is open: its dialog pauses the app, which is not the user leaving
   const native = Platform.OS === 'android';
   const detector = useRef<PoseDetector | null>(null);
   const alive = useRef(true);
@@ -121,7 +122,9 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
     globalThis.document?.addEventListener?.('visibilitychange', onVisibility);
     globalThis.window?.addEventListener?.('pagehide', away);
     // Android: the app going to the background ends the set too (CameraX stops its frames then, which would only read as "out of view").
-    const app = Platform.OS === 'android' ? AppState.addEventListener('change', (state) => state !== 'active' && away()) : null;
+    // The system permission dialog pauses the activity and reports `background` too, so the request in flight is not "leaving",
+    // and nothing is running to end until the camera is granted.
+    const app = Platform.OS === 'android' ? AppState.addEventListener('change', (state) => state !== 'active' && !asking.current && stream.current && away()) : null;
     return () => {
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibility);
       globalThis.window?.removeEventListener?.('pagehide', away);
@@ -134,14 +137,17 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
     const live = () => alive.current && gen.current === mine;
     setPhase('starting');
     let s: CameraStream;
+    asking.current = true;
     try {
       s = await getStream();
     } catch (e) {
+      asking.current = false;
       if (!live()) return;
       setBlocked(blockedFor(e));
       setPhase('blocked');
       return;
     }
+    asking.current = false;
     if (!live()) return s.getTracks().forEach((tr) => tr.stop());
     stream.current = s;
     inferenceFails.current = 0;

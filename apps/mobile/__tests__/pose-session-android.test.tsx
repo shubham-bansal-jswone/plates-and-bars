@@ -29,7 +29,8 @@ jest.mock('../modules/plate-pose', () => {
   };
 });
 let mockPermission: CameraPermission = 'granted';
-jest.mock('../src/barcode/permission', () => ({ requestCamera: () => Promise.resolve(mockPermission), checkCamera: () => Promise.resolve(mockPermission) }));
+let mockAnswer: Promise<CameraPermission> | null = null; // a test sets this to hold the permission dialog open
+jest.mock('../src/barcode/permission', () => ({ requestCamera: () => mockAnswer ?? Promise.resolve(mockPermission), checkCamera: () => Promise.resolve(mockPermission) }));
 
 const OS = Platform.OS;
 const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
@@ -59,6 +60,7 @@ beforeEach(() => {
   unmounts = 0;
   mockSha = MODEL_SHA256;
   mockPermission = 'granted';
+  mockAnswer = null;
 });
 afterEach(() => void (Platform.OS = OS));
 
@@ -196,6 +198,46 @@ describe('PoseSession on Android: frames from the native view', () => {
       await screen.findByText('Rep 1');
       await act(async () => listener!('background'));
       expect(screen.getByText('Counted 1 rep. 1 reached about parallel.')).toBeTruthy();
+      expect(screen.queryByTestId('pose-camera')).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('the permission dialog pauses the app: a background event while it is open does not cancel the start, and the camera runs after the grant', async () => {
+    let listener: ((s: string) => void) | undefined;
+    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation(((_: string, l: (s: string) => void) => {
+      listener = l;
+      return { remove: jest.fn() };
+    }) as never);
+    try {
+      let grant!: (p: CameraPermission) => void;
+      mockAnswer = new Promise((r) => (grant = r));
+      await mount();
+      await press('Start camera');
+      await act(async () => listener!('background')); // what Android reports when the dialog opens
+      await act(async () => listener!('active'));
+      await act(async () => grant('granted'));
+      expect(await screen.findByTestId('pose-camera')).toBeTruthy();
+      expect(await screen.findByText('No reps yet')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Start camera' })).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('once the camera is running, background still ends a start that is loading the model', async () => {
+    let listener: ((s: string) => void) | undefined;
+    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation(((_: string, l: (s: string) => void) => {
+      listener = l;
+      return { remove: jest.fn() };
+    }) as never);
+    try {
+      await mount({ load: () => new Promise(() => {}) });
+      await press('Start camera');
+      await screen.findByTestId('pose-camera');
+      await act(async () => listener!('background'));
+      expect(screen.getByRole('button', { name: 'Start camera' })).toBeTruthy();
       expect(screen.queryByTestId('pose-camera')).toBeNull();
     } finally {
       spy.mockRestore();
