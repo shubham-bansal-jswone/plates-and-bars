@@ -6,7 +6,7 @@ import { refreshSession } from '../sync/engine';
 import { OwnerChanged, wipeLocalStore, withSyncPaused } from '../sync/guard';
 import { KEY_SERVER_DELETED, getKv, getUserId, setKv } from '../sync/store';
 import type { Tokens } from '../secure/tokens';
-import { forgetInstallId } from '../telemetry/errors';
+import { forgetInstallId } from '../telemetry/installId';
 import type { TokenStore } from '../sync/tokens';
 
 type Db = StoreDb & PullDb;
