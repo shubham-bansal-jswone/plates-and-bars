@@ -9,7 +9,8 @@ image="caddy:2.11.7" # keep in step with infra/staging/docker-compose.yml
 tmp="$(mktemp -d)"
 cid=""
 ecid=""
-cleanup() { [ -z "$cid" ] || docker rm -f "$cid" > /dev/null 2>&1 || true; [ -z "$ecid" ] || docker rm -f "$ecid" > /dev/null 2>&1 || true; rm -rf "$tmp"; }
+wcid=""
+cleanup() { for c in "$cid" "$ecid" "$wcid"; do [ -z "$c" ] || docker rm -f "$c" > /dev/null 2>&1 || true; done; rm -rf "$tmp"; }
 trap cleanup EXIT
 fail() { echo "FAIL: $*"; exit 1; }
 
@@ -128,5 +129,48 @@ while IFS= read -r bline; do
   done
   printf '%s' "$bline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "barcode log: remote_ip not masked: $bline"
 done <<< "$blines"
+# Cut-off upstream response (the reverse_proxy WARN "aborting with incomplete response") and Hosts that are not in Caddy's per-host
+# log map (upper case, an unknown host): both lines carry the request and must be filtered like the access log. The upstream is a
+# busybox nc loop inside the container: /api/v1/health gets a full 200, everything else announces 100000 bytes and sends 3.
+cat > "$tmp/upstream.sh" <<'SH'
+#!/bin/sh
+read -r line
+while read -r h; do [ "$h" = "$(printf '\r')" ] && break; [ -z "$h" ] && break; done
+case "$line" in
+  *"/api/v1/health"*) printf 'HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok' ;;
+  *) printf 'HTTP/1.1 200 OK\r\nContent-Length: 100000\r\nConnection: close\r\n\r\nabc' ;;
+esac
+SH
+chmod a+rx "$tmp/upstream.sh"
+wcid="$(docker run -d -p 127.0.0.1::8083 -e 'API_HOST=http://api.test:8083' -e 'WEB_HOST=http://:8084' -e API_UPSTREAM=127.0.0.1:9000 \
+  -v "$here/../caddy:/etc/caddy/sites:ro" -v "$tmp/web:/srv/web:ro" -v "$tmp/upstream.sh:/upstream.sh:ro" --entrypoint sh "$image" \
+  -c 'while true; do nc -l -p 9000 -e /bin/sh /upstream.sh; done & exec caddy run --config /etc/caddy/sites/Caddyfile.stack --adapter caddyfile')"
+wport="$(docker port "$wcid" 8083/tcp | head -n 1 | sed 's/.*://')"
+for _ in $(seq 1 30); do
+  curl -s -o /dev/null "http://127.0.0.1:$wport/nothing" && break
+  sleep 1
+done
+sleep 2 # the first health check of the upstream
+for host in api.test:8083 API.TEST:8083 other.test:8083; do
+  printf 'Host: %s\nUser-Agent: sekrit-agent\nX-Forwarded-For: 203.0.113.77\n' "$host" > "$tmp/w-headers"
+  curl -s -o /dev/null -H "@$tmp/w-headers" "http://127.0.0.1:$wport/api/v1/foods/barcode/5449000000996?h=1" || true # the cut-off body makes curl exit 18
+done
+wlines=""
+for _ in $(seq 1 10); do
+  wlines="$(docker logs "$wcid" 2>&1 | grep -E '"logger":"(http.handlers.reverse_proxy|http.log.access)"' | grep -F 'foods/barcode' || true)"
+  [ "$(printf '%s\n' "$wlines" | grep -c .)" -ge 4 ] && break
+  sleep 1
+done
+# 2 cut-off WARN lines (api.test, API.TEST) and 3 default-log access lines (the mapped host is in api_access.log, not here: 2 here)
+printf '%s\n' "$wlines" | grep -q 'aborting with incomplete response' || fail "reverse_proxy WARN: no 'aborting with incomplete response' line: $wlines"
+printf '%s\n' "$wlines" | grep -q '"logger":"http.log.access"' || fail "default log: no access line for the unmapped hosts: $wlines"
+while IFS= read -r wline; do
+  [ -n "$wline" ] || continue
+  printf '%s' "$wline" | grep -Eq '"uri":"/api/v1/foods/barcode/\{code\}"' || fail "reverse_proxy/default log: uri is not /foods/barcode/{code}: $wline"
+  for secret in 5449 203.0.113 sekrit h=1; do
+    case "$wline" in *"$secret"*) fail "reverse_proxy/default log leaks '$secret': $wline" ;; esac
+  done
+  printf '%s' "$wline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "reverse_proxy/default log: remote_ip not masked: $wline"
+done <<< "$wlines"
 echo "Caddyfile.stack error log tests passed"
 echo "Caddyfile.web serving tests passed"

@@ -46,6 +46,20 @@ for kind in api web; do
   mutate "$kind" "roll_size removed" '/roll_size/d'
   mutate "$kind" "file output removed" 's/output file .*{/output stderr {/'
 done
+# The global `log default` block (access lines for a Host missing from Caddy's per-host log map): gone, or missing one
+# filter inside the block only (the same filter elsewhere in the file must not satisfy it)
+for kind in stack site; do
+  mutate "$kind" "log default block removed" '/^\tlog default {/,/^\t}$/d'
+  mutate "$kind" "log default without stderr output" '/^\tlog default {/,/^\t}$/{/output stderr/d;}'
+  mutate "$kind" "log default without remote_ip mask" '/^\tlog default {/,/^\t}$/{/request>remote_ip ip_mask/,/^\t\t\t}$/d;}'
+  mutate "$kind" "log default without client_ip mask" '/^\tlog default {/,/^\t}$/{/request>client_ip ip_mask/,/^\t\t\t}$/d;}'
+  mutate "$kind" "log default without query cut" '/^\tlog default {/,/^\t}$/{/request>uri regexp/d;}'
+  mutate "$kind" "log default keeps request headers" '/^\tlog default {/,/^\t}$/{/request>headers delete/d;}'
+  mutate "$kind" "log default keeps response headers" '/^\tlog default {/,/^\t}$/{/resp_headers delete/d;}'
+done
+mutate stack "log default without the barcode rule" '/^\tlog default {/,/^\t}$/{/foods\/barcode/d;}'
+mutate glitchtip "log default block removed" '/^\tlog default {/,/^\t}$/d'
+mutate glitchtip "log default keeps request headers" '/^\tlog default {/,/^\t}$/{/request>headers delete/d;}'
 mutate stack "error log not included" '/include http.log.error/d'
 mutate stack "reverse_proxy logger not included" 's/ http.handlers.reverse_proxy//'
 mutate stack "reverse_proxy logger included alone" 's/include http.log.error http.handlers.reverse_proxy/include http.handlers.reverse_proxy/'

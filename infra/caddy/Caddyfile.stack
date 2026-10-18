@@ -5,7 +5,9 @@
 # (docker compose logs caddy). It lives here because a global options block must be first in the file Caddy loads and
 # cannot sit in an imported file. It also takes the reverse_proxy logger (http.handlers.reverse_proxy): its WARN
 # "aborting with incomplete response" carries the request (URI, IP, query, User-Agent) and would otherwise go unfiltered to
-# the default log; a logger named in an include is dropped from the default log by Caddy itself. Using Caddyfile.api or .web alone: copy this block to the top of that file.
+# the default log; a logger named in an include is dropped from the default log by Caddy itself. Using Caddyfile.api or .web alone: copy both blocks to the top of that file.
+# The `log default` block below carries the same filters for lines no named log claims (an access line for a Host that is not in
+# Caddy's per-host log map: upper case, trailing dot, unknown host).
 {
 	log errors {
 		output stderr
@@ -25,6 +27,26 @@
 			resp_headers delete
 		}
 		include http.log.error http.handlers.reverse_proxy
+	}
+	# Default log: every request-bearing line not claimed by a named log above, for example an access line whose Host is not in
+	# Caddy's per-host log map (upper case, trailing dot, unknown host), gets the same filters instead of going out raw.
+	log default {
+		output stderr
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "\?.*$" ""
+			request>uri regexp "(?i)(/foods/barcode)(?:/|%2f).+$" "${1}/{code}"
+			request>headers delete
+			resp_headers delete
+		}
 	}
 }
 
