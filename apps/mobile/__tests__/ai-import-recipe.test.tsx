@@ -330,6 +330,17 @@ describe('a reply nobody is waiting for is dropped', () => {
     expect(screen.getByLabelText('Import')).toBeTruthy();
   });
 
+  it('the photo buttons are not usable while an import runs, so a running import is never thrown away', async () => {
+    const { resolve, POST } = await pending();
+    expect(screen.queryByLabelText('Add a photo of the recipe from your gallery')).toBeNull();
+    expect(screen.queryByLabelText('Take a photo of the recipe')).toBeNull();
+    expect(mockPicker.calls).toEqual([]);
+    await act(async () => resolve(ok()));
+    expect(await screen.findByDisplayValue('Dal tadka')).toBeTruthy();
+    expect(POST).toHaveBeenCalledTimes(1);
+    expect(mockPicker.calls).toEqual([]);
+  });
+
   it('a change made to the builder while it was reading is not rolled back by the answer', async () => {
     const { resolve } = await pending();
     await fireEvent.press(screen.getByLabelText('Dinner'));

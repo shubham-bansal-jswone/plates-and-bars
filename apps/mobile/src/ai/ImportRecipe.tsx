@@ -50,6 +50,8 @@ export function ImportRecipe({ known, onDraft }: { known: ReadonlySet<string>; o
     setError(null);
   };
   const pick = async (source: 'camera' | 'library') => {
+    // Never while a request (or another pick) is out: starting one would throw away an import that has already used quota.
+    if (req.pending()) return;
     setError(null);
     const t = req.begin();
     try {
@@ -83,11 +85,13 @@ export function ImportRecipe({ known, onDraft }: { known: ReadonlySet<string>; o
       <Label>{AI_COPY.importTitle}</Label>
       <Field label={AI_COPY.importTextLabel} placeholder={AI_COPY.importPlaceholder} multiline maxLength={TEXT_MAX} value={text} onChangeText={setText} />
       {image ? <Image source={{ uri: `data:${image.media_type};base64,${image.data}` }} accessibilityLabel="Your recipe photo" resizeMode="cover" style={[styles.preview, { backgroundColor: c.surfaceSoft }]} /> : null}
+      {busy ? null : (
       <View style={styles.row}>
         <Button kind="ghost" label={image ? AI_COPY.importPhotoAdded : AI_COPY.importAddPhoto} a11yLabel={image ? 'Photo added, choose a different photo' : 'Add a photo of the recipe from your gallery'} onPress={() => void pick('library')} />
         <Button kind="ghost" label={AI_COPY.photoTake} a11yLabel="Take a photo of the recipe" onPress={() => void pick('camera')} />
         {image ? <Button kind="link" label={AI_COPY.importRemovePhoto} onPress={() => setImage(null)} /> : null}
       </View>
+      )}
       {exhausted ? <ErrorText>{failureMessage({ kind: 'quota', quota: ai.quota }, AI_COPY.importFallback)}</ErrorText> : error ? <ErrorText>{error}</ErrorText> : null}
       <View style={styles.row}>
         {exhausted ? null : <Button label={busy ? AI_COPY.importBusy : AI_COPY.importGo} a11yLabel={AI_COPY.importGo} busy={busy} onPress={() => void go()} />}
