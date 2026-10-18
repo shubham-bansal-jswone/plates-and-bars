@@ -1,8 +1,8 @@
 /** @jest-environment node */
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { initDb } from '../src/db/initDb';
 
-// The order of startup work matters: error tracking reads pb.install_id, so it must not start before a reinstall's keystore clear.
+// The order of startup work matters: error tracking starts at module load with no user, and the install id (read from the
+// keystore) is attached only after a reinstall's keystore clear.
 const mockLog: string[] = [];
 const mockFail = { clear: false, migrate: false };
 const mockInit = jest.fn();
@@ -37,6 +37,18 @@ function newDb(): SQLiteDatabase {
 }
 const installIdReads = () => mockLog.filter((l) => l === 'read pb.install_id').length;
 
+type Mods = { initDb: (db: SQLiteDatabase) => Promise<void>; initErrorTracking: () => boolean };
+/** Fresh modules, as after an app start (error tracking keeps a "started" flag). */
+function load(): Mods {
+  let m: Mods | undefined;
+  jest.isolateModules(() => {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    m = { initDb: (require('../src/db/initDb') as Mods).initDb, initErrorTracking: (require('../src/telemetry/errors') as Mods).initErrorTracking };
+    /* eslint-enable @typescript-eslint/no-require-imports */
+  });
+  return m as Mods;
+}
+
 beforeEach(() => {
   mockLog.length = 0;
   mockFail.clear = false;
@@ -47,32 +59,47 @@ beforeEach(() => {
 afterAll(() => delete process.env.EXPO_PUBLIC_SENTRY_DSN);
 
 describe('initDb order', () => {
-  it('a reinstall: migrate, clear the four keys, only then start error tracking, which then reads the (new) install id', async () => {
+  it('a reinstall: tracking is already on (no user, no keystore read), then migrate, clear the four keys, and only then the install id is read', async () => {
+    const { initDb, initErrorTracking } = load();
+    initErrorTracking(); // as at module load of the layout
+    expect(mockLog).toEqual(['sentry.init']);
     await initDb(newDb());
     const at = (l: string) => mockLog.indexOf(l);
+    expect(at('sentry.init')).toBeLessThan(at('migrate'));
     expect(at('migrate')).toBeLessThan(at('delete pb.access_token'));
-    for (const k of ['pb.access_token', 'pb.refresh_token', 'pb.photo_key', 'pb.install_id']) expect(at(`delete ${k}`)).toBeLessThan(at('sentry.init'));
-    expect(at('sentry.init')).toBeLessThan(at('read pb.install_id'));
-    expect(at('sentry.init')).toBeLessThan(at('loadContent'));
+    for (const k of ['pb.access_token', 'pb.refresh_token', 'pb.photo_key', 'pb.install_id']) expect(at(`delete ${k}`)).toBeLessThan(at('read pb.install_id'));
+    expect(at('read pb.install_id')).toBeLessThan(at('loadContent'));
+    expect(mockInit).toHaveBeenCalledTimes(1);
     expect(mockCapture).not.toHaveBeenCalled();
   });
 
-  it('every attempt at the clear failed: tracking starts without reading the stored id, and the failure is reported without text or id', async () => {
+  it('every attempt at the clear failed: the stored id is never read, and the failure is reported without text or id', async () => {
     mockFail.clear = true;
+    const { initDb, initErrorTracking } = load();
+    initErrorTracking();
     await initDb(newDb());
-    await new Promise((r) => setTimeout(r, 10));
-    expect(mockInit).toHaveBeenCalledTimes(1);
     expect(installIdReads()).toBe(0);
     expect(mockCapture).toHaveBeenCalledTimes(1);
     expect(mockCapture.mock.calls[0]![0]).toMatchObject({ name: 'KeystoreResetError' });
   });
 
-  it('the store could not be prepared: tracking starts without the stored id, the error is rethrown', async () => {
+  it('the store could not be prepared: the error is rethrown, tracking is on and no id was read', async () => {
     mockFail.migrate = true;
+    const { initDb, initErrorTracking } = load();
+    initErrorTracking();
     await expect(initDb(newDb())).rejects.toThrow('disk');
-    await new Promise((r) => setTimeout(r, 10));
     expect(mockInit).toHaveBeenCalledTimes(1);
     expect(installIdReads()).toBe(0);
     expect(mockLog).not.toContain('loadContent');
+  });
+
+  it('a provider remount runs initDb again without starting the SDK again', async () => {
+    const { initDb, initErrorTracking } = load();
+    initErrorTracking();
+    const db = newDb();
+    await initDb(db);
+    initErrorTracking();
+    await initDb(db);
+    expect(mockInit).toHaveBeenCalledTimes(1);
   });
 });

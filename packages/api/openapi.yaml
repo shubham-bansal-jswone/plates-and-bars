@@ -1,15 +1,15 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.22
+  version: 0.1.23
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
     food maths) runs on the phone in `packages/core`.
 
     Scope: auth, sync, food search, content bundles (`/content/*`), health, account
-    rights (`GET /me/export`, `DELETE /me`) and the AI calls (`/ai/*`: text calls in v1, image calls
-    in v1.1).
+    rights (`GET /me/export`, `DELETE /me`), the AI calls (`/ai/*`: text calls in v1, image calls
+    in v1.1) and the barcode lookup (`GET /foods/barcode/{code}`, Open Food Facts, ADR 009).
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
@@ -158,7 +158,15 @@ tags:
   - name: sync
     description: Offline-first sync of user-owned records.
   - name: foods
-    description: Shared food database search.
+    description: |
+      Shared food database search and the barcode lookup. `GET /foods/barcode/{code}` is
+      public (no sign-in) and online-only. The server asks Open Food Facts for one barcode
+      at a time and keeps the answer in a per-barcode cache; there is no list, search or
+      bulk endpoint for that data (ADR 009). It never sends the caller's IP, name or
+      account upstream. The API does not log the barcode. The barcode is a path segment,
+      so this holds for the access log only once the reverse proxy redacts
+      `/foods/barcode/<digits>` (an infra step of #944, done before the backend proxy
+      ships).
   - name: account
     description: Account rights for the signed-in user (export and deletion).
   - name: system
@@ -1104,6 +1112,172 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/Internal'
+
+  /foods/barcode/{code}:
+    get:
+      tags: [foods]
+      operationId: getFoodByBarcode
+      summary: Look up one packaged food by barcode (Open Food Facts)
+      security: []
+      description: |
+        Returns a trimmed subset of the Open Food Facts product for one barcode, so the app
+        can show a review screen. The server maps nothing: turning this into a `UserFood`
+        (per-serving values, kJ to kcal, missing fields) is a rule in `packages/core`.
+        Public like `/content/*`. Needs a connection; a barcode the user already saved is found
+        locally (`UserFood.barcode`) with no call.
+
+        **Limits and order of checks.** This operation allows 20 requests per minute per
+        client IP. Calls from the server to Open Food Facts share one limit of 12 per
+        minute (Open Food Facts allows 15 per minute per IP). The server checks, in this
+        order: (1) the per-IP limit, 429 `rate_limited`, so invalid codes count toward it; (2)
+        the code's pattern and GS1 check digit, 400 `invalid_barcode`; (3) the cache, a hit (found or not found) is
+        answered with no upstream call; (4) the upstream limit, 503 `upstream_busy` with
+        `Retry-After`. Cache hits and 400s never use the upstream limit.
+
+        **Code.** Digits only, length 8, 12 or 13, with a valid GS1 mod-10 check digit
+        (`test-vectors/barcode-gs1.json`). 8 digits is EAN-8 (GTIN-8); 12 is UPC-A; 13 is
+        EAN-13. GTIN-14 is not accepted. A UPC-E code (8 digits on the pack) must be expanded to its
+        12-digit UPC-A by the client first. A code that fails the length or check digit is
+        400 `invalid_barcode`, with no upstream call.
+
+        **404 `not_found`.** Open Food Facts has no such product, or has it with no
+        nutrition values at all. Also cached (a miss for 24 hours; a hit for 30 days).
+
+        **Data.** Community-contributed and unchecked: the app must show it as such and let
+        the user edit every number. Strings are trimmed, stripped of control characters and
+        length-capped; only the fields below are ever returned. No images. A nutriment or
+        `serving_quantity` value from Open Food Facts that is negative, not a finite number
+        or not numeric is dropped and treated as missing (never clamped or set to zero); a
+        numeric string such as "12.5" is read as that number.
+
+        **Licence.** Every 200 carries `source` (code `open_food_facts`, ODbL 1.0 / DbCL
+        1.0, link to the product page); the app shows that credit on each scanned food.
+
+        **503.** `upstream_unavailable`: Open Food Facts failed, timed out or answered
+        with an error. `upstream_busy`: the server's shared limit of 12 calls per minute to
+        Open Food Facts is used up; `Retry-After` says when to retry. The app offers manual entry.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: The barcode digits. See above for the accepted lengths and check digit.
+          schema:
+            $ref: '#/components/schemas/Barcode'
+          example: '8901491101837'
+      responses:
+        '200':
+          description: The product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OffProduct'
+              examples:
+                default:
+                  summary: Per-100 g values only, no serving size
+                  value:
+                    code: '8901491101837'
+                    name: India's Magic Masala
+                    brands: Lay's
+                    quantity: 50g
+                    serving_size: null
+                    serving_quantity: null
+                    nutrition_data_per: 100g
+                    nutriments:
+                      energy-kcal_100g: 554
+                      energy-kj_100g: 2311.4
+                      proteins_100g: 6.5
+                      carbohydrates_100g: 52
+                      fat_100g: 35
+                      fiber_100g: 3.5
+                    completeness: 0.8875
+                    states_tags: [en:nutrition-facts-completed]
+                    data_quality_errors_tags: []
+                    countries_tags: [en:india]
+                    last_modified_at: '2026-06-02T09:14:31Z'
+                    source:
+                      code: open_food_facts
+                      name: Open Food Facts
+                      licence: ODbL 1.0 / DbCL 1.0
+                      url: https://world.openfoodfacts.org/product/8901491101837
+                      reference: '8901491101837'
+                per_serving:
+                  summary: Per-serving values with a serving size in grams
+                  value:
+                    code: '5000159407236'
+                    name: Milk chocolate bar
+                    brands: Example Brand
+                    quantity: 45g
+                    serving_size: 1 bar (45 g)
+                    serving_quantity: 45
+                    nutrition_data_per: serving
+                    nutriments:
+                      energy-kcal_100g: 534
+                      energy-kcal_serving: 240
+                      proteins_100g: 7.6
+                      proteins_serving: 3.4
+                      carbohydrates_100g: 57
+                      carbohydrates_serving: 25.7
+                      fat_100g: 30
+                      fat_serving: 13.5
+                      added-sugars_100g: 54
+                    completeness: 0.95
+                    states_tags: [en:nutrition-facts-completed]
+                    data_quality_errors_tags: []
+                    countries_tags: [en:united-kingdom]
+                    last_modified_at: '2026-03-14T18:02:11Z'
+                    source:
+                      code: open_food_facts
+                      name: Open Food Facts
+                      licence: ODbL 1.0 / DbCL 1.0
+                      url: https://world.openfoodfacts.org/product/5000159407236
+                      reference: '5000159407236'
+        '400':
+          description: The code is not a valid barcode (length or check digit).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: invalid_barcode
+                    message: That is not a valid barcode. Check the digits.
+        '404':
+          description: Open Food Facts has no usable product for this barcode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                default:
+                  value:
+                    code: not_found
+                    message: No product found for this barcode.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          description: Open Food Facts could not be reached, or the server's own limit on calls to it is used up.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying. Always present on `upstream_busy`; may be absent on `upstream_unavailable`.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                upstream_unavailable:
+                  value:
+                    code: upstream_unavailable
+                    message: Open Food Facts is not answering. Try again later or enter the food by hand.
+                upstream_busy:
+                  value:
+                    code: upstream_busy
+                    message: Open Food Facts is busy. Try again in a minute.
 
   /health:
     get:
@@ -2479,11 +2653,19 @@ components:
             - feature_disabled
             - account_full
             - forbidden
+            - invalid_barcode
+            - upstream_unavailable
+            - upstream_busy
           description: |
             Stable machine-readable code. `token_expired`: refresh the access token and
             retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
             or expired. `not_found` (404): the named resource does not exist; today only
-            `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
+            `GET /content/{bundle}` for a bundle not in the manifest, and
+            `GET /foods/barcode/{code}` for a barcode Open Food Facts has no usable product
+            for. `invalid_barcode` (400, `GET /foods/barcode/{code}` only): the code fails
+            the length or GS1 check digit. `upstream_unavailable` and `upstream_busy` (503,
+            `GET /foods/barcode/{code}` only): Open Food Facts failed, or the server's own
+            limit on calls to it is used up (`Retry-After` is set). `quota_exceeded` (429): the daily AI quota is used up until
             `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
             the server; use the non-AI fallback. `account_full` (413, `POST /sync` only):
             the push would take the account over its record cap; nothing was applied (see
@@ -2832,19 +3014,22 @@ components:
       type: object
       description: |
         Where a row's values come from. Only the sources listed in ADR 005
-        (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed.
+        (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed, plus Open Food
+        Facts for barcode lookups only (ADR 009).
       required: [code, name, licence, url, reference]
       properties:
         code:
           type: string
-          enum: [usda_fdc, fssai, own_recipe, kitchen_test, label_typical, own_estimate]
+          enum: [usda_fdc, fssai, own_recipe, kitchen_test, label_typical, own_estimate, open_food_facts]
           description: |
             `usda_fdc`: USDA FoodData Central. `fssai`: values derived from FSSAI standards
             (paneer, curd, milk). `own_recipe`: calculated from our recipes. `kitchen_test`:
             weighed in our kitchen tests. `label_typical`: packaged foods using typical
             nutrition-label values across common brands; in the prototype these are whey
             protein, Greek yogurt and makhana. `own_estimate`: our own rough estimate, not
-            weighed or cooked to a recipe (for example restaurant dishes).
+            weighed or cooked to a recipe (for example restaurant dishes). `open_food_facts`:
+            a community-contributed product from Open Food Facts (ODbL 1.0 / DbCL 1.0, ADR
+            009); only `GET /foods/barcode/{code}` returns it, never `/foods` or `content/`.
         name:
           type: string
           examples: [USDA FoodData Central (SR Legacy), Typical label values (packaged food)]
@@ -2857,6 +3042,129 @@ components:
         reference:
           type: [string, 'null']
           description: Identifier in the source, such as a USDA FDC id.
+
+    Barcode:
+      type: string
+      description: |
+        Digits of a barcode: 8 (EAN-8), 12 (UPC-A) or 13 (EAN-13) with a valid
+        GS1 mod-10 check digit. The pattern checks length and digits only; the check digit
+        is checked separately (`test-vectors/barcode-gs1.json`).
+      pattern: '^([0-9]{8}|[0-9]{12,13})$'
+      examples: ['8901491101837']
+
+    OffNutriments:
+      type: object
+      description: |
+        The only nutriment keys the server returns, numbers as Open Food Facts gives them
+        (the key names are Open Food Facts', so hyphens stay). Energy `-kcal_` is kilocalories
+        and `-kj_` is kilojoules; the rest are grams, and `_100g` is per 100 g (or 100 ml)
+        while `_serving` is per serving. A key is absent when Open Food Facts has no value,
+        so absence is not zero. `sugars` (total sugars) and bare `energy` (kilojoules) are
+        deliberately not here.
+      additionalProperties: false
+      properties:
+        energy-kcal_100g: { type: number, minimum: 0 }
+        energy-kj_100g: { type: number, minimum: 0 }
+        proteins_100g: { type: number, minimum: 0 }
+        carbohydrates_100g: { type: number, minimum: 0 }
+        fat_100g: { type: number, minimum: 0 }
+        fiber_100g: { type: number, minimum: 0 }
+        added-sugars_100g: { type: number, minimum: 0 }
+        energy-kcal_serving: { type: number, minimum: 0 }
+        energy-kj_serving: { type: number, minimum: 0 }
+        proteins_serving: { type: number, minimum: 0 }
+        carbohydrates_serving: { type: number, minimum: 0 }
+        fat_serving: { type: number, minimum: 0 }
+        fiber_serving: { type: number, minimum: 0 }
+        added-sugars_serving: { type: number, minimum: 0 }
+
+    OffProduct:
+      type: object
+      description: |
+        A trimmed subset of an Open Food Facts product (ADR 009). Community data, unchecked.
+        Text is untrusted: show it as text, never interpret it.
+
+        `code` is always the code from the request path, unchanged (Open Food Facts may
+        store a UPC-A as 13 digits with a leading 0; the server does not pass that
+        through), so the app can save it as `UserFood.barcode` and find it again locally.
+
+        Field names are this contract's, not Open Food Facts': `name` (OFF `product_name`),
+        `brands`, `quantity`, `serving_size`, `serving_quantity` (grams or millilitres),
+        `nutrition_data_per`, `nutriments`, `completeness`, `states_tags`,
+        `data_quality_errors_tags`, `countries_tags`, and `last_modified_at` (OFF
+        `last_modified_t` converted to ISO 8601 UTC). Only the `nutriments` keys keep OFF's
+        own names.
+      additionalProperties: false
+      required:
+        - code
+        - name
+        - brands
+        - quantity
+        - serving_size
+        - serving_quantity
+        - nutrition_data_per
+        - nutriments
+        - completeness
+        - states_tags
+        - data_quality_errors_tags
+        - countries_tags
+        - last_modified_at
+        - source
+      properties:
+        code:
+          $ref: '#/components/schemas/Barcode'
+        name:
+          type: [string, 'null']
+          maxLength: 200
+          description: Product name; null or empty when Open Food Facts has none (the user types one).
+        brands:
+          type: [string, 'null']
+          maxLength: 200
+          description: Comma-separated brands as Open Food Facts gives them.
+        quantity:
+          type: [string, 'null']
+          maxLength: 100
+          description: Pack size as printed, e.g. "50g" or "1 l".
+        serving_size:
+          type: [string, 'null']
+          maxLength: 100
+          description: Serving as printed, e.g. "1 bar (45 g)".
+        serving_quantity:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          description: Serving size in grams (or millilitres for drinks); null when unknown.
+        nutrition_data_per:
+          type: [string, 'null']
+          enum: [100g, serving, null]
+          description: What the pack's own nutrition table is printed per. The `_100g` values are present either way.
+        nutriments:
+          $ref: '#/components/schemas/OffNutriments'
+        completeness:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: Open Food Facts' own completeness score of the entry.
+        states_tags:
+          type: array
+          maxItems: 50
+          items: { type: string, maxLength: 100 }
+          description: Open Food Facts state tags, e.g. `en:nutrition-facts-completed`.
+        data_quality_errors_tags:
+          type: array
+          maxItems: 50
+          items: { type: string, maxLength: 100 }
+          description: Open Food Facts data quality error tags; non-empty means the entry has known problems.
+        countries_tags:
+          type: array
+          maxItems: 50
+          items: { type: string, maxLength: 100 }
+          description: Countries the product is sold in, e.g. `en:india`.
+        last_modified_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the entry was last edited upstream. Open Food Facts sends epoch seconds (`last_modified_t`); the server converts.
+        source:
+          $ref: '#/components/schemas/FoodSource'
 
     # ---------- sync envelope ----------
     SyncRequest:
@@ -4238,6 +4546,15 @@ components:
             name:
               type: string
               maxLength: 200
+            barcode:
+              type: [string, 'null']
+              pattern: '^([0-9]{8}|[0-9]{12,13})$'
+              description: |
+                Optional. Set when the food was made from a barcode scan (Open Food Facts);
+                the app then shows the Open Food Facts credit on it and finds it again
+                without a network call. `origin` stays `custom`. Absent or null on every
+                other food, and on rows from older clients. Same digits as
+                `GET /foods/barcode/{code}`.
             unit:
               type: string
               maxLength: 100
