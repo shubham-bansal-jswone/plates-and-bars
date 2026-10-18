@@ -12,6 +12,7 @@ Specs (one concern each, every test starts with an empty browser profile):
 - `food-plan.spec.mjs`: a planned meal's "Log it" (offline, once, survives a reload, and belongs to the day shown).
 - `photos.spec.mjs`: progress photos on web (no camera, choose a photo, delete asks twice, cancelling the picker).
 - `workout-edit.spec.mjs`: Add exercise, a typed exercise with muscle tags, Can't do and Remove exercise, offline, each checked again after a reload.
+- `workout-360.spec.mjs`: the Workout screen with a started session and a ticked set has no sideways scroll at 360x640 (#900).
 - `sheet-focus.spec.mjs`: a sheet opens with focus on its title and gives focus back to the opener on Escape (#661).
 - `a11y.spec.mjs`: axe-core on the main screens and with each sheet open (food add, exercise settings, can't do, how to, add exercise, custom exercise, photo check-in, exercise to avoid; #661), light and dark. Known failures are listed by rule and element with their issue number (`support/axe.mjs`, tested in `axe-known.spec.mjs`); a new violation fails, a fixed one goes stale and fails.
 

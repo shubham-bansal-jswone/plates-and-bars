@@ -227,8 +227,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
                 1. Do {firstRampReps} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
               </Text>
               <View style={styles.wrap}>
-                <Button label={`Start the ramp for ${ex.name}`} onPress={act.rampStart} />
-                <Button label={`I know my weight for ${ex.name}`} kind="ghost" onPress={act.rampSkip} />
+                <Button label="Start the ramp" a11yLabel={`Start the ramp for ${ex.name}`} onPress={act.rampStart} />
+                <Button label="I know my weight" a11yLabel={`I know my weight for ${ex.name}`} kind="ghost" onPress={act.rampSkip} />
               </View>
             </>
           ) : (
