@@ -42,11 +42,13 @@ chmod +x "$tmp/bin/"*
 fail() { echo "FAIL: $*"; cat "$STUB_LOG"; exit 1; }
 export PATH="$tmp/bin:$PATH" STUB_LOG="$tmp/log" STUB_ENV="$stack/.env" STUB_COUNT="$tmp/count" HEALTH_TIMEOUT_SECONDS=0
 tag_now() { sed -n 's/^API_TAG=//p' "$stack/.env"; }
+release_now() { sed -n 's/^API_RELEASE=//p' "$stack/.env"; }
 reset() { printf 'API_HOST=api.test\nAPI_TAG=oldtag\nDB_PASSWORD=x\n' > "$stack/.env"; : > "$STUB_LOG"; }
 
 reset
 STUB_HEALTHY=abc123def456 "$stack/deploy.sh" > /dev/null 2>&1 || fail "healthy deploy exited non-zero"
 [ "$(tag_now)" = abc123def456 ] || fail "API_TAG not moved to the new sha"
+[ "$(release_now)" = abc123def456 ] || fail "API_RELEASE not set to the sha"
 grep -q 'docker compose build api \[API_TAG=abc123def456\]' "$STUB_LOG" || fail "image not built with the sha tag"
 grep -q 'curl .*--resolve api.test:443:127.0.0.1 .*https://api.test/api/v1/health$' "$STUB_LOG" || fail "health URL not polled"
 grep -q '^DB_PASSWORD=x$' "$stack/.env" || fail "other .env lines were changed"
@@ -87,10 +89,13 @@ if STUB_BUILD_FAIL=1 STUB_HEALTHY=abc123def456,oldtag "$stack/deploy.sh" > /dev/
 reset
 DEPLOY_TAG=v1.2.3 STUB_HEALTHY=v1.2.3 "$stack/deploy.sh" > /dev/null 2>&1 || fail "release deploy exited non-zero"
 [ "$(tag_now)" = v1.2.3 ] || fail "API_TAG not moved to the release tag"
+[ "$(release_now)" = 1.2.3 ] || fail "API_RELEASE must be the tag without the v, got '$(release_now)'"
+[ "$(grep -c '^API_RELEASE=' "$stack/.env")" = 1 ] || fail "API_RELEASE line duplicated"
 grep -q 'docker compose build api \[API_TAG=v1.2.3\]' "$STUB_LOG" || fail "image not built with the release tag"
 reset
 if DEPLOY_TAG=v1.2.3 STUB_HEALTHY=oldtag "$stack/deploy.sh" > /dev/null 2>&1; then fail "unhealthy release exited 0"; fi
 [ "$(tag_now)" = oldtag ] || fail "release: API_TAG not rolled back to the previous tag"
+[ "$(release_now)" = oldtag ] || fail "release: API_RELEASE not rolled back with API_TAG"
 grep -q 'docker compose up -d api \[API_TAG=' "$STUB_LOG" || fail "release: api not recreated on rollback"
 for bad in 'a/b' 'a b' '-x' 'v1;rm'; do
   reset

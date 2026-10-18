@@ -108,3 +108,7 @@ app:
     ask-why-enabled: ${AI_ASK_WHY_ENABLED:false}
     weekly-summary-enabled: ${AI_WEEKLY_SUMMARY_ENABLED:false}
     suggest-tags-enabled: ${AI_SUGGEST_TAGS_ENABLED:false}
+  # Erasure ledger (#850): DELETE /me appends the user id and time to this file before it deletes, so a backup
+  # restore can replay the erasures. Empty = off (local runs and tests). The staging stack sets it to a dedicated volume.
+  erasure-ledger:
+    path: ${ERASURE_LEDGER_PATH:}

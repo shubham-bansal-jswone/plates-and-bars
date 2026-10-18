@@ -52,6 +52,12 @@ async function open(adjustments: Record<string, unknown>, lifts: string[] = [], 
 const storedSets = (db: Db, name: string): number =>
   [...db.sets.values()].filter((s) => s.kind === 'work' && s.deleted === 0 && (JSON.parse(s.data) as { exercise: string }).exercise === name).length;
 
+beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
+afterEach(() => {
+  jest.runOnlyPendingTimers();
+  jest.useRealTimers();
+});
+
 describe('buildSession with a recovery week or re-entry', () => {
   const base = { template: 'Push B', date: DATE, profile: profile(), where: 'gym' as const, sessions: {}, lifts: {}, ciChoice: null, checkin: {}, focus: [], exclusions: [], swaps: [] };
   const normal = buildSession({ ...base, adjustments: {} });
@@ -123,7 +129,7 @@ describe('recovery week on the start screen', () => {
     const db = await open({}, ['Pec Deck Fly', 'Cable Lateral Raise', 'Machine Shoulder Press']);
     expect(await screen.findByText('Several lifts have stalled')).toBeTruthy();
     expect(screen.getByLabelText('Why? Why a recovery week?, recovery week')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Start recovery week, recovery week'));
+    await fireEvent.press(screen.getByLabelText('Start recovery week, recovery week'));
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ deload: recoveryWeek(DATE), dismissed: { 'deload:2026-10-05': true } }));
     expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
     expect(screen.queryByText('Several lifts have stalled')).toBeNull();
@@ -131,15 +137,15 @@ describe('recovery week on the start screen', () => {
 
   it('Not now counts a decline', async () => {
     const db = await open({}, ['Pec Deck Fly', 'Cable Lateral Raise', 'Machine Shoulder Press']);
-    fireEvent.press(await screen.findByLabelText('Not now, recovery week'));
+    await fireEvent.press(await screen.findByLabelText('Not now, recovery week'));
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ declines: { deload: 1 } }));
   });
 
   it('names 3 stalled lifts and counts the rest, and after 3 declines "Stop suggesting this" mutes the deload type', async () => {
     const db = await open({ declines: { deload: 3 } }, ['Pec Deck Fly', 'Cable Lateral Raise', 'Machine Shoulder Press', 'Machine Chest Press']);
     expect(await screen.findByText(/^Pec Deck Fly, Cable Lateral Raise, Machine Shoulder Press and 1 more haven’t moved in 3 sessions\./)).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Stop suggesting this, recovery week'));
-    // The toast is set on the press and clears after 2.2 s, so look for it before the write wait: that wait can outlast it under load.
+    await fireEvent.press(screen.getByLabelText('Stop suggesting this, recovery week'));
+    // The toast clears on a timer; the fake clock only moves while a wait polls, so look for it before the write wait.
     expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { deload: true } }));
     expect(screen.queryByText('Several lifts have stalled')).toBeNull();
@@ -161,14 +167,14 @@ describe('recovery week on the start screen', () => {
   it('a running recovery week is noted on the session and can be ended early', async () => {
     const db = await open({ deload: recoveryWeek(DATE) });
     expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('End it early'));
+    await fireEvent.press(screen.getByLabelText('End it early'));
     await waitFor(() => expect(settingsOf(db).adjustments).not.toHaveProperty('deload'));
     expect(screen.queryByText(/Recovery week until/)).toBeNull();
   });
 
   it('starting a session in a recovery week stores deload and shows the Today note', async () => {
     const db = await open({ deload: recoveryWeek(DATE) });
-    fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
     expect(await screen.findByText(/Today: recovery week: fewer sets, about 10% lighter/)).toBeTruthy();
     await waitFor(() => expect(JSON.parse(db.rows.get(`workouts:${DATE}`) as string).mods.deload).toBe(true));
   });
@@ -176,6 +182,7 @@ describe('recovery week on the start screen', () => {
   it('a second session added in a recovery week keeps the reduced set counts', async () => {
     const db = await open({ deload: recoveryWeek(DATE) }, PUSH_B);
     const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+    await screen.findByLabelText('Start Push B'); // the screen reads its day first: wait for it, as the other tests do
     await press('Start Push B');
     await screen.findByText('Push B');
     for (const n of PUSH_B) await press(`Mark ${n} set 1 done`);
@@ -197,14 +204,14 @@ describe('re-entry on the start screen', () => {
   it('a running period is noted and shows in the session', async () => {
     const db = await open({ reentry: { from: DATE, until: '2026-10-21', pct: 0.3 } });
     expect(await screen.findByText('Easing back in until 21 Oct.')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Start Push B'));
+    await fireEvent.press(screen.getByLabelText('Start Push B'));
     expect(await screen.findByText(/Today: easing back in: about 30% lighter/)).toBeTruthy();
     expect(settingsOf(db).adjustments).toHaveProperty('reentry');
   });
 
   it('Back to normal removes the period', async () => {
     const db = await open({ reentry: { from: DATE, until: '2026-10-21', pct: 0.3 } });
-    fireEvent.press(await screen.findByLabelText('Back to normal'));
+    await fireEvent.press(await screen.findByLabelText('Back to normal'));
     await waitFor(() => expect(settingsOf(db).adjustments).not.toHaveProperty('reentry'));
   });
 
@@ -220,7 +227,7 @@ describe('welcome back card after a break', () => {
     const db = await open({}, [], ['2026-09-24']);
     expect(await screen.findByText('Welcome back. It’s been 14 days.')).toBeTruthy();
     expect(screen.getByText('For this week: start about 15% lighter and build back up over a few sessions.')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
+    await fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
     await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ reentry: reentryRange(DATE, 0.15), dismissed: { 'break:2026-09-24': true } }));
     expect(await screen.findByText('Easing back in until 14 Oct.')).toBeTruthy();
     expect(screen.queryByText(/^Welcome back\./)).toBeNull();
@@ -236,22 +243,22 @@ describe('welcome back card after a break', () => {
     const db = await open({}, [], ['2026-09-10']);
     expect(await screen.findByText('Welcome back. It’s been 28 days.')).toBeTruthy();
     expect(screen.getByText(/^For the next 2 weeks: about 30% lighter and 1 fewer set per exercise, building back to normal\./)).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
+    await fireEvent.press(screen.getByLabelText('Ease back in, re-entry'));
     await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ reentry: reentryRange(DATE, 0.3), dismissed: { 'break:2026-09-10': true } }));
     expect(await screen.findByText('Easing back in until 21 Oct.')).toBeTruthy();
   });
 
   it('Train as normal dismisses the card and counts a decline', async () => {
     const db = await open({}, [], ['2026-09-24']);
-    fireEvent.press(await screen.findByLabelText('Train as normal, re-entry'));
+    await fireEvent.press(await screen.findByLabelText('Train as normal, re-entry'));
     await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ declines: { break: 1 }, dismissed: { 'break:2026-09-24': true } }));
     expect(screen.queryByText(/^Welcome back\./)).toBeNull();
   });
 
   it('after 3 declines it offers to stop suggesting this, which mutes the type', async () => {
     const db = await open({ declines: { break: 3 } }, [], ['2026-09-24']);
-    fireEvent.press(await screen.findByLabelText('Stop suggesting this, re-entry'));
-    // The toast is set on the press and clears after 2.2 s, so look for it before the write wait: that wait can outlast it under load.
+    await fireEvent.press(await screen.findByLabelText('Stop suggesting this, re-entry'));
+    // The toast clears on a timer; the fake clock only moves while a wait polls, so look for it before the write wait.
     expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { break: true } }));
     expect(screen.queryByText(/^Welcome back\./)).toBeNull();
@@ -270,7 +277,7 @@ describe('steady weeks card', () => {
     expect(await screen.findByText('6 steady weeks of training')).toBeTruthy();
     expect(screen.getByText(/^Many programmes take a lighter week every 6–8 weeks to let fatigue clear\./)).toBeTruthy();
     expect(screen.getByLabelText('Why? Why a recovery week?, lighter week')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Take a lighter week, lighter week'));
+    await fireEvent.press(screen.getByLabelText('Take a lighter week, lighter week'));
     await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ deload: recoveryWeek(DATE), dismissed: { 'dlplan:2026-10-05': true } }));
     expect(await screen.findByText('Recovery week until 14 Oct.')).toBeTruthy();
     expect(screen.queryByText('6 steady weeks of training')).toBeNull();
@@ -278,8 +285,8 @@ describe('steady weeks card', () => {
 
   it('after 3 declines, Stop suggesting this mutes it and toasts', async () => {
     const db = await open({ declines: { 'deload-plan': 3 } }, [], steadyWeeks(6));
-    fireEvent.press(await screen.findByLabelText('Stop suggesting this, lighter week'));
-    // The toast is set on the press and clears after 2.2 s, so look for it before the write wait: that wait can outlast it under load.
+    await fireEvent.press(await screen.findByLabelText('Stop suggesting this, lighter week'));
+    // The toast clears on a timer; the fake clock only moves while a wait polls, so look for it before the write wait.
     expect(await screen.findByText('Got it, no more of these')).toBeTruthy();
     await waitFor(() => expect(settingsOf(db).adjustments).toMatchObject({ muted: { 'deload-plan': true } }));
     expect(screen.queryByText('6 steady weeks of training')).toBeNull();
@@ -293,7 +300,7 @@ describe('steady weeks card', () => {
 
   it('Keep going dismisses the card and counts a decline', async () => {
     const db = await open({}, [], steadyWeeks(6));
-    fireEvent.press(await screen.findByLabelText('Keep going, lighter week'));
+    await fireEvent.press(await screen.findByLabelText('Keep going, lighter week'));
     await waitFor(() => expect(settingsOf(db).adjustments).toEqual({ declines: { 'deload-plan': 1 }, dismissed: { 'dlplan:2026-10-05': true } }));
     expect(screen.queryByText('6 steady weeks of training')).toBeNull();
   });
