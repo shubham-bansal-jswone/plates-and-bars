@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { normaliseSetup } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
 import { SetupScreen } from '../src/screens/SetupScreen';
@@ -8,14 +8,18 @@ import { SCREEN_Q } from '../src/setup/copy';
 import { memoryDb, withProfile } from './helpers';
 import { loadWeights, saveWeight } from '../src/db/progress';
 import { buildResults } from '../src/setup/results';
-import { usePendingToast } from '../src/state/pendingToast';
-import { useState } from 'react';
+import { fmt } from '../src/format';
+import { resetPendingToast, usePendingToast } from '../src/state/pendingToast';
+import { useCallback, useState } from 'react';
 import { Text } from 'react-native';
 
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
 let mockCanGoBack = true;
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, back: mockBack, canGoBack: () => mockCanGoBack }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ replace: mockReplace, back: mockBack, canGoBack: () => mockCanGoBack }),
+  useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, [cb]),
+}));
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
@@ -312,14 +316,20 @@ describe('redo and recalculate setup', () => {
 });
 
 // A stand-in for the mounted Food tab: shows what the Food tab would toast.
+let refocus: () => void = () => undefined;
 function ToastProbe() {
   const [m, setM] = useState('');
-  usePendingToast(setM);
+  const [n, setN] = useState(0);
+  refocus = () => setN((x) => x + 1); // the focus effect runs again when the callback changes
+  usePendingToast(useCallback((x: string) => setM(x), [n])); // eslint-disable-line react-hooks/exhaustive-deps
   return <Text>{m ? `toast: ${m}` : 'no toast'}</Text>;
 }
 
 describe('setup results: keep, first weigh-in, toast, progress, why', () => {
-  beforeEach(() => mockReplace.mockClear());
+  beforeEach(() => {
+    mockReplace.mockClear();
+    resetPendingToast();
+  });
   const answers = { ...emptyDraft(), sex: 'male' as const, age: '30', unit: 'cm' as const, cm: '165', weight: '82', activity: 'sitting' as const, where: 'gym' as const, days: 6 as const, exp: 'some' as const, minutes: 60 as const, goal: 'lose' as const, pace: 'moderate' as const, screen: ['no', 'no', 'no', 'no', 'no', 'no'] as const };
   const edited = { kcal: 2500, protein_g: 150, carbs_g: 260, fat_g: 70 };
   async function redo(opts: { weights?: boolean } = {}) {
@@ -336,6 +346,7 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     const db = await redo();
     await press('Use these targets');
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    await act(async () => refocus()); // the Food tab coming into focus
     expect(await screen.findByText('toast: Targets updated')).toBeTruthy();
     expect((await loadProfile(db))!.targets).toEqual({ kcal: g.output.kcal, protein_g: g.output.protein, carbs_g: g.output.carbs, fat_g: g.output.fat });
   });
@@ -344,6 +355,7 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     const db = await redo();
     await press('Keep my current targets');
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    await act(async () => refocus()); // the Food tab coming into focus
     expect(await screen.findByText('toast: Setup saved, targets unchanged')).toBeTruthy();
     const p = (await loadProfile(db))!;
     expect(p.targets).toEqual(edited);
@@ -369,11 +381,21 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect((await loadWeights(db)).map((w) => w.date)).toEqual(['2026-09-02']);
   });
 
+  it('writes the setup weigh-in at the version of a synced tombstone for today', async () => {
+    const db = await redo();
+    const today = localDate(new Date());
+    await saveWeight(db, { id: null, version: 3, updated_at: '2026-09-02T00:00:00Z', deleted_at: '2026-09-02T00:00:00Z', date: today, weight_kg: 79 });
+    await press('Use these targets');
+    await waitFor(async () => expect((await loadWeights(db)).find((w) => w.date === today)?.deleted_at).toBeNull());
+    expect((await loadWeights(db)).find((w) => w.date === today)).toMatchObject({ version: 3, weight_kg: 82 });
+  });
+
   it('Why these numbers? opens the lines with the golden values', async () => {
     await redo();
     expect(screen.queryByText(/Mifflin-St Jeor/)).toBeNull();
     await press('Why these numbers?');
-    expect(screen.getByText(/Resting, .* kcal\./)).toBeTruthy();
+    // The redo form shows the stored 165 cm as 5 ft 5 in, which is 165.1 cm, so the screen's BMR is the golden 1,706 plus 0.6.
+    expect(screen.getByText(/Resting, 1,707 kcal\./)).toBeTruthy();
     expect(screen.getByText(/Mifflin-St Jeor/)).toBeTruthy();
     expect(screen.getByText(/Calories, 1,990\./)).toBeTruthy();
     expect(screen.getByText(new RegExp(`Protein, ${g.output.protein} g\\.`))).toBeTruthy();
@@ -383,6 +405,11 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect(screen.getByText(/6 sessions of about 60 min/)).toBeTruthy();
     expect(screen.getByLabelText('Why these numbers?').props.accessibilityState).toMatchObject({ expanded: true });
     expect(screen.getByText(/per kg of a reference weight of \d+ kg/)).toBeTruthy(); // BMI 30.1
+  });
+
+  it('the resting line carries the golden BMR', () => {
+    const p = buildProfile({ ...answers, screen: [...answers.screen] }, new Date(2026, 8, 1));
+    expect(buildResults(p).why[0]!.head).toBe(`Resting, ${fmt(g.output.bmr)} kcal.`);
   });
 
   it('the protein line names the reference weight when BMI is above 30, and the no-training line reads as the prototype', () => {

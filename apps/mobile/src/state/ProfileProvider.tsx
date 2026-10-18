@@ -88,7 +88,10 @@ export function ProfileProvider({ db, reloadKey = 0, children }: { db: WorkoutDb
         const live = await txn.getFirstAsync<{ data: string }>("SELECT data FROM weights WHERE json_extract(data, '$.deleted_at') IS NULL LIMIT 1");
         if (!live) {
           const date = localDate(new Date());
-          await saveWeight(txn, { id: null, version: 0, updated_at: p.updated_at, deleted_at: null, date, weight_kg: p.weight_kg });
+          // Today's row may be a synced tombstone (weights are keyed by date): keep its version so the push is not a conflict.
+          const row = await txn.getFirstAsync<{ data: string }>('SELECT data FROM weights WHERE key = ?', date);
+          const version = row ? (JSON.parse(row.data) as { version: number }).version : 0;
+          await saveWeight(txn, { id: null, version, updated_at: p.updated_at, deleted_at: null, date, weight_kg: p.weight_kg });
         }
       });
       setProfileState(p);

@@ -12,6 +12,7 @@ import { DeletionNotice } from '../account/DeletionNotice';
 import type { Profile } from '../setup/types';
 import { buildProfile, draftFromProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
+import { setSetupLeaving } from '../state/setupExit';
 import { postToast } from '../state/pendingToast';
 import { useTheme } from '../theme/useTheme';
 
@@ -260,9 +261,11 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   const profile = useMemo(() => (step === STEPS ? buildProfile(d, new Date(), stored) : null), [step, d, stored]);
 
   const save = async (p: Profile, toast: string) => {
+    setSetupLeaving(true);
     try {
       await saveSetup(p);
     } catch {
+      setSetupLeaving(false);
       setErr(SAVE_ERROR);
       return;
     }
