@@ -57,4 +57,16 @@ describe('pulled rows keep their server ids (#939)', () => {
     expect(fromNull).toEqual({ ...base, id });
     expect(fromServer).toEqual(fromNull);
   });
+
+  it('replaces a foreign id and a foreign workout_id with this user\'s natural-key ids', async () => {
+    const db = await openDb();
+    const foreign = await naturalId('9d2b6c1a-7e44-4f0b-8f3e-1a2b3c4d5e6f', 'workouts', '2026-10-08');
+    const note: Doc = { id: foreign, version: 1, updated_at: at, deleted_at: null, date: '2026-10-08', complete: null, steps: null, sleep: null, fast: false };
+    await storeRecord(db, 'day_notes', note, null);
+    expect(await buildRecord(db, USER, entry('day_notes', '2026-10-08'))).toEqual({ ...note, id: await naturalId(USER, 'day_notes', '2026-10-08') });
+
+    const set: Doc = { id: '2d0a9c3f-5e74-4f2a-8c79-7b4b8f3b8c32', version: 1, updated_at: at, deleted_at: null, workout_id: foreign, exercise: 'Bench', kind: 'work', done: true };
+    await storeRecord(db, 'workout_sets', set, '2026-10-08');
+    expect(await buildRecord(db, USER, entry('workout_sets', set.id as string))).toEqual({ ...set, workout_id: await naturalId(USER, 'workouts', '2026-10-08') });
+  });
 });
