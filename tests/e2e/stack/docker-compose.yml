@@ -57,6 +57,8 @@ services:
       SMTP_PORT: 1025
       SMTP_FROM: e2e@plateandbar.test
       SMTP_STARTTLS: "false"
+      # Required outside the dev profile; the image's own directory is enough for a throwaway stack.
+      ERASURE_LEDGER_DIR: /var/lib/plateandbar/erasure
       # Every test run signs in twice from one address; the production caps (10 codes per hour per IP) would stop a rerun.
       APP_RATELIMIT_EMAILSTARTPERIP_CAPACITY: 1000
       APP_RATELIMIT_EMAILVERIFYPERIP_CAPACITY: 1000

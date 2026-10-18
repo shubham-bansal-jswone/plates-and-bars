@@ -7,10 +7,19 @@
 # Nothing here deploys anything: see RUNBOOK.md.
 name: plateandbar-staging
 
+# Container logs go to journald (the VM's age and size bounds are the drop-in infra/journald/plate-and-bar.conf,
+# installed once per VM with infra/journald/install.sh). `docker compose logs` still works with this driver.
+x-logging: &logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+    labels: com.docker.compose.service
+
 services:
   mysql:
     image: mysql:8.4.11
     restart: unless-stopped
+    logging: *logging
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: plateandbar
@@ -37,7 +46,12 @@ services:
         # Required by the Dockerfile, which fails the build when it is empty; compute on a full-history checkout
         # (backend/README.md). Not `:?` here: that would make every compose command (exec, stop, backup.sh) need it.
         CONTENT_UPDATED_AT: ${CONTENT_UPDATED_AT:-}
+      labels:
+        # The image reads ERASURE_LEDGER_DIR (#887). deploy.sh rolls back automatically only to an image with this
+        # label: an older one cannot start with this file (RUNBOOK.md section 3a).
+        app.plateandbar.erasure-ledger-dir: "1"
     restart: unless-stopped
+    logging: *logging
     depends_on:
       mysql:
         condition: service_healthy
@@ -55,6 +69,9 @@ services:
       # Error tracking (Sentry SDK to GlitchTip). Empty = off, nothing is sent.
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
+      # Maps events to the deployed image (#827). deploy.sh writes API_RELEASE (the v* tag without its v, or the sha) next to
+      # API_TAG; without it (a hand edit) the tag is used verbatim. Backend reads it as sentry.release.
+      SENTRY_RELEASE: plateandbar-api@${API_RELEASE:-${API_TAG}}
       SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -62,12 +79,19 @@ services:
       SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM}
       # The proxy directly in front of the API is Caddy, which the API sees at an address in this network's subnet.
       APP_RATELIMIT_TRUSTEDPROXIES: 172.28.0.0/24
+      ERASURE_LEDGER_DIR: /var/lib/plateandbar/erasure
     # No published ports: Caddy reaches api:8080 over the network.
     networks: [backend]
+    volumes:
+      # Erasure ledger (#850, #887): the API refuses to start outside the dev profile without ERASURE_LEDGER_DIR (it
+      # replaced ERASURE_LEDGER_PATH, a single file) and writes one file per UTC day there, which must survive recreating
+      # the container, so it is a named volume. ledger-upload.sh copies the days to the bucket and keeps 45 days.
+      - erasure_ledger:/var/lib/plateandbar/erasure
 
   caddy:
     image: caddy:2.11.7
     restart: unless-stopped
+    logging: *logging
     depends_on: [api]
     ports:
       - "80:80"
@@ -99,5 +123,6 @@ networks:
 
 volumes:
   mysql_data:
+  erasure_ledger:
   caddy_data:
   caddy_config:

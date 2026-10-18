@@ -8,7 +8,7 @@ import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgL
 import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
-import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName } from './copy';
+import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName, rampEasyNote } from './copy';
 import type { ExState, Row } from './model';
 import { ExerciseSettings } from './ExerciseSettingsSheet';
 import { Chip } from './parts';
@@ -182,6 +182,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
     const f = rampTickFill(ex.ramp, j, info);
     return { w: f.w || 'kg', r: f.r };
   };
+  const easyNote = rampEasyNote(ex.ramp, info);
   const est = showRamp && ex.ramp.length === 0 && lifts ? estimateFor(ex.name, lifts, info) : null;
   const ladder = ladderOf(ex.name, getCatalog().ladders);
   const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, info).r;
@@ -226,8 +227,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
                 1. Do {firstRampReps} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
               </Text>
               <View style={styles.wrap}>
-                <Button label={`Start the ramp for ${ex.name}`} onPress={act.rampStart} />
-                <Button label={`I know my weight for ${ex.name}`} kind="ghost" onPress={act.rampSkip} />
+                <Button label="Start the ramp" a11yLabel={`Start the ramp for ${ex.name}`} onPress={act.rampStart} />
+                <Button label="I know my weight" a11yLabel={`I know my weight for ${ex.name}`} kind="ghost" onPress={act.rampSkip} />
               </View>
             </>
           ) : (
@@ -244,7 +245,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
                   Working weight found: <Text style={{ fontWeight: '700' }}>{kgLabel(ex.found, info)}</Text>. Your working sets below start there.
                 </Text>
               ) : (
-                <Button label={`Add ramp set for ${ex.name}`} kind="ghost" onPress={act.rampAdd} />
+                <>
+                  {easyNote ? <Note>{easyNote}</Note> : null}
+                  <Button label={`Add ramp set for ${ex.name}`} kind="ghost" onPress={act.rampAdd} />
+                </>
               )}
             </>
           )}
@@ -298,10 +302,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       ) : null}
       {allDone && !nl && ex.form ? <Button label={`Change form answer for ${ex.name}`} kind="link" onPress={() => act.form(null)} /> : null}
       <View style={styles.setRow}>
-        <Chip label={`Add a set to ${ex.name}`} text="Add set" onPress={act.addSet} />
-        {ex.sets.length > 1 ? <Chip label={`Remove the last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
+        <Chip label={`Add set to ${ex.name}`} text="Add set" onPress={act.addSet} />
+        {ex.sets.length > 1 ? <Chip label={`Remove last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
         <Chip
-          label={armed ? `Tap again to remove ${ex.name} from today` : `Remove ${ex.name} from today`}
+          label={armed ? `Tap again to remove ${ex.name} from today` : `Remove exercise ${ex.name} from today`}
           text={armed ? 'Tap again to remove' : 'Remove exercise'}
           onPress={() => (armed ? act.remove() : setArmed(true))}
         />

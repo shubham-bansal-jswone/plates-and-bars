@@ -6,7 +6,7 @@ import { makeApi } from '../src/sync/auth';
 import { refreshSession, syncOnce } from '../src/sync/engine';
 import { acceptTokenPair, wipeLocalStore } from '../src/sync/guard';
 import { KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, turns, until } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -156,7 +156,7 @@ describe('refreshSession guards the store owner', () => {
     server.hold = slow.p;
     server.holdPath = '/auth/refresh';
     const run = refreshSession({ db, api: makeApi(BASE, tokens), tokens });
-    await new Promise((r) => setTimeout(r, 10));
+    await until('the refresh request is out', () => server.calls.some((c) => c.path === '/auth/refresh'));
     // User B signs in while the request is out: their tokens are stored and the store is rebound.
     await setKv(db, KEY_USER, OTHER);
     const b = { access: 'access-B', refresh: 'refresh-B' };
@@ -398,13 +398,14 @@ describe('delete everything (#27)', () => {
     const slow = gate();
     handler.current = () => noContent();
     const inner = net.fetch;
-    net.fetch = async (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? (await slow.p, inner(r)) : inner(r));
+    let out = false; // DELETE /me has reached the (held) network
+    net.fetch = async (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? ((out = true), await slow.p, inner(r)) : inner(r));
     const del = deleteEverything({ db, api, tokens });
-    await new Promise((r) => setTimeout(r, 10));
+    await until('DELETE /me is out', () => out);
     const pair = { access_token: 'access-B', refresh_token: 'refresh-B', user: { id: OTHER, email: null, created_at: '2026-10-01T00:00:00Z' } };
     let accepted = false;
     const signIn = acceptTokenPair(db, tokens, pair).then((o) => ((accepted = true), o));
-    await new Promise((r) => setTimeout(r, 30));
+    await turns();
     expect(accepted).toBe(false); // waits for the delete
     expect(await getUserId(db)).toBe(USER);
     slow.release();
@@ -433,10 +434,9 @@ describe('delete everything (#27)', () => {
     server.hold = slow.p;
     server.holdPath = '/auth/refresh';
     const run = syncOnce({ db, api, tokens });
-    await new Promise((r) => setTimeout(r, 20));
-    expect(calls).toContain('POST /auth/refresh');
+    await until('the refresh request is out', () => calls.includes('POST /auth/refresh'));
     const del = deleteEverything({ db, api, tokens });
-    await new Promise((r) => setTimeout(r, 30));
+    await turns();
     expect(calls).not.toContain('DELETE /me');
     slow.release();
     expect(await del).toEqual({ kind: 'deleted', server: true, linked: true });
@@ -448,11 +448,12 @@ describe('delete everything (#27)', () => {
     const { db, tokens, api, calls } = await signedIn();
     const slow = gate();
     const inner = net.fetch;
-    net.fetch = async (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? (await slow.p, inner(r)) : inner(r));
+    let out = false; // DELETE /me has reached the (held) network
+    net.fetch = async (r: Request) => (new URL(r.url).pathname.endsWith('/me') ? ((out = true), await slow.p, inner(r)) : inner(r));
     const del = deleteEverything({ db, api, tokens });
-    await new Promise((r) => setTimeout(r, 10));
+    await until('DELETE /me is out', () => out);
     const exp = exportFromServer(db, api, tokens);
-    await new Promise((r) => setTimeout(r, 20));
+    await turns();
     expect(calls).not.toContain('GET /me/export');
     slow.release();
     expect(await del).toEqual({ kind: 'deleted', server: true, linked: true });

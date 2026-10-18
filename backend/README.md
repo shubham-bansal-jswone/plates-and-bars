@@ -44,6 +44,7 @@ keyword is registered with the schema library as a non-validation keyword so it 
   Empty means every cross-origin call is refused.
 - Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
+- Contract tests (#834): a test checks a real response with `ContractSchemas.assertResponse("METHOD /path", status, body)`, which validates it against the schema `openapi.yaml` gives that status. `ContractCoverageTest` runs last and fails when, in an unfiltered `./gradlew test`, an operation in the contract (only `GET /foods` is allowlisted, #200 decision 2) or an `/auth/*` or `/content/*` status never passed a validation. It checks what actually ran, so a skipped, disabled or commented-out test is caught; a `--tests` run does not enforce it.
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
   - Per client IP on every `/auth/*` endpoint including `/auth/google` (default 30 per minute, one shared bucket),
@@ -70,7 +71,34 @@ keyword is registered with the schema library as a non-validation keyword so it 
 - Account rights (#192), package `account`:
   - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
     the 16 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
-    One read-only transaction. `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
+    Streamed (#349): the body is written with a Jackson `JsonGenerator` from a `StreamingResponseBody`, reading each
+    table in keyset pages of `app.export.page-size` rows (default 500, ordered by `(seq, id)`), so memory is bounded
+    by one page whatever the account holds. All pages come from one read-only transaction (InnoDB repeatable read),
+    opened on the thread that writes the body. Rate limits, the user's existence (401) and the headers are decided
+    before the first byte; the response has no `Content-Length` (chunked). The security chain keeps the user in a
+    `RequestAttributeSecurityContextRepository` (saved by `JwtAuthFilter`), so the ASYNC dispatch that writes the
+    body is authenticated again; there is no blanket permit for async dispatches.
+    Bounds: `spring.mvc.async.request-timeout` is 10 minutes (Tomcat's 30 s default would cut every export, download
+    time included), the transaction is read-only REPEATABLE_READ with a 600 s timeout, and at most
+    `app.export.max-concurrent` (env `EXPORT_MAX_CONCURRENT`, default 2) exports stream at once, because each holds a
+    database connection and a thread for the whole download. A third gets 429 `rate_limited` with `Retry-After: 30`
+    (the contract's existing answer for this endpoint; no new response). The place is given back when the body ends,
+    fails or never runs.
+    Known and accepted: a timed-out writer thread may keep running for a moment after its place is given back, so two
+    exports can briefly overlap (its next write fails, and its transaction ends at 600 s); an account deleted between
+    the 401 check and the writer gives 500 instead of 401; and with the default cap of 2, two slow downloads can block
+    other exports for up to 10 minutes (raise `EXPORT_MAX_CONCURRENT` if that matters). The capacity check runs before
+    the IP and user limits, so a refusal for capacity spends neither allowance.
+    A failure after streaming starts: nothing in the contract fixes this, so the rule is that a client must never get
+    a complete-looking document from a failed export. Before the response buffer (8 KB) is flushed the failure is an
+    ordinary 500 `Error`. After that the 200 is already sent, so the generator does not auto-close open arrays and
+    objects (`AUTO_CLOSE_CONTENT` off) and `ApiExceptionHandler` rethrows when the response is committed instead of
+    appending an `Error` object, and `ApiErrorController` (the container's `/error` page, in the contract `Error` shape) writes nothing on a committed response; the container then aborts the connection, with no final chunk, so the client sees an
+    unterminated chunked body (an I/O error) and truncated, invalid JSON. The stream throws a fixed-message
+    `ExportAbortedException` without a cause (a timeout is turned into the same exception), so the container's log line holds no row or message; the server logs the
+    original exception class, user id and time only. A client treats any error or unparsable body as a failed export
+    and retries (5 per hour).
+    `Cache-Control: no-store` and a `Content-Disposition` file name with the UTC date.
     Limited to 5 per hour per user and 20 per hour per IP (`app.rate-limit.export-per-user`, `export-per-ip`);
     429 `rate_limited` with `Retry-After`. Credentials (tokens, codes) are not included. Not compressed by the app.
   - `DELETE /me`: one transaction removes the user's email-keyed rows (`email_sign_in_codes`, `email_verify_failures`
@@ -199,6 +227,8 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   `user_id, id, version, updated_at, deleted_at, seq, data JSON`, primary key `(user_id, id)`. `data` holds the
   record's other fields, so the engine is generic over tables. Foreign key to `users` with `ON DELETE CASCADE`.
   `sync_state` holds one row per user with the change counter `seq`; `sync_conflicts` is the conflict log.
+  A `client_won` conflict in the `POST /sync` response also carries `replaced_record` (contract 0.1.20): the stored copy
+  the edit replaced, at `server_version - 1`, identical to the entry logged with `loser: server`. Never on `server_won`.
   The conflict log is bounded per user (`SYNC_CONFLICT_LOG_MAX_PER_USER`, default 1000; `SYNC_CONFLICT_LOG_RETENTION_DAYS`,
   default 90; both must be at least 1 or the app refuses to start). Pruning happens only when a later sync logs a
   conflict: then entries older than the retention and all but the newest ones are deleted. An account that stops
@@ -304,6 +334,7 @@ cd backend
 | `DB_USER` | `plateandbar` | Database user |
 | `DB_PASSWORD` | empty | Database password |
 | `CONTENT_UPDATED_AT` | none, required | `name=timestamp,...` for every `content/*.json`; set it to `"$(backend/scripts/content-updated-at.sh)"`. The app refuses to start without it. Deploys compute it on a full-history checkout of `main` (HEAD of that checkout) and pass it as the Docker build arg |
+| `ERASURE_LEDGER_DIR` | none, required outside the dev profile | Directory in which `DELETE /me` appends `<user id><TAB><UTC time>` to `erasures-<UTC day>.log` before it deletes (erasure ledger, #850, #887). Replaces `ERASURE_LEDGER_PATH` (a single file), which is no longer read. The app refuses to start without it, as with `SMTP_HOST`; with the `dev` profile it may be empty (ledger off, one WARN at startup). The image has `/var/lib/plateandbar/erasure` (mode 0700, owner `app`) declared as a `VOLUME`; the staging compose file sets this directory and mounts the named volume `erasure_ledger` there. A ledger write failure makes `DELETE /me` fail (500) with nothing deleted. See Erasure ledger below |
 | `PORT` | `8080` | HTTP port |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
 | `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint, including `/auth/*` (a guard filter, 400 `invalid_request` detail `too_large`; a chunked body is cut off once it passes the limit), and the `POST /sync` cap. The guard runs before security, CORS and rate limiting, so a body declared over the limit gets 400 `too_large` even before a 401 or 429. Multipart is disabled (no endpoint takes it). `/ai/*` bodies are read up to 16,384 bytes (bytes, not characters); a longer one is 400 `invalid_request` with issue `too_large`, field empty, in the validation step (after the feature switch) |
@@ -375,3 +406,41 @@ token, email, password, secret, cookie or auth; masks UUID path segments; and di
 Data protection (DPDP): the error-tracking service (self-hosted GlitchTip, or Sentry if a hosted DSN is used) is a data
 processor for these events. They hold exception types, stack traces, the method and path (UUIDs masked) and one hashed
 opaque account id, never health or food data. Record it in the privacy notice's processor list when a DSN is set in production.
+
+## Erasure ledger (#850)
+
+A backup restore brings back every account deleted after the dump was taken. To keep erased accounts erased (DPDP),
+`DELETE /me` first appends one line to `erasures-YYYY-MM-DD.log` in `ERASURE_LEDGER_DIR`, the file of the entry's
+UTC day (#887): the opaque user id, a tab and the UTC time cut to whole seconds (`ErasureLedger`). Nothing else is
+ever written (no email, no content); an id that is not a lower-case UUID is refused, and the replay (#853) must use
+the same pattern, `ErasureLedger.ID`. Each file is append-only (`O_APPEND`), mode 0600 in a 0700 directory, and forced
+to disk (and the directory, when the day's file is created) before the delete runs. Outside the `dev` profile an empty directory setting refuses to start; in dev it logs a WARN and
+the ledger is off. `O_APPEND` keeps lines whole only on a local filesystem, not NFS: use a local named volume on one host.
+A repeat `DELETE /me` (the access token outlives the account by up to 15 minutes) appends nothing once the account row is gone.
+
+- Order: ledger first, then the database delete, in the same request. If the ledger cannot be written, nothing is
+  deleted and the answer is 500 `internal` (the contract's failure answer for this endpoint). The other order could
+  remove the rows and then lose the record a restore needs, with the user told it worked. The opposite failure
+  (ledger written, delete rolled back, for example a deadlock or the database down) is accepted: the app does not
+  retry by itself, the user decides. A user who gets that 500 and keeps the account will lose it if a later restore
+  replays the ledger. That is rare, and the ledger entry records a deletion they asked for. A retry appends a second
+  line for the same id only when the row still exists; replay is by id.
+- A write that fails half way (ENOSPC, EIO) can leave a line cut short. The next entry starts on a new line (the writer
+  checks the last byte), so it is never glued to the cut-off one. The replay must skip a line that does not match
+  `<uuid><TAB><time>` rather than fail the restore. Repair: if the retry of `DELETE /me` (the
+  ledger write failed, so nothing was deleted and the user can retry) lands on the next line, nothing is lost; the cut
+  line only holds a request that answered 500. A disk-full event is also an ERROR in Sentry (`ErasureLedgerException`).
+- The fsync is real (`FileChannel.force(true)`) but no test can observe it; a mutation that removes it survives.
+- `record` is `synchronized`: the first entry of a day creates the file and syncs the directory, and a second deletion
+  racing it must not skip that sync and delete before the directory entry is durable (`ErasureLedgerTest` holds the
+  directory sync open and checks the second entry waits).
+- Retention (#887): entries are kept 45 days. One file per UTC day lets that be done by whole files: infra's
+  `ledger-upload.sh` copies each day file to its own bucket object and deletes the day files (and objects) more than
+  45 days old, and splits a single `erasures.log` left by the first version of the ledger into day files once. The API
+  never deletes or rewrites a ledger file, and never writes `erasures.log` again.
+- The day files live on a dedicated volume, not in MySQL. The Dockerfile declares the directory a `VOLUME`, so a
+  compose file that forgets the mount still gets an anonymous volume that survives recreating the container. Getting
+  the files off the VM (upload to the backup bucket outside the 30-day backup prefix) and replaying them after a
+  restore are infra work, see #853 and `infra/RUNBOOK.md` section 3a. Every non-dev stack needs the directory set
+  (staging does, in `infra/staging/docker-compose.yml`).
+- Tests: `ErasureLedgerTest` (day files, UTC midnight roll-over), `AccountServiceDeleteTest` (ordering, fail closed, no repeat append), `ErasureLedgerIT` (real files and MySQL, roll-over at midnight).

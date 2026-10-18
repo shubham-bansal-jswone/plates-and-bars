@@ -13,6 +13,15 @@ java {
     }
 }
 
+// Security overrides (#937). Spring Boot 4.1.1 is the newest stable release (4.2 is milestone only) and still manages
+// Tomcat 11.0.24 and Jackson 3.1.5, which are affected by:
+//   Tomcat, fixed in 11.0.25: GHSA-9xv2-5v5q-p794, GHSA-gcx9-497g-6cp6, GHSA-h3x4-894j-xpx5
+//   Jackson 3, fixed in 3.1.7: GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89, GHSA-cxp5-3px4-pw24, GHSA-q4xh-88c3-wmh7,
+//   GHSA-wv8q-qhhj-9h54
+// Drop these two lines once the Spring Boot version above manages Tomcat >= 11.0.25 and Jackson 3 >= 3.1.7.
+ext['tomcat.version'] = '11.0.25'
+ext['jackson-bom.version'] = '3.1.7'
+
 repositories {
     mavenCentral()
 }
@@ -83,9 +92,23 @@ tasks.named('test') {
     // Full-context tests start outside the dev profile, which needs an SMTP host; nothing connects to it.
     environment 'SMTP_HOST', 'localhost'
     environment 'SMTP_FROM', 'noreply@example.invalid'
+    // The erasure ledger is required outside the dev profile; full-context tests append to a throwaway directory.
+    environment 'ERASURE_LEDGER_DIR', layout.buildDirectory.dir('tmp/erasure-ledger').get().asFile.path
     // Every content file needs an updated_at or the app refuses to start; tests use a fixed one for each file.
     environment 'CONTENT_UPDATED_AT', fileTree('../content') { include '*.json' }.files
             .collect { it.name.replace('.json', '') + '=2026-01-02T03:04:05Z' }.sort().join(',')
+    // ContractCoverageTest enforces what ran only when nothing was filtered out: no --tests or include/exclude filter.
+    // It also needs every test class in one JVM (its record of validations is a static set), so parallel forks and
+    // forkEvery are refused rather than letting the guard fail with a partial view.
+    doFirst {
+        if (maxParallelForks > 1 || forkEvery != 0) {
+            throw new GradleException('ContractCoverageTest needs all test classes in one JVM: ' +
+                    'do not set maxParallelForks > 1 or forkEvery on the test task')
+        }
+        boolean filtered = !(filter.includePatterns.isEmpty() && filter.excludePatterns.isEmpty()
+                && filter.commandLineIncludePatterns.isEmpty())
+        systemProperty 'contract.coverage.enforce', (!filtered).toString()
+    }
 }
 
 // Only the executable jar is produced (the Dockerfile copies build/libs/*.jar).

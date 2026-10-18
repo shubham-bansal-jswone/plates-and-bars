@@ -62,6 +62,9 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // JwtAuthFilter saves the user here, so the ASYNC dispatch of a streamed body is authenticated again.
+                .securityContext(c -> c.securityContextRepository(
+                        new org.springframework.security.web.context.RequestAttributeSecurityContextRepository()))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/v1/health", "/api/v1/auth/**", "/api/v1/content/**").permitAll()
                         .anyRequest().authenticated())

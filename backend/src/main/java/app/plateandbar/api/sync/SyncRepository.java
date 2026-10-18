@@ -181,21 +181,33 @@ class SyncRepository {
     }
 
     /** A logged conflict; {@code losing} carries the losing copy's version, updated_at, deleted_at and data. */
-    record Conflict(String table, String recordId, String loser, int winnerVersion, Instant loggedAt, Stored losing) {}
+    record Conflict(long id, String table, String recordId, String loser, int winnerVersion, Instant loggedAt, Stored losing) {}
 
-    /** Every row of the table for the user, tombstones included, oldest change first. */
-    List<Stored> all(SyncTable table, String userId) {
+    /**
+     * At most {@code limit} rows of the table for the user, tombstones included, oldest change first (seq, then id), starting after the row
+     * {@code (afterSeq, afterId)} (keyset paging on the {@code (user_id, seq)} index, so no OFFSET scan). Pass
+     * {@code null} for {@code afterId} to start at the beginning.
+     */
+    List<Stored> page(SyncTable table, String userId, long afterSeq, String afterId, int limit) {
+        String cols = "SELECT id, version, updated_at, deleted_at, seq, data FROM " + table.sqlName();
+        if (afterId == null) {
+            return jdbc.query(cols + " WHERE user_id = ? ORDER BY seq, id LIMIT ?", (rs, n) -> map(rs), userId, limit);
+        }
         return jdbc.query(
-                "SELECT id, version, updated_at, deleted_at, seq, data FROM " + table.sqlName()
-                        + " WHERE user_id = ? ORDER BY seq, id",
+                cols + " WHERE user_id = ? AND (seq > ? OR (seq = ? AND id > ?)) ORDER BY seq, id LIMIT ?",
                 (rs, n) -> map(rs),
-                userId);
+                userId,
+                afterSeq,
+                afterSeq,
+                afterId,
+                limit);
     }
 
-    List<Conflict> conflicts(String userId) {
+    /** At most {@code limit} conflict-log rows after row id {@code afterId} (0 for the first page), oldest first. */
+    List<Conflict> conflictsPage(String userId, long afterId, int limit) {
         return jdbc.query(
-                "SELECT table_name, record_id, loser, version, winner_version, updated_at, deleted_at, record, logged_at"
-                        + " FROM sync_conflicts WHERE user_id = ? ORDER BY id",
+                "SELECT id, table_name, record_id, loser, version, winner_version, updated_at, deleted_at, record,"
+                        + " logged_at FROM sync_conflicts WHERE user_id = ? AND id > ? ORDER BY id LIMIT ?",
                 (rs, n) -> {
                     try {
                         LocalDateTime deleted = rs.getObject("deleted_at", LocalDateTime.class);
@@ -207,6 +219,7 @@ class SyncRepository {
                                 0,
                                 json.readTree(rs.getString("record")));
                         return new Conflict(
+                                rs.getLong("id"),
                                 rs.getString("table_name"),
                                 rs.getString("record_id"),
                                 rs.getString("loser"),
@@ -217,7 +230,9 @@ class SyncRepository {
                         throw new IllegalStateException("stored record is not valid JSON", e);
                     }
                 },
-                userId);
+                userId,
+                afterId,
+                limit);
     }
 
     private Stored map(ResultSet rs) throws SQLException {

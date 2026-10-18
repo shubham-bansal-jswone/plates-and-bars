@@ -5,7 +5,7 @@ import type { WorkoutDb } from '../src/db/workouts';
 import type { PullDb } from '../src/db/outbox';
 
 /** In-memory stand-in for the two statements the record store uses; rows keyed by table and key. */
-export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>; failWrites: boolean; lag?: (sql: string) => number } {
+export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; sets: Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>; failWrites: boolean; hold?: (sql: string) => Promise<void> | undefined } {
   const rows = new Map<string, string>();
   const sets = new Map<string, { date: string; kind: string; done: number; deleted: number; data: string }>();
   const db = {
@@ -14,7 +14,8 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     failWrites: false,
     // No rollback here: the real atomicity is tested against SQLite (workout-sets.test.tsx).
     withExclusiveTransactionAsync: async (task: (t: WorkoutDb) => Promise<void>) => task(db),
-    lag: undefined as undefined | ((sql: string) => number),
+    // A write waits on the promise this returns: a test opens it when ready, so no wall-clock delay models a slow write.
+    hold: undefined as undefined | ((sql: string) => Promise<void> | undefined),
     async getAllAsync<T>(sql: string, ...p: (string | number)[]) {
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
       if (sql.includes('GROUP BY workout_date')) {
@@ -34,6 +35,10 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
         if (table === 'settings') return (data === undefined ? null : { value: data }) as T | null; // the key/value flags table
         return (data === undefined ? null : { data }) as T | null;
       }
+      if (sql.includes('FROM weights WHERE json_extract')) {
+        const live = [...rows].find(([k, v]) => k.startsWith('weights:') && !(JSON.parse(v) as { deleted_at: string | null }).deleted_at);
+        return (live ? { data: live[1] } : null) as T | null;
+      }
       // latest by given_at, as the consents query orders
       const all = [...rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => v);
       all.sort((a, b) => (JSON.parse(b).given_at as string).localeCompare(JSON.parse(a).given_at));
@@ -41,8 +46,8 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     },
     async runAsync(sql: string, ...p: (string | number)[]) {
       if (db.failWrites) throw new Error('disk full');
-      const lag = db.lag;
-      if (lag) await new Promise((r) => setTimeout(r, lag(sql)));
+      const held = db.hold?.(sql);
+      if (held) await held; // no extra microtask turn for the many tests that never set `hold`
       if (sql.startsWith('DELETE FROM settings WHERE key')) {
         rows.delete(`settings:${p[0]}`);
         return;

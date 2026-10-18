@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
@@ -7,6 +7,7 @@ import type { WaterLog } from '../src/food/water';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
+import { turns } from './sync-helpers';
 
 const mockFocus = { n: 0 };
 jest.mock('expo-router', () => ({
@@ -84,13 +85,17 @@ describe('Water card', () => {
   it('saves in the order the user tapped, even when the first write is slow', async () => {
     const db = memoryDb();
     let first = true;
-    // Only the first water write is slow; without the FIFO queue the undo's tombstone lands first and the glass overwrites it.
-    db.lag = (sql) => (sql.includes('water_logs') && first ? ((first = false), 60) : 0);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    // Only the first water write is held; without the FIFO queue the undo's tombstone lands first and the glass overwrites it.
+    db.hold = (sql) => (sql.includes('water_logs') && first ? ((first = false), gate) : undefined);
     await setup({ db });
     await fireEvent.press(screen.getByLabelText('Add a glass, 250 millilitres'));
     await fireEvent.press(screen.getByLabelText('Undo last water'));
-    await waitFor(() => expect(waters(db)).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, 150));
+    await act(async () => turns()); // an unqueued tombstone would be written by now
+    await act(async () => release());
+    await act(async () => turns());
+    expect(waters(db)).toHaveLength(1);
     expect(waters(db)[0].deleted_at).toBeTruthy();
   });
 

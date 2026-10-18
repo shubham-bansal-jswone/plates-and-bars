@@ -190,15 +190,21 @@ describe('Recipes screen: builder', () => {
 
   it('Back waits for the queued writes, and a second press does nothing', async () => {
     const db = memoryDb();
-    db.lag = () => 30;
+    // Writes stay queued until the test opens the gate, so "waits" does not depend on how long the machine takes.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = () => gate;
     const { onBack } = await setup(db);
     await fireEvent.press(screen.getByLabelText('Dal'));
     await fireEvent.press(screen.getByLabelText('Save only'));
     await fireEvent.press(screen.getByLabelText('Back'));
     await fireEvent.press(screen.getByLabelText('Back'));
+    await act(async () => {});
     expect(onBack).not.toHaveBeenCalled();
+    expect(stored(db, 'recipes')).toHaveLength(0);
+    await act(async () => release());
     await waitFor(() => expect(onBack).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 80));
+    await act(async () => {});
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(stored(db, 'recipes')).toHaveLength(1);
   });

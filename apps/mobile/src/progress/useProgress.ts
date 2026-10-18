@@ -1,12 +1,14 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, measurementRow, num, scaleJump, sleepEntry, weightEntry, type MeasureKey, type ScaleJump } from '@plate-and-bar/core';
+import { addDays, measurementRow, scaleJump, weightEntry, type MeasureKey, type ScaleJump } from '@plate-and-bar/core';
 import { loadMeasurements, loadWeights, saveMeasurement, saveWeight } from '../db/progress';
 import { loadDayNote, patchDayNote } from '../db/food';
 import type { WorkoutDb } from '../db/workouts';
 import { freshRead } from '../state/freshRead';
 import type { DayNote } from '../food/types';
 import { localDate } from '../setup/logic';
-import { MEASURE_NONE, SLEEP_BAD, STEPS_BAD, WEIGHT_BAD } from './copy';
+import { MEASURE_NONE, WEIGHT_BAD } from './copy';
+import { stepsSleepSave } from './stepsSleep';
 import type { Measurement, Weight } from './types';
 
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -23,7 +25,6 @@ interface Options {
 }
 
 const blankNote = (date: string): DayNote => ({ id: null, version: 0, deleted_at: null, updated_at: '', date, complete: null, steps: null, steps_source: null, sleep: null, fast: false });
-const isNumber = (text: string): boolean => Number.isFinite(Number(text.trim()));
 const blankTape = (date: string): Measurement => ({ id: null, version: 0, updated_at: '', deleted_at: null, date, waist_cm: null, neck_cm: null, chest_cm: null, arm_cm: null, thigh_cm: null, hips_cm: null });
 
 /**
@@ -46,6 +47,17 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
   const queue = useRef<Promise<void>>(Promise.resolve());
   const writes = useRef(0);
 
+  // The tab stays mounted while Food (whose burn details save steps and sleep) is shown, so the day is read again when this
+  // tab is shown (not on the first show: the mount already reads).
+  const [focused, setFocused] = useState(0);
+  const first = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (first.current) first.current = false;
+      else setFocused((n) => n + 1);
+    }, []),
+  );
+
   useEffect(() => {
     let live = true;
     (async () => {
@@ -65,7 +77,7 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
     return () => {
       live = false;
     };
-  }, [db, date, notify, reloadKey]);
+  }, [db, date, notify, reloadKey, focused]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
@@ -123,13 +135,9 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
   /** Saves today's steps and sleep on the day note; an empty box clears that value. */
   const saveStepsSleep = useCallback(
     (stepsText: string, sleepText: string) => {
-      if (stepsText.trim() && !isNumber(stepsText)) return notify(STEPS_BAD);
-      const steps = stepsText.trim() ? Math.round(num(stepsText)) : null;
-      const slept = sleepEntry(sleepText);
-      if (steps !== null && !(steps >= 0)) return notify(STEPS_BAD);
-      if (slept.kind === 'bad') return notify(SLEEP_BAD);
-      const sleep = slept.kind === 'save' ? slept.h : null;
-      const steps_source = steps === null ? null : ('manual' as const);
+      const r = stepsSleepSave(stepsText, sleepText);
+      if (r.kind === 'bad') return notify(r.message);
+      const { steps, steps_source, sleep } = r;
       const n: DayNote = { ...(notesRef.current.find((x) => x.date === date) ?? blankNote(date)), steps, steps_source, sleep, updated_at: stamp(now()) };
       notesRef.current = [...notesRef.current.filter((x) => x.date !== date), n];
       setNotes(notesRef.current);

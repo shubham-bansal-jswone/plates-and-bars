@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
@@ -7,6 +7,7 @@ import { getCatalog } from '../src/workout/catalog';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { memoryDb, withProfile } from './helpers';
+import { turns } from './sync-helpers';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -187,7 +188,7 @@ describe('Targets path edge cases', () => {
     await view.rerender(ui(1)); // a sync pull makes the rules read again, and the read fails
     await waitFor(() => expect(screen.queryByText(/Couldn’t read your saved exercise rules/)).toBeTruthy());
     await fireEvent.press(await screen.findByLabelText(/^Skip it, no replacement/));
-    await new Promise((r) => setTimeout(r, 50));
+    await act(async () => turns()); // anything the answer would still write
     expect([...db.rows.keys()].some((k) => k.startsWith('exclusions:'))).toBe(false);
     expect(JSON.stringify([workout(db), sets(db)])).toBe(snapshot);
   });

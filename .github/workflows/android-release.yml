@@ -13,6 +13,14 @@ name: Android release build
 # Repository variable (Settings > Secrets and variables > Actions > Variables):
 #   ANDROID_API_URL            https://<API_HOST>/api/v1, baked into the build as EXPO_PUBLIC_API_URL. REQUIRED on v* tags (the job fails
 #                              without it); optional, with a warning, on manual and PR runs. Not a secret.
+# Optional variables of the `android-release` environment (all inert when unset; they reach only the Gradle step, which
+# bundles the JS, never npm ci or expo prebuild):
+#   EXPO_PUBLIC_SENTRY_DSN     error-tracking DSN baked into the build; empty = the app sends nothing. Set it only after the
+#                              privacy page and the Play data-safety answers name crash reports (#748, #827).
+#   EXPO_PUBLIC_SITE_URL       https origin of the website; the app hides its privacy, terms and deletion links without it (#825).
+#                              REQUIRED on v* tags (the job fails without it: Play needs the privacy link).
+# PR runs never get the DSN (no environment, and the workflow blanks it).
+# EXPO_PUBLIC_SENTRY_ENVIRONMENT is set here, not by you: `production` on a v* tag, `staging` otherwise.
 # android.versionCode comes from the tag (v1.2.3 -> 1002003) or, on non-tag runs, the run number; see
 # infra/scripts/android-release-config.sh.
 #
@@ -30,6 +38,16 @@ on:
       - 'infra/scripts/android-release-config.sh'
       - 'infra/scripts/test-android-release-config.sh'
       - 'infra/scripts/check-api-url.sh'
+      - 'infra/scripts/test-release-env.sh'
+      - 'infra/scripts/check-site-url.sh'
+      - 'infra/scripts/test-check-site-url.sh'
+      # the Android licence list (#835): a dependency change can change the release classpath
+      - 'apps/mobile/package-lock.json'
+      - 'apps/mobile/scripts/android-classpath.init.gradle'
+      - 'apps/mobile/scripts/android-classpath.txt'
+      - 'apps/mobile/scripts/licences.mjs'
+      - 'apps/mobile/scripts/android-native-libs.txt'
+      - 'apps/mobile/scripts/licence-texts/**'
   workflow_dispatch:
 
 permissions:
@@ -70,13 +88,37 @@ jobs:
         if: github.event_name == 'pull_request'
         working-directory: .
         run: |
-          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh
+          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-site-url.sh infra/scripts/test-check-site-url.sh infra/scripts/test-release-env.sh
           infra/scripts/test-check-api-url.sh
           infra/scripts/test-android-release-config.sh
+          infra/scripts/test-check-site-url.sh
+          infra/scripts/test-release-env.sh
       - name: Set versionCode and check the API URL (CI checkout only, not committed)
         run: ../../infra/scripts/android-release-config.sh app.json
+      - name: Release builds need the site URL (the privacy link Play requires)
+        env:
+          IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          SITE_URL_CHECK: ${{ vars.EXPO_PUBLIC_SITE_URL }}
+        run: ../../infra/scripts/check-site-url.sh "$IS_RELEASE" "$SITE_URL_CHECK"
       - name: Generate the native project
         run: npx expo prebuild --platform android --no-install
+      # About lists the Android libraries from the committed apps/mobile/scripts/android-classpath.txt (#835). Resolve the
+      # real releaseRuntimeClasspath with a plain-Gradle init script (no plugin) and fail if an artifact has no licence row
+      # in scripts/licences.mjs or the list differs from the committed one. No secrets reach this step.
+      - name: Android licence list matches the resolved release classpath
+        id: classpath
+        working-directory: apps/mobile/android
+        run: |
+          ./gradlew --no-daemon --no-configuration-cache -q -I ../scripts/android-classpath.init.gradle :app:writeReleaseClasspath -PclasspathOut="$RUNNER_TEMP/android-classpath.txt"
+          node ../scripts/licences.mjs --classpath "$RUNNER_TEMP/android-classpath.txt"
+      - name: Upload the resolved classpath (copy it over scripts/android-classpath.txt)
+        if: failure() && steps.classpath.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-classpath
+          path: ${{ runner.temp }}/android-classpath.txt
+          if-no-files-found: warn
+          retention-days: 14
       - name: Decode keystore (only when supplied)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
@@ -94,10 +136,30 @@ jobs:
       - name: Build APK and AAB
         working-directory: apps/mobile/android
         env:
+          # read by Metro when Gradle bundles the JS; only this step, never npm ci
+          # a PR run has no environment, so a repository-level variable must never reach its debug-signed artifacts
+          EXPO_PUBLIC_SENTRY_DSN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_SENTRY_DSN || '' }}
+          EXPO_PUBLIC_SENTRY_ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+          EXPO_PUBLIC_SITE_URL: ${{ vars.EXPO_PUBLIC_SITE_URL }}
           ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
           ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
           ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
         run: ./gradlew assembleRelease bundleRelease --no-daemon
+      # About also lists the third-party native code inside the .so files (#904). Take the .so names of the APK just built and
+      # fail if they differ from scripts/android-native-libs.txt or one has no notice entry in scripts/licences.mjs (NATIVE_SO).
+      - name: Android native libraries match the committed list
+        id: nativelibs
+        run: |
+          unzip -Z1 android/app/build/outputs/apk/release/*.apk 'lib/*.so' | sed 's#.*/##' | sort -u > "$RUNNER_TEMP/android-native-libs.txt"
+          node scripts/licences.mjs --native-libs "$RUNNER_TEMP/android-native-libs.txt"
+      - name: Upload the built .so names (copy them over scripts/android-native-libs.txt)
+        if: failure() && steps.nativelibs.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-native-libs
+          path: ${{ runner.temp }}/android-native-libs.txt
+          if-no-files-found: warn
+          retention-days: 14
       - name: Signing mode
         run: |
           if [ -n "$ANDROID_KEYSTORE_FILE" ]; then

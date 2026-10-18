@@ -3,7 +3,7 @@ import { completeSetup, expect, label, saved, tab, test } from '../support/app.m
 async function logRoti(page) {
   await tab(page, 'Food');
   await label(page, '+ Add to breakfast').click();
-  await saved(page, () => page.locator('[aria-label^="Add Roti / chapati"]').first().click());
+  await saved(page, () => page.locator('[aria-label^="Roti / chapati"]').first().click());
   await label(page, 'Done').click();
   await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
 }

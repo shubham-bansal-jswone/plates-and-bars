@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { getInstalledBrowsers } from '@puppeteer/browsers';
 import { defineConfig } from '@playwright/test';
+import { reuseRequested, resolvePort } from './support/port.mjs';
 
 // Open-source Chromium only: Playwright's own browser download is never used. CI installs Chromium with
 // @puppeteer/browsers and sets CHROME_PATH (it must, CI fails without it). Locally CHROME_PATH wins, then the Chromium
@@ -14,7 +15,9 @@ async function findChromium() {
 }
 const chrome = await findChromium();
 
-const port = Number(process.env.E2E_PORT ?? 4173);
+// E2E_PORT unset or 0 picks a free port, so parallel local runs never collide; CI keeps 4173. A taken port fails fast
+// unless E2E_REUSE=1 (README.md, "Run locally").
+const port = await resolvePort({ fallback: process.env.CI ? 4173 : undefined });
 
 export default defineConfig({
   testDir: './specs',
@@ -26,7 +29,7 @@ export default defineConfig({
   webServer: {
     command: 'node support/server.mjs',
     url: `http://127.0.0.1:${port}/`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: reuseRequested(),
     env: { E2E_PORT: String(port) },
   },
   use: {

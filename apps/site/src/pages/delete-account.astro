@@ -1,5 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
+import { webAppUrl } from "../lib/web-app-url.mjs";
+
+const webApp = webAppUrl(import.meta.env.PUBLIC_WEB_APP_URL);
 ---
 
 <Base title="Delete your account (draft) - Plate & Bar" description="How to delete your Plate & Bar account and data. Draft, pending lawyer review.">
@@ -11,7 +14,7 @@ import Base from "../layouts/Base.astro";
   </div>
 
   <h2>Delete in the app</h2>
-  <p>This is the way to delete your account.</p>
+  {!webApp && <p>This is the way to delete your account.</p>}
   <p>Withdrawing your consent means deleting your account, and you can delete your account at any time from "Your data" in the app.</p>
   <ol>
     <li>Open the app, go to "Your data" and choose "Delete everything".</li>
@@ -19,6 +22,19 @@ import Base from "../layouts/Base.astro";
     <li>Confirm. The app deletes your account and everything the server stores for it, signs you out and clears the data on this device. It needs a connection.</li>
   </ol>
   <p>Before you delete, "Your data" can also download a copy of your data.</p>
+
+  {webApp && (
+    <>
+      <h2>Delete on the web</h2>
+      <p>If you do not have the app on your phone, or you uninstalled it, you can delete your account in the web app. It works the same way.</p>
+      <ol>
+        <li>Open the <a href={webApp}>web app</a>.</li>
+        <li>Tap "Sign in to sync" at the top of the screen, enter the email address of your account, then the 6-digit code we email you.</li>
+        <li>On Targets, choose "Download or delete my data". On "Your data", choose "Delete everything".</li>
+        <li>Confirm. The web app deletes your account and everything the server stores for it, signs you out and clears the data in this browser. It needs a connection.</li>
+      </ol>
+    </>
+  )}
 
   <h2>What gets deleted</h2>
   <ul>
@@ -29,7 +45,7 @@ import Base from "../layouts/Base.astro";
   </ul>
 
   <h2>What is kept, and for how long</h2>
-  <p>[Planned policy to confirm: nightly backups are not edited, and your data disappears from them when they expire, at most 30 days after deletion.] Server logs record opaque user ids with operational events (never food, weight, health answers or tokens) and expire after a bounded retention period: [log retention period]. See the <a href="/privacy/">privacy policy</a>.</p>
+  <p>[Planned policy to confirm: nightly backups are not edited, and your data disappears from them when they expire, at most 30 days after deletion.] Your account's opaque user id and the time of deletion, with nothing else, are kept in an erasure ledger, with a copy kept with the backups, for about 45 days (at most 46), so that restoring a backup cannot bring your account back. Server logs record opaque user ids with operational events (never food, weight, health answers or tokens) and expire after a bounded retention period: the API's own logs and the web server's error lines are kept for at most 14 days, and for less if the logs reach about 200 MB on the server. Web server access logs hold no user id and are kept for at most about 15 days. See the <a href="/privacy/">privacy policy</a>.</p>
 
   <h2>If you cannot use the app</h2>
   <p>This is a manual request handled by a person, not an automatic process, and we do not delete anything on the strength of the sender address alone. In-app deletion is faster and immediate, so use it if you can.</p>

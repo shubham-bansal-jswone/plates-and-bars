@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
@@ -6,8 +6,10 @@ import { DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET } from
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { getCuisines } from '../src/food/catalog';
+import { toastMs } from '../src/food/copy';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
+import { postToast, resetPendingToast } from '../src/state/pendingToast';
 
 // Pressable folds aria-expanded into accessibilityState before the host view, so record what the card hands to it.
 const mockPressed: Record<string, unknown>[] = [];
@@ -47,10 +49,24 @@ async function setup(opts: { flex?: number; withProfile?: boolean; db?: Db; now?
   return db;
 }
 const docs = (db: Db, table: string) => [...db.rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => JSON.parse(v));
+/** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
+const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
 const open = async (meal = 'breakfast') => {
   await fireEvent.press(screen.getByLabelText(`+ Add to ${meal}`));
   await screen.findByLabelText('Search foods');
 };
+
+// Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
+// fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
+beforeEach(() => {
+  resetPendingToast();
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+});
+// Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
+afterEach(() => {
+  jest.runOnlyPendingTimers();
+  jest.useRealTimers();
+});
 
 describe('Food screen', () => {
   it('shows the kcal target from core, with flex, and no macro bars without a profile', async () => {
@@ -287,7 +303,7 @@ describe('Food screen', () => {
     const db = await setup();
     await open();
     await fireEvent.press(screen.getByLabelText('More servings'));
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText('Added Roti / chapati ×1.5');
     await fireEvent.press(screen.getByText('Done'));
     expect(screen.getByLabelText('153 of 1,990 kcal eaten')).toBeTruthy();
@@ -300,7 +316,7 @@ describe('Food screen', () => {
   it('the fibre Why card states that day’s target (flex included), the same as the fibre row', async () => {
     await setup({ flex: 300 });
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText('Added Roti / chapati');
     await fireEvent.press(screen.getByText('Done'));
     expect(screen.getByText(/of 34 g/)).toBeTruthy();
@@ -313,13 +329,13 @@ describe('Food screen', () => {
     await open('lunch');
     expect(screen.getByText(/dry or ingredient weight/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '1');
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     expect(await screen.findByText(/too small to log/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '75');
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText('Added Roti / chapati (75 g)');
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '50');
-    await fireEvent.press(screen.getByLabelText(/^Add Egg, whole/));
+    await fireEvent.press(screen.getByLabelText(/^Egg, whole/));
     expect(await screen.findByText(/is measured in .*, not grams. Use servings./)).toBeTruthy();
     await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(1));
     expect(docs(db, 'food_logs')[0]).toMatchObject({ meal: 'Lunch', qty: 2.5 });
@@ -330,7 +346,7 @@ describe('Food screen', () => {
     await open();
     expect(screen.getByText(/calculated from USDA public-domain/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Amount in grams'), '75 g');
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     expect(await screen.findByText('Added Roti / chapati (75 g)')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Eating out'));
     expect(screen.queryByText(/high protein/)).toBeNull();
@@ -340,8 +356,8 @@ describe('Food screen', () => {
     await setup();
     await open();
     await fireEvent.changeText(screen.getByLabelText('Search foods'), 'chawal');
-    expect(screen.getByLabelText(/^Add Rice, cooked/)).toBeTruthy();
-    expect(screen.queryByLabelText(/^Add Roti \/ chapati/)).toBeNull();
+    expect(screen.getByLabelText(/^Rice, cooked/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Roti \/ chapati/)).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Search foods'), 'whey');
     expect(screen.getByText(/high protein/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Search foods'), 'zzzz');
@@ -357,10 +373,63 @@ describe('Food screen', () => {
     await fireEvent.press(screen.getByLabelText('Drinks'));
     expect(screen.getByLabelText('Why? Alcohol and training')).toBeTruthy();
     const beer = getCuisines().find((c) => c.name === 'Drinks')!.dishes[0]!;
-    await fireEvent.press(screen.getByLabelText(new RegExp(`^Add ${beer.name.replace(/[()]/g, '\\$&')}`)));
+    await fireEvent.press(screen.getByLabelText(new RegExp(`^${beer.name.replace(/[()]/g, '\\$&')}.*tap to add$`)));
     await screen.findByText(`Added ${beer.name}`);
     await waitFor(() => expect(docs(db, 'food_logs')).toHaveLength(1));
     expect(docs(db, 'food_logs')[0]).toMatchObject({ name: beer.name, qty: 1, kcal: beer.per_serving.kcal, food_id: beer.id });
+  });
+
+  const logCola = async () => {
+    await open();
+    await fireEvent.press(screen.getByLabelText('Eating out'));
+    await fireEvent.press(screen.getByLabelText('Fast food'));
+    await fireEvent.press(screen.getByLabelText(/^Cola \(330 ml\).*tap to add$/));
+    await screen.findByText('Added Cola (330 ml)');
+    await fireEvent.press(screen.getByText('Done'));
+  };
+
+  it('counts a logged eat-out Cola in the added-sugar total and not as without fibre data (#856)', async () => {
+    await setup();
+    await logCola();
+    expect(screen.getByText(/^Added sugar 35 g$/)).toBeTruthy();
+    expect(screen.queryByText(/without fibre data/)).toBeNull();
+  });
+
+  it('a food of the same name in my foods does not override the eat-out dish (#151 lookup order)', async () => {
+    const db = memoryDb();
+    db.rows.set('user_foods:f-cola', JSON.stringify({ id: 'f-cola', version: 1, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, name: 'Cola (330 ml)', unit: '1 can', kcal: 100, protein_g: 0, carbs_g: 25, fat_g: 0, fibre_g: 1, added_sugar_g: 5, fruit_veg_servings: null, origin: 'custom' }));
+    await setup({ db });
+    await logCola();
+    expect(screen.getByText(/^Added sugar 35 g$/)).toBeTruthy();
+  });
+
+  it('every food row is named from its visible text: name, kcal, then the detail line (WCAG 2.5.3, #800)', async () => {
+    await setup();
+    await open();
+    expect(screen.getAllByText(/^[\d,]+ kcal$/).length).toBeGreaterThan(0);
+    const rows = screen.getAllByLabelText(/, tap to add$/);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const name = row.props.accessibilityLabel as string;
+      expect(name).not.toMatch(/^Add /);
+      expect(name).toMatch(/ [\d,]+ kcal .*g protein.*, tap to add$/);
+      // The name starts with the row's visible texts joined in reading order (WCAG 2.5.3).
+      const visible = within(row).getAllByText(/./).map((t) => [t.props.children].flat().join('').trim()).join(' ');
+      expect(visible).not.toBe('');
+      expect(name.startsWith(visible)).toBe(true);
+    }
+  });
+
+  it('captions every custom-food field, hidden from screen readers; each field keeps the caption as its name', async () => {
+    await setup();
+    await open();
+    await fireEvent.press(screen.getByLabelText('Custom'));
+    for (const name of ['Food', 'Calories (kcal)', 'Servings', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Serving size']) {
+      // "Food" also names a tab, so count: the caption is the one text a screen reader does not see.
+      const all = screen.queryAllByText(name, { includeHiddenElements: true }).length;
+      expect(all - screen.queryAllByText(name).length).toBe(1);
+      expect(screen.getByLabelText(name)).toBeTruthy();
+    }
   });
 
   it('a serving unit over 100 characters blocks only when the food is saved to my foods', async () => {
@@ -408,13 +477,13 @@ describe('Food screen', () => {
     expect(docs(db, 'food_logs')[0]).toMatchObject({ name: 'Canteen thali', food_id: food.id });
     // It now shows in the food list, first.
     await fireEvent.press(screen.getByLabelText('+ Add to breakfast'));
-    expect(await screen.findByLabelText(/^Add Canteen thali/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^Canteen thali/)).toBeTruthy();
   });
 
   it('deletes a log as a tombstone and keeps it out of the totals', async () => {
     const db = await setup();
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText(/Added Roti/);
     await fireEvent.press(screen.getByText('Done'));
     await fireEvent.press(screen.getByLabelText('Remove Roti / chapati'));
@@ -425,7 +494,7 @@ describe('Food screen', () => {
   it('writes the "logged everything" tick as DayNote.complete and reads it back', async () => {
     const db = await setup();
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await screen.findByText(/Added Roti/);
     await fireEvent.press(screen.getByText('Done'));
     await fireEvent.press(screen.getByLabelText('I’ve logged everything I ate today'));
@@ -441,7 +510,7 @@ describe('Food screen', () => {
     const db = await setup();
     db.failWrites = true;
     await open();
-    await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+    await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
     await act(async () => {});
     expect(await screen.findByText('Added Roti / chapati')).toBeTruthy();
     await fireEvent.press(screen.getByText('Done'));
@@ -506,11 +575,11 @@ describe('Food screen', () => {
       await act(async () => { fireEvent.press(screen.getByLabelText('Copy previous day')); });
       // Still mid-read: log a food for today, as another screen or a sync pull would.
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+      await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
       await screen.findByText(/Added Roti/);
       await fireEvent.press(screen.getByText('Done'));
-      release();
-      await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+      await act(async () => release());
+      await flush();
       expect(docs(db, 'food_logs').filter((l) => l.date === DATE).map((l) => l.name)).toEqual(['Roti / chapati']);
       expect(screen.queryByText('Copied the previous day’s meals')).toBeNull();
       restore();
@@ -522,7 +591,7 @@ describe('Food screen', () => {
       const { release, restore } = holdCopyRead(db);
       await act(async () => { fireEvent.press(screen.getByLabelText('Copy previous day')); });
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti \/ chapati/));
+      await fireEvent.press(screen.getByLabelText(/^Roti \/ chapati/));
       await screen.findByText(/Added Roti/);
       await fireEvent.press(screen.getByText('Done'));
       release();
@@ -547,7 +616,7 @@ describe('Food screen', () => {
         fireEvent.press(btn);
       });
       await waitFor(() => expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1));
-      await new Promise((r) => setTimeout(r, 30));
+      await flush();
       expect(docs(db, 'food_logs').filter((l) => l.date === DATE)).toHaveLength(1);
       // The ref drops the second tap before it reads, so yesterday is read once.
       expect(prevReads).toBe(1);
@@ -578,7 +647,8 @@ describe('Food screen', () => {
       expect(await screen.findByText(says)).toBeTruthy();
       // Let the first toast go, so the second press has to speak for itself: were the copy left in flight (a stuck
       // `copying` ref), the day is still empty, the button is still offered, and this press would be silent.
-      await waitFor(() => expect(screen.queryByText(says)).toBeNull(), { timeout: 4_000 });
+      await act(async () => void jest.advanceTimersByTime(toastMs(says) + 1));
+      expect(screen.queryByText(says)).toBeNull();
       await fireEvent.press(screen.getByLabelText('Copy previous day'));
       expect(await screen.findByText(says)).toBeTruthy();
       expect(docs(db, 'food_logs')).toHaveLength(0);
@@ -598,7 +668,7 @@ describe('Food screen', () => {
       let release!: () => void;
       trackWrite(new Promise<void>((r) => (release = r)).then(() => void db.rows.set('food_logs:l9', JSON.stringify(log('l9', 'Late dal')))));
       await refocus(db);
-      await new Promise((r) => setTimeout(r, 30));
+      await flush();
       expect(screen.queryByText('Late dal')).toBeNull();
       release();
       expect(await screen.findByText('Late dal')).toBeTruthy();
@@ -606,33 +676,45 @@ describe('Food screen', () => {
 
     it('keeps a food just added when the tab is shown while its write is still queued', async () => {
       const db = await setup();
-      db.lag = () => 60;
+      // The write stays queued until the test opens the gate, so the read cannot see the row before then.
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      db.hold = () => gate;
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByLabelText(/^Roti/));
       await fireEvent.press(screen.getByText('Done'));
-      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
       await refocus(db);
-      await new Promise((r) => setTimeout(r, 200));
+      await flush();
       // Without waiting for the queue, the read would not have seen the row and would replace the day with an empty one.
-      expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
+      await act(async () => release());
+      await flush();
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
       expect(docs(db, 'food_logs')).toHaveLength(1);
     });
 
     it('drops an older read when the user wrote while it ran', async () => {
       const db = await setup();
       const real = db.getAllAsync.bind(db);
+      // Reads that start while `slow` hold their (by then stale) result until the test opens the gate.
       let slow = true;
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
       db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
         const out = await real(sql, ...p);
-        if (slow && sql.includes('FROM food_logs')) await new Promise((r) => setTimeout(r, 80));
+        if (slow && sql.includes('FROM food_logs')) await gate;
         return out;
       }) as typeof db.getAllAsync;
       await refocus(db);
       await open();
-      await fireEvent.press(screen.getByLabelText(/^Add Roti/));
+      await fireEvent.press(screen.getByLabelText(/^Roti/));
       await fireEvent.press(screen.getByText('Done'));
+      // The just-added food shows while the stale read is still held.
+      expect(screen.getByLabelText('Remove Roti / chapati')).toBeTruthy();
       slow = false;
-      await new Promise((r) => setTimeout(r, 300));
+      await act(async () => release());
+      await flush();
       expect(screen.getAllByText(/Roti/).length).toBeGreaterThan(0);
     });
 
@@ -811,5 +893,16 @@ describe('Low on protein add-on', () => {
     await setup({ db });
     await screen.findByText('Almonds');
     expect(screen.queryByText(/^Low on protein/)).toBeNull();
+  });
+});
+
+describe('toast posted by setup', () => {
+  it('shows a message posted before the tab mounted, once', async () => {
+    postToast('Targets updated');
+    await setup();
+    expect(await screen.findByText('Targets updated')).toBeTruthy();
+    await screen.unmount();
+    await setup();
+    expect(screen.queryByText('Targets updated')).toBeNull();
   });
 });

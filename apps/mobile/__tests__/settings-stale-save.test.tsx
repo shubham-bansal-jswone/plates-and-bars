@@ -5,10 +5,9 @@ import { defaultSettings } from '../src/settings/types';
 import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { signOut, wipeLocalStore } from '../src/sync/guard';
 import { KEY_SETTINGS_KEPT, KEY_USER, getKv, setKv } from '../src/sync/store';
-import { memoryTokens, openDb } from './sync-helpers';
+import { memoryTokens, openDb, turns } from './sync-helpers';
 
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A real SQLite where the next read of the settings record can be held (the save is then inside its transaction). */
 async function setup() {
@@ -63,10 +62,10 @@ describe('a settings save queued before sign-out or a wipe (#645)', () => {
     const told: boolean[] = [];
     await act(async () => r.result.current.update({ diet: 'veg' }, (stored) => told.push(stored))); // B: queued behind A, has not started
     const out = signOut(db, memoryTokens({ access: 'a', refresh: 'r' }), { discard: true }); // waits for the lock, then wipes
-    await sleep(20);
+    await turns();
     await act(async () => held.open());
     expect(await out).toBe(0);
-    await sleep(50); // B runs now
+    await turns(); // B runs now
     expect(await rows()).toEqual({ settings: [], outbox: [] });
     expect(await loadSettings(db)).toBeNull();
     expect(told).toEqual([false]); // the dropped save tells its caller that nothing was stored
@@ -84,7 +83,7 @@ describe('a settings save queued before sign-out or a wipe (#645)', () => {
     let ok: boolean | undefined;
     await act(async () => void r.result.current.addCustomTags('Mine', tag as never).then((v) => (ok = v))); // queued behind it
     const out = signOut(db, memoryTokens({ access: 'a', refresh: 'r' }), { discard: true });
-    await sleep(20);
+    await turns();
     await act(async () => held.open());
     expect(await out).toBe(0);
     await waitFor(() => expect(ok).toBeDefined());
@@ -99,7 +98,7 @@ describe('a settings save queued before sign-out or a wipe (#645)', () => {
     await held.reached;
     await r.unmount();
     await act(async () => held.open());
-    await sleep(50);
+    await turns();
     expect((await loadSettings(db))!.focus).toEqual(['abs']); // the stored record is as before
     expect((await rows()).outbox).toEqual([]);
   });
@@ -121,11 +120,11 @@ describe('a settings save queued before sign-out or a wipe (#645)', () => {
     await act(async () => r.result.current.setDiet('veg')); // inside its transaction, holding the write lock
     await held.reached;
     const out = signOut(db, memoryTokens({ access: 'a', refresh: 'r' }), { discard: true }); // waits for the lock, then wipes
-    await sleep(20);
+    await turns();
     failing.on = true; // the write fails: rollback, then the wipe takes the lock before the failure handler can
     await act(async () => held.open());
     expect(await out).toBe(0);
-    await sleep(50); // the failure handler's turn
+    await turns(); // the failure handler's turn
     failing.on = false;
     expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull();
     const Wrapper = ({ children }: { children: ReactNode }) => <SettingsProvider db={db}>{children}</SettingsProvider>;

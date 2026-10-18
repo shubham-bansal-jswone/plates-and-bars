@@ -54,10 +54,10 @@ export async function openApp(page, path = '/') {
  * Answers the setup steps (the same answers as apps/mobile/scripts/web-reload.mjs) and stops where asked:
  * `stop: 'screening'` on the goal step (it carries the "Quick health check" Why link), `stop: 'results'` on the results
  * ("Use these targets" is still to press), or never (lands on the results too, so completeSetup can finish).
- * `age` and `where` (the exact accessible label of the training-place choice) change the results notes: 60 or older
+ * `days` is the accessible label of the days-a-week choice ('6' by default, 'None yet' for none). `age` and `where` (the exact accessible label of the training-place choice) change the results notes: 60 or older
  * adds the older-lifter note, and a home choice adds the home-plan note, each with its Why link.
  */
-export async function answerSetup(page, { age = '30', where = 'At a gym. Machines, cables, barbells and dumbbells', stop = 'results' } = {}) {
+export async function answerSetup(page, { age = '30', where = 'At a gym. Machines, cables, barbells and dumbbells', stop = 'results', days = '6' } = {}) {
   await openApp(page);
   await expect(label(page, 'Continue')).toBeVisible({ timeout: 40_000 });
   await label(page, 'I understand and agree to my data being stored as described').click();
@@ -70,10 +70,13 @@ export async function answerSetup(page, { age = '30', where = 'At a gym. Machine
   await label(page, 'Continue').click();
   await label(page, 'Mostly sitting. Desk job, little walking (under ~5,000 steps)').click();
   await label(page, 'Continue').click();
-  await label(page, '6').click();
-  await label(page, where).click();
-  await label(page, 'Some experience. 6 months to 2 years of regular training').click();
-  await label(page, '60 min').click();
+  await label(page, days).click(); // '6', or 'None yet' for no training days
+  if (days !== 'None yet') {
+    // With no training days the setup asks nothing more about training.
+    await label(page, where).click();
+    await label(page, 'Some experience. 6 months to 2 years of regular training').click();
+    await label(page, '60 min').click();
+  }
   await label(page, 'Continue').click();
   await label(page, 'Lose fat. Steady fat loss while keeping muscle').click();
   await expect(page.getByText('Quick health check', { exact: true })).toBeVisible();
@@ -83,10 +86,13 @@ export async function answerSetup(page, { age = '30', where = 'At a gym. Machine
   await expect(label(page, 'Use these targets')).toBeVisible();
 }
 
-/** Runs the whole setup flow and lands on Targets. */
+/** Runs the whole setup flow, checks it lands on Food with the toast (as the prototype does), then opens Targets. */
 export async function completeSetup(page) {
   await answerSetup(page);
   await label(page, 'Use these targets').click();
+  await expect(page.getByRole('heading', { name: 'Food', exact: true })).toBeVisible();
+  await expect(page.getByText('Targets updated', { exact: true })).toBeVisible();
+  await tab(page, 'Targets');
   await expect(label(page, 'Redo setup')).toBeVisible(); // only Targets has it
   // Targets shows the editable "Daily targets" fields, not the read-only tiles (#483), so read the field's value.
   await expect(label(page, 'Calories (kcal)')).toHaveValue('1990');
