@@ -34,5 +34,7 @@ export interface DayNote extends Omit<SyncMeta, 'id'> {
   fast: boolean;
 }
 
-/** Contract `UserFood`. */
-export interface UserFood extends SyncMeta, UserFoodFields {}
+/** Contract `UserFood`. `barcode` (contract 0.1.23) is set on a food made from a barcode scan; absent on every other food and on rows from older clients. */
+export interface UserFood extends SyncMeta, UserFoodFields {
+  barcode?: string | null;
+}

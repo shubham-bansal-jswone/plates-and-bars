@@ -35,15 +35,15 @@ export function WhySheet({ id, values, onClose, now = () => new Date() }: { id: 
   if (!card) return null;
   return (
     <SheetModal title={card.title} onClose={onClose}>
-      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled" onAccessibilityEscape={onClose}>
         <View style={styles.body}>
-          <Button kind="ghost" label="Close" onPress={onClose} />
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{card.title}</Heading>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{card.summary}</Text>
           <Text style={{ color: c.ink, lineHeight: 22 }}>{renderBody(card.body, values)}</Text>
           <Hint>{`Evidence: ${card.evidence}. ${EVIDENCE_NOTE[card.evidence]}`}</Hint>
           <Hint>{`Source: ${card.source}. Draft card, not yet reviewed by a coach or dietitian. Not medical advice.`}</Hint>
           <WhyFollowUp key={id} cardId={id} />
+          <Button kind="ghost" label="Close" onPress={onClose} />
         </View>
       </ScrollView>
     </SheetModal>

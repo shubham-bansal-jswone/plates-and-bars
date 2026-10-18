@@ -6,7 +6,8 @@ import { BARCODE_COPY as t } from './copy';
  */
 export type CameraPermission = 'granted' | 'denied' | 'blocked' | 'unavailable';
 
-// Read when asked, not at load: the web build has no PermissionsAndroid, and the pose chunk imports this file there too (#947).
+// Read when used: on the web `PermissionsAndroid.PERMISSIONS` does not exist, so a top-level read would throw when the module loads, and
+// the Add sheet imports this module, so it would take the whole web app down.
 const camera = () => PermissionsAndroid.PERMISSIONS.CAMERA;
 
 /** Whether the camera may be used now. Never asks. `denied` also covers "blocked", which only a request can tell apart. */

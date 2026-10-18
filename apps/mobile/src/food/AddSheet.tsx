@@ -3,12 +3,16 @@ import { SheetModal } from '../components/Sheet';
 import { WhyLink } from '../why/WhyLink';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
+import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type UserFoodFacts, type UserFoodFields } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, ErrorText, Field, Caption, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AI_COPY } from '../ai/copy';
+import { BARCODE_COPY } from '../barcode/copy';
+import { barcodeScanEnabled } from '../barcode/flag';
+import { OffCredit } from '../barcode/OffCredit';
+import { ScanFlow } from '../barcode/ScanFlow';
 import { DescribeBody } from '../ai/DescribeSheet';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
 import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, noMatch, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
@@ -25,7 +29,8 @@ interface Props {
   mine: readonly UserFood[];
   mineFacts: readonly UserFoodFacts[];
   onAdd: (n: NewLog) => void;
-  onSaveMine: (f: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => UserFood;
+  /** `barcode` is set on a food made from a scan (or a typed barcode); the saved food keeps it so a repeat scan finds it with no lookup. */
+  onSaveMine: (f: UserFoodFields & { barcode?: string | null }) => UserFood;
   onClose: () => void;
   /** True when the describe-meal feature is available (consent, server, signed in): shows the Describe it tab. */
   canDescribe?: boolean;
@@ -40,6 +45,10 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
   const [seenDescribe, setSeenDescribe] = useState(false);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   const say = (text: string, error = false) => setStatus({ text, error });
+  // Scan barcode (#944, behind EXPO_PUBLIC_BARCODE_SCAN): the scanner flow is a full-screen modal over this sheet. "Enter by hand"
+  // closes it and opens Custom with the code, which is saved with the food.
+  const [scanning, setScanning] = useState(false);
+  const [customCode, setCustomCode] = useState<string | null>(null);
   return (
     <SheetModal title={`Add to ${meal.toLowerCase()}`} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
@@ -47,15 +56,15 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
             {(canDescribe || mode === 'describe' ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k === 'describe') setSeenDescribe(true); }}
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k !== 'custom') setCustomCode(null); if (k === 'describe') setSeenDescribe(true); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
             ))}
           </View>
-          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} /> : null}
+          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} onScan={barcodeScanEnabled() ? () => setScanning(true) : undefined} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
-          {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
+          {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} barcode={customCode} /> : null}
           {seenDescribe ? (
             <View style={mode === 'describe' ? undefined : styles.hidden} accessibilityElementsHidden={mode !== 'describe'} importantForAccessibility={mode === 'describe' ? 'auto' : 'no-hide-descendants'}>
               <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} />
@@ -65,6 +74,10 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
       </ScrollView>
+      {scanning ? (
+        <ScanFlow meal={meal} mine={mine} onAdd={onAdd} onSaveMine={onSaveMine} onClose={() => setScanning(false)} onDone={() => { setScanning(false); onClose(); }}
+          onCustom={(code) => { setScanning(false); setCustomCode(code); setMode('custom'); setStatus(null); }} />
+      ) : null}
     </SheetModal>
   );
 }
@@ -91,13 +104,15 @@ function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress:
   );
 }
 
-function ListTab({ mine, mineFacts, onAdd, say, canDescribe }: { canDescribe: boolean; mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
+function ListTab({ mine, mineFacts, onAdd, say, canDescribe, onScan }: { canDescribe: boolean; onScan?: () => void; mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
   const c = useTheme();
   const [q, setQ] = useState('');
   const [serv, setServ] = useState(1);
   const [grams, setGrams] = useState('');
   // My foods first, then the bundled list, as prototype `allFoods()`.
   const own: CatalogFood[] = mineFacts.map((f, i) => ({ ...f, id: mine[i]?.id ?? null }));
+  // A scanned food carries the Open Food Facts credit on its row (ODbL, spec D7): looked up by id, since the list mixes in the bundled foods.
+  const codeOf = (f: CatalogFood): string | null => (f.id ? mine.find((m) => m.id === f.id)?.barcode ?? null : null);
   const list = searchFoods(q, [...own, ...getFoodCatalog()]);
   const pick = (f: CatalogFood) => {
     const r = quantityFromGrams(f, grams);
@@ -117,9 +132,17 @@ function ListTab({ mine, mineFacts, onAdd, say, canDescribe }: { canDescribe: bo
         <Field label="Amount in grams" placeholder="or grams" keyboardType="numeric" value={grams} onChangeText={setGrams} />
       </View>
       <Hint>{GRAMS_HINT}</Hint>
-      <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={styles.search} />
+      <View style={styles.row}>
+        <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={[styles.search, styles.fill]} />
+        {onScan ? <Button kind="ghost" label={BARCODE_COPY.scanButton} a11yLabel={BARCODE_COPY.scanButtonA11y} onPress={onScan} /> : null}
+      </View>
       {list.length ? <Hint>{SOURCE_HINT}</Hint> : null}
-      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>{noMatch(canDescribe)}</Hint>}
+      {list.length ? list.map((f) => (
+        <View key={`${f.id}:${f.name}`}>
+          <Row food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />
+          {codeOf(f) ? <OffCredit code={codeOf(f) as string} /> : null}
+        </View>
+      )) : <Hint>{noMatch(canDescribe)}</Hint>}
     </View>
   );
 }
@@ -152,7 +175,7 @@ function Captioned({ label, children }: { label: string; children: ReactNode }) 
   return <View style={styles.captioned}><Caption>{label}</Caption>{children}</View>;
 }
 
-function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; onAdd: (n: NewLog) => void; onSaveMine: Props['onSaveMine']; onClose: () => void; say: Say }) {
+function CustomTab({ meal, onAdd, onSaveMine, onClose, say, barcode }: { barcode: string | null; meal: string; onAdd: (n: NewLog) => void; onSaveMine: Props['onSaveMine']; onClose: () => void; say: Say }) {
   const [f, setF] = useState({ name: '', kcal: '', protein: '', carbs: '', fat: '', qty: '1', unit: '' });
   const [save, setSave] = useState(true);
   const set = (k: keyof typeof f) => (v: string) => setF((o) => ({ ...o, [k]: v }));
@@ -162,11 +185,12 @@ function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; on
     // Only the saved food carries the unit, so a long unit blocks only when it would be saved.
     if (save && servingUnitTooLong(f.unit)) return say(UNIT_TOO_LONG, true);
     // A saved food is logged with its id so the log points at it; an unsaved one has no food.
-    onAdd({ ...r.log, foodId: save ? onSaveMine(r.food).id : null });
+    onAdd({ ...r.log, foodId: save ? onSaveMine(barcode ? { ...r.food, barcode } : r.food).id : null });
     onClose();
   };
   return (
     <View style={styles.gap}>
+      {barcode ? <Hint>{`${BARCODE_COPY.customCode} ${barcode}`}</Hint> : null}
       <Caption>Food</Caption>
       <Field label="Food" placeholder="e.g. Office canteen thali" value={f.name} onChangeText={set('name')} style={styles.wide} />
       <View style={styles.row}>
