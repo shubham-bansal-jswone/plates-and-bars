@@ -122,7 +122,7 @@ export function quantityFromGrams(food: GramsFood, grams: number | string): Gram
   return qty ? { kind: 'grams', qty } : { kind: 'too-small' };
 }
 
-/** The first food named `name` with fibre data, as prototype `fibOf` (shared `FIB`, which holds the shared foods and the eat-out dishes, then the user's foods). */
+/** The first food named `name` with fibre data, as prototype `fibOf` (shared `FIB`, which holds the shared foods and the eat-out Cola, then the user's foods). */
 function fibreOf(name: string, foods: readonly FoodFacts[]): FoodFacts | undefined {
   return foods.find((f) => f.name === name && f.per_serving.fibre_g !== null);
 }
@@ -131,7 +131,7 @@ function fibreOf(name: string, foods: readonly FoodFacts[]): FoodFacts | undefin
  * Day totals of the logs: energy and macros from each log's own per-serving values × `qty`, fibre and
  * added sugar from the food of the same name. Pass the shared foods, then the eat-out dishes, then the
  * user's foods (names are unique within each), so a shared food or eat-out dish wins, as prototype `FIB`
- * (which holds both) is read before `myFoods`.
+ * (which holds the shared foods and the eat-out Cola) is read before `myFoods`.
  *
  * Mirrors prototype `totals(meals)` plus the `fib`, `sug` and `unknown` parts of `fibreTotals(meals)`.
  */
