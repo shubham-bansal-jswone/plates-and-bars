@@ -13,6 +13,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeFormatter;
 import java.util.Set;
@@ -28,8 +29,11 @@ import org.springframework.stereotype.Component;
 /**
  * Append-only record of erased accounts that lives outside the database, so a backup restore can erase them again
  * (#850, DPDP). One line per erasure: the opaque user id, a tab, the UTC time. Nothing else is ever written: no
- * email, no name, no content. The file sits on a dedicated volume that backup.sh uploads to a prefix that retention
- * never prunes. With no path configured (dev only) the ledger is off and {@link #record} does nothing.
+ * email, no name, no content. One file per UTC day, {@code erasures-YYYY-MM-DD.log} in the ledger directory (#887),
+ * so the 45-day retention can delete whole days: infra's ledger-upload.sh copies each day file to its own bucket
+ * object and deletes the day files older than 45 days. This class never deletes or rewrites a file. The directory
+ * sits on a dedicated volume. With no directory configured (dev only) the ledger is off and {@link #record} does
+ * nothing.
  */
 @Component
 public class ErasureLedger {
@@ -49,31 +53,36 @@ public class ErasureLedger {
     private static final FileAttribute<Set<PosixFilePermission>> OWNER_DIR =
             PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
 
-    private final Path file;
+    /** The UTC day of the entry names its file. */
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ISO_LOCAL_DATE.withZone(ZoneOffset.UTC);
+
+    private final Path dir;
     private final boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
 
     @Autowired
-    ErasureLedger(@Value("${app.erasure-ledger.path:}") String path, Environment env) {
-        this(path, env.acceptsProfiles(Profiles.of("dev")));
+    ErasureLedger(@Value("${app.erasure-ledger.dir:}") String dir, Environment env) {
+        this(dir, env.acceptsProfiles(Profiles.of("dev")));
     }
 
     /**
-     * An empty path turns the ledger off, which lets a backup restore bring back deleted accounts. Outside the dev
-     * profile that is refused at startup (as {@code SmtpMailSender} refuses a missing SMTP host); in dev it is a WARN.
+     * An empty directory turns the ledger off, which lets a backup restore bring back deleted accounts. Outside the
+     * dev profile that is refused at startup (as {@code SmtpMailSender} refuses a missing SMTP host); in dev it is a
+     * WARN.
      */
-    ErasureLedger(String path, boolean dev) {
-        this.file = path == null || path.isBlank() ? null : Path.of(path);
-        if (file == null) {
+    ErasureLedger(String dir, boolean dev) {
+        this.dir = dir == null || dir.isBlank() ? null : Path.of(dir).toAbsolutePath();
+        if (this.dir == null) {
             if (!dev) {
-                throw new IllegalStateException("ERASURE_LEDGER_PATH is required unless the dev profile is active");
+                throw new IllegalStateException("ERASURE_LEDGER_DIR is required unless the dev profile is active");
             }
-            log.warn("Erasure ledger off (ERASURE_LEDGER_PATH empty): a backup restore will bring back deleted accounts");
+            log.warn("Erasure ledger off (ERASURE_LEDGER_DIR empty): a backup restore will bring back deleted accounts");
         }
     }
 
     /**
-     * Appends one entry and forces it to disk before returning. The time is cut to whole seconds, so every line has
-     * the same fixed width ({@code <uuid> TAB yyyy-MM-ddTHH:mm:ssZ}).
+     * Appends one entry to the file of its UTC day ({@code erasures-yyyy-MM-dd.log}, the day of the time as written)
+     * and forces it to disk before returning. The time is cut to whole seconds, so every line has the same fixed
+     * width ({@code <uuid> TAB yyyy-MM-ddTHH:mm:ssZ}).
      *
      * <p>If an earlier write failed half way (ENOSPC, EIO) the file can end in a line with no newline. The next entry
      * then starts on a new line, so a good entry is never glued onto a cut-off one; the replay must skip a line that
@@ -82,24 +91,23 @@ public class ErasureLedger {
      * @throws ErasureLedgerException if it cannot be written; the caller must then not delete anything
      */
     public void record(String userId, Instant at) {
-        if (file == null) {
+        if (dir == null) {
             return;
         }
         if (userId == null || !ID.matcher(userId).matches()) {
             throw new ErasureLedgerException("user id is not an opaque id", null);
         }
-        String entry = userId + "\t" + DateTimeFormatter.ISO_INSTANT.format(at.truncatedTo(ChronoUnit.SECONDS)) + "\n";
+        Instant time = at.truncatedTo(ChronoUnit.SECONDS);
+        String entry = userId + "\t" + DateTimeFormatter.ISO_INSTANT.format(time) + "\n";
+        Path file = dir.resolve("erasures-" + DAY.format(time) + ".log");
         try {
-            Path dir = file.toAbsolutePath().getParent();
-            if (dir != null) {
-                if (posix) {
-                    Files.createDirectories(dir, OWNER_DIR);
-                } else {
-                    Files.createDirectories(dir);
-                }
+            if (posix) {
+                Files.createDirectories(dir, OWNER_DIR);
+            } else {
+                Files.createDirectories(dir);
             }
             boolean created = !Files.exists(file);
-            byte[] line = ((!created && endsMidLine() ? "\n" : "") + entry).getBytes(StandardCharsets.UTF_8);
+            byte[] line = ((!created && endsMidLine(file) ? "\n" : "") + entry).getBytes(StandardCharsets.UTF_8);
             Set<StandardOpenOption> opts = Set.of(StandardOpenOption.CREATE, StandardOpenOption.APPEND);
             try (FileChannel ch = posix ? FileChannel.open(file, opts, OWNER_FILE) : FileChannel.open(file, opts)) {
                 ByteBuffer buf = ByteBuffer.wrap(line);
@@ -110,7 +118,7 @@ public class ErasureLedger {
                 // removes this call survives. Keep it, and keep the line of reasoning in the README.
                 ch.force(true);
             }
-            if (created && dir != null && posix) {
+            if (created && posix) {
                 // The new directory entry is not durable until the directory itself is synced.
                 try (FileChannel d = FileChannel.open(dir, StandardOpenOption.READ)) {
                     d.force(true);
@@ -121,7 +129,7 @@ public class ErasureLedger {
         }
     }
 
-    private boolean endsMidLine() throws IOException {
+    private static boolean endsMidLine(Path file) throws IOException {
         try (SeekableByteChannel ch = Files.newByteChannel(file, StandardOpenOption.READ)) {
             long size = ch.size();
             if (size == 0) {
