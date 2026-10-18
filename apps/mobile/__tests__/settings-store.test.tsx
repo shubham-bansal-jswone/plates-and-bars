@@ -7,6 +7,7 @@ import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { getCatalog, setCustomTags } from '../src/workout/catalog';
 import { withEntry } from '../src/content/own';
 import { memoryDb } from './helpers';
+import { turns } from './sync-helpers';
 
 const wrap = (db: ReturnType<typeof memoryDb>) => {
   const Wrapper = ({ children }: { children: ReactNode }) => <SettingsProvider db={db}>{children}</SettingsProvider>;
@@ -36,7 +37,9 @@ describe('settings store', () => {
 
   it('provider starts from defaults, writes nothing until a change, then keeps rows in the order of the changes', async () => {
     const db = memoryDb();
-    db.lag = (sql) => (sql.includes('user_settings') ? 5 : 0);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = (sql) => (sql.includes('user_settings') ? gate : undefined);
     const { result } = await renderHook(() => useSettings(), { wrapper: wrap(db) });
     await waitFor(() => expect(result.current.ready).toBe(true));
     expect(result.current.settings).toMatchObject({ focus: [], rest_off: false });
@@ -48,6 +51,9 @@ describe('settings store', () => {
     });
     // visible at once, before the writes finish
     expect(result.current.settings).toMatchObject({ focus: ['chest', 'lats'], rest_off: true });
+    await act(async () => turns());
+    expect(db.rows.size).toBe(0); // still held
+    await act(async () => release());
     await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest', 'lats'], rest_off: true }));
   });
 

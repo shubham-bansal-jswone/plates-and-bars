@@ -53,6 +53,19 @@ async function open(prep?: (db: Db) => Promise<void> | void) {
 const mount = (db: Db) => render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
 const input = (label: string) => screen.getByLabelText(label);
 
+// A test that waits for the toast to go (2.2 s) runs on a fake clock: the wait counts test steps, not machine time. Microtasks and setImmediate stay real.
+let fake = false;
+const fakeClock = () => {
+  fake = true;
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+};
+afterEach(() => {
+  if (fake) jest.runOnlyPendingTimers();
+  fake = false;
+  jest.useRealTimers();
+});
+const toastGoes = () => act(async () => void jest.advanceTimersByTime(2300));
+
 describe('exercise settings sheet', () => {
   it('opens from the gear with the exercise as its title and its current equipment, step and range', async () => {
     await open();
@@ -252,12 +265,14 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
   const NOT_STORED = 'Couldn’t save that on this device. Try again.';
 
   it('reports every failed save of the sheet, also a second one in a row', async () => {
+    fakeClock();
     const db = await open();
     db.failWrites = true;
     await press(`${BENCH} settings`);
     await press(`Save settings for ${BENCH}`);
     expect(await screen.findByText(NOT_STORED)).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText(NOT_STORED)).toBeNull(), { timeout: 4000 });
+    await toastGoes();
+    expect(screen.queryByText(NOT_STORED)).toBeNull();
     await press(`${BENCH} settings`);
     await press('Equipment: Cable');
     await press(`Save settings for ${BENCH}`);
@@ -287,12 +302,14 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
   });
 
   it('a retry that is stored after a failed save is not reported as failed', async () => {
+    fakeClock();
     const db = await open();
     db.failWrites = true;
     await press(`${BENCH} settings`);
     await press(`Save settings for ${BENCH}`);
     expect(await screen.findByText(NOT_STORED)).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText(NOT_STORED)).toBeNull(), { timeout: 4000 });
+    await toastGoes();
+    expect(screen.queryByText(NOT_STORED)).toBeNull();
     db.failWrites = false;
     await press(`${BENCH} settings`);
     await fireEvent.changeText(input('Range high'), '12');

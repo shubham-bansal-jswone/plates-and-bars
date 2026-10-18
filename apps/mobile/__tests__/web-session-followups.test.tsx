@@ -5,7 +5,7 @@ import { REFRESH_TIMEOUT_MS } from '../src/sync/timeout';
 import { REFRESH_RETRY_MS, SYNC_INTERVAL_MS, SyncProvider, useSync } from '../src/sync/SyncProvider';
 import { KEY_USER, setKv } from '../src/sync/store';
 import { webTokenStore } from '../src/sync/tokens';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, turns } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -15,7 +15,7 @@ jest.mock('expo-sqlite', () => ({ useSQLiteContext: () => null }));
 
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const API = 'http://fake/api/v1';
-const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+const flush = () => new Promise<void>((r) => setImmediate(r));
 
 /** A BroadcastChannel shared by every instance in the process, like the tabs of one browser. A sender never hears itself. */
 class FakeChannel {
@@ -28,7 +28,7 @@ class FakeChannel {
     if (type === 'message') this.handlers.add(h);
   }
   postMessage(data: unknown) {
-    for (const c of FakeChannel.all) if (c !== this && c.name === this.name) setTimeout(() => c.handlers.forEach((h) => h({ data })), 0);
+    for (const c of FakeChannel.all) if (c !== this && c.name === this.name) setImmediate(() => c.handlers.forEach((h) => h({ data })));
   }
   close() {
     FakeChannel.all.delete(this);
@@ -276,6 +276,8 @@ describe('the refresh request is bounded and holds the lock only as long as it r
   });
 
   it('another tab waits for the lock while the refresh runs, and its request goes out only once the first gave up', async () => {
+    // The first request's timeout runs on a fake clock: it fires when the test says so, not when a loaded machine happens to take 120 ms.
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
     installLocks();
     const srv = setupServer();
     srv.gate = new Promise<void>(() => undefined);
@@ -284,8 +286,9 @@ describe('the refresh request is bounded and holds the lock only as long as it r
     const first = a.run({ refreshTimeoutMs: 120 });
     await waitFor(() => expect(srv.calls('/auth/refresh')).toBe(1));
     const second = b.run({ refreshTimeoutMs: 120 });
-    await new Promise((r) => setTimeout(r, 60)); // well inside the first request's timeout
+    await turns(); // b has had every chance to send its request
     expect(srv.calls('/auth/refresh')).toBe(1); // b is still queued behind the lock
+    jest.advanceTimersByTime(120); // the first request's timeout
     expect((await first).status).toBe('unavailable');
     expect((await second).status).toBe('ok');
     expect(srv.calls('/auth/refresh')).toBe(2);

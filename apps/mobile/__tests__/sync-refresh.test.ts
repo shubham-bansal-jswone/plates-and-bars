@@ -2,7 +2,7 @@ import { createClient } from '@plate-and-bar/api';
 import { refreshJoinCount, refreshSession, syncOnce } from '../src/sync/engine';
 import { signOut, withSyncPaused } from '../src/sync/guard';
 import { KEY_USER, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, until } from './sync-helpers';
 import { saveWeightDoc } from './sync-fixtures';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -22,12 +22,6 @@ let joinBase = 0;
 beforeEach(() => void (joinBase = refreshJoinCount()));
 // A failed test must not leave a held refresh in the engine's in-flight map: the next tests would join it.
 afterEach(() => void gates.splice(0).forEach((release) => release()));
-async function until(what: string, ok: () => boolean) {
-  for (let i = 0; !ok(); i++) {
-    if (i > 5000) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 1));
-  }
-}
 /** Waits for observable state, never a fixed time: `n` /auth/refresh requests held at the server, and `joiners` refresh calls that joined one in flight (counted from the start of the test). */
 async function refreshHeld(server: { calls: { path: string }[] }, n: number, joiners = 0) {
   await until('held refresh requests', () => server.calls.filter((c) => c.path === '/auth/refresh').length >= n);
