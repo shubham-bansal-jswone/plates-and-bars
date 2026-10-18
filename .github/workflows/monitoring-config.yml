@@ -1,0 +1,42 @@
+name: Monitoring config
+
+# Validates infra/monitoring (inert GlitchTip and Uptime Kuma stacks, #828) without starting or deploying anything.
+# Path-filtered on purpose: it is not a required check. No workflow deploys these projects.
+on:
+  pull_request:
+    paths:
+      - 'infra/monitoring/**'
+      - 'infra/caddy/Caddyfile.glitchtip'
+      - 'infra/caddy/Caddyfile.kuma'
+      - 'infra/scripts/check-caddy-access-log.sh'
+      - '.github/workflows/monitoring-config.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    name: monitoring config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: compose config, pins, memory limits, privacy settings, Caddy log filters
+        run: infra/monitoring/test-config.sh
+      - name: shellcheck
+        run: shellcheck infra/monitoring/test-config.sh
+      - name: caddy validate
+        run: |
+          for f in Caddyfile.glitchtip Caddyfile.kuma; do
+            echo "== $f"
+            docker run --rm -v "$PWD/infra/caddy:/c:ro" caddy:2.11.7 caddy validate --config "/c/$f" --adapter caddyfile
+          done
+      - name: every pinned image has a linux/arm64 build
+        run: |
+          for p in glitchtip uptime-kuma; do
+            (cd "infra/monitoring/$p" && docker compose --env-file .env.example config --images)
+          done | sort -u | while IFS= read -r image; do
+            echo "== $image"
+            docker buildx imagetools inspect "$image" | grep -E '^\s+Platform:\s+linux/arm64'
+          done

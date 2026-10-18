@@ -88,6 +88,18 @@ tasks.named('test') {
     // Every content file needs an updated_at or the app refuses to start; tests use a fixed one for each file.
     environment 'CONTENT_UPDATED_AT', fileTree('../content') { include '*.json' }.files
             .collect { it.name.replace('.json', '') + '=2026-01-02T03:04:05Z' }.sort().join(',')
+    // ContractCoverageTest enforces what ran only when nothing was filtered out: no --tests or include/exclude filter.
+    // It also needs every test class in one JVM (its record of validations is a static set), so parallel forks and
+    // forkEvery are refused rather than letting the guard fail with a partial view.
+    doFirst {
+        if (maxParallelForks > 1 || forkEvery != 0) {
+            throw new GradleException('ContractCoverageTest needs all test classes in one JVM: ' +
+                    'do not set maxParallelForks > 1 or forkEvery on the test task')
+        }
+        boolean filtered = !(filter.includePatterns.isEmpty() && filter.excludePatterns.isEmpty()
+                && filter.commandLineIncludePatterns.isEmpty())
+        systemProperty 'contract.coverage.enforce', (!filtered).toString()
+    }
 }
 
 // Only the executable jar is produced (the Dockerfile copies build/libs/*.jar).

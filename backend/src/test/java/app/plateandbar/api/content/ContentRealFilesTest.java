@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import app.plateandbar.api.support.WebMvcAuthSlice;
+import app.plateandbar.api.sync.ContractSchemas;
 import tools.jackson.databind.JsonNode;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +35,7 @@ class ContentRealFilesTest {
         assertThat(files.size()).isGreaterThanOrEqualTo(9);
         String manifest = mvc.perform(get("/api/v1/content/manifest")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+        ContractSchemas.assertResponse("GET /content/manifest", 200, manifest);
         JsonNode bundles = ContentBundlesTest.JSON.readTree(manifest).path("bundles");
         assertThat(bundles.findValuesAsString("name")).containsExactlyElementsOf(
                 files.stream().map(p -> p.getFileName().toString().replace(".json", "")).toList());
@@ -43,6 +45,7 @@ class ContentRealFilesTest {
             byte[] served = mvc.perform(get("/api/v1/content/" + name)).andExpect(status().isOk())
                     .andReturn().getResponse().getContentAsByteArray();
             assertThat(served).as(name).isEqualTo(bytes);
+            ContractSchemas.assertResponse("GET /content/{bundle}", 200, new String(served, java.nio.charset.StandardCharsets.UTF_8));
             JsonNode entry = bundles.findParents("name").stream().filter(n -> n.path("name").asString().equals(name)).findFirst().orElseThrow();
             assertThat(entry.path("sha256").asString()).isEqualTo(ContentBundles.sha256(bytes));
             assertThat(entry.path("size_bytes").asInt()).isEqualTo(bytes.length);

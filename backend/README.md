@@ -44,6 +44,7 @@ keyword is registered with the schema library as a non-validation keyword so it 
   Empty means every cross-origin call is refused.
 - Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
+- Contract tests (#834): a test checks a real response with `ContractSchemas.assertResponse("METHOD /path", status, body)`, which validates it against the schema `openapi.yaml` gives that status. `ContractCoverageTest` runs last and fails when, in an unfiltered `./gradlew test`, an operation in the contract (only `GET /foods` is allowlisted, #200 decision 2) or an `/auth/*` or `/content/*` status never passed a validation. It checks what actually ran, so a skipped, disabled or commented-out test is caught; a `--tests` run does not enforce it.
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
   `Error` shape with `Retry-After` (seconds):
   - Per client IP on every `/auth/*` endpoint including `/auth/google` (default 30 per minute, one shared bucket),
