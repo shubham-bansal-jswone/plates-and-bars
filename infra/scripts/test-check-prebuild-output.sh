@@ -2,7 +2,7 @@
 # Runs check-prebuild-output.sh against sample trees in a throwaway repo: passes on a clean tree
 # (including one whose package.json is formatted differently), fails on tracked prebuild output
 # under apps/mobile/android or apps/mobile/ios, on the scripts "expo prebuild" writes into
-# apps/mobile/package.json, and when the .gitignore rules go missing. It also checks the failure
+# apps/mobile/package.json, and when the .gitignore rules go missing or lose their leading slash. It also checks the failure
 # names the offending path, so a check that fails for the wrong reason is caught.
 # Usage: infra/scripts/test-check-prebuild-output.sh
 set -euo pipefail
@@ -91,6 +91,14 @@ fresh
 printf 'node_modules/\n' > apps/mobile/.gitignore
 git add -A && git commit -qm "drop the ignore rules"
 case_run fail "apps/mobile/.gitignore has no /android/" "apps/mobile/android/ is not ignored"
+
+# unanchored rules still ignore the app's own android/ and ios/, but also the native modules' source
+for dir in android ios; do
+  fresh
+  printf 'node_modules/\n%s/\n' "$dir" > apps/mobile/.gitignore
+  git add -A && git commit -qm "unanchored $dir rule"
+  case_run fail "unanchored $dir/ rule" "apps/mobile/modules/x/$dir/"
+done
 
 [ "$fail" = 0 ] && echo "check-prebuild-output: all sample trees OK"
 exit "$fail"

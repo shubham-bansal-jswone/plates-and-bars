@@ -44,5 +44,18 @@ for dir in android ios; do
   fi
 done
 
+# The rules must stay anchored. An unanchored `android/` also ignores the native modules' own
+# source (apps/mobile/modules/*/android/src/main/java/*.kt), so new Kotlin or Swift files there
+# would vanish from `git status`. The paths are hypothetical, hence --no-index.
+mod="$app/modules/x"
+for path in "$mod/android/src/main/java/New.kt" "$mod/ios/New.swift"; do
+  if git check-ignore --no-index -q -- "$path"; then
+    dir="${path#"$mod"/}"
+    dir="${dir%%/*}"
+    echo "::error::$app/.gitignore ignores $path: anchor the rule as /$dir/ so native module sources under $app/modules/*/$dir/ stay visible to git"
+    fail=1
+  fi
+done
+
 [ "$fail" = 0 ] || exit 1
 echo "no expo prebuild output committed"
