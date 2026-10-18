@@ -219,10 +219,11 @@ tags:
       fallbacks).
 
       **Content.** The backend bundles `content/exercises.json`, `content/cards.json` and
-      `content/raw-ingredients.json` at build time: the exercise catalogue that
+      `content/raw-ingredients.json` and `content/foods.json` at build time: the exercise catalogue that
       `SummaryExercise` ids are checked against (and whose `cards` hold the cues Form
       check judges), the cards Ask why is grounded on, and the raw ingredient names
-      Import recipe matches to. Both are the versions in the deployed build.
+      Import recipe matches to, plus `content/foods.json`, which Meal photo matches to. All are the
+      versions in the deployed build.
 
       **Order of checks.** Access token (401), per-user and per-IP rate limit (429
       `rate_limited`), feature switch (503 `feature_disabled`), request validation (400,
@@ -318,22 +319,40 @@ tags:
       - at most 1,200,000 decoded bytes for a photo (`AiImage`), 350,000 for a form-check
         frame (`AiFrame`, so four frames fit in 2 MB); the base64 `maxLength` of each
         is that size rounded up to base64;
-      - at most 4,096 px on either side and 16 megapixels, read from the header before
-        any pixel is decoded (the server refuses the rest without decoding it).
+      - a photo is at most 4,096 px on either side and 16 megapixels, a form-check frame at
+        most 640 px on either side (the prototype cuts frames at 640 px), read from the
+        header before any pixel is decoded (the server refuses the rest without decoding
+        it);
+      - the server decodes one image at a time, so a form check never holds more than
+        one decoded frame in memory;
+      - metadata is never read: the decoder skips every ancillary chunk and segment (EXIF,
+        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation. If
+        a decoder cannot skip them, a PNG text or profile chunk (`zTXt`, `iTXt`, `iCCP`)
+        that inflates to more than 65,536 bytes is refused as `unreadable_image`, so a
+        small file cannot expand into memory.
 
       Image checks run in the request-validation step (before the quota) and each
       failure is 400 `invalid_request` with `details[].field` naming the image
       (`image.data`, `frames[1].data`, ...) and one `issue`: `too_large`,
       `invalid_base64`, `unsupported_type` (not JPEG or PNG), `type_mismatch` (the bytes
       are not the declared `media_type`; the server reads the magic bytes, not the
-      label), `unreadable_image` (does not decode) or `dimensions`. An issue never
-      echoes the image. A rejected image does not count against the quota.
+      label), `unreadable_image` (does not decode) or `dimensions`. The first fault in
+      that order of checks wins: `unsupported_type`, `invalid_base64`, `too_large`,
+      `type_mismatch`, `dimensions`, `unreadable_image`. These values replace the schema
+      keyword the validator would otherwise report: a `media_type` that fails the
+      `enum` is `unsupported_type`; a `data` that fails `pattern` (not base64, or a
+      length that is not a multiple of 4) or `minLength` is `invalid_base64`; a `data`
+      over `maxLength` is `too_large`, never `maxLength`. The backend maps those schema
+      failures to these issues, and `test-vectors/ai-images.json` has one case for each.
+      An issue never echoes the image. A rejected image does not count against the
+      quota.
 
       **Images are never stored or logged, and have no retention.** The decoded image,
       the re-encoded copy and the model's reply live in memory for the length of the
       request and are never written to disk or a temp file, the database, object
       storage, a cache, logs, metrics, traces or error reports; the identical-request
-      cache is not used for image calls. Nothing about an image is kept beyond the
+      cache is not used for any of the three image endpoints, a text-only Import recipe
+      call included. Nothing about an image is kept beyond the
       `ai_usage` counts above, and `GET /me/export` and `DELETE /me` have nothing of it
       to export or delete.
 
@@ -352,7 +371,8 @@ tags:
       photos. Text inside an image (a note in the photo, a recipe page) is data, like any
       user text: it is never followed as an instruction. The output checks drop what does
       not fit the schema: Meal photo drops items with non-finite or out-of-range numbers
-      and keeps 12 at most, and reads an unknown `confidence` as `medium`; Import recipe
+      and keeps 12 at most, reads an unknown `confidence` as `medium`, turns a `match` that is not
+      a `content/foods.json` name into null and clamps `servings` to 0.25 to 6; Import recipe
       moves ingredients that are not in `content/raw-ingredients.json` or whose weight is
       unusable to `unmatched`; Form check drops checks whose `cue` is not one of the
       card's `key_cues` and reads an unknown `status` as `unclear`. A reply that does not
@@ -1713,10 +1733,16 @@ paths:
         optional `hint` is the prototype's "Anything the photo can't show?" note (hidden
         oil or ghee, a count the photo hides).
 
-        Same item shape as Describe a meal (`MealEstimateItem`: numbers are for the whole
-        portion shown, carbohydrate includes fibre), plus a `confidence`. The server does
-        not know the user's food list; the app matches each `name` against it on the device
-        and offers a swap, as the prototype does. `not_food` is true, with `items` empty,
+        **Grounding.** As in the prototype, the server sends the model the built-in food
+        list (`content/foods.json`: name, serving, macros per serving; content, not account
+        data) and never the user's own foods. For each item the model sets `match` to the
+        exact name of a built-in food that fits, with `servings` of that food's serving
+        shown, or null with its own estimate. The app uses the food table's macros times
+        `servings` for a matched item, and the item's own numbers otherwise (`src` db or
+        est in the prototype), and offers a swap to any food on the device.
+
+        Items have the `MealEstimateItem` shape (numbers are for the whole portion shown,
+        carbohydrate includes fibre) plus `confidence`, `match` and `servings`. `not_food` is true, with `items` empty,
         when the photo shows no food (prototype: "Couldn't spot food in this photo."). The
         app shows the items for the user to confirm before logging (suggest and confirm);
         nothing is logged or stored by this call.
@@ -1758,6 +1784,8 @@ paths:
                         carbs_g: 46
                         fat_g: 3
                         confidence: high
+                        match: Roti
+                        servings: 2
                       - name: Bhindi sabzi
                         qty: 1 katori (150 g)
                         kcal: 130
@@ -1765,6 +1793,8 @@ paths:
                         carbs_g: 12
                         fat_g: 8
                         confidence: low
+                        match: null
+                        servings: 1
                     quota:
                       limit: 10
                       remaining: 7
@@ -1853,7 +1883,7 @@ paths:
                     steps:
                       - Pressure cook the dal with turmeric for 15 min.
                       - Temper with ghee and jeera and pour over the dal.
-                    unmatched: [1 onion, jeera]
+                    unmatched: [salt, jeera]
                     quota:
                       limit: 10
                       remaining: 7
@@ -3488,9 +3518,10 @@ components:
           contentEncoding: base64
           minLength: 4
           maxLength: 1600000
-          pattern: '^[A-Za-z0-9+/]*={0,2}$'
+          pattern: '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$'
           description: |
-            The image bytes, standard base64 with padding, no line breaks, no `data:` prefix.
+            The image bytes, standard base64 with padding (a multiple of 4 characters), no line
+            breaks, no `data:` prefix.
             1,600,000 characters is 1,200,000 bytes.
 
     AiFrame:
@@ -3498,8 +3529,9 @@ components:
       additionalProperties: false
       description: |
         One still frame of a form check: the same shape as `AiImage` but at most 350,000
-        decoded bytes, so four frames fit under the 2 MB body limit. The prototype cuts
-        frames at 640 px, JPEG quality 0.75.
+        decoded bytes and 640 px a side (so four frames fit under the 2 MB body limit and
+        in memory; the server decodes one at a time). The prototype cuts frames at 640 px,
+        JPEG quality 0.75.
       required: [media_type, data]
       properties:
         media_type:
@@ -3510,8 +3542,8 @@ components:
           contentEncoding: base64
           minLength: 4
           maxLength: 466668
-          pattern: '^[A-Za-z0-9+/]*={0,2}$'
-          description: Standard base64 with padding. 466,668 characters is 350,000 bytes.
+          pattern: '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$'
+          description: Standard base64 with padding, a multiple of 4 characters. 466,668 characters is 350,000 bytes.
 
     MealPhotoRequest:
       type: object
@@ -3524,7 +3556,7 @@ components:
           type: string
           minLength: 1
           maxLength: 300
-          pattern: '[^\t-\r \u0085   -‍    ⁠　﻿]'
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
           description: |
             What the photo cannot show (hidden oil or ghee, a count). Optional; when sent it
             must not be blank (see the wire conventions), so the app leaves it out when empty.
@@ -3547,7 +3579,9 @@ components:
           $ref: '#/components/schemas/AiQuota'
 
     MealPhotoItem:
-      description: A `MealEstimateItem` (`qty` is the portion judged from the plate) and how sure the model is.
+      description: |
+        A `MealEstimateItem` (`qty` is the portion judged from the plate), how sure the model is, and
+        the built-in food it matched, if any.
       allOf:
         - $ref: '#/components/schemas/MealEstimateItem'
         - type: object
@@ -3557,20 +3591,32 @@ components:
               type: string
               enum: [high, medium, low]
               description: 'Prototype: `confidence`. The app marks `low` as unsure.'
+            match:
+              type: [string, 'null']
+              maxLength: 200
+              description: |
+                The exact `name` of a built-in food in `content/foods.json` that this item is,
+                or null when none fits (the server checks it and sends null otherwise). Optional,
+                so a server that does not send it means null. Prototype: `match`.
+            servings:
+              type: number
+              minimum: 0.25
+              maximum: 6
+              description: |
+                How many of the matched food's serving size are shown; 1 when `match` is null.
+                Optional, read as 1 when absent. Prototype: `servings`, clamped to 0.25 to 6.
 
     ImportRecipeRequest:
       type: object
       additionalProperties: false
+      minProperties: 1
       description: Send `text`, `image` or both; a body with neither is 400 `invalid_request`.
-      anyOf:
-        - required: [text]
-        - required: [image]
       properties:
         text:
           type: string
           minLength: 1
           maxLength: 6000
-          pattern: '[^\t-\r \u0085   -‍    ⁠　﻿]'
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
           description: 'The recipe as pasted. Must not be blank (see the wire conventions). Prototype: `#impTxt`, cut at 6,000 characters.'
         image:
           $ref: '#/components/schemas/AiImage'
@@ -3586,18 +3632,23 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: The recipe's title; the app uses "Imported recipe" when it is blank.
+          description: The recipe's title; the server uses "Imported recipe" when the model gives none.
         katoris:
           type: number
           exclusiveMinimum: 0
           maximum: 1000
-          description: Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`.
+          description: Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`; the server uses 4 when the model gives none (as the prototype does).
         ingredients:
           type: array
           maxItems: 100
           description: Matched ingredients, in grams (`unit` is always `g`); empty when none matched.
           items:
-            $ref: '#/components/schemas/Ingredient'
+            allOf:
+              - $ref: '#/components/schemas/Ingredient'
+              - type: object
+                properties:
+                  unit:
+                    const: g
         steps:
           type: array
           maxItems: 20

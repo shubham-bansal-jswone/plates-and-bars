@@ -79,5 +79,22 @@ class ContractCoverageTest {
             String[] p = k.split(" ");
             assertThat(paths.path(p[1]).path(p[0].toLowerCase()).isMissingNode()).as(k).isFalse();
         });
+        // Pinned exactly: adding an operation here needs a reviewed change to this list. The three TODO(#946)
+        // entries go when the backend endpoints land (the test below fails until they do).
+        assertThat(ALLOWLIST.keySet()).containsExactlyInAnyOrder(
+                "GET /foods", "POST /ai/meal-photo", "POST /ai/import-recipe", "POST /ai/form-check");
+    }
+
+    @Test
+    void noAllowlistedOperationHasASchemaCheckedTestYet() {
+        requireUnfilteredRun();
+        Set<String> recorded = ContractSchemas.recorded();
+        Set<String> stale = new TreeSet<>();
+        ALLOWLIST.keySet().forEach(name -> {
+            if (recorded.stream().anyMatch(c -> c.startsWith(name + " "))) {
+                stale.add(name);
+            }
+        });
+        assertThat(stale).as("allowlisted operations that now have a schema-checked test: remove them from ALLOWLIST").isEmpty();
     }
 }

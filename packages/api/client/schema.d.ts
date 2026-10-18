@@ -689,10 +689,16 @@ export interface paths {
          *     optional `hint` is the prototype's "Anything the photo can't show?" note (hidden
          *     oil or ghee, a count the photo hides).
          *
-         *     Same item shape as Describe a meal (`MealEstimateItem`: numbers are for the whole
-         *     portion shown, carbohydrate includes fibre), plus a `confidence`. The server does
-         *     not know the user's food list; the app matches each `name` against it on the device
-         *     and offers a swap, as the prototype does. `not_food` is true, with `items` empty,
+         *     **Grounding.** As in the prototype, the server sends the model the built-in food
+         *     list (`content/foods.json`: name, serving, macros per serving; content, not account
+         *     data) and never the user's own foods. For each item the model sets `match` to the
+         *     exact name of a built-in food that fits, with `servings` of that food's serving
+         *     shown, or null with its own estimate. The app uses the food table's macros times
+         *     `servings` for a matched item, and the item's own numbers otherwise (`src` db or
+         *     est in the prototype), and offers a swap to any food on the device.
+         *
+         *     Items have the `MealEstimateItem` shape (numbers are for the whole portion shown,
+         *     carbohydrate includes fibre) plus `confidence`, `match` and `servings`. `not_food` is true, with `items` empty,
          *     when the photo shows no food (prototype: "Couldn't spot food in this photo."). The
          *     app shows the items for the user to confirm before logging (suggest and confirm);
          *     nothing is logged or stored by this call.
@@ -1425,20 +1431,22 @@ export interface components {
             /** @enum {string} */
             media_type: "image/jpeg" | "image/png";
             /**
-             * @description The image bytes, standard base64 with padding, no line breaks, no `data:` prefix.
+             * @description The image bytes, standard base64 with padding (a multiple of 4 characters), no line
+             *     breaks, no `data:` prefix.
              *     1,600,000 characters is 1,200,000 bytes.
              */
             data: string;
         };
         /**
          * @description One still frame of a form check: the same shape as `AiImage` but at most 350,000
-         *     decoded bytes, so four frames fit under the 2 MB body limit. The prototype cuts
-         *     frames at 640 px, JPEG quality 0.75.
+         *     decoded bytes and 640 px a side (so four frames fit under the 2 MB body limit and
+         *     in memory; the server decodes one at a time). The prototype cuts frames at 640 px,
+         *     JPEG quality 0.75.
          */
         AiFrame: {
             /** @enum {string} */
             media_type: "image/jpeg" | "image/png";
-            /** @description Standard base64 with padding. 466,668 characters is 350,000 bytes. */
+            /** @description Standard base64 with padding, a multiple of 4 characters. 466,668 characters is 350,000 bytes. */
             data: string;
         };
         MealPhotoRequest: {
@@ -1457,31 +1465,48 @@ export interface components {
             items: components["schemas"]["MealPhotoItem"][];
             quota: components["schemas"]["AiQuota"];
         };
-        /** @description A `MealEstimateItem` (`qty` is the portion judged from the plate) and how sure the model is. */
+        /**
+         * @description A `MealEstimateItem` (`qty` is the portion judged from the plate), how sure the model is, and
+         *     the built-in food it matched, if any.
+         */
         MealPhotoItem: components["schemas"]["MealEstimateItem"] & {
             /**
              * @description Prototype: `confidence`. The app marks `low` as unsure.
              * @enum {string}
              */
             confidence: "high" | "medium" | "low";
+            /**
+             * @description The exact `name` of a built-in food in `content/foods.json` that this item is,
+             *     or null when none fits (the server checks it and sends null otherwise). Optional,
+             *     so a server that does not send it means null. Prototype: `match`.
+             */
+            match?: string | null;
+            /**
+             * @description How many of the matched food's serving size are shown; 1 when `match` is null.
+             *     Optional, read as 1 when absent. Prototype: `servings`, clamped to 0.25 to 6.
+             */
+            servings?: number;
         };
         /** @description Send `text`, `image` or both; a body with neither is 400 `invalid_request`. */
         ImportRecipeRequest: {
             /** @description The recipe as pasted. Must not be blank (see the wire conventions). Prototype: `#impTxt`, cut at 6,000 characters. */
             text?: string;
             image?: components["schemas"]["AiImage"];
-        } | unknown | unknown;
+        };
         /**
          * @description A draft for the recipe builder, not a saved `Recipe`: the fields the builder needs,
          *     in the same units, with no id, version or timestamps.
          */
         ImportRecipeResponse: {
-            /** @description The recipe's title; the app uses "Imported recipe" when it is blank. */
+            /** @description The recipe's title; the server uses "Imported recipe" when the model gives none. */
             name: string;
-            /** @description Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`. */
+            /** @description Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`; the server uses 4 when the model gives none (as the prototype does). */
             katoris: number;
             /** @description Matched ingredients, in grams (`unit` is always `g`); empty when none matched. */
-            ingredients: components["schemas"]["Ingredient"][];
+            ingredients: (components["schemas"]["Ingredient"] & {
+                /** @constant */
+                unit?: "g";
+            })[];
             steps: string[];
             /** @description Ingredients as written that could not be matched, for the user to add by hand. */
             unmatched: string[];

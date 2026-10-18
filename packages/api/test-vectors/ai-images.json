@@ -1,5 +1,5 @@
 {
-  "description": "Image rules of POST /ai/meal-photo, /ai/import-recipe and /ai/form-check (#946, ADR 008). Backend and app tests load this file. 'order' is the order the server checks one image in; the first fault wins and is the `details[].issue` of the 400. `verify.mjs` runs every case through a small reference checker and checks the limits against openapi.yaml.",
+  "description": "Image rules of POST /ai/meal-photo, /ai/import-recipe and /ai/form-check (#946, ADR 008). Backend and app tests load this file. 'order' is the order the server checks one image in; the first fault wins and is the `details[].issue` of the 400. `verify.mjs` runs every case through a small reference checker and checks the limits against openapi.yaml. The issue is the 400 `details[].issue` the contract defines; it replaces the schema keyword (`enum`, `pattern`, `minLength`, `maxLength`) the validator would report.",
   "media_types": [
     "image/jpeg",
     "image/png"
@@ -8,7 +8,10 @@
     "photo": 1200000,
     "frame": 350000
   },
-  "max_side_px": 4096,
+  "max_side_px": {
+    "photo": 4096,
+    "frame": 640
+  },
   "max_megapixels": 16,
   "frames": {
     "min": 2,
@@ -36,12 +39,13 @@
       "issue": null
     },
     {
-      "name": "jpeg ok, carries EXIF the server must strip",
+      "name": "jpeg ok, carries EXIF with a GPS position the server must strip",
       "kind": "photo",
       "media_type": "image/jpeg",
-      "data": "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACAAIAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A90ooor+Uz98P/9k=",
+      "data": "/9j/4QCIRXhpZgAATU0AKgAAAAgAAYglAAQAAAABAAAAGgAAAAAABAABAAIAAAACTgAAAAACAAUAAAADAAAAUAADAAIAAAACRQAAAAAEAAUAAAADAAAAaAAAAAAAAAAcAAAAAQAAACQAAAABAAAAAAAAAAEAAABNAAAAAQAAAAwAAAABAAAAAAAAAAH/wAARCAAIAAgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwACAgICAgIDAgIDBQMDAwUGBQUFBQYIBgYGBgYICggICAgICAoKCgoKCgoKDAwMDAwMDg4ODg4PDw8PDw8PDw8P/9sAQwECAgIEBAQHBAQHEAsJCxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ/90ABAAB/9oADAMBAAIRAxEAPwD3Siiiv5TP3w//2Q==",
       "issue": null,
-      "exif_marker": "Exif"
+      "exif_marker": "Exif",
+      "exif_gps": true
     },
     {
       "name": "png as a frame ok",
@@ -177,7 +181,56 @@
       "media_type": "image/jpeg",
       "data": "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACAAIAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldY",
       "issue": "unreadable_image"
+    },
+    {
+      "name": "plain jpeg ok",
+      "kind": "photo",
+      "media_type": "image/jpeg",
+      "data": "/9j/wAARCAAIAAgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwACAgICAgIDAgIDBQMDAwUGBQUFBQYIBgYGBgYICggICAgICAoKCgoKCgoKDAwMDAwMDg4ODg4PDw8PDw8PDw8P/9sAQwECAgIEBAQHBAQHEAsJCxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ/90ABAAB/9oADAMBAAIRAxEAPwD3Siiiv5TP3w//2Q==",
+      "issue": null
+    },
+    {
+      "name": "jpeg 4097 px wide",
+      "kind": "photo",
+      "media_type": "image/jpeg",
+      "data": "/9j/wAARCAAIEAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwACAgICAgIDAgIDBQMDAwUGBQUFBQYIBgYGBgYICggICAgICAoKCgoKCgoKDAwMDAwMDg4ODg4PDw8PDw8PDw8P/9sAQwECAgIEBAQHBAQHEAsJCxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ/90ABAAB/9oADAMBAAIRAxEAPwD3Siiiv5TP3w//2Q==",
+      "issue": "dimensions",
+      "jpeg_dims": [
+        4097,
+        8
+      ]
+    },
+    {
+      "name": "png 641 px wide is too wide for a frame",
+      "kind": "frame",
+      "media_type": "image/png",
+      "build": {
+        "png_dims": [
+          641,
+          10
+        ]
+      },
+      "issue": "dimensions"
+    },
+    {
+      "name": "png whose zTXt chunk inflates to 50 MB",
+      "kind": "photo",
+      "media_type": "image/png",
+      "build": {
+        "png_ztxt_inflated_bytes": 50000000
+      },
+      "issue": "unreadable_image"
+    },
+    {
+      "name": "png whose zTXt chunk inflates to 65,536 bytes is skipped, not refused",
+      "kind": "photo",
+      "media_type": "image/png",
+      "build": {
+        "png_ztxt_inflated_bytes": 65536
+      },
+      "issue": null
     }
   ],
-  "build_notes": "`build.pad_to_bytes`: the 8x8 PNG of the first case followed by zero bytes up to that many decoded bytes (trailing bytes after the last PNG chunk, which a decoder ignores). `build.png_dims`: a PNG signature and IHDR claiming [width, height] with no pixel data, which is refused on the header alone, before any decode."
+  "build_notes": "`build.pad_to_bytes`: the 8x8 PNG of the first case followed by zero bytes up to that many decoded bytes (trailing bytes after the last PNG chunk, which a decoder ignores). `build.png_dims`: a PNG signature and IHDR claiming [width, height] with no pixel data, which is refused on the header alone, before any decode. `build.png_ztxt_inflated_bytes`: the 8x8 PNG with a `zTXt` chunk, before IDAT, that is valid zlib and inflates to that many zero bytes (a few KB on the wire); it must be refused as `unreadable_image` because it inflates past `max_metadata_inflated_bytes` (or never inflated). `exif_gps`: the JPEG has an EXIF APP1 whose IFD0 points (tag 0x8825) to a GPS IFD with a latitude and longitude; after the server re-encodes, the output must hold no APP1/Exif segment and no 0x8825 tag. `jpeg_dims`: the JPEG's SOF0 claims [width, height] and is refused on the header.",
+  "max_metadata_inflated_bytes": 65536
 }
