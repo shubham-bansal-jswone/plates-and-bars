@@ -6,9 +6,12 @@
  * Rules, all conservative (an undercount is accepted, an overcount is not):
  * - The day being counted starts at 0 when counting starts; steps from before are unknown.
  * - Steps between two readings of the same day belong to that day.
- * - A gap that crosses midnight cannot be split without a background task. It is never added to the new day; it is credited to
- *   the previous day only when exactly one midnight passed, and dropped when more passed or the phone rebooted in between.
+ * - A gap that crosses midnight cannot be split without a background task. It is never added to the new day. It is credited to the
+ *   previous day only when exactly one midnight passed, the phone did not reboot, and the reading came within `MIDNIGHT_WINDOW_MS`
+ *   after that midnight (so the gap holds at most a few minutes of the new day, as when the running app notices the day change);
+ *   otherwise it is dropped. A reading at 18:00 the next day is therefore dropped, never credited to the day before.
  * - After a reboot the counter restarted at 0, so the delta is the new counter value (steps before the reboot are lost).
+ * - A reading that is not a finite, non-negative pair is ignored: the baseline is left as it was.
  */
 import { addDays } from './dates';
 
@@ -32,7 +35,8 @@ export interface StepCredit {
 }
 
 export interface StepAdvance {
-  baseline: StepBaseline;
+  /** The baseline to keep; the one passed in (null if none) when the reading was not valid. */
+  baseline: StepBaseline | null;
   /** Day totals that changed, oldest first; empty when nothing was gained. */
   credits: StepCredit[];
 }
@@ -48,14 +52,20 @@ export function isReboot(base: StepReading, now: StepReading): boolean {
 /** Whole steps, never negative or non-finite (the sensor reports a float). */
 const whole = (n: number): number => (Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
 
+/** How soon after local midnight a reading may come and still credit the gap to the day before (the app's own day-change check runs every minute). */
+export const MIDNIGHT_WINDOW_MS = 5 * 60_000;
+
+const valid = (n: number): boolean => Number.isFinite(n) && n >= 0;
+
 /**
- * Applies a reading taken on local day `today` to the stored baseline (null when counting has not started).
- * Returns the new baseline and the day totals to write.
+ * Applies a reading taken on local day `today`, `msSinceMidnight` ms after that day's local midnight (real elapsed time, so a DST
+ * day is right), to the stored baseline (null when counting has not started). Returns the new baseline and the day totals to write.
  */
-export function advanceSteps(base: StepBaseline | null, now: StepReading, today: string): StepAdvance {
+export function advanceSteps(base: StepBaseline | null, now: StepReading, today: string, msSinceMidnight: number): StepAdvance {
+  if (!valid(now.counter) || !valid(now.elapsedMs)) return { baseline: base, credits: [] };
   const fresh = (steps: number): StepBaseline => ({ date: today, steps, counter: now.counter, elapsedMs: now.elapsedMs });
-  // First reading, or the clock moved back before the counted day: start today at 0.
-  if (!base || today < base.date) return { baseline: fresh(0), credits: [] };
+  // First reading: start today at 0.
+  if (!base) return { baseline: fresh(0), credits: [] };
 
   const reboot = isReboot(base, now);
   const delta = whole(reboot ? now.counter : now.counter - base.counter);
@@ -65,7 +75,8 @@ export function advanceSteps(base: StepBaseline | null, now: StepReading, today:
     return { baseline: fresh(steps), credits: delta > 0 ? [{ date: today, steps }] : [] };
   }
 
-  // Midnight passed since the last reading: today starts at 0 and the gap goes to the previous day only when it is unambiguous.
-  const credit = !reboot && delta > 0 && addDays(base.date, 1) === today;
+  // Any other day (a midnight passed, or the clock went back or the time zone moved west: nothing is credited then): today starts at 0.
+  const soon = Number.isFinite(msSinceMidnight) && msSinceMidnight >= 0 && msSinceMidnight <= MIDNIGHT_WINDOW_MS;
+  const credit = !reboot && delta > 0 && soon && addDays(base.date, 1) === today;
   return { baseline: fresh(0), credits: credit ? [{ date: base.date, steps: base.steps + delta }] : [] };
 }

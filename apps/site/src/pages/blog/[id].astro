@@ -1,0 +1,29 @@
+---
+import Base from "../../layouts/Base.astro";
+import { cards, EVIDENCE_NOTE, renderBody } from "../../lib/cards";
+
+export function getStaticPaths() {
+  return cards.map((card) => ({ params: { id: card.id }, props: { card } }));
+}
+const { card } = Astro.props;
+const { paragraphs, trimmed } = renderBody(card.body);
+const built = new Date().toISOString().slice(0, 10);
+---
+
+<Base title={`${card.title} - Plate & Bar`} description={card.summary}>
+  <div class="doc"><article class="prose">
+  <p><a href="/blog/">All cards</a></p>
+  <h1>{card.title}</h1>
+  <p class="summary">{card.summary}</p>
+  {paragraphs.map((p) => <p>{p}</p>)}
+  {trimmed && <p class="note">The app fills in your own numbers here; they are left out on this page.</p>}
+  <h2>Evidence</h2>
+  <p>{card.evidence}. {EVIDENCE_NOTE[card.evidence]}</p>
+  <h2>Source</h2>
+  <p>{card.source}</p>
+  <p class="note">
+    {card.review_status === "draft" ? "Draft card, not yet reviewed by a coach or dietitian. " : ""}Not medical advice.
+    Built from the app's card content on <time datetime={built}>{built}</time>.
+  </p>
+  </article></div>
+</Base>

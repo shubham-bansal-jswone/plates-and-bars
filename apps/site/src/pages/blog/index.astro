@@ -1,0 +1,23 @@
+---
+import Base from "../../layouts/Base.astro";
+import { cards, hiddenCount } from "../../lib/cards";
+const drafts = cards.filter((c) => c.review_status === "draft").length;
+---
+
+<Base title="Blog - Plate & Bar" description="Short explanations behind the app's suggestions, with the evidence and sources for each.">
+  <div class="doc"><div class="prose">
+  <h1>Blog</h1>
+  <p>Short explanations behind the app's suggestions, with the evidence for each. These are the same cards the app shows, with the same text and sources.</p>
+  <p class="note">{drafts === 0 ? "" : drafts === cards.length ? "These cards are drafts, not yet reviewed by a coach or dietitian. " : "Some cards are drafts, not yet reviewed by a coach or dietitian. "}Not medical advice. Parts of a card that use your own numbers appear in the app only.</p>
+  <ul class="posts">
+    {cards.map((c) => (
+      <li>
+        <h2><a href={`/blog/${c.id}/`}>{c.title}</a></h2>
+        <p>{c.summary}</p>
+        <p class="meta">Evidence: {c.evidence}</p>
+      </li>
+    ))}
+  </ul>
+  {hiddenCount > 0 && <p class="note">{hiddenCount} more cards are held back, as in the app, until their sources are reviewed.</p>}
+  </div></div>
+</Base>
