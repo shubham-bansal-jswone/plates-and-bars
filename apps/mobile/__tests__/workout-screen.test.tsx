@@ -776,6 +776,19 @@ describe('Workout tab: logging sets', () => {
 });
 
 describe('Workout tab: first-time ramp', () => {
+  it('shows short visible text on the ramp buttons and keeps the exercise in the spoken name, so they fit 360 px (#900)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    // The exercise name in the visible text made the buttons wider than a 360 px screen (prototype: "Start the ramp", "I know my weight").
+    expect(screen.getAllByText('Start the ramp').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('I know my weight').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^Start the ramp for /)).toBeNull();
+    expect(screen.queryByText(/^I know my weight for /)).toBeNull();
+    expect(screen.getByLabelText('Start the ramp for Machine Shoulder Press')).toBeTruthy();
+    expect(screen.getByLabelText('I know my weight for Machine Shoulder Press')).toBeTruthy();
+  });
+
   it('starts a ramp, stores its sets as kind ramp, and the rated weight becomes the working target', async () => {
     const db = await setup();
     await press('Start Push B');
