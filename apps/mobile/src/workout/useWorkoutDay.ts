@@ -93,6 +93,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   const enqueue = useCallback((write: () => Promise<void>) => enqueueDay(write, () => notify('Couldn’t save that. Try again.')), [notify]);
   /** Start and second session build from stored history; a second tap while one runs is ignored. */
   const building = useRef(false);
+  /** Settles when the running Start has saved; an "Add ..." tapped meanwhile waits for it instead of being dropped (#864). */
+  const starting = useRef<Promise<void> | null>(null);
   /** The stored workout row as this screen last loaded or wrote it: a different stored stamp means it changed elsewhere. */
   const synced = useRef<Workout | null>(null);
   /** Bumped after a write merged a change made elsewhere, so the screen reloads and shows the merged session. */
@@ -219,6 +221,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       // A cardio-only day (minutes logged, no session) is not a started session: Start turns it into one and keeps the minutes.
       if (!profile || building.current || (ref.current.workout && !isCardioOnly(ref.current.workout))) return;
       building.current = true;
+      let finished: () => void = () => {};
+      starting.current = new Promise<void>((r) => (finished = r));
       try {
         const sessions = await loadSessionLog(db);
         if (dateRef.current !== date) return; // the day changed while the history was read
@@ -259,6 +263,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         }));
       } finally {
         building.current = false;
+        starting.current = null;
+        finished();
       }
   };
 
@@ -287,6 +293,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
 
   const addSecond = useCallback(
     async (template: string) => {
+      // A tap during the Start save waits for it, then adds (the screen already shows the chips once Start has committed).
+      if (starting.current) await starting.current;
       if (!profile || building.current || !ref.current.workout) return;
       building.current = true;
       try {

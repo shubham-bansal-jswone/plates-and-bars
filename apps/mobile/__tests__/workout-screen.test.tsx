@@ -171,6 +171,35 @@ describe('Workout tab: preview and Start', () => {
     expect(screen.getByLabelText('Normal gym').props['aria-pressed']).toBe(false);
   });
 
+  it('an Add tapped while the Start save is slow is kept and applied once the save is done (#864)', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    const real = db.runAsync.bind(db);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    db.runAsync = (async (sql: string, ...args: (string | number)[]) => {
+      if (/INTO workouts/.test(sql)) await gate;
+      return real(sql, ...args);
+    }) as typeof db.runAsync;
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    // The screen offers a second session once every exercise has a done set; the save is still held.
+    const first = screen.getAllByLabelText(/^Mark .* set 1 done$/).length;
+    for (const m of screen.getAllByLabelText(/^Mark .* set 1 done$/)) {
+      const n = /^Mark (.*) set 1 done$/.exec(m.props.accessibilityLabel as string)![1];
+      const wt = screen.queryByLabelText(`${n} set 1 kg`) ?? screen.queryByLabelText(`${n} set 1 kg each`);
+      if (wt) await fireEvent.changeText(wt, '10');
+      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
+      await press(`Mark ${n} set 1 done`);
+    }
+    await press('Training again later today?');
+    await press('Add Pull B');
+    expect(db.rows.get(`workouts:${DATE}`)).toBeUndefined(); // Start is still saving
+    release();
+    expect(await screen.findByText('Pull B added to today')).toBeTruthy();
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.length).toBeGreaterThan(first));
+  });
+
   it('the other-template chips start with the where override', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
