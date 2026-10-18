@@ -9,7 +9,7 @@ export const DATA_COPY = {
   exportDevice: 'Download my data',
   exportServer: 'Download from my account',
   withdraw: 'Withdrawing your consent means deleting your account, and you can delete it at any time from Your data.',
-  exportHint: 'The download works without a connection: it is made from what is on this device. Progress photos, cycle and lab data stay on this device.',
+  exportHint: 'The download works without a connection: it is made from what is on this device, and includes your cycle log if you keep one. Progress photos and lab data are not in it; they stay on this device.',
   exportHintAndroid: 'Android does not back up this app, so if you reinstall or move to a new phone, download a copy first.',
   signInToExport: 'Sign in to download from your account',
   exportLinkedHint: 'This device is linked to an account but you are signed out. Sign in to download what the server holds for it.',
