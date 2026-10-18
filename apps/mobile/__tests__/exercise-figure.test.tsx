@@ -58,10 +58,10 @@ function colours(): string[] {
 beforeEach(() => { mockPush.mockClear(); scheme('light'); });
 
 describe('ExerciseFigure', () => {
-  it('renders nothing with the shipped (empty) bundle', async () => {
+  it('renders the shipped figure for an exercise the shipped bundle covers', async () => {
     await loadContent(await openDb());
     await render(<ExerciseFigure name={BENCH} />);
-    expect(screen.toJSON()).toBeNull();
+    expect(screen.getByRole('image').props.accessibilityLabel).toBe(`${BENCH}: start and end positions. ${getCatalog().cards[BENCH]!.setup[0]}`);
   });
 
   it('renders the pair as one labelled image with a credit link to About', async () => {
@@ -101,12 +101,14 @@ describe('ExerciseFigure', () => {
     expect(joined).not.toMatch(/--fig-|currentColor/);
   });
 
-  it('refuses a stored copy with unsafe SVG and keeps the shipped (empty) one', async () => {
+  it('refuses a stored copy with unsafe SVG and falls back to the shipped figure', async () => {
     const bad = fixture();
     bad.images[SQUAT].frames[0].svg = svg('<script>alert(1)</script><circle r="4" fill="var(--fig-body)"/>');
     await launch(bad);
     await render(<ExerciseFigure name={BENCH} />);
-    expect(screen.toJSON()).toBeNull();
+    // The whole stored copy is refused, so the shipped bench press figure shows and the fixture's note does not.
+    expect(screen.getByRole('image')).toBeTruthy();
+    expect(screen.queryByText("Your gym's bench may look different")).toBeNull();
   });
 });
 
@@ -213,10 +215,17 @@ describe('isFigureBundle', () => {
 });
 
 describe('About: Exercise drawings', () => {
-  it('shows nothing with the empty bundle', async () => {
-    await loadContent(await openDb());
+  it('shows nothing with an empty bundle', async () => {
+    await launch({ schema_version: 1, images: {} });
     await render(<AboutScreen onBack={() => {}} />);
     expect(screen.queryByText('Exercise drawings')).toBeNull();
+  });
+
+  it('lists the shipped drawings when nothing is stored', async () => {
+    await loadContent(await openDb());
+    await render(<AboutScreen onBack={() => {}} />);
+    expect(screen.getByText('Exercise drawings')).toBeTruthy();
+    expect(screen.getByText(/^Plate & Bar authors: \d+ exercise drawings$/)).toBeTruthy();
   });
 
   it('lists one row per author and licence with the exercise count and licence link', async () => {
