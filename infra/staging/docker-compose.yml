@@ -80,6 +80,29 @@ services:
       # The proxy directly in front of the API is Caddy, which the API sees at an address in this network's subnet.
       APP_RATELIMIT_TRUSTEDPROXIES: 172.28.0.0/24
       ERASURE_LEDGER_DIR: /var/lib/plateandbar/erasure
+      # Barcode lookup through Open Food Facts (#944). OFF (not enabled) by default. The API REFUSES TO START with OFF_ENABLED=true and an
+      # empty OFF_CONTACT_EMAIL (it goes into the User-Agent). Turn on only after the owner has filled in OFF's API usage form: RUNBOOK.md section 9.
+      OFF_ENABLED: ${OFF_ENABLED:-false}
+      OFF_CONTACT_EMAIL: ${OFF_CONTACT_EMAIL:-}
+      OFF_BASE_URL: ${OFF_BASE_URL:-https://world.openfoodfacts.org}
+      # AI image calls (#946). Off by default, and with no real provider bean (#926) every feature stays off whatever these say.
+      # Not to be turned on before #990 (decode cap and memory limit) is merged and deployed: RUNBOOK.md section 10.
+      AI_MEAL_PHOTO_ENABLED: ${AI_MEAL_PHOTO_ENABLED:-false}
+      AI_IMPORT_RECIPE_ENABLED: ${AI_IMPORT_RECIPE_ENABLED:-false}
+      AI_FORM_CHECK_ENABLED: ${AI_FORM_CHECK_ENABLED:-false}
+      # Monthly token budget; 0 keeps every AI feature off, a flag alone is not enough (backend/README.md, AI).
+      AI_MONTHLY_BUDGET_TOKENS: ${AI_MONTHLY_BUDGET_TOKENS:-0}
+      JAVA_TOOL_OPTIONS: -Xmx768m -XX:+ExitOnOutOfMemoryError
+    # Memory (#990, RUNBOOK.md section 2a): the container is capped and the JVM heap is set explicitly (-Xmx wins over the
+    # image's MaxRAMPercentage=75). Heap 768m = 2 concurrent image decodes (the API's cap) x about 200 MiB worst case each
+    # (a 16-bit RGBA PNG of 4000x4000: 4000x4000x8 B raster plus the resize copy; #1010 will refuse 16-bit PNGs) = 400 MiB,
+    # + about 64 MiB of bodies and copies in flight + about 256 MiB of normal working set (an ESTIMATE, not measured) + 48 MiB of slack
+    # (400 + 64 + 256 + 48 = 768).
+    # The other 384 MiB of the limit is metaspace, code cache, thread stacks and native buffers. ExitOnOutOfMemoryError: a heap
+    # OutOfMemoryError ends the JVM so the restart policy brings it back clean, rather than leaving a half-working API.
+    # test-compose-memory.sh checks the sums.
+    mem_limit: 1152m
+    memswap_limit: 1152m # no swap: an out-of-memory stays inside this container and the restart policy brings it back
     # No published ports: Caddy reaches api:8080 over the network.
     networks: [backend]
     volumes:

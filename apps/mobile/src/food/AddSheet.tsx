@@ -35,10 +35,12 @@ interface Props {
   canPhoto?: boolean;
   /** The tab to open on (the Food tab's Snap a meal opens Photo). */
   initialMode?: Mode;
+  /** Shows a short message after the sheet closes (the Food tab's toast). */
+  onToast?: (msg: string) => void;
 }
 
 /** The add-food sheet: food list (search, servings or grams), eating out, custom food, and Describe it (AI) when it is on. */
-export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false, canPhoto = false, initialMode = 'list' }: Props) {
+export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false, canPhoto = false, initialMode = 'list', onToast }: Props) {
   const c = useTheme();
   const [mode, setMode] = useState<Mode>(initialMode);
   // Describe keeps its text, estimate and pending request while another tab is shown, as the prototype's FS does: it mounts on
@@ -71,7 +73,7 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
           ) : null}
           {seenPhoto ? (
             <View style={mode === 'photo' ? undefined : styles.hidden} accessibilityElementsHidden={mode !== 'photo'} importantForAccessibility={mode === 'photo' ? 'auto' : 'no-hide-descendants'}>
-              <PhotoBody meal={meal} foods={[...own, ...getFoodCatalog()]} onAdd={onAdd} onClose={onClose} />
+              <PhotoBody meal={meal} foods={[...own, ...getFoodCatalog()]} onAdd={onAdd} onSaveMine={onSaveMine} onAdded={(n) => onToast?.(AI_COPY.photoAdded(n))} onClose={onClose} />
             </View>
           ) : null}
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
 import { AiSection } from '../src/ai/AiSection';
@@ -36,7 +36,9 @@ jest.mock('expo-image-manipulator', () => ({
       mockSaved.ops.push(`manipulate ${uri}`);
       const ctx = {
         resize: (s: object) => (mockSaved.ops.push(`resize ${JSON.stringify(s)}`), ctx),
+        release: () => void mockSaved.ops.push('release context'),
         renderAsync: async () => ({
+          release: () => void mockSaved.ops.push('release image'),
           saveAsync: async (o: { compress: number; format: string; base64: boolean }) => {
             mockSaved.ops.push(`save ${o.compress} ${o.format} ${o.base64}`);
             return { uri: `${CACHE}ImageManipulator/out-${o.compress}.jpg`, base64: mockSaved.base64[Math.min(mockSaved.ops.filter((x) => x.startsWith('save')).length - 1, mockSaved.base64.length - 1)] };
@@ -298,6 +300,167 @@ describe('the flow', () => {
   });
 });
 
+describe('review fixes (#997)', () => {
+  const ready = async (items: object[]) => {
+    const { api, POST } = fakeApi();
+    POST.mockResolvedValue(ok(items));
+    const db = await food(optedIn(), api);
+    await snap();
+    await analyse();
+    await screen.findByLabelText('Item 1 name');
+    return { db, POST };
+  };
+
+  it('logs the name the user typed for a matched item, with the food macros and no link to the shared food', async () => {
+    const { db } = await ready([ROTI]);
+    await fireEvent.changeText(screen.getByLabelText('Item 1 name'), 'Missi roti');
+    await fireEvent.press(screen.getByLabelText('Add 1 item to breakfast'));
+    await waitFor(() => expect(logs(db)).toHaveLength(1));
+    expect(logs(db)[0]).toMatchObject({ name: 'Missi roti', qty: 2, kcal: 102, food_id: null });
+  });
+
+  it('an untouched matched item keeps its link; a blank name falls back to the food name', async () => {
+    const { db } = await ready([ROTI, { ...ROTI, match: 'Dal', name: 'Dal' }]);
+    await fireEvent.changeText(screen.getByLabelText('Item 2 name'), '   ');
+    await fireEvent.press(screen.getByLabelText('Add 2 items to breakfast'));
+    await waitFor(() => expect(logs(db)).toHaveLength(2));
+    expect(logs(db).map((l) => [l.name, l.food_id !== null])).toEqual(expect.arrayContaining([['Roti / chapati', true], ['Dal', true]]));
+  });
+
+  it('rounds qty to one decimal like the prototype (1.5 servings at 0.75x is 1.1, not 1.13)', async () => {
+    const { db } = await ready([{ ...ROTI, servings: 1.5 }]);
+    await fireEvent.press(screen.getByLabelText('Smaller portion for Item 1 Roti / chapati'));
+    await fireEvent.press(screen.getByLabelText('Add 1 item to breakfast'));
+    await waitFor(() => expect(logs(db)).toHaveLength(1));
+    expect(logs(db)[0].qty).toBe(1.1);
+  });
+
+  it('after a swap the portion is the swapped food’s serving label', async () => {
+    await ready([SABZI]);
+    expect(screen.getByText('1 katori (150 g) · estimate · unsure')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Swap Item 1 Bhindi sabzi for a food from your list'));
+    await fireEvent.changeText(screen.getByLabelText('Search foods to swap Item 1 Bhindi sabzi'), 'dal');
+    await fireEvent.press(await screen.findByLabelText(/^Use Dal for Item 1 Bhindi sabzi/));
+    expect(screen.getByText('1 katori (35 g dal)')).toBeTruthy();
+    expect(screen.queryByText(/ · estimate/)).toBeNull();
+  });
+
+  describe('Save estimated or adjusted items to my foods', () => {
+    const mine = (db: ReturnType<typeof memoryDb>) => [...db.rows].filter(([k]) => k.startsWith('user_foods:')).map(([, v]) => JSON.parse(v));
+
+    it('is off by default and saves nothing', async () => {
+      const { db } = await ready([SABZI]);
+      expect(screen.getByRole('checkbox', { name: 'Save estimated or adjusted items to my foods' }).props.accessibilityState.checked).toBe(false);
+      await fireEvent.press(screen.getByLabelText('Add 1 item to breakfast'));
+      await waitFor(() => expect(logs(db)).toHaveLength(1));
+      expect(mine(db)).toEqual([]);
+    });
+
+    it('saves estimates, adjusted and renamed items, not an untouched matched one, and links the estimate’s log to its saved food', async () => {
+      const { db } = await ready([ROTI, SABZI, { ...ROTI, match: 'Dal', name: 'Dal', qty: '1 katori' }, { ...ROTI, match: 'Rice, cooked', name: 'Rice' }]);
+      await fireEvent.press(screen.getByRole('checkbox', { name: 'Save estimated or adjusted items to my foods' }));
+      await fireEvent.press(screen.getByLabelText('Bigger portion for Item 2 Bhindi sabzi')); // estimate at 1.25x
+      await fireEvent.press(screen.getByLabelText('Bigger portion for Item 3 Dal')); // matched, adjusted
+      await fireEvent.changeText(screen.getByLabelText('Item 4 name'), 'My rice'); // matched, renamed
+      await fireEvent.press(screen.getByLabelText('Add 4 items to breakfast'));
+      await waitFor(() => expect(logs(db)).toHaveLength(4));
+      await waitFor(() => expect(mine(db)).toHaveLength(3));
+      const saved = Object.fromEntries(mine(db).map((f) => [f.name, f]));
+      expect(Object.keys(saved).sort()).toEqual(['Bhindi sabzi', 'Dal', 'My rice']);
+      // Estimate: adjusted macros as one portion; unit "<portion> ×adj"; kcal whole, macros 1 decimal.
+      expect(saved['Bhindi sabzi']).toMatchObject({ unit: '1 katori (150 g) ×1.3', kcal: 163, protein_g: 3.8, carbs_g: 15, fat_g: 10, origin: 'custom' });
+      expect(saved['Dal'].unit).toBe('1 katori ×1.3');
+      const sabzi = logs(db).find((l) => l.name === 'Bhindi sabzi');
+      expect(sabzi).toMatchObject({ qty: 1, kcal: 163, food_id: saved['Bhindi sabzi'].id });
+      expect(logs(db).find((l) => l.name === 'Roti / chapati')).toMatchObject({ qty: 2, food_id: expect.any(String) });
+    });
+  });
+
+  it('says how many items were added once the sheet closes', async () => {
+    const { db } = await ready([ROTI, SABZI]);
+    await fireEvent.press(screen.getByLabelText('Add 2 items to breakfast'));
+    await waitFor(() => expect(logs(db)).toHaveLength(2));
+    expect(await screen.findByText('Added 2 items from your photo')).toBeTruthy();
+  });
+
+  describe('a reply nobody is waiting for is dropped', () => {
+    const pending = async () => {
+      const { api, POST } = fakeApi();
+      let done!: (v: unknown) => void;
+      POST.mockReturnValue(new Promise((r) => (done = r)));
+      await food(optedIn(), api);
+      await snap();
+      await analyse('note');
+      await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+      return { resolve: done, POST };
+    };
+
+    it('Cancel, edit the note, then a late answer changes nothing', async () => {
+      const { resolve } = await pending();
+      await fireEvent.press(screen.getByLabelText('Cancel analysis'));
+      expect(screen.getByLabelText('Analyse photo')).toBeTruthy();
+      await fireEvent.changeText(screen.getByLabelText('Anything the photo can’t show? Optional'), 'my own note');
+      await act(async () => resolve(ok([ROTI])));
+      expect(screen.queryByLabelText('Item 1 name')).toBeNull();
+      expect(screen.getByLabelText('Anything the photo can’t show? Optional').props.value).toBe('my own note');
+      expect(screen.queryByLabelText('Cancel analysis')).toBeNull();
+    });
+
+    it('Cancel, then a late error shows no message', async () => {
+      const { resolve } = await pending();
+      await fireEvent.press(screen.getByLabelText('Cancel analysis'));
+      await act(async () => resolve({ error: { code: 'unavailable', message: 'x' }, response: res(503) }));
+      expect(screen.queryByText(/Couldn’t get an answer/)).toBeNull();
+    });
+
+    it('choosing a different photo drops the answer for the old one, and Analyse can run again', async () => {
+      const { resolve, POST } = await pending();
+      mockSaved.base64 = ['bmV3cGhvdG8='];
+      await fireEvent.press(screen.getByLabelText('Use a different photo'));
+      await act(async () => resolve(ok([ROTI])));
+      expect(screen.queryByLabelText('Item 1 name')).toBeNull();
+      POST.mockResolvedValue(ok([SABZI]));
+      await fireEvent.press(await screen.findByLabelText('Analyse photo'));
+      expect(await screen.findByLabelText('Item 1 name')).toBeTruthy();
+      expect(POST.mock.calls[1][1].body.image.data).toBe('bmV3cGhvdG8=');
+    });
+  });
+
+  describe('busy server (503 with Retry-After)', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('turns Analyse off for the wait, capped at 10 seconds, and says why', async () => {
+      jest.useFakeTimers({ advanceTimers: true });
+      const { api, POST } = fakeApi();
+      POST.mockResolvedValue({ error: { code: 'unavailable', message: 'x' }, response: res(503, { 'Retry-After': '45' }) });
+      await food(optedIn(), api);
+      await snap();
+      await analyse();
+      expect(await screen.findByText('The server is busy. You can try again in 10 seconds.')).toBeTruthy();
+      expect(screen.queryByLabelText('Analyse photo')).toBeNull();
+      expect(screen.getByText(/Couldn’t get an answer, try again\./)).toBeTruthy();
+      for (let i = 0; i < 10; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(1000);
+        });
+      }
+      expect(await screen.findByLabelText('Analyse photo')).toBeTruthy();
+      expect(screen.queryByText(/The server is busy/)).toBeNull();
+      expect(POST).toHaveBeenCalledTimes(1);
+    });
+
+    it('a plain 503 without Retry-After keeps Analyse on', async () => {
+      const { api, POST } = fakeApi();
+      POST.mockResolvedValue({ error: { code: 'unavailable', message: 'x' }, response: res(503) });
+      await food(optedIn(), api);
+      await snap();
+      await analyse();
+      expect(await screen.findByText(/Couldn’t get an answer/)).toBeTruthy();
+      expect(screen.getByLabelText('Analyse photo')).toBeTruthy();
+    });
+  });
+});
+
 describe('failures fall back and say so', () => {
   const failWith = async (reply: unknown, flags: Flags = { meal_photo: true }, quota = QUOTA) => {
     const { api, POST } = fakeApi(flags, quota);
@@ -402,10 +565,19 @@ describe('failures fall back and say so', () => {
 });
 
 describe('shrinkForAi', () => {
+  it('releases the context and the rendered image, also when the photo is too big', async () => {
+    await shrinkForAi({ uri: `${CACHE}ImagePicker/r.jpg`, width: 3000, height: 3000 });
+    expect(mockSaved.ops.filter((o) => o.startsWith('release'))).toEqual(['release image', 'release context']);
+    mockSaved.ops = [];
+    mockSaved.base64 = ['x'.repeat(1_600_004)];
+    await expect(shrinkForAi({ uri: `${CACHE}ImagePicker/r2.jpg`, width: 3000, height: 3000 })).rejects.toBeInstanceOf(PhotoTooBig);
+    expect(mockSaved.ops.filter((o) => o.startsWith('release'))).toEqual(['release image', 'release context']);
+  });
+
   it('resizes the long side to 1,600 px, saves JPEG at 0.85, and deletes both working copies in the cache', async () => {
     const out = await shrinkForAi({ uri: `${CACHE}ImagePicker/a.jpg`, width: 3000, height: 4000 });
     expect(out).toEqual({ media_type: 'image/jpeg', data: 'cmVzaXplZA==' });
-    expect(mockSaved.ops).toEqual([`manipulate ${CACHE}ImagePicker/a.jpg`, 'resize {"height":1600}', 'save 0.85 jpeg true']);
+    expect(mockSaved.ops).toEqual([`manipulate ${CACHE}ImagePicker/a.jpg`, 'resize {"height":1600}', 'save 0.85 jpeg true', 'release image', 'release context']);
     expect(mockSaved.deleted).toEqual([`${CACHE}ImagePicker/a.jpg`, `${CACHE}ImageManipulator/out-0.85.jpg`]);
   });
 
