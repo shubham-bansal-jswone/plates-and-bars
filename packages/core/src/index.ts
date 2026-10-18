@@ -622,3 +622,10 @@ export type { PrepEntry, AddPrepInput } from './prep';
 
 /** `checkinBannerDue` mirrors prototype `checkinBanner()`: Food's "weekly check-in is ready" banner (Sunday or Monday, today, not yet seen this week). */
 export { checkinBannerDue } from './progress';
+
+/**
+ * Device step count from the Android since-boot counter (#300), no prototype counterpart. `advanceSteps` turns a reading and the stored
+ * baseline into the new baseline and the day totals to write (conservative across midnight); `isReboot` is its reboot check.
+ */
+export { advanceSteps, isReboot } from './deviceSteps';
+export type { StepReading, StepBaseline, StepCredit, StepAdvance } from './deviceSteps';
