@@ -23,6 +23,9 @@ jest.mock('expo-secure-store', () => ({
   },
 }));
 
+const mockSetUser = jest.fn();
+jest.mock('@sentry/react-native', () => ({ init: jest.fn(), setUser: (u: unknown) => mockSetUser(u) }));
+
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const BASE = 'http://fake/api/v1';
 const meta = { version: 1, updated_at: '2026-10-08T06:00:00.000Z', deleted_at: null };
@@ -251,6 +254,32 @@ describe('delete everything (#27)', () => {
     handler.current = () => new Response(null, { status: 204 });
     expect(await deleteEverything({ db, api, tokens })).toMatchObject({ kind: 'deleted' });
     expect(mockKeys.has('pb.install_id')).toBe(false);
+    expect(mockSetUser).toHaveBeenCalledWith(null);
+  });
+
+  it('the install id is kept while the wipe is unfinished (wipe failed, or another account took over), forgotten once the wipe succeeds', async () => {
+    mockSetUser.mockClear();
+    const { db, tokens, api } = await signedIn();
+    mockKeys.set('pb.install_id', 'install-1');
+    await db.execAsync('ALTER TABLE food_logs RENAME TO food_logs_x');
+    expect(await deleteEverything({ db, api, tokens })).toEqual({ kind: 'local_failed' });
+    expect(mockKeys.get('pb.install_id')).toBe('install-1');
+    expect(mockSetUser).not.toHaveBeenCalled();
+    await db.execAsync('ALTER TABLE food_logs_x RENAME TO food_logs');
+    expect(await deleteEverything({ db, api, tokens })).toMatchObject({ kind: 'deleted' });
+    expect(mockKeys.has('pb.install_id')).toBe(false);
+    expect(mockSetUser).toHaveBeenCalledWith(null);
+  });
+
+  it('the install id is kept when another account took over before the wipe', async () => {
+    const { db, tokens, api } = await signedIn();
+    mockKeys.set('pb.install_id', 'install-1');
+    db.beforeTxn = async () => {
+      db.beforeTxn = undefined;
+      await setKv(db, KEY_USER, OTHER);
+    };
+    expect(await deleteEverything({ db, api, tokens })).toMatchObject({ kind: 'owner_changed' });
+    expect(mockKeys.get('pb.install_id')).toBe('install-1');
   });
 
   it('a keystore failure while removing the install id does not turn a finished delete into an error', async () => {

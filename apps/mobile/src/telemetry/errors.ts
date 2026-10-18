@@ -20,6 +20,17 @@ async function loadInstallId(): Promise<string> {
   return fresh;
 }
 
+/**
+ * "Delete everything": the in-memory id and the Sentry user go first (so no later event carries the old id), then the
+ * keystore copy is deleted. Rejects if the keystore delete fails; the caller decides whether that matters.
+ */
+export async function forgetInstallId(): Promise<void> {
+  installId = null;
+  Sentry.setUser(null);
+  if (Platform.OS === 'web') return;
+  await SecureStore.deleteItemAsync(INSTALL_ID_KEY);
+}
+
 /** Initialises error tracking. Returns false (and does nothing else) without a DSN. */
 export function initErrorTracking(
   dsn: string | undefined = process.env.EXPO_PUBLIC_SENTRY_DSN,

@@ -39,9 +39,3 @@ export async function clearTokens(): Promise<void> {
   await SecureStore.deleteItemAsync(ACCESS);
   await SecureStore.deleteItemAsync(REFRESH);
 }
-
-/** Forgets the install id, so the next launch of error tracking makes a new one. */
-export async function clearInstallId(): Promise<void> {
-  if (!supported) return;
-  await SecureStore.deleteItemAsync(INSTALL_ID_KEY);
-}
