@@ -125,7 +125,7 @@ export function sessionDates(sessions: SessionLog, before: string): string[] {
  *
  * - A week plan for `date`'s week wins: the next unfinished entry in its list.
  * - Sundays are always rest otherwise.
- * - In sequence mode, the template after the last one done (first if none).
+ * - In sequence mode, the template after the most recent one done that is in the plan, skipping hand-picked days (first if none; #1019).
  * - Otherwise the weekday's template from `splitFor`.
  *
  * Mirrors prototype `planned(date)` (state passed in instead of read from `S`).
@@ -141,8 +141,11 @@ export function planned(date: string, state: PlanState): string | null {
     const PL = planList(state.profile);
     if (!PL.length) return null;
     const ds = sessionDates(state.sessions, date);
-    const last = ds.length ? state.sessions[ds[ds.length - 1] as string] : undefined;
-    const i = last ? PL.indexOf(last.t as string) : -1;
+    // Spec deviation (#1019): the prototype takes the very last session, so a hand-picked one
+    // (template not in the plan) restarts the sequence. Here such days are skipped: the next
+    // workout follows the most recent day whose template is in the plan.
+    let i = -1;
+    for (let k = ds.length - 1; k >= 0 && i < 0; k--) i = PL.indexOf(state.sessions[ds[k] as string]?.t as string);
     return PL[(i + 1) % PL.length] as string;
   }
   return dayTemplate(date, state.profile);
