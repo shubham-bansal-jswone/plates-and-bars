@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { dayQueue } from '../src/workout/dayQueue';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
+import type { Workout } from '../src/workout/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { failInTxn, openDb } from './sync-helpers';
 
@@ -424,8 +425,8 @@ describe('add and remove exercises (#147)', () => {
     const { result } = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
     await waitFor(() => expect(result.current.day.ready).toBe(true));
     // Another device's session lands after the screen loaded: a server id, version 3, and one done set (version 2).
-    const plank = { name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false };
-    await saveWorkout(db, { id: 'srv-w1', version: 3, updated_at: '2026-10-08T09:30:00Z', deleted_at: null, date: DATE, template: 'Session', base: null, where: null, mods: {}, exercises: [plank], ci_choice: null, cardio_min: null });
+    const plank: Workout['exercises'][number] = { name: 'Plank (seconds)', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false };
+    await saveWorkout(db, { id: 'srv-w1', version: 3, updated_at: '2026-10-08T09:30:00Z', deleted_at: null, date: DATE, template: 'Session', base: null, where: null, mods: {}, exercises: [plank], ci_choice: null, cardio_min: null } as unknown as Workout);
     const set = { id: 'srv-s1', version: 2, updated_at: '2026-10-08T09:31:00Z', deleted_at: null, workout_id: 'srv-w1', exercise: plank.name, kind: 'work', set_index: 0, weight_kg: null, reps: 30, done: true, rate: null, t: null } as unknown as Parameters<typeof saveSet>[2];
     await saveSet(db, DATE, set);
     await db.runAsync('DELETE FROM sync_outbox');
