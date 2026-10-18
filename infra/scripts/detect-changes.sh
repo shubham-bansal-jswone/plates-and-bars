@@ -45,7 +45,8 @@ if has_npm packages/core && want packages/core/ packages/api/ content/ docs/spec
 if has_npm apps/mobile && want apps/mobile/ packages/core/ packages/api/ content/; then emit mobile true; else emit mobile false; fi
 # the backend bundles every content/*.json and its tests read packages/api/test-vectors (backend/scripts is under backend/)
 if has_gradle backend && want backend/ packages/api/openapi.yaml packages/api/test-vectors/ content/; then emit backend true; else emit backend false; fi
-if has_npm tools && want tools/ content/ docs/spec/golden/ docs/prototype/ packages/api/test-vectors/; then emit tools true; else emit tools false; fi
+# check:sources (no IFCT/INDB) also scans the folders in tools/check-no-ifct/check.mjs SCAN_ROOTS: keep the two lists in step
+if has_npm tools && want tools/ content/ docs/spec/golden/ docs/prototype/ packages/api/test-vectors/ apps/mobile/src/content/ tests/e2e/store/ backend/src/main/resources/ backend/src/test/resources/; then emit tools true; else emit tools false; fi
 # bundled.json in the app records the hash of each content file; needs only node
 if [ -f apps/mobile/scripts/content-meta.mjs ] && want content/ apps/mobile/src/content/ apps/mobile/scripts/content-meta.mjs; then emit content_meta true; else emit content_meta false; fi
 # the golden fixtures must equal what tools/golden-gen produces from the prototype (needs only node, no install)

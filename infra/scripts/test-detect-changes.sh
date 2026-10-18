@@ -9,7 +9,7 @@ cd "$tmp"
 git init -q
 git config user.email t@example.com
 git config user.name t
-mkdir -p tools/golden-gen packages/api/test-vectors packages/core apps/mobile/scripts apps/mobile/src/content apps/site backend/scripts tools content docs tests/e2e
+mkdir -p tests/e2e/store backend/src/main/resources/db/migration backend/src/test/resources/golden backend/src/main/java tools/golden-gen packages/api/test-vectors packages/core apps/mobile/scripts apps/mobile/src/content apps/site backend/scripts tools content docs tests/e2e
 for d in packages/api packages/core apps/mobile apps/site tools tests/e2e; do echo '{}' > "$d/package.json"; done
 touch tools/golden-gen/cli.mjs backend/build.gradle apps/mobile/scripts/content-meta.mjs docs/check-play-listing.mjs
 git add -A && git commit -qm base
@@ -35,7 +35,7 @@ expect backend/scripts/x.sh "backend e2e_sync"
 expect packages/api/test-vectors/sync-ids.json "api core mobile backend tools e2e e2e_sync"
 expect packages/api/openapi.yaml "api core mobile backend e2e e2e_sync"
 expect apps/site/src/a.txt "site"
-expect apps/mobile/src/content/bundled.json "mobile content_meta e2e e2e_sync"
+expect apps/mobile/src/content/bundled.json "mobile tools content_meta e2e e2e_sync"
 expect apps/mobile/src/setup/copy.ts "mobile play_listing e2e e2e_sync"
 expect apps/mobile/src/setup/other.ts "mobile e2e e2e_sync"
 expect docs/PLAY-STORE-LISTING.md "play_listing"
@@ -46,6 +46,10 @@ expect docs/spec/golden/foods.json "core tools golden"
 expect docs/prototype/plate-and-bar.html "core tools golden"
 expect tools/other/helper.mjs "tools"
 expect tools/golden-gen/cases.mjs "tools golden"
+expect backend/src/main/resources/db/migration/V99__x.sql "backend tools e2e_sync"
+expect backend/src/test/resources/golden/x.json "backend tools e2e_sync"
+expect backend/src/main/java/A.java "backend e2e_sync"
+expect tests/e2e/store/demo-seed.json "tools e2e e2e_sync"
 expect docs/other.md ""
 [ "$fail" = 0 ] && echo "detect-changes: all sample diffs OK"
 exit "$fail"
