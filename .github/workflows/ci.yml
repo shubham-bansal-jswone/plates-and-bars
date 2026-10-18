@@ -28,6 +28,7 @@ jobs:
       run_backend: ${{ steps.d.outputs.run_backend }}
       run_tools: ${{ steps.d.outputs.run_tools }}
       run_golden: ${{ steps.d.outputs.run_golden }}
+      run_play_listing: ${{ steps.d.outputs.run_play_listing }}
       run_site: ${{ steps.d.outputs.run_site }}
       run_content_meta: ${{ steps.d.outputs.run_content_meta }}
       run_e2e: ${{ steps.d.outputs.run_e2e }}
@@ -178,6 +179,22 @@ jobs:
       - run: node golden-gen/cli.mjs --check
         working-directory: tools
 
+  # docs/PLAY-STORE-LISTING.md must stay within Google's character limits, carry no placeholder or AI vendor name, and
+  # repeat the setup disclaimer in apps/mobile/src/setup/copy.ts word for word (#832, #851). The script uses only
+  # node:fs and node:url, so there is no install step.
+  play-listing:
+    name: play listing (check)
+    needs: changes
+    if: needs.changes.outputs.run_play_listing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node docs/check-play-listing.mjs
+
   backend:
     name: backend (gradle build)
     needs: changes
@@ -231,6 +248,12 @@ jobs:
         working-directory: .
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm run a11y
+      # The landing page's "Open the web app" button and the deletion page's "Delete on the web" section only
+      # render when PUBLIC_WEB_APP_URL is set (#859), so check them too. a11y rebuilds dist/ with this env.
+      - name: a11y with PUBLIC_WEB_APP_URL set
+        env:
+          PUBLIC_WEB_APP_URL: https://app.example.test
+        run: npm run a11y
 
   e2e:
     name: e2e (web, Playwright)

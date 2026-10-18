@@ -5,6 +5,7 @@ import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFo
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { freshRead } from '../state/freshRead';
+import { stepsSleepSave } from '../progress/stepsSleep';
 import type { CatalogFood } from './catalog';
 import type { DayNote, FoodLog, Meal, UserFood } from './types';
 
@@ -191,6 +192,25 @@ export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
     [db, date, now, enqueue],
   );
 
+  /** Saves steps and sleep on the day note (the same rule and write as Progress); false when an entry was refused, with the toast. */
+  const saveStepsSleep = useCallback(
+    (stepsText: string, sleepText: string): boolean => {
+      const r = stepsSleepSave(stepsText, sleepText);
+      if (r.kind === 'bad') {
+        notify(r.message);
+        return false;
+      }
+      const { steps, steps_source, sleep } = r;
+      const n: DayNote = { ...(noteRef.current ?? { id: null, version: 0, deleted_at: null, date, complete: null, steps: null, sleep: null, fast: false }), steps, steps_source, sleep, updated_at: stamp(now()) };
+      noteRef.current = n;
+      setNote(n);
+      enqueue(() => patchDayNote(db, date, { steps, steps_source, sleep }, n.updated_at));
+      notify('Saved');
+      return true;
+    },
+    [db, date, now, enqueue, notify],
+  );
+
   /** Saves a custom food to my foods (core's `saveMyFood`: newest first, same name replaced, capped); foods pushed out are tombstoned. */
   const saveMine = useCallback(
     (food: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => {
@@ -211,5 +231,5 @@ export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
   );
 
   const ready = loaded === date;
-  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, copyPrevious, setComplete, setFast, saveMine };
+  return { date, ready, failed, logs, note, mine, mineFacts: mine.map(userFoodFacts), add, remove, copyPrevious, setComplete, setFast, saveStepsSleep, saveMine };
 }
