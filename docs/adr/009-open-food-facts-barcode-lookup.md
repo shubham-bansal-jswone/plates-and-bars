@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Supersedes: [ADR 005](005-food-data-sources-own-estimates.md), only its closing consequence that adding a source such as Open Food Facts needs its own licence check and ADR. ADR 005's source list, its "no IFCT or INDB" rule and the CI check stand unchanged; this ADR adds one source to that list.
-- Decided on #944 by the coordinator under the owner's delegation; contract 0.2.0. The owner still has to confirm the share-alike reading below (open item O3 on #944). This is a reading of the licences, not legal advice.
+- Decided on #944 by the coordinator under the owner's delegation; contract 0.1.22. The owner still has to confirm the share-alike reading below (open item O3 on #944). This is a reading of the licences, not legal advice.
 
 ## Context
 
