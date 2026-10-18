@@ -33,7 +33,7 @@ describe('rampEasyNote (#823)', () => {
 describe('How-to sheet (#823)', () => {
   let open: jest.SpyInstance;
   beforeEach(() => {
-    open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   });
   afterEach(() => open.mockRestore());
 
