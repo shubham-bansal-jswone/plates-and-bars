@@ -85,6 +85,25 @@ describe('"Track this set" on the exercise card', () => {
     expect(screen.queryByRole('button', { name: /Track this set/ })).toBeNull();
   });
 
+  it('un-ticking a set brings the button back', async () => {
+    const { ui } = card('Bodyweight Squat', [true, true]);
+    const view = await render(ui);
+    expect(screen.queryByText('Track this set')).toBeNull();
+    await view.rerender(card('Bodyweight Squat', [true, false]).ui);
+    expect(screen.getByRole('button', { name: 'Track this set of Bodyweight Squat' })).toBeTruthy();
+  });
+
+  it('a sheet open when the last set is ticked stays closed when a set is un-ticked later', async () => {
+    const view = await render(card('Goblet Squat', [true, false]).ui);
+    await fireEvent.press(screen.getByRole('button', { name: 'Track this set of Goblet Squat' }));
+    await screen.findByText('stub session');
+    await view.rerender(card('Goblet Squat', [true, true]).ui);
+    expect(screen.queryByText('stub session')).toBeNull();
+    await view.rerender(card('Goblet Squat', [true, false]).ui);
+    expect(screen.getByRole('button', { name: 'Track this set of Goblet Squat' })).toBeTruthy();
+    expect(screen.queryByText('stub session')).toBeNull();
+  });
+
   it('can be closed without applying', async () => {
     const { edit, ui } = card('Goblet Squat', [false]);
     await render(ui);

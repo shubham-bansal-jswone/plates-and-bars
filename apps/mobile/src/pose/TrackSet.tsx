@@ -23,6 +23,8 @@ export function TrackSet({ name, sets, onApply, available = poseAvailable() }: {
   const exercise = poseExercise(name);
   // With every set ticked there is no set left to fill, and "Use N reps" would overwrite a finished set's reps.
   const set = sets.findIndex((s) => !s.done);
+  // A sheet left open while the last set got ticked (e.g. by a sync) must not pop back up when a set is un-ticked later.
+  if (set < 0 && open) setOpen(false); // adjusting state while rendering, as React documents; an effect trips react-hooks/set-state-in-effect
   if (!available || !exercise || set < 0) return null;
   return (
     <>
