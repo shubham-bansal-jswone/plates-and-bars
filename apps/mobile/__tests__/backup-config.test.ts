@@ -80,9 +80,15 @@ class AppDelegate: ExpoAppDelegate {
     const out = await run('swift', swift);
     expect(out.indexOf('excludeAppDataFromBackup()\n')).toBeLessThan(out.indexOf('return super.application'));
     expect(out).toContain('func excludeAppDataFromBackup()');
-    expect(out).toContain('values.isExcludedFromBackup = true');
     expect(out).toContain('["SQLite", "photos"]');
     expect(out).toContain('.documentDirectory');
+    // Documents itself, then each subfolder, are the folders that get flagged...
+    expect(out).toContain('var folders = [documents]');
+    expect(out).toContain('folders.append(folder)');
+    // ...and the flag is set and applied to every one of them, in that order, inside the loop over them.
+    const loop = /for var url in folders \{([\s\S]*?)\n  \}/.exec(out)?.[1] ?? '';
+    expect(loop.indexOf('values.isExcludedFromBackup = true')).toBeGreaterThanOrEqual(0);
+    expect(loop.indexOf('try? url.setResourceValues(values)')).toBeGreaterThan(loop.indexOf('values.isExcludedFromBackup = true'));
   });
 
   it('is idempotent, and fails loudly when the template has no launch return or is not Swift', async () => {
@@ -98,21 +104,38 @@ class AppDelegate: ExpoAppDelegate {
     expect(vault).toContain("new Directory(Paths.document, 'photos')");
   });
 
-  it('app.json: iPhone only, no Face ID string, no tracking, privacy manifest categories declared', () => {
+  it('app.json: iPhone only, no Face ID string, no tracking, API categories declared', () => {
     const ios = appJson.expo.ios as { supportsTablet: boolean; privacyManifests: { NSPrivacyTracking: boolean; NSPrivacyTrackingDomains: string[]; NSPrivacyCollectedDataTypes: unknown[]; NSPrivacyAccessedAPITypes: { NSPrivacyAccessedAPIType: string; NSPrivacyAccessedAPITypeReasons: string[] }[] } };
     expect(ios.supportsTablet).toBe(false);
     expect(appJson.expo.plugins).toContainEqual(['expo-secure-store', { configureAndroidBackup: false, faceIDPermission: false }]);
     const m = ios.privacyManifests;
     expect(m.NSPrivacyTracking).toBe(false);
     expect(m.NSPrivacyTrackingDomains).toEqual([]);
-    expect(m.NSPrivacyCollectedDataTypes).toEqual([]);
     const reasons = Object.fromEntries(m.NSPrivacyAccessedAPITypes.map((t) => [t.NSPrivacyAccessedAPIType, t.NSPrivacyAccessedAPITypeReasons]));
+    // Only codes that match the app's own use (Apple, "Describing use of required reason API"): CA92.1 own settings,
+    // C617.1 timestamps of files in the app container, E174.1 free space before writing, 35F9.1 elapsed time.
     expect(reasons).toEqual({
       NSPrivacyAccessedAPICategoryUserDefaults: ['CA92.1'],
-      NSPrivacyAccessedAPICategoryFileTimestamp: ['C617.1', '0A2A.1', '3B52.1'],
-      NSPrivacyAccessedAPICategoryDiskSpace: ['E174.1', '85F4.1'],
+      NSPrivacyAccessedAPICategoryFileTimestamp: ['C617.1'],
+      NSPrivacyAccessedAPICategoryDiskSpace: ['E174.1'],
       NSPrivacyAccessedAPICategorySystemBootTime: ['35F9.1'],
     });
+  });
+
+  it('app.json declares the collected data types from our flows: none used for tracking, diagnostics not linked to the user', () => {
+    const ios = appJson.expo.ios as { privacyManifests: { NSPrivacyCollectedDataTypes: { NSPrivacyCollectedDataType: string; NSPrivacyCollectedDataTypeLinked: boolean; NSPrivacyCollectedDataTypeTracking: boolean; NSPrivacyCollectedDataTypePurposes: string[] }[] } };
+    const rows = ios.privacyManifests.NSPrivacyCollectedDataTypes;
+    const by = Object.fromEntries(rows.map((r) => [r.NSPrivacyCollectedDataType.replace('NSPrivacyCollectedDataType', ''), r]));
+    expect(Object.keys(by).sort()).toEqual(['CrashData', 'EmailAddress', 'Fitness', 'Health', 'OtherDiagnosticData', 'OtherUserContent', 'PerformanceData', 'UserID']);
+    for (const r of rows) expect(r.NSPrivacyCollectedDataTypeTracking).toBe(false);
+    for (const k of ['EmailAddress', 'Health', 'Fitness', 'OtherUserContent', 'UserID']) {
+      expect(by[k]?.NSPrivacyCollectedDataTypeLinked).toBe(true);
+      expect(by[k]?.NSPrivacyCollectedDataTypePurposes).toEqual(['NSPrivacyCollectedDataTypePurposeAppFunctionality']);
+    }
+    for (const k of ['CrashData', 'PerformanceData', 'OtherDiagnosticData']) {
+      expect(by[k]?.NSPrivacyCollectedDataTypeLinked).toBe(false);
+      expect(by[k]?.NSPrivacyCollectedDataTypePurposes).toEqual(['NSPrivacyCollectedDataTypePurposeAnalytics']);
+    }
   });
 
   it('only the camera and photo library strings are set, and the microphone one stays off', () => {
