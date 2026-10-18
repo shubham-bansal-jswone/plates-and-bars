@@ -21,7 +21,7 @@ describe('generated licences.json', () => {
   });
   it('gives every entry a licence, and lists the fonts, Ionicons and the pose model files', () => {
     for (const e of [...d.packages, ...d.android, ...d.assets]) expect(e.licence).toBeTruthy();
-    expect(d.assets.map((a) => a.name)).toEqual(['Inter (font)', 'Roboto (font)', 'Ionicons (icons)', 'MoveNet Lightning (pose model weights)', 'TensorFlow.js WebAssembly runtime (pose tracking)']);
+    expect(d.assets.map((a) => a.name)).toEqual(['Inter (font)', 'Roboto (font)', 'Ionicons (icons)', 'MoveNet Lightning (pose model weights)', 'MoveNet Lightning (pose model weights, Android, TensorFlow Lite float16)', 'TensorFlow.js WebAssembly runtime (pose tracking)']);
     for (const e of d.assets) expect(d.texts[e.text!]).toBeTruthy();
   });
   it('only references texts that exist', () => {
@@ -111,6 +111,30 @@ describe('Native component notices', () => {
     expect(d.texts[by('libjpeg-turbo').text!]).toContain('Independent JPEG Group');
     expect(by('libwebp').in).toEqual(['libstatic-webp.so']);
     expect(by('{fmt}').in).toEqual(['libreactnative.so']);
+  });
+
+  it('lists what is compiled into the LiteRT runtime for live pose tracking (#947), with upstream texts', async () => {
+    const d = await loadLicences();
+    const by = (n: string) => d.native.find((c) => c.name.startsWith(n))!;
+    for (const n of ['XNNPACK', 'KleidiAI', 'ruy', 'gemmlowp', 'FlatBuffers', 'cpuinfo', 'pthreadpool', 'FP16', 'FXdiv', 'Eigen thread pool', 'FFT package', 'ARM NEON']) {
+      expect(by(n).in).toEqual(['libtensorflowlite_jni.so']);
+    }
+    expect(by('LLVM libc++').in).toEqual(expect.arrayContaining(['libtensorflowlite_jni.so']));
+    expect(d.texts[by('XNNPACK').text!]).toContain('Copyright (c) Facebook, Inc. and its affiliates.');
+    expect(d.texts[by('cpuinfo').text!]).toContain('Copyright (C) 2010-2012 Marat Dukhan');
+    expect(d.texts[by('Eigen thread pool').text!]).toContain('Mozilla Public License Version 2.0');
+    expect(d.texts[by('FFT package').text!]).toContain('Takuya OOURA');
+    expect(d.texts[by('KleidiAI').text!]).toContain('Version 2.0, January 2004');
+    expect(d.texts[by('KleidiAI').text!]).toContain('Redistribution and use in source and binary forms');
+  });
+
+  it('lists the LiteRT Java artifacts as Apache-2.0 and no Play services library', async () => {
+    const d = await loadLicences();
+    expect(d.android.filter((a) => a.name.startsWith('com.google.ai.edge.litert:')).map((a) => [a.name, a.licence]).sort()).toEqual([
+      ['com.google.ai.edge.litert:litert', 'Apache-2.0'],
+      ['com.google.ai.edge.litert:litert-api', 'Apache-2.0'],
+    ]);
+    expect(d.android.filter((a) => /play-services|gms|mlkit|mediapipe|firebase|litert-gpu/.test(a.name))).toEqual([]);
   });
 });
 

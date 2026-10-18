@@ -38,6 +38,7 @@ export async function createPoseDetector(): Promise<PoseDetector> {
   const detector = await createDetector(SupportedModels.MoveNet, { modelType: movenet.modelType.SINGLEPOSE_LIGHTNING, modelUrl: MODEL_URL, enableSmoothing: false });
   return {
     async estimate(video) {
+      if (!video) return null;
       const width = video.videoWidth;
       const height = video.videoHeight;
       if (!width || !height) return null;

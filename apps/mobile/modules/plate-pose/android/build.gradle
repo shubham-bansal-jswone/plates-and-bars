@@ -1,0 +1,27 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.plateandbar.pose'
+version = '0.1.0'
+
+android {
+  namespace "app.plateandbar.pose"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+// Open-source only (#947): CameraX (Apache-2.0, Google Maven, the same artifacts as the barcode module) and the bundled LiteRT
+// runtime (Apache-2.0, Google Maven). No Play services, no ML Kit, no MediaPipe, no GPU delegate. The versions are the ones
+// scripts/licences.mjs has a checked row for; a change needs the rows and scripts/android-classpath.txt updated.
+dependencies {
+  implementation 'androidx.camera:camera-core:1.5.2'
+  implementation 'androidx.camera:camera-camera2:1.5.2'
+  implementation 'androidx.camera:camera-lifecycle:1.5.2'
+  implementation 'androidx.camera:camera-view:1.5.2'
+  implementation 'com.google.ai.edge.litert:litert:1.4.0'
+  testImplementation 'junit:junit:4.13.2'
+}

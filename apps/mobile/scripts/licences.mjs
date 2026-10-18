@@ -155,6 +155,9 @@ const ANDROID_LICENCES = [
   ['com.facebook.yoga', 'MIT', 'yoga.txt', 'proguard-annotations@1.19.0'],
   // The POM names BSD and Apache-2.0; Glide's LICENSE is BSD-2-Clause with MIT and Apache parts for bundled third-party code.
   ['com.github.bumptech.glide', 'BSD-2-Clause AND MIT AND Apache-2.0', 'glide.txt', 'annotations@5.0.5 disklrucache@5.0.5 gifdecoder@5.0.5 glide@5.0.5'],
+  // LiteRT (TensorFlow Lite) runtime for live pose tracking on Android (#947): bundled, runs on the CPU, no Play services. Both POMs and the
+  // AAR's LICENSE are Apache-2.0 (checked 2026-10-19); the AAR carries libtensorflowlite_jni.so (see NATIVE below) and ships no NOTICE file.
+  ['com.google.ai.edge.litert', 'Apache-2.0', null, 'litert@1.4.0 litert-api@1.4.0'],
   ['com.google.android.material', 'Apache-2.0', null, 'material@1.13.0'],
   // The POM declares Apache-2.0 and the JSR-305 sources are BSD-3-Clause (licence-texts/jsr305.txt); both are listed.
   ['com.google.code.findbugs', 'Apache-2.0 AND BSD-3-Clause', 'jsr305.txt', 'jsr305@3.0.2'],
@@ -241,7 +244,7 @@ const NATIVE = [
   ['fast-float', 'fast_float', '8.0.0 (React Native), 8.1.0 (Hermes)', 'MIT', 'https://github.com/fastfloat/fast_float', ['fast-float.txt']], // offered under Apache-2.0, MIT and BSL-1.0; MIT is the one taken
   ['fmt', '{fmt}', '12.1.0', 'MIT', 'https://github.com/fmtlib/fmt', ['fmt.txt']],
   ['boost', 'Boost', '1.83.0 (React Native, headers), 1.86.0 (Hermes, Context)', 'BSL-1.0', 'https://www.boost.org', ['boost.txt']],
-  ['libcxx', 'LLVM libc++, libc++abi and libunwind (Android NDK)', '27.1.12297006 (LLVM 18)', 'Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)', 'https://libcxx.llvm.org', ['libcxx.txt']], // LLVM 18 offers the older libc++ code under NCSA or MIT, at the user's choice
+  ['libcxx', 'LLVM libc++, libc++abi and libunwind (Android NDK)', '27.1.12297006 (LLVM 18); NDK r25 (LLVM 14.0.6) in libtensorflowlite_jni.so', 'Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)', 'https://libcxx.llvm.org', ['libcxx.txt']], // LLVM 18 offers the older libc++ code under NCSA or MIT, at the user's choice
   ['llvh', 'LLVM support library (llvh, in Hermes)', 'Hermes 260318099.0.4', 'Apache-2.0 WITH LLVM-exception AND NCSA', 'https://github.com/facebook/hermes/tree/main/external/llvh', ['llvh.txt']],
   ['unicode', 'Unicode character data tables (in Hermes)', 'Unicode 17.0.0, Hermes 260318099.0.4', 'Unicode-3.0', 'https://www.unicode.org/license.txt', ['unicode.txt']],
   ['dtoa', 'dtoa (David M. Gay)', 'netlib, 2016-01-18', 'Lucent permissive notice', 'https://www.netlib.org/fp/', ['dtoa.txt']],
@@ -254,6 +257,24 @@ const NATIVE = [
   ['zxing-cpp', 'zxing-cpp', '3.1.1', 'Apache-2.0', 'https://github.com/zxing-cpp/zxing-cpp', ['zxing-cpp.txt']], // statically links LLVM libc++ of NDK 27.1.12297006 (libcxx); the Android build has writers off, so the repo's libzint is not compiled in, but its reader build compiles libzueci (core/CMakeLists.txt, ZXING_READERS)
   ['libzueci', 'libzueci (in zxing-cpp)', 'bundled in zxing-cpp 3.1.1', 'BSD-3-Clause AND MIT', 'https://github.com/zxing-cpp/zxing-cpp/tree/v3.1.1/core/src/libzueci', ['libzueci.txt']], // BSD-3-Clause, plus Bjoern Hoehrmann's UTF-8 decoder (MIT-style notice) inside zueci.c
   ['libyuv', 'libyuv (in AndroidX CameraX camera-core)', 'bundled in androidx.camera:camera-core 1.5.2', 'BSD-3-Clause', 'https://chromium.googlesource.com/libyuv/libyuv', ['libyuv.txt']],
+  // TensorFlow Lite in LiteRT 1.4.0 (live pose tracking, #947). Checked 2026-10-19 against the AAR's libtensorflowlite_jni.so (arm64-v8a,
+  // stripped, built with NDK r25 clang 14.0.6): build paths of external/ruy and external/KleidiAI, XNNPACK delegate and messages,
+  // cpuinfo, gemmlowp and fft2d messages, EigenForTFLite and flatbuffers symbols, and a statically linked libc++ (no libc++_shared needed).
+  // pthreadpool, FP16 and FXdiv are XNNPACK's own dependencies and NEON_2_SSE is TensorFlow Lite's x86 NEON shim: listed from their
+  // build files, not visible by name in the stripped binary. The version is whatever LiteRT 1.4.0 pins; the notice is the upstream
+  // licence file as of that check.
+  ['xnnpack', 'XNNPACK (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'BSD-3-Clause', 'https://github.com/google/XNNPACK', ['xnnpack.txt']],
+  ['kleidiai', 'KleidiAI (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0 AND BSD-3-Clause', 'https://github.com/ARM-software/kleidiai', ['kleidiai-apache.txt', 'kleidiai-bsd.txt']], // the matmul kernels in the library carry Apache-2.0 headers; the repository also holds BSD-3-Clause files
+  ['ruy', 'ruy (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0', 'https://github.com/google/ruy', ['apache-2.0.txt']],
+  ['gemmlowp', 'gemmlowp (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0', 'https://github.com/google/gemmlowp', ['apache-2.0.txt']],
+  ['flatbuffers', 'FlatBuffers (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Apache-2.0', 'https://github.com/google/flatbuffers', ['apache-2.0.txt']],
+  ['cpuinfo', 'cpuinfo (in XNNPACK)', 'bundled in litert 1.4.0', 'BSD-2-Clause', 'https://github.com/pytorch/cpuinfo', ['cpuinfo.txt']],
+  ['pthreadpool', 'pthreadpool (in XNNPACK)', 'bundled in litert 1.4.0', 'BSD-2-Clause', 'https://github.com/google/pthreadpool', ['pthreadpool.txt']],
+  ['fp16', 'FP16 (in XNNPACK)', 'bundled in litert 1.4.0', 'MIT', 'https://github.com/Maratyszcza/FP16', ['fp16.txt']],
+  ['fxdiv', 'FXdiv (in XNNPACK)', 'bundled in litert 1.4.0', 'MIT', 'https://github.com/Maratyszcza/FXdiv', ['fxdiv.txt']],
+  ['eigen-threadpool', 'Eigen thread pool (EigenForTFLite, in TensorFlow Lite)', 'bundled in litert 1.4.0', 'MPL-2.0', 'https://gitlab.com/libeigen/eigen', ['eigen-mpl2.txt']],
+  ['fft2d', 'FFT package by Takuya Ooura (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Ooura permissive notice', 'https://github.com/tensorflow/tensorflow/tree/master/third_party/fft2d', ['fft2d.txt']],
+  ['neon-2-sse', 'ARM NEON to x86 SSE shim (in TensorFlow Lite, x86 builds)', 'bundled in litert 1.4.0', 'BSD-3-Clause-like (Intel licence agreement)', 'https://github.com/intel/ARM_NEON_2_x86_SSE', ['neon-2-sse.txt']],
   ['sqlite', 'SQLite', '3.53.3', 'Public domain', 'https://sqlite.org', ['sqlite.txt']],
   ['libunwindstack', 'libunwindstack-ndk (Android Open Source Project)', '284202fb1e42', 'Apache-2.0', 'https://github.com/getsentry/libunwindstack-ndk', ['libunwindstack.txt']],
   ['mpack', 'MPack', '1.0', 'MIT', 'https://github.com/ludocode/mpack', ['mpack.txt']],
@@ -287,6 +308,7 @@ const NATIVE_SO = {
   'libzxingcpp_android.so': ['zxing-cpp', 'libzueci', 'libcxx'],
   'libimage_processing_util_jni.so': ['libyuv'],
   'libsurface_util_jni.so': [],
+  'libtensorflowlite_jni.so': ['xnnpack', 'kleidiai', 'ruy', 'gemmlowp', 'flatbuffers', 'cpuinfo', 'pthreadpool', 'fp16', 'fxdiv', 'eigen-threadpool', 'fft2d', 'neon-2-sse', 'libcxx'],
   'libworklets.so': ['worklets-queue'],
   'libreanimated.so': [],
   'libgesturehandler.so': [],
@@ -326,6 +348,8 @@ const assets = [
   { name: 'Ionicons (icons)', version: null, licence: 'MIT', url: 'https://github.com/ionic-team/ionicons', text: textId(MIT_IONIC) },
   // Live pose tracking on the web (#947): the model weights and the WebAssembly runtime are files we serve from public/pose.
   { name: 'MoveNet Lightning (pose model weights)', version: '4', licence: 'Apache-2.0', url: 'https://www.kaggle.com/models/google/movenet/TfJs/singlepose-lightning', text: textId(read(join(root, 'public/pose/movenet-lightning/LICENSE.txt'))) },
+  // Live pose tracking on Android (#947): the model weights are bundled in the app as an asset of the plate-pose module.
+  { name: 'MoveNet Lightning (pose model weights, Android, TensorFlow Lite float16)', version: '1', licence: 'Apache-2.0', url: 'https://www.kaggle.com/models/google/movenet/tfLite/singlepose-lightning-tflite-float16', text: textId(read(join(root, 'modules/plate-pose/MODEL-LICENSE.txt'))) },
   { name: 'TensorFlow.js WebAssembly runtime (pose tracking)', version: '4.22.0', licence: 'Apache-2.0 (contains XNNPACK, BSD-3-Clause, and Emscripten, MIT)', url: 'https://github.com/tensorflow/tfjs', text: textId(read(join(root, 'public/pose/wasm/LICENSE.txt'))) },
 ];
 

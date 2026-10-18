@@ -2,13 +2,15 @@
 // service worker from precaching it). Frames go camera -> model -> core's rep counter and are dropped: nothing is written
 // to disk, sent anywhere or kept after the set. Only the rep numbers survive, and only if the user applies them.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { DEPTH_CUES, initRepCounter, repInProgress, squatSignal, stepRepCounter, type PoseExercise, type RepCounterState, type SquatRep } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Hint, Note } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
+import { PoseCameraView } from '../../modules/plate-pose';
 import { POSE_COPY as t } from './copy';
-import type { PoseDetector } from './types';
+import { createNativePoseDetector, openNativeCamera } from './pose-native';
+import type { CameraStream, PoseDetector } from './types';
 
 /** About 10 frames a second is plenty for reps that last 2 to 4 seconds, and keeps a low-end device cool. */
 export const FRAME_MS = 100;
@@ -24,9 +26,12 @@ export const MAX_ESTIMATE_FAILURES = 10;
 type Blocked = 'denied' | 'nocamera' | 'camera' | 'model';
 type Phase = 'intro' | 'starting' | 'countdown' | 'tracking' | 'review' | 'blocked';
 
-const loadDetector = (): Promise<PoseDetector> => import('./pose-detector').then((m) => m.createPoseDetector());
+// The platform is read when the user starts, not when this file loads. On Android the camera is the native view (CameraX + LiteRT) and
+// the model check is the native one; on the web they are the browser camera and the TensorFlow.js model.
+const loadDetector = (): Promise<PoseDetector> => (Platform.OS === 'android' ? createNativePoseDetector() : import('./pose-detector').then((m) => m.createPoseDetector()));
 const clock = (): number => performance.now();
-const openCamera = (): Promise<MediaStream> => navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+const openCamera = (): Promise<CameraStream> =>
+  Platform.OS === 'android' ? openNativeCamera() : navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
 
 export interface PoseSessionProps {
   exercise: PoseExercise;
@@ -35,8 +40,8 @@ export interface PoseSessionProps {
   /** The user confirmed: write this count into the set. */
   onApply: (count: number) => void;
   onClose: () => void;
-  /** Tests pass fakes; the defaults are the browser camera and the TensorFlow.js model. */
-  getStream?: () => Promise<MediaStream>;
+  /** Tests pass fakes; the defaults are the browser camera and the TensorFlow.js model, or on Android the permission and the native model check. */
+  getStream?: () => Promise<CameraStream>;
   load?: () => Promise<PoseDetector>;
   now?: () => number;
   frameMs?: number;
@@ -59,8 +64,11 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
   const [outOfView, setOutOfView] = useState(false);
   const [ended, setEnded] = useState<'idle' | 'cap' | null>(null);
   const [partial, setPartial] = useState(false);
+  const [cameraOn, setCameraOn] = useState(false); // Android: the permission is given, so the native camera view may mount
   const video = useRef<HTMLVideoElement | null>(null);
-  const stream = useRef<MediaStream | null>(null);
+  const stream = useRef<CameraStream | null>(null);
+  const inferenceFails = useRef(0);
+  const native = Platform.OS === 'android';
   const detector = useRef<PoseDetector | null>(null);
   const alive = useRef(true);
   const stopRef = useRef<(() => void) | null>(null); // "Finish set" while tracking
@@ -75,6 +83,7 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
     stream.current = null;
     detector.current?.dispose();
     detector.current = null;
+    setCameraOn(false); // unmounting the native view releases the camera and the model
   }, []);
   useEffect(() => {
     alive.current = true;
@@ -111,9 +120,12 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
     };
     globalThis.document?.addEventListener?.('visibilitychange', onVisibility);
     globalThis.window?.addEventListener?.('pagehide', away);
+    // Android: the app going to the background ends the set too (CameraX stops its frames then, which would only read as "out of view").
+    const app = Platform.OS === 'android' ? AppState.addEventListener('change', (state) => state !== 'active' && away()) : null;
     return () => {
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibility);
       globalThis.window?.removeEventListener?.('pagehide', away);
+      app?.remove();
     };
   }, [release]);
 
@@ -121,7 +133,7 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
     const mine = ++gen.current;
     const live = () => alive.current && gen.current === mine;
     setPhase('starting');
-    let s: MediaStream;
+    let s: CameraStream;
     try {
       s = await getStream();
     } catch (e) {
@@ -132,6 +144,8 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
     }
     if (!live()) return s.getTracks().forEach((tr) => tr.stop());
     stream.current = s;
+    inferenceFails.current = 0;
+    setCameraOn(true);
     attach();
     try {
       const d = await load();
@@ -151,7 +165,7 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
   const attach = () => {
     const v = video.current;
     if (v && stream.current && v.srcObject !== stream.current) {
-      v.srcObject = stream.current;
+      v.srcObject = stream.current as MediaStream;
       v.play?.().catch(() => {});
     }
   };
@@ -178,7 +192,7 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
     const tick = async () => {
       const d = detector.current;
       const v = video.current;
-      if (stop || !d || !v) return;
+      if (stop || !d || (!v && !native)) return;
       const t0 = now();
       let found = null;
       try {
@@ -221,12 +235,20 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
       clearTimeout(timer);
       stopRef.current = null;
     };
-  }, [phase, finish, release, now, frameMs]);
+  }, [phase, finish, release, now, frameMs, native]);
 
   const last = reps[reps.length - 1];
   const parallel = reps.filter((r) => r.reachedParallel).length;
   const shallow = reps.some((r) => !r.reachedParallel);
   const showVideo = phase === 'starting' || phase === 'countdown' || phase === 'tracking';
+  const onNativeError = (message: string) => {
+    if (!showVideo) return;
+    // A single failed frame is a missing frame; a run of them means the model is broken (like the web's estimate errors).
+    if (message === 'inference_failed' && ++inferenceFails.current < MAX_ESTIMATE_FAILURES) return;
+    release();
+    setBlocked(message === 'no_camera' ? 'nocamera' : message === 'model_failed' || message === 'model_hash_mismatch' || message === 'inference_failed' ? 'model' : 'camera');
+    setPhase('blocked');
+  };
 
   return (
     <View style={styles.body}>
@@ -240,8 +262,20 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
           <Button label={t.close} kind="ghost" onPress={onClose} />
         </>
       ) : null}
-      {showVideo ? <video ref={video} autoPlay muted playsInline aria-label={t.camera} style={{ width: '100%', maxHeight: 360, borderRadius: 8, backgroundColor: '#000' }} /> : null}
-      {phase === 'starting' ? <Text style={{ color: c.ink }} accessibilityLiveRegion="polite">{t.starting}</Text> : null}
+      {showVideo && !native ? <video ref={video} autoPlay muted playsInline aria-label={t.camera} style={{ width: '100%', maxHeight: 360, borderRadius: 8, backgroundColor: '#000' }} /> : null}
+      {showVideo && native && cameraOn ? (
+        <View accessible accessibilityLabel={t.camera} style={styles.native}>
+          <PoseCameraView
+            style={StyleSheet.absoluteFill}
+            onPose={(e) => {
+              inferenceFails.current = 0;
+              detector.current?.feed?.(e.nativeEvent);
+            }}
+            onError={(e) => onNativeError(e.nativeEvent.message)}
+          />
+        </View>
+      ) : null}
+      {phase === 'starting' ? <Text style={{ color: c.ink }} accessibilityLiveRegion="polite">{native ? t.startingApp : t.starting}</Text> : null}
       {phase === 'countdown' ? <Text style={{ color: c.ink, fontSize: 20, fontWeight: '700' }} accessibilityLiveRegion="polite">{t.countdown(left)}</Text> : null}
       {phase === 'tracking' ? (
         <>
@@ -279,7 +313,7 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
       ) : null}
       {phase === 'blocked' ? (
         <>
-          <Note>{blocked === 'denied' ? t.denied : blocked === 'nocamera' ? t.noCamera : blocked === 'model' ? t.modelFailed : t.cameraFailed}</Note>
+          <Note>{blocked === 'denied' ? (native ? t.deniedApp : t.denied) : blocked === 'nocamera' ? t.noCamera : blocked === 'model' ? (native ? t.modelFailedApp : t.modelFailed) : t.cameraFailed}</Note>
           <Button label={t.retry} onPress={() => setPhase('intro')} />
           <Button label={t.close} kind="ghost" onPress={onClose} />
         </>
@@ -288,4 +322,4 @@ export function PoseSession({ exercise, setNumber, onApply, onClose, getStream =
   );
 }
 
-const styles = StyleSheet.create({ body: { gap: 12 } });
+const styles = StyleSheet.create({ body: { gap: 12 }, native: { height: 320, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000' } });
