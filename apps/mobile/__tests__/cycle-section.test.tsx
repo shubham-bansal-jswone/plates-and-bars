@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { saveProfile } from '../src/db/records';
 import { saveWeight } from '../src/db/progress';
@@ -116,13 +117,84 @@ describe('Cycle log section', () => {
     expect(stored(db)?.starts).toEqual(['2026-08-27']);
   });
 
-  it('Turn off and delete removes the stored log entirely and says so', async () => {
+  it('Turn off and delete takes a second tap: the first only arms it and nothing is deleted', async () => {
     const db = await setup({ cycle: { on: true, starts: ['2026-09-24'] } });
     await screen.findByText(/Kept only on this device, never uploaded\./);
     await fireEvent.press(screen.getByRole('button', { name: 'Turn off and delete' }));
+    expect(await screen.findByRole('button', { name: 'Tap again to delete the cycle log' })).toBeTruthy();
+    expect(stored(db)).toEqual({ on: true, starts: ['2026-09-24'], len: 28 });
+    expect(screen.queryByText('Cycle log deleted')).toBeNull();
+  });
+
+  it('the second tap removes the stored log entirely and says so', async () => {
+    const db = await setup({ cycle: { on: true, starts: ['2026-09-24'] } });
+    await screen.findByText(/Kept only on this device, never uploaded\./);
+    await fireEvent.press(screen.getByRole('button', { name: 'Turn off and delete' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Tap again to delete the cycle log' }));
     expect(await screen.findByText('Cycle log deleted')).toBeTruthy();
     expect(stored(db)).toBeNull();
     expect(screen.getByRole('button', { name: 'Turn on' })).toBeTruthy();
+  });
+
+  it('the armed button disarms after 4 seconds, so a late stray tap deletes nothing', async () => {
+    const db = await setup({ cycle: { on: true, starts: ['2026-09-24'] } });
+    await screen.findByText(/Kept only on this device, never uploaded\./);
+    await fireEvent.press(screen.getByRole('button', { name: 'Turn off and delete' }));
+    await screen.findByRole('button', { name: 'Tap again to delete the cycle log' });
+    await act(async () => void jest.advanceTimersByTime(4100));
+    expect(screen.getByRole('button', { name: 'Turn off and delete' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Turn off and delete' }));
+    expect(stored(db)?.starts).toEqual(['2026-09-24']);
+  });
+
+  it('the date field uses a keyboard that can type a dash, not a numeric pad', async () => {
+    await setup({ cycle: { on: true, starts: [] } });
+    const field = await screen.findByLabelText('Date your period started');
+    expect(field.props.inputMode ?? 'text').toBe('text');
+    expect(['numeric', 'number-pad', 'decimal-pad', 'phone-pad']).not.toContain(field.props.keyboardType);
+    expect(field.props.placeholder).toBe('YYYY-MM-DD');
+  });
+
+  it('a log wiped while Progress is shown is not written back: logging then stores nothing and the section shows it is off', async () => {
+    const db = await setup({ cycle: { on: true, starts: ['2026-09-12', '2026-10-01'] } });
+    await screen.findByLabelText(/^Day 8 of about 19/);
+    db.rows.delete('cycle_log:me'); // sign-out or delete everything ran meanwhile; no sync, no focus change
+    await fireEvent.changeText(screen.getByLabelText('Date your period started'), '2026-10-06');
+    await fireEvent.press(screen.getByRole('button', { name: 'Period started' }));
+    expect(await screen.findByRole('button', { name: 'Turn on' })).toBeTruthy();
+    expect(stored(db)).toBeNull();
+  });
+
+  it('Remove last after a wipe does not bring the old starts back either', async () => {
+    const db = await setup({ cycle: { on: true, starts: ['2026-09-12', '2026-10-01'] } });
+    await screen.findByText('Logged: 12 Sept, 1 Oct.');
+    db.rows.delete('cycle_log:me');
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove last' }));
+    await screen.findByRole('button', { name: 'Turn on' });
+    expect(stored(db)).toBeNull();
+  });
+
+  it('reads the log again when sync bumps dataVersion, so a wipe shows at once', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile('female'));
+    await saveCycle(db, { on: true, starts: ['2026-09-25'], len: 28 });
+    const at = (dataVersion: number) => <SyncContext.Provider value={{ dataVersion } as SyncState}>{withProfile(db, <ProgressScreen db={db} now={NOW} />)}</SyncContext.Provider>;
+    const view = await render(at(0));
+    await screen.findByLabelText('Day 14 of about 28, around ovulation.');
+    db.rows.delete('cycle_log:me');
+    await view.rerender(at(1));
+    expect(await screen.findByRole('button', { name: 'Turn on' })).toBeTruthy();
+    expect(screen.queryByLabelText(/^Day 14/)).toBeNull();
+  });
+
+  it('two quick taps both count', async () => {
+    const db = await setup({ cycle: { on: true, starts: [] } });
+    await screen.findByText('Log the first day of your period to start.');
+    await fireEvent.changeText(screen.getByLabelText('Date your period started'), '2026-09-10');
+    await fireEvent.press(screen.getByRole('button', { name: 'Period started' }));
+    await fireEvent.changeText(screen.getByLabelText('Date your period started'), '2026-10-01');
+    await fireEvent.press(screen.getByRole('button', { name: 'Period started' }));
+    await waitFor(() => expect(stored(db)?.starts).toEqual(['2026-09-10', '2026-10-01']));
   });
 
   it('a failed save puts the screen back and says so', async () => {

@@ -8,7 +8,6 @@ import { KEY_PHOTOS_WIPE, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv
 import type { TokenStore } from './tokens';
 import { markSignOutPending } from './webSession';
 import { announceWipe, wipePhotos } from '../photos/vault';
-import { CYCLE_KEY } from '../db/cycle';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
 // another user's token and never dropped without an explicit choice.
@@ -56,7 +55,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     if (pending > 0 && !opts.force) return;
     for (const local of Object.values(SYNC_TABLES)) await txn.runAsync(`DELETE FROM ${local}`);
     await txn.runAsync('DELETE FROM sync_outbox');
-    await txn.runAsync('DELETE FROM cycle_log WHERE key = ?', CYCLE_KEY); // device-only, but it belongs to the account that is wiped (#625)
+    await txn.runAsync('DELETE FROM cycle_log'); // device-only, but it belongs to the account that is wiped (#625)
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);

@@ -13,7 +13,7 @@ export async function loadCycle(db: StoreDb): Promise<CycleData> {
   if (!row) return emptyCycle();
   try {
     const d = JSON.parse(row.data) as Partial<CycleData>;
-    const len = typeof d.len === 'number' && Number.isFinite(d.len) && d.len > 0 ? d.len : 28;
+    const len = typeof d.len === 'number' && Number.isFinite(d.len) && d.len > 0 ? d.len : emptyCycle().len;
     return { on: d.on === true, starts: Array.isArray(d.starts) ? d.starts.filter(isYmd) : [], len };
   } catch {
     return emptyCycle();

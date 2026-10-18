@@ -51,7 +51,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const dataVersion = useDataVersion();
   const v = useViewedDate(now);
   const p = useProgress({ db, date: v.date, now, notify, reloadKey: dataVersion });
-  const cycle = useCycle({ db, date: v.date, notify });
+  const cycle = useCycle({ db, date: v.date, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
   const ready = status === 'ready' && p.ready;

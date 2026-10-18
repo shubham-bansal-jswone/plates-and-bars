@@ -17,6 +17,8 @@ export const CYCLE_LOGGED_LIST = (dates: string): string => `Logged: ${dates}.`;
 export const CYCLE_REMOVE_LAST = 'Remove last';
 export const CYCLE_PRIVATE = 'Kept only on this device, never uploaded.';
 export const CYCLE_OFF = 'Turn off and delete';
+/** Second tap of the delete: it cannot be undone. */
+export const CYCLE_OFF_AGAIN = 'Tap again to delete the cycle log';
 export const CYCLE_DELETED = 'Cycle log deleted';
 export const CYCLE_SAVE_FAILED = 'Couldn’t save the cycle log. Try again.';
 /** Check-in weight line, appended in the period and luteal phases (prototype `renderCheckin`). */
