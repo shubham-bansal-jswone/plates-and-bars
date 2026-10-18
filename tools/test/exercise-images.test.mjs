@@ -4,8 +4,9 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkSvgFrame } from '../validate/svg-allowlist.mjs';
 import {
-  validateExerciseImages, SOURCES, LICENCES, MAX_FRAME_BYTES, MAX_ALT,
+  validateExerciseImages, SOURCES, LICENCES, MAX_FRAME_BYTES, MAX_ALT, MAX_DIMENSION, FILE_PATTERN,
 } from '../validate/exercise-images.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -49,11 +50,13 @@ test('licence must be on the allowlist and its url must match', () => {
   assert.deepEqual(check((i) => { i.licence = 'CC0-1.0'; i.licence_url = LICENCES['CC0-1.0']; }), []);
 });
 
-test('third-party sources are refused for want of an allowed licence, and need links', () => {
-  const third = (i) => { i.source = 'wger'; i.licence = 'CC-BY-SA-4.0'; i.licence_url = 'https://creativecommons.org/licenses/by-sa/4.0/'; };
-  assert.ok(check(third).some((e) => /not on the allowlist/.test(e)));
-  assert.ok(check((i) => { i.source = 'wikimedia_commons'; }).some((e) => /source_url/.test(e)));
-  only(check((i) => { i.source = 'flickr'; }), /source must be one of/);
+test('every source except own_drawing is refused, whatever the licence', () => {
+  const linked = { author_url: 'https://example.com/a', source_url: 'https://example.com/s' };
+  for (const [source, licence] of [['wger', 'CC-BY-4.0'], ['wikimedia_commons', 'CC0-1.0'], ['wger', 'CC-BY-SA-4.0']]) {
+    const e = check((i) => { Object.assign(i, linked, { source, licence, licence_url: LICENCES[licence] ?? 'https://creativecommons.org/licenses/by-sa/4.0/' }); });
+    assert.ok(e.some((m) => /source must be own_drawing/.test(m)), `${source} ${licence}`);
+  }
+  only(check((i) => { i.source = 'flickr'; }), /source must be own_drawing/);
 });
 
 test('source, source_id, licence and author are required and non-blank', () => {
@@ -96,16 +99,63 @@ test('one frame is allowed for moves without an end pose', () => {
 
 test('no colour may be baked into the SVG', () => {
   for (const bad of ['#ff0000', 'red', 'rgb(0,0,0)', 'var(--other)', 'url(#g)']) {
-    assert.ok(check((i) => { i.frames[0].svg = SVG.replace('stroke="currentColor"', `stroke="${bad}"`); }).some((e) => /bakes in a colour/.test(e)), bad);
+    assert.ok(check((i) => { i.frames[0].svg = SVG.replace('stroke="currentColor"', `stroke="${bad}"`); }).some((e) => /colour|url\(/.test(e)), bad);
   }
   assert.ok(check((i) => { i.frames[0].svg = SVG.replace(' fill="var(--fig-bg)"', ' fill="#fff"'); }).some((e) => /bakes in a colour: fill="#fff"/.test(e)));
 });
 
-test('scripts, links, styles and classes are refused', () => {
-  for (const bad of ['<script>1</script>', '<foreignObject/>', '<image/>', '<a/>', '<use/>', '<circle onclick="x()"/>', '<circle href="x"/>', '<circle style="fill:red"/>', '<circle class="a"/>']) {
-    assert.ok(check((i) => { i.frames[0].svg = SVG.replace('</svg>', `${bad}</svg>`); }).some((e) => /forbidden/.test(e)), bad);
+// The 15 bypasses of the earlier denylist (PR review), each placed in an otherwise valid frame: all must now fail.
+const BYPASSES = {
+  'slash before attribute': '<circle cx="1"/onclick="alert(1)"/>',
+  'img with onerror': '<img src="x"/onerror="alert(1)">',
+  'img external': '<img src="https://evil.example/t.gif">',
+  embed: '<embed src="https://evil.example/x">',
+  'meta refresh': '<meta http-equiv="refresh" content="0;url=https://evil.example">',
+  'prefixed script': '<svg:script xmlns:svg="http://www.w3.org/2000/svg">alert(1)</svg:script>',
+  'prefixed foreignObject': '<x:foreignObject xmlns:x="http://www.w3.org/2000/svg"></x:foreignObject>',
+  'filter url external': '<circle r="1" filter="url(https://evil.example/f.svg#f)"/>',
+  'mask url data': '<circle r="1" mask="url(data:image/svg+xml;base64,AAAA)"/>',
+  'slash before style': '<circle r="1"/style="fill:red"/>',
+  animateTransform: '<animateTransform attributeName="transform" type="rotate"/>',
+  'single-quoted colour': "<circle r=\"1\" fill='#ff0000'/>",
+  'spaced colour': '<circle r="1" fill = "red"/>',
+  'unquoted colour': '<circle r="1" fill=red/>',
+  feFlood: '<feFlood flood-color="red"/>',
+};
+test('the allowlist refuses every known bypass', () => {
+  assert.equal(Object.keys(BYPASSES).length, 15);
+  for (const [why, bad] of Object.entries(BYPASSES)) {
+    assert.ok(check((i) => { i.frames[0].svg = SVG.replace('</svg>', `${bad}</svg>`); }).length > 0, why);
   }
-  assert.ok(check((i) => { i.frames[0].svg = '<div/>'; }).some((e) => /start with <svg/.test(e)));
+});
+
+test('the allowlist refuses other markup and accepts what the generator emits', () => {
+  const frame = (inner, root = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">') => `${root}${inner}</svg>`;
+  const errs = (svg) => checkSvgFrame(svg, 320, 240);
+  const bad = [
+    frame('<!-- x -->'), frame('<![CDATA[x]]>'), frame('<?xml version="1.0"?>'), frame('<g/>text'), frame('<circle r="1" fill="red"/>'),
+    frame('<circle r="1" href="#a"/>'), frame('<circle r="1" onclick="x"/>'), frame('<circle r="1" r="2"/>'), frame('<circle r="1&nbsp;"/>'),
+    frame('<circle r="1" xlink:href="#a"/>'), frame('<SCRIPT/>'), frame('<script/>'), frame('<style/>'), frame('<a/>'), frame('<use/>'),
+    frame('<circle r="1" style="x"/>'), frame('<circle r="1" class="x"/>'), frame('<circle r="x"/>'), frame('<path d="M0 0 url(#a)"/>'),
+    frame('<g><circle r="1"/>'), frame('<g></circle></g>'), frame('<circle r="1"/>') + '<g/>', '<svg viewBox="0 0 320 240"><svg/></svg>',
+    '<svg xmlns="http://evil" viewBox="0 0 320 240"></svg>', '<g viewBox="0 0 320 240"/>', frame('', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1">'),
+    '<svg xmlns:x="a" viewBox="0 0 320 240"></svg>', frame('<title>&bogus;</title>'), frame('<circle r="1" fill="none" />x'), '',
+    frame('<circle r="1" transform="x(1)"/>'),
+  ];
+  for (const b of bad) assert.ok(errs(b).length > 0, b);
+  const ok = [
+    frame('<line x1="1.5" y1="-2" x2="3" y2="4" stroke="var(--fig-eq)" stroke-width="5" stroke-linecap="round"/>'),
+    frame('<g opacity="0.5"><circle cx="1" cy="2" r="3" fill="none" stroke="currentColor"/><ellipse cx="1" cy="1" rx="2" ry="3"/><rect x="1" y="2" width="3" height="4" rx="1"/></g>'),
+    frame('<title>A &amp; B</title><path d="M0 0L10 10z" transform="translate(1,2)"/>'),
+    frame('\n  <circle r="1" fill="var(--fig-bg)"/>\n'),
+  ];
+  for (const g of ok) assert.deepEqual(errs(g), [], g);
+  assert.ok(errs(frame('', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 241">')).some((e) => /viewBox must be/.test(e)));
+});
+
+test('viewBox is read from the parsed root only', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><title>viewBox="0 0 320 240"</title></svg>';
+  assert.ok(checkSvgFrame(svg, 320, 240).some((e) => /viewBox must be/.test(e)));
 });
 
 test('duplicate files, source ids and drawings are flagged', () => {
@@ -122,6 +172,9 @@ test('alt is optional but limited; urls and notes are validated', () => {
   assert.deepEqual(check((i) => { i.alt = 'Bench press, start and end.'; i.note = 'Your gym may differ'; }), []);
   assert.ok(check((i) => { i.alt = 'x'.repeat(MAX_ALT + 1); }).some((e) => /alt is/.test(e)));
   assert.ok(check((i) => { i.alt = ''; }).some((e) => /alt must be/.test(e)));
+  assert.ok(check((i) => { i.changes = ''; }).some((e) => /changes must be/.test(e)));
+  assert.ok(check((i) => { i.note = ''; }).some((e) => /note must be/.test(e)));
+  assert.ok(check((i) => { i.licence = 'toString'; }).some((e) => /not on the allowlist/.test(e)));
   assert.ok(check((i) => { i.author_url = 'http://example.com'; }).some((e) => /author_url must be an https/.test(e)));
 });
 
@@ -138,6 +191,10 @@ test('the JSON Schema agrees with the validator constants', () => {
   assert.deepEqual(image.properties.licence.enum, Object.keys(LICENCES));
   assert.equal(image.properties.frames.maxItems, 2);
   assert.equal(image.properties.alt.maxLength, MAX_ALT);
+  assert.equal(schema.$defs.frame.properties.w.maximum, MAX_DIMENSION);
+  assert.equal(schema.$defs.frame.properties.h.maximum, MAX_DIMENSION);
+  assert.equal(schema.$defs.frame.properties.file.pattern, FILE_PATTERN.replace(/\//g, '/'));
+  for (const f of ['changes', 'alt', 'note']) assert.equal(image.properties[f].minLength, 1, f);
   assert.equal(schema.$defs.frame.properties.svg.maxLength, MAX_FRAME_BYTES);
   assert.deepEqual([...image.required].sort(), Object.keys(good().images['Barbell Bench Press']).sort());
   assert.deepEqual([...schema.$defs.frame.required], ['file', 'w', 'h', 'svg']);
