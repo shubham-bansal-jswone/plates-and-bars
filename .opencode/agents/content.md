@@ -44,9 +44,9 @@ Data rules:
 - Foods: USDA FoodData Central (public domain) plus our own weighed recipes / kitchen tests.
   Absolutely no IFCT or INDB data, and no source whose licence is unclear.
 - Every food row records `source`, `source_id` and `licence`. Hindi names go in aliases.
-- Exercises: Free Exercise DB and public-domain or CC0 photos only; record source and licence per file.
+- Exercises: no demo photos in v1 (#653); Free Exercise DB is used only in the prototype (`THIRD_PARTY.md`). Any photo added in v1.1 needs a licence and attribution per image.
 - Track all attributions in `content/ATTRIBUTIONS.md` (the app's attribution screen reads it):
-  USDA FoodData Central, Free Exercise DB, react-body-highlighter (MIT), Open Food Facts when added in v1.1.
+  USDA FoodData Central, react-body-highlighter (MIT), Open Food Facts when added in v1.1.
 
 Deliverables:
 - JSON content in `content/` (exercises, cards, recipes, foods, science cards), versioned as bundles
