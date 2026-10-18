@@ -429,7 +429,7 @@ if (parsed.components.responses.TokenPair.content["application/json"].examples.c
 // barcode-gs1.json (#944): GS1 mod-10 recomputed here, UPC-E expansion, and the spec's barcode pattern, examples and error codes.
 const barcode = JSON.parse(readFileSync(new URL("./barcode-gs1.json", import.meta.url), "utf8"));
 const gs1Ok = (code) => {
-  if (!/^([0-9]{8}|[0-9]{12,14})$/.test(code)) return false;
+  if (!/^([0-9]{8}|[0-9]{12,13})$/.test(code)) return false;
   let sum = 0;
   for (let i = 0; i < code.length - 1; i++) sum += Number(code[code.length - 2 - i]) * (i % 2 === 0 ? 3 : 1);
   return (10 - (sum % 10)) % 10 === Number(code[code.length - 1]);
@@ -444,9 +444,9 @@ for (const v of barcode.invalid) if (gs1Ok(v.code)) failures.push(`barcode-gs1.j
 for (const e of barcode.upc_e_expansion) if (upcEToA(e.upc_e) !== e.upc_a || !gs1Ok(e.upc_a)) failures.push(`barcode-gs1.json: UPC-E ${e.upc_e} does not expand to a valid ${e.upc_a}`);
 const barcodeSchema = parsed.components.schemas.Barcode;
 const barcodeRe = new RegExp(barcodeSchema.pattern);
-if (barcodeSchema.pattern !== "^([0-9]{8}|[0-9]{12,14})$") failures.push("Barcode.pattern changed; update barcode-gs1.json and this check");
+if (barcodeSchema.pattern !== "^([0-9]{8}|[0-9]{12,13})$") failures.push("Barcode.pattern changed; update barcode-gs1.json and this check");
 for (const v of [...barcode.valid, ...barcode.invalid]) {
-  const lengthOk = /^([0-9]{8}|[0-9]{12,14})$/.test(v.code);
+  const lengthOk = /^([0-9]{8}|[0-9]{12,13})$/.test(v.code);
   if (barcodeRe.test(v.code) !== lengthOk) failures.push(`Barcode.pattern disagrees with the vector rule on ${JSON.stringify(v.code)}`);
 }
 const barcodeOp = parsed.paths["/foods/barcode/{code}"].get;
@@ -458,7 +458,7 @@ for (const [name, ex] of Object.entries(barcodeOp.responses["200"].content["appl
 }
 if (!parsed.components.schemas.FoodSource.properties.code.enum.includes("open_food_facts")) failures.push("FoodSource.code lacks open_food_facts");
 for (const c of ["invalid_barcode", "upstream_unavailable", "upstream_busy"]) if (!parsed.components.schemas.Error.properties.code.enum.includes(c)) failures.push(`Error.code lacks ${c}`);
-if (parsed.components.schemas.UserFood.allOf[1].properties.barcode?.pattern !== "^[0-9]{8,14}$") failures.push("UserFood.barcode pattern missing");
+if (parsed.components.schemas.UserFood.allOf[1].properties.barcode?.pattern !== "^([0-9]{8}|[0-9]{12,13})$") failures.push("UserFood.barcode pattern missing");
 if (parsed.components.schemas.UserFood.allOf[1].required.includes("barcode")) failures.push("UserFood.barcode must stay optional (older clients do not send it)");
 
 if (failures.length) {

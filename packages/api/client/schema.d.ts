@@ -372,9 +372,9 @@ export interface paths {
          *     other endpoints). Needs a connection; a barcode the user already saved is found
          *     locally (`UserFood.barcode`) with no call.
          *
-         *     **Code.** Digits only, length 8, 12, 13 or 14, with a valid GS1 mod-10 check digit
+         *     **Code.** Digits only, length 8, 12 or 13, with a valid GS1 mod-10 check digit
          *     (`test-vectors/barcode-gs1.json`). 8 digits is EAN-8 (GTIN-8); 12 is UPC-A; 13 is
-         *     EAN-13; 14 is GTIN-14. A UPC-E code (8 digits on the pack) must be expanded to its
+         *     EAN-13. GTIN-14 is not accepted. A UPC-E code (8 digits on the pack) must be expanded to its
          *     12-digit UPC-A by the client first. A code that fails the length or check digit is
          *     400 `invalid_barcode`, with no upstream call.
          *
@@ -1051,7 +1051,7 @@ export interface components {
             reference: string | null;
         };
         /**
-         * @description Digits of a barcode: 8 (EAN-8), 12 (UPC-A), 13 (EAN-13) or 14 (GTIN-14) with a valid
+         * @description Digits of a barcode: 8 (EAN-8), 12 (UPC-A) or 13 (EAN-13) with a valid
          *     GS1 mod-10 check digit. The pattern checks length and digits only; the check digit
          *     is checked separately (`test-vectors/barcode-gs1.json`).
          * @example 8901491101837
@@ -1084,6 +1084,13 @@ export interface components {
         /**
          * @description A trimmed subset of an Open Food Facts product (ADR 009). Community data, unchecked.
          *     Text is untrusted: show it as text, never interpret it.
+         *
+         *     Field names are this contract's, not Open Food Facts': `name` (OFF `product_name`),
+         *     `brands`, `quantity`, `serving_size`, `serving_quantity` (grams or millilitres),
+         *     `nutrition_data_per`, `nutriments`, `completeness`, `states_tags`,
+         *     `data_quality_errors_tags`, `countries_tags`, and `last_modified_at` (OFF
+         *     `last_modified_t` converted to ISO 8601 UTC). Only the `nutriments` keys keep OFF's
+         *     own names.
          */
         OffProduct: {
             code: components["schemas"]["Barcode"];
