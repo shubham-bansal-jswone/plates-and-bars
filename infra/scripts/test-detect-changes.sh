@@ -31,6 +31,8 @@ expect() {
 }
 expect content/cards.json "core mobile backend tools content_meta e2e e2e_sync site"
 expect apps/mobile/src/why/cards.ts "mobile e2e e2e_sync site"
+expect apps/mobile/src/why/WhyLink.tsx "mobile e2e e2e_sync site"
+expect apps/mobile/src/why/learn.ts "mobile e2e e2e_sync"
 expect content/new-file.json "core mobile backend tools content_meta e2e e2e_sync"
 expect backend/scripts/x.sh "backend e2e_sync"
 expect packages/api/test-vectors/sync-ids.json "api core mobile backend tools e2e e2e_sync"
