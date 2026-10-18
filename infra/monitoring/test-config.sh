@@ -37,7 +37,7 @@ assert published == (sys.argv[1] == "caddy"), "ports published: %s" % published
 
   # .env.example: hosts only get example.com placeholders, and compose reads no secret literal
   grep -Eq '^[A-Z_]+_HOST=[a-z]+\.example\.com$' .env.example || fail "$project: .env.example host placeholder"
-  grep -Eqi 'password: +[^$ "]|secret_key: +[^$ "]' docker-compose.yml && fail "$project: secret literal in docker-compose.yml" || true
+  if grep -Eqi 'password: +[^$ "]|secret_key: +[^$ "]' docker-compose.yml; then fail "$project: secret literal in docker-compose.yml"; fi
 done
 
 # required secrets and hosts have no default (one missing at a time)
@@ -63,7 +63,7 @@ for line in '      ENABLE_USER_REGISTRATION: "false"' '      ENABLE_ORGANIZATION
 done
 grep -q 'GLITCHTIP_PII_SCRUB_DEFAULT:.*"enabled": true' "$g" || fail "glitchtip: server-side scrubbing is not enabled"
 grep -q 'max_locks_per_transaction=512' "$g" || fail "glitchtip: postgres lock budget"
-grep -Eq 'valkey|redis' "$g" && fail "glitchtip: valkey/redis must stay off" || true
+if grep -Eq 'valkey|redis' "$g"; then fail "glitchtip: valkey/redis must stay off"; fi
 
 # Caddy: the shared log filters, the IP header drop, and the Kuma push-token cut
 "$root/infra/scripts/check-caddy-access-log.sh" \
@@ -85,7 +85,7 @@ for uri, want in cases.items():
     assert got == want and "SECRET" not in got, (uri, got)
 PY
 for f in "$root/infra/caddy/Caddyfile.glitchtip" "$kuma"; do
-  grep -Eq 'log_credentials|level DEBUG' "$f" && fail "$f: log must not enable log_credentials" || true
+  if grep -Eq 'log_credentials|level DEBUG' "$f"; then fail "$f: log must not enable log_credentials"; fi
   for need in 'roll_keep_for 336h' 'include http.log.error' 'output file /data/'; do
     grep -q "$need" "$f" || fail "$f: lacks $need"
   done
