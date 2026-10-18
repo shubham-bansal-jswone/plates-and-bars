@@ -51,7 +51,7 @@ if has_npm tools && want tools/ content/ docs/spec/golden/ docs/prototype/ packa
 if [ -f apps/mobile/scripts/content-meta.mjs ] && want content/ apps/mobile/src/content/ apps/mobile/scripts/content-meta.mjs; then emit content_meta true; else emit content_meta false; fi
 # the golden fixtures must equal what tools/golden-gen produces from the prototype (needs only node, no install)
 if [ -f tools/golden-gen/cli.mjs ] && want docs/spec/golden/ docs/prototype/ tools/golden-gen/; then emit golden true; else emit golden false; fi
-# the blog renders content/cards.json and checks it against the app's HIDDEN_CARDS list and the evidence note in WhyLink.tsx
+# the blog renders content/cards.json (held-back cards carry `hidden: true` there) and checks the evidence note against WhyLink.tsx
 if has_npm apps/site && want apps/site/ content/cards.json apps/mobile/src/why/cards.ts apps/mobile/src/why/WhyLink.tsx; then emit site true; else emit site false; fi
 # the web end-to-end tests run the exported app; they need the app's inputs and their own folder
 if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/; then emit e2e true; else emit e2e false; fi
