@@ -40,6 +40,15 @@ it('hides the visible captions from screen readers; the fields speak the labels'
     expect(screen.getByLabelText(field)).toBeTruthy();
   }
 });
+it('captions the weight fields, hidden from screen readers; each field keeps the caption as its name', async () => {
+  await setup();
+  await start();
+  for (const name of ['Empty pot (g)', 'Pot with food (g)', 'Or cooked weight directly (g)', 'One serving (g)']) {
+    expect(screen.getByText(name, { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText(name)).toBeNull();
+    expect(screen.getByLabelText(name)).toBeTruthy();
+  }
+});
 // Dal 150 g dry + ghee 15 g, pot 500 g empty, 1,500 g full, a 250 g serving.
 const fill = async (serving = '250') => {
   await fireEvent.changeText(screen.getByLabelText('Dish'), '  Dal  ');
