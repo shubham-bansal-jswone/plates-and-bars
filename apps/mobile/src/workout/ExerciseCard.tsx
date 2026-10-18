@@ -12,6 +12,7 @@ import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName, rampEasyNote 
 import type { ExState, Row } from './model';
 import { ExerciseSettings } from './ExerciseSettingsSheet';
 import { Chip } from './parts';
+import { ExerciseFigure } from './ExerciseFigure';
 
 const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
 
@@ -136,7 +137,7 @@ function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
   );
 }
 
-/** The Learn mode block (prototype `learnHtml`): the tag, the Setup steps (open on the very first session) and the cue for the set about to be done. Demo images are left out until their source is settled (#623). */
+/** The Learn mode block (prototype `learnHtml`): the tag, the Setup steps (open on the very first session) and the cue for the set about to be done. The start and end drawing shows when the exercise has one (#653). */
 function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: number }) {
   const c = useTheme();
   const [shown, setShown] = useState<boolean | null>(null); // null until the user toggles it
@@ -147,6 +148,7 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
   return (
     <View style={[styles.learn, { borderColor: c.brand }]}>
       <Text style={{ color: c.link, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
+      <ExerciseFigure name={ex.name} />
       <Button label="Setup" a11yLabel={`Setup steps for ${ex.name}`} kind="link" expanded={open} onPress={() => setShown(!open)} />
       {open ? (
         <View style={{ gap: 3 }}>

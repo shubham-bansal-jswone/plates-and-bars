@@ -9,6 +9,7 @@ import { LicencesScreen } from './LicencesScreen';
 import { LICENCES_COPY as lc, REPO_FILES } from './licences';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { getFigureSources, licenceLabel } from '../workout/figures';
 import { ABOUT_COPY as t, BODY_MAP_LICENCE, BODY_MAP_SOURCE, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
 
 function Source({ s }: { s: SourceInfo }) {
@@ -31,6 +32,7 @@ function Source({ s }: { s: SourceInfo }) {
 export function AboutScreen({ onBack }: { onBack: () => void }) {
   const c = useTheme();
   const version = versionLine();
+  const drawings = getFigureSources();
   const [showLicences, setShowLicences] = useState(false);
   if (showLicences) return <LicencesScreen onBack={() => setShowLicences(false)} />;
   return (
@@ -46,6 +48,16 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <View style={{ gap: 8 }}>{getFoodSources().map((s) => <Source key={sourceKey(s)} s={s} />)}</View>
       <Label>{t.exercises}</Label>
       <Hint>{t.exercisesText}</Hint>
+      {drawings.length > 0 ? (
+        <>
+          <Label>{t.drawings}</Label>
+          <View style={{ gap: 8 }}>
+            {drawings.map((d) => (
+              <Source key={`${d.source}|${d.licence}|${d.author}`} s={{ code: d.source, name: `${d.author}: ${d.count} exercise ${d.count === 1 ? 'drawing' : 'drawings'}`, licence: licenceLabel(d.licence), url: d.licence_url }} />
+            ))}
+          </View>
+        </>
+      ) : null}
       <Label>{t.fonts}</Label>
       <View style={{ gap: 8 }}>{FONT_SOURCES.map((s) => <Source key={s.code} s={s} />)}</View>
       <Label>{t.bodyMap}</Label>
