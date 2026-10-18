@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
+import { addDays, myFoodReplaced, saveMyFood, userFoodFacts, type UserFoodFields } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
@@ -211,14 +211,20 @@ export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
     [db, date, now, enqueue, notify],
   );
 
-  /** Saves a custom food to my foods (core's `saveMyFood`: newest first, same name replaced, capped); foods pushed out are tombstoned. */
+  /**
+   * Saves a food to my foods (core's `saveMyFood`: newest first, capped; a plain save replaces the same name among foods with no barcode, a scanned
+   * food replaces only the same product); foods pushed out are tombstoned.
+   */
   const saveMine = useCallback(
-    (food: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => {
+    (food: UserFoodFields & { barcode?: string | null }) => {
       const t = stamp(now());
-      const same = mineRef.current.find((f) => f.name === food.name);
+      const cur = mineRef.current;
+      // Core decides which saved food this save replaces (a barcode: the same product; none: the same name among foods with no barcode) and
+      // what the list looks like after it (never dropping a food with another barcode); the record keeps the replaced food's id and version.
+      const same = myFoodReplaced(cur, { ...food } as UserFood);
       const rec: UserFood = { ...food, id: same?.id ?? newId(), version: same?.version ?? 0, updated_at: t, deleted_at: null };
-      const next = saveMyFood(mineRef.current, rec);
-      const dropped = mineRef.current.filter((f) => f.name !== food.name && !next.includes(f)).map((f) => ({ ...f, deleted_at: t, updated_at: t }));
+      const next = saveMyFood(cur, rec);
+      const dropped = cur.filter((f) => f.id !== rec.id && !next.includes(f)).map((f) => ({ ...f, deleted_at: t, updated_at: t }));
       mineRef.current = next;
       setMine(next);
       enqueue(async () => {
