@@ -7,6 +7,7 @@ import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { getCatalog, setCustomTags } from '../src/workout/catalog';
 import { withEntry } from '../src/content/own';
 import { memoryDb } from './helpers';
+import { turns } from './sync-helpers';
 
 const wrap = (db: ReturnType<typeof memoryDb>) => {
   const Wrapper = ({ children }: { children: ReactNode }) => <SettingsProvider db={db}>{children}</SettingsProvider>;
@@ -237,7 +238,7 @@ describe('settings reload with a write in flight (#597)', () => {
     });
     await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] }));
     expect(result.current.settings.focus).toEqual(['chest']);
-    await new Promise((r) => setTimeout(r, 20));
+    await turns();
     expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] });
     expect(result.current.settings.focus).toEqual(['chest']);
   });
