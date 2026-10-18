@@ -53,7 +53,9 @@ for (const c of cards) {
   const text = article.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
   const paras = [...article.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((m) => m[1].replace(/<[^>]*>/g, "").trim());
   if (!paras.includes(c.summary)) fail(`${c.id}: summary paragraph missing`);
-  for (const [what, t] of [["source", c.source], ["evidence", c.evidence]]) if (!text.includes(t)) fail(`${c.id}: ${what} missing`);
+  if (!text.includes(c.source)) fail(`${c.id}: source missing`);
+  // the evidence level and the app's full note sentence for it
+  if (!text.includes(`${c.evidence}. ${appEv[c.evidence]}`)) fail(`${c.id}: evidence line "${c.evidence}. ${appEv[c.evidence]}" missing`);
   // body: every sentence of the card body that needs no personal number must be on the page
   const stripped = c.body.replace(/\{\?([a-z_]+)\}[\s\S]*?\{\/\1\}/g, "{}");
   const sentences = stripped.split(SPLIT).filter((x) => !x.includes("{"));
