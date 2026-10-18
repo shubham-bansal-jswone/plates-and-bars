@@ -107,8 +107,10 @@ describe('the Gradle dependencies', () => {
 });
 
 describe('API level of the native sources', () => {
-  // minSdk is 24 and there is no core library desugaring: java.nio.file and java.time need API 26, and lint's NewApi did not flag
-  // java.nio.file.Files in ModelFile.kt (see the PR comment), so on Android 7.x it was a NoClassDefFoundError at first use.
+  // minSdk is 24 and there is no core library desugaring: java.nio.file and java.time need API 26. Lint's NewApi did flag
+  // java.nio.file.Files in ModelFile.kt, but the Expo module plugin turns abortOnError off, so the report was written and the build still passed;
+  // the `lint { abortOnError true }` block in modules/plate-pose/android/build.gradle restores it (do not drop it). Without that, Android 7.x
+  // gets a NoClassDefFoundError at first use. This scan is the second guard.
   const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(join(d, n)).isDirectory() ? (n === 'build' ? [] : walk(join(d, n))) : /\.(kt|java)$/.test(n) ? [join(d, n)] : []));
 
   it('no Kotlin or Java source under modules/*/android/src/main imports java.nio.file or java.time', () => {
