@@ -1167,7 +1167,7 @@ const DEMO_NOTE = {
 function demoHtml(name, small){
   const f = DEMO[name]; if(!f) return '';
   return `<figure class="demo-wrap${small ? ' sm' : ''}"><div class="demo" role="img" aria-label="${esc(name)}: start and end positions"><img src="${f[0]}" alt=""><img class="b" src="${f[1] || f[0]}" alt=""></div>
-    <figcaption>${DEMO_NOTE[name] ? esc(DEMO_NOTE[name]) + ' ' : ''}Photos: Free Exercise DB (public domain).</figcaption></figure>`;
+    <figcaption>${DEMO_NOTE[name] ? esc(DEMO_NOTE[name]) + ' ' : ''}</figcaption></figure>`;
 }
 const DEFAULT_BREATH = 'Breathe in on the lowering part, out as you push or pull.';
 const videoUrl = name => 'https://www.youtube.com/results?search_query=' + encodeURIComponent(name.replace(/\s*\(.*\)/, '') + ' proper form');
