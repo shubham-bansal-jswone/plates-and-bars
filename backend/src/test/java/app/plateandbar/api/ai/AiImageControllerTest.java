@@ -99,6 +99,18 @@ class AiImageControllerTest {
     }
 
     @Test
+    void aBusyDecoderIs503UnavailableWithRetryAfterOnAllThreeOperations() throws Exception {
+        for (String[] op : OPS) {
+            whenCalled(() -> {
+                throw new ImageBusyException(AiImages.RETRY_AFTER_SECONDS);
+            });
+            var res = send(op[1], "{}".getBytes(StandardCharsets.UTF_8), true).andExpect(status().isServiceUnavailable())
+                    .andExpect(header().string("Retry-After", "2")).andExpect(jsonPath("$.code").value("unavailable")).andReturn();
+            ContractSchemas.assertResponse(op[0], 503, res.getResponse().getContentAsString());
+        }
+    }
+
+    @Test
     void everyDocumentedStatusMatchesTheContractForAllThreeOperations() throws Exception {
         for (String[] op : OPS) {
             whenCalled(this::answer);

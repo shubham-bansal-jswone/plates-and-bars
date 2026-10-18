@@ -330,6 +330,38 @@ class AiImageEndpointsIT extends AiITBase {
     static final String DESCRIBE_PATH = "/api/v1/ai/describe-meal";
 
     @Test
+    void whenBothDecodePermitsAreTakenAnImageCallIs503WithRetryAfterCostsNothingAndTheNextCallWorks() throws Exception {
+        String u = newUser();
+        reply(MEAL_REPLY);
+        Logger root = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        ConcurrentListAppender logs = new ConcurrentListAppender();
+        logs.start();
+        root.addAppender(logs);
+        AiImages.PERMITS.acquire(AiImages.MAX_CONCURRENT);
+        try {
+            for (String[] c : new String[][] {{"POST /ai/meal-photo", PHOTO, MEAL_BODY}, {"POST /ai/import-recipe", RECIPE,
+                "{\"image\":" + IMAGE + "}"}, {"POST /ai/form-check", FORM, FORM_BODY}}) {
+                var res = post(u, c[1], c[2]);
+                assertThat(res.getStatusCode().value()).as(c[0]).isEqualTo(503);
+                assertThat(res.getHeaders().getFirst("Retry-After")).as(c[0]).isEqualTo("2");
+                ContractSchemas.assertResponse(c[0], 503, res.getBody());
+                assertThat(body(res).path("code").asString()).isEqualTo("unavailable");
+            }
+            assertThat(calls(u)).as("the unit is not taken").isZero();
+            verify(provider, never()).complete(any(), any(), any(), anyList());
+            String all = String.join("\n", logs.list.stream().map(ILoggingEvent::getFormattedMessage).toList());
+            assertThat(all).contains("AI call: user " + u + " feature meal_photo status 503 busy")
+                    .contains("feature import_recipe status 503 busy").contains("feature form_check status 503 busy");
+        } finally {
+            root.detachAppender(logs);
+            AiImages.PERMITS.release(AiImages.MAX_CONCURRENT);
+        }
+        assertThat(post(u, PHOTO, MEAL_BODY).getStatusCode().value()).isEqualTo(200);
+        assertThat(calls(u)).isEqualTo(1);
+        assertThat(AiImages.PERMITS.availablePermits()).isEqualTo(AiImages.MAX_CONCURRENT);
+    }
+
+    @Test
     void aProviderFailureIs503UnavailableAndReleasesTheUnitABilledUnusableReplyKeepsIt() throws Exception {
         String u = newUser();
         when(provider.complete(any(), any(), any(), anyList())).thenThrow(new RuntimeException("boom"));
