@@ -18,7 +18,8 @@ import org.springframework.stereotype.Component;
  * {@code content/cards.json}, {@code exercises.json}, {@code foods.json} and {@code raw-ingredients.json}, bundled into
  * the jar by Gradle (see README): the cards Ask why is grounded on, the exercise catalogue Weekly summary checks names
  * against, the exercise cards Form check judges, the built-in foods Meal photo matches and the raw table Import recipe
- * matches. Content only, never a user's own foods.
+ * matches. Content only, never a user's own foods. A card with {@code hidden: true} is skipped, so it is not shown to
+ * the model and {@link #hasCard} is false for it.
  */
 @Component
 public class AiContent {
@@ -58,6 +59,9 @@ public class AiContent {
     public AiContent(ObjectMapper json) {
         JsonNode c = read(json, "/content/cards.json");
         for (JsonNode n : c.path("cards")) {
+            if (n.path("hidden").asBoolean(false)) {
+                continue; // held back (weak source, #212): not in the prompt, and neither a request nor a reply may name it
+            }
             cards.put(n.path("id").asString(), new Card(
                     n.path("id").asString(),
                     render(n.path("title").asString()),
