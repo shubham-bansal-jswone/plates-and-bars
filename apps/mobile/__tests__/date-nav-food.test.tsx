@@ -221,6 +221,21 @@ describe('Food date navigation', () => {
     await forward();
     expect(screen.getByText('Your weekly check-in is ready.')).toBeTruthy();
   });
+
+  it('the energy card Save writes steps and sleep to the viewed day, not today (#822)', async () => {
+    const db = await setup();
+    await back();
+    await fireEvent.press(await screen.findByLabelText('Show burn details'));
+    await fireEvent.changeText((await screen.findAllByLabelText('Steps today'))[0]!, '6100');
+    await fireEvent.changeText(screen.getAllByLabelText('Hours slept last night')[0]!, '6.5');
+    await fireEvent.press(screen.getByLabelText('Save steps and sleep from the burn details'));
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ date: YESTERDAY, steps: 6100, sleep: 6.5 })]));
+    // Back on today, nothing was stored for it, so its box is empty.
+    await forward();
+    expect(docs(db, 'day_notes').some((n) => n.date === TODAY)).toBe(false);
+    await fireEvent.press(await screen.findByLabelText('Show burn details'));
+    expect((await screen.findAllByLabelText('Steps today'))[0]!.props.value).toBe('');
+  });
 });
 
 describe('useViewedDate', () => {
