@@ -3,7 +3,7 @@
 //   npm run store:graphics        # writes docs/store/feature-graphic.png (1024x500) and docs/store/store-icon.png (512x512)
 // Chromium (open source) draws the SVGs. The two OFL fonts are embedded from the app's own font packages
 // (@expo-google-fonts/roboto and /inter in apps/mobile/node_modules), so no font file is copied into the repo.
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { getInstalledBrowsers } from '@puppeteer/browsers';
@@ -27,19 +27,38 @@ async function chromiumPath() {
 
 const jobs = [
   { svg: here('../../../docs/store/feature-graphic.svg'), png: 'feature-graphic.png', width: 1024, height: 500 },
-  { svg: here('../../../apps/mobile/assets/brand/icon.svg'), png: 'store-icon.png', width: 512, height: 512 },
+  { svg: here('../../../apps/mobile/assets/brand/icon.svg'), png: 'store-icon.png', width: 512, height: 512, alpha: true } // Play documents a 32-bit PNG (with alpha) for the icon,
 ];
 
 mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ executablePath: await chromiumPath() });
 try {
-  for (const { svg, png, width, height } of jobs) {
+  for (const { svg, png, width, height, alpha } of jobs) {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
     // Inline the SVG (an <img> would not see the page's @font-face) and size it to the output.
-    const markup = readFileSync(svg, 'utf8').replace(/^<\?xml[^>]*>\s*/, '').replace(/<svg /, `<svg width="${width}" height="${height}" `).replace(/ width="\d+" height="\d+"(?= width=)/, '');
-    await page.setContent(`<style>${faces}html,body{margin:0;background:#fff}svg{display:block}</style>${markup}`);
+    const markup = readFileSync(svg, 'utf8').replace(/^<\?xml[^>]*>\s*/, '').replace(/(<svg\b[^>]*?)\swidth="[^"]*"\s+height="[^"]*"/, `$1 width="${width}" height="${height}"`);
+    await page.setContent(`<style>${faces}html,body{margin:0;background:${alpha ? 'transparent' : '#fff'}}svg{display:block}</style>${markup}`);
     await page.evaluate(() => document.fonts.ready);
-    await page.locator('svg').screenshot({ path: `${outDir}/${png}` });
+    if (alpha) {
+      // A screenshot of an opaque page is encoded as 24-bit RGB. A canvas always encodes RGBA, so draw the SVG on one for the 32-bit icon.
+      const b64 = await page.evaluate(
+        ([w, h]) =>
+          new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = Object.assign(document.createElement('canvas'), { width: w, height: h });
+              canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/png').split(',')[1]);
+            };
+            img.onerror = reject;
+            img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(document.querySelector('svg').outerHTML)}`;
+          }),
+        [width, height],
+      );
+      writeFileSync(`${outDir}/${png}`, Buffer.from(b64, 'base64'));
+    } else {
+      await page.locator('svg').screenshot({ path: `${outDir}/${png}` });
+    }
     console.log(`wrote ${png} (${width}x${height})`);
     await page.close();
   }

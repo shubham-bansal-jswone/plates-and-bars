@@ -1,7 +1,7 @@
 {
   "_note": "Made-up demo profile and data for the Play Store screenshots. No real person. Read by store/screenshots.mjs.",
   "clock": "2026-10-12T14:30:00+05:30",
-  "setup": { "sex": "Male", "age": "30", "heightCm": "165", "weightKg": "82", "days": "6" },
+  "setup": { "age": "30", "days": "6" },
   "history": [
     { "daysAgo": 6, "weightKg": "83.4", "glasses": 7, "meals": { "breakfast": ["Poha"], "lunch": ["Dal", "Rice, cooked", "Roti / chapati"], "dinner": ["Chicken curry", "Roti / chapati"] } },
     { "daysAgo": 5, "weightKg": "83.1", "glasses": 9, "meals": { "breakfast": ["Oats, dry", "Banana"], "lunch": ["Rajma / chole", "Rice, cooked"], "snacks": ["Roasted chana"], "dinner": ["Paneer bhurji", "Roti / chapati", "Roti / chapati"] } },

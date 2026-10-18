@@ -6,6 +6,7 @@
 // clock pinned, answers setup, then logs the made-up demo data in store/demo-seed.json through the UI. Nothing leaves 127.0.0.1.
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 import { getInstalledBrowsers } from '@puppeteer/browsers';
@@ -40,7 +41,8 @@ const top = (page) =>
     for (const e of document.querySelectorAll('*')) if (e.scrollTop || e.scrollLeft) (e.scrollTop = 0), (e.scrollLeft = 0); // overflow:hidden wrappers ignore scrollTo()
   });
 // Puts a heading or label at the top of the viewport (the screen's own scroll container moves).
-const showText = (page, text) => page.getByText(text, { exact: true }).first().evaluate((el) => { el.style.scrollMarginTop = '24px'; el.scrollIntoView({ block: 'start' }); });
+const showText = (page, text, margin = 24) =>
+  page.getByText(text, { exact: true }).first().evaluate((el, margin) => { el.style.scrollMarginTop = `${margin}px`; el.scrollIntoView({ block: 'start' }); }, margin);
 
 // Food, Workout and Progress each keep a date bar mounted, so the label repeats. The role query skips the hidden screens;
 // the click is dispatched because the stack's inert wrapper makes Playwright's hit test see another screen on top.
@@ -69,9 +71,12 @@ async function weigh(page, kg) {
   await top(page);
 }
 
-const server = await startServer();
-const browser = await chromium.launch({ executablePath: await chromiumPath() });
+// The server starts inside the try, so a failed browser launch (or anything after) still stops it.
+let server;
+let browser;
 try {
+  browser = await chromium.launch({ executablePath: await chromiumPath() });
+  server = await startServer();
   const context = await browser.newContext({
     baseURL: server.url,
     viewport: { width: 360, height: 640 },
@@ -103,9 +108,9 @@ try {
   await weigh(page, seed.today.weightKg);
 
   mkdirSync(outDir, { recursive: true });
-  const shot = async (name, heading) => {
+  const shot = async (name, heading, margin) => {
     await top(page);
-    if (heading) await showText(page, heading);
+    if (heading) await showText(page, heading, margin);
     await page.mouse.move(0, 0);
     await page.screenshot({ path: `${outDir}/${name}.png` });
     console.log(`wrote ${name}.png`);
@@ -113,7 +118,8 @@ try {
 
   await tab(page, 'Food');
   await page.evaluate(() => document.activeElement?.blur?.());
-  await shot('phone-1-food');
+  // Starts at the big number so the macro bars, the next-meal card and the whole Estimated burn card (with Details) fit.
+  await shot('phone-1-food', 'kcal left', 125);
 
   await tab(page, 'Workout');
   await page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"])').first().click();
@@ -137,9 +143,10 @@ try {
   await tab(page, 'Targets');
   await shot('phone-4-targets');
 } catch (e) {
-  await browser.contexts()[0]?.pages()[0]?.screenshot({ path: `${outDir}/debug.png` });
+  // A picture of where it failed, outside the repo (docs/store holds only the final images).
+  await browser?.contexts()[0]?.pages()[0]?.screenshot({ path: `${tmpdir()}/store-screenshots-debug.png` }).catch(() => {});
   throw e;
 } finally {
-  await browser.close();
-  server.child.kill();
+  await browser?.close();
+  server?.child.kill();
 }

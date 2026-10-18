@@ -8,14 +8,14 @@ Play Console > Grow users > Store presence > Main store listing > Graphics.
 
 | File | Size | Play field |
 | --- | --- | --- |
-| `store-icon.png` | 512 x 512 PNG | App icon |
+| `store-icon.png` | 512 x 512 32-bit PNG (with alpha, as Play documents) | App icon |
 | `feature-graphic.png` | 1024 x 500 PNG | Feature graphic |
 | `phone-1-food.png` | 1080 x 1920 PNG | Phone screenshots (1st: Food) |
 | `phone-2-workout.png` | 1080 x 1920 PNG | Phone screenshots (2nd: Workout) |
 | `phone-3-progress.png` | 1080 x 1920 PNG | Phone screenshots (3rd: Progress, body weight) |
 | `phone-4-targets.png` | 1080 x 1920 PNG | Phone screenshots (4th: Targets) |
 
-`feature-graphic.svg` is the editable source of the feature graphic. Play wants 2 to 8 phone screenshots, 9:16, each side between 320 and 3840 px; these are 9:16 exactly.
+`feature-graphic.svg` is the editable source of the feature graphic. The feature graphic and screenshots are 24-bit PNGs with no alpha. Play wants 2 to 8 phone screenshots, 9:16, each side between 320 and 3840 px; these are 9:16 exactly.
 
 ## How to regenerate
 
@@ -36,7 +36,7 @@ Both commands write into `docs/store/` (set `STORE_OUT=<dir>` to write elsewhere
 
 ## Demo data
 
-The profile (a 30-year-old man, 165 cm, 82 kg, losing fat, six sessions a week) and every food, weight and set are invented for the screenshots. There is no real person's data in them, and the screenshots show no account, email or name.
+The setup answers (sex, age, height, weight, activity, goal) come from `answerSetup` in `tests/e2e/support/app.mjs`, the same made-up profile the e2e suite uses (a 30-year-old man, 165 cm, 82 kg, losing fat, six sessions a week); `demo-seed.json` adds the age, days a week, and every food, weigh-in, glass of water and set. All of it is invented for the screenshots. There is no real person's data in them, and the screenshots show no account, email or name.
 
 ## Licence
 
@@ -49,3 +49,7 @@ Only repo-owned artwork and fonts already used by the app go into these files:
 - No third-party images, stock photos, device frames or other fonts. The tooling is Playwright (Apache-2.0) and Chromium (BSD-3-Clause).
 
 Keep the graphics free of anything that appeals to children (`docs/PLAY-STORE-LISTING.md`, content rating) and of claims the app does not meet.
+
+## Refresh pending
+
+The screenshots will be regenerated once, in one follow-up PR, after #900 (Workout overflow at 360 px), #901 (Daily targets labels) and #908 (chart font) are merged, so they show the fixed screens.
