@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
 import { Text } from '../components/Text';
+import { useFontFamily } from '../theme/fonts';
 import { useTheme } from '../theme/useTheme';
 import { REGIONS } from './bodyMapData';
 import { listJoin, muscleName } from './copy';
@@ -22,6 +23,7 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
 /** The prototype's front and back muscle map (`bodyMapSvg`): main muscles in the fat colour, also-working in the carbs colour. */
 export function BodyMap({ primary, secondary }: { primary: readonly string[]; secondary: readonly string[] }) {
   const c = useTheme();
+  const fontFamily = useFontFamily()('400');
   const fill = (v: number) => (v === 2 ? c.fat : v === 1 ? c.carbs : c.line);
   const label = `Muscles worked: ${primary.length ? listJoin(primary.map(muscleName)) : 'none'}${secondary.length ? `. Also working: ${listJoin(secondary.map(muscleName))}` : ''}`;
   const views = [
@@ -36,7 +38,7 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
           return (
             <G key={view} transform={`translate(${dx} 0)`}>
               {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} />))}
-              <SvgText x={50} y={216} textAnchor="middle" fontSize={9} fill={c.muted}>
+              <SvgText x={50} y={216} textAnchor="middle" fontSize={9} fill={c.muted} fontFamily={fontFamily}>
                 {name}
               </SvgText>
             </G>
