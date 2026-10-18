@@ -1,6 +1,6 @@
 # Plate & Bar site
 
-Astro static site (TypeScript strict) for Cloudflare Pages. Pages: landing, `/privacy` and `/terms` (both drafts pending lawyer review under India's DPDP Act 2023). `/delete-account` describes in-app deletion and a code-verified email fallback. The attributions page comes later.
+Astro static site (TypeScript strict) for Cloudflare Pages. Pages: landing, `/privacy` and `/terms` (both drafts pending lawyer review under India's DPDP Act 2023). `/delete-account` describes in-app deletion and a code-verified email fallback. `/blog/` has one page per science card, generated at build time from `content/cards.json` (the same text and sources as the app's Why sheet; cards the app holds back, issue #212, are left out; text that needs the reader's own numbers is dropped). The attributions page comes later.
 
 Fonts: Roboto 300 (display) and Inter 400/500/700 (body), self-hosted through `@fontsource/roboto` and `@fontsource/inter` (both SIL OFL 1.1 per their package metadata), latin subset, `font-display: swap`, system font stack as fallback; no external requests. Theme: tokens in `src/styles/global.css` follow `docs/design/DESIGN.md` (light on `:root`, dark via `prefers-color-scheme`).
 
@@ -14,7 +14,8 @@ Fonts: Roboto 300 (display) and Inter 400/500/700 (body), self-hosted through `@
 | `npm test` | `scripts/*.test.mjs`: the `PUBLIC_WEB_APP_URL` check and a real build without it, with it and with a bad value (temporary output directories, `dist/` untouched) |
 | `npm run build` | Static build into `dist/` |
 | `npm run placeholders` | Lists `[bracket]` placeholders still in the pages (facts waiting on an owner decision). Never fails; the list must be empty before launch. |
-| `npm run a11y` | Build, serve `dist/` locally with the headers from `public/_headers` (a CSP violation fails the run), run axe-core in headless Chrome on every page (light and dark, 1280px, 360px and 320px, plus horizontal-scroll and empty-custom-property checks). Needs a local Chrome or Chromium; set `CHROME_PATH` if it is not in a standard location. |
+| `npm run blog-check` | After a build: every shown card has a page with title, summary, source and evidence, the held-back list matches the app's, internal links resolve. `npm run a11y` runs it. |
+| `npm run a11y` | Build, blog-check, serve `dist/` locally with the headers from `public/_headers` (a CSP violation fails the run), run axe-core in headless Chrome on every page (light and dark, 1280px, 360px and 320px, plus horizontal-scroll and empty-custom-property checks). Needs a local Chrome or Chromium; set `CHROME_PATH` if it is not in a standard location. |
 
 ## Web app link (`PUBLIC_WEB_APP_URL`)
 
