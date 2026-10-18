@@ -51,4 +51,13 @@ describe('seededSession (#1020)', () => {
     const s = seededSession({ ...base, focus: ['biceps'], tags: { Row: { pattern: 'h-pull', primary: ['biceps'], secondary: [], family: '', equipment: '', difficulty: 1, joints: [] }, 'Face Pull': { pattern: 'h-pull', primary: ['biceps'], secondary: [], family: '', equipment: '', difficulty: 1, joints: [] } } as never, lastSets: () => 3 });
     expect(s.exercises.map((e) => e.sets)).toEqual([4, 3, 3]);
   });
+  it('a seeded balance pick gets 2 sets for a profile under 60 too', () => {
+    const s = seededSession({ ...base, profile: { age: 40 } as never, seeded: [{ name: 'Row' }, { name: BALANCE_EXERCISE }], picks: ['Row', BALANCE_EXERCISE] });
+    expect(s.exercises[1]).toEqual({ name: BALANCE_EXERCISE, sets: 2, bridge: false });
+  });
+  it('an added balance pick gets the plain default, max(3, last), for a profile under 60', () => {
+    const s = seededSession({ ...base, profile: { age: 40 } as never, picks: ['Row', BALANCE_EXERCISE] });
+    expect(s.exercises[1]).toEqual({ name: BALANCE_EXERCISE, sets: 4, bridge: false });
+    expect(seededSession({ ...base, profile: { age: 40 } as never, picks: ['Row', BALANCE_EXERCISE], lastSets: () => 2 }).exercises[1]?.sets).toBe(3);
+  });
 });

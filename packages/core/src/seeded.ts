@@ -25,7 +25,7 @@ export interface SeededSession {
  * A session built from picks that were seeded from a previewed workout (#1020): it keeps that
  * workout as `base`, and the exercises that remain get the check-in, re-entry and deload adjustments
  * `sessionSets` gives a built session. Added exercises get plain defaults (no light or deload change,
- * no focus set). Removed ones are simply absent. The balance exercise is only there if picked, and always has 2 sets; a seeded bridge keeps `bridge: true` and its 2-set cap.
+ * no focus set). Removed ones are simply absent. The balance exercise is only there if picked; a seeded one always has 2 sets, an added one gets the plain default; a seeded bridge keeps `bridge: true` and its 2-set cap.
  *
  * Deliberately deviates from prototype `exPick`, which stores `mods: {}` and no base (decided in #1020).
  * The mods and set counts are `sessionMods` and `sessionSets`, as in `buildSession(t)`.
@@ -34,10 +34,11 @@ export function seededSession(i: SeededSessionInput): SeededSession {
   const { setsLight, mods } = sessionMods(i);
   const previewed = new Map(i.seeded.map((e) => [e.name, e]));
   const plain = { profile: i.profile ?? null, date: i.date, tags: i.tags, ...(i.lastSets ? { lastSets: i.lastSets } : {}) };
-  // The balance exercise is never an input to `sessionSets`: it appends it with 2 sets, as `buildSession` does.
+  // A seeded balance exercise is not an input to `sessionSets` (`buildSession` appends it with 2 sets). An added one is a plain pick.
+  const seededBalance = (n: string) => n === BALANCE_EXERCISE && previewed.has(n);
   const items = (kept: boolean) =>
     i.picks
-      .filter((n) => n !== BALANCE_EXERCISE && previewed.has(n) === kept)
+      .filter((n) => !seededBalance(n) && previewed.has(n) === kept)
       .map((name) => (previewed.get(name)?.bridge ? { name, bridge: true as const } : { name }));
   const built = [
     ...sessionSets(items(true), { ...plain, focus: i.focus ?? null, light: setsLight, deload: mods.deload }),
@@ -45,7 +46,7 @@ export function seededSession(i: SeededSessionInput): SeededSession {
   ];
   const byName = new Map(built.map((e) => [e.name, e]));
   const exercises = i.picks.map((name) => {
-    if (name === BALANCE_EXERCISE) return { name, sets: 2, bridge: false };
+    if (seededBalance(name)) return { name, sets: 2, bridge: false };
     const e = byName.get(name);
     if (!e) throw new Error(`seededSession: no set count for pick "${name}"`);
     return { name, sets: e.sets, bridge: !!e.bridge };
