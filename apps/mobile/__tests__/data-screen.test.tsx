@@ -116,10 +116,14 @@ describe('data screen (#27)', () => {
     };
     const labels = ['Download my data', 'Delete everything', 'Back', 'Privacy policy', 'Terms', 'Delete your account'];
     const before = labels.map(position);
+    // The placeholder holds the slot but is hidden from screen readers (aria-hidden also covers web).
+    expect(screen.queryByText('\u00a0')).toBeNull();
+    expect(screen.getByText('\u00a0', { includeHiddenElements: true })).toBeTruthy();
     expect(before.every((i) => i >= 0)).toBe(true);
     release();
     expect(await screen.findByText('Saved privately to your account.')).toBeTruthy();
     expect(labels.map(position)).toEqual(before);
+    expect(screen.queryByText('\u00a0', { includeHiddenElements: true })).toBeNull();
   });
 
   it('a signed-in user without the data_storage consent is told the data stays on the device, as nothing uploads', async () => {
