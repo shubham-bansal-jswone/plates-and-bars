@@ -46,6 +46,10 @@ services:
         # Required by the Dockerfile, which fails the build when it is empty; compute on a full-history checkout
         # (backend/README.md). Not `:?` here: that would make every compose command (exec, stop, backup.sh) need it.
         CONTENT_UPDATED_AT: ${CONTENT_UPDATED_AT:-}
+      labels:
+        # The image reads ERASURE_LEDGER_DIR (#887). deploy.sh rolls back automatically only to an image with this
+        # label: an older one cannot start with this file (RUNBOOK.md section 3a).
+        app.plateandbar.erasure-ledger-dir: "1"
     restart: unless-stopped
     logging: *logging
     depends_on:

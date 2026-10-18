@@ -59,6 +59,7 @@ case "$1" in
       [ -z "${STUB_VOLUME_FAIL:-}" ] || exit 1
       for i in "${!args[@]}"; do [ "${args[$i]}" = -c ] && break; done
       script="${args[$((i + 1))]}"
+      umask 022 # what a busybox shell in the container starts with, whatever the caller's umask
       exec sh -c "${script//\/ledger/$STUB_VOLUME}" "${args[@]:$((i + 2))}"
     fi
     out=""
@@ -285,6 +286,21 @@ up || fail "next run exited non-zero"
 [ ! -e "$vol/erasures.log" ] || fail "erasures.log was not split on the next run"
 [ "$(count "$(vfile 1)")" = 2 ] || fail "the next run lost an entry from the day file"
 [ "$(count "$(bobj 1)")" = 2 ] || fail "the next run lost an entry from the day object"
+# the usual crash: renamed, then stopped, with no newer erasures.log
+reset
+printf '%s\t%s\n%s\t%s\n' "$A" "$(ago 2)" "$B" "$(ago 50)" > "$vol/erasures.log.migrating"
+up || fail "a lone erasures.log.migrating: exited non-zero"
+[ ! -e "$vol/erasures.log.migrating" ] || fail "a lone erasures.log.migrating was left behind"
+[ "$(cat "$(vfile 2)")" = "$A$tab$(ago 2)" ] || fail "a lone erasures.log.migrating was not split"
+[ "$(cat "$(bobj 2)")" = "$A$tab$(ago 2)" ] || fail "a lone erasures.log.migrating was not uploaded"
+[ "$(find "$vol" -type f | wc -l | tr -d ' ')" = 1 ] || fail "an entry past retention was kept: $(ls "$vol")"
+# a day file that ends in a cut line (a write torn by a power loss): the split's entry starts on a new line
+reset
+printf '%s\t%s' "$C" "$(ago 1 | cut -c1-12)" > "$(vfile 1)"
+printf '%s\t%s\n' "$A" "$(ago 1)" > "$vol/erasures.log"
+up || fail "split onto a cut line exited non-zero"
+[ "$(cat "$(vfile 1)")" = "$C$tab$(ago 1 | cut -c1-12)"$'\n'"$A$tab$(ago 1)" ] || fail "the split glued an entry onto a cut line: $(cat "$(vfile 1)")"
+[ "$(cat "$(bobj 1)")" = "$A$tab$(ago 1)" ] || fail "the entry after a cut line was not uploaded"
 
 echo "upload: a malformed local line is skipped and reported; no ledger yet uploads an empty object"
 reset

@@ -68,9 +68,11 @@ if [ -e "$work/vol/erasures.log" ] || [ -e "$work/vol/erasures.log.migrating" ];
   on_volume :ro 'cat /ledger/erasures.log.migrating' < /dev/null > "$work/old" || fail "cannot read erasures.log.migrating"
   printf '\n' >> "$work/old"
   valid_lines "$work/old" | awk -F'\t' -v k="$keep_from" '{ d = substr($2, 1, 10) } d >= k { print d " " $0 }' > "$work/split"
-  # appended (the API may be writing today's file), synced, and only then the old file goes
+  # appended (the API may be writing today's file), synced, and only then the old file goes. A file that ends in a cut
+  # line (a write torn by a power loss, also a split that stopped half way) first gets a newline, so no entry is glued
+  # onto it. umask 077: busybox starts with 022, and the day files must stay owner-only.
   # shellcheck disable=SC2016
-  on_volume '' 'umask 077 && cd /ledger && while IFS=" " read -r d line; do printf "%s\n" "$line" >> "erasures-$d.log"; done && sync && rm erasures.log.migrating && sync' < "$work/split" \
+  on_volume '' 'umask 077 && cd /ledger && while IFS=" " read -r d line; do f="erasures-$d.log"; if [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ]; then printf "\n" >> "$f"; fi; printf "%s\n" "$line" >> "$f"; done && sync && rm erasures.log.migrating && sync' < "$work/split" \
     || fail "cannot split erasures.log into day files"
   echo "erasures.log split into day files: $(wc -l < "$work/split" | tr -d ' ') entries kept, $(($(grep -c -v '^$' "$work/old" || true) - $(wc -l < "$work/split"))) past retention or malformed dropped"
   read_volume
