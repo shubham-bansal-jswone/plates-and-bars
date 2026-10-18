@@ -22,7 +22,9 @@ test("the shipped cards.json holds back ramp, ladder and formfirst, each with a 
   for (const c of held) assert.ok(c.hidden_reason.length > 0, c.id);
 });
 
-test("the site keeps no list of its own and filters with the shared flag", () => {
-  assert.ok(!/HIDDEN_CARDS/.test(cardsSrc));
-  assert.ok(/all\.filter\(\(c\) => !isHeldBack\(c\)\)/.test(cardsSrc));
+test("the site keeps no list of its own and filters with the shared flag, whatever the formatting", () => {
+  const code = cardsSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""); // comments may still name the old list
+  assert.ok(!/HIDDEN_CARDS/.test(code));
+  assert.ok(/import\s*\{\s*isHeldBack\s*\}\s*from\s*["']\.\/held-back\.mjs["']/.test(code));
+  assert.ok(/\.filter\(\s*\(?\s*\w+\s*\)?\s*=>\s*!\s*isHeldBack\(\s*\w+\s*\)\s*,?\s*\)/.test(code));
 });

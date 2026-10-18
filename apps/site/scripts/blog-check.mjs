@@ -78,6 +78,7 @@ const landing = await read("index.html");
 if (!landing.includes('href="/blog/"')) fail("landing has no blog link");
 if ((landing.match(/<footer[\s\S]*<\/footer>/)?.[0] ?? "").includes('href="/blog/"') === false) fail("footer has no blog link");
 for (const p of ["index.html", "blog/index.html", ...shown.map((c) => `blog/${c.id}/index.html`)]) {
+  if (!(await exists(join(dist, p)))) continue; // already reported as "no page" above
   for (const m of (await read(p)).matchAll(/href="(\/[^"#?]*)(?:[#?][^"]*)?"/g)) {
     const target = m[1];
     const file = target.endsWith("/") ? `${target}index.html` : target;
