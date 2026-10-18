@@ -10,7 +10,7 @@ import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-b
 import { LegalLinks } from '../legal/LegalLinks';
 import { DeletionNotice } from '../account/DeletionNotice';
 import type { Profile } from '../setup/types';
-import { buildProfile, draftFromProfile, emptyDraft, validateStep, type Draft } from '../setup/logic';
+import { buildProfile, draftFromProfile, emptyDraft, keepStoredHeight, validateStep, type Draft } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { setSetupLeaving } from '../state/setupExit';
 import { postToast } from '../state/pendingToast';
@@ -258,7 +258,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
     setErr('');
     setD((prev) => ({ ...prev, [k]: v }));
   };
-  const profile = useMemo(() => (step === STEPS ? buildProfile(d, new Date(), stored) : null), [step, d, stored]);
+  const profile = useMemo(() => (step === STEPS ? buildProfile(recalc && stored ? keepStoredHeight(d, stored) : d, new Date(), stored) : null), [step, d, stored, recalc]);
 
   const save = async (p: Profile, toast: string) => {
     setSetupLeaving(true);
