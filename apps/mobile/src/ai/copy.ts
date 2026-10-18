@@ -34,7 +34,7 @@ export const IMAGE_ISSUE_MESSAGE: Record<ImageIssue, string> = {
 
 /** An image call's failure: a named image fault gets its own message, any other 400 the generic `invalid`. */
 export const imageFailureMessage = (f: AiFailure, fallback: string, invalid = 'That photo wasn’t accepted. Try another one.'): string =>
-  failureMessage(f, fallback, f.kind === 'invalid' && f.issue ? IMAGE_ISSUE_MESSAGE[f.issue] : invalid);
+  failureMessage(f, fallback, f.kind === 'invalid' && f.issue && (!f.field || /^(image|frames)\b/.test(f.field)) ? IMAGE_ISSUE_MESSAGE[f.issue] : invalid);
 
 export const quotaMessage = (q: AiQuota, fallback: string): string => failureMessage({ kind: 'quota', quota: q }, fallback);
 
@@ -42,7 +42,7 @@ export const AI_COPY = {
   consentTitle: 'AI features',
   consentLabel: 'Use AI features',
   consentOff: 'Off by default. Everything in the app works without it.',
-  consentSent: 'When you use one, the app sends only this to our server, which passes it to an AI service. Describe a meal: the text you type. Ask why: the card name and the question you type. Suggest muscles: when you add your own exercise, the name you typed for it, so the AI can suggest its muscles and other tags. Weekly summary: this week’s sessions, days logged, average calories and protein, average weight this and last week, the names of lifts that improved or stalled, your calorie and protein targets, your goal and your estimated burn. Meal photo: the one photo you take or pick, shrunk and re-saved without its location or other details, and the note you type. The photo is used for that one answer; the app does not keep it and our server does not save it. Never your name, email, progress photos, cycle or lab data. Our server does not save or log what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours so a repeat question is quick. The AI service gets only the request, never who you are, and is set not to keep it or learn from it where it offers that.',
+  consentSent: 'When you use one, the app sends only this to our server, which passes it to an AI service. Describe a meal: the text you type. Ask why: the card name and the question you type. Suggest muscles: when you add your own exercise, the name you typed for it, so the AI can suggest its muscles and other tags. Weekly summary: this week’s sessions, days logged, average calories and protein, average weight this and last week, the names of lifts that improved or stalled, your calorie and protein targets, your goal and your estimated burn. Meal photo: the one photo you take or pick, shrunk and re-saved without its location or other details, and the note you type. Import recipe: the recipe text you paste and, if you add one, one photo of the recipe. A photo is used for that one answer; the app does not keep it and our server does not save it. Never your name, email, progress photos, cycle or lab data. Our server does not save or log what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours so a repeat question is quick. The AI service gets only the request, never who you are, and is set not to keep it or learn from it where it offers that.',
   consentNone: 'None of the AI features are switched on yet. They will show up here when they are.',
   consentOn: (names: string[]) => `Available now: ${names.join(', ')}.`,
   consentLeft: (q: AiQuota) => `${q.remaining} of ${q.limit} AI answers left today.`,
@@ -72,6 +72,22 @@ export const AI_COPY = {
   photoReviewHint: 'Use − and + to match your portion. Items marked “estimate” weren’t in the food list.',
   photoOilHint: 'Photos can’t see oil, ghee or sugar, so totals may run a little low. Use the note above if you know what went in.',
   photoPrivacy: 'The photo is used for this one answer. The app does not keep it.',
+  importOpen: 'Import a recipe from text or a photo',
+  importTitle: 'Import a recipe',
+  importPlaceholder: 'Paste a recipe, or add a photo of a cookbook page',
+  importTextLabel: 'Recipe text',
+  importAddPhoto: 'Add a photo',
+  importPhotoAdded: 'Photo added',
+  importRemovePhoto: 'Remove photo',
+  importGo: 'Import',
+  importBusy: 'Reading…',
+  importCancel: 'Cancel',
+  importEmpty: 'Paste a recipe or add a photo of one.',
+  importNone: 'Couldn’t read that recipe. Try pasting the ingredient list.',
+  importDone: 'Recipe imported. Check the amounts before saving.',
+  importFallback: 'The recipe builder still works.',
+  importInvalid: 'That recipe wasn’t accepted. Shorten the text and try again.',
+  importUnmatched: (names: readonly string[]) => `Not matched, add by hand if they matter: ${names.join(', ')}.`,
   reviewHint: 'Estimates for the whole amount. Fix anything that looks off; nothing is logged until you add.',
   askButton: 'Ask why',
   askTitle: 'Ask why',
