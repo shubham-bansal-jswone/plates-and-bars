@@ -17,4 +17,17 @@ public interface AiProvider {
     }
 
     Completion complete(AiFeature feature, String instructions, String input);
+
+    /**
+     * The image calls (ADR 008): the same, plus the images the server has already re-encoded as new JPEGs (EXIF and
+     * GPS gone), in request order. A provider must hold them in memory only, never write them anywhere, and must
+     * be set to no retention and no training (ADR 008, decision 5). The default refuses, so a text-only provider
+     * answers 503 {@code unavailable} to an image call.
+     */
+    default Completion complete(AiFeature feature, String instructions, String input, java.util.List<byte[]> jpegImages) {
+        if (jpegImages.isEmpty()) {
+            return complete(feature, instructions, input);
+        }
+        throw new UnsupportedOperationException("this provider does not take images");
+    }
 }

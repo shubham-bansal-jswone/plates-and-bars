@@ -65,8 +65,12 @@ dependencies {
 // The sync request validator reads the contract itself: the one openapi.yaml, never a copy.
 tasks.named('processResources') {
     doFirst {
-        if (!file('../content/cards.json').exists() || !file('../content/exercises.json').exists()) {
-            throw new GradleException('../content/cards.json or exercises.json is missing: build from a full checkout (see Dockerfile)')
+        // The AI proxy reads these four at start: cards (Ask why), exercises (Weekly summary, Form check), foods and
+        // raw ingredients (Meal photo, Import recipe).
+        ['cards', 'exercises', 'foods', 'raw-ingredients'].each { name ->
+            if (!file("../content/${name}.json").exists()) {
+                throw new GradleException("../content/${name}.json is missing: build from a full checkout (see Dockerfile)")
+            }
         }
         if (!file('../packages/api/openapi.yaml').exists()) {
             throw new GradleException('../packages/api/openapi.yaml is missing: build from a full checkout (see Dockerfile)')
@@ -76,7 +80,8 @@ tasks.named('processResources') {
         include 'openapi.yaml'
     }
     // Every content file is served as a bundle (GET /content/*), and the AI proxy grounds Ask why on the cards and
-    // checks exercise names against the catalogue: the content agent's files, copied (never edited) into the jar
+    // checks exercise names against the catalogue, Form check judges the exercise cards, Meal photo matches the built-in
+    // foods and Import recipe the raw ingredients: the content agent's files, copied (never edited) into the jar
     // under /content at build time.
     from('../content') {
         include '*.json'

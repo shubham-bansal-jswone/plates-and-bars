@@ -21,9 +21,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * The four AI calls, in the contract's order after rate limits: switch, validation, quota, provider. Logs only
- * user id, feature, status and duration, never a body. The identical-request cache is per user, in memory only,
- * keyed by user id and a hash of the normalised request, and expires within 24 hours.
+ * The seven AI calls, in the contract's order after rate limits: switch, validation (image faults included), quota,
+ * provider. Logs only user id, feature, status and duration, never a body. The identical-request cache of the four text
+ * calls is per user, in memory only, keyed by user id and a hash of the normalised request, and expires within 24
+ * hours; the three image calls are never cached (ADR 008).
  */
 @Service
 public class AiService {
@@ -101,11 +102,53 @@ public class AiService {
         });
     }
 
+    public ObjectNode mealPhoto(String userId, JsonNode body) {
+        return run(userId, AiFeature.MEAL_PHOTO, body, "MealPhotoRequest", req -> {
+            String hint = req.has("hint") ? AiPrompts.sanitize(req.path("hint").asString()).trim() : null;
+            if (hint != null && AiPrompts.isBlank(hint)) {
+                throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("hint", "pattern")));
+            }
+            List<byte[]> images = List.of(AiImages.reencode(req.get("image"), "image", AiImages.Kind.PHOTO));
+            return new Call(AiPrompts.mealPhoto(content.foods(), hint), null, images, replies::mealPhoto);
+        });
+    }
+
+    public ObjectNode importRecipe(String userId, JsonNode body) {
+        return run(userId, AiFeature.IMPORT_RECIPE, body, "ImportRecipeRequest", req -> {
+            String text = req.has("text") ? AiPrompts.sanitize(req.path("text").asString()).trim() : null;
+            if (text != null && AiPrompts.isBlank(text)) {
+                throw AiSchemas.invalid(List.of(new ErrorResponse.Detail("text", "pattern")));
+            }
+            List<byte[]> images = req.has("image")
+                    ? List.of(AiImages.reencode(req.get("image"), "image", AiImages.Kind.PHOTO)) : List.of();
+            return new Call(AiPrompts.importRecipe(text, content.rawIngredientNames()), null, images, replies::importRecipe);
+        });
+    }
+
+    public ObjectNode formCheck(String userId, JsonNode body) {
+        return run(userId, AiFeature.FORM_CHECK, body, "FormCheckRequest", req -> {
+            String exercise = req.path("exercise").asString();
+            AiContent.ExerciseCard card = content.exerciseCard(exercise).orElseThrow(
+                    () -> AiSchemas.invalid(List.of(new ErrorResponse.Detail("exercise", "unknown"))));
+            List<byte[]> frames = new java.util.ArrayList<>();
+            for (int i = 0; i < req.path("frames").size(); i++) { // one decoded frame at a time; only the new JPEG is kept
+                frames.add(AiImages.reencode(req.path("frames").get(i), "frames[" + i + "]", AiImages.Kind.FRAME));
+            }
+            return new Call(AiPrompts.formCheck(exercise, card), null, frames, raw -> replies.formCheck(raw, card));
+        });
+    }
+
     private String coerce(String exercise) {
         return content.isCatalogueExercise(exercise) ? exercise : CUSTOM_EXERCISE;
     }
 
-    private record Call(AiPrompts.Prompt prompt, ObjectNode cacheKeyMaterial, Function<String, Optional<ObjectNode>> parser) {}
+    /** {@code images} are the re-encoded JPEGs of an image call, whose {@code cacheKeyMaterial} is null (never cached). */
+    private record Call(AiPrompts.Prompt prompt, ObjectNode cacheKeyMaterial, List<byte[]> images,
+            Function<String, Optional<ObjectNode>> parser) {
+        Call(AiPrompts.Prompt prompt, ObjectNode cacheKeyMaterial, Function<String, Optional<ObjectNode>> parser) {
+            this(prompt, cacheKeyMaterial, List.of(), parser);
+        }
+    }
 
     private ObjectNode run(String userId, AiFeature feature, JsonNode body, String requestSchema,
             Function<JsonNode, Call> plan) {
@@ -113,7 +156,11 @@ public class AiService {
         String status = "error";
         try {
             quotas.requireOn(feature);
-            schemas.requireValid(requestSchema, body);
+            schemas.requireValid(requestSchema, switch (feature) {
+                case MEAL_PHOTO, IMPORT_RECIPE -> AiImages.screenImage(body); // the base64 is scanned before any regex
+                case FORM_CHECK -> AiImages.screenFrames(body);
+                default -> body;
+            });
             Call call = plan.apply(body);
             AiQuotaService.Reservation held = quotas.reserve(userId, feature);
             ObjectNode reply;
@@ -139,14 +186,17 @@ public class AiService {
     }
 
     private ObjectNode answer(String userId, AiFeature feature, Call call, AiQuotaService.Reservation held) {
-        String key = userId + ":" + feature.key() + ":" + sha256(call.cacheKeyMaterial().toString());
-        ObjectNode hit = cache.getIfPresent(key);
+        String key = feature.isImageCall() ? null
+                : userId + ":" + feature.key() + ":" + sha256(call.cacheKeyMaterial().toString());
+        ObjectNode hit = key == null ? null : cache.getIfPresent(key);
         if (hit != null) {
             return hit; // still counts against the quota
         }
         AiProvider.Completion c;
         try {
-            c = provider.complete(feature, call.prompt().instructions(), call.prompt().input());
+            c = feature.isImageCall()
+                    ? provider.complete(feature, call.prompt().instructions(), call.prompt().input(), call.images())
+                    : provider.complete(feature, call.prompt().instructions(), call.prompt().input());
         } catch (RuntimeException e) {
             log.warn("AI provider failed for feature {} ({})", feature.key(), e.getClass().getSimpleName());
             throw unavailable();
@@ -169,7 +219,9 @@ public class AiService {
             log.warn("AI reply unusable for feature {} ({})", feature.key(), e.getClass().getSimpleName());
             throw new BilledFailure();
         }
-        cache.put(key, reply);
+        if (key != null) {
+            cache.put(key, reply);
+        }
         return reply;
     }
 

@@ -2,6 +2,8 @@
 # CONTENT_UPDATED_AT (each bundle's git committer date, from a full-history checkout) is required: the build fails
 # without it and never falls back to the build time.
 #   docker build -f backend/Dockerfile --build-arg CONTENT_UPDATED_AT="$(backend/scripts/content-updated-at.sh)" -t plateandbar-api .
+# Every content/*.json goes into the jar, among them the four the AI proxy reads at start: cards, exercises, foods and
+# raw-ingredients (the Gradle build fails when one is missing).
 # backend/Dockerfile.dockerignore limits the context to backend/, packages/api/openapi.yaml and content/*.json.
 # eclipse-temurin publishes linux/amd64 and linux/arm64 images, so this builds natively on Apple Silicon.
 FROM eclipse-temurin:21-jdk AS build
