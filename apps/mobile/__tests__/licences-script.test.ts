@@ -101,6 +101,55 @@ describe('scripts/licences.mjs --classpath', () => {
   });
 });
 
+// android-release.yml passes the .so file names of the APK it built; these stand in for that file.
+describe('scripts/licences.mjs --native-libs', () => {
+  const soCommitted = readFileSync(join(app, 'scripts/android-native-libs.txt'), 'utf8');
+  let dir: string;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'native-libs-'));
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  const withLibs = (text: string) => {
+    const f = join(dir, `${Math.random().toString(36).slice(2)}.txt`);
+    writeFileSync(f, text);
+    return run('--native-libs', f);
+  };
+
+  it('passes when the build shipped the committed .so files', () => {
+    const r = withLibs(soCommitted);
+    expect({ status: r.status, err: r.stderr }).toEqual({ status: 0, err: '' });
+    expect(r.stdout).toMatch(/match scripts\/android-native-libs\.txt \(\d+ libraries\)/);
+  });
+
+  it('fails on a new .so with no notice entry, naming it', () => {
+    const r = withLibs(`${soCommitted}libmystery.so\n`);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no notice for native library libmystery.so');
+  });
+
+  it('fails on a .so that has an entry but is not in the committed list, and on one that vanished', () => {
+    const r = withLibs(soCommitted.replace('libzstd-kmp.so\n', '').replace('libsentry.so\n', '') + 'libnot-a-real-one.so\n');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no notice for native library libnot-a-real-one.so');
+    const only = withLibs(soCommitted.replace('libzstd-kmp.so\n', ''));
+    expect(only.status).toBe(1);
+    expect(only.stderr).toContain('- libzstd-kmp.so');
+  });
+
+  it('fails without a file', () => {
+    expect(run('--native-libs', join(dir, 'missing.txt')).status).toBe(1);
+  });
+
+  it('lists every .so of the committed list in the Native section, and no component that no .so links', () => {
+    const data = JSON.parse(readFileSync(join(app, 'src/about/licences.json'), 'utf8')) as { native: { name: string; in: string[]; text: string }[]; texts: Record<string, string> };
+    const names = soCommitted.split('\n').filter(Boolean);
+    for (const c of data.native) {
+      expect(data.texts[c.text]).toBeTruthy();
+      for (const n of c.in) expect(names).toContain(n);
+    }
+  });
+});
+
 describe('Android section of licences.json', () => {
   const data = JSON.parse(readFileSync(join(app, 'src/about/licences.json'), 'utf8')) as {
     android: { name: string; version: string; licence: string; url: string; text: string }[];
