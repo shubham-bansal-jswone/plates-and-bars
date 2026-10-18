@@ -74,7 +74,7 @@ public final class ContractSchemas {
      * Checks a real response against the contract for {@code operation} (for example {@code "POST /auth/google"}) and
      * {@code status}. The status must be documented. If the contract gives it a JSON schema (inline or through
      * {@code components.responses}) the body must conform; if it gives none (204, 304) the body must be empty.
-     * Once the check passes, the operation and status are recorded for {@code ContractCoverageTest}.
+     * An {@code Error} body may carry only keys the {@code Error} schema lists. Once the check passes, the operation and status are recorded for {@code ContractCoverageTest}.
      */
     public static void assertResponse(String operation, int status, String body) {
         String[] parts = operation.split(" ", 2);
@@ -113,6 +113,16 @@ public final class ContractSchemas {
                 .validate(value);
         if (!problems.isEmpty()) {
             throw new AssertionError(operation + " " + status + " does not match the contract: " + problems);
+        }
+        // The contract leaves response objects open, but an Error body must not leak a field it does not list (#883).
+        if (schema.path("$ref").asString().endsWith("/schemas/Error")) {
+            Set<String> listed = new java.util.HashSet<>();
+            schema("Error").path("properties").propertyNames().forEach(listed::add);
+            List<String> extra = new java.util.ArrayList<>();
+            value.propertyNames().forEach(k -> { if (!listed.contains(k)) extra.add(k); });
+            if (!extra.isEmpty()) {
+                throw new AssertionError(operation + " " + status + " Error body has keys the Error schema does not list: " + extra);
+            }
         }
         RECORDED.add(operation + " " + status);
     }

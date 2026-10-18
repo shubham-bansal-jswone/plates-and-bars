@@ -27,8 +27,12 @@ class ContractCoverageTest {
             Map.of("GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)");
 
     private static void requireUnfilteredRun() {
-        Assumptions.assumeTrue(Boolean.getBoolean("contract.coverage.enforce"),
-                "filtered run: coverage is only enforced on a full ./gradlew test");
+        if (Boolean.getBoolean("contract.coverage.enforce")) {
+            return;
+        }
+        // On CI a filtered run would switch the guard off silently, so it fails instead of skipping.
+        assertThat(System.getenv("CI")).as("CI must run the unfiltered ./gradlew test so the contract guard enforces").isNull();
+        Assumptions.assumeTrue(false, "filtered run: coverage is only enforced on a full ./gradlew test");
     }
 
     @Test
