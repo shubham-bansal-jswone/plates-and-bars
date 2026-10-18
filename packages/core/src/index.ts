@@ -625,7 +625,25 @@ export { checkinBannerDue } from './progress';
 
 /**
  * Device step count from the Android since-boot counter (#300), no prototype counterpart. `advanceSteps` turns a reading and the stored
- * baseline into the new baseline and the day totals to write (conservative across midnight); `isReboot` is its reboot check.
+ * baseline into the new baseline and the day totals to write (`msSinceMidnight` is the reading's local time; a gap across midnight is credited to the day before only within `MIDNIGHT_WINDOW_MS` of it, else dropped); `isReboot` is its reboot check.
  */
-export { advanceSteps, isReboot } from './deviceSteps';
+export { advanceSteps, isReboot, MIDNIGHT_WINDOW_MS } from './deviceSteps';
 export type { StepReading, StepBaseline, StepCredit, StepAdvance } from './deviceSteps';
+
+/**
+ * Open Food Facts barcode lookup (v1.1, #944). New rules from the #944 spec, not prototype ports.
+ * - `offToUserFood` maps a trimmed OFF product to a draft user food (per 100 g or per serving, nulls for missing
+ *   fields with a `missing` list, plausibility and data-quality warnings); `OffProduct` is the input subset.
+ * - `validateBarcode` checks the GS1 check digit of EAN-8, EAN-13 and UPC-A; with the scanner hint `upc_e` it expands
+ *   the code to UPC-A. `expandUpcE` is that expansion (8-digit UPC-E to 12-digit UPC-A, or null).
+ */
+export { offToUserFood, validateBarcode, expandUpcE } from './off';
+export type { OffProduct, OffNutriments, OffNumber, OffMapResult, OffUserFoodDraft, OffMissingField, OffWarning, BarcodeCheck, BarcodeFormat, ScannerFormat } from './off';
+
+/**
+ * Cycle log (device only, never synced; #625). `cycInfo` mirrors prototype `cycInfo(date)` (stored data passed in);
+ * `waterRetentionPhase` its `luteal || period` test, `sameDayLastCycle` the "Same day last cycle" date, `addCycleStart` /
+ * `removeLastCycleStart` the `cyc-log` / `cyc-undo` actions, `emptyCycle` the `cyc-off` value.
+ */
+export { cycInfo, waterRetentionPhase, sameDayLastCycle, addCycleStart, removeLastCycleStart, emptyCycle } from './cycle';
+export type { CycleData, CycleInfo, CyclePhase } from './cycle';
