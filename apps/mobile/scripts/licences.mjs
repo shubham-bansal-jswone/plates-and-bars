@@ -4,6 +4,8 @@
 //   node scripts/licences.mjs --check            exit 1 if the committed file is stale (CI; also run by __tests__/licences-script.test.ts)
 //   node scripts/licences.mjs --classpath <file> exit 1 if <file>, the classpath a release build resolved, names an artifact with
 //                                                no licence row or differs from scripts/android-classpath.txt (android-release.yml)
+//   node scripts/licences.mjs --native-libs <file> exit 1 if <file>, the .so file names of the built release APK, differs from
+//                                                scripts/android-native-libs.txt (android-release.yml)
 //
 // Sources, with no new dependency:
 //   - npm: every package in package-lock.json that is not dev-only, read from node_modules (name, version, licence, notice text).
@@ -11,6 +13,8 @@
 //     is the same on every machine; they are build tools, not part of the app.
 //   - Android: the Maven libraries of the release build, as Gradle resolved them (scripts/android-classpath.txt, committed so this
 //     runs without an Android build), each with a licence from the ANDROID_LICENCES table and any NOTICE file it ships.
+//   - Native code: third-party C and C++ compiled into the .so files of the release build (scripts/android-native-libs.txt), each with
+//     a notice from the NATIVE table below. A .so with no entry in NATIVE_SO fails the script.
 //   - Assets: the bundled fonts (public/licenses) and Ionicons.
 // Output is deterministic (sorted, no dates).
 import { createHash } from 'node:crypto';
@@ -215,6 +219,91 @@ const android = parseClasspath(read(classpathFile), 'scripts/android-classpath.t
   return { name: r.name, version: r.version, licence, url: licenceUrl(licence), text: textId(parts.join('\n\n----------\n\n')) };
 }).sort((a, b) => (a.name + a.version).localeCompare(b.name + b.version));
 
+// Native code statically linked into the shipped .so files (#904). The Maven rows above list the artifacts; this lists the third-party
+// C and C++ inside them. Each entry was checked against the upstream project at the version named (2026-10-18): the version comes from
+// React Native's libs.versions.toml and Hermes's external/ directory for the exact release, Fresco's gradle.properties, the zstd-kmp
+// submodule and sentry-native's submodules, and the .so files of those releases were checked for the symbols and build paths of each
+// library. The notice file is the upstream LICENSE (or, where upstream ships none, the notice in the source file header), in
+// scripts/licence-texts/native.
+// [id, name, version, licence, url, notice files]
+const NATIVE = [
+  ['folly', 'Folly', '2024.11.18.00', 'Apache-2.0', 'https://github.com/facebook/folly', ['folly.txt']],
+  ['glog', 'glog', '0.3.5', 'BSD-3-Clause', 'https://github.com/google/glog', ['glog.txt']],
+  ['double-conversion', 'double-conversion', '1.1.6', 'BSD-3-Clause', 'https://github.com/google/double-conversion', ['double-conversion.txt']],
+  ['fast-float', 'fast_float', '8.0.0 (React Native), 8.1.0 (Hermes)', 'MIT', 'https://github.com/fastfloat/fast_float', ['fast-float.txt']], // offered under Apache-2.0, MIT and BSL-1.0; MIT is the one taken
+  ['fmt', '{fmt}', '12.1.0', 'MIT', 'https://github.com/fmtlib/fmt', ['fmt.txt']],
+  ['boost', 'Boost', '1.83.0 (React Native, headers), 1.86.0 (Hermes, Context)', 'BSL-1.0', 'https://www.boost.org', ['boost.txt']],
+  ['libcxx', 'LLVM libc++, libc++abi and libunwind (Android NDK)', '27.1.12297006 (LLVM 18)', 'Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)', 'https://libcxx.llvm.org', ['libcxx.txt']], // LLVM 18 offers the older libc++ code under NCSA or MIT, at the user's choice
+  ['llvh', 'LLVM support library (llvh, in Hermes)', 'Hermes 260318099.0.4', 'Apache-2.0 WITH LLVM-exception AND NCSA', 'https://github.com/facebook/hermes/tree/main/external/llvh', ['llvh.txt']],
+  ['unicode', 'Unicode character data tables (in Hermes)', 'Unicode 17.0.0, Hermes 260318099.0.4', 'Unicode-3.0', 'https://www.unicode.org/license.txt', ['unicode.txt']],
+  ['dtoa', 'dtoa (David M. Gay)', 'netlib, 2016-01-18', 'Lucent permissive notice', 'https://www.netlib.org/fp/', ['dtoa.txt']],
+  ['dragonbox', 'Dragonbox', 'beeeef91cf6f', 'Apache-2.0 WITH LLVM-exception OR BSL-1.0', 'https://github.com/jk-jeon/dragonbox', ['dragonbox.txt']],
+  ['zip', 'zip and miniz', 'f72dce22bd25', 'Unlicense', 'https://github.com/kuba--/zip', ['zip-miniz.txt']],
+  ['libjpeg-turbo', 'libjpeg-turbo', '2.1.5.1', 'IJG AND BSD-3-Clause AND Zlib', 'https://libjpeg-turbo.org', ['libjpeg-turbo.txt']],
+  ['libwebp', 'libwebp', '1.3.2', 'BSD-3-Clause', 'https://chromium.googlesource.com/webm/libwebp', ['libwebp.txt']],
+  ['giflib', 'giflib', '5.2.1', 'MIT', 'https://giflib.sourceforge.net', ['giflib.txt', 'openbsd-reallocarray.txt']],
+  ['zstd', 'Zstandard', '1.5.8 (development snapshot 1dbc2e0)', 'BSD-3-Clause', 'https://github.com/facebook/zstd', ['zstd.txt']], // dual-licensed BSD-3-Clause or GPL-2.0; the BSD licence is the one taken
+  ['sqlite', 'SQLite', '3.53.3', 'Public domain', 'https://sqlite.org', ['sqlite.txt']],
+  ['libunwindstack', 'libunwindstack-ndk (Android Open Source Project)', '284202fb1e42', 'Apache-2.0', 'https://github.com/getsentry/libunwindstack-ndk', ['libunwindstack.txt']],
+  ['mpack', 'MPack', '1.0', 'MIT', 'https://github.com/ludocode/mpack', ['mpack.txt']],
+  ['jsmn', 'jsmn', 'vendored in sentry-native 0.16.6', 'MIT', 'https://github.com/zserge/jsmn', ['jsmn.txt']],
+  ['worklets-queue', 'ThreadSafeQueue (Juan Palacios)', 'in react-native-worklets 0.13.0', 'BSD-2-Clause', 'https://opensource.org/license/bsd-2-clause', ['worklets-queue.txt']],
+];
+// Every .so name the release build can ship, with the NATIVE ids linked into it ([] = only code listed elsewhere on this screen:
+// React Native, Hermes, Fresco, Sentry, Expo and the app's own native modules). A .so with no entry here fails the script, so a new
+// native library is looked at on purpose.
+const NATIVE_SO = {
+  'libc++_shared.so': ['libcxx'],
+  'libfbjni.so': [],
+  'libhermestooling.so': [],
+  'libhermesvm.so': ['llvh', 'unicode', 'boost', 'dtoa', 'dragonbox', 'fast-float', 'zip'],
+  'libjsi.so': ['folly', 'glog', 'double-conversion', 'fast-float'],
+  'libreactnative.so': ['folly', 'glog', 'double-conversion', 'fast-float', 'fmt', 'boost'],
+  'libgifimage.so': ['giflib'],
+  'libimagepipeline.so': [],
+  'libnative-filters.so': [],
+  'libnative-imagetranscoder.so': ['libjpeg-turbo'],
+  'libstatic-webp.so': ['libwebp'],
+  'libsentry-android.so': [],
+  'libsentry.so': ['libunwindstack', 'mpack', 'jsmn', 'libcxx'],
+  'libsentry-tm-perf-logger.so': [],
+  'libzstd-kmp.so': ['zstd'],
+  'libexpo-modules-core.so': [],
+  'libexpo-modules-jsi.so': [],
+  'libexpo-modules-v2.so': [],
+  'libexpo-modules-worklets.so': [],
+  'libexpo-sqlite.so': ['sqlite'],
+  'libworklets.so': ['worklets-queue'],
+  'libreanimated.so': [],
+  'libgesturehandler.so': [],
+  'librnscreens.so': [],
+  'libreact_codegen_rngesturehandler_codegen.so': [],
+  'libreact_codegen_rnscreens.so': [],
+  'libreact_codegen_rnsvg.so': [],
+  'libreact_codegen_safeareacontext.so': [],
+  'libappmodules.so': [],
+};
+const parseSoList = (text, label) => {
+  const names = text.split('\n').filter(Boolean);
+  const unknown = names.filter((n) => !(n in NATIVE_SO));
+  if (unknown.length) {
+    console.error(`${label}: no notice for native library ${unknown.join(', ')}. Find which third-party code is statically linked into it (build paths and symbols in the .so, the upstream project's third-party list), add its entry to NATIVE with the upstream notice in scripts/licence-texts/native, then map the .so in NATIVE_SO (scripts/licences.mjs).`);
+    process.exit(1);
+  }
+  return names;
+};
+const nativeSoFile = join(root, 'scripts/android-native-libs.txt');
+const soNames = parseSoList(read(nativeSoFile), 'scripts/android-native-libs.txt');
+const native = NATIVE.map(([id, name, version, licence, url, files]) => {
+  const usedIn = soNames.filter((n) => NATIVE_SO[n].includes(id));
+  return { id, name, version, licence, url, files, usedIn };
+}).filter((c) => c.usedIn.length).map((c) => ({
+  name: c.name, version: c.version, licence: c.licence, url: c.url, in: c.usedIn,
+  text: textId(c.files.map((f) => read(join(root, 'scripts/licence-texts/native', f)).trim()).join('\n\n----------\n\n')),
+})).sort((a, b) => a.name.localeCompare(b.name));
+const unusedNative = NATIVE.filter(([id]) => !Object.values(NATIVE_SO).some((ids) => ids.includes(id))).map(([id]) => id);
+if (unusedNative.length) { console.error(`NATIVE entries no .so maps to: ${unusedNative.join(', ')}`); process.exit(1); }
+
 // Bundled fonts and icons
 const MIT_IONIC = 'MIT License\n\nCopyright (c) 2015-present Ionic (http://ionic.io/)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.';
 const assets = [
@@ -242,12 +331,30 @@ if (classpathArg !== -1) {
   process.exit(0);
 }
 
+// Release builds: the .so files of the built APK must be the ones in the committed list (and so each has a notice).
+const nativeArg = process.argv.indexOf('--native-libs');
+if (nativeArg !== -1) {
+  const file = process.argv[nativeArg + 1];
+  if (!file || !existsSync(file)) { console.error('--native-libs needs a file with the .so file names of the release APK, one per line'); process.exit(1); }
+  const got = parseSoList(read(file), file);
+  const added = got.filter((n) => !soNames.includes(n));
+  const removed = soNames.filter((n) => !got.includes(n));
+  if (added.length || removed.length) {
+    console.error(`the release build's .so files differ from scripts/android-native-libs.txt: check any new library's third-party code (NATIVE in scripts/licences.mjs), then copy ${file} over it and run \`node scripts/licences.mjs\`.`);
+    for (const n of added) console.error(`  + ${n}`);
+    for (const n of removed) console.error(`  - ${n}`);
+    process.exit(1);
+  }
+  console.log(`the release build's .so files match scripts/android-native-libs.txt (${got.length} libraries)`);
+  process.exit(0);
+}
+
 const sortedTexts = Object.fromEntries(Object.entries(texts).sort(([a], [b]) => a.localeCompare(b)));
-const out = `${JSON.stringify({ packages, android, assets, texts: sortedTexts })}\n`;
+const out = `${JSON.stringify({ packages, android, native, assets, texts: sortedTexts })}\n`;
 if (check) {
   if (!existsSync(outFile) || read(outFile) !== out) { console.error('src/about/licences.json is stale: run `node scripts/licences.mjs` in apps/mobile after npm ci'); process.exit(1); }
-  console.log(`licences.json is current (${packages.length} npm, ${android.length} Android, ${assets.length} assets)`);
+  console.log(`licences.json is current (${packages.length} npm, ${android.length} Android, ${native.length} native, ${assets.length} assets)`);
 } else {
   writeFileSync(outFile, out);
-  console.log(`wrote ${outFile}: ${packages.length} npm, ${android.length} Android, ${assets.length} assets, ${Object.keys(texts).length} texts`);
+  console.log(`wrote ${outFile}: ${packages.length} npm, ${android.length} Android, ${native.length} native, ${assets.length} assets, ${Object.keys(texts).length} texts`);
 }

@@ -25,7 +25,7 @@ describe('generated licences.json', () => {
     for (const e of d.assets) expect(d.texts[e.text!]).toBeTruthy();
   });
   it('only references texts that exist', () => {
-    for (const e of [...d.packages, ...d.android, ...d.assets]) if (e.text) expect(d.texts[e.text]).toBeTruthy();
+    for (const e of [...d.packages, ...d.android, ...d.native, ...d.assets]) if (e.text) expect(d.texts[e.text]).toBeTruthy();
   });
   it('lists Android libraries with a version, licence, licence URL and text', () => {
     const by = (n: string) => d.android.find((a) => a.name === n)!;
@@ -42,7 +42,7 @@ describe('generated licences.json', () => {
   });
   it('builds headings and entries with unique keys', () => {
     const rows = licenceRows(d);
-    expect(rows.filter((r) => r.kind === 'heading')).toHaveLength(3);
+    expect(rows.filter((r) => r.kind === 'heading')).toHaveLength(4);
     expect(new Set(rows.map((r) => r.key)).size).toBe(rows.length);
   });
 });
@@ -91,6 +91,26 @@ describe('licence list loading', () => {
     await expect(get()).resolves.toBe('data');
     await expect(get()).resolves.toBe('data');
     expect(load).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Native component notices', () => {
+  it('lists the third-party code compiled into the .so files, each with its upstream copyright text', async () => {
+    const d = await loadLicences();
+    const by = (n: string) => d.native.find((c) => c.name === n)!;
+    for (const c of d.native) {
+      expect(c.version).toBeTruthy();
+      expect(c.licence).toBeTruthy();
+      expect(c.in?.length).toBeGreaterThan(0);
+      expect(d.texts[c.text!]).toBeTruthy();
+    }
+    expect(d.native.map((c) => c.name)).toEqual(expect.arrayContaining(['Folly', 'glog', '{fmt}', 'libjpeg-turbo', 'libwebp', 'giflib', 'SQLite', 'Zstandard']));
+    expect(d.texts[by('libwebp').text!]).toContain('Copyright (c) 2010, Google Inc.');
+    expect(d.texts[by('glog').text!]).toContain('Copyright (c) 2008, Google Inc.');
+    expect(d.texts[by('giflib').text!]).toContain('Copyright (c) 1997  Eric S. Raymond');
+    expect(d.texts[by('libjpeg-turbo').text!]).toContain('Independent JPEG Group');
+    expect(by('libwebp').in).toEqual(['libstatic-webp.so']);
+    expect(by('{fmt}').in).toEqual(['libreactnative.so']);
   });
 });
 
