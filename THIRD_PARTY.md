@@ -31,6 +31,7 @@ The `source` field on each card in `content/cards.json` (for example "Mifflin et
 | App icon, adaptive icon, splash and web favicon images | Own work (original artwork from `apps/mobile/assets/brand/*.svg`) | Apache-2.0 | `apps/mobile/assets/*.png` |
 | Website favicon | Own work | Apache-2.0 | `apps/site/public/favicon.svg` |
 | Exercise demo photos in the prototype (removed) | Unknown. The 126 JPEGs were labelled Free Exercise DB and claimed to be Unlicense, but their provenance is unverified | Claimed to be Unlicense, but provenance is unknown; removed | Removed from `docs/prototype/plate-and-bar.html` (#653). They remain in git history. The app shows no exercise photos |
+| Exercise start and end drawings (`content/exercise-images.json`) | Own work (Plate & Bar authors) | CC BY 4.0 | Shown in the Learn block; credited in About under Exercise drawings. Empty until the generated figures land (#653) |
 
 The prototype (`docs/prototype/plate-and-bar.html`) also loads the Bricolage Grotesque font from Google Fonts (SIL Open Font License 1.1) and pdf.js from cdnjs (Apache-2.0) at runtime. Neither is stored in this repository.
 
