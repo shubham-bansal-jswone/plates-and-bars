@@ -5,7 +5,7 @@ import { SetupScreen } from '../src/screens/SetupScreen';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider, useSync, type SyncState } from '../src/sync/SyncProvider';
 import { KEY_PHOTOS_WIPE, KEY_SERVER_DELETED, KEY_USER, getUserId, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, turns } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -85,7 +85,7 @@ describe('SyncProvider account wiring (#27)', () => {
 
   it('an unbound store is not linked', async () => {
     await mount();
-    await new Promise((r) => setTimeout(r, 20));
+    await act(async () => turns()); // the store read has finished
     expect(now().linked).toBe(false);
   });
 

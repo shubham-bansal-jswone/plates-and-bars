@@ -7,7 +7,7 @@ import { defaultSettings, type Settings } from '../src/settings/types';
 import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { syncOnce } from '../src/sync/engine';
 import { setKv, KEY_USER } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, turns } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -119,7 +119,6 @@ function pullFromOtherDevice(db: Awaited<ReturnType<typeof openDb>>) {
   };
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const inc = (s: Settings) => ({ adjustments: { ...s.adjustments, n: ((s.adjustments.n as number | undefined) ?? 0) + 1 } });
 const count = (s: Settings) => s.adjustments.n;
@@ -136,7 +135,7 @@ describe('settings reload with an edit while it reads (#614)', () => {
     });
     await act(async () => first.open());
     await waitFor(() => expect(result.current.settings).toMatchObject({ focus: ['chest'], rest_off: true }));
-    await new Promise((r) => setTimeout(r, 20));
+    await turns();
     const want = { focus: ['chest'], rest_off: true, version: PULLED_VERSION };
     expect(result.current.settings).toMatchObject(want);
     expect(await loadSettings(db)).toMatchObject(want);
@@ -162,7 +161,7 @@ describe('settings reload with an edit while it reads (#614)', () => {
     await act(async () => second.open());
     const all = { focus: ['chest'], diet: 'veg', water_sizes: { glass_ml: 123, bottle_ml: 456 }, rest_off: true, version: PULLED_VERSION };
     await waitFor(() => expect(result.current.settings).toMatchObject(all));
-    await new Promise((r) => setTimeout(r, 60));
+    await turns();
     // Exactly three reads by the reload (first, re-read, final: the loop stopped) and one by each of the three saves.
     expect(reads.n).toBe(6);
     expect(result.current.settings).toMatchObject(all);
@@ -178,7 +177,7 @@ describe('settings reload with an edit while it reads (#614)', () => {
     });
     await waitFor(() => expect(result.current.settings.rest_off).toBe(true)); // what the save stored is what shows, even before any reload
     await reload();
-    await new Promise((r) => setTimeout(r, 30));
+    await turns();
     const want = { focus: ['chest'], rest_off: true, version: PULLED_VERSION };
     expect(result.current.settings).toMatchObject(want);
     expect(await loadSettings(db)).toMatchObject(want);
@@ -199,7 +198,7 @@ describe('settings reload with an edit while it reads (#614)', () => {
       result.current.update(inc); // during the reload
     });
     await act(async () => open());
-    await new Promise((r) => setTimeout(r, 30));
+    await turns();
     expect(count((await loadSettings(db))!)).toBe(2);
     expect(count(result.current.settings)).toBe(2);
   });
@@ -274,7 +273,7 @@ describe('a pull and a settings save at the same time (#614)', () => {
     await act(async () => {
       result.current.setFocus(['chest']); // the save has to wait for it
     });
-    await sleep(20);
+    await turns();
     open();
     expect(await pulling).toBe(true);
     await waitFor(async () => expect(await loadSettings(db)).toMatchObject({ focus: ['chest'] }));
@@ -292,7 +291,7 @@ describe('a pull and a settings save at the same time (#614)', () => {
     });
     await held.reached; // the save has read the record and is inside its transaction
     const pulling = pullOnce(); // the other device's record arrives now
-    await sleep(20);
+    await turns();
     expect(await loadSettings(db)).toMatchObject({ rest_off: false }); // the pull has not stored anything while the save is open
     await act(async () => held.open());
     expect(await pulling).toBe(false); // it found the save queued: the next push settles the two
@@ -312,14 +311,14 @@ describe('after a failed settings write (#614)', () => {
     await waitFor(() => expect(result.current.saveFailed).toBe(true));
     writes.failing = false;
     await reload();
-    await sleep(30);
+    await turns();
     expect(result.current.settings).toMatchObject({ diet: 'veg', rest_off: true }); // the edit is not dropped from the screen
     expect((await loadSettings(db))!.diet).not.toBe('veg'); // and it is not stored yet
     await act(async () => {
       result.current.setFocus(['chest']); // an unrelated edit: the kept one is saved with it, as shown
     });
     await waitFor(() => expect(result.current.saveFailed).toBe(false));
-    await sleep(20);
+    await turns();
     expect(await loadSettings(db)).toMatchObject({ diet: 'veg', focus: ['chest'], rest_off: true, version: PULLED_VERSION });
     expect(result.current.settings).toMatchObject({ diet: 'veg', focus: ['chest'], rest_off: true });
   });
@@ -332,14 +331,14 @@ describe('what shows while edits are still being saved (#614)', () => {
     await act(async () => {
       result.current.setFocus(['chest']); // A: its write is held
     });
-    await sleep(10);
+    await turns();
     const readB = holdNext(); // B's read will be held
     await act(async () => {
       result.current.setDiet('veg'); // B: queued behind A
     });
     await act(async () => openWrite()); // A lands, and B starts reading
     await readB.reached;
-    await sleep(10);
+    await turns();
     expect(result.current.settings).toMatchObject({ focus: ['chest'], diet: 'veg' }); // B still shows
     await act(async () => readB.open());
     await waitFor(() => expect(result.current.settings).toMatchObject({ focus: ['chest'], diet: 'veg' }));
@@ -359,7 +358,7 @@ describe('what shows while edits are still being saved (#614)', () => {
     await act(async () => {
       result.current.setRestOff(true);
     });
-    await sleep(30);
+    await turns();
     expect(seen.slice(from).filter((s) => s.diet !== 'veg' || s.focus[0] !== 'chest')).toHaveLength(0);
     expect(result.current.settings).toMatchObject({ focus: ['chest'], diet: 'veg', rest_off: true });
   });

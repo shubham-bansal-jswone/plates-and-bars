@@ -7,10 +7,9 @@ import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { signOut, wipeLocalStore } from '../src/sync/guard';
 import { readKept } from '../src/state/keptEdits';
 import { getKv, KEY_SETTINGS_KEPT, setKv } from '../src/sync/store';
-import { memoryTokens, openDb } from './sync-helpers';
+import { memoryTokens, openDb, turns } from './sync-helpers';
 
 const PULLED_VERSION = 7;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A real SQLite whose writes of the settings record can be made to fail. */
 async function setup() {
@@ -38,7 +37,7 @@ async function setup() {
   const reload = async (r: Awaited<ReturnType<typeof launch>>) => {
     key += 1;
     await r.rerender(undefined);
-    await sleep(30);
+    await turns();
   };
   /** Another device changed these fields: a pull stores the record without queuing it. */
   const pull = async (change: Partial<Settings>) => {
@@ -65,7 +64,7 @@ describe('a kept settings edit and a pull of the same field (#651)', () => {
     expect(r.result.current.settings.diet).toBe('egg'); // the screen shows the remote value too
     await act(async () => r.result.current.setFocus(['chest'])); // the next save
     await waitFor(() => expect(r.result.current.saveFailed).toBe(false));
-    await sleep(20);
+    await turns();
     expect(await loadSettings(db)).toMatchObject({ diet: 'egg', focus: ['chest'], version: PULLED_VERSION });
     expect(r.result.current.settings).toMatchObject({ diet: 'egg', focus: ['chest'] });
   });
@@ -98,7 +97,7 @@ describe('a kept settings edit and a pull of the same field (#651)', () => {
     await pull({ diet: 'egg' });
     await act(async () => r.result.current.setRestOff(true));
     await waitFor(() => expect(r.result.current.saveFailed).toBe(false));
-    await sleep(20);
+    await turns();
     expect(await loadSettings(db)).toMatchObject({ diet: 'egg', focus: ['chest'], rest_off: true });
   });
 });
@@ -132,7 +131,7 @@ describe('kept settings edits survive an app restart (#651)', () => {
     await act(async () => first.result.current.update(inc));
     await act(async () => first.result.current.update(inc));
     await waitFor(() => expect(first.result.current.saveFailed).toBe(true));
-    await sleep(30);
+    await turns();
     writes.failing = false;
     await first.unmount();
     const second = await launch();
@@ -162,7 +161,7 @@ describe('kept settings edits survive an app restart (#651)', () => {
     writes.failing = true;
     await act(async () => r.result.current.setDiet('veg'));
     await waitFor(() => expect(r.result.current.saveFailed).toBe(true));
-    await sleep(20);
+    await turns();
     const saved = async () => JSON.parse((await getKv(db, KEY_SETTINGS_KEPT)) as string).edits.map((e: { value: Record<string, unknown> }) => Object.keys(e.value));
     expect(await saved()).toEqual([['diet']]);
     writes.failing = false;
@@ -201,7 +200,7 @@ describe('kept settings edits survive an app restart (#651)', () => {
     expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull();
     open();
     await reloading;
-    await sleep(30);
+    await turns();
     expect(await getKv(db, KEY_SETTINGS_KEPT)).toBeNull(); // the rewrite found the wipe and wrote nothing
   });
 
