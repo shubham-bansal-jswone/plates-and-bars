@@ -38,6 +38,9 @@ test('planned meal: Log it logs the whole planned breakfast, once, and it surviv
   // The plan and the log belong to the day shown: the day before the plan starts has neither, and Today still has the log.
   await label(page, 'Previous day').click();
   await expect(label(page, 'Yesterday, Sunday, 11 Oct')).toBeVisible();
+  // The date bar is also drawn by the Loading… view while the new day is read, and the loaded screen then replaces it. Wait for the loaded
+  // empty day first: a press that starts on the Loading… bar and ends on its replacement is not a click, and "Remove" counts 0 while loading.
+  await expect(page.getByText(/^Nothing logged for this day yet/)).toBeVisible();
   await expect(label(page, `Remove ${items[0].replace(/ ×[\d.]+$/, '')}`)).toHaveCount(0);
   await expect(page.getByText(/^From your plan: /)).toHaveCount(0);
   await label(page, 'Next day').click();
