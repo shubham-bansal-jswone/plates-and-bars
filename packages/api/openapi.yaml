@@ -334,7 +334,8 @@ tags:
       - the server decodes one image at a time, so a form check never holds more than
         one decoded frame in memory;
       - metadata is never read: the decoder skips every ancillary chunk and segment (EXIF,
-        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation;
+        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation, and only from a JPEG's Exif (a PNG
+        `eXIf` chunk is ignored; the app sends JPEG);
       - and, whether or not the decoder would have skipped it, a PNG `zTXt`, `iTXt`
         (compression flag 1) or `iCCP` chunk that inflates to more than 65,536 bytes is
         always refused as `unreadable_image`. The server checks this with a bounded
@@ -367,7 +368,8 @@ tags:
       to export or delete.
 
       **EXIF and other metadata are stripped on the server.** The server decodes every
-      image, applies its orientation, and re-encodes the pixels as a new JPEG (long side
+      image, applies its orientation (from a JPEG's Exif only; a PNG `eXIf` chunk is ignored,
+      and the app sends JPEG), and re-encodes the pixels as a new JPEG (long side
       at most 1,600 px). The original bytes are never forwarded, so EXIF (GPS position,
       time, device), XMP, IPTC, embedded thumbnails and comments do not reach the
       provider; a file that cannot be decoded is refused, never forwarded as is. The app
