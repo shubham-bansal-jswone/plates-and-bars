@@ -114,7 +114,9 @@ class AccountRightsIT extends SyncITBase {
             assertThat(bBefore.get(o)).as("seeded " + o.table() + " for B").isPositive();
         }
 
-        assertThat(call(HttpMethod.DELETE, "/api/v1/me", jwt.issue(a).value()).getStatusCode().value()).isEqualTo(204);
+        ResponseEntity<String> deleted = call(HttpMethod.DELETE, "/api/v1/me", jwt.issue(a).value());
+        assertThat(deleted.getStatusCode().value()).isEqualTo(204);
+        ContractSchemas.assertResponse("DELETE /me", 204, deleted.getBody());
 
         for (Owner o : owners) {
             assertThat(rows(o, a, aMail)).as(o.table() + " rows left for A").isZero();
@@ -175,6 +177,7 @@ class AccountRightsIT extends SyncITBase {
         JsonNode out = json.readTree(res.getBody());
 
         assertThat(ContractSchemas.validate("MeExport", out)).isEmpty();
+        ContractSchemas.assertResponse("GET /me/export", 200, res.getBody());
         assertThat(out.path("format_version").asInt()).isEqualTo(1);
         assertThat(out.path("exported_at").asString()).isEqualTo(iso(START));
         assertThat(out.path("user").path("id").asString()).isEqualTo(a);
