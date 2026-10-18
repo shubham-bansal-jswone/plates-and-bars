@@ -102,6 +102,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   const [merged, setMerged] = useState(0);
   /** What writeWorkout changes in memory inside a transaction, applied once it has committed (a failed save leaves `synced` alone). */
   const deferred = useRef<(() => void)[]>([]);
+  /** Sets of the build Start dropped for an adopted session (#898): local id to the adopted id the entry was carried onto, or null when it was not. A queued write for a null one has nothing to save. */
+  const dropped = useRef(new Map<string, string | null>());
   /** One transaction over the day's writes; they run through the txn handle `h`. No reads beyond what the writes already do. */
   const atomic = async (task: (h: WorkoutDb) => Promise<void>) => {
     deferred.current = [];
@@ -162,10 +164,10 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Today's exercise by name when a queued write runs: a can't-do swap or an added exercise may have moved it (#439). */
   const exNamed = (name: string) => ref.current.exs.find((e) => e.name === name);
   /** Writes the rows with these ids of exercise `name`, looked up when the write runs; gone rows are skipped. */
-  const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[], h: WorkoutDb = db, shown: readonly ExState[] = ref.current.exs) => {
+  const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[], h: WorkoutDb = db, shown?: readonly ExState[]) => {
     const stored = new Map((await loadSets(h, date)).map((s) => [s.id, s]));
     for (const id of ids) {
-      const ex = shown.find((e) => e.name === name);
+      const ex = (shown ?? ref.current.exs).find((e) => e.name === name);
       const j = ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
       if (!ex || j < 0) continue;
       const rec = setRecord(ex, kind, j, now());
@@ -253,10 +255,11 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
               // Writes queued against the local build (a tick made while Start waited) run after this and would write that build
               // over the stored row (#898). Make the adopted session the one they act on, with the user's entries carried onto its
               // matching sets; they then find the adopted rows by name and skip the local ids, keeping the stored id and version.
-              const { exs, changed } = carryOnto(exercisesFrom(stored, await loadSets(h, date)), ref.current.exs);
+              const { exs, changed, kept } = carryOnto(exercisesFrom(stored, await loadSets(h, date)), ref.current.exs);
               for (const c of changed) await writeSets(c.name, 'work', c.ids, h, exs);
               deferred.current.push(() => {
                 synced.current = stored;
+                kept.forEach((to, from) => dropped.current.set(from, to));
                 ref.current = { ...ref.current, workout: stored, exs };
                 setDay(ref.current);
               });
@@ -419,6 +422,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         else if (nx) startRest(ex.name, `Next: ${nx.name}`);
       },
       async (name) => {
+        if (dropped.current.get(id) === null) return;
         await atomic(async (h) => {
           await writeSets(name, 'work', [id], h);
           await writeWorkout(false, h);
@@ -439,6 +443,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         id = s.id;
       },
       async (name) => {
+        if (dropped.current.get(id) === null) return;
         await writeSets(name, 'work', [id]);
         await syncLift(name);
       },
