@@ -334,7 +334,7 @@ cd backend
 | `DB_USER` | `plateandbar` | Database user |
 | `DB_PASSWORD` | empty | Database password |
 | `CONTENT_UPDATED_AT` | none, required | `name=timestamp,...` for every `content/*.json`; set it to `"$(backend/scripts/content-updated-at.sh)"`. The app refuses to start without it. Deploys compute it on a full-history checkout of `main` (HEAD of that checkout) and pass it as the Docker build arg |
-| `ERASURE_LEDGER_PATH` | none, required outside the dev profile | File that `DELETE /me` appends `<user id><TAB><UTC time>` to before it deletes (erasure ledger, #850). The app refuses to start without it, as with `SMTP_HOST`; with the `dev` profile it may be empty (ledger off, one WARN at startup). The image has `/var/lib/plateandbar/erasure` (mode 0700, owner `app`) declared as a `VOLUME`; the staging compose file sets the path and mounts the named volume `erasure_ledger` there. A ledger write failure makes `DELETE /me` fail (500) with nothing deleted. See Erasure ledger below |
+| `ERASURE_LEDGER_DIR` | none, required outside the dev profile | Directory in which `DELETE /me` appends `<user id><TAB><UTC time>` to `erasures-<UTC day>.log` before it deletes (erasure ledger, #850, #887). Replaces `ERASURE_LEDGER_PATH` (a single file), which is no longer read. The app refuses to start without it, as with `SMTP_HOST`; with the `dev` profile it may be empty (ledger off, one WARN at startup). The image has `/var/lib/plateandbar/erasure` (mode 0700, owner `app`) declared as a `VOLUME`; the staging compose file sets this directory and mounts the named volume `erasure_ledger` there. A ledger write failure makes `DELETE /me` fail (500) with nothing deleted. See Erasure ledger below |
 | `PORT` | `8080` | HTTP port |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
 | `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint, including `/auth/*` (a guard filter, 400 `invalid_request` detail `too_large`; a chunked body is cut off once it passes the limit), and the `POST /sync` cap. The guard runs before security, CORS and rate limiting, so a body declared over the limit gets 400 `too_large` even before a 401 or 429. Multipart is disabled (no endpoint takes it). `/ai/*` bodies are read up to 16,384 bytes (bytes, not characters); a longer one is 400 `invalid_request` with issue `too_large`, field empty, in the validation step (after the feature switch) |
@@ -410,11 +410,11 @@ opaque account id, never health or food data. Record it in the privacy notice's 
 ## Erasure ledger (#850)
 
 A backup restore brings back every account deleted after the dump was taken. To keep erased accounts erased (DPDP),
-`DELETE /me` first appends one line to the file at `ERASURE_LEDGER_PATH`: the opaque user id, a tab and the UTC time
-cut to whole seconds (`ErasureLedger`). Nothing else is ever written (no email, no content); an id that is not a
-lower-case UUID is refused, and the replay (#853) must use the same pattern, `ErasureLedger.ID`. The file is
-append-only (`O_APPEND`), mode 0600 in a 0700 directory, and forced to disk (and the directory, when the file is
-created) before the delete runs. Outside the `dev` profile an empty path refuses to start; in dev it logs a WARN and
+`DELETE /me` first appends one line to `erasures-YYYY-MM-DD.log` in `ERASURE_LEDGER_DIR`, the file of the entry's
+UTC day (#887): the opaque user id, a tab and the UTC time cut to whole seconds (`ErasureLedger`). Nothing else is
+ever written (no email, no content); an id that is not a lower-case UUID is refused, and the replay (#853) must use
+the same pattern, `ErasureLedger.ID`. Each file is append-only (`O_APPEND`), mode 0600 in a 0700 directory, and forced
+to disk (and the directory, when the day's file is created) before the delete runs. Outside the `dev` profile an empty directory setting refuses to start; in dev it logs a WARN and
 the ledger is off. `O_APPEND` keeps lines whole only on a local filesystem, not NFS: use a local named volume on one host.
 A repeat `DELETE /me` (the access token outlives the account by up to 15 minutes) appends nothing once the account row is gone.
 
@@ -431,8 +431,16 @@ A repeat `DELETE /me` (the access token outlives the account by up to 15 minutes
   ledger write failed, so nothing was deleted and the user can retry) lands on the next line, nothing is lost; the cut
   line only holds a request that answered 500. A disk-full event is also an ERROR in Sentry (`ErasureLedgerException`).
 - The fsync is real (`FileChannel.force(true)`) but no test can observe it; a mutation that removes it survives.
-- The file lives on a dedicated volume, not in MySQL. The Dockerfile declares the directory a `VOLUME`, so a compose
-  file that forgets the mount still gets an anonymous volume that survives recreating the container. Getting the
-  file off the VM (upload to the backup bucket under a prefix that retention never prunes) and replaying it after a
-  restore are infra work, see #853. Until it lands, every non-dev stack needs the path set (staging does, in `infra/staging/docker-compose.yml`).
-- Tests: `ErasureLedgerTest`, `AccountServiceDeleteTest` (ordering, fail closed, no repeat append), `ErasureLedgerIT` (real file and MySQL).
+- `record` is `synchronized`: the first entry of a day creates the file and syncs the directory, and a second deletion
+  racing it must not skip that sync and delete before the directory entry is durable (`ErasureLedgerTest` holds the
+  directory sync open and checks the second entry waits).
+- Retention (#887): entries are kept 45 days. One file per UTC day lets that be done by whole files: infra's
+  `ledger-upload.sh` copies each day file to its own bucket object and deletes the day files (and objects) more than
+  45 days old, and splits a single `erasures.log` left by the first version of the ledger into day files once. The API
+  never deletes or rewrites a ledger file, and never writes `erasures.log` again.
+- The day files live on a dedicated volume, not in MySQL. The Dockerfile declares the directory a `VOLUME`, so a
+  compose file that forgets the mount still gets an anonymous volume that survives recreating the container. Getting
+  the files off the VM (upload to the backup bucket outside the 30-day backup prefix) and replaying them after a
+  restore are infra work, see #853 and `infra/RUNBOOK.md` section 3a. Every non-dev stack needs the directory set
+  (staging does, in `infra/staging/docker-compose.yml`).
+- Tests: `ErasureLedgerTest` (day files, UTC midnight roll-over), `AccountServiceDeleteTest` (ordering, fail closed, no repeat append), `ErasureLedgerIT` (real files and MySQL, roll-over at midnight).
