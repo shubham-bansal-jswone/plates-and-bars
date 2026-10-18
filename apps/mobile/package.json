@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "test:load": "node scripts/test-under-load.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
