@@ -104,7 +104,7 @@ The API stays small: auth, one sync endpoint, food search, content, AI and accou
 | --- | --- |
 | `POST /auth/google`, `/auth/email/start`, `/auth/email/verify`, `/auth/refresh`, `/auth/refresh/revoke` | Sign in, tokens |
 | `POST /sync` | Push local changes since the last cursor, pull server changes; returns a new cursor |
-| `GET /foods?q=` | Search by name or alias; paged. The contract keeps it, but neither the v1 app nor the backend builds it: foods ship in the bundle and the content bundles (#200 decision 2; the contract coverage test allowlists it) |
+| `GET /foods?q=` | Search by name or alias; paged. The contract keeps it, but the v1 app does not call it and the backend does not build it: foods ship in the content bundles (#200 decision 2; the contract coverage test allowlists it) |
 | `GET /content/manifest`, `/content/{bundle}` | Versioned exercise, card, recipe and food bundles |
 | `GET /ai/status`, `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`, `/ai/suggest-tags` | v1 AI calls (off by default) |
 | `POST /ai/meal-photo`, `/ai/import-recipe`, `/ai/form-check` | v1.1 AI calls (not in the contract yet) |
