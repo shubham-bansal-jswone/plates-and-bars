@@ -9,6 +9,9 @@ import { getCatalog } from '../src/workout/catalog';
 import { dark, light } from '../src/theme/tokens';
 import { passesAllowlist } from '../src/workout/svgAllowlist';
 import corpus from '../../../tools/validate/fixtures/svg-corpus.json';
+import { exInfo, type Suggestion } from '@plate-and-bar/core';
+import { ExerciseCard, type Actions } from '../src/workout/ExerciseCard';
+import { blankRow, type ExState } from '../src/workout/model';
 import { openDb } from './sync-helpers';
 
 const mockPush = jest.fn();
@@ -113,7 +116,7 @@ describe('themedSvg', () => {
     expect(l).toContain(`fill="${light.ink}"`);
     expect(l).toContain(`stroke="${light.body}"`);
     expect(l).toContain(`fill="${light.fat}"`);
-    expect(l).toContain(`fill="${light.outline}"`);
+    expect(l).toContain(`fill="${light.muted}"`);
     expect(l).not.toMatch(/var\(|currentColor/);
     expect(themedSvg(BODY, dark)).toContain(`fill="${dark.ink}"`);
     expect(themedSvg(BODY, dark)).not.toEqual(l);
@@ -189,6 +192,11 @@ describe('isFigureBundle', () => {
     ['three frames', (b) => { b.images[BENCH].frames.push(b.images[BENCH].frames[0]); }],
     ['a third-party source', (b) => { b.images[BENCH].source = 'wger'; }],
     ['a licence off the allowlist', (b) => { b.images[BENCH].licence = 'CC-BY-SA-3.0'; }],
+    ['another licence link', (b) => { b.images[BENCH].licence_url = 'https://evil.example/'; }],
+    ['a blank alt', (b) => { b.images[BENCH].alt = ' '; }],
+    ['a missing field (note)', (b) => { delete b.images[BENCH].note; }],
+    ['an unknown field', (b) => { b.images[BENCH].generated = true; }],
+    ['a key that is not an exercise', (b) => { b.images['Not An Exercise'] = entry('nope'); }],
     ['an empty author', (b) => { b.images[BENCH].author = ' '; }],
     ['a non-https credit link', (b) => { b.images[BENCH].author_url = 'http://x.test'; }],
     ['a prototype-named key', (b) => { b.images.constructor = entry('c'); }],
@@ -231,5 +239,24 @@ describe('SVG allowlist parity with tools/validate/svg-allowlist.mjs', () => {
   });
   it.each(frames.map((f) => [f.name, f] as const))('%s', (_n, f) => {
     expect(passesAllowlist(f.svg, f.w, f.h)).toBe(f.ok);
+  });
+});
+
+describe('Learn block figure', () => {
+  const SUG: Suggestion = { mode: 'hold', reps: 8, w: 40, text: '40 kg × 8 reps', reason: 'Same again.' };
+  const act = new Proxy({}, { get: () => jest.fn() }) as Actions;
+  function card(done: number) {
+    const sets = Array.from({ length: 3 }, (_, j) => ({ ...blankRow(), w: '40', r: '8', done: j < done }));
+    const ex: ExState = { name: BENCH, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets };
+    return <ExerciseCard ex={ex} info={exInfo(BENCH, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} infoOf={(n) => exInfo(n, getCatalog())} learning prior={0} />;
+  }
+  it('shows on the first set and is gone once a set is done', async () => {
+    await launch(fixture());
+    const r = await render(card(0));
+    expect(screen.getByText('Learn mode')).toBeTruthy();
+    expect(screen.getByRole('image')).toBeTruthy();
+    await r.rerender(card(1));
+    expect(screen.getByText('Learn mode')).toBeTruthy();
+    expect(screen.queryByRole('image')).toBeNull();
   });
 });

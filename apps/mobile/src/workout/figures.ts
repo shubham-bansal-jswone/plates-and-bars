@@ -2,6 +2,7 @@ import images from '../../../../content/exercise-images.json';
 import { contentReader, isArrOf, isObj, isStr, isText, isTrimmedText, perLoad } from '../content/reader';
 import { has, isProtoName } from '../content/own';
 import type { Palette } from '../theme/tokens';
+import { chosenExercises } from './catalog';
 import { COLOUR_TOKENS, passesAllowlist } from './svgAllowlist';
 
 /** One drawn frame (content/exercise-images.json): the SVG text is inline, so the bundle travels as one file. */
@@ -29,7 +30,10 @@ export const FIGURE_MAX_DIM = 1024;
 export const ALT_MAX = 140;
 type Token = (typeof COLOUR_TOKENS)[number];
 /** Own drawings only, under these licences, until an ADR accepts a third-party source (as tools/validate/exercise-images.mjs). */
-const OWN_LICENCES: readonly string[] = ['CC-BY-4.0', 'CC0-1.0'];
+const LICENCES: Readonly<Record<string, string>> = {
+  'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
+  'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+};
 const isInt = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n > 0 && n <= FIGURE_MAX_DIM;
 const isHttps = (v: unknown): boolean => isStr(v) && v.length <= 2000 && /^https:\/\/[^\s]+$/.test(v);
 const nullOr = (ok: (v: unknown) => boolean) => (v: unknown): boolean => v === null || ok(v);
@@ -42,16 +46,20 @@ export function isSafeSvg(svg: unknown, w: number, h: number): svg is string {
 const isFrame = (v: unknown): v is FigureFrame =>
   isObj(v) && isStr(v.file) && /^svg\/[a-z0-9]+(-[a-z0-9]+)*\.svg$/.test(v.file) && isInt(v.w) && isInt(v.h) && isSafeSvg(v.svg, v.w, v.h);
 
+const FIELDS = ['frames', 'source', 'source_id', 'licence', 'licence_url', 'author', 'author_url', 'source_url', 'changes', 'alt', 'note'];
 const isEntry = (v: unknown): v is FigureEntry =>
-  isObj(v) && Array.isArray(v.frames) && v.frames.length >= 1 && v.frames.length <= 2 && isArrOf(v.frames, isFrame) &&
-  v.source === 'own_drawing' && isTrimmedText(500)(v.source_id) && isStr(v.licence) && OWN_LICENCES.includes(v.licence) && isTrimmedText(300)(v.author) &&
-  nullOr(isHttps)(v.licence_url ?? null) && nullOr(isHttps)(v.author_url ?? null) && nullOr(isHttps)(v.source_url ?? null) &&
-  nullOr(isTrimmedText(500))(v.changes ?? null) && nullOr(isText(ALT_MAX))(v.alt ?? null) && nullOr(isTrimmedText(500))(v.note ?? null);
+  isObj(v) && FIELDS.every((f) => f in v) && Object.keys(v).every((k) => FIELDS.includes(k)) &&
+  Array.isArray(v.frames) && v.frames.length >= 1 && v.frames.length <= 2 && isArrOf(v.frames, isFrame) &&
+  v.source === 'own_drawing' && isTrimmedText(500)(v.source_id) && isTrimmedText(300)(v.author) &&
+  isStr(v.licence) && has(LICENCES, v.licence) && v.licence_url === LICENCES[v.licence] &&
+  nullOr(isHttps)(v.author_url) && nullOr(isHttps)(v.source_url) &&
+  nullOr(isTrimmedText(500))(v.changes) && nullOr(isTrimmedText(ALT_MAX))(v.alt) && nullOr(isTrimmedText(500))(v.note);
 
 /** Shape and safety of the whole bundle. An empty `images` is valid (nothing is drawn yet). */
 export function isFigureBundle(v: unknown): v is FigureBundle {
   if (!isObj(v) || v.schema_version !== 1 || !isObj(v.images)) return false;
-  return Object.entries(v.images).every(([k, e]) => isTrimmedText(200)(k) && !isProtoName(k) && isEntry(e));
+  const cards = chosenExercises().cards;
+  return Object.entries(v.images).every(([k, e]) => isTrimmedText(200)(k) && !isProtoName(k) && has(cards, k) && isEntry(e));
 }
 
 const shipped = images as unknown as FigureBundle;
@@ -90,7 +98,7 @@ export const licenceLabel = (id: string): string => id.replace(/-/g, ' ');
 
 /** Theme colours for the drawing's tokens, light or dark. Colour values stay in theme/tokens.ts; this only picks. */
 export const figureColours = (c: Palette): Record<Token | 'current', string> =>
-  ({ body: c.ink, arm: c.body, hl: c.fat, eq: c.outline, bg: c.tint, current: c.ink });
+  ({ body: c.ink, arm: c.body, hl: c.fat, eq: c.muted, bg: c.tint, current: c.ink });
 
 /** The frame's SVG text with currentColor and the --fig-* variables replaced by theme colours (no CSS variables on native). */
 export function themedSvg(svg: string, c: Palette): string {

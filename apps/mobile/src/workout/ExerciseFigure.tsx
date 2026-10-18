@@ -27,6 +27,7 @@ export function ExerciseFigure({ name }: { name: string }) {
         {entry.frames.map((f, i) => (
           <View
             key={f.file}
+            aria-hidden
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             style={[styles.frame, { aspectRatio: f.w / f.h, backgroundColor: c.tint, borderColor: c.line }]}
