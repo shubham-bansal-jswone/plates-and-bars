@@ -36,6 +36,10 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
         if (table === 'settings') return (data === undefined ? null : { value: data }) as T | null; // the key/value flags table
         return (data === undefined ? null : { data }) as T | null;
       }
+      if (sql.includes('FROM weights WHERE json_extract')) {
+        const live = [...rows].find(([k, v]) => k.startsWith('weights:') && !(JSON.parse(v) as { deleted_at: string | null }).deleted_at);
+        return (live ? { data: live[1] } : null) as T | null;
+      }
       // latest by given_at, as the consents query orders
       const all = [...rows].filter(([k]) => k.startsWith(`${table}:`)).map(([, v]) => v);
       all.sort((a, b) => (JSON.parse(b).given_at as string).localeCompare(JSON.parse(a).given_at));
