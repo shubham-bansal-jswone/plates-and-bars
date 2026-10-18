@@ -20,7 +20,8 @@ inner='MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -N -B plateandbar'
 case "${1:-}" in
   live) [ "$#" -eq 1 ] || fail "usage: ledger-replay.sh live | container NAME"
     sql() { docker compose exec -T mysql sh -c "$inner"; } ;;
-  container) [ "$#" -eq 2 ] && [ -n "$2" ] || fail "usage: ledger-replay.sh live | container NAME"
+  container) [ "$#" -eq 2 ] || fail "usage: ledger-replay.sh live | container NAME"
+    [ -n "$2" ] || fail "usage: ledger-replay.sh live | container NAME"
     name="$2"
     sql() { docker exec -i "$name" sh -c "$inner"; } ;;
   *) fail "usage: ledger-replay.sh live | container NAME" ;;
