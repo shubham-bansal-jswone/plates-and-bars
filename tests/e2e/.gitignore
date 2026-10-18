@@ -3,3 +3,4 @@ test-results/
 playwright-report/
 .chromium/
 .sync-dist/
+.pose-dist/

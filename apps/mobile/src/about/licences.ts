@@ -30,7 +30,7 @@ export const LICENCES_COPY = {
   loading: 'Loading licences',
   failed: 'The licences could not be loaded. Check your connection and try again.',
   retry: 'Try again',
-  assets: 'Fonts and icons',
+  assets: 'Fonts, icons and model files',
   native: 'Native code inside the app',
   nativeHint: 'Third-party C and C++ code linked into the native libraries (.so files) of Hermes, React Native, the image decoders and SQLite.',
   linkedInto: (files: string[]) => `Linked into: ${files.join(', ')}`,
