@@ -15,13 +15,21 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 /**
- * {@code content/cards.json} and {@code content/exercises.json}, bundled into the jar by Gradle (see README):
- * the cards Ask why is grounded on and the exercise catalogue Weekly summary checks names against.
+ * {@code content/cards.json}, {@code exercises.json}, {@code foods.json} and {@code raw-ingredients.json}, bundled into
+ * the jar by Gradle (see README): the cards Ask why is grounded on, the exercise catalogue Weekly summary checks names
+ * against, the exercise cards Form check judges, the built-in foods Meal photo matches and the raw table Import recipe
+ * matches. Content only, never a user's own foods.
  */
 @Component
 public class AiContent {
 
     public record Card(String id, String title, String summary, String body, String evidence, String source) {}
+
+    /** A built-in food: its name, serving in words and macros per serving ({@code content/foods.json}). */
+    public record Food(String name, String serving, double kcal, double proteinG, double carbsG, double fatG) {}
+
+    /** An exercise card's {@code key_cues} and {@code common_mistakes}, verbatim. */
+    public record ExerciseCard(List<String> keyCues, List<String> commonMistakes) {}
 
     private static final Pattern BLOCK =
             Pattern.compile("\\{\\?(\\w+)\\}(.*?)(?:\\{:\\}(.*?))?\\{/\\1\\}", Pattern.DOTALL);
@@ -42,6 +50,10 @@ public class AiContent {
 
     private final Map<String, Card> cards = new LinkedHashMap<>();
     private final Set<String> exerciseIds;
+    private final Map<String, ExerciseCard> exerciseCards = new LinkedHashMap<>();
+    private final Map<String, Food> foods = new LinkedHashMap<>();
+    /** Lower-case name to the table's name, so a model's capitalisation still matches. */
+    private final Map<String, String> rawIngredients = new LinkedHashMap<>();
 
     public AiContent(ObjectMapper json) {
         JsonNode c = read(json, "/content/cards.json");
@@ -55,11 +67,29 @@ public class AiContent {
                     n.path("source").asString()));
         }
         List<String> ids = new ArrayList<>();
-        read(json, "/content/exercises.json").path("tags").propertyNames().forEach(ids::add);
+        JsonNode exercises = read(json, "/content/exercises.json");
+        exercises.path("tags").propertyNames().forEach(ids::add);
         this.exerciseIds = Set.copyOf(ids);
-        if (cards.isEmpty() || exerciseIds.isEmpty()) {
-            throw new IllegalStateException("content/cards.json or content/exercises.json is empty");
+        exercises.path("cards").properties().forEach(e -> exerciseCards.put(e.getKey(),
+                new ExerciseCard(strings(e.getValue().path("key_cues")), strings(e.getValue().path("common_mistakes")))));
+        for (JsonNode f : read(json, "/content/foods.json").path("foods")) {
+            JsonNode per = f.path("per_serving");
+            foods.put(f.path("name").asString(), new Food(f.path("name").asString(),
+                    f.path("serving").path("label").asString(), per.path("kcal").asDouble(),
+                    per.path("protein_g").asDouble(), per.path("carbs_g").asDouble(), per.path("fat_g").asDouble()));
         }
+        for (JsonNode i : read(json, "/content/raw-ingredients.json").path("ingredients")) {
+            rawIngredients.putIfAbsent(i.path("name").asString().toLowerCase(java.util.Locale.ROOT), i.path("name").asString());
+        }
+        if (cards.isEmpty() || exerciseIds.isEmpty() || exerciseCards.isEmpty() || foods.isEmpty() || rawIngredients.isEmpty()) {
+            throw new IllegalStateException("a content file the AI proxy needs is empty (see backend/README.md)");
+        }
+    }
+
+    private static List<String> strings(JsonNode array) {
+        List<String> out = new ArrayList<>();
+        array.forEach(v -> out.add(v.asString()));
+        return List.copyOf(out);
     }
 
     private static JsonNode read(ObjectMapper json, String resource) {
@@ -79,6 +109,29 @@ public class AiContent {
 
     public Iterable<Card> cards() {
         return cards.values();
+    }
+
+    /** The card of a catalogue exercise ({@code cards} key in exercises.json); empty for any other name. */
+    public java.util.Optional<ExerciseCard> exerciseCard(String name) {
+        return java.util.Optional.ofNullable(exerciseCards.get(name));
+    }
+
+    public Iterable<Food> foods() {
+        return foods.values();
+    }
+
+    /** True when {@code name} is exactly the name of a built-in food. */
+    public boolean hasFood(String name) {
+        return foods.containsKey(name);
+    }
+
+    public Iterable<String> rawIngredientNames() {
+        return rawIngredients.values();
+    }
+
+    /** The raw table's own spelling of {@code name} (any capitalisation), or empty when it is not in the table. */
+    public java.util.Optional<String> rawIngredient(String name) {
+        return java.util.Optional.ofNullable(rawIngredients.get(name.strip().toLowerCase(java.util.Locale.ROOT)));
     }
 
     public boolean isCatalogueExercise(String name) {

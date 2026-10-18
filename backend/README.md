@@ -130,14 +130,15 @@ keyword is registered with the schema library as a non-validation keyword so it 
 - AI (#232, contract 0.1.6), package `ai`:
   - `GET /ai/status`: which features are on and the user's daily quota (`no-store`; only the per-IP limit applies).
   - Every feature is off by default. A feature is on only while its flag is set (`AI_DESCRIBE_MEAL_ENABLED`,
-    `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`, `AI_SUGGEST_TAGS_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
+    `AI_ASK_WHY_ENABLED`, `AI_WEEKLY_SUMMARY_ENABLED`, `AI_SUGGEST_TAGS_ENABLED`, and for the image calls `AI_MEAL_PHOTO_ENABLED`,
+    `AI_IMPORT_RECIPE_ENABLED`, `AI_FORM_CHECK_ENABLED`) and `AI_MONTHLY_BUDGET_TOKENS` is positive and not yet used up
     by the tokens recorded in `ai_spend_monthly` for the UTC month (0, the default, keeps everything off). The budget is a soft
     cap: it is read before each call, so calls already with the provider when it is reached can overshoot slightly.
     The flags and the budget are environment variables read at start: flipping one means restarting the container
     with the new value (no rebuild or redeploy of the image); requests already with the provider finish first only
     if the restart is graceful. A switched-off
     endpoint answers 503 `feature_disabled` and counts nothing.
-  - Daily quota: `AI_DAILY_LIMIT` (default 10) per user per UTC day, shared by the three endpoints. `AiQuotaService`
+  - Daily quota: `AI_DAILY_LIMIT` (default 10) per user per UTC day, shared by all seven endpoints (one unit per call, image calls included). `AiQuotaService`
     reserves a unit inside a transaction that locks the user's `users` row (so concurrent calls cannot overrun) and
     releases it if the call fails. At the limit: 429 `quota_exceeded` with `quota` and `Retry-After` until 00:00Z.
   - `ai_usage` (V5): user id, UTC day, feature, call count, token counts. No text, ever. Cascades on user delete;
@@ -148,11 +149,32 @@ keyword is registered with the schema library as a non-validation keyword so it 
     V6 backfills it from `ai_usage` once. Rolling back to an image without V6 and then forward again under-counts: spend
     recorded in between is only in `ai_usage`, not in the ledger (and is lost from it if accounts were deleted).
   - Budget alert (#689): when a month's recorded tokens reach 80% of `AI_MONTHLY_BUDGET_TOKENS`, `AiQuotaService` logs exactly one WARN for that month (month and budget only, no user data). The "already fired" flag is `ai_spend_monthly.alert_sent` (V9), claimed with one conditional UPDATE, so it is restart-safe and race-safe. The WARN is the hook for a notifier later.
-  - Limits: `app.rate-limit.ai-per-user` (5 per minute, the four POSTs) and `ai-per-ip` (60 per minute, all four).
+  - Limits: `app.rate-limit.ai-per-user` (5 per minute, the seven POSTs) and `ai-per-ip` (60 per minute, all seven).
   - `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`, `/ai/suggest-tags` (contract 0.1.11). Order: token (401), per-IP then per-user limit (429
     `rate_limited`, counted even for 400s), switch (503 `feature_disabled`), validation against the contract schema
     (400, details name the field and keyword, never the value or a submitted key; trailing JSON and duplicate keys are 400), quota reserve (429 `quota_exceeded`), provider.
     The answer is 503 `unavailable` when the provider call fails or times out (no billed response): the unit is released. If the provider answered, it was billed: its tokens are recorded (they also stay in the monthly spend ledger after the account is deleted) and, if the reply has no text or fails the check, the answer is still 503 but the unit stays used. The AI error text in the contract is being updated to match.
+  - Image calls (#946, contract 0.1.22, ADR 008): `POST /ai/meal-photo`, `/ai/import-recipe` (text, a photo or both) and
+    `/ai/form-check` (an exercise that is a key of `exercises.json` `cards`, 2 to 4 frames). Same order of checks, same
+    quota and 5 per minute limit, same 503s; the body limit is 2 MB (the 16 KB limit stays on the four text calls) and
+    `GET /ai/status` reports `meal_photo`, `import_recipe` and `form_check`, all off by default.
+    `AiImages` checks each image in the contract's order (`unsupported_type`, `invalid_base64`, `too_large`, `type_mismatch`,
+    `dimensions`, `unreadable_image`; 400 `invalid_request`, `details[].field` is `image.data`, `frames[1].data` and so on,
+    `image.media_type` for `unsupported_type`, never the image) before the quota is reserved. The base64 is scanned linearly
+    before the schema's regex ever sees it (the request is validated with the checked `data` swapped for a stand-in), the size
+    is worked out from the text length, and the width and height are read from the PNG IHDR or JPEG frame header before a
+    pixel is decoded. A PNG `zTXt`, `iTXt` (compressed) or `iCCP` chunk that inflates past 65,536 bytes is `unreadable_image`
+    (the inflate stops at 65,537 into an 8 KB buffer). Each image is then decoded alone (`ImageIO.setUseCache(false)`, an
+    in-memory stream, metadata ignored), turned upright by its EXIF orientation (the one tag read), shrunk to 1,600 px and
+    written as a new JPEG with no metadata, so EXIF, GPS, XMP and thumbnails never reach the provider
+    (`AiProvider.complete(feature, instructions, input, jpegImages)`; the default refuses images, so a text-only provider
+    answers 503 `unavailable`). Images are never written to disk, logged, stored or cached: the identical-request cache is
+    off for all three image calls. Meal photo grounds the model on `content/foods.json` and repairs the reply (12 items at
+    most, unknown confidence is `medium`, a `match` that is not a built-in food name is null, `servings` clamped to 0.25 to 6,
+    `not_food` when nothing is left); Import recipe matches `content/raw-ingredients.json` names (any capitalisation) and moves
+    unmatched or unusable-weight ingredients to `unmatched`; Form check sends the card's `key_cues` and `common_mistakes` and
+    keeps only checks whose `cue` is a key cue verbatim. A `type_mismatch` or other fault never counts against the quota.
+    Known gap: a PNG with very many tiny compressed text chunks costs CPU (each is inflated up to 65,537 bytes) but never memory.
   - While `StubAiProvider` is the active provider (`AiProvider.isStub()`), every feature is off whatever the flags say:
     `/ai/status` reports false and the endpoints answer 503 `feature_disabled`, so canned text never reaches users.
     A real provider bean replaces the stub and turns that off.
@@ -170,9 +192,9 @@ keyword is registered with the schema library as a non-validation keyword so it 
     numbers and keeps only the six contract fields of an item; Ask why nulls an unknown `card_id` and refuses `{` or `}` in the answer; Weekly summary sends any exercise
     that is not a catalogue id as `custom exercise`. Suggest tags (the typed exercise name goes to the model as delimited data, and is never logged) repairs the reply instead of failing it: unknown muscles dropped, first 3 of `primary` and `secondary`, `machine` for an unknown equipment, 2 for a difficulty outside 1 to 3, `pattern` over 50 characters becomes an empty string, `joints` capped at 20 items of at most 50 characters. No main muscle left is still 200 with an empty `primary` (the unit is kept); only an unparseable reply is 503 `unavailable`.
   - Content: Gradle copies every `content/*.json` into the jar under `/content` (`processResources`; the Dockerfile
-    copies them too, and the build fails if `cards.json` or `exercises.json` is missing). Ask why sends every
+    copies them too, and the build fails if `cards.json`, `exercises.json`, `foods.json` or `raw-ingredients.json` is missing). Ask why sends every
     card with conditional blocks `{?x}..{/x}` dropped (else branch kept) and bare `{x}` replaced by a neutral phrase.
-  - Cache: per user, in memory, Caffeine, 12 hours, keyed by user id and a hash of the normalised request. A cached
+  - Cache (the four text calls only): per user, in memory, Caffeine, 12 hours, keyed by user id and a hash of the normalised request. A cached
     answer still counts against the quota; failures are never cached.
   - Logs: one line per call with user id, feature, status and duration. Bodies, prompts and replies are never logged.
 - Not yet: the foods endpoint.

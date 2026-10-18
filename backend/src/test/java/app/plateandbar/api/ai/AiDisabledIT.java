@@ -18,7 +18,7 @@ class AiDisabledIT extends AiITBase {
     @Test
     void everyEndpointIsFeatureDisabledEvenForABadBodyAndStatusReportsOff() {
         String u = newUser();
-        for (String path : new String[] {"describe-meal", "ask-why", "weekly-summary", "suggest-tags"}) {
+        for (String path : new String[] {"describe-meal", "ask-why", "weekly-summary", "suggest-tags", "meal-photo", "import-recipe", "form-check"}) {
             var res = post(u, "/api/v1/ai/" + path, "{}"); // switch is checked before validation
             assertThat(res.getStatusCode().value()).as(path).isEqualTo(503);
             assertThat(res.getBody()).contains("\"code\":\"feature_disabled\"");
@@ -27,10 +27,11 @@ class AiDisabledIT extends AiITBase {
         assertThat(status.getStatusCode().value()).isEqualTo(200);
         app.plateandbar.api.sync.ContractSchemas.assertResponse("GET /ai/status", 200, status.getBody());
         assertThat(status.getBody())
-                .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false", "\"suggest_tags\":false")
+                .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false", "\"suggest_tags\":false", "\"meal_photo\":false", "\"import_recipe\":false", "\"form_check\":false")
                 .contains("\"remaining\":10");
         assertThat(calls(u)).isZero();
         org.mockito.Mockito.verify(provider, org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(provider, org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyList());
     }
 
     @Test

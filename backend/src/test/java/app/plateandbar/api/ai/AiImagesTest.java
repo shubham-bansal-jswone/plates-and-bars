@@ -29,7 +29,7 @@ import tools.jackson.databind.node.ObjectNode;
 class AiImagesTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final JsonNode VECTORS = read();
+    static final JsonNode VECTORS = read();
     private static final byte[] PNG_8X8 = Base64.getDecoder().decode(VECTORS.path("cases").get(0).path("data").asString());
 
     private static JsonNode read() {
@@ -99,7 +99,7 @@ class AiImagesTest {
         return Base64.getDecoder().decode(c.path("data").asString());
     }
 
-    private static String dataOf(JsonNode c) {
+    static String dataOf(JsonNode c) {
         return c.has("data") ? c.path("data").asString() : Base64.getEncoder().encodeToString(bytesOf(c));
     }
 
@@ -207,7 +207,7 @@ class AiImagesTest {
 
     // ---- EXIF, orientation, size ----
 
-    private static byte[] ofVector(String name) {
+    static byte[] ofVector(String name) {
         for (JsonNode c : VECTORS.path("cases")) {
             if (c.path("name").asString().startsWith(name)) {
                 return bytesOf(c);

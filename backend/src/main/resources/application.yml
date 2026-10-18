@@ -114,6 +114,9 @@ app:
     ask-why-enabled: ${AI_ASK_WHY_ENABLED:false}
     weekly-summary-enabled: ${AI_WEEKLY_SUMMARY_ENABLED:false}
     suggest-tags-enabled: ${AI_SUGGEST_TAGS_ENABLED:false}
+    meal-photo-enabled: ${AI_MEAL_PHOTO_ENABLED:false}
+    import-recipe-enabled: ${AI_IMPORT_RECIPE_ENABLED:false}
+    form-check-enabled: ${AI_FORM_CHECK_ENABLED:false}
   off:
     # Barcode lookup through Open Food Facts (#944, ADR 009). Off until the owner has filled in OFF's API usage form and chosen the
     # contact address; while off, GET /foods/barcode/{code} answers 503 upstream_unavailable and calls nothing.

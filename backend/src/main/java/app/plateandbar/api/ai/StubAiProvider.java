@@ -10,6 +10,11 @@ class StubAiProvider implements AiProvider {
     }
 
     @Override
+    public Completion complete(AiFeature feature, String instructions, String input, java.util.List<byte[]> jpegImages) {
+        return complete(feature, instructions, input);
+    }
+
+    @Override
     public Completion complete(AiFeature feature, String instructions, String input) {
         String text =
                 switch (feature) {
@@ -21,6 +26,13 @@ class StubAiProvider implements AiProvider {
                             + "Next week, aim to hit your protein target on more days.\"}";
                     case SUGGEST_TAGS -> "{\"pattern\":\"fly\",\"equipment\":\"machine\",\"difficulty\":1,"
                             + "\"primary\":[\"chest\"],\"secondary\":[\"front-delt\"],\"joints\":[\"shoulder\"]}";
+                    case MEAL_PHOTO -> "{\"not_food\":false,\"items\":[{\"name\":\"Roti\",\"qty\":\"2 medium\","
+                            + "\"kcal\":240,\"protein_g\":7,\"carbs_g\":46,\"fat_g\":3,\"confidence\":\"high\","
+                            + "\"match\":\"Roti / chapati\",\"servings\":2}]}";
+                    case IMPORT_RECIPE -> "{\"name\":\"Dal tadka\",\"katoris\":6,\"ingredients\":[{\"ingredient\":"
+                            + "\"Toor dal (dry)\",\"as_written\":\"1 cup toor dal\",\"grams\":200}],"
+                            + "\"steps\":[\"Pressure cook the dal.\"],\"unmatched\":[\"salt\"]}";
+                    case FORM_CHECK -> "{\"visible\":false,\"checks\":[],\"summary\":\"\"}";
                 };
         return new Completion(text, (instructions.length() + input.length()) / 4, text.length() / 4);
     }
