@@ -310,6 +310,9 @@ const assets = [
   { name: 'Inter (font)', version: null, licence: 'OFL-1.1', url: 'https://github.com/rsms/inter', text: textId(read(join(root, 'public/licenses/Inter-OFL-1.1.txt'))) },
   { name: 'Roboto (font)', version: null, licence: 'OFL-1.1', url: 'https://github.com/googlefonts/roboto-classic', text: textId(read(join(root, 'public/licenses/Roboto-OFL-1.1.txt'))) },
   { name: 'Ionicons (icons)', version: null, licence: 'MIT', url: 'https://github.com/ionic-team/ionicons', text: textId(MIT_IONIC) },
+  // Live pose tracking on the web (#947): the model weights and the WebAssembly runtime are files we serve from public/pose.
+  { name: 'MoveNet Lightning (pose model weights)', version: '4', licence: 'Apache-2.0', url: 'https://www.kaggle.com/models/google/movenet/TfJs/singlepose-lightning', text: textId(read(join(root, 'public/pose/movenet-lightning/LICENSE.txt'))) },
+  { name: 'TensorFlow.js WebAssembly runtime (pose tracking)', version: '4.22.0', licence: 'Apache-2.0 (contains XNNPACK, BSD-3-Clause, and Emscripten, MIT)', url: 'https://github.com/tensorflow/tfjs', text: textId(read(join(root, 'public/pose/wasm/LICENSE.txt'))) },
 ];
 
 // Release builds: the classpath Gradle resolved must have a licence for every artifact and match the committed list.

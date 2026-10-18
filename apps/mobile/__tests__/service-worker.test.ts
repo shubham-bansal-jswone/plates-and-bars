@@ -91,6 +91,26 @@ describe('precache and fetch', () => {
     expect([...stores.get(`pb-shell-${ENTRY}`)!.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());
   });
 
+  it('never precaches the pose tracking chunks or the model weights (on demand only, #947)', async () => {
+    const POSE = '/_expo/static/js/web/pose-session-aa11.js';
+    const DETECTOR = '/_expo/static/js/web/pose-detector-bb22.js';
+    const withPose = { ...files, [ENTRY]: `x("${WORKER}");import("${POSE}");load("${DETECTOR}");m("/pose/movenet-lightning/model.json");w("/pose/wasm/tfjs-backend-wasm.wasm")` };
+    const { stores, fetched } = install(withPose);
+    await sw.precache();
+    expect([...stores.get(`pb-shell-${ENTRY}`)!.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());
+    expect(fetched.filter((p) => p.includes('pose'))).toEqual([]);
+    expect(sw.assetPaths(`a("${POSE}") b("${DETECTOR}") c("${WORKER}")`)).toEqual([WORKER]);
+  });
+
+  it('a pose chunk is fetched from the network when asked for, and not stored', async () => {
+    const POSE = '/_expo/static/js/web/pose-session-aa11.js';
+    const { stores } = install({ ...files, [POSE]: 'chunk' });
+    await sw.precache();
+    const res = await sw.onFetch({ mode: 'no-cors', url: `${ORIGIN}${POSE}` }, ORIGIN, () => {});
+    expect(await res.text()).toBe('chunk');
+    expect(stores.get(`pb-shell-${ENTRY}`)!.m.has(POSE)).toBe(false);
+  });
+
   it('a failed download leaves no cache, so the previous one stays in use', async () => {
     const { stores } = install({ '/': HTML, [ENTRY]: `y("${FONT}")` }); // the font is a 404
     await expect(sw.precache()).rejects.toThrow();
