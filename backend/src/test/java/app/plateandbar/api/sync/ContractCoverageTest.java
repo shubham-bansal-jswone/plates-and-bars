@@ -2,74 +2,64 @@ package app.plateandbar.api.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The contract layer's guard (#834): every operation in {@code packages/api/openapi.yaml} has at least one test that
- * checks a real response with {@code ContractSchemas.assertResponse("METHOD /path", status, body)}. It reads the test
- * sources for those literal calls, so removing a test's validation makes this fail. {@code /auth/*} and
- * {@code /content/*} must be covered for every documented status, not just one.
+ * The contract layer's guard (#834). Classes run in {@code @Order} (see {@code junit-platform.properties}) and this
+ * one is last, so {@link ContractSchemas#recorded()} holds every response that passed
+ * {@code ContractSchemas.assertResponse("METHOD /path", status, body)}. Every operation in
+ * {@code packages/api/openapi.yaml} must be there, and every documented status of {@code /auth/*} and
+ * {@code /content/*}. A test that is skipped, disabled or no longer validates leaves a gap and fails this. It
+ * only enforces an unfiltered {@code ./gradlew test} ({@code contract.coverage.enforce}, set in build.gradle): a
+ * {@code --tests} run executes a subset, so the gap would mean nothing.
  */
+@Order(Integer.MAX_VALUE)
 class ContractCoverageTest {
 
     /** Operations with no schema-checked test, and why. Nothing else may be listed. */
     static final Map<String, String> ALLOWLIST =
             Map.of("GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)");
 
-    private static final Pattern CALL = Pattern.compile("assertResponse\\(\\s*\"([A-Z]+ /[^\"]*)\"\\s*,\\s*(\\d{3})");
-    private static final Path TESTS = Path.of("src", "test", "java");
-
-    private static Set<String> checked() throws IOException {
-        Set<String> out = new TreeSet<>();
-        try (Stream<Path> files = Files.walk(TESTS)) {
-            for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java")
-                    && !p.getFileName().toString().equals("ContractSchemas.java"))::iterator) {
-                Matcher m = CALL.matcher(Files.readString(f));
-                while (m.find()) {
-                    out.add(m.group(1) + " " + m.group(2));
-                }
-            }
-        }
-        return out;
+    private static void requireUnfilteredRun() {
+        Assumptions.assumeTrue(Boolean.getBoolean("contract.coverage.enforce"),
+                "filtered run: coverage is only enforced on a full ./gradlew test");
     }
 
     @Test
-    void everyContractOperationHasASchemaCheckedTest() throws IOException {
-        Set<String> checked = checked();
+    void everyContractOperationHasASchemaCheckedTest() {
+        requireUnfilteredRun();
+        Set<String> recorded = ContractSchemas.recorded();
         Set<String> missing = new TreeSet<>();
         ContractSchemas.paths().properties().forEach(path -> path.getValue().properties().forEach(op -> {
             String name = op.getKey().toUpperCase() + " " + path.getKey();
-            if (!ALLOWLIST.containsKey(name) && checked.stream().noneMatch(c -> c.startsWith(name + " "))) {
+            if (!ALLOWLIST.containsKey(name) && recorded.stream().noneMatch(c -> c.startsWith(name + " "))) {
                 missing.add(name);
             }
         }));
-        assertThat(missing).as("operations without a ContractSchemas.assertResponse test").isEmpty();
+        assertThat(missing).as("operations with no passing ContractSchemas.assertResponse").isEmpty();
     }
 
     @Test
-    void authAndContentAreCheckedForEveryDocumentedStatus() throws IOException {
-        Set<String> checked = checked();
+    void authAndContentAreCheckedForEveryDocumentedStatus() {
+        requireUnfilteredRun();
+        Set<String> recorded = ContractSchemas.recorded();
         Set<String> missing = new TreeSet<>();
         ContractSchemas.paths().properties().stream()
                 .filter(p -> p.getKey().startsWith("/auth/") || p.getKey().startsWith("/content/"))
                 .forEach(path -> path.getValue().properties().forEach(op ->
                         op.getValue().path("responses").properties().forEach(r -> {
                             String name = op.getKey().toUpperCase() + " " + path.getKey() + " " + r.getKey();
-                            if (!checked.contains(name)) {
+                            if (!recorded.contains(name)) {
                                 missing.add(name);
                             }
                         })));
-        assertThat(missing).as("documented statuses without a ContractSchemas.assertResponse test").isEmpty();
+        assertThat(missing).as("documented statuses with no passing ContractSchemas.assertResponse").isEmpty();
     }
 
     @Test

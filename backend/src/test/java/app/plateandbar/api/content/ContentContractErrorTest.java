@@ -26,16 +26,13 @@ class ContentContractErrorTest {
     void anUnexpectedFailureIsTheContractsInternalError() throws Exception {
         when(bundles.manifest()).thenThrow(new IllegalStateException("boom"));
         when(bundles.bundle("measures")).thenThrow(new IllegalStateException("boom"));
-        for (String[] c : new String[][] {{"GET /content/manifest", "/api/v1/content/manifest"},
-                {"GET /content/{bundle}", "/api/v1/content/measures"}}) {
-            MvcResult r = mvc.perform(get(c[1])).andReturn();
-            assertThat(r.getResponse().getStatus()).as(c[0]).isEqualTo(500);
-            String body = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
-            if (c[0].equals("GET /content/manifest")) {
-                ContractSchemas.assertResponse("GET /content/manifest", 500, body);
-            } else {
-                ContractSchemas.assertResponse("GET /content/{bundle}", 500, body);
-            }
-        }
+        assertInternal("GET /content/manifest", "/api/v1/content/manifest");
+        assertInternal("GET /content/{bundle}", "/api/v1/content/measures");
+    }
+
+    private void assertInternal(String operation, String url) throws Exception {
+        MvcResult r = mvc.perform(get(url)).andReturn();
+        assertThat(r.getResponse().getStatus()).as(operation).isEqualTo(500);
+        ContractSchemas.assertResponse(operation, 500, r.getResponse().getContentAsString(StandardCharsets.UTF_8));
     }
 }

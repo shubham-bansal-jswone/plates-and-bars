@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Validates JSON against the named schemas of the real contract, {@code packages/api/openapi.yaml}. */
 public final class ContractSchemas {
@@ -27,7 +29,15 @@ public final class ContractSchemas {
         }
     }
 
+    /** {@code "METHOD /path status"} of every response {@link #assertResponse} has validated in this JVM. */
+    private static final Set<String> RECORDED = ConcurrentHashMap.newKeySet();
+
     private ContractSchemas() {}
+
+    /** What {@link #assertResponse} has validated so far, for {@code ContractCoverageTest}. */
+    static Set<String> recorded() {
+        return Set.copyOf(RECORDED);
+    }
 
     static JsonNode schema(String name) {
         return COMPONENTS.path("schemas").path(name);
@@ -64,10 +74,13 @@ public final class ContractSchemas {
      * Checks a real response against the contract for {@code operation} (for example {@code "POST /auth/google"}) and
      * {@code status}. The status must be documented. If the contract gives it a JSON schema (inline or through
      * {@code components.responses}) the body must conform; if it gives none (204, 304) the body must be empty.
-     * The literal operation string and status are what {@code ContractCoverageTest} looks for, so pass them as literals.
+     * Once the check passes, the operation and status are recorded for {@code ContractCoverageTest}.
      */
     public static void assertResponse(String operation, int status, String body) {
         String[] parts = operation.split(" ", 2);
+        if (parts.length != 2 || !parts[1].startsWith("/")) {
+            throw new AssertionError("operation must be \"METHOD /path\", got: \"" + operation + "\"");
+        }
         JsonNode response = paths().path(parts[1]).path(parts[0].toLowerCase()).path("responses").path(String.valueOf(status));
         if (response.isMissingNode()) {
             throw new AssertionError(operation + " documents no " + status + " response");
@@ -82,6 +95,7 @@ public final class ContractSchemas {
             if (!text.isEmpty()) {
                 throw new AssertionError(operation + " " + status + " documents no body, got: " + text.length() + " chars");
             }
+            RECORDED.add(operation + " " + status);
             return;
         }
         JsonNode value;
@@ -100,6 +114,12 @@ public final class ContractSchemas {
         if (!problems.isEmpty()) {
             throw new AssertionError(operation + " " + status + " does not match the contract: " + problems);
         }
+        RECORDED.add(operation + " " + status);
+    }
+
+    /** {@link #assertResponse(String, int, String)} for a body a test client already parsed into a map. */
+    public static void assertResponse(String operation, int status, java.util.Map<?, ?> body) {
+        assertResponse(operation, status, new ObjectMapper().writeValueAsString(body));
     }
 
     static String schemaNameOf(SyncTable t) {
