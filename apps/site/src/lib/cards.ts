@@ -1,5 +1,6 @@
 // The science cards for the blog, read at build time from content/cards.json: the same file the app ships.
 import bundle from "../../../../content/cards.json";
+import { isHeldBack } from "./held-back.mjs";
 import { SENTENCE_SPLIT } from "./sentences.mjs";
 
 export interface Card {
@@ -10,13 +11,10 @@ export interface Card {
   evidence: "Strong" | "Moderate" | "Emerging";
   source: string;
   review_status: "draft" | "reviewed";
+  /** `true` for a card held back until its sources are decided (#212); the app reads the same flag. */
+  hidden?: true;
+  hidden_reason?: string;
 }
-
-/**
- * Cards the app holds back (HIDDEN_CARDS in apps/mobile/src/why/cards.ts) until a coach reviews their sources
- * (issue #212). The blog leaves them out too; scripts/blog-check.mjs fails if this list and the app's differ.
- */
-export const HIDDEN_CARDS: readonly string[] = ["ramp", "ladder", "formfirst"];
 
 /** Same wording as the app's Why sheet. */
 export const EVIDENCE_NOTE = {
@@ -26,7 +24,7 @@ export const EVIDENCE_NOTE = {
 } as const;
 
 const all = (bundle as unknown as { cards: Card[] }).cards;
-export const cards: Card[] = all.filter((c) => !HIDDEN_CARDS.includes(c.id));
+export const cards: Card[] = all.filter((c) => !isHeldBack(c));
 export const hiddenCount = all.length - cards.length;
 
 export interface Rendered {

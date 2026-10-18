@@ -9,6 +9,11 @@
     "schema_version": 1,
     "updated_at": "2026-10-18T00:57:03Z"
   },
+  "exercise-images": {
+    "sha256": "3604ad163982ce03ae4344328543560d07af7ffbf6d61b44a20d22c5127e364b",
+    "schema_version": 1,
+    "updated_at": "2026-10-18T16:38:03Z"
+  },
   "exercises": {
     "sha256": "266b72969634c59a493b27f56f67af9f33972031e2201a9e2db05535c5905934",
     "schema_version": 1,

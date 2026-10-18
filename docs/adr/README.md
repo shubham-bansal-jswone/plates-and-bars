@@ -11,3 +11,5 @@ Short records of decisions that shape the whole project, in Context / Decision /
 | [005](005-food-data-sources-own-estimates.md) | Food data sources (adds own estimates): supersedes 002, no IFCT or INDB | Accepted |
 | [006](006-web-refresh-token-cookie.md) | Web refresh token in an httpOnly, SameSite=Strict cookie, access token in memory; native unchanged (supersedes 003 in part) | Accepted |
 | [007](007-sync-conflict-replaced-record.md) | Sync conflicts return the replaced record on `client_won`, so the app can merge and re-push (adds to 001) | Accepted |
+| [008](008-ai-image-calls-and-privacy.md) | AI image calls (meal photo, recipe import, form check): base64 in JSON, JPEG or PNG, re-encoded on the server to strip EXIF, never stored or logged | Accepted |
+| [009](009-open-food-facts-barcode-lookup.md) | Open Food Facts for barcode lookups: per-barcode on-demand cache, no images, attribution per row (supersedes 005 on adding a source only) | Accepted |
