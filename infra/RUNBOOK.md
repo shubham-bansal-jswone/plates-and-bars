@@ -174,3 +174,51 @@ The Expo web export is served by the same Caddy as the API (`infra/caddy/Caddyfi
 5. Check: `curl -sI https://$WEB_HOST/` shows `cross-origin-opener-policy: same-origin`, `cross-origin-embedder-policy: require-corp` and `cache-control: no-cache`; a hashed file under `/_expo/static/` shows `immutable`.
 
 A change to a Caddyfile is not picked up by `docker compose up -d` (the file is a bind mount): run `docker compose restart caddy`. Roll the web app back by re-running the workflow on the older commit or tag (Actions, Re-run) or by rsyncing a previous `dist/` into `WEB_ROOT`.
+
+## 8. App rollout, halt and content-only fixes (#931)
+
+The API side of a release is sections 2 and 4a. This section is the app side. **Play Console steps here are generic: they were written without access to the live console, so the menu and button names are not verified. Look for the release on the production track, its rollout percentage and its halt or resume action; if the console differs, follow the console and fix this text.** Nothing in this repository uploads to Google Play: `android-release.yml` produces the AAB as a workflow artifact (kept 14 days) and you upload it by hand. The web app is not rolled out in stages: it is rebuilt and served by `web-deploy.yml` on every merge to `main` and every `v*` tag (section 7).
+
+### 8.1 Staged rollout: 10 % then 50 % then 100 %
+
+The 48 h and 24 h holds are starting values picked without any real traffic data, and the crash and ANR halt line is Play's own bad-behaviour threshold (about 1.09 % user-perceived crash rate, about 0.47 % ANR rate; verify the current numbers in Android vitals); with few users the percentages cover very few phones, so the time at each step matters more than the number. The owner can change them.
+
+1. Tag the release (`vMAJOR.MINOR.PATCH`, section 4a). Wait for the production API deploy to finish healthy: the new app version must find a working API. Download artifact `android-release` from the `Android release build` run for that tag and take the `.aab`. The `versionCode` comes from the tag, so a hotfix needs a higher tag (`v1.2.4` after `v1.2.3`); a code that is not higher is refused by Play. Upload only a build from a `v*` tag run: non-tag runs use the run number as `versionCode`, and without the keystore secrets the bundle is debug-signed and Play refuses it.
+2. In Play Console, create a release on the internal testing track first, install it from Play on a real phone and run the first three journeys of `tests/e2e/RELEASE_CHECKLIST.md`.
+3. Create a production release with the same bundle and choose a staged rollout of 10 %. Write the date and time down.
+4. **Watch for at least 48 hours at 10 %**, twice a day:
+   - Play Console Android vitals: crash rate, ANR rate and crash-free users for the new version, against the previous version. Play shows these after enough users report; early on the numbers may be empty or noisy.
+   - GlitchTip (section 5b, once installed): the project `mobile`, filtered to the new release (`plate-and-bar@X.Y.Z+code`) and environment `production`: any issue that is new in this release, and the event count of existing ones. The `api` project, release `plateandbar-api@X.Y.Z`, for new errors. A build made without `EXPO_PUBLIC_SENTRY_DSN` sends nothing, so then Android vitals and the mailbox are the only signals.
+   - The support or privacy mailbox (the `[privacy contact email]` of `docs/INCIDENT-RESPONSE.md`): anything about lost, duplicated or wrong data, sign-in or setup failing, or the app not starting.
+   - Uptime Kuma (section 5a): any API or web downtime alert since the release.
+5. If nothing in the halt list (8.2) happened, raise the rollout to 50 %. **Watch for at least 24 hours**, same sources.
+6. Raise to 100 % and keep watching for a week.
+
+### 8.2 Halting a rollout
+
+Halt when any of these happens at any step: a report of lost, duplicated or another person's data; user-perceived crash rate above about 1.09 % or ANR rate above about 0.47 % (Play's bad-behaviour thresholds as we last read them; check the current values in Android vitals); a sign-in, sync or setup failure reported by more than one user; a GlitchTip error spike tied to this release. When in doubt about data, halt first and look second.
+
+1. In Play Console, open the production release that is rolling out and halt it (look for a "halt rollout" action beside the rollout percentage). Further users stop receiving that version. Phones that already updated keep it: a halt does not roll anyone back or uninstall anything. A halted staged rollout can be resumed from the same place if the alarm was false (generic: check the console for the resume action).
+2. If the bad build can write bad data or crashes on the data it reads, treat it as an incident: `docs/INCIDENT-RESPONSE.md` first, and keep the API logs before any restart.
+3. Fix forward: fix on `main`, tag a higher version (section 4a, so a higher `versionCode`), build, and start again at 10 %. There is no way to push a previous app version to phones that already have the bad one; the fix has to be a newer `versionCode`.
+4. Keep the API compatible with the version that is still on phones, both the halted one and the previous one: do not roll the API back to a state that breaks them, and do not ship a breaking contract change while two app versions are live. If the bad release also needed an API change, rolling the API back is section 2 and 4a (Flyway migrations are forward-only).
+5. Write down what happened and add the missing check to `tests/e2e/RELEASE_CHECKLIST.md`.
+
+### 8.3 Content-only fix without an app release
+
+What the code does today (`packages/api/openapi.yaml`, tag `content`; `apps/mobile/src/content/`): the API serves every `content/*.json` file of its deployed build at `GET /content/manifest` and `GET /content/<name>`, byte for byte. The app bundles every `content/*.json` file itself (`apps/mobile/src/content/bundled.json` holds only each bundle's SHA-256, schema version and date), works with it offline and signed out, checks the manifest at launch and then at most once a day while open, downloads a bundle only if its hash differs and its `updated_at` (the git committer date of `content/<name>.json` on `main`) is later, checks size and SHA-256, validates it, and stores it. A stored copy is used from the **next launch** (no hot swap); the full validator runs again at that app start, and a copy it rejects falls back to the built-in copy. The web app uses the same code.
+
+Steps:
+
+1. Change the file under `content/` in a content PR. Run the validators from inside `tools/` (`cd tools && npm run validate:foods`, `validate:exercises`, `validate:cards`, `validate:recipes`, `check:sources`; `validate:recipes` also checks `raw-ingredients` and `meal-planning`; there is no validator there for `eatout`, `labels` and `measures`, which the app's content tests and the app's own validators cover). Then, in `apps/mobile`, run `node scripts/content-meta.mjs` to regenerate `apps/mobile/src/content/bundled.json` (it holds only each bundle's SHA-256, schema version and date, not the content) and commit it with the content change: the `content-meta (bundled.json)` CI job compares those hashes (#858 shows the pattern). The date in it cannot be exact before merge, which CI tolerates; a slightly older date only costs one redundant download. Run the app's content tests. Do not change a bundle's `schema_version`: an app that does not support it ignores the bundle, and a new shape needs an app release.
+2. Merge to `main`. Staging deploys on its own if enabled (section 2) and serves the new file: `curl -s https://<STAGING_API_HOST>/api/v1/content/manifest` and compare the bundle's `sha256` with `sha256sum content/<name>.json` and its `updated_at` with `TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ -- content/<name>.json`.
+3. Production serves new content only after a production API deploy, because the files are built into the API image (`backend/Dockerfile`, with `CONTENT_UPDATED_AT` from a full-history checkout). Tag a new patch version (section 4a). The tag also starts `android-release.yml` and `web-deploy.yml`: ignore the AAB, do not upload it, there is no app change to roll out. Then check the production manifest the same way. The manifest is cached for up to five minutes.
+4. Installed apps pick it up at their next launch or within a day if left open, and use it from the launch after that; a phone that stays offline keeps the old copy. There is no way to push it sooner and no per-user control. The web app also gets the new file as its built-in copy at the next web deploy.
+5. To undo a bad content fix, revert the commit through a PR and tag again (step 3). The revert commit is newer, so apps with the bad copy take the reverted one.
+
+What a content-only fix cannot do:
+- Anything in code, or a content change that needs new code or a new `schema_version`.
+- Pass the app's own checks. The app rejects a whole stored bundle that fails its validator, and keeps the built-in copy. Known cases (`apps/mobile/src/content/README.md`): foods must keep every shipped food name, and meal planning every shipped name in the same section; exercises must keep every shipped exercise with its type and equipment, the order of tags, every away entry and every ladder step by position; raw ingredients can gain rows but new rows are not offered in the picker and a recipe may use only shipped ingredient names. If the validator rejects it, an app release is needed.
+- Reach a phone that has never been online since install, or that has not opened the app.
+
+After a content-only release, check the first three journeys of the checklist on a phone with the previous app version.
