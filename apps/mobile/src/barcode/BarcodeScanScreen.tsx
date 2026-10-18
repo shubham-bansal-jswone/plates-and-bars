@@ -30,6 +30,7 @@ export function BarcodeScanScreen({ onCode, onClose }: { onCode: (barcode: Valid
   const [hasTorch, setHasTorch] = useState(false);
   const [active, setActive] = useState(true);
   const [cameraFailed, setCameraFailed] = useState(false);
+  const [cameraDenied, setCameraDenied] = useState(false);
   const [misread, setMisread] = useState(false);
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export function BarcodeScanScreen({ onCode, onClose }: { onCode: (barcode: Valid
 
   const ask = async () => setPermission(await requestCamera());
 
-  const scanning = permission === 'granted' && !cameraFailed;
+  const scanning = permission === 'granted' && !cameraFailed && !cameraDenied;
   const fieldOpen = typing || !scanning;
 
   const submit = () => {
@@ -94,7 +95,7 @@ export function BarcodeScanScreen({ onCode, onClose }: { onCode: (barcode: Valid
             active={active}
             onBarcode={onBarcode}
             onReady={(e) => setHasTorch(e.nativeEvent.torch)}
-            onError={() => setCameraFailed(true)}
+            onError={(e) => (e.nativeEvent.message === 'denied' ? setCameraDenied(true) : setCameraFailed(true))}
           />
         </View>
       ) : null}
@@ -117,6 +118,7 @@ export function BarcodeScanScreen({ onCode, onClose }: { onCode: (barcode: Valid
       ) : null}
       {permission === 'unavailable' ? <Hint>{t.unavailable}</Hint> : null}
       {cameraFailed ? <ErrorText>{t.cameraFailed}</ErrorText> : null}
+      {cameraDenied ? <ErrorText>{t.denied}</ErrorText> : null}
 
       {scanning && !typing ? <Button kind="link" label={t.typeInstead} onPress={() => setTyping(true)} /> : null}
       {fieldOpen && permission !== null ? (
