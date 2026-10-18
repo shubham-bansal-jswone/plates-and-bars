@@ -25,6 +25,7 @@ class AiDisabledIT extends AiITBase {
         }
         var status = get(u, "/api/v1/ai/status");
         assertThat(status.getStatusCode().value()).isEqualTo(200);
+        app.plateandbar.api.sync.ContractSchemas.assertResponse("GET /ai/status", 200, status.getBody());
         assertThat(status.getBody())
                 .contains("\"describe_meal\":false", "\"ask_why\":false", "\"weekly_summary\":false", "\"suggest_tags\":false")
                 .contains("\"remaining\":10");
