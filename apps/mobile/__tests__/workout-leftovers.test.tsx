@@ -3,10 +3,17 @@ import { Linking, Platform, Vibration } from 'react-native';
 import type { ExInfo } from '@plate-and-bar/core';
 import { ExerciseDetail } from '../src/library/ExerciseDetail';
 import { getLibrary } from '../src/library/exercises';
+import * as Haptics from 'expo-haptics';
 import { buzz, restDoneBuzz } from '../src/haptics';
 import { rampEasyNote } from '../src/workout/copy';
 import { HowToSheet, RestBar } from '../src/workout/parts';
 import { getCatalog } from '../src/workout/catalog';
+
+// babel-jest hoists this above the imports; it applies to the whole file.
+jest.mock('expo-haptics', () => ({
+  notificationAsync: jest.fn(() => Promise.resolve()),
+  NotificationFeedbackType: { Success: 'success' },
+}));
 
 const row = (w: string, rate: 'easy' | 'right' | 'hard' | 'fail' | null, done = true) => ({ w, done, rate });
 const info = (type: ExInfo['type'], lo: number, step: number): ExInfo => ({ type, lo, hi: lo + 4, step });
@@ -78,24 +85,27 @@ describe('How-to sheet (#823)', () => {
 describe('Vibration (#823)', () => {
   let vibrate: jest.SpyInstance;
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
+    jest.replaceProperty(Platform, 'OS', 'android'); // jest-expo defaults to iOS, which uses a system haptic (#885)
     vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
   });
   afterEach(() => {
     vibrate.mockRestore();
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 
-  it('vibrates [250, 120, 250] once when the rest reaches 0, not while counting, and again after +30 s, which re-arms it', async () => {
+  it('vibrates [0, 250, 120, 250] once when the rest reaches 0, not while counting, and again after +30 s, which re-arms it', async () => {
     const rest = (end: number) => <RestBar rest={{ id: 1, end, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />;
     const end = Date.now() + 2000;
     const view = await render(rest(end));
     await act(async () => { jest.advanceTimersByTime(1000); });
     expect(vibrate).not.toHaveBeenCalled();
     await act(async () => { jest.advanceTimersByTime(1500); });
-    expect(screen.getByTestId('rest-title').props.children).toBe('Rest done, go!');
+    expect(screen.getByTestId('rest-title', { includeHiddenElements: true }).props.children).toBe('Rest done, go!');
     expect(vibrate).toHaveBeenCalledTimes(1);
-    expect(vibrate).toHaveBeenCalledWith([250, 120, 250]);
+    expect(vibrate).toHaveBeenCalledWith([0, 250, 120, 250]);
     await act(async () => { jest.advanceTimersByTime(3000); });
     expect(vibrate).toHaveBeenCalledTimes(1);
     // "+30 s" after the end: the countdown restarts and re-arms the buzz (prototype `REST.buzzed = false`), so it buzzes again at 0.
@@ -137,6 +147,20 @@ describe('Vibration (#823)', () => {
       expect(restDoneBuzz()).toEqual([0, 250, 120, 250]);
       Platform.OS = 'web';
       expect(restDoneBuzz()).toEqual([250, 120, 250]);
+    } finally {
+      Platform.OS = os;
+    }
+  });
+
+  it('on iOS a pattern is one system haptic, not Vibration.vibrate, which plays an extra buzz per entry; a number still vibrates (#885)', () => {
+    const os = Platform.OS;
+    try {
+      Platform.OS = 'ios';
+      buzz(restDoneBuzz());
+      expect(vibrate).not.toHaveBeenCalled();
+      expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
+      buzz(60);
+      expect(vibrate).toHaveBeenCalledWith(60);
     } finally {
       Platform.OS = os;
     }
