@@ -6,7 +6,12 @@ name: Site deploy
 #   github-pages  deploy with GitHub Pages (needs Settings > Pages > Source: GitHub Actions
 #                 and a custom domain, because the site is built for the domain root)
 #   caddy         rsync dist/ over SSH to a VM served by Caddy (see infra/caddy/Caddyfile.site)
-# Unset or any other value: every deploy job is skipped. Deploys only run from
+# Unset or any other value: every deploy job is skipped.
+# Optional repository variable PUBLIC_WEB_APP_URL (same place): the web app's https origin with nothing after
+# the host, for example https://app.example.com. Passed to `npm run check` and `npm run build`; set, the landing
+# page shows "Open the web app" and the deletion page "Delete on the web". Unset or empty, neither appears. The
+# build fails on any other value (apps/site/src/lib/web-app-url.mjs). Set it once the web app is hosted, at the
+# same origin web-deploy.yml deploys to. Deploys only run from
 # main, even for manual runs. The `caddyfile` job validates infra/caddy (both Caddyfiles, and that the site headers match _headers) on PRs.
 # See infra/README.md.
 on:
@@ -70,6 +75,9 @@ jobs:
     defaults:
       run:
         working-directory: apps/site
+    env:
+      # empty when the variable is unset, which the site treats as unset
+      PUBLIC_WEB_APP_URL: ${{ vars.PUBLIC_WEB_APP_URL }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
