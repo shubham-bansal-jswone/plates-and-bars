@@ -5,9 +5,10 @@ import { Button, Field, Heading, Hint } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { Chip } from './parts';
+import type { WorkoutList } from './workoutLists';
 
 /** "Add exercise" (prototype `openExerciseSheet`): the exercise library by group, without the exercises already in the session. */
-export function AddExerciseSheet({ inSession, onPick, onCustom, onClose }: { inSession: readonly string[]; onPick: (name: string) => void; /** A typed name (prototype `exCustom`). */ onCustom: (name: string) => void; onClose: () => void }) {
+export function AddExerciseSheet({ inSession, workouts = [], onPick, onCustom, onClose }: { inSession: readonly string[]; /** Workouts whose exercises are offered first, so a session can mix exercises from any of them. */ workouts?: readonly WorkoutList[]; onPick: (name: string) => void; /** A typed name (prototype `exCustom`). */ onCustom: (name: string) => void; onClose: () => void }) {
   const c = useTheme();
   const [typed, setTyped] = useState('');
   const have = new Set(inSession);
@@ -25,6 +26,21 @@ export function AddExerciseSheet({ inSession, onPick, onCustom, onClose }: { inS
             </View>
             <Button label="Add" a11yLabel="Add the exercise you typed" kind="ghost" onPress={() => onCustom(typed)} />
           </View>
+          {workouts.map((wl) => {
+            const left = wl.exercises.filter((n) => !have.has(n));
+            return left.length ? (
+              <View key={`w:${wl.name}`} style={styles.group}>
+                <Heading level={3} style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>
+                  From {wl.name}
+                </Heading>
+                <View style={styles.chips}>
+                  {left.map((n) => (
+                    <Chip key={n} label={`Add ${n} from ${wl.name}`} text={n} onPress={() => onPick(n)} />
+                  ))}
+                </View>
+              </View>
+            ) : null;
+          })}
           {Object.entries(getCatalog().library).map(([group, names]) => {
             const left = names.filter((n) => !have.has(n));
             return left.length ? (
