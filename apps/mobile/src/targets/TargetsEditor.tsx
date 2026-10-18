@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { cleanTarget, fitCarbs, macroKcal, macrosOff, RAPID_LOSS_KCAL, type TargetSet } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Field, Hint, Label } from '../components/ui';
+import { Button, Caption, Field, Hint, Label } from '../components/ui';
 import type { Profile } from '../setup/types';
 
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -60,7 +60,10 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
     <View style={{ gap: 8, marginTop: 16 }}>
       <Label>Daily targets</Label>
       {FIELDS.map(([k, label]) => (
-        <Field key={k} label={label} inputMode="numeric" value={text[k]} onChangeText={(v) => change(k, v)} />
+        <View key={k} style={{ gap: 4 }}>
+          <Caption>{label}</Caption>
+          <Field label={label} inputMode="numeric" value={text[k]} onChangeText={(v) => change(k, v)} />
+        </View>
       ))}
       <Hint>{`Your macros add up to ${fmt(macroKcal(t))} kcal.${off ? ' That doesn’t match your calorie target.' : ''}`}</Hint>
       {off ? <Button label="Adjust carbs to match calories" kind="ghost" onPress={() => {
