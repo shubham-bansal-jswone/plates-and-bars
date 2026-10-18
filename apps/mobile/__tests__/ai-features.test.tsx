@@ -122,7 +122,7 @@ describe('consent toggle', () => {
     await ai(kv, api, <AiSection />);
     const sw = await screen.findByLabelText('Use AI features');
     expect(sw.props.value).toBe(false);
-    expect(screen.getByText(/never your name, email, photos, cycle or lab data/i)).toBeTruthy();
+    expect(screen.getByText(/never your name, email, progress photos, cycle or lab data/i)).toBeTruthy();
     expect(GET).not.toHaveBeenCalled();
     await fireEvent(sw, 'valueChange', true);
     await waitFor(() => expect(GET).toHaveBeenCalledTimes(1));

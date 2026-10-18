@@ -7,7 +7,13 @@ import { getUserId } from '../sync/store';
 import { REQUEST_TIMEOUT_MS, withTimeout } from '../sync/timeout';
 import type { TokenStore } from '../sync/tokens';
 
-export type AiFeature = 'describe_meal' | 'ask_why' | 'weekly_summary' | 'suggest_tags';
+export type AiFeature = 'describe_meal' | 'ask_why' | 'weekly_summary' | 'suggest_tags' | 'meal_photo' | 'import_recipe' | 'form_check';
+export type AiImage = Schemas['AiImage'];
+export type AiFrame = Schemas['AiFrame'];
+
+/** The 400 `issue` values of the image calls (contract, `ai` tag, Images). An unknown value is read as no issue. */
+export const IMAGE_ISSUES = ['too_large', 'invalid_base64', 'unsupported_type', 'type_mismatch', 'unreadable_image', 'dimensions'] as const;
+export type ImageIssue = (typeof IMAGE_ISSUES)[number];
 export type AiStatus = Schemas['AiStatus'];
 export type AiQuota = Schemas['AiQuota'];
 
@@ -17,7 +23,9 @@ export type AiFailure =
   /** The daily quota is used up until `quota.resets_at`; nothing should be sent before then. */
   | { kind: 'quota'; quota: AiQuota | null }
   | { kind: 'rate_limited'; retryAfterSec: number }
-  | { kind: 'offline' | 'unavailable' | 'signed_out' | 'invalid' };
+  /** A 400. `issue` is the contract's image fault when the server named one; `field` is the offending field (`exercise`, `image.data`, ...). */
+  | { kind: 'invalid'; issue?: ImageIssue; field?: string }
+  | { kind: 'offline' | 'unavailable' | 'signed_out' };
 export type AiResult<T> = { kind: 'ok'; data: T } | AiFailure;
 
 export interface AiDeps {
@@ -78,7 +86,11 @@ function answer<T>(r: Reply<T>): AiResult<T> {
   const s = r.response.status;
   const body = (r.error ?? {}) as Partial<Schemas['Error']>;
   if (s === 401) return { kind: 'signed_out' };
-  if (s === 400) return { kind: 'invalid' };
+  if (s === 400) {
+    const first = body.details?.[0];
+    const issue = IMAGE_ISSUES.find((i) => i === first?.issue);
+    return { kind: 'invalid', ...(issue ? { issue } : null), ...(typeof first?.field === 'string' ? { field: first.field } : null) };
+  }
   if (s === 429 && body.code === 'quota_exceeded') return { kind: 'quota', quota: body.quota ?? null };
   if (s === 429) return { kind: 'rate_limited', retryAfterSec: Number(r.response.headers.get('Retry-After')) || 60 };
   if (s === 503 && body.code === 'feature_disabled') return { kind: 'disabled' };
@@ -102,3 +114,7 @@ export const weeklySummary = (d: AiDeps, body: Schemas['WeeklySummaryRequest']) 
 
 /** `POST /ai/suggest-tags`: sends only the exercise name the user typed. */
 export const suggestTags = (d: AiDeps, name: string) => run<Schemas['SuggestTagsResponse']>(d, (signal) => d.api.POST('/ai/suggest-tags', { body: { name }, signal }));
+
+/** `POST /ai/meal-photo`: sends the one re-encoded photo and the optional note. Nothing is kept here. */
+export const mealPhoto = (d: AiDeps, image: AiImage, hint?: string) =>
+  run<Schemas['MealPhotoResponse']>(d, (signal) => d.api.POST('/ai/meal-photo', { body: hint ? { image, hint } : { image }, signal }));

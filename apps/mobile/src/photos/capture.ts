@@ -39,7 +39,7 @@ export async function capturePhoto(source: 'camera' | 'library'): Promise<string
 }
 
 /** Deletes a working copy, and only one inside this app's cache: never a photo in the user's own gallery. */
-function discard(uri: string | undefined): void {
+export function discard(uri: string | undefined): void {
   if (!uri || Platform.OS === 'web' || !uri.startsWith(Paths.cache.uri)) return;
   try {
     const f = new File(uri);
