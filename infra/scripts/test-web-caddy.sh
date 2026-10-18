@@ -107,5 +107,26 @@ while IFS= read -r eline; do
   done
   printf '%s' "$eline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "error log: remote_ip not masked: $eline"
 done <<< "$elines"
+# Barcode (#944): a lookup with the upstream down (a query, typed junk after the barcode, an encoded digit, extra path, upper case) must leave
+# /foods/barcode/{code} in the error line and in the API access line, never the barcode, and with the IP masked
+for bpath in '/api/v1/foods/barcode/5449000000996?x=1' '/api/v1/foods/barcode/5449000000996abc' '/API/V1/Foods/Barcode/%355449000000996/extra'; do
+  bstatus="$(curl -s -o /dev/null -w '%{http_code}' -H "@$tmp/err-headers" "http://127.0.0.1:$eport$bpath")"
+  case "$bstatus" in 502|503) ;; *) fail "barcode probe $bpath: status $bstatus, expected 502 or 503 (upstream down)" ;; esac
+done
+blines=""
+for _ in $(seq 1 10); do
+  blines="$( { docker logs "$ecid" 2>&1 | grep '"level":"error"' | grep -i 'foods/barcode' || true; docker exec "$ecid" grep -i 'foods/barcode' /data/api_access.log 2> /dev/null || true; } )"
+  [ "$(printf '%s\n' "$blines" | grep -c .)" -ge 6 ] && break
+  sleep 1
+done
+[ "$(printf '%s\n' "$blines" | grep -c .)" -ge 6 ] || fail "barcode probe: expected 3 error lines and 3 access lines, got: $blines"
+while IFS= read -r bline; do
+  [ -n "$bline" ] || continue
+  printf '%s' "$bline" | grep -Eqi '"uri":"/api/v1/foods/barcode/\{code\}"' || fail "barcode log: uri is not /foods/barcode/{code}: $bline"
+  for secret in 5449 203.0.113 sekrit x=1; do
+    case "$bline" in *"$secret"*) fail "barcode log leaks '$secret': $bline" ;; esac
+  done
+  printf '%s' "$bline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "barcode log: remote_ip not masked: $bline"
+done <<< "$blines"
 echo "Caddyfile.stack error log tests passed"
 echo "Caddyfile.web serving tests passed"

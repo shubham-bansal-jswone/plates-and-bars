@@ -21,6 +21,8 @@ for kind in api stack; do
   mutate "$kind" "barcode redaction removed" '/foods\/barcode/d'
   mutate "$kind" "barcode redaction not case-insensitive" 's/(?i)//'
   mutate "$kind" "barcode redaction replacement changed" 's/{code}/x/'
+  mutate "$kind" "barcode redaction back to digits only" 's/(?:\/|%2f).+\$/\/[0-9]+\/*$/'
+  mutate "$kind" "barcode redaction without the encoded slash" 's/|%2f//'
 done
 for kind in api web stack; do
   mutate "$kind" "ipv4 32" 's/ipv4 24/ipv4 32/'
@@ -45,40 +47,64 @@ for kind in api web; do
   mutate "$kind" "file output removed" 's/output file .*{/output stderr {/'
 done
 mutate stack "error log not included" '/include http.log.error/d'
+mutate stack "reverse_proxy logger not included" 's/ http.handlers.reverse_proxy//'
+mutate stack "reverse_proxy logger included alone" 's/include http.log.error http.handlers.reverse_proxy/include http.handlers.reverse_proxy/'
+# glitchtip=<file>: same generic pins plus the error-log include; no barcode pin (the real file has no barcode rule)
+"$here/check-caddy-access-log.sh" "glitchtip=$root/infra/caddy/Caddyfile.glitchtip" > "$tmp/out" 2>&1 || fail "glitchtip file does not pass: $(cat "$tmp/out")"
+for script in 's/ http.handlers.reverse_proxy//' '/request>client_ip ip_mask/,/^[[:space:]]*}/d' 's/336h/87600h/'; do
+  sed "$script" "$root/infra/caddy/Caddyfile.glitchtip" > "$tmp/c"
+  if "$here/check-caddy-access-log.sh" "glitchtip=$tmp/c" > "$tmp/out" 2>&1; then fail "glitchtip passed with: $script"; fi
+done
 
-# The barcode regexp (taken from the Caddyfiles, Go RE2 syntax that Python's re reads the same way) on sample URIs.
-# Caddy runs the query cut first, then this one; the same order is applied here.
+# The barcode regexp, read from the real Caddyfiles (Go RE2; Python's re reads this pattern the same way), on sample URIs,
+# with the two URI rules applied in BOTH orders: the rule must not depend on running after the query cut.
 for kind in api stack; do
   python3 -I - "$root/infra/caddy/Caddyfile.$kind" <<'PY' || fail "$kind: barcode regexp samples"
 import re, sys
 text = open(sys.argv[1]).read()
 cut = re.search(r'request>uri regexp "(\\\?\.\*\$)" ""', text)
-m = re.search(r'request>uri regexp "(\(\?i\)\(/foods/barcode/\)[^"]*)" "\$\{1\}\{code\}"', text)
+m = re.search(r'request>uri regexp "(\(\?i\)\(/foods/barcode\)[^"]*)" "\$\{1\}/\{code\}"', text)
 if not (cut and m):
     sys.exit("filters not found")
 c, p = re.compile(cut.group(1)), re.compile(m.group(1))
-B = "/foods/barcode/{code}"
+R = "/api/v1/foods/barcode/{code}"
 want = {
-    "/api/v1/foods/barcode/5449000000996": "/api/v1/foods/barcode/{code}",
-    "/api/v1/foods/barcode/5449000000996/": "/api/v1/foods/barcode/{code}",
-    "/api/v1/foods/barcode/5449000000996///": "/api/v1/foods/barcode/{code}",
-    "/api/v1/foods/barcode/5449000000996?a=1": "/api/v1/foods/barcode/{code}",
-    "/api/v1/foods/barcode/5449000000996/?a=1": "/api/v1/foods/barcode/{code}",
+    "/api/v1/foods/barcode/5449000000996": R,
+    "/api/v1/foods/barcode/5449000000996/": R,
+    "/api/v1/foods/barcode/5449000000996///": R,
+    "/api/v1/foods/barcode/5449000000996?a=1": R,
+    "/api/v1/foods/barcode/5449000000996/?a=1": R,
     "/API/V1/FOODS/BARCODE/5449000000996": "/API/V1/FOODS/BARCODE/{code}",
     "/api/v1/Foods/Barcode/04252614": "/api/v1/Foods/Barcode/{code}",
-    "/foods/barcode/012345678905": B,
+    "/foods/barcode/012345678905": "/foods/barcode/{code}",
     "/v2/api/v1/foods/barcode/012345678905": "/v2/api/v1/foods/barcode/{code}",
     "https://h/api/v1/foods/barcode/012345678905": "https://h/api/v1/foods/barcode/{code}",
-    "/api/v1/foods": "/api/v1/foods",
-    "/api/v1/foods?q=5449000000996": "/api/v1/foods",
+    # typed junk, encoded and extra parts all go
+    "/api/v1/foods/barcode/1234abc": R,
+    "/api/v1/foods/barcode/5449000000996%20": R,
+    "/api/v1/foods/barcode/%35449000000996": R,
+    "/api/v1/foods/barcode/5449000000996;jsessionid=x": R,
+    "/api/v1/foods/barcode/5449000000996/extra": R,
+    "/api/v1/foods/barcode/5449%2F000000996": R,
+    "/api/v1/foods/barcode%2F5449000000996": R,
+    "/api/v1/foods/barcode%2f5449000000996": R,
+    "/api/v1/foods/barcode/5449000000996?email=a@b.c": R,
+    # left alone
     "/api/v1/foods/barcode/": "/api/v1/foods/barcode/",
+    "/api/v1/foods/barcode": "/api/v1/foods/barcode",
+    "/api/v1/foods": "/api/v1/foods",
+    "/foods": "/foods",
+    "/api/v1/foods?q=5449000000996": "/api/v1/foods",
     "/api/v1/health": "/api/v1/health",
 }
+orders = {"cut then barcode": lambda u: p.sub(r"\1/{code}", c.sub("", u)),
+          "barcode then cut": lambda u: c.sub("", p.sub(r"\1/{code}", u))}
 bad = []
-for uri, exp in want.items():
-    got = p.sub(r"\1{code}", c.sub("", uri))
-    if got != exp or re.search(r"[0-9]{8}", got.replace("/api/v1", "")):
-        bad.append("%s -> %s, want %s" % (uri, got, exp))
+for name, run in orders.items():
+    for uri, exp in want.items():
+        got = run(uri)
+        if got != exp or re.search(r"[0-9]{4}", got.replace("/api/v1", "")):
+            bad.append("%s: %s -> %s, want %s" % (name, uri, got, exp))
 if bad:
     sys.exit("\n".join(bad))
 PY

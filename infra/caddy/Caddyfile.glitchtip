@@ -25,14 +25,14 @@
 			request>headers delete
 			resp_headers delete
 		}
-		include http.log.error
+		include http.log.error http.handlers.reverse_proxy
 	}
 }
 
 {$GLITCHTIP_HOST:errors.example.com} {
 	encode zstd gzip
 
-	# Access log (#714): same privacy filters and 14-day retention as Caddyfile.api; infra/scripts/check-caddy-access-log.sh
+	# Access log (#714): same privacy filters and 14-day retention as Caddyfile.api, except the /foods/barcode rule (this host has no such route); infra/scripts/check-caddy-access-log.sh
 	# fails CI if one goes missing. Written to /data (the caddy_data volume).
 	log glitchtip_access {
 		output file /data/glitchtip_access.log {

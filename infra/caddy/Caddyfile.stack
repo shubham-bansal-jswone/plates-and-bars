@@ -3,7 +3,9 @@
 # Error log (#714): Caddy's own errors (for example a 502 with the upstream down) carry the request, so they get the same
 # filters as the access logs in the two imported files: IP masked, query cut, headers dropped. Written to stderr
 # (docker compose logs caddy). It lives here because a global options block must be first in the file Caddy loads and
-# cannot sit in an imported file. Using Caddyfile.api or .web alone: copy this block to the top of that file.
+# cannot sit in an imported file. It also takes the reverse_proxy logger (http.handlers.reverse_proxy): its WARN
+# "aborting with incomplete response" carries the request (URI, IP, query, User-Agent) and would otherwise go unfiltered to
+# the default log; a logger named in an include is dropped from the default log by Caddy itself. Using Caddyfile.api or .web alone: copy this block to the top of that file.
 {
 	log errors {
 		output stderr
@@ -18,11 +20,11 @@
 				ipv6 48
 			}
 			request>uri regexp "\?.*$" ""
-			request>uri regexp "(?i)(/foods/barcode/)[0-9]+/*$" "${1}{code}"
+			request>uri regexp "(?i)(/foods/barcode)(?:/|%2f).+$" "${1}/{code}"
 			request>headers delete
 			resp_headers delete
 		}
-		include http.log.error
+		include http.log.error http.handlers.reverse_proxy
 	}
 }
 

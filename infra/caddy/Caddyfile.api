@@ -28,8 +28,8 @@
 	# Caddyfile.stack to the top of this file, or Caddy's error lines (which carry the request) are written unfiltered.
 	# Access log (#714), JSON, one file per host under /data (the caddy_data volume in the Compose stack). Privacy: the
 	# client IP is masked to /24 (IPv4) or /48 (IPv6) in remote_ip and client_ip; the query string is cut
-	# from the URI; the scanned barcode in /foods/barcode/<digits> (#944) is replaced by {code} (any prefix, any case,
-	# trailing slashes; the second regexp runs after the query cut); every request header (Authorization, Cookie,
+	# from the URI; everything after /foods/barcode/ (#944: the scanned barcode, typed or encoded junk, extra segments, the query) is
+	# replaced by {code}, any prefix, any case, also an encoded slash; the rule does not depend on its order next to the query cut; every request header (Authorization, Cookie,
 	# X-Forwarded-For, User-Agent ...) and every response header (Set-Cookie ...) is dropped; Caddy never logs request bodies. Kept 14 days (roll_keep_for 336h) and a daily
 	# roll (roll_interval 24h, so 14 days holds on a quiet host too), at most 15 files of 10 MiB. infra/scripts/check-caddy-access-log.sh fails CI if one of these filters goes missing.
 	log api_access {
@@ -50,7 +50,7 @@
 				ipv6 48
 			}
 			request>uri regexp "\?.*$" ""
-			request>uri regexp "(?i)(/foods/barcode/)[0-9]+/*$" "${1}{code}"
+			request>uri regexp "(?i)(/foods/barcode)(?:/|%2f).+$" "${1}/{code}"
 			request>headers delete
 			resp_headers delete
 		}
