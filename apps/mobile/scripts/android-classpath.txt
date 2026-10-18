@@ -133,6 +133,7 @@ host.exp.exponent:expo.modules.clipboard:58.0.3
 host.exp.exponent:expo.modules.crypto:58.0.7
 host.exp.exponent:expo.modules.filesystem:58.0.9
 host.exp.exponent:expo.modules.font:58.0.8
+host.exp.exponent:expo.modules.haptics:58.0.7
 host.exp.exponent:expo.modules.imageloader:58.0.3
 host.exp.exponent:expo.modules.imagemanipulator:58.0.14
 host.exp.exponent:expo.modules.imagepicker:58.0.10

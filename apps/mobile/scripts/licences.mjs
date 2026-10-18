@@ -166,7 +166,7 @@ const ANDROID_LICENCES = [
   // The native half of Expo modules installed from npm (their prebuilt AARs); the Expo repository's MIT licence.
   ['expo.modules.asset', 'MIT', 'expo.txt', 'expo.modules.asset@58.0.16'],
   ['expo.modules.router', 'MIT', 'expo.txt', 'expo.modules.router@58.0.22'],
-  ['host.exp.exponent', 'MIT', 'expo.txt', 'expo.modules.clipboard@58.0.3 expo.modules.crypto@58.0.7 expo.modules.filesystem@58.0.9 expo.modules.font@58.0.8 expo.modules.imageloader@58.0.3 expo.modules.imagemanipulator@58.0.14 expo.modules.imagepicker@58.0.10 expo.modules.keepawake@58.0.3 expo.modules.linking@58.0.13 expo.modules.securestore@58.0.2 expo.modules.sharing@58.0.19 expo.modules.splashscreen@58.0.10 expo.modules.sqlite@58.0.13 expo.modules.statusbar@58.0.3'],
+  ['host.exp.exponent', 'MIT', 'expo.txt', 'expo.modules.clipboard@58.0.3 expo.modules.crypto@58.0.7 expo.modules.filesystem@58.0.9 expo.modules.font@58.0.8 expo.modules.haptics@58.0.7 expo.modules.imageloader@58.0.3 expo.modules.imagemanipulator@58.0.14 expo.modules.imagepicker@58.0.10 expo.modules.keepawake@58.0.3 expo.modules.linking@58.0.13 expo.modules.securestore@58.0.2 expo.modules.sharing@58.0.19 expo.modules.splashscreen@58.0.10 expo.modules.sqlite@58.0.13 expo.modules.statusbar@58.0.3'],
   ['io.github.expo', 'MIT', 'expo-modules-v2-android.txt', 'expo-modules-v2-react@0.2.5'],
   ['io.github.expo.kolibri', 'MIT', 'expo.txt', 'kolibri-android@0.2.3 runtime@0.2.3'],
   ['io.github.expo.pika', 'MIT', 'expo-pika.txt', 'pika-api@1.1.0'],
