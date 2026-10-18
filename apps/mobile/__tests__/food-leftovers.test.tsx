@@ -87,6 +87,17 @@ describe('Steps and sleep in the burn details (#822)', () => {
     expect(screen.getByLabelText(/^Daily movement, from 8,200 steps/)).toBeTruthy();
   });
 
+  it('saving only the sleep from the burn details keeps a phone step count and its source (#300)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveDayNote(db, { id: null, version: 1, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: null, steps: 6400, steps_source: 'device', sleep: null, fast: false });
+    await food({ db });
+    await details();
+    await fireEvent.changeText(screen.getByLabelText('Hours slept last night'), '7');
+    await fireEvent.press(screen.getByLabelText('Save steps and sleep from the burn details'));
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: 6400, steps_source: 'device', sleep: 7 })]));
+  });
+
   it('keeps the validation: sleep over 24 h and bad steps are refused, 0 is kept, a blank box clears', async () => {
     const db = memoryDb();
     await saveProfile(db, profile());

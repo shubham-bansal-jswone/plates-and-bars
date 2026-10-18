@@ -13,6 +13,7 @@ import { syncDb } from '../src/sync/db';
 import { SyncBadge } from '../src/sync/SyncBadge';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider } from '../src/sync/SyncProvider';
+import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
 import { initErrorTracking } from '../src/telemetry/errors';
 import { registerServiceWorker } from '../src/web/registerServiceWorker';
 
@@ -35,11 +36,13 @@ function Providers() {
   return (
     <SyncProvider db={sdb}>
       <Stores db={db}>
-        <ContentRefresher />
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }} />
-        <Gate />
-        <SyncBadge />
+        <DeviceStepsProvider db={db}>
+          <ContentRefresher />
+          <StatusBar style="auto" />
+          <Stack screenOptions={{ headerShown: false }} />
+          <Gate />
+          <SyncBadge />
+        </DeviceStepsProvider>
       </Stores>
     </SyncProvider>
   );

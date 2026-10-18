@@ -6,6 +6,7 @@ import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
 import { DEFAULT_KCAL_TARGET, round1, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
+import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
 import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
@@ -46,7 +47,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const dataVersion = useDataVersion();
+  const dataVersion = useDataVersion() + useStepsVersion(); // a pulled record or a phone step reading changed a day note
   const v = useViewedDate(now);
   const p = useProgress({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });

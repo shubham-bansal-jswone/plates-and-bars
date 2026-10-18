@@ -176,7 +176,9 @@ describe('Progress screen', () => {
     expect(screen.getByLabelText('Steps today').props.value).toBe('0');
     expect(screen.getByText('Source: entered by you')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
-    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: 0, steps_source: 'manual', sleep: 7 })]));
+    // steps untouched: the note keeps what it had (here no source, an older record), nothing is relabelled (#300)
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: 0, sleep: 7 })]));
+    expect(docs(db, 'day_notes')[0]).not.toHaveProperty('steps_source');
   });
 
   it('a stored 0 h sleep shows as 0 and stays 0; with nothing stored both boxes start empty', async () => {
@@ -198,6 +200,16 @@ describe('Progress screen', () => {
     await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
     await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: 4100, steps_source: 'manual' })]));
     expect(await screen.findByText('Source: entered by you')).toBeTruthy();
+  });
+
+  it('saving only the sleep keeps a phone count and its source (#300)', async () => {
+    const db = memoryDb();
+    await saveDayNote(db, { id: null, version: 1, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: null, steps: 4000, steps_source: 'device', sleep: null, fast: false });
+    await setup({ db });
+    await fireEvent.changeText(screen.getByLabelText('Hours slept last night'), '7');
+    await fireEvent.press(screen.getByLabelText('Save steps and sleep'));
+    await waitFor(() => expect(docs(db, 'day_notes')).toEqual([expect.objectContaining({ steps: 4000, steps_source: 'device', sleep: 7 })]));
+    expect(await screen.findByText('Source: phone step sensor')).toBeTruthy();
   });
 
   it('shows an error for non-numeric steps or sleep instead of saving 0', async () => {
