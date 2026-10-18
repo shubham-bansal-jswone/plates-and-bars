@@ -2,13 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { addCycleStart, cycInfo, emptyCycle, removeLastCycleStart, type CycleData, type CycleInfo } from '@plate-and-bar/core';
 import { deleteCycle, loadCycle, saveCycle } from '../db/cycle';
+import { inTransaction, type PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { writeLock } from '../db/writeLock';
 import { CYCLE_DELETED, CYCLE_LOGGED, CYCLE_SAVE_FAILED } from './copy';
+
+/** One read-then-write under the write lock the store wipe takes, in a transaction where the database has them (it always does outside tests). */
+const exclusive = (db: StoreDb, task: (d: StoreDb) => Promise<void>): Promise<void> =>
+  typeof (db as Partial<PullDb>).withExclusiveTransactionAsync === 'function' ? inTransaction(db as StoreDb & PullDb, task) : writeLock.run(() => task(db));
 
 /**
  * The device-only cycle log for the Progress tab: read from its own local table, never queued for sync. `data` is null until read.
  * It is read again when the tab is shown and when `reloadKey` changes (a sync stored records). Each change reads the stored log
- * first, one at a time, so a log wiped meanwhile (sign-out, delete everything) is never written back from a stale copy.
+ * first, in one transaction under the write lock the wipe uses, so a log wiped meanwhile (sign-out, delete everything) is never written back from a stale copy
+ * and no wipe can land between the read and the write.
  */
 export function useCycle({ db, date, notify, reloadKey = 0 }: { db: StoreDb; date: string; notify: (msg: string) => void; reloadKey?: number }) {
   const [data, setData] = useState<CycleData | null>(null);
@@ -30,13 +37,21 @@ export function useCycle({ db, date, notify, reloadKey = 0 }: { db: StoreDb; dat
   const run = (change: (cur: CycleData) => CycleData | null | undefined, done: string | null) => {
     const step = async () => {
       try {
-        const cur = await loadCycle(db);
-        const next = change(cur);
-        if (next === undefined) return setData(cur);
-        if (next === null) await deleteCycle(db);
-        else await saveCycle(db, next);
-        setData(next ?? emptyCycle());
-        if (done) notify(done);
+        let shown: CycleData = emptyCycle();
+        let changed = false;
+        await exclusive(db, async (d) => {
+          const cur = await loadCycle(d);
+          const next = change(cur);
+          if (next === undefined) shown = cur;
+          else {
+            if (next === null) await deleteCycle(d);
+            else await saveCycle(d, next);
+            shown = next ?? emptyCycle();
+            changed = true;
+          }
+        });
+        setData(shown);
+        if (done && changed) notify(done);
       } catch {
         notify(CYCLE_SAVE_FAILED);
         setData(await loadCycle(db).catch(() => null));

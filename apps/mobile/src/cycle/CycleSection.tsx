@@ -21,7 +21,9 @@ export function CycleSection({ cycle, date, today, weights, female, notify }: { 
   const t = useTheme();
   const d = cycle.data;
   const [text, setText] = useState(date);
-  const [armed, setArmed] = useState(false); // deleting takes a second tap: it cannot be undone (as in PhotosSection)
+  // Deliberate deviation from the prototype's one-tap `cyc-off` (prototype line 3369, docs/spec/PROTOTYPE_SPEC.md section 0, 2026-10-18):
+  // deleting takes a second tap because the data is sensitive and the deletion cannot be undone (same pattern as PhotosSection).
+  const [armed, setArmed] = useState(false);
   useEffect(() => {
     if (!armed) return;
     const timer = setTimeout(() => setArmed(false), 4000); // a stray tap much later must not delete it
