@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.23
+  version: 0.1.24
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -334,7 +334,8 @@ tags:
       - the server decodes one image at a time, so a form check never holds more than
         one decoded frame in memory;
       - metadata is never read: the decoder skips every ancillary chunk and segment (EXIF,
-        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation;
+        XMP, IPTC, PNG `tEXt`, `zTXt`, `iTXt`, `iCCP`), taking only the orientation, and only from a JPEG's Exif (a PNG
+        `eXIf` chunk is ignored; the app sends JPEG);
       - and, whether or not the decoder would have skipped it, a PNG `zTXt`, `iTXt`
         (compression flag 1) or `iCCP` chunk that inflates to more than 65,536 bytes is
         always refused as `unreadable_image`. The server checks this with a bounded
@@ -367,7 +368,8 @@ tags:
       to export or delete.
 
       **EXIF and other metadata are stripped on the server.** The server decodes every
-      image, applies its orientation, and re-encodes the pixels as a new JPEG (long side
+      image, applies its orientation (from a JPEG's Exif only; a PNG `eXIf` chunk is ignored,
+      and the app sends JPEG), and re-encodes the pixels as a new JPEG (long side
       at most 1,600 px). The original bytes are never forwarded, so EXIF (GPS position,
       time, device), XMP, IPTC, embedded thumbnails and comments do not reach the
       provider; a file that cannot be decoded is refused, never forwarded as is. The app
@@ -1675,7 +1677,8 @@ paths:
         the prototype's `askWhy()`.
 
         **Grounding.** The answer is grounded only on the cards in `content/cards.json`
-        (the version the server deploys). The server sends the model every card's title,
+        (the version the server deploys). The server sends the model every card that is not
+        marked `hidden: true` (a held-back card is never sent to the model), with its title,
         summary, body, evidence level and source, says which card the user was reading,
         and instructs it to use nothing else: if the cards do not answer the question it
         says the app's cards don't cover it yet and suggests a coach, dietitian or doctor
@@ -1691,9 +1694,10 @@ paths:
 
         `card_id` in the response is the card the answer is based on (usually the one
         being read, possibly another card), or null when the cards don't cover the
-        question. The server checks it against `content/cards.json` before answering.
-        A request `card_id` not in `content/cards.json` is 400 `invalid_request` with
-        `details[].field` = `card_id`.
+        question. The server checks it against the cards in `content/cards.json` that are not
+        marked `hidden: true` before answering. A request `card_id` that is not one of those
+        is 400 `invalid_request` with `details[].field` = `card_id` and issue `unknown`; a
+        hidden card's id gets the same 400 as an unknown id.
 
         Non-AI fallback: the card itself. See the `ai` tag for quota, kill-switch,
         rate-limit and no-logging rules.
@@ -1992,7 +1996,7 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
         '503':
-          $ref: '#/components/responses/AiUnavailable'
+          $ref: '#/components/responses/AiImageUnavailable'
 
   /ai/import-recipe:
     post:
@@ -2073,7 +2077,7 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
         '503':
-          $ref: '#/components/responses/AiUnavailable'
+          $ref: '#/components/responses/AiImageUnavailable'
 
   /ai/form-check:
     post:
@@ -2161,7 +2165,7 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
         '503':
-          $ref: '#/components/responses/AiUnavailable'
+          $ref: '#/components/responses/AiImageUnavailable'
 
   /content/manifest:
     get:
@@ -2627,6 +2631,56 @@ components:
                 The provider answered (and billed the call) but the reply did not parse or
                 failed the output checks. Same body as a provider failure; the call still
                 counts against the daily quota, so `GET /ai/status` shows one fewer remaining.
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
+    AiImageUnavailable:
+      description: |
+        `feature_disabled`: the feature is switched off on the server (kill switch, budget
+        cap, or not yet launched); show the non-AI fallback. `unavailable`: no usable
+        answer; the user may try again. Either the provider failed or timed out before any
+        billed reply (the quota unit is released), or the provider's reply could not be
+        parsed or failed the output checks (the provider billed it, so the unit is kept).
+        The body is the same in both cases and carries no `quota`; the app reads
+        `GET /ai/status` for the remaining quota.
+
+        The image calls have one more `unavailable` case: the server is busy decoding other
+        images (it decodes a few at a time and waits a moment for a turn). The quota unit is
+        not taken (the refusal comes before it is reserved), so the call costs nothing, and
+        `Retry-After` says how long to wait before retrying. `Retry-After` is set only in
+        that busy case.
+      headers:
+        Retry-After:
+          description: How long to wait, in seconds, before retrying because the server is busy decoding images.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            feature_disabled:
+              value:
+                code: feature_disabled
+                message: This feature isn't available right now. You can enter it yourself instead.
+            unavailable:
+              summary: Provider failed or timed out; the quota unit is released
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
+            unavailable_unusable_reply:
+              summary: Billed reply could not be used; the quota unit is kept
+              description: |
+                The provider answered (and billed the call) but the reply did not parse or
+                failed the output checks. Same body as a provider failure; the call still
+                counts against the daily quota, so `GET /ai/status` shows one fewer remaining.
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
+            unavailable_busy:
+              summary: Server busy decoding images; the quota unit is not taken; Retry-After is set
               value:
                 code: unavailable
                 message: Couldn't get an answer just now. Try again.
