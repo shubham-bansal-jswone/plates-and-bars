@@ -25,21 +25,33 @@ export async function capturePhoto(source: 'camera' | 'library'): Promise<string
   const asset = picked.canceled ? null : picked.assets[0];
   if (!asset) return null;
   let saved: { uri: string; base64?: string | null } | null = null;
+  const held: { release?: () => void }[] = [];
   try {
     const image = ImageManipulator.manipulate(asset.uri);
+    held.push(image);
     const size = fitWithin(asset.width, asset.height);
     if (size) image.resize(size);
     // Re-encoding keeps only the pixels (upright: the decoder applies the EXIF orientation); the location is dropped.
-    saved = await (await image.renderAsync()).saveAsync({ compress: PHOTO_QUALITY, format: SaveFormat.JPEG, base64: true });
+    const rendered = await image.renderAsync();
+    held.push(rendered);
+    saved = await rendered.saveAsync({ compress: PHOTO_QUALITY, format: SaveFormat.JPEG, base64: true });
     return saved.base64 ?? null;
   } finally {
+    // The decoded bitmap is native memory until released.
+    for (const o of held.reverse()) {
+      try {
+        o.release?.();
+      } catch {
+        // already released
+      }
+    }
     // The picker's copy (with EXIF) and the resized file are plaintext in the cache: only the vault may keep a photo.
     for (const uri of [asset.uri, saved?.uri]) discard(uri);
   }
 }
 
 /** Deletes a working copy, and only one inside this app's cache: never a photo in the user's own gallery. */
-function discard(uri: string | undefined): void {
+export function discard(uri: string | undefined): void {
   if (!uri || Platform.OS === 'web' || !uri.startsWith(Paths.cache.uri)) return;
   try {
     const f = new File(uri);

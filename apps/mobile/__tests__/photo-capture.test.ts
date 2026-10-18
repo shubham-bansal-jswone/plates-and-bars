@@ -19,7 +19,9 @@ jest.mock('expo-image-manipulator', () => ({
       mockOps.push(`manipulate ${uri}`);
       const ctx = {
         resize: (s: object) => (mockOps.push(`resize ${JSON.stringify(s)}`), ctx),
+        release: () => void mockOps.push('release context'),
         renderAsync: async () => ({
+          release: () => void mockOps.push('release image'),
           saveAsync: async (o: { compress: number; format: string; base64: boolean }) => {
             mockOps.push(`save ${o.compress} ${o.format} ${o.base64}`);
             return { uri: 'file:///data/user/0/app/cache/ImageManipulator/out.jpg', base64: 'cmVzaXplZA==' };
@@ -57,8 +59,14 @@ beforeEach(() => {
 it('resizes the long side to 900 px, saves JPEG at 0.72, returns base64 and deletes both cache copies', async () => {
   mockPicker.result = picked(`${CACHE}ImagePicker/a.jpg`, 3000, 4000);
   expect(await capturePhoto('camera')).toBe('cmVzaXplZA==');
-  expect(mockOps).toEqual(['camera', `manipulate ${CACHE}ImagePicker/a.jpg`, 'resize {"height":900}', 'save 0.72 jpeg true']);
+  expect(mockOps).toEqual(['camera', `manipulate ${CACHE}ImagePicker/a.jpg`, 'resize {"height":900}', 'save 0.72 jpeg true', 'release image', 'release context']);
   expect(mockDeleted).toEqual([`${CACHE}ImagePicker/a.jpg`, `${CACHE}ImageManipulator/out.jpg`]);
+});
+
+it('releases the native context and the rendered image, after saving', async () => {
+  mockPicker.result = picked(`${CACHE}ImagePicker/r.jpg`, 3000, 4000);
+  await capturePhoto('library');
+  expect(mockOps.filter((o) => o.startsWith('release'))).toEqual(['release image', 'release context']);
 });
 
 it('a small photo is not resized', async () => {

@@ -21,6 +21,22 @@ describe('camera permission', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it('on the web it is granted when the browser has a camera API (the browser asks when the camera opens), else unavailable', async () => {
+    setOs('web');
+    const nav = globalThis as unknown as { navigator?: unknown };
+    const saved = nav.navigator;
+    try {
+      nav.navigator = { mediaDevices: { getUserMedia: jest.fn() } };
+      expect(await checkCamera()).toBe('granted');
+      expect(await requestCamera()).toBe('granted');
+      nav.navigator = {}; // a page that is not a secure context has no mediaDevices
+      expect(await checkCamera()).toBe('unavailable');
+      expect(await requestCamera()).toBe('unavailable');
+    } finally {
+      nav.navigator = saved;
+    }
+  });
+
   it('reports granted and denied without asking', async () => {
     setOs('android');
     const request = jest.spyOn(PermissionsAndroid, 'request');

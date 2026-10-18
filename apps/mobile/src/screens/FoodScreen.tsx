@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
-import { checkinBannerDue, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logPrep, logTotals, planFlex, planForMeal, prepFor, proteinUpgrade, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type PrepEntry, type ProteinUpgrade } from '@plate-and-bar/core';
+import { checkinBannerDue, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logPrep, logTotals, mealByTime, planFlex, planForMeal, prepFor, proteinUpgrade, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type PrepEntry, type ProteinUpgrade } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
 import { newId } from '../db/records';
@@ -16,6 +16,7 @@ import { AddSheet } from '../food/AddSheet';
 import { CHECKIN_READY, CHECKIN_SEE, lowProtein, PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, SETUP_BANNER, toastMs, upgradeAdded } from '../food/copy';
 import { getCuisines, getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
+import type { Mode } from '../food/AddSheet';
 import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
 import { getMealPlanning } from '../meals/content';
@@ -49,6 +50,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const { ready: settingsReady, settings, loadFailed, setFlex, setDiet, update } = useSettings();
   const [toast, setToast] = useState<string | null>(null);
   const [adding, setAdding] = useState<Meal | null>(null);
+  const [addMode, setAddMode] = useState<Mode>('list');
   const [describing, setDescribing] = useState<Meal | null>(null);
   const ai = useAi();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -204,8 +206,14 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           </View>
         )}
         {water.target && water.ready ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
+        {ai.available('meal_photo') ? (
+          <View style={styles.snap}>
+            <Button label={AI_COPY.photoSnap} a11yLabel={AI_COPY.photoSnap} onPress={() => { setAddMode('photo'); setAdding(mealByTime(now().getHours())); }} />
+            <Hint>{AI_COPY.photoSnapHint}</Hint>
+          </View>
+        ) : null}
         {MEALS.map((m) => (
-          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} prep={prepFor(settings.prep, m, f.date)} onLogPrep={(id) => logPrepared(m, id)} upgrade={upgradeFor(m)} onUpgrade={(u) => { f.add(m, logOf(u.food, u.qty)); notify(upgradeAdded(u.food.name)); }} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
+          <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} prep={prepFor(settings.prep, m, f.date)} onLogPrep={(id) => logPrepared(m, id)} upgrade={upgradeFor(m)} onUpgrade={(u) => { f.add(m, logOf(u.food, u.qty)); notify(upgradeAdded(u.food.name)); }} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => { setAddMode('list'); setAdding(m); }} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
         {f.logs.length ? (
           <Press accessibilityRole="checkbox" accessibilityLabel="I’ve logged everything I ate today" {...a11yState({ checked: complete })} onPress={() => f.setComplete(!complete)} style={styles.check}>
@@ -214,7 +222,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           </Press>
         ) : null}
       </Page>
-      {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} canDescribe={ai.available('describe_meal')} /> : null}
+      {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} canDescribe={ai.available('describe_meal')} canPhoto={ai.available('meal_photo')} initialMode={addMode} onToast={notify} /> : null}
       {describing ? <DescribeSheet meal={describing} onAdd={(n) => f.add(describing, n)} onClose={() => setDescribing(null)} /> : null}
       <ToastBar message={toast} />
     </View>
@@ -285,6 +293,7 @@ function MealSection({ meal, items, facts, prep, onLogPrep, upgrade, onUpgrade, 
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  snap: { gap: 6, marginTop: 14 },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12, borderRadius: radius.md },
   gap: { gap: 4, marginTop: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
