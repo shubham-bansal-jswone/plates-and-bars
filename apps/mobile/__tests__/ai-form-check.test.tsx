@@ -7,8 +7,8 @@ import { IMAGE_ISSUES } from '../src/ai/client';
 import { FRAME_ISSUE_MESSAGE } from '../src/ai/copy';
 import { ExerciseCard, type Actions } from '../src/workout/ExerciseCard';
 import { FormCheckButton } from '../src/ai/FormCheck';
-import { frameTimes } from '../src/ai/frames';
-import { exInfo } from '@plate-and-bar/core';
+import { FRAMES_MAX, framesFromVideo } from '../src/ai/frames';
+import { FRAME_COUNT, exInfo, frameTimesMs } from '@plate-and-bar/core';
 import { getCatalog } from '../src/workout/catalog';
 import { blankRow, type ExState } from '../src/workout/model';
 import { memoryTokenStore } from '../src/sync/tokens';
@@ -202,11 +202,18 @@ describe('hidden states', () => {
 });
 
 describe('frames', () => {
-  it('cuts four frames from 12% to 88% of the clip, evenly (the prototype)', () => {
-    expect(frameTimes(20000, 4)).toEqual([2400, 7467, 12533, 17600]);
-    expect(frameTimes(20000, 2)).toEqual([2400, 17600]);
-    expect(frameTimes(NaN, 4)).toEqual(frameTimes(5000, 4));
-    expect(frameTimes(0, 1)).toEqual([600]);
+  it('cuts four frames at the times core gives, from 12% to 88% of the clip (the prototype)', async () => {
+    expect(FRAMES_MAX).toBe(FRAME_COUNT);
+    // 10 s, a 0 length and a negative length (the last two are unknown: the 5 s default).
+    for (const duration of [10000, 0, -10]) {
+      mockSaved.cuts = [];
+      mockPicker.video = { canceled: false, assets: [{ uri: `${CACHE}ImagePicker/set.mp4`, width: 1080, height: 1920, duration }] };
+      await framesFromVideo();
+      expect(mockSaved.cuts.map((c) => c.time)).toEqual(frameTimesMs(duration, FRAME_COUNT));
+    }
+    expect(frameTimesMs(10000)).toEqual([1200, 3733, 6267, 8800]);
+    expect(frameTimesMs(0)).toEqual([600, 1867, 3133, 4400]);
+    expect(frameTimesMs(-10)).toEqual([600, 1867, 3133, 4400]);
   });
 });
 
