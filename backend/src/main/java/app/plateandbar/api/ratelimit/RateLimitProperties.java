@@ -90,6 +90,8 @@ public class RateLimitProperties {
     private Limit aiPerUser = new Limit(5, Duration.ofMinutes(1));
     /** Every /ai/* endpoint, per client IP. */
     private Limit aiPerIp = new Limit(60, Duration.ofMinutes(1));
+    /** GET /foods/barcode/{code}, per client IP, its own scope (20 per minute, ADR 009); counted before the code is validated. */
+    private Limit barcodePerIp = new Limit(20, Duration.ofMinutes(1));
     /** Codes issued per email address. */
     private Caps emailStartPerAddress =
             new Caps(new Limit(5, Duration.ofHours(1)), new Limit(10, Duration.ofDays(1)));
@@ -185,6 +187,14 @@ public class RateLimitProperties {
 
     public void setAiPerIp(Limit v) {
         this.aiPerIp = v;
+    }
+
+    public Limit getBarcodePerIp() {
+        return barcodePerIp;
+    }
+
+    public void setBarcodePerIp(Limit v) {
+        this.barcodePerIp = v;
     }
 
     public Caps getEmailStartPerAddress() {

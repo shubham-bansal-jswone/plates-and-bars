@@ -55,6 +55,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-restclient'
     // In-process SMTP server for delivery tests (Apache-2.0).
     testImplementation 'com.icegreen:greenmail-junit5:2.1.14'
+    // Fake Open Food Facts server for the barcode proxy tests (Apache-2.0); no live calls in CI.
+    testImplementation 'com.squareup.okhttp3:mockwebserver3:5.5.0'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers-mysql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -108,6 +110,13 @@ tasks.named('test') {
         boolean filtered = !(filter.includePatterns.isEmpty() && filter.excludePatterns.isEmpty()
                 && filter.commandLineIncludePatterns.isEmpty())
         systemProperty 'contract.coverage.enforce', (!filtered).toString()
+    }
+}
+
+// The Open Food Facts User-Agent carries the version (PlateAndBar/<version>), read from the jar manifest.
+tasks.named('bootJar') {
+    manifest {
+        attributes 'Implementation-Version': project.version
     }
 }
 

@@ -16,7 +16,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Request-level limits, run after {@code JwtAuthFilter}. Public /auth and /content endpoints (which ignore any bearer token) are limited per client IP
- * (one shared bucket, plus a stricter one for email start and verify). Authenticated requests are limited per
+ * (one shared bucket, plus a stricter one for email start and verify). The public /foods/barcode/ endpoint (also ignores
+ * any bearer token) has its own per-IP scope, {@code barcode-ip}, even for a signed-in request. Authenticated requests are limited per
  * user id. Anything else without a valid token (it will get 401) falls back to the per-IP bucket, and so does
  * a request whose token {@code JwtAuthFilter} rejected (it calls {@link #limitByIp}). /health has its own generous
  * per-IP limit. Per-address limits live in the auth service because they need the request body.
@@ -29,6 +30,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final org.springframework.web.util.UrlPathHelper PATHS = org.springframework.web.util.UrlPathHelper.defaultInstance;
     private static final String AUTH_PREFIX = "/api/v1/auth/";
     private static final String CONTENT_PREFIX = "/api/v1/content/";
+    private static final String BARCODE_PREFIX = "/api/v1/foods/barcode/";
     private static final String HEALTH = "/api/v1/health";
 
     private final RateLimiter limiter;
@@ -50,7 +52,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         try {
             String path = PATHS.getPathWithinApplication(request);
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (!path.startsWith(AUTH_PREFIX) && !path.startsWith(CONTENT_PREFIX) && !path.equals(HEALTH) && auth != null && auth.isAuthenticated()
+            if (!path.startsWith(AUTH_PREFIX) && !path.startsWith(CONTENT_PREFIX) && !path.startsWith(BARCODE_PREFIX)
+                    && !path.equals(HEALTH) && auth != null && auth.isAuthenticated()
                     && !(auth instanceof AnonymousAuthenticationToken)) {
                 scope = "user";
                 try {
@@ -80,6 +83,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (path.equals(HEALTH)) {
             limiter.consume("health-ip", ip, props.getHealthPerIp());
             return "health-ip";
+        }
+        if (path.startsWith(BARCODE_PREFIX)) {
+            // Its own scope and nothing else: invalid codes count (the check comes before validation), a signed-in caller
+            // gets no per-user bucket here, and scans neither use up nor are starved by the sign-in allowance.
+            try {
+                limiter.consume("barcode-ip", ip, props.getBarcodePerIp());
+            } catch (RateLimitedException e) {
+                request.setAttribute(SecuritySignalFilter.BUCKET, "barcode-ip");
+                throw e;
+            }
+            return "barcode-ip";
         }
         String scope = "public-ip";
         try {
