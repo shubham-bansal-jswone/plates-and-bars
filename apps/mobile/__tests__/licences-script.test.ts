@@ -68,10 +68,12 @@ describe('scripts/licences.mjs --classpath', () => {
     expect(r.stderr).toContain('NOTICE not copied to scripts/licence-texts/notice-<hash>.txt: commons-io:commons-io:1.4 META-INF/NOTICE.txt');
   });
 
-  it('fails on a line that is not group:name:version', () => {
-    const r = withClasspath(`${committed}androidx.core:core\n`);
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain('not group:name:version: androidx.core:core');
+  it('fails on a line that is not group:name:version with path@hash notices', () => {
+    for (const bad of ['androidx.core:core', 'commons-io:commons-io:1.4 META-INF/NOTICE.txt@../../x']) {
+      const r = withClasspath(`${committed}${bad}\n`);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(`not group:name:version [path@sha256-prefix]...: ${bad}`);
+    }
   });
 
   it('fails without a file', () => {

@@ -186,7 +186,7 @@ const parseClasspath = (text, label) => {
   const rows = text.split('\n').filter(Boolean).map((line) => {
     const [coord, ...notices] = line.split(' ');
     const m = coord.match(/^([^:\s]+):([^:\s]+):([^:\s]+)$/);
-    if (!m) { console.error(`${label}: not group:name:version: ${line}`); process.exit(1); }
+    if (!m || !notices.every((n) => /^\S+@[0-9a-f]{16}$/.test(n))) { console.error(`${label}: not group:name:version [path@sha256-prefix]...: ${line}`); process.exit(1); }
     return { coord, name: `${m[1]}:${m[2]}`, version: m[3], notices: notices.map((n) => ({ path: n.slice(0, n.lastIndexOf('@')), hash: n.slice(n.lastIndexOf('@') + 1) })) };
   });
   const unknown = rows.filter((r) => !androidLicence.has(r.name)).map((r) => r.coord);
