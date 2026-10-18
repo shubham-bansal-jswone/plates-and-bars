@@ -75,12 +75,13 @@ services:
       SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM}
       # The proxy directly in front of the API is Caddy, which the API sees at an address in this network's subnet.
       APP_RATELIMIT_TRUSTEDPROXIES: 172.28.0.0/24
-      ERASURE_LEDGER_PATH: /var/lib/plateandbar/erasure/erasures.log
+      ERASURE_LEDGER_DIR: /var/lib/plateandbar/erasure
     # No published ports: Caddy reaches api:8080 over the network.
     networks: [backend]
     volumes:
-      # Erasure ledger (#850): the API refuses to start outside the dev profile without ERASURE_LEDGER_PATH, and the
-      # file must survive recreating the container, so it is a named volume. Getting it off the VM is #853.
+      # Erasure ledger (#850, #887): the API refuses to start outside the dev profile without ERASURE_LEDGER_DIR (it
+      # replaced ERASURE_LEDGER_PATH, a single file) and writes one file per UTC day there, which must survive recreating
+      # the container, so it is a named volume. ledger-upload.sh copies the days to the bucket and keeps 45 days.
       - erasure_ledger:/var/lib/plateandbar/erasure
 
   caddy:
