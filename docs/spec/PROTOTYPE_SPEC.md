@@ -10,6 +10,10 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-18 — the prototype no longer embeds exercise demo photos (spec-change; golden fixtures unchanged).**
+- #653: `DEMO` in `docs/prototype/plate-and-bar.html` held 126 JPEGs (63 exercises, two photos each) labelled Free Exercise DB and claimed to be Unlicense, but their provenance is unknown. They are removed, so `DEMO` is empty and `demoHtml` returns nothing. The 32 of those 63 exercises with no movement diagram now show no visual in the how-to sheet and Learn mode; the other 31 show their diagram. The caption "Photos: Free Exercise DB (public domain)." is gone too.
+- The app never ported these photos. Do not add visuals in the prototype: #653 replaces them with our own figures. No calculation changes, so no fixture changes.
+
 **2026-10-18 — the session's "Muscles today" map keeps a tap for its own date only (deliberate difference; prototype and golden fixtures unchanged).**
 - #769 (from #666 and PR #765, decided): the prototype's `sessionMapHtml` opens the map while no set is ticked, or when `S.ui.mapOpen` is set. Nothing writes `S.ui.mapOpen`, so a tap on the map lasts only until the next render, which sets it back to that default (a ticked set closes a map the user reopened). The flag also sits in the global `S.ui`, not per date. The app (`SessionView` in `apps/mobile/src/screens/WorkoutScreen.tsx`) starts from the same default (open until a set is ticked, then closed). Once the user taps, it keeps that choice through later ticks, and it keeps it only for the date on screen. `SessionView` is keyed by the workout date (`key={w.date}`), so moving to another date with the date bar, or a sync that loads another day's session, starts that date from the default again rather than carrying the tap over. A return to the first date also starts from the default. Tested in `apps/mobile/__tests__/workout-body-map.test.tsx` ("does not carry a tap choice to another day").
 
