@@ -3,7 +3,7 @@ import type { SyncMeta } from '../setup/types';
 
 // Contract records (packages/api/openapi.yaml), snake_case. FoodLog and UserFood have random ids made on the
 // device. DayNote is a natural-key table: its contract id is a UUIDv5 that needs the user's namespace, so `id` stays null locally.
-// TODO(#31): fill in `DayNote.id` (UUIDv5 of `day_notes:<date>`) once the store is bound to a user.
+// The id is filled in at push time for the signed-in user (UUIDv5 of `day_notes:<date>`, sync/records.ts buildRecord).
 
 /** The contract's meal slots (`FoodLog.meal`). */
 export const MEALS = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'] as const;
