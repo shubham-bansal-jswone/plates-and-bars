@@ -154,7 +154,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
   // Choosing a workout only previews it (#1005): nothing is stored until Start. `previewT` is the workout being previewed, `picked` the hand-picked exercises (from any workout) waiting for Start.
   const [previewT, setPreviewT] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
-  // The previewed workout the picks were seeded from (#1020); null for picks made from scratch.
+  // The previewed workout the picks were seeded from (#1020); null for picks made from scratch. Start passes it only while a seeded exercise is still picked. While it is set the where override is fixed (the list was built for it).
   const [seed, setSeed] = useState<PickSeed | null>(null);
   const where = override ?? profile.where;
   const weekPlan = settings.adjustments.weekPlan as WeekPlan | undefined;
@@ -235,7 +235,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
               }} />
             </View>
           ))}
-          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seed, ci.time ?? null)} />
+          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seed && picked.some((n) => seed.exercises.some((e) => e.name === n)) ? seed : null, ci.time ?? null)} />
           <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
           <Button label="Back to workouts" kind="link" onPress={back} />
         </Card>
@@ -327,10 +327,12 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
           return true;
         }} notify={notify} />
       <WeekTools date={date} notify={notify} />
+      {seed ? null : (
       <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
         <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
       </Press>
-      {away ? (
+      )}
+      {away && !seed ? (
         <View style={styles.wrap}>
           {WHERE_CHOICES.map(([v, l]) => (
             <Chip

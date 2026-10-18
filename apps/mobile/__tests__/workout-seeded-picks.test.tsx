@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
+import { saveSwap } from '../src/db/rules';
 import { loadSessionLog } from '../src/db/workouts';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { Workout } from '../src/workout/types';
@@ -13,9 +14,10 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID
 const THURSDAY = () => new Date(2026, 9, 8, 10, 0, 0);
 const DATE = '2026-10-08';
 
-async function setup() {
+async function setup(before?: (db: ReturnType<typeof memoryDb>) => Promise<void>) {
   const db = memoryDb();
   await saveProfile(db, buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1)));
+  if (before) await before(db);
   await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
   return db;
 }
@@ -103,5 +105,85 @@ describe('Picks seeded from a workout preview keep its base and adjustments (#10
     await press('Start this exercise');
     await screen.findByText('Session');
     expect(workout(db)).toMatchObject({ template: 'Session', base: null });
+  });
+});
+
+describe('The base applies only while a seeded exercise remains (#1020)', () => {
+  const LAT = 'Remove Lat Pulldown from your exercises';
+  async function removeAllPull() {
+    for (const n of ['Lat Pulldown', 'Seated Cable Row', 'Face Pull', 'Dumbbell Curl', 'Cable Crunch']) await press(`Remove ${n} from your exercises`);
+  }
+
+  it('remove every seeded exercise, then add one: plain hand-picked', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Choose Pull A');
+    await press('Pick exercises');
+    await removeAllPull();
+    await press('Pick exercises');
+    await press('Add Barbell Bench Press');
+    await press('Start this exercise');
+    await screen.findByText('Session');
+    expect(workout(db)).toMatchObject({ template: 'Session', base: null, mods: {} });
+  });
+
+  it('add one, then remove every seeded exercise: plain hand-picked', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Choose Pull A');
+    await press('Pick exercises');
+    await press('Add Barbell Bench Press from Push B');
+    await removeAllPull();
+    await press('Start this exercise');
+    await screen.findByText('Session');
+    expect(workout(db).base).toBeNull();
+    expect(screen.queryByLabelText(LAT)).toBeNull();
+  });
+
+  it('emptying the picks drops the seed: a seeded name picked again from scratch has no base', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Choose Pull A');
+    await press('Pick exercises');
+    await removeAllPull();
+    await press('Pick exercises');
+    await press('Add Lat Pulldown');
+    await press('Start this exercise');
+    await screen.findByText('Session');
+    expect(workout(db)).toMatchObject({ template: 'Session', base: null });
+  });
+
+  it('a 30 minute check-in time is kept as the short flag', async () => {
+    const db = await setup();
+    await screen.findByText('Push B day');
+    await press('Choose Pull A');
+    await press('Time today: 30 min');
+    await press('Pick exercises');
+    await press('Start these exercises');
+    await screen.findByText('Pull A');
+    expect(workout(db)).toMatchObject({ base: 'Pull A', mods: { short: true } });
+  });
+
+  it('a seeded bridge exercise stays a bridge', async () => {
+    const db = await setup((d) => saveSwap(d, { id: '', version: 0, updated_at: 'x', deleted_at: null, from: 'Dumbbell Curl', to: 'Hammer Curl', since: '2026-10-05', bridge_until: '2026-10-21' }));
+    await screen.findByText('Push B day');
+    await press('Choose Pull A');
+    await press('Pick exercises');
+    await press('Start these exercises');
+    await screen.findByText('Pull A');
+    const ex = workout(db).exercises;
+    expect(ex.filter((e) => e.bridge).map((e) => e.name)).toEqual(['Dumbbell Curl']);
+    expect(ex.map((e) => e.name)).toContain('Hammer Curl');
+  });
+
+  it('the Training away toggle is hidden while picks are seeded and back after Back to workouts', async () => {
+    await setup();
+    await screen.findByText('Push B day');
+    expect(screen.getByLabelText('Training away from your gym?')).toBeTruthy();
+    await press('Choose Pull A');
+    await press('Pick exercises');
+    expect(screen.queryByLabelText('Training away from your gym?')).toBeNull();
+    await press('Back to workouts');
+    expect(screen.getByLabelText('Training away from your gym?')).toBeTruthy();
   });
 });
