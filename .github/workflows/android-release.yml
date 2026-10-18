@@ -46,6 +46,8 @@ on:
       - 'apps/mobile/scripts/android-classpath.init.gradle'
       - 'apps/mobile/scripts/android-classpath.txt'
       - 'apps/mobile/scripts/licences.mjs'
+      - 'apps/mobile/scripts/android-native-libs.txt'
+      - 'apps/mobile/scripts/licence-texts/**'
   workflow_dispatch:
 
 permissions:
@@ -143,6 +145,21 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
           ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
         run: ./gradlew assembleRelease bundleRelease --no-daemon
+      # About also lists the third-party native code inside the .so files (#904). Take the .so names of the APK just built and
+      # fail if they differ from scripts/android-native-libs.txt or one has no notice entry in scripts/licences.mjs (NATIVE_SO).
+      - name: Android native libraries match the committed list
+        id: nativelibs
+        run: |
+          unzip -Z1 android/app/build/outputs/apk/release/*.apk 'lib/*.so' | sed 's#.*/##' | sort -u > "$RUNNER_TEMP/android-native-libs.txt"
+          node scripts/licences.mjs --native-libs "$RUNNER_TEMP/android-native-libs.txt"
+      - name: Upload the built .so names (copy them over scripts/android-native-libs.txt)
+        if: failure() && steps.nativelibs.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-native-libs
+          path: ${{ runner.temp }}/android-native-libs.txt
+          if-no-files-found: warn
+          retention-days: 14
       - name: Signing mode
         run: |
           if [ -n "$ANDROID_KEYSTORE_FILE" ]; then

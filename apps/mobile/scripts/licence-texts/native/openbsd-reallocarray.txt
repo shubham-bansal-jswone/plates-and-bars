@@ -1,0 +1,4 @@
+Copyright (c) 2008 Otto Moerbeek <otto@drijf.net>
+SPDX-License-Identifier: MIT
+
+(The notice carried by openbsd-reallocarray.c in giflib 5.2.1. The MIT licence text is the one in the giflib entry above.)
