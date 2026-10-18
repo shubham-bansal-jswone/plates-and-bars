@@ -216,9 +216,40 @@ describe('offToUserFood', () => {
     expect(ok({ ...LAYS, code: undefined }).draft.barcode).toBeNull();
   });
 
-  it('shows the carbs and fibre hint unless the product is listed for India', () => {
+  it('shows the carbs and fibre hint unless the product is tagged India or United States (#972)', () => {
     expect(ok({ ...LAYS, countries_tags: ['en:france'] }).carbsFibreHint).toBe(true);
+    expect(ok({ ...LAYS, countries_tags: ['en:france', 'en:germany'] }).carbsFibreHint).toBe(true);
     expect(ok({ ...LAYS, countries_tags: null }).carbsFibreHint).toBe(true);
+    expect(ok({ ...LAYS, countries_tags: ['en:united-states'] }).carbsFibreHint).toBe(false);
+    expect(ok({ ...LAYS, countries_tags: ['en:india'] }).carbsFibreHint).toBe(false);
+    expect(ok({ ...LAYS, countries_tags: ['en:france', 'en:india'] }).carbsFibreHint).toBe(false);
+  });
+
+  describe('zero stated kcal with real macros (#971)', () => {
+    const drink = (n: object) => ok({ name: 'Drink', quantity: '330 ml', nutriments: { 'energy-kcal_100g': 0, ...n } });
+
+    it('flags a drink with 0 kcal and 10.6 g carbs per 100 ml, and keeps the values', () => {
+      const r = drink({ proteins_100g: 0, carbohydrates_100g: 10.6, fat_100g: 0 });
+      expect(r.warnings).toEqual(['looks_off']);
+      expect(r.draft.kcal).toBe(0);
+      expect(r.draft.carbs_g).toBe(10.6);
+      expect(r.missing).toEqual([]);
+    });
+
+    it('does not flag water or a real zero-kcal product with near-zero macros', () => {
+      expect(drink({ proteins_100g: 0, carbohydrates_100g: 0, fat_100g: 0 }).warnings).toEqual([]);
+      expect(drink({ proteins_100g: 0.1, carbohydrates_100g: 0.5, fat_100g: 0 }).warnings).toEqual([]);
+    });
+
+    it('uses a strict 20 kcal bound and treats missing macros as zero', () => {
+      expect(drink({ proteins_100g: 0, carbohydrates_100g: 5, fat_100g: 0 }).warnings).toEqual([]); // exactly 20
+      expect(drink({ proteins_100g: 0, carbohydrates_100g: 5.1, fat_100g: 0 }).warnings).toEqual(['looks_off']);
+      expect(drink({ carbohydrates_100g: 10.6 }).warnings).toEqual(['looks_off']);
+    });
+
+    it('does not flag when kcal is missing rather than 0', () => {
+      expect(ok({ name: 'A', nutriments: { proteins_100g: 0, carbohydrates_100g: 10.6, fat_100g: 0 } }).warnings).toEqual([]);
+    });
   });
 
   describe('plausibility and data quality', () => {

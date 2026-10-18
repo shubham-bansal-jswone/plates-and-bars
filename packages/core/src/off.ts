@@ -85,7 +85,7 @@ export type OffMapResult =
       warnings: OffWarning[];
       /** The pack measures in ml: values are per 100 ml or per serving in ml, so grams entry is off. */
       liquid: boolean;
-      /** Show "Carbohydrate is as printed on the pack. Check it includes fibre." (the product is not listed for India). */
+      /** Show "Carbohydrate is as printed on the pack. Check it includes fibre." (the product is not tagged India or United States). */
       carbsFibreHint: boolean;
     };
 
@@ -94,6 +94,9 @@ const MAX_UNIT = 100;
 const MACRO_DIFF_KCAL = 50;
 const MACRO_DIFF_RATIO = 0.4;
 const LOW_COMPLETENESS = 0.5;
+const ZERO_KCAL_MACRO_KCAL = 20;
+/** Countries whose labels state total carbohydrate including fibre (#972): no fibre hint for these. */
+const FIBRE_INCLUDED_COUNTRIES = ['en:india', 'en:united-states'];
 
 /** A finite number at or above 0, from a number or a numeric string; else null. */
 function read(v: OffNumber): number | null {
@@ -147,7 +150,8 @@ function servingUnit(text: string, grams: number, liquid: boolean): string {
  * 100 g); otherwise they are per 100 g ("100 ml" for liquids). Missing fields stay null and are listed in
  * `missing`; `sugars` is not mapped to added sugar. A product with no usable nutriment is `not_found`.
  *
- * A new rule from the #944 spec (rules 1 to 9); no prototype function.
+ * A new rule from the #944 spec (rules 1 to 9); no prototype function. The zero-kcal warning (#971) and the
+ * country rule for `carbsFibreHint` (#972) were decided on 2026-10-19.
  */
 export function offToUserFood(p: OffProduct): OffMapResult {
   const n = p.nutriments ?? {};
@@ -198,15 +202,18 @@ export function offToUserFood(p: OffProduct): OffMapResult {
   if ((p.data_quality_errors_tags ?? []).length > 0) warnings.push('quality_errors');
   if ((p.states_tags ?? []).includes('en:nutrition-facts-to-be-completed')) warnings.push('nutrition_to_be_completed');
 
-  return { kind: 'ok', draft, missing, warnings, liquid, carbsFibreHint: !(p.countries_tags ?? []).includes('en:india') };
+  return { kind: 'ok', draft, missing, warnings, liquid, carbsFibreHint: !(p.countries_tags ?? []).some((c) => FIBRE_INCLUDED_COUNTRIES.includes(c)) };
 }
 
 /**
  * Plausibility on per 100 g values: protein + carbs + fat above 100 g, or stated energy differing from
  * 4P + 4C + 9F by more than 50 kcal and more than 40 percent of the stated energy (all four must be known).
+ * Also (#971): stated energy of exactly 0 while 4P + 4C + 9F is above 20 kcal (a missing macro counts as 0),
+ * as a diet drink with 10.6 g carbs per 100 ml. Real zero-kcal products have near-zero macros and pass.
  */
 function looksOff(kcal: number | null, p: number | null, c: number | null, f: number | null): boolean {
   if ((p ?? 0) + (c ?? 0) + (f ?? 0) > 100) return true;
+  if (kcal === 0 && 4 * (p ?? 0) + 4 * (c ?? 0) + 9 * (f ?? 0) > ZERO_KCAL_MACRO_KCAL) return true;
   if (kcal === null || p === null || c === null || f === null) return false;
   const diff = Math.abs(kcal - (4 * p + 4 * c + 9 * f));
   return diff > MACRO_DIFF_KCAL && diff > MACRO_DIFF_RATIO * kcal;
