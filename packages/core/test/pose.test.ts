@@ -231,6 +231,7 @@ describe('depth cue', () => {
   const cards = (content as unknown as { cards: Record<string, { key_cues: string[] }> }).cards;
   it.each(['Bodyweight Squat', 'Goblet Squat'] as const)('%s card and DEPTH_CUES carry the parallel line', (name) => {
     expect(cards[name]!.key_cues).toContain('Lower until your thighs are about parallel');
+    expect(cards[name]!.key_cues).toHaveLength(3);
     expect(DEPTH_CUES[name].text).toBe('Lower until your thighs are about parallel');
   });
 });

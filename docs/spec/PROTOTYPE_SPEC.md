@@ -10,8 +10,8 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
-**2026-10-18 — Bodyweight Squat and Goblet Squat cards gain a depth cue (spec-change; golden `exercises.json` changed).**
-- #981 (part of #947): both cards in `docs/prototype/plate-and-bar.html` get "Lower until your thighs are about parallel" as the second `key_cues` line, the wording the Hack Squat card already uses. `docs/spec/golden/exercises.json` and `content/exercises.json` are regenerated; no calculation changes. Core's `DEPTH_CUES` (live pose tracking) points at this line.
+**2026-10-18 — Bodyweight Squat and Goblet Squat cards get a depth cue (spec-change; golden `exercises.json` changed).**
+- #981 (part of #947): the depth line "Lower until your thighs are about parallel" (the wording the Hack Squat card already uses) replaces one `key_cues` line on each card in `docs/prototype/plate-and-bar.html`, so every card keeps exactly 3 key cues. Bodyweight Squat: replaces "Sit back and down between your heels" (now the first line). Goblet Squat: replaces "Stand up by pushing through your whole foot" (now the third line). `docs/spec/golden/exercises.json` and `content/exercises.json` are regenerated; no calculation changes. Core's `DEPTH_CUES` (live pose tracking) points at this line.
 
 **2026-10-18 — the prototype no longer embeds exercise demo photos (spec-change; golden fixtures unchanged).**
 - #653: `DEMO` in `docs/prototype/plate-and-bar.html` held 126 JPEGs (63 exercises, two photos each) labelled Free Exercise DB and claimed to be Unlicense, but their provenance is unknown. They are removed, so `DEMO` is empty and `demoHtml` returns nothing. The 32 of those 63 exercises with no movement diagram now show no visual in the how-to sheet and Learn mode; the other 31 show their diagram. The caption "Photos: Free Exercise DB (public domain)." is gone too.
