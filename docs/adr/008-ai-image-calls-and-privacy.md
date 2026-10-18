@@ -1,0 +1,29 @@
+# ADR 008: AI image calls: base64 in JSON, re-encoded on the server, never stored
+
+- Status: Accepted
+- Date: 2026-10-18
+- Issue: #946 (contract), provider choice #926 (open)
+
+## Context
+
+v1.1 adds three AI calls that take pictures: Meal photo, Import recipe (text or a photo of a page) and Form check (a few still frames from the user's own video). The prototype has all three. Until now every `/ai/*` call was text, capped at 16 KB, and the contract promised that request bodies are never logged or stored.
+
+Photos are more sensitive than text. A meal photo can show a face, a room or a home; a phone JPEG carries GPS position, time and device in its EXIF. A form-check frame shows the user's body. The provider is not chosen yet (#926), so the contract must hold whichever one is, and everything ships off until the owner picks one.
+
+## Decision
+
+1. **One body format: base64 in JSON, not multipart.** Each image is `{media_type, data}` inside the same JSON body as any other `/ai/*` call. This keeps the strict-JSON rules, the per-field bounds check (`verify.mjs` fails on an unbounded string), the 400 `invalid_request` shape and the generated TypeScript client identical for all seven AI calls. The cost is 33% more bytes, which is small because the app already shrinks photos to about 1,600 px before sending (the prototype's `shrinkImage()`).
+2. **Types and sizes.** `image/jpeg` and `image/png` only; the app re-encodes anything else (HEIC, WebP). A photo is at most 1,200,000 decoded bytes; a form-check frame at most 350,000 (2 to 4 frames, so four fit the 2 MB body limit). At most 4,096 px a side and 16 megapixels, read from the header before decoding, which keeps a decompression bomb out of memory. The three image endpoints keep the existing 2 MB body limit; the 16 KB limit stays on the four text calls. Failures are 400 `invalid_request` with an `issue` (`too_large`, `invalid_base64`, `unsupported_type`, `type_mismatch`, `unreadable_image`, `dimensions`), all before the quota is reserved. No new top-level error code.
+3. **EXIF is stripped on the server, by re-encoding.** The server decodes each image, applies its orientation and encodes the pixels as a new JPEG (long side at most 1,600 px). The original bytes are never forwarded, so GPS, time, device, XMP, IPTC and embedded thumbnails cannot reach the provider, and an undecodable file is refused rather than passed on. The app strips on the device too, but the server does not trust that.
+4. **Images are never stored or logged, and have no retention.** They exist in memory for one request: not on disk or in temp files, not in the database, R2, a cache (the identical-request cache is off for image calls), logs, metrics, traces or error reports. Only the existing `ai_usage` counts remain. The app keeps the photo in memory while the sheet is open and never adds it to progress photos. The video of a form check never leaves the phone.
+5. **Provider terms are part of the contract.** The provider gets only the re-encoded images, the user's text and the instructions, no account data. A provider that cannot be set to no retention and no training on the request is not used for these calls.
+6. **Same guards as the text calls.** Per-feature kill switch (`meal_photo`, `import_recipe`, `form_check`, default off, optional flags in `GET /ai/status`), the shared daily quota with one unit per call, the 5-per-minute limit across all seven calls, the monthly budget cap, 503 `feature_disabled` and 503 `unavailable`, and the same order of checks. Output is parsed as data and checked against the schema. Text in an image is data, never an instruction.
+7. **Results are suggestions.** Nothing is logged or saved by the call. Meal photo returns the existing `MealEstimateItem` plus a confidence, and the app matches names against the user's food list on the device. Import recipe returns a draft in the recipe builder's terms (`Ingredient` in grams, matched to `content/raw-ingredients.json`), not a saved `Recipe`. Form check judges the exercise card's own `key_cues` (so the server needs a catalogue exercise) and never diagnoses.
+
+## Consequences
+
+- The backend needs an image decoder that reads dimensions before pixels, a JPEG encoder, and tests that load `packages/api/test-vectors/ai-images.json` (including a JPEG with EXIF that must come out without it). Re-encoding costs some CPU per call; it is bounded by the size limits and the rate limit.
+- The request-body wording of `/ai/*` now has two limits (16 KB text, 2 MB image). Log and error-report scrubbing must treat image bodies like text bodies; the existing no-logging tests extend to them.
+- A flat 1 unit per call under-charges vision calls against a 10-a-day allowance. The monthly budget cap, which counts tokens, is what bounds spend; if it proves too loose a later, additive change can give image calls a higher unit cost and report it in `quota`.
+- If the chosen provider cannot meet decision 5, the three flags stay off and the app shows the non-AI fallbacks (Describe it, the recipe builder, the cue checklist).
+- Moving to multipart later would be a new content type on the same operations, so it is additive.

@@ -426,6 +426,80 @@ for (const [where, line] of cookieLines.filter(([w]) => w !== "ClearRefreshCooki
 }
 if (parsed.components.responses.TokenPair.content["application/json"].examples.cookie?.value.refresh_token !== "") failures.push("TokenPair cookie example: refresh_token must be empty");
 
+// ai-images.json (#946, ADR 008): the image rules of POST /ai/meal-photo, /ai/import-recipe and /ai/form-check. The
+// limits equal the schemas' (base64 maxLength = 4 * ceil(bytes / 3)), four frames and the longest recipe text fit the
+// 2 MB body limit, every case gets the issue its first fault names from a small reference checker, and every image in
+// an example of the three operations passes the checker.
+const imgv = JSON.parse(readFileSync(new URL("./ai-images.json", import.meta.url), "utf8"));
+const b64len = (bytes) => 4 * Math.ceil(bytes / 3);
+const aiImageOps = ["/ai/meal-photo", "/ai/import-recipe", "/ai/form-check"];
+for (const p of aiImageOps) if (!parsed.paths[p]?.post) failures.push(`openapi.yaml: no POST ${p}`);
+const schemasAi = parsed.components.schemas;
+for (const [name, kind] of [["AiImage", "photo"], ["AiFrame", "frame"]]) {
+  const s = schemasAi[name];
+  if (s.properties.data.maxLength !== b64len(imgv.max_decoded_bytes[kind])) failures.push(`${name}.data.maxLength must be ${b64len(imgv.max_decoded_bytes[kind])} (${imgv.max_decoded_bytes[kind]} bytes as base64)`);
+  if (JSON.stringify(s.properties.media_type.enum) !== JSON.stringify(imgv.media_types)) failures.push(`${name}.media_type must be ${imgv.media_types.join(", ")}`);
+}
+const fcFrames = schemasAi.FormCheckRequest.properties.frames;
+if (fcFrames.minItems !== imgv.frames.min || fcFrames.maxItems !== imgv.frames.max) failures.push("FormCheckRequest.frames bounds differ from ai-images.json");
+if (imgv.frames.max * (b64len(imgv.max_decoded_bytes.frame) + 100) > imgv.body_limit_bytes) failures.push("four form-check frames do not fit the body limit");
+const recipeTextBytes = schemasAi.ImportRecipeRequest.properties.text.maxLength * 12; // worst case: every character a \uXXXX escape
+if (b64len(imgv.max_decoded_bytes.photo) + recipeTextBytes + 200 > imgv.body_limit_bytes) failures.push("a recipe photo plus the longest text does not fit the body limit");
+if (!parsed.tags.find((t) => t.name === "ai").description.includes("at most 4,096 px")) failures.push("ai tag does not state the 4,096 px limit");
+const pngBytes = (w, h) => {
+  const b = Buffer.alloc(8 + 25 + 12);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b);
+  b.writeUInt32BE(13, 8); b.write("IHDR", 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
+  b.writeUInt32BE(0, 33); b.write("IEND", 37);
+  return b;
+};
+function imageFault(media_type, data, kind) {
+  if (!imgv.media_types.includes(media_type)) return "unsupported_type";
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(data) || data.length % 4 !== 0) return "invalid_base64";
+  const buf = Buffer.from(data, "base64");
+  if (buf.length > imgv.max_decoded_bytes[kind]) return "too_large";
+  const isPng = buf.length > 24 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isJpeg = buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  if ((media_type === "image/png" && !isPng) || (media_type === "image/jpeg" && !isJpeg)) return "type_mismatch";
+  if (isPng) {
+    const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+    if (w > imgv.max_side_px || h > imgv.max_side_px || w * h > imgv.max_megapixels * 1e6) return "dimensions";
+    if (!buf.includes("IEND")) return "unreadable_image";
+  } else if (buf.at(-2) !== 0xff || buf.at(-1) !== 0xd9) return "unreadable_image";
+  return null;
+}
+for (const c of imgv.cases) {
+  let data = c.data;
+  if (c.build?.pad_to_bytes) data = Buffer.concat([Buffer.from(imgv.cases[0].data, "base64"), Buffer.alloc(c.build.pad_to_bytes)]).subarray(0, c.build.pad_to_bytes).toString("base64");
+  if (c.build?.png_dims) data = pngBytes(...c.build.png_dims).toString("base64");
+  const got = imageFault(c.media_type, data, c.kind);
+  if (got !== c.issue) failures.push(`ai-images.json "${c.name}": checker says ${got}, vector says ${c.issue}`);
+  if (c.issue !== null && !imgv.order.includes(c.issue)) failures.push(`ai-images.json "${c.name}": issue ${c.issue} is not in order`);
+  if (c.exif_marker && !Buffer.from(c.data, "base64").includes(c.exif_marker)) failures.push(`ai-images.json "${c.name}": no ${c.exif_marker} marker to strip`);
+}
+for (const issue of imgv.order) if (!imgv.cases.some((c) => c.issue === issue)) failures.push(`ai-images.json: no case for ${issue}`);
+if (!imgv.cases.some((c) => c.exif_marker)) failures.push("ai-images.json: no case with EXIF to strip");
+for (const issue of imgv.order) if (!JSON.stringify(parsed.components.responses.InvalidRequest).includes(issue) && !parsed.tags.find((t) => t.name === "ai").description.includes(`\`${issue}\``)) failures.push(`ai tag does not name the image issue ${issue}`);
+let imageExamples = 0;
+for (const p of aiImageOps) {
+  for (const [name, ex] of Object.entries(parsed.paths[p].post.requestBody.content["application/json"].examples ?? {})) {
+    for (const [img, kind] of [[ex.value.image, "photo"], ...(ex.value.frames ?? []).map((f) => [f, "frame"])]) {
+      if (!img) continue;
+      imageExamples++;
+      const got = imageFault(img.media_type, img.data, kind);
+      if (got !== null) failures.push(`${p} example ${name}: image fails the image rules (${got})`);
+    }
+  }
+  const ex200 = Object.values(parsed.paths[p].post.responses["200"].content["application/json"].examples ?? {});
+  if (ex200.length === 0) failures.push(`${p}: no 200 example`);
+  for (const code of ["400", "401", "429", "500", "503"]) if (!parsed.paths[p].post.responses[code]) failures.push(`${p}: no ${code}`);
+}
+if (imageExamples === 0) failures.push("no image request examples found");
+// Must-fail vectors for the checker: a wrong expectation must be noticed.
+if (imageFault("image/png", Buffer.from("x").toString("base64"), "photo") === null) failures.push("image checker accepts a one-byte png");
+for (const f of ["meal_photo", "import_recipe", "form_check"]) if (schemasAi.AiStatus.properties.features.properties[f]?.type !== "boolean") failures.push(`AiStatus.features.${f} must be a boolean`);
+if (schemasAi.AiStatus.properties.features.required.some((f) => ["meal_photo", "import_recipe", "form_check"].includes(f))) failures.push("AiStatus.features: the image flags must stay optional (older servers never send them)");
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
@@ -438,4 +512,5 @@ console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and 
 console.log(`openapi.yaml: ${mutants} bounds in ${aiRequests.size} AI request schemas (${[...aiRequests].join(", ")}), each one caught when removed`);
 console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, each one caught when opened; open core-owned objects carry x-max-json-bytes`);
 console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
+console.log(`ai-images.json: ${imgv.cases.length} cases, limits equal the schemas, ${imageExamples} example images pass the rules`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);

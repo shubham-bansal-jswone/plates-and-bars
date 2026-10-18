@@ -1,0 +1,183 @@
+{
+  "description": "Image rules of POST /ai/meal-photo, /ai/import-recipe and /ai/form-check (#946, ADR 008). Backend and app tests load this file. 'order' is the order the server checks one image in; the first fault wins and is the `details[].issue` of the 400. `verify.mjs` runs every case through a small reference checker and checks the limits against openapi.yaml.",
+  "media_types": [
+    "image/jpeg",
+    "image/png"
+  ],
+  "max_decoded_bytes": {
+    "photo": 1200000,
+    "frame": 350000
+  },
+  "max_side_px": 4096,
+  "max_megapixels": 16,
+  "frames": {
+    "min": 2,
+    "max": 4
+  },
+  "body_limit_bytes": 2097152,
+  "reencode": {
+    "format": "image/jpeg",
+    "max_long_side_px": 1600
+  },
+  "order": [
+    "unsupported_type",
+    "invalid_base64",
+    "too_large",
+    "type_mismatch",
+    "dimensions",
+    "unreadable_image"
+  ],
+  "cases": [
+    {
+      "name": "png ok",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=",
+      "issue": null
+    },
+    {
+      "name": "jpeg ok, carries EXIF the server must strip",
+      "kind": "photo",
+      "media_type": "image/jpeg",
+      "data": "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACAAIAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A90ooor+Uz98P/9k=",
+      "issue": null,
+      "exif_marker": "Exif"
+    },
+    {
+      "name": "png as a frame ok",
+      "kind": "frame",
+      "media_type": "image/png",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=",
+      "issue": null
+    },
+    {
+      "name": "gif is not an allowed type",
+      "kind": "photo",
+      "media_type": "image/gif",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=",
+      "issue": "unsupported_type"
+    },
+    {
+      "name": "heic is not an allowed type",
+      "kind": "photo",
+      "media_type": "image/heic",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=",
+      "issue": "unsupported_type"
+    },
+    {
+      "name": "not base64",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "not base64!",
+      "issue": "invalid_base64"
+    },
+    {
+      "name": "line breaks are not base64 here",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "iVBORw0KGgoAAAANSUhE\nUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=",
+      "issue": "invalid_base64"
+    },
+    {
+      "name": "data: prefix is not base64 here",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=",
+      "issue": "invalid_base64"
+    },
+    {
+      "name": "missing padding",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII",
+      "issue": "invalid_base64"
+    },
+    {
+      "name": "photo one byte over the limit",
+      "kind": "photo",
+      "media_type": "image/png",
+      "build": {
+        "pad_to_bytes": 1200001
+      },
+      "issue": "too_large"
+    },
+    {
+      "name": "photo at the limit",
+      "kind": "photo",
+      "media_type": "image/png",
+      "build": {
+        "pad_to_bytes": 1200000
+      },
+      "issue": null
+    },
+    {
+      "name": "frame one byte over the limit",
+      "kind": "frame",
+      "media_type": "image/png",
+      "build": {
+        "pad_to_bytes": 350001
+      },
+      "issue": "too_large"
+    },
+    {
+      "name": "png bytes labelled jpeg",
+      "kind": "photo",
+      "media_type": "image/jpeg",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGM4MS0AK2IYWhIAHz5rgeChJEMAAAAASUVORK5CYII=",
+      "issue": "type_mismatch"
+    },
+    {
+      "name": "jpeg bytes labelled png",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACAAIAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A90ooor+Uz98P/9k=",
+      "issue": "type_mismatch"
+    },
+    {
+      "name": "gif bytes labelled png",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "R0lGODlhAQABAAAAADs=",
+      "issue": "type_mismatch"
+    },
+    {
+      "name": "png 4097 px wide",
+      "kind": "photo",
+      "media_type": "image/png",
+      "build": {
+        "png_dims": [
+          4097,
+          10
+        ]
+      },
+      "issue": "dimensions"
+    },
+    {
+      "name": "png 4096 x 4096 is over 16 megapixels",
+      "kind": "photo",
+      "media_type": "image/png",
+      "build": {
+        "png_dims": [
+          4096,
+          4096
+        ]
+      },
+      "issue": "dimensions"
+    },
+    {
+      "name": "png cut off after the header",
+      "kind": "photo",
+      "media_type": "image/png",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQQ==",
+      "issue": "unreadable_image"
+    },
+    {
+      "name": "jpeg cut off",
+      "kind": "photo",
+      "media_type": "image/jpeg",
+      "data": "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACAAIAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldY",
+      "issue": "unreadable_image"
+    }
+  ],
+  "build_notes": "`build.pad_to_bytes`: the 8x8 PNG of the first case followed by zero bytes up to that many decoded bytes (trailing bytes after the last PNG chunk, which a decoder ignores). `build.png_dims`: a PNG signature and IHDR claiming [width, height] with no pixel data, which is refused on the header alone, before any decode."
+}
