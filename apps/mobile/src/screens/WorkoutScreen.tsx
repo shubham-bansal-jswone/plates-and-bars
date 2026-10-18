@@ -30,7 +30,7 @@ import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
-import { useWorkoutDay } from '../workout/useWorkoutDay';
+import { useWorkoutDay, type PickSeed } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate, type ViewedDate } from '../state/ViewedDate';
@@ -149,6 +149,8 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
   // Choosing a workout only previews it (#1005): nothing is stored until Start. `previewT` is the workout being previewed, `picked` the hand-picked exercises (from any workout) waiting for Start.
   const [previewT, setPreviewT] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
+  // The previewed workout the picks were seeded from (#1020); null for picks made from scratch.
+  const [seed, setSeed] = useState<PickSeed | null>(null);
   const where = override ?? profile.where;
   const weekPlan = settings.adjustments.weekPlan as WeekPlan | undefined;
   const plan = planned(date, { profile, sessions: day.sessions, weekPlan, mode: settings.adjustments.mode as string | undefined });
@@ -179,6 +181,7 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
   const back = () => {
     setPreviewT(null);
     setPicked([]);
+    setSeed(null);
     say('Back to the list of workouts.');
   };
   const preview = (k: string) => {
@@ -221,10 +224,14 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
                 {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
                 <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
               </Text>
-              <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => setPicked(picked.filter((x) => x !== n))} />
+              <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => {
+                const rest = picked.filter((x) => x !== n);
+                setPicked(rest);
+                if (!rest.length) setSeed(null); // back to the list: the next picks start from scratch
+              }} />
             </View>
           ))}
-          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice)} />
+          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seed, ci.time ?? null)} />
           <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
           <Button label="Back to workouts" kind="link" onPress={back} />
         </Card>
@@ -293,6 +300,7 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
               onPress={() => {
                 // Starts from this workout's exercises: drop some, add others from any workout, then Start.
                 setPicked(names);
+                if (built) setSeed({ template: startT as string, exercises: built.exercises });
                 setPreviewT(null);
                 setPicking(true);
               }}

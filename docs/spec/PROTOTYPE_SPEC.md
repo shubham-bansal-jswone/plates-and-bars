@@ -10,6 +10,11 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-19 — picks seeded from a workout preview keep its base and adjustments (deliberate difference; prototype and golden fixtures unchanged).**
+- #1020 (follow-up to #1017; core in PR #1028, app wiring in this PR). The prototype's `exPick` starts a hand-picked session with `mods: {}` and no `base`, so a session begun from "Pick exercises" inside a previewed workout is not counted by the rotation and sequence and ignores the check-in, re-entry and deload adjustments.
+- When the picks were seeded from a previewed workout, the session now stores that workout as `base` (and its name as the template) and keeps its `mods`: the exercises that remain get the check-in ("Lighter session", time), re-entry and recovery-week set counts, a seeded balance exercise gets 2 sets, and added exercises get plain default sets. Removed exercises are simply absent. Core `seededSession` does this.
+- Fully hand-picked sessions (no preview) are unchanged: a "Session" with `base` null and `mods: {}`, as in `exPick`.
+
 **2026-10-19 — v1.1 form check accepts photos and sends frames (spec-change; prototype and golden fixtures unchanged).**
 - #1012 (from PR #1003, the v1.1 form check port under #946; decided by the coordinator under the owner's delegation). Two deliberate differences from the prototype, recorded here instead of kept silently.
 - Photos as well as video: the prototype's form check takes only a video and cuts frames in the browser with `<video>` and canvas. The app also accepts 2 to 4 photos (picked or taken), and cuts video frames on the phone with `expo-video-thumbnails`, which has no web implementation, so on web only the photos path is offered. Decision: keep both, because photos make the feature usable on web and on phones where a video pick fails. Web video (porting the prototype's canvas cut) is a nice-to-have and can wait.
