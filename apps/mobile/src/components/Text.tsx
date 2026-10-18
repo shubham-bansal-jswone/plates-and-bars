@@ -10,7 +10,7 @@ export function Text({ style, ...rest }: TextProps) {
   const family = useFontFamily();
   const ready = useFontsReady();
   const flat = StyleSheet.flatten(style) ?? {};
-  // Only once loaded: the fallback stack has no bold face to pair with, so the style's own fontWeight must stay.
+  // Only once loaded: the bundled fonts are one family per weight, so only then can fontWeight be reset; before that the style's own weight must stay.
   const fontFamily = ready ? family(flat.fontWeight) : undefined;
   return <RNText {...rest} style={fontFamily ? [flat, { fontFamily, fontWeight: 'normal' }] : flat} />;
 }
