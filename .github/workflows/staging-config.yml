@@ -67,3 +67,7 @@ jobs:
         run: |
           shellcheck -x ledger-lib.sh ledger-upload.sh ledger-replay.sh test-ledger.sh
           ./test-ledger.sh
+      - name: erasure ledger R2 lifecycle rule (shellcheck, then against a stub curl)
+        run: |
+          shellcheck -x ledger-lifecycle.sh test-ledger-lifecycle.sh
+          ./test-ledger-lifecycle.sh
