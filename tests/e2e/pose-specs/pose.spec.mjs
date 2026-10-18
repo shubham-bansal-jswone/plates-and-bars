@@ -22,7 +22,8 @@ async function openTracker(page, requests) {
     )
     .toBe(true);
   await label(page, 'Pick exercises').click();
-  await saved(page, () => label(page, 'Add Goblet Squat').click());
+  await label(page, 'Add Goblet Squat').click(); // a pick is only a preview (#1005): nothing is stored until Start
+  await saved(page, () => label(page, 'Start this exercise').click());
   // The lazy-loading guard: the requests are recorded from the first navigation, so a static import (which would put TF.js in the
   // main bundle) shows up here as a chunk fetched too early.
   const chunks = () => requests.map((r) => r.url.pathname).filter((p) => /\/pose-(session|detector)-[^/]*\.js$/.test(p));
