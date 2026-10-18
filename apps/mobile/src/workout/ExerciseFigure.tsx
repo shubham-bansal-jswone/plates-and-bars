@@ -21,6 +21,8 @@ export function ExerciseFigure({ name }: { name: string }) {
   const xml = useMemo(() => entry?.frames.map((f) => themedSvg(f.svg, c)) ?? [], [entry, c]);
   if (!entry) return null;
   const alt = figureAlt(name, entry, getCatalog().cards[name]?.setup[0]);
+  // The visible text starts the accessible name, so axe's label-content-name-mismatch rule holds.
+  const credit = `Drawing: ${entry.author} (${licenceLabel(entry.licence)})`;
   return (
     <View style={{ gap: 4 }}>
       <View accessible accessibilityRole="image" accessibilityLabel={alt} style={styles.row}>
@@ -39,11 +41,11 @@ export function ExerciseFigure({ name }: { name: string }) {
       {entry.note ? <Text style={[type.caption, { color: c.body }]}>{entry.note}</Text> : null}
       <Press
         accessibilityRole="link"
-        accessibilityLabel={`Drawing credit: ${entry.author}, ${licenceLabel(entry.licence)}. Opens About and sources`}
+        accessibilityLabel={`${credit}. Opens About and sources`}
         onPress={() => router.push('/about' as never)}
         style={styles.credit}
       >
-        <Text style={[type.small, { color: c.link }]}>{`Drawing: ${entry.author} (${licenceLabel(entry.licence)})`}</Text>
+        <Text style={[type.small, { color: c.link }]}>{credit}</Text>
       </Press>
     </View>
   );
