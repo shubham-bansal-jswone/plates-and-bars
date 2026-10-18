@@ -121,3 +121,6 @@ export const suggestTags = (d: AiDeps, name: string) => run<Schemas['SuggestTags
 /** `POST /ai/meal-photo`: sends the one re-encoded photo and the optional note. Nothing is kept here. */
 export const mealPhoto = (d: AiDeps, image: AiImage, hint?: string) =>
   run<Schemas['MealPhotoResponse']>(d, (signal) => d.api.POST('/ai/meal-photo', { body: hint ? { image, hint } : { image }, signal }));
+
+/** `POST /ai/import-recipe`: sends the pasted text and/or the one re-encoded photo (at least one). Nothing is kept here. */
+export const importRecipe = (d: AiDeps, body: Schemas['ImportRecipeRequest']) => run<Schemas['ImportRecipeResponse']>(d, (signal) => d.api.POST('/ai/import-recipe', { body, signal }));
