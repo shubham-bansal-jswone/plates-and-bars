@@ -7,7 +7,12 @@
   "eatout": {
     "sha256": "db9e4c135859d790bab85ae3977e92c4e1679809702cdbdc2d1dea291ec9bf60",
     "schema_version": 1,
-    "updated_at": "2026-10-17T23:49:14Z"
+    "updated_at": "2026-10-18T00:57:03Z"
+  },
+  "exercise-images": {
+    "sha256": "3604ad163982ce03ae4344328543560d07af7ffbf6d61b44a20d22c5127e364b",
+    "schema_version": 1,
+    "updated_at": "2026-10-18T15:52:31Z"
   },
   "exercises": {
     "sha256": "266b72969634c59a493b27f56f67af9f33972031e2201a9e2db05535c5905934",
@@ -17,7 +22,7 @@
   "foods": {
     "sha256": "005335d67010c04e8df4dc85e57687eae39760f54abba2e80f85cd4c25d07353",
     "schema_version": 1,
-    "updated_at": "2026-10-17T23:51:35Z"
+    "updated_at": "2026-10-18T00:57:03Z"
   },
   "labels": {
     "sha256": "1a99999d971fb741839a805e6924951546be5c71a376b33be08243c3cab3ea40",
