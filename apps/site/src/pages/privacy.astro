@@ -18,7 +18,7 @@ import Base from "../layouts/Base.astro";
   <ul>
     <li>Your data stays on this device. If you sign in, it is also stored on our own server so it syncs between your devices.</li>
     <li>Progress photos, cycle logs and lab reports stay only on this device.</li>
-    <li>AI features are off by default and need their own opt-in. No photos are sent anywhere.</li>
+    <li>AI features are off by default and need their own opt-in. Your progress photos are never sent anywhere. The AI photo features, when switched on, send only the picture you choose for that one request.</li>
     <li>You can download or delete everything at any time.</li>
     <li>Withdrawing your consent means deleting your account.</li>
   </ul>
@@ -47,7 +47,7 @@ import Base from "../layouts/Base.astro";
     <li><strong>Hosting</strong>: our server runs at [hosting provider].</li>
     <li><strong>Backups</strong>: [backup arrangement: where nightly database backups and the erasure ledger copy are kept, and whether they are encrypted].</li>
     <li><strong>Error tracking</strong>: when crash reporting is on, reports go to [error-tracking service host] (see "Crash and error reports").</li>
-    <li><strong>AI service</strong>: AI features are off by default and you switch them on yourself; the app works without them. When you use one, the app sends the items below to our server, which passes them to [AI provider]. It never sends your name, email, photos, cycle or lab data.</li>
+    <li><strong>AI service</strong>: AI features are off by default and you switch them on yourself; the app works without them. When you use one, the app sends the items below to our server, which passes them to [AI provider]. It never sends your name, email, progress photos, cycle or lab data.</li>
   </ul>
   <p>What each AI feature sends:</p>
   <ul>
@@ -61,8 +61,18 @@ import Base from "../layouts/Base.astro";
     <li>Weekly summary: the lifts that improved (with the percent gain over their previous best) and the lifts that stalled. In this summary only, custom exercise names are replaced with "custom exercise".</li>
     <li>Weekly summary: your calorie and protein targets, your goal and your estimated daily burn.</li>
   </ul>
-  <p>Our server does not save what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours.</p>
+  <p>When the AI image features are switched on (they are off by default), three more features can send a picture: a meal photo, a photo of a recipe (a recipe pasted as text sends no picture), and a few still frames from a form-check video. Our server re-encodes each image as a new picture, which removes its hidden data (such as location and time), and passes only that, with your text, to [AI provider]. The images are never stored or logged, in files, the database, a cache or reports, and are kept in memory only while the request runs. The video itself never leaves your phone.</p>
+  <p>Our server does not save what you send or get back; for the text features it may keep an answer in memory, for you only, for up to 24 hours. Image calls are never cached.</p>
   <p>The app also fetches shared reference content (foods, exercises, cards and similar) from our server. This content is the same for everyone and contains none of your data.</p>
+
+  <h2>Device features and permissions</h2>
+  <p>The app (on the web, your browser) asks for these permissions only when you turn on the feature that needs them:</p>
+  <ul>
+    <li><strong>Step counter</strong> (physical activity permission, off by default): the app reads your phone's step sensor on the device. The count is made on your phone, and the day's total then syncs like steps you type yourself, when you have agreed to sync. Nothing else from the sensor leaves the phone.</li>
+    <li><strong>Reminders</strong> (notifications permission): reminders are local notifications scheduled on your phone. We do not run a push notification service, and no reminder text or token is sent to us or to anyone else.</li>
+    <li><strong>Camera</strong>: for barcode scanning and live pose tracking, camera frames never leave your phone and no video or picture is saved. The camera is also used to take progress photos, which stay encrypted on this device and are never sent, and, when the AI image features are on, to take the meal photo described above, which is sent as described there. When you scan a barcode, only its digits are sent to our server, which asks Open Food Facts for that one product. Our server keeps the answer in a per-barcode cache for 30 days (24 hours when the product is not found) with no user id, and our logs redact the code. If you save a scanned food, its barcode is kept in your own synced food list. The Open Food Facts data is under its own licence, see <a href="/licenses/">licences</a>.</li>
+    <li><strong>Live pose tracking</strong> (off by default): the camera frames are analysed on your device only, and only the rep count, if you choose to use it, goes into that set of your workout log. Depth is never stored.</li>
+  </ul>
 
   <h2>Crash and error reports</h2>
   <p>Crash and error reporting is built in but stays off until we switch it on for a release. When it is on, the app and our server send error reports to [error-tracking service host], an error-tracking service we run ourselves on [hosting provider] that accepts Sentry-compatible reports. We use reports only to find and fix bugs.</p>
@@ -91,6 +101,7 @@ import Base from "../layouts/Base.astro";
     <li>Backups: [planned policy to confirm: nightly backups kept for 30 days; after you delete your account, copies in backups are not edited and disappear when those backups expire, at most 30 days later].</li>
     <li>Erasure ledger: when an account is deleted, the server records only the account's opaque user id and the time of deletion, with nothing else about you, so that restoring a backup cannot bring the account back. A copy is kept with the backups. In both places, each entry is kept for about 45 days (at most 46), then deleted.</li>
     <li>Crash and error reports: kept for [error report retention period], then deleted. A report holds no health data and only an opaque id, so deleting your account does not remove it. [Lawyer review: the hashed account id in server reports is a pseudonym that we can recompute while your account exists, so confirm whether reports must be deleted with the account.]</li>
+    <li>Barcode lookup cache: a product fact is kept for 30 days (24 hours when not found), then expires. It holds the barcode and the product facts only, with no user id.</li>
     <li>Access logs of the web servers: kept for at most about 15 days, then deleted.</li>
     <li>Server logs record opaque user ids and are kept for a bounded period. Retention: the API's own logs and the web server's error lines are kept for at most 14 days, and for less if the logs reach about 200 MB on the server.</li>
   </ul>
