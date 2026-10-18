@@ -683,3 +683,11 @@ export type { OffProduct, OffNutriments, OffNumber, OffMapResult, OffUserFoodDra
  */
 export { cycInfo, waterRetentionPhase, sameDayLastCycle, addCycleStart, removeLastCycleStart, emptyCycle } from './cycle';
 export type { CycleData, CycleInfo, CyclePhase } from './cycle';
+
+/**
+ * - `seededSession` is new (#1020), not a prototype port: a session from picks seeded from a previewed workout, keeping its
+ *   `base` and the check-in, re-entry and deload adjustments of `buildSession(t)` (via `sessionMods` and `sessionSets`) on the
+ *   exercises that remain. It deviates from prototype `exPick` on purpose.
+ */
+export { seededSession } from './seeded';
+export type { SeededSession, SeededSessionInput } from './seeded';
