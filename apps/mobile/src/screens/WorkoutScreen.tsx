@@ -30,7 +30,7 @@ import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRules } from '../workout/useRules';
-import { useWorkoutDay } from '../workout/useWorkoutDay';
+import { useWorkoutDay, type PickSeed } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
@@ -154,6 +154,8 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
   // Choosing a workout only previews it (#1005): nothing is stored until Start. `previewT` is the workout being previewed, `picked` the hand-picked exercises (from any workout) waiting for Start.
   const [previewT, setPreviewT] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
+  // The previewed workout the picks were seeded from (#1020); null for picks made from scratch. Start passes it only while a seeded exercise is still picked. While it is set the where override is fixed (the list was built for it).
+  const [seed, setSeed] = useState<PickSeed | null>(null);
   const where = override ?? profile.where;
   const weekPlan = settings.adjustments.weekPlan as WeekPlan | undefined;
   const plan = planned(date, { profile, sessions: day.sessions, weekPlan, mode: settings.adjustments.mode as string | undefined });
@@ -184,6 +186,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
   const back = () => {
     setPreviewT(null);
     setPicked([]);
+    setSeed(null);
     say('Back to the list of workouts.');
   };
   const preview = (k: string) => {
@@ -225,10 +228,14 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
                 {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
                 <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
               </Text>
-              <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => setPicked(picked.filter((x) => x !== n))} />
+              <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => {
+                const rest = picked.filter((x) => x !== n);
+                setPicked(rest);
+                if (!rest.length) setSeed(null); // back to the list: the next picks start from scratch
+              }} />
             </View>
           ))}
-          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice)} />
+          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seed && picked.some((n) => seed.exercises.some((e) => e.name === n)) ? seed : null, ci.time ?? null)} />
           <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
           <Button label="Back to workouts" kind="link" onPress={back} />
         </Card>
@@ -297,6 +304,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
               onPress={() => {
                 // Starts from this workout's exercises: drop some, add others from any workout, then Start.
                 setPicked(names);
+                if (built) setSeed({ template: startT as string, exercises: built.exercises });
                 setPreviewT(null);
                 setPicking(true);
               }}
@@ -319,10 +327,12 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
           return true;
         }} notify={notify} />
       <WeekTools date={date} notify={notify} />
+      {seed ? null : (
       <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
         <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
       </Press>
-      {away ? (
+      )}
+      {away && !seed ? (
         <View style={styles.wrap}>
           {WHERE_CHOICES.map(([v, l]) => (
             <Chip

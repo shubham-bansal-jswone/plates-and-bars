@@ -10,6 +10,8 @@ import {
   tickFill,
   updateLift,
   newExercise,
+  lastFor,
+  seededSession,
   mergeSecondSession,
   templateName,
   type CantDraft,
@@ -29,6 +31,8 @@ import { parseCardio } from './cardio';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
 import { buildSession } from './buildSession';
+import { getCatalog } from './catalog';
+import { rangesOf } from './adjust';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
 import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
@@ -65,6 +69,12 @@ interface Options {
   tune: Tuning;
   /** Changes when sync stored pulled records: the day is read again (after queued local writes). */
   reloadKey?: number;
+}
+
+/** The workout a pick list was seeded from: its template and the exercises its preview showed (`BuiltSession.exercises`). */
+export interface PickSeed {
+  template: string;
+  exercises: readonly { name: string; bridge?: boolean }[];
 }
 
 const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {} };
@@ -306,12 +316,27 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue],
   );
 
-  /** Start from hand-picked exercises, from any workout (prototype `exPick` with no template): a "Session" with each exercise's default sets and the start screen's where override and check-in choice (prototype keeps `w.ciChoice`). */
-  const startPicked = (names: readonly string[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
-    begin((sessions, d) => ({
-      workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: HAND_PICKED, base: null, where: override, mods: {}, exercises: [], ci_choice: ciChoice },
-      exs: names.map((name) => ({ name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: newExercise(name, { lifts: d.lifts, date }, 1).sets.map(() => blankRow()), ramp: [] })),
-    }));
+  /**
+   * Start from hand-picked exercises, from any workout (prototype `exPick` with no template): a "Session" with each exercise's default sets and the start screen's where override and check-in choice (prototype keeps `w.ciChoice`).
+   * With a `seed` (the picks started from a previewed workout, #1020) the session keeps that workout as `base` and gets its check-in, re-entry and deload adjustments (core `seededSession`); deliberately unlike `exPick`.
+   */
+  const startPicked = (names: readonly string[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null, seed: PickSeed | null = null, time: string | null = null) =>
+    begin((sessions, d) => {
+      const blank = (n: number) => Array.from({ length: n }, blankRow);
+      if (!seed) {
+        return {
+          workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: HAND_PICKED, base: null, where: override, mods: {}, exercises: [], ci_choice: ciChoice },
+          exs: names.map((name) => ({ name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: newExercise(name, { lifts: d.lifts, date }, 1).sets.map(() => blankRow()), ramp: [] })),
+        };
+      }
+      const where = override ?? (profile as Profile).where;
+      const { deload, reentry } = rangesOf(adjustments);
+      const made = seededSession({ base: seed.template, seeded: seed.exercises, picks: names, date, ciChoice, time, where, profile: profile as Profile, deload, reentry, focus, tags: getCatalog().tags, lastSets: (n) => lastFor(n, d.lifts, date)?.sets.length });
+      return {
+        workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: templateName(seed.template, where), base: made.base, where: override, mods: made.mods, exercises: [], ci_choice: ciChoice },
+        exs: made.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: blank(e.sets), ramp: [] })),
+      };
+    });
 
   const addSecond = useCallback(
     async (template: string) => {

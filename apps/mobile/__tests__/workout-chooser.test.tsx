@@ -177,7 +177,7 @@ describe('Preview picks and announcements (#1005)', () => {
     expect(screen.queryByLabelText(/Exercise \d: Lat Pulldown/)).toBeNull();
     nothingStored(db);
     await press('Start these exercises');
-    await screen.findByText('Session');
+    await screen.findByText('Pull A');
     await waitFor(() => expect(JSON.parse(db.rows.get(`workouts:${DATE}`) as string).exercises.map((e: { name: string }) => e.name)).toEqual(['Seated Cable Row', 'Face Pull', 'Dumbbell Curl', 'Cable Crunch', 'Barbell Bench Press']));
   });
 

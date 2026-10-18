@@ -10,6 +10,12 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-19 — picks seeded from a workout preview keep its base and adjustments (deliberate difference; prototype and golden fixtures unchanged).**
+- #1020 (follow-up to #1017; core in PR #1028, app wiring in this PR). The prototype's `exPick` starts a hand-picked session with `mods: {}` and no `base`, so a session begun from "Pick exercises" inside a previewed workout is not counted by the rotation and sequence and ignores the check-in, re-entry and deload adjustments.
+- When the picks were seeded from a previewed workout, the session now stores that workout as `base` (the template is its name, with the where suffix) and keeps its `mods`: the exercises that remain get the Lighter-session, re-entry and recovery-week set counts, and the time answer is kept as the short-session flag (the short cut already happened in the preview list). A seeded balance exercise gets 2 sets, and added exercises get plain default sets. Removed exercises are simply absent. Core `seededSession` does this.
+- The base applies only while at least one seeded exercise remains picked, whatever the order of taps; if none does, the session is plain hand-picked. While picks are seeded the "Training away" toggle is hidden so `where` cannot change under the list; Back to workouts brings it back.
+- Fully hand-picked sessions (no preview) are unchanged: a "Session" with `base` null and `mods: {}`, as in `exPick`.
+
 **2026-10-19 — in sequence mode, hand-picked sessions do not reset the workout order (deliberate difference; prototype and golden fixtures unchanged).**
 - #1019 (implemented in PR #1029). In sequence mode the next workout follows the most recent day that has a real template:
 - Hand-picked days (no template, or "Session", core's `HAND_PICKED`) are skipped, so a one-off session does not send the sequence back to the start.
