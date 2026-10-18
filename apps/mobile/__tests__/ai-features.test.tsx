@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
 import { AiSection } from '../src/ai/AiSection';
@@ -196,6 +196,46 @@ describe('Describe a meal', () => {
       expect(logs(db)[0]).toMatchObject({ name: 'Roti (2 medium)', meal: 'Lunch', date: '2026-10-07' });
       expect(screen.queryByLabelText('+ Add to lunch')).toBeTruthy();
       expect(screen.queryByLabelText('Describe your meal')).toBeNull();
+    });
+
+    it('keeps the tab and shows the switched-off message when the server turns Describe off while on it', async () => {
+      // The status read after the failure says the feature is off, so the gate closes while the tab is selected.
+      const get = jest.fn().mockResolvedValueOnce({ data: status({ describe_meal: true }), response: res(200) }).mockResolvedValue({ data: status(), response: res(200) });
+      const { api, POST, GET } = fakeApi({ get });
+      POST.mockResolvedValue({ error: { code: 'feature_disabled', message: 'x' }, response: res(503) });
+      await food(optedIn(), api);
+      await openAdd();
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      await fireEvent.changeText(await screen.findByLabelText('Describe your meal'), '2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      expect(await screen.findByText(/AI features are switched off right now\./)).toBeTruthy();
+      await waitFor(() => expect(GET.mock.calls.length).toBeGreaterThan(1));
+      expect(screen.getByRole('tab', { name: 'Describe it' })).toBeTruthy();
+      expect(screen.getByLabelText('Describe your meal')).toBeTruthy();
+    });
+
+    it('keeps the text and the estimate across tab switches and sends one request while one is pending', async () => {
+      const { api, POST } = on();
+      let done!: (v: unknown) => void;
+      POST.mockReturnValue(new Promise((r) => (done = r)));
+      await food(optedIn(), api);
+      await openAdd();
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      await fireEvent.changeText(await screen.findByLabelText('Describe your meal'), '2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+      await fireEvent.press(screen.getByRole('tab', { name: 'Food list' }));
+      expect(screen.queryByLabelText('Describe your meal')).toBeNull();
+      await fireEvent.press(screen.getByRole('tab', { name: 'Describe it' }));
+      expect(screen.getByLabelText('Describe your meal').props.value).toBe('2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      expect(POST).toHaveBeenCalledTimes(1);
+      await act(async () => done({ data: { items: [ROTI], quota: QUOTA }, response: res(200) }));
+      expect(await screen.findByLabelText('Item 1 Roti calories (kcal)')).toBeTruthy();
+      await fireEvent.press(screen.getByRole('tab', { name: 'Custom' }));
+      await fireEvent.press(screen.getByRole('tab', { name: 'Describe it' }));
+      expect(screen.getByLabelText('Item 1 Roti calories (kcal)').props.value).toBe('240');
+      expect(POST).toHaveBeenCalledTimes(1);
     });
 
     it('shows the quota message in the tab when the quota is used up', async () => {

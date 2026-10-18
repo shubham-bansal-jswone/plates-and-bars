@@ -35,6 +35,9 @@ interface Props {
 export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false }: Props) {
   const c = useTheme();
   const [mode, setMode] = useState<Mode>('list');
+  // Describe keeps its text, estimate and pending request while another tab is shown, as the prototype's FS does: it mounts on
+  // the first visit and is then only hidden. It stays reachable while selected even if AI is switched off, so its message shows.
+  const [seenDescribe, setSeenDescribe] = useState(false);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   const say = (text: string, error = false) => setStatus({ text, error });
   return (
@@ -43,8 +46,8 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
-            {(canDescribe ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); }}
+            {(canDescribe || mode === 'describe' ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k === 'describe') setSeenDescribe(true); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
@@ -53,7 +56,11 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
           {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
-          {mode === 'describe' && canDescribe ? <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} /> : null}
+          {seenDescribe ? (
+            <View style={mode === 'describe' ? undefined : styles.hidden} accessibilityElementsHidden={mode !== 'describe'} importantForAccessibility={mode === 'describe' ? 'auto' : 'no-hide-descendants'}>
+              <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} />
+            </View>
+          ) : null}
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
@@ -178,6 +185,7 @@ const styles = StyleSheet.create({
   body: { width: '100%', maxWidth: 560, gap: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   gap: { gap: 8 },
+  hidden: { display: 'none' },
   tab: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },
