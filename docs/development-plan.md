@@ -189,6 +189,8 @@ The app handles health data, so the launch checklist below is a gate, not a wish
 - [ ] Privacy policy and terms on the website, written for India’s DPDP Act 2023 (lawyer review)
 - [ ] In-app consent with a stored, dated record; withdraw consent = delete account
 - [ ] Account deletion in the app and on a web page (Google Play requires both)
+- [ ] Once the web app is hosted at the origin `web-deploy.yml` deploys to, repository variable `PUBLIC_WEB_APP_URL` (Settings > Secrets and variables > Actions > Variables) set to that origin and Site deploy re-run; empty, the site hides "Open the web app" and the "Delete on the web" steps (#860, #870)
+- [ ] No production `v*` tag until the erasure ledger's 45-day retention is stated and true: #875 (#876, #877) and #887 (#892, #897) merged
 - [ ] Play Console: Data safety form, health apps declaration, 18+ content rating
 - [ ] Error-tracking DSN (app and backend, with `SENTRY_ENVIRONMENT=production`) set only after the privacy page's crash-reporting section is published and the Play data-safety answers include crash logs and `ACCESS_NETWORK_STATE`
 - [ ] Medical disclaimer in setup and the store listing; health check and doctor-clearance flow
