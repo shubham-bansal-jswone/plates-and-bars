@@ -243,3 +243,16 @@ test('the JSON Schema agrees with the validator constants', () => {
   assert.deepEqual([...image.required].sort(), Object.keys(good().images['Barbell Bench Press']).sort());
   assert.deepEqual([...schema.$defs.frame.required], ['file', 'w', 'h', 'svg']);
 });
+
+// Shared with the app's port of the checker (it reads the same file to prove parity): [{ name, svg, w, h, ok }].
+test('every frame in the shared SVG corpus gets the expected verdict from checkSvgFrame', () => {
+  const corpus = JSON.parse(readFileSync(`${repo}/tools/validate/fixtures/svg-corpus.json`, 'utf8'));
+  assert.ok(corpus.length >= 100 && corpus.some((e) => e.ok) && corpus.some((e) => !e.ok));
+  assert.equal(new Set(corpus.map((e) => e.name)).size, corpus.length, 'names must be unique');
+  assert.equal(corpus.filter((e) => /^refuse: bypass, /.test(e.name)).length, 15, 'the reviewer\'s 15 bypasses');
+  for (const e of corpus) {
+    assert.deepEqual(Object.keys(e), ['name', 'svg', 'w', 'h', 'ok']);
+    const errors = checkSvgFrame(e.svg, e.w, e.h);
+    assert.equal(errors.length === 0, e.ok, `${e.name}: ${errors.join('; ') || 'accepted'}`);
+  }
+});
