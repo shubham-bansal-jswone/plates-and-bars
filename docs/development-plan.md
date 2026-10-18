@@ -25,9 +25,9 @@ v1 is everything in the prototype that works without risky data or heavy AI cost
 | Setup | Consent, health check, targets, plan engine | — | — |
 | Training | Plans, weight guidance, ratings, rest timer, warm-ups, exercise cards (no demo photos; photos follow in v1.1, #653), exclusions, ladders, adjustments, second session | Live pose tracking | Video-to-3D animations |
 | Food | Food list (USDA + own recipes), grams, Hindi and everyday names (as search aliases), recipes, meal ideas, plans, grocery list, hydration, fibre | Barcode scan (Open Food Facts) | Label scanning |
-| AI features | Describe a meal, Ask why, weekly summary (cheap text calls, capped). Built behind a server flag and shipped off: the backend has only a stub provider until the owner picks a provider and a budget (#200, #926) | Meal photos, recipe import, form check | — |
+| AI features | Describe a meal, Ask why, weekly summary, tag suggestions for your own exercises (cheap text calls, capped). Built behind a server flag and shipped off: the backend has only a stub provider until the owner picks a provider and a budget (#200, #926) | Meal photos, recipe import, form check | — |
 | Progress | Weight, measurements, photos (on device), weekly check-in, real burn, habits | Cycle log | Lab reports (after medical and legal review) |
-| Platform | Offline sync, export, delete, manual steps entry | iOS app, reminders (#697), device step count through Health Connect (#300) | Smartwatch |
+| Platform | Offline sync, export, delete, manual steps entry | iOS app, reminders (#697), device step count from a local step-counter module (#300; Health Connect stays out, #200) | Smartwatch |
 | Website | Landing page, privacy policy, terms, account deletion page | Blog with science cards | — |
 
 iOS waits for v1.1 because Apple’s developer account costs $99 a year; Android is a one-time $25.
@@ -44,9 +44,9 @@ React Native with Expo settles the open framework question: one TypeScript codeb
 | Backend | Java 21, Spring Boot 4, Gradle | Your strongest stack |
 | Database | MySQL 8 with Flyway migrations | Your strongest stack; versioned schema changes |
 | Cache and rate limits | Redis (later; in-memory Bucket4j at first) | Not needed for v1 load |
-| Auth | Email one-time code, plus Google sign-in that stays off until `GOOGLE_CLIENT_IDS` is set (#697, #200); JWT access + refresh tokens; Sign in with Apple added with iOS | Free; Apple requires its own sign-in when others are offered |
+| Auth | Email one-time code; Google sign-in is deferred (the v1 app has no Google sign-in screen, #697); JWT access + refresh tokens; Sign in with Apple added with iOS | Free; Apple requires its own sign-in when others are offered |
 | Files | Cloudflare R2 (only for opt-in photo backup, exports) | 10 GB free, no egress fees |
-| AI | Claude API, called only from the backend | Key never ships in the app; quotas enforced server-side |
+| AI | AI provider (not chosen yet, #926; Claude is the candidate), called only from the backend | Key never ships in the app; quotas enforced server-side |
 | Website | Astro static site on Cloudflare Pages | Free, fast, no server |
 | Hosting | Oracle Cloud Always Free ARM VM (Docker Compose: API + MySQL) | Free tier large enough for v1; move to managed MySQL when users grow |
 | CI/CD | GitHub Actions; the Android build is `expo prebuild` + Gradle in CI, no EAS (#304) | Free at this scale |
@@ -104,7 +104,7 @@ The API stays small: auth, one sync endpoint, food search, content, AI and accou
 | --- | --- |
 | `POST /auth/google`, `/auth/email/start`, `/auth/email/verify`, `/auth/refresh`, `/auth/refresh/revoke` | Sign in, tokens |
 | `POST /sync` | Push local changes since the last cursor, pull server changes; returns a new cursor |
-| `GET /foods?q=` | Search by name or alias; paged. The contract keeps it, but the v1 app does not call it: foods ship in the bundle and the content bundles (#200) |
+| `GET /foods?q=` | Search by name or alias; paged. The contract keeps it, but neither the v1 app nor the backend builds it: foods ship in the bundle and the content bundles (#200 decision 2; the contract coverage test allowlists it) |
 | `GET /content/manifest`, `/content/{bundle}` | Versioned exercise, card, recipe and food bundles |
 | `GET /ai/status`, `POST /ai/describe-meal`, `/ai/ask-why`, `/ai/weekly-summary`, `/ai/suggest-tags` | v1 AI calls (off by default) |
 | `POST /ai/meal-photo`, `/ai/import-recipe`, `/ai/form-check` | v1.1 AI calls (not in the contract yet) |
@@ -170,7 +170,7 @@ A change reaches users only after automated tests, your review and a staging che
 
 - Crashes and errors in the app and API go to self-hosted GlitchTip through the Sentry SDKs; Uptime Kuma checks the API health URL every 60 seconds and watches the backup, restore and erasure-ledger heartbeats (`infra/monitoring/MONITORS.md`). Both stay off until the owner has a host (#200, #828).
 - MySQL backed up nightly to R2, kept 30 days; a restore is rehearsed once a month.
-- Every release can be rolled back: previous Docker image for the API (`infra/RUNBOOK.md`), halted rollout for the app (`tests/e2e/RELEASE_CHECKLIST.md`, #931).
+- Every release can be rolled back: previous Docker image for the API (`infra/RUNBOOK.md`), halted rollout for the app, which stops new installs of the bad version but rolls nobody back (`tests/e2e/RELEASE_CHECKLIST.md`, #931).
 - Logs never contain food, weight, health answers or tokens.
 
 ## Security, privacy and compliance
@@ -238,7 +238,7 @@ The biggest risks are losing user data, AI costs running away and a store reject
 | Free hosting disappears | Docker setup, nightly off-site backups | Redeploy to another host from the same Compose file within a day |
 | Part-time time runs short | Milestones sized to 10–12 hours a week; scope cut list ready | Ship v1 without the lowest items in the scope table |
 | One person holds all knowledge | ADRs, AGENTS.md, runbooks in `docs/` | Anyone (or any agent) can pick up from the docs |
-| Sign-in breaks | Email one-time code as the v1 method (Google sign-in is off until configured, #697); monitoring on auth errors | Fix and redeploy the API; the app keeps working offline and signed out |
+| Sign-in breaks | Email one-time code as the v1 method (Google sign-in is deferred, #697); monitoring on auth errors | Fix and redeploy the API; the app keeps working offline and signed out |
 
 ## First two weeks
 
