@@ -125,7 +125,8 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
             <Hint>{OIL_HINT}</Hint>
           </View>
         ) : null}
-        <ImportRecipe known={new Set(getRawNames())} onDraft={(r) => { setD(fromImport(d, r)); notify(AI_COPY.importDone); }} />
+        <ImportRecipe known={new Set(getRawNames())} onDraft={(r) => { setD((cur) => fromImport(cur, r)); notify(AI_COPY.importDone); }} />
+        {d.importedUnmatched.length ? <View accessibilityLiveRegion="polite"><Note>{AI_COPY.importUnmatched(d.importedUnmatched)}</Note></View> : null}
         <View style={styles.gap}>
           <Caption>Recipe name</Caption>
           <Field label="Recipe name" placeholder="e.g. Mom’s dal" value={d.name} onChangeText={(name) => setD({ ...d, name })} />
@@ -134,7 +135,6 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
           <Label>Ingredients (raw amounts)</Label>
           <IngredientRows rows={d.rows} onChange={(rows) => setD({ ...d, rows })} />
           <Hint>{UNITS_HINT}</Hint>
-          {d.importedUnmatched.length ? <View accessibilityLiveRegion="polite"><Note>{AI_COPY.importUnmatched(d.importedUnmatched)}</Note></View> : null}
         </View>
         <View style={styles.gap}>
           <Label>How much did it make?</Label>
