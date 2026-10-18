@@ -163,10 +163,14 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
               <Field style={{ maxWidth: undefined }} label="Pot with food (g)" keyboardType="numeric" value={d.potFull} onChangeText={(potFull) => set({ potFull })} />
             </View>
           </View>
-          <Caption>Or cooked weight directly (g)</Caption>
-          <Field label="Or cooked weight directly (g)" keyboardType="numeric" value={d.cooked} onChangeText={(cooked) => set({ cooked })} />
-          <Caption>One serving (g)</Caption>
-          <Field label="One serving (g)" keyboardType="numeric" value={d.serving} onChangeText={(serving) => set({ serving })} />
+          <View style={{ gap: 4 }}>
+            <Caption>Or cooked weight directly (g)</Caption>
+            <Field label="Or cooked weight directly (g)" keyboardType="numeric" value={d.cooked} onChangeText={(cooked) => set({ cooked })} />
+          </View>
+          <View style={{ gap: 4 }}>
+            <Caption>One serving (g)</Caption>
+            <Field label="One serving (g)" keyboardType="numeric" value={d.serving} onChangeText={(serving) => set({ serving })} />
+          </View>
           <Label>Serving is a</Label>
           <View style={styles.wrap}>{SERVING_NAMES.map((n) => <Chip key={n} label={n} pressed={d.sname === n} onPress={() => set({ sname: n })} />)}</View>
         </View>
