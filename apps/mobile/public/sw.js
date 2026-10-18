@@ -13,7 +13,9 @@ const HASHED = /^\/(?:assets|_expo\/static)\//;
 // Live pose tracking (#947) loads its camera view and TensorFlow.js model code (chunks named pose-*) only when a user opens
 // it. They are never precached (the app shell must stay small); the model weights and .wasm files under /pose/ are not hashed
 // paths, so this worker never touches them either.
-const ON_DEMAND = /\/pose-[^/]*\.js$/;
+// The web barcode reader (#944) is the same: its chunk (zxing-decoder-*) and its .wasm under /zxing/<version>/ load only when the scanner opens on a
+// browser whose own BarcodeDetector cannot read EAN-13.
+const ON_DEMAND = /\/(?:pose|zxing)-[^/]*\.js$/;
 
 /** Same-origin files this worker may cache or serve from the cache: GET, not an API or auth path. */
 function cacheable(url, origin) {
