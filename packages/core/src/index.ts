@@ -685,6 +685,14 @@ export { cycInfo, waterRetentionPhase, sameDayLastCycle, addCycleStart, removeLa
 export type { CycleData, CycleInfo, CyclePhase } from './cycle';
 
 /**
+ * - `seededSession` is new (#1020), not a prototype port: a session from picks seeded from a previewed workout, keeping its
+ *   `base` and the check-in, re-entry and deload adjustments of `buildSession(t)` (via `sessionMods` and `sessionSets`) on the
+ *   exercises that remain. It deviates from prototype `exPick` on purpose.
+ */
+export { seededSession } from './seeded';
+export type { SeededSession, SeededSessionInput } from './seeded';
+
+/**
  * Meal photo rules (#1011). `capPhotoItems` mirrors `raw.slice(0, 12)` and `clampPhotoServings` the 0.25 to 6 clamp in prototype
  * `analysePhoto`; `photoMacros` mirrors `phMacros`; `photoLogQty` and `photoEstimateLog` the `r1` / `Math.round` amounts in `ph-add`;
  * `stepPhotoAdj` the 0.5 to 2 step 0.25 portion slider; `photoAdjLabel` its `r1(it.adj)` label.
