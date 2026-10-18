@@ -22,7 +22,8 @@ assert re.search(r"(?:^| )-XX:\+ExitOnOutOfMemoryError(?: |$)", opts), "JAVA_TOO
 decodes = 2 * 200 * MIB                # AiImages.MAX_CONCURRENT x about 200 MiB worst case (16-bit RGBA PNG, raster + resize copy)
 copies = 64 * MIB                      # re-encoded copies, base64 text and request bodies in flight
 working_set = 256 * MIB                # Spring Boot, JDBC pool, Caffeine, in-flight sync and export pages
-assert heap >= decodes + copies + working_set, "heap %d MiB is under 2 decodes + copies + working set (%d MiB)" % (heap // MIB, (decodes + copies + working_set) // MIB)
+slack = 48 * MIB                       # so the floor is 2 x 200 + 64 + 256 + 48 = 768 MiB
+assert heap >= decodes + copies + working_set + slack, "heap %d MiB is under 2 decodes + copies + working set + slack (%d MiB)" % (heap // MIB, (decodes + copies + working_set + slack) // MIB)
 assert limit - heap >= 384 * MIB, "under 384 MiB of the limit is left for metaspace, code cache, thread stacks and native buffers"
 assert limit <= 1536 * MIB, "limit above 1.5 GiB: the stack must stay inside the free-tier VM budget (RUNBOOK.md)"
 print("api: limit %d MiB, heap %d MiB" % (limit // MIB, heap // MIB))
