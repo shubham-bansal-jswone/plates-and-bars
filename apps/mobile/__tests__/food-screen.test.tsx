@@ -420,6 +420,18 @@ describe('Food screen', () => {
     }
   });
 
+  it('captions every custom-food field, hidden from screen readers; each field keeps the caption as its name', async () => {
+    await setup();
+    await open();
+    await fireEvent.press(screen.getByLabelText('Custom'));
+    for (const name of ['Food', 'Calories (kcal)', 'Servings', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Serving size']) {
+      // "Food" also names a tab, so count: the caption is the one text a screen reader does not see.
+      const all = screen.queryAllByText(name, { includeHiddenElements: true }).length;
+      expect(all - screen.queryAllByText(name).length).toBe(1);
+      expect(screen.getByLabelText(name)).toBeTruthy();
+    }
+  });
+
   it('a serving unit over 100 characters blocks only when the food is saved to my foods', async () => {
     const db = await setup();
     await open();

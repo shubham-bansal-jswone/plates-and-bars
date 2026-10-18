@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Input } from '../components/Input';
-import { a11yState, Button, ErrorText, Heading, Hint, Label, Press } from '../components/ui';
+import { a11yState, Button, Caption, ErrorText, Heading, Hint, Label, Press } from '../components/ui';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
@@ -136,11 +136,11 @@ function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; no
 
           <View style={styles.range}>
             <View style={{ flex: 1, gap: 6 }}>
-              <Label>Range low ({repWord(type)})</Label>
+              <Caption>{`Range low (${repWord(type)})`}</Caption>
               <Input accessibilityLabel={`Range low (${repWord(type)})`} inputMode="numeric" value={lo} onChangeText={setLo} />
             </View>
             <View style={{ flex: 1, gap: 6 }}>
-              <Label>Range high</Label>
+              <Caption>Range high</Caption>
               <Input accessibilityLabel="Range high" inputMode="numeric" value={hi} onChangeText={setHi} />
             </View>
           </View>

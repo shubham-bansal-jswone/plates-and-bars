@@ -178,6 +178,11 @@ describe('exercise settings sheet', () => {
     await press('Equipment: Assisted machine');
     expect(screen.getByLabelText('Weight jump 5 kg').props['aria-pressed']).toBe(true);
     expect(screen.getByLabelText('Weight jump 10 kg').props['aria-pressed']).toBe(false);
+    // Each range caption is visible but hidden from screen readers, so the field's name is read once.
+    for (const name of ['Range low (reps)', 'Range high']) {
+      expect(screen.getByText(name, { includeHiddenElements: true })).toBeTruthy();
+      expect(screen.queryByText(name)).toBeNull();
+    }
     await press('Equipment: Dumbbells');
     expect(screen.getByText('Smallest weight jump (per dumbbell)')).toBeTruthy();
     expect(screen.getByLabelText('Weight jump 2.5 kg').props['aria-pressed']).toBe(true);
