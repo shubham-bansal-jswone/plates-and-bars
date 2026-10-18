@@ -47,6 +47,7 @@ describe.each([
   ['Progress', (db: Db) => <ProgressScreen db={db} now={NOW} />, 'FROM weights', () => screen.findByRole('header', { name: 'Progress' })],
 ] as const)('%s: the date bar while a day loads', (_name, ui, table, shown) => {
   it('stays the same mounted bar through Loading, so a tap that spans the load is not lost', async () => {
+    const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
     const db = memoryDb();
     await saveProfile(db, profile());
     await render(withProfile(db, ui(db)));
@@ -60,6 +61,8 @@ describe.each([
     await screen.findByText('Wednesday, 7 Oct');
     expect(screen.queryByText('Loading…')).toBeNull();
     expect(mockMounts).not.toHaveBeenCalled();
+    expect(errors.mock.calls.filter((c) => String(c[0]).includes('same key'))).toEqual([]); // no duplicate sibling keys
+    errors.mockRestore();
   });
 });
 
