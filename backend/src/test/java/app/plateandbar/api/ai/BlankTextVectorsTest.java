@@ -29,7 +29,13 @@ class BlankTextVectorsTest {
 
     private static List<String[]> fields() {
         List<String[]> out = new ArrayList<>();
-        VECTORS.path("fields").forEach(f -> out.add(f.asString().split("\\.")));
+        // TODO(#946): the two image-call fields are in the vectors before the backend has their schemas; the backend
+        // PR removes this filter and raises the size to 5.
+        VECTORS.path("fields").forEach(f -> {
+            if (!f.asString().startsWith("MealPhotoRequest.") && !f.asString().startsWith("ImportRecipeRequest.")) {
+                out.add(f.asString().split("\\."));
+            }
+        });
         assertThat(out).hasSize(3);
         return out;
     }
