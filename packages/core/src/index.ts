@@ -627,7 +627,8 @@ export { checkinBannerDue } from './progress';
  * Open Food Facts barcode lookup (v1.1, #944). New rules from the #944 spec, not prototype ports.
  * - `offToUserFood` maps a trimmed OFF product to a draft user food (per 100 g or per serving, nulls for missing
  *   fields with a `missing` list, plausibility and data-quality warnings); `OffProduct` is the input subset.
- * - `validateBarcode` checks the GS1 check digit of EAN-8, EAN-13, UPC-A and UPC-E.
+ * - `validateBarcode` checks the GS1 check digit of EAN-8, EAN-13 and UPC-A; with the scanner hint `upc_e` it expands
+ *   the code to UPC-A. `expandUpcE` is that expansion (8-digit UPC-E to 12-digit UPC-A, or null).
  */
-export { offToUserFood, validateBarcode } from './off';
-export type { OffProduct, OffNutriments, OffNumber, OffMapResult, OffUserFoodDraft, OffMissingField, OffWarning, BarcodeCheck, BarcodeFormat } from './off';
+export { offToUserFood, validateBarcode, expandUpcE } from './off';
+export type { OffProduct, OffNutriments, OffNumber, OffMapResult, OffUserFoodDraft, OffMissingField, OffWarning, BarcodeCheck, BarcodeFormat, ScannerFormat } from './off';

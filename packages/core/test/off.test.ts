@@ -1,10 +1,10 @@
-import { offToUserFood, validateBarcode, unitGrams } from '../src';
+import { offToUserFood, validateBarcode, expandUpcE, unitGrams } from '../src';
 import type { OffProduct } from '../src';
 
 /** The live OFF response for Lay's 8901491101837 on 2026-10-18, trimmed to the spec's whitelist, values as posted. */
 const LAYS: OffProduct = {
   code: '8901491101837',
-  product_name: 'Lays Classics Salted 20rs',
+  name: 'Lays Classics Salted 20rs',
   brands: "Lay's",
   quantity: '50g',
   completeness: 0.8875,
@@ -30,6 +30,28 @@ function ok(p: OffProduct) {
 }
 
 describe('offToUserFood', () => {
+  it('reads a contract-shaped product (#959 OffProduct field names, name not product_name)', () => {
+    const contract = {
+      code: '8901491101837',
+      name: "Lay's Classic",
+      brands: "Lay's",
+      quantity: '50g',
+      serving_size: null,
+      serving_quantity: null,
+      nutrition_data_per: '100g' as const,
+      nutriments: { 'energy-kcal_100g': 554, proteins_100g: 7, carbohydrates_100g: 51.7, fat_100g: 35.5, fiber_100g: 0, 'added-sugars_100g': 0.51 },
+      completeness: 0.8875,
+      states_tags: ['en:nutrition-facts-completed'],
+      data_quality_errors_tags: [],
+      countries_tags: ['en:india'],
+      last_modified_at: '2026-10-01T00:00:00Z',
+      source: { code: 'open_food_facts' },
+    };
+    const r = ok(contract);
+    expect(r.draft.name).toBe("Lay's Classic");
+    expect(r.missing).toEqual([]);
+  });
+
   it('maps the live Lay\'s example per 100 g', () => {
     const r = ok(LAYS);
     expect(r.draft).toEqual({
@@ -58,20 +80,20 @@ describe('offToUserFood', () => {
 
   it('never reads bare energy (kJ): a stray energy key is ignored', () => {
     const nutriments = { proteins_100g: 5, carbohydrates_100g: 10, fat_100g: 2, energy: 2311.4 } as unknown as OffProduct['nutriments'];
-    const r = ok({ product_name: 'X', nutriments });
+    const r = ok({ name: 'X', nutriments });
     expect(r.draft.kcal).toBeNull();
     expect(r.missing).toEqual(['kcal']);
   });
 
   it('converts kJ to kcal only when kcal is missing', () => {
-    const kjOnly = ok({ product_name: 'X', nutriments: { 'energy-kj_100g': 2092, proteins_100g: 10, carbohydrates_100g: 60, fat_100g: 5 } });
+    const kjOnly = ok({ name: 'X', nutriments: { 'energy-kj_100g': 2092, proteins_100g: 10, carbohydrates_100g: 60, fat_100g: 5 } });
     expect(kjOnly.draft.kcal).toBe(500);
-    const both = ok({ product_name: 'X', nutriments: { 'energy-kcal_100g': 400, 'energy-kj_100g': 2092, proteins_100g: 10, carbohydrates_100g: 60, fat_100g: 5 } });
+    const both = ok({ name: 'X', nutriments: { 'energy-kcal_100g': 400, 'energy-kj_100g': 2092, proteins_100g: 10, carbohydrates_100g: 60, fat_100g: 5 } });
     expect(both.draft.kcal).toBe(400);
   });
 
   it('keeps a stated 0 kcal rather than falling back to kJ', () => {
-    const r = ok({ product_name: 'Water', nutriments: { 'energy-kcal_100g': 0, 'energy-kj_100g': 100, proteins_100g: 0, carbohydrates_100g: 0, fat_100g: 0 } });
+    const r = ok({ name: 'Water', nutriments: { 'energy-kcal_100g': 0, 'energy-kj_100g': 100, proteins_100g: 0, carbohydrates_100g: 0, fat_100g: 0 } });
     expect(r.draft.kcal).toBe(0);
     expect(r.missing).toEqual([]);
   });
@@ -83,15 +105,15 @@ describe('offToUserFood', () => {
   });
 
   it('treats negative, blank, non-numeric and null values as missing', () => {
-    const r = ok({ product_name: 'X', nutriments: { 'energy-kcal_100g': '', proteins_100g: -3, carbohydrates_100g: 'abc', fat_100g: null, fiber_100g: '2.5' } });
+    const r = ok({ name: 'X', nutriments: { 'energy-kcal_100g': '', proteins_100g: -3, carbohydrates_100g: 'abc', fat_100g: null, fiber_100g: '2.5' } });
     expect(r.draft).toMatchObject({ kcal: null, protein_g: null, carbs_g: null, fat_g: null, fibre_g: 2.5 });
     expect(r.missing).toEqual(['kcal', 'protein_g', 'carbs_g', 'fat_g']);
   });
 
   it('is not_found with no usable nutriment', () => {
-    expect(offToUserFood({ product_name: 'X' })).toEqual({ kind: 'not_found' });
-    expect(offToUserFood({ product_name: 'X', nutriments: {} })).toEqual({ kind: 'not_found' });
-    expect(offToUserFood({ product_name: 'X', nutriments: { sugars_100g: 3 } })).toEqual({ kind: 'not_found' });
+    expect(offToUserFood({ name: 'X' })).toEqual({ kind: 'not_found' });
+    expect(offToUserFood({ name: 'X', nutriments: {} })).toEqual({ kind: 'not_found' });
+    expect(offToUserFood({ name: 'X', nutriments: { sugars_100g: 3 } })).toEqual({ kind: 'not_found' });
   });
 
   it('scales a serving-only label from per 100 g and puts (N g) in the unit', () => {
@@ -105,10 +127,35 @@ describe('offToUserFood', () => {
     expect(ok({ ...LAYS, serving_size: '30 g', serving_quantity: '30' }).draft.unit).toBe('30 g');
   });
 
-  it('rounds fractional serving grams in the label only', () => {
-    const r = ok({ ...LAYS, serving_size: 'one handful', serving_quantity: 27.5 });
-    expect(r.draft.unit).toBe('one handful (28 g)');
-    expect(r.draft.kcal).toBe(Math.round(554 * 0.275));
+  it('keeps the grams entry equal to serving_quantity for every probe (reviewer probes on #961)', () => {
+    const probes: Array<[string, number, string]> = [
+      ['2 biscuits (30 g)', 15, '15 g (2 biscuits (30 g))'],
+      ['1 pack (2 x 15 g)', 30, '30 g (1 pack (2 x 15 g))'],
+      ['2 x 15 g', 30, '30 g (2 x 15 g)'],
+      ['1 pack', 30, '1 pack (30 g)'],
+      ['', 30, '1 serving (30 g)'],
+      ['1250 g tub', 1250, '1250 g tub'],
+    ];
+    for (const [text, qty, unit] of probes) {
+      const r = ok({ ...LAYS, serving_size: text, serving_quantity: qty });
+      expect(r.draft.unit).toBe(unit);
+      expect(unitGrams(r.draft.unit)).toBe(qty);
+      expect(r.draft.kcal).toBe(Math.round((554 * qty) / 100));
+    }
+  });
+
+  it('puts the grams first when the long text would hide the suffix, and never exceeds 100 characters', () => {
+    const r = ok({ ...LAYS, serving_size: `${'x'.repeat(95)} 12 g`, serving_quantity: 40 });
+    expect(r.draft.unit.length).toBeLessThanOrEqual(100);
+    expect(unitGrams(r.draft.unit)).toBe(40);
+  });
+
+  it('falls back to per 100 g when the serving weight is not whole grams (2.5 g, 27.5 g, 0.06 g)', () => {
+    for (const [text, qty] of [['2.5 g', 2.5], ['one handful', 27.5], ['1 tablet', 0.06]] as const) {
+      const r = ok({ ...LAYS, serving_size: text, serving_quantity: qty });
+      expect(r.draft).toMatchObject({ unit: '100 g', kcal: 554, protein_g: 7 });
+      expect(unitGrams(r.draft.unit)).toBe(100);
+    }
   });
 
   it('falls back to "1 serving" when the serving text is empty', () => {
@@ -129,7 +176,7 @@ describe('offToUserFood', () => {
   });
 
   it('labels liquids per 100 ml and turns grams entry off', () => {
-    const base: OffProduct = { product_name: 'Cola', quantity: '330 ml', nutriments: { 'energy-kcal_100g': 42, proteins_100g: 0, carbohydrates_100g: 10.6, fat_100g: 0 } };
+    const base: OffProduct = { name: 'Cola', quantity: '330 ml', nutriments: { 'energy-kcal_100g': 42, proteins_100g: 0, carbohydrates_100g: 10.6, fat_100g: 0 } };
     const r = ok(base);
     expect(r.liquid).toBe(true);
     expect(r.draft.unit).toBe('100 ml');
@@ -140,15 +187,26 @@ describe('offToUserFood', () => {
     expect(unitGrams(s.draft.unit)).toBe(0);
     expect(ok({ ...base, quantity: '1 l' }).liquid).toBe(true);
     expect(ok({ ...base, quantity: '500 g' }).liquid).toBe(false);
+    // No serving text: the unit carries the volume.
+    expect(ok({ ...base, serving_quantity: 330 }).draft.unit).toBe('1 serving (330 ml)');
+    expect(ok({ ...base, serving_quantity: 33.5 }).draft.unit).toBe('1 serving (33.5 ml)');
+  });
+
+  it('is not a liquid when the serving text also gives grams', () => {
+    const base: OffProduct = { name: 'Shake', quantity: '250 ml', nutriments: { 'energy-kcal_100g': 60, proteins_100g: 3, carbohydrates_100g: 8, fat_100g: 2 } };
+    const r = ok({ ...base, serving_size: '250 ml (250 g)', serving_quantity: 250 });
+    expect(r.liquid).toBe(false);
+    expect(unitGrams(r.draft.unit)).toBe(250);
+    expect(ok({ ...base, serving_size: '1 cup 250 ml', serving_quantity: 250 }).liquid).toBe(true);
   });
 
   it('names: adds the first brand unless already in the name; caps at 200; empty name is missing', () => {
-    expect(ok({ ...LAYS, product_name: 'Classic', brands: "Lay's, Pepsico" }).draft.name).toBe("Classic (Lay's)");
-    expect(ok({ ...LAYS, product_name: "Lay's Classic", brands: "Lay's" }).draft.name).toBe("Lay's Classic");
-    expect(ok({ ...LAYS, product_name: 'Lays Classic', brands: "Lay's" }).draft.name).toBe('Lays Classic');
-    expect(ok({ ...LAYS, product_name: 'Classic', brands: null }).draft.name).toBe('Classic');
-    expect(ok({ ...LAYS, product_name: ' '.padEnd(5) + 'a'.repeat(250), brands: null }).draft.name).toHaveLength(200);
-    const r = ok({ ...LAYS, product_name: '  ', brands: "Lay's" });
+    expect(ok({ ...LAYS, name: 'Classic', brands: "Lay's, Pepsico" }).draft.name).toBe("Classic (Lay's)");
+    expect(ok({ ...LAYS, name: "Lay's Classic", brands: "Lay's" }).draft.name).toBe("Lay's Classic");
+    expect(ok({ ...LAYS, name: 'Lays Classic', brands: "Lay's" }).draft.name).toBe('Lays Classic');
+    expect(ok({ ...LAYS, name: 'Classic', brands: null }).draft.name).toBe('Classic');
+    expect(ok({ ...LAYS, name: ' '.padEnd(5) + 'a'.repeat(250), brands: null }).draft.name).toHaveLength(200);
+    const r = ok({ ...LAYS, name: '  ', brands: "Lay's" });
     expect(r.draft.name).toBe('');
     expect(r.missing).toEqual(['name']);
   });
@@ -178,13 +236,13 @@ describe('offToUserFood', () => {
     it('does not warn inside the tolerance (both the 50 kcal and 40 percent bounds)', () => {
       // diff 60 of 200 kcal is 30 percent: not off. diff 40 of 50 kcal is 80 percent but under 50 kcal: not off.
       const macros = { proteins_100g: 10, carbohydrates_100g: 10, fat_100g: 10 }; // 170 kcal
-      expect(ok({ product_name: 'A', nutriments: { ...macros, 'energy-kcal_100g': 230 } }).warnings).toEqual([]);
-      expect(ok({ product_name: 'A', nutriments: { proteins_100g: 3, carbohydrates_100g: 0, fat_100g: 0, 'energy-kcal_100g': 52 } }).warnings).toEqual([]);
-      expect(ok({ product_name: 'A', nutriments: { ...macros, 'energy-kcal_100g': 90 } }).warnings).toEqual(['looks_off']);
+      expect(ok({ name: 'A', nutriments: { ...macros, 'energy-kcal_100g': 230 } }).warnings).toEqual([]);
+      expect(ok({ name: 'A', nutriments: { proteins_100g: 3, carbohydrates_100g: 0, fat_100g: 0, 'energy-kcal_100g': 52 } }).warnings).toEqual([]);
+      expect(ok({ name: 'A', nutriments: { ...macros, 'energy-kcal_100g': 90 } }).warnings).toEqual(['looks_off']);
     });
 
     it('skips the energy check when a macro is missing', () => {
-      expect(ok({ product_name: 'A', nutriments: { 'energy-kcal_100g': 900, proteins_100g: 1, carbohydrates_100g: 1 } }).warnings).toEqual([]);
+      expect(ok({ name: 'A', nutriments: { 'energy-kcal_100g': 900, proteins_100g: 1, carbohydrates_100g: 1 } }).warnings).toEqual([]);
     });
 
     it('warns on low completeness, quality errors and nutrition to be completed', () => {
@@ -205,23 +263,26 @@ describe('validateBarcode', () => {
     expect(validateBarcode('73513537')).toMatchObject({ ok: true, format: 'EAN-8' });
   });
 
-  it('accepts UPC-E by expanding to UPC-A for each last-digit rule', () => {
-    // 042100005264 (UPC-A) is 04252614 (UPC-E, last digit 1).
-    expect(validateBarcode('04252614')).toMatchObject({ ok: true, format: 'UPC-E' });
-    expect(validateBarcode('04252615')).toEqual({ ok: false, reason: 'check_digit' });
-    // One per other last-digit rule through its UPC-A form (0, 3, 4 differ from the EAN-8 weights).
-    for (const last of ['0', '3', '4']) expect(validateBarcode(findUpcE(last))).toMatchObject({ ok: true, format: 'UPC-E' });
-    // With a last digit of 5 to 9 the UPC-E check equals the EAN-8 check, so a valid code reads as EAN-8.
-    expect(validateBarcode('01234565')).toMatchObject({ ok: true, format: 'EAN-8' });
-    expect(validateBarcode('01234560')).toEqual({ ok: false, reason: 'check_digit' });
-    expect(validateBarcode('21234565')).toEqual({ ok: false, reason: 'check_digit' });
+  it('reads 8 typed digits as EAN-8 only, even when they are a valid UPC-E', () => {
+    expect(validateBarcode('04252614')).toEqual({ ok: false, reason: 'check_digit' });
+    expect(validateBarcode('01234565')).toEqual({ ok: true, format: 'EAN-8', code: '01234565' });
+    expect(validateBarcode('04252614', 'ean_8')).toEqual({ ok: false, reason: 'check_digit' });
+    expect(validateBarcode('8901491101837', 'upc_a')).toMatchObject({ ok: true, format: 'EAN-13' });
+  });
+
+  it('expands a scanned UPC-E to the 12-digit UPC-A to look up', () => {
+    for (const [e, a] of UPC_E_TABLE) expect(validateBarcode(e, 'upc_e')).toEqual({ ok: true, format: 'UPC-A', code: a });
+    expect(validateBarcode('01234560', 'upc_e')).toEqual({ ok: false, reason: 'check_digit' });
+    expect(validateBarcode('21234565', 'upc_e')).toEqual({ ok: false, reason: 'check_digit' });
+    expect(validateBarcode('036000291452', 'upc_e')).toEqual({ ok: false, reason: 'length' });
+    expect(validateBarcode('0123456', 'upc_e')).toEqual({ ok: false, reason: 'length' });
+    expect(validateBarcode('0123456x', 'upc_e')).toEqual({ ok: false, reason: 'not_digits' });
   });
 
   it('rejects a bad check digit', () => {
     expect(validateBarcode('8901491101838')).toEqual({ ok: false, reason: 'check_digit' });
     expect(validateBarcode('036000291453')).toEqual({ ok: false, reason: 'check_digit' });
     expect(validateBarcode('73513538')).toEqual({ ok: false, reason: 'check_digit' });
-    expect(validateBarcode('23513538')).toEqual({ ok: false, reason: 'check_digit' });
   });
 
   it('keeps leading zeros as typed: UPC-A and its zero-padded EAN-13 are both valid, a stripped code is not', () => {
@@ -236,15 +297,24 @@ describe('validateBarcode', () => {
   });
 });
 
-/** A valid 8-digit UPC-E ending its body in `last`, found by trying check digits against the UPC-A check rule. */
-function findUpcE(last: string): string {
-  for (let body = 0; body < 100000; body++) {
-    const mid = String(body).padStart(5, '0');
-    for (let chk = 0; chk < 10; chk++) {
-      const e = `0${mid}${last}${chk}`;
-      const r = validateBarcode(e);
-      if (r.ok && r.format === 'UPC-E') return e;
-    }
-  }
-  throw new Error('none for ' + last);
-}
+/** Known UPC-E to UPC-A pairs, one per last-digit rule (0 to 2, 3, 4, 5 to 9); the contract's two vectors are the last two. */
+const UPC_E_TABLE: Array<[string, string]> = [
+  ['01234505', '012000003455'],
+  ['01234514', '012100003454'],
+  ['01234523', '012200003453'],
+  ['01234531', '012300000451'],
+  ['01234543', '012340000053'],
+  ['01234558', '012345000058'],
+  ['01234565', '012345000065'],
+  ['04252614', '042100005264'],
+];
+
+describe('expandUpcE', () => {
+  it('matches the fixed table', () => {
+    for (const [e, a] of UPC_E_TABLE) expect(expandUpcE(e)).toBe(a);
+  });
+
+  it('is null for a bad check digit, number system 2 to 9, or the wrong shape', () => {
+    for (const c of ['01234566', '21234565', '9123456', '012345650', '0123456x', '']) expect(expandUpcE(c)).toBeNull();
+  });
+});

@@ -27,7 +27,8 @@ export interface OffNutriments {
  */
 export interface OffProduct {
   code?: string | null | undefined;
-  product_name?: string | null | undefined;
+  /** Product name (contract `OffProduct.name`). */
+  name?: string | null | undefined;
   brands?: string | null | undefined;
   /** Pack size text, for example "50g" or "1 l". Used only to tell a liquid from a solid. */
   quantity?: string | null | undefined;
@@ -108,7 +109,7 @@ const alnum = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, 
 
 /** Name: `product_name`, plus the first brand when it is not already in the name; at most 200 characters. */
 function nameOf(p: OffProduct): string {
-  const name = (p.product_name ?? '').trim();
+  const name = (p.name ?? '').trim();
   if (!name) return '';
   const brand = (p.brands ?? '').split(',')[0]?.trim() ?? '';
   const full = brand && !alnum(name).includes(alnum(brand)) ? `${name} (${brand})` : name;
@@ -122,16 +123,19 @@ function isLiquid(p: OffProduct): boolean {
 }
 
 /**
- * The serving label: the `serving_size` text, with "(N g)" added when `unitGrams` would not read N from it,
- * so the grams box works. N is whole grams (the label cannot carry a decimal), at least 1. At most 100 characters.
+ * The serving label for a per-serving result. Solids: `unitGrams(label)` is exactly `grams` (a whole number
+ * of at least 1; `offToUserFood` only calls this for those). The first of these that reads back as `grams`
+ * wins: the serving text as is, "text (N g)", "N g (text)". Liquids keep the text and add "(N ml)"
+ * when there is none. At most 100 characters.
  */
 function servingUnit(text: string, grams: number, liquid: boolean): string {
-  const base = text.trim() || '1 serving';
-  if (liquid) return base.slice(0, MAX_UNIT).trim();
-  const n = Math.max(1, Math.round(grams));
-  if (unitGrams(base.slice(0, MAX_UNIT)) === n) return base.slice(0, MAX_UNIT).trim();
-  const suffix = ` (${n} g)`;
-  return base.slice(0, MAX_UNIT - suffix.length).trim() + suffix;
+  const base = text.trim();
+  if (liquid) return (base || `1 serving (${grams} ml)`).slice(0, MAX_UNIT).trim();
+  const t = base || '1 serving';
+  const cut = (head: string, tail: string, room: string): string => `${head}${room.slice(0, MAX_UNIT - head.length - tail.length).trim()}${tail}`;
+  const candidates = [t.slice(0, MAX_UNIT).trim(), cut('', ` (${grams} g)`, t), cut(`${grams} g (`, ')', t)];
+  // The grams-first candidate always reads back as `grams` (it starts with "N g"), so `find` always hits.
+  return candidates.find((c) => unitGrams(c) === grams) as string;
 }
 
 /**
@@ -139,7 +143,8 @@ function servingUnit(text: string, grams: number, liquid: boolean): string {
  * `_100g` fields only; bare `energy` (kJ) is never read. Energy is `energy-kcal_100g`, or `energy-kj_100g`
  * divided by 4.184 when kcal is missing. kcal is rounded to a whole number and grams to 0.1 (as the Custom
  * tab). With `serving_quantity` above 0 the values are per serving and the label is the serving text with
- * "(N g)"; otherwise they are per 100 g ("100 ml" for liquids). Missing fields stay null and are listed in
+ * "(N g)" (whole grams, so `unitGrams` of the label is exactly the serving weight; a fractional weight falls back to
+ * 100 g); otherwise they are per 100 g ("100 ml" for liquids). Missing fields stay null and are listed in
  * `missing`; `sugars` is not mapped to added sugar. A product with no usable nutriment is `not_found`.
  *
  * A new rule from the #944 spec (rules 1 to 9); no prototype function.
@@ -158,14 +163,16 @@ export function offToUserFood(p: OffProduct): OffMapResult {
 
   const liquid = isLiquid(p);
   const servingG = read(p.serving_quantity);
-  const perServing = servingG !== null && servingG > 0;
-  const scale = perServing ? servingG / 100 : 1;
+  // A serving is used when the grams entry can carry its weight: a whole number of grams, or any volume for a
+  // liquid (no grams entry). A weight like 2.5 g or 0.06 g falls back to per 100 g, as `unitGrams` reads whole grams only.
+  const perServing = servingG !== null && servingG > 0 && (liquid || Number.isInteger(servingG));
+  const scale = perServing ? (servingG as number) / 100 : 1;
   const grams = (v: number | null): number | null => (v === null ? null : round1(v * scale));
   const kcal = energy100 === null ? null : Math.round(energy100 * scale);
 
   const draft: OffUserFoodDraft = {
     name: nameOf(p),
-    unit: perServing ? servingUnit(p.serving_size ?? '', servingG, liquid) : liquid ? '100 ml' : '100 g',
+    unit: perServing ? servingUnit(p.serving_size ?? '', servingG as number, liquid) : liquid ? '100 ml' : '100 g',
     kcal,
     protein_g: grams(protein100),
     carbs_g: grams(carbs100),
@@ -205,10 +212,13 @@ function looksOff(kcal: number | null, p: number | null, c: number | null, f: nu
   return diff > MACRO_DIFF_KCAL && diff > MACRO_DIFF_RATIO * kcal;
 }
 
-/** The barcode formats `validateBarcode` accepts. */
-export type BarcodeFormat = 'EAN-8' | 'EAN-13' | 'UPC-A' | 'UPC-E';
+/** The barcode formats `validateBarcode` returns (a scanned UPC-E comes back expanded, as UPC-A). */
+export type BarcodeFormat = 'EAN-8' | 'EAN-13' | 'UPC-A';
 
-/** Result of `validateBarcode`. */
+/** What the scanner decoder reports for the code. Only `upc_e` changes the result; typed digits have no hint. */
+export type ScannerFormat = 'ean_8' | 'ean_13' | 'upc_a' | 'upc_e';
+
+/** Result of `validateBarcode`. `code` is what to look up: 8, 12 or 13 digits. */
 export type BarcodeCheck =
   | { ok: true; format: BarcodeFormat; code: string }
   | { ok: false; reason: 'not_digits' | 'length' | 'check_digit' };
@@ -222,35 +232,38 @@ function gs1Check(body: string): number {
 
 const checkOk = (code: string): boolean => gs1Check(code.slice(0, -1)) === Number(code[code.length - 1]);
 
-/** The 12-digit UPC-A a UPC-E (8 digits, number system 0 or 1) stands for; the check digit carries over. */
-function upcEToA(e: string): string {
-  const d = e.split('');
-  const ns = d[0], last = d[6], chk = d[7];
-  const [, a, b, c, dd, ee] = d;
+/**
+ * The 12-digit UPC-A for a UPC-E code (8 digits, number system 0 or 1, correct check digit), else null.
+ * The check digit carries over unchanged.
+ */
+export function expandUpcE(code: string): string | null {
+  if (!/^[01][0-9]{7}$/.test(code)) return null;
+  const [ns, a, b, c, d, e, last, chk] = code.split('') as [string, string, string, string, string, string, string, string];
   let body: string;
-  if (last === '0' || last === '1' || last === '2') body = `${a}${b}${last}0000${c}${dd}${ee}`;
-  else if (last === '3') body = `${a}${b}${c}00000${dd}${ee}`;
-  else if (last === '4') body = `${a}${b}${c}${dd}00000${ee}`;
-  else body = `${a}${b}${c}${dd}${ee}0000${last}`;
-  return `${ns}${body}${chk}`;
+  if (last <= '2') body = `${a}${b}${last}0000${c}${d}${e}`;
+  else if (last === '3') body = `${a}${b}${c}00000${d}${e}`;
+  else if (last === '4') body = `${a}${b}${c}${d}00000${e}`;
+  else body = `${a}${b}${c}${d}${e}0000${last}`;
+  const upcA = `${ns}${body}${chk}`;
+  return checkOk(upcA) ? upcA : null;
 }
 
 /**
  * Validate a scanned or typed barcode: digits only (no trimming; leading zeros kept as typed), 8, 12 or 13
- * long, with a correct GS1 check digit. Eight digits are EAN-8, or UPC-E when the EAN-8 check fails but the
- * code starts with 0 or 1 and its UPC-A expansion checks out (a UPC-E ending in 5 to 9 has the same check
- * digit under both rules, so it reads as EAN-8; both are valid scans). Other lengths (including 14) are `length`.
+ * long, with a correct GS1 check digit. Eight typed digits are EAN-8 only (a check digit cannot tell UPC-E
+ * from EAN-8). When the scanner says `upc_e`, the code is expanded and returned as the 12-digit UPC-A to look
+ * up, so lookups always send 8, 12 or 13 digits. Other lengths (including 14) are `length`.
  *
- * A new rule from the #944 spec; no prototype function.
+ * A new rule from the #944 spec and the ADR 009 contract vectors; no prototype function.
  */
-export function validateBarcode(code: string): BarcodeCheck {
+export function validateBarcode(code: string, scannerFormat?: ScannerFormat): BarcodeCheck {
   if (!/^[0-9]+$/.test(code)) return { ok: false, reason: 'not_digits' };
-  if (code.length === 13) return checkOk(code) ? { ok: true, format: 'EAN-13', code } : { ok: false, reason: 'check_digit' };
-  if (code.length === 12) return checkOk(code) ? { ok: true, format: 'UPC-A', code } : { ok: false, reason: 'check_digit' };
-  if (code.length === 8) {
-    if (checkOk(code)) return { ok: true, format: 'EAN-8', code };
-    if ((code[0] === '0' || code[0] === '1') && checkOk(upcEToA(code))) return { ok: true, format: 'UPC-E', code };
-    return { ok: false, reason: 'check_digit' };
+  if (scannerFormat === 'upc_e') {
+    if (code.length !== 8) return { ok: false, reason: 'length' };
+    const upcA = expandUpcE(code);
+    return upcA ? { ok: true, format: 'UPC-A', code: upcA } : { ok: false, reason: 'check_digit' };
   }
-  return { ok: false, reason: 'length' };
+  const format = code.length === 13 ? 'EAN-13' : code.length === 12 ? 'UPC-A' : code.length === 8 ? 'EAN-8' : null;
+  if (!format) return { ok: false, reason: 'length' };
+  return checkOk(code) ? { ok: true, format, code } : { ok: false, reason: 'check_digit' };
 }
