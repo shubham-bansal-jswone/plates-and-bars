@@ -14,6 +14,7 @@ import {
   templateName,
   type CantDraft,
   type CantRule,
+  HAND_PICKED,
   type Checkin,
   type Exclusion,
   type LiftRecord,
@@ -308,7 +309,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Start from hand-picked exercises, from any workout (prototype `exPick` with no template): a "Session" with each exercise's default sets and the start screen's where override and check-in choice (prototype keeps `w.ciChoice`). */
   const startPicked = (names: readonly string[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
     begin((sessions, d) => ({
-      workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: 'Session', base: null, where: override, mods: {}, exercises: [], ci_choice: ciChoice },
+      workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: HAND_PICKED, base: null, where: override, mods: {}, exercises: [], ci_choice: ciChoice },
       exs: names.map((name) => ({ name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: newExercise(name, { lifts: d.lifts, date }, 1).sets.map(() => blankRow()), ramp: [] })),
     }));
 
@@ -598,7 +599,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const built = newExercise(name, { lifts: d.lifts, date }, part);
     const ex: ExState = { name, part, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: built.sets.map(() => blankRow()), ramp: [] };
     d.exs = [...d.exs, ex];
-    if (!d.workout.template) d.workout = { ...d.workout, template: 'Session' };
+    if (!d.workout.template) d.workout = { ...d.workout, template: HAND_PICKED };
     commit(d);
     // One transaction: a sync push or pull never sees the exercise without its sets (#492), and a failure stores neither.
     void enqueue(() =>
