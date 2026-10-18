@@ -139,8 +139,9 @@ function Review({ step, meal, onAdd, onSaveMine, onScan, onClose, onDone }: { on
   // Core's scannedFood: all four numbers must be entered and a typed 0 is a real value (water, diet soda), so "0" counts as filled and "" does not.
   const r = scannedFood({ ...f, qty });
   const missingFields = r.kind === 'missing' ? r.fields : [];
-  const flagged = (k: ScannedMissingField): boolean => missingFields.includes(k);
-  const nameFlag = f.name.trim() === '';
+  // "Not in the database" only for what Open Food Facts did not have (step.missing); a field the user cleared is just required (Add stays disabled).
+  const flagged = (k: ScannedMissingField): boolean => step.missing.includes(k) && missingFields.includes(k);
+  const nameFlag = step.missing.includes('name') && f.name.trim() === '';
 
   const submit = () => {
     if (r.kind === 'missing') return;
