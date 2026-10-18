@@ -26,6 +26,13 @@ name: Android release build
 # android.versionCode comes from the tag (v1.2.3 -> 1002003) or, on non-tag runs, the run number; see
 # infra/scripts/android-release-config.sh.
 #
+# Pull requests build a faster variant (assembleRelease for arm64-v8a only, no bundleRelease; the ABI is passed as
+# -PreactNativeArchitectures so nothing is committed or edited). Pushes to main (same paths as the PR trigger), tags and
+# manual runs build all four ABIs with assembleRelease bundleRelease, so a break in another ABI or in the AAB shows on main.
+# Every run compiles the NDK code through ccache. Only pushes to main and manual runs on main save the cache; pull requests
+# only restore it (a PR-scoped cache is invisible to other PRs and would only evict the npm and Gradle caches).
+# The native-libs guard compares .so file names with the ABI directory stripped, so it holds for one ABI or four.
+#
 # Secrets are withheld on pull_request runs (always debug-signed) and are only
 # exposed to the decode and signing steps and the Gradle step, never to npm ci
 # or expo prebuild. Tag and manual builds run in the protected GitHub
@@ -33,6 +40,30 @@ name: Android release build
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    paths:
+      - '.github/workflows/android-release.yml'
+      - 'infra/scripts/android-signing.sh'
+      - 'infra/scripts/android-release-config.sh'
+      - 'infra/scripts/test-android-release-config.sh'
+      - 'infra/scripts/check-api-url.sh'
+      - 'infra/scripts/test-release-env.sh'
+      - 'infra/scripts/check-site-url.sh'
+      - 'infra/scripts/test-check-site-url.sh'
+      # the Android licence list (#835): a dependency change can change the release classpath
+      - 'apps/mobile/package-lock.json'
+      - 'apps/mobile/scripts/android-classpath.init.gradle'
+      - 'apps/mobile/scripts/android-classpath.txt'
+      - 'apps/mobile/scripts/licences.mjs'
+      - 'apps/mobile/scripts/android-native-libs.txt'
+      - 'apps/mobile/scripts/licence-texts/**'
+      # our own Kotlin module (#943): built here, and its JVM unit tests run below
+      - 'apps/mobile/modules/**'
+      # the native project is generated from app.json and the local config plugins (#980): a change
+      # to either can change the release classpath, the licence list or the native libraries, and
+      # the guards below must run on it
+      - 'apps/mobile/app.json'
+      - 'apps/mobile/plugins/**'
   pull_request:
     paths:
       - '.github/workflows/android-release.yml'
@@ -111,6 +142,22 @@ jobs:
         run: ../../infra/scripts/check-site-url.sh "$IS_RELEASE" "$SITE_URL_CHECK"
       - name: Generate the native project
         run: npx expo prebuild --platform android --no-install
+      # ccache for the CMake/NDK build. CMake reads CMAKE_<LANG>_COMPILER_LAUNCHER from the environment (set on the build step).
+      # Key: OS + NDK version (from React Native's pinned version); no lockfile hash, since ccache is content-addressed and a
+      # stale entry only wastes space. The run id suffix on saves lets every main run store its objects.
+      - name: ccache key (NDK version)
+        id: ccache-key
+        run: |
+          ndk=$(sed -n 's/^ndkVersion *= *"\([0-9.]*\)".*/\1/p' node_modules/react-native/gradle/libs.versions.toml)
+          [ -n "$ndk" ] || { echo "::error::cannot read the NDK version from react-native's libs.versions.toml"; exit 1; }
+          echo "prefix=ccache-${RUNNER_OS}-ndk${ndk}" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ${{ steps.ccache-key.outputs.prefix }}-${{ github.run_id }}
+          restore-keys: ${{ steps.ccache-key.outputs.prefix }}-
+      - name: Install ccache
+        run: command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
       - name: Reminders module unit tests and lint (NewApi against minSdk)
         working-directory: apps/mobile/android
         run: ./gradlew --no-daemon -q :plate-reminders:testDebugUnitTest :plate-reminders:lintDebug
@@ -156,7 +203,31 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
           ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
           ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
-        run: ./gradlew assembleRelease bundleRelease --no-daemon
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          CCACHE_DIR: ${{ runner.temp }}/ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_NOHASHDIR: 'true'
+          CCACHE_COMPILERCHECK: content # the NDK is unpacked afresh on a runner, so its mtime would always miss
+          CCACHE_MAXSIZE: 400M
+        # Pull requests: arm64-v8a APK only (the bulk of the 30 minutes is compiling the NDK code four times and the AAB).
+        # Push to main, push of a tag and manual runs: everything, as before.
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+          else
+            ./gradlew assembleRelease bundleRelease --no-daemon
+          fi
+      - name: ccache statistics
+        if: always()
+        env:
+          CCACHE_DIR: ${{ runner.temp }}/ccache
+        run: ccache -s
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.ccache-key.outputs.prefix != ''
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ${{ steps.ccache-key.outputs.prefix }}-${{ github.run_id }}
       # About also lists the third-party native code inside the .so files (#904). Take the .so names of the APK just built and
       # fail if they differ from scripts/android-native-libs.txt or one has no notice entry in scripts/licences.mjs (NATIVE_SO).
       - name: Android native libraries match the committed list
