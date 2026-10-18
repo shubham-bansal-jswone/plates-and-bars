@@ -27,6 +27,7 @@ libsentry-tm-perf-logger.so
 libsentry.so
 libstatic-webp.so
 libsurface_util_jni.so
+libtensorflowlite_jni.so
 libworklets.so
 libzstd-kmp.so
 libzxingcpp_android.so
