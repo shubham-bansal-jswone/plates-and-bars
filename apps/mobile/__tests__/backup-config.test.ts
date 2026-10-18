@@ -5,9 +5,10 @@ import appJson from '../app.json';
 // auto-backup and adb backup copy it; our own rules also keep it out of Android 12+ device-to-device transfer.
 // Security review M6. The plugin's mods are run here on a sample manifest and a temp project folder.
 type Mod = (c: unknown) => unknown | Promise<unknown>;
-const mods: { manifest?: Mod; dangerous?: Mod } = {};
+const mods: { manifest?: Mod; dangerous?: Mod; appDelegate?: Mod } = {};
 jest.mock('expo/config-plugins', () => ({
   withAndroidManifest: (config: unknown, fn: Mod) => ((mods.manifest = fn), config),
+  withAppDelegate: (config: unknown, fn: Mod) => ((mods.appDelegate = fn), config),
   withDangerousMod: (config: unknown, [, fn]: [string, Mod]) => ((mods.dangerous = fn), config),
 }));
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -18,7 +19,7 @@ const fs = require('fs') as {
 };
 const os = require('os') as { tmpdir(): string };
 const path = require('path') as { join(...p: string[]): string };
-const withNoBackup = require('../plugins/with-no-backup') as (c: unknown) => unknown;
+const withNoBackup = require('../plugins/with-no-backup') as ((c: unknown) => unknown) & { IOS_EXCLUDED_FOLDERS: string[] };
 
 const excluded = (xml: string, section?: string) => {
   const body = section ? (new RegExp(`<${section}>([\\s\\S]*?)</${section}>`).exec(xml)?.[1] ?? '') : xml;
@@ -29,7 +30,7 @@ describe('android backup', () => {
   it('app.json turns allowBackup off, registers our plugin and stops expo-secure-store from writing its own rules', () => {
     expect((appJson.expo.android as { allowBackup?: boolean }).allowBackup).toBe(false);
     expect(appJson.expo.plugins).toContain('./plugins/with-no-backup');
-    expect(appJson.expo.plugins).toContainEqual(['expo-secure-store', { configureAndroidBackup: false }]);
+    expect(appJson.expo.plugins).toContainEqual(['expo-secure-store', { configureAndroidBackup: false, faceIDPermission: false }]);
   });
 
   it('the plugin sets the manifest attributes', async () => {
@@ -56,5 +57,68 @@ describe('android backup', () => {
     }
     expect(full + ext).not.toMatch(/<include/);
     fs.rmSync(root, { recursive: true });
+  });
+});
+
+describe('ios backup and config (#948)', () => {
+  const swift = `@main
+class AppDelegate: ExpoAppDelegate {
+  public override func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+    reactNativeFactory = factory
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+`;
+  const run = async (language: string, contents: string) => {
+    withNoBackup({});
+    const c = { modResults: { language, contents } };
+    await mods.appDelegate?.(c);
+    return c.modResults.contents;
+  };
+
+  it('the plugin hooks the launch and flags Documents, SQLite and the photo vault as excluded from backup', async () => {
+    const out = await run('swift', swift);
+    expect(out.indexOf('excludeAppDataFromBackup()\n')).toBeLessThan(out.indexOf('return super.application'));
+    expect(out).toContain('func excludeAppDataFromBackup()');
+    expect(out).toContain('values.isExcludedFromBackup = true');
+    expect(out).toContain('["SQLite", "photos"]');
+    expect(out).toContain('.documentDirectory');
+  });
+
+  it('is idempotent, and fails loudly when the template has no launch return or is not Swift', async () => {
+    const once = await run('swift', swift);
+    expect(await run('swift', once)).toBe(once);
+    await expect(run('swift', 'class AppDelegate {}')).rejects.toThrow(/launch return/);
+    await expect(run('objc', swift)).rejects.toThrow(/Swift/);
+  });
+
+  it('the excluded folders are where the app writes: expo-sqlite SQLite folder and the vault folder', () => {
+    expect(withNoBackup.IOS_EXCLUDED_FOLDERS).toEqual(['SQLite', 'photos']);
+    const vault = fs.readFileSync(path.join(__dirname, '..', 'src', 'photos', 'vault.ts'), 'utf8');
+    expect(vault).toContain("new Directory(Paths.document, 'photos')");
+  });
+
+  it('app.json: iPhone only, no Face ID string, no tracking, privacy manifest categories declared', () => {
+    const ios = appJson.expo.ios as { supportsTablet: boolean; privacyManifests: { NSPrivacyTracking: boolean; NSPrivacyTrackingDomains: string[]; NSPrivacyCollectedDataTypes: unknown[]; NSPrivacyAccessedAPITypes: { NSPrivacyAccessedAPIType: string; NSPrivacyAccessedAPITypeReasons: string[] }[] } };
+    expect(ios.supportsTablet).toBe(false);
+    expect(appJson.expo.plugins).toContainEqual(['expo-secure-store', { configureAndroidBackup: false, faceIDPermission: false }]);
+    const m = ios.privacyManifests;
+    expect(m.NSPrivacyTracking).toBe(false);
+    expect(m.NSPrivacyTrackingDomains).toEqual([]);
+    expect(m.NSPrivacyCollectedDataTypes).toEqual([]);
+    const reasons = Object.fromEntries(m.NSPrivacyAccessedAPITypes.map((t) => [t.NSPrivacyAccessedAPIType, t.NSPrivacyAccessedAPITypeReasons]));
+    expect(reasons).toEqual({
+      NSPrivacyAccessedAPICategoryUserDefaults: ['CA92.1'],
+      NSPrivacyAccessedAPICategoryFileTimestamp: ['C617.1', '0A2A.1', '3B52.1'],
+      NSPrivacyAccessedAPICategoryDiskSpace: ['E174.1', '85F4.1'],
+      NSPrivacyAccessedAPICategorySystemBootTime: ['35F9.1'],
+    });
+  });
+
+  it('only the camera and photo library strings are set, and the microphone one stays off', () => {
+    const picker = appJson.expo.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-image-picker') as [string, Record<string, unknown>];
+    expect(Object.keys(picker[1]).sort()).toEqual(['cameraPermission', 'microphonePermission', 'photosPermission']);
+    expect(picker[1].microphonePermission).toBe(false);
+    expect((appJson.expo.ios as Record<string, unknown>).infoPlist).toBeUndefined();
   });
 });
