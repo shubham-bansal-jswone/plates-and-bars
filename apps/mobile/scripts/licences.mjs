@@ -396,6 +396,19 @@ if (nativeArg !== -1) {
   process.exit(0);
 }
 
+// NOTICE and THIRD_PARTY.md must agree on the app images in assets/ (#965). They are our own artwork (rendered from assets/brand/*.svg by
+// tools/brand-icons/render.mjs), so THIRD_PARTY.md lists them as own work and NOTICE, which lists third-party material only, must not credit them.
+// LICENCES_REPO_DIR points the check at another NOTICE and THIRD_PARTY.md (the tests use it); it defaults to the repository root.
+const repo = process.env.LICENCES_REPO_DIR ?? join(root, '../..');
+if (existsSync(join(repo, 'NOTICE')) && existsSync(join(repo, 'THIRD_PARTY.md'))) {
+  const ownRow = read(join(repo, 'THIRD_PARTY.md')).split('\n').find((l) => l.includes('apps/mobile/assets') && /own work/i.test(l));
+  if (!ownRow) { console.error('THIRD_PARTY.md has no row marking the app icon and splash images in apps/mobile/assets as own work; add it (the images are rendered from assets/brand/*.svg) or update this check.'); process.exit(1); }
+  const notice = read(join(repo, 'NOTICE'));
+  const pngs = [...read(join(root, 'app.json')).matchAll(/\.\/assets\/([\w.-]+\.png)/g)].map((m) => m[1]);
+  const listed = [...pngs.filter((f) => new RegExp(`(^|[\\s/])${f.replace(/\./g, '\\.')}`).test(notice)), ...(notice.match(/\b(app icon|splash)\b/i) ?? []).slice(0, 1)];
+  if (listed.length) { console.error(`NOTICE lists ${listed[0]} but THIRD_PARTY.md marks it own work: make the two agree.`); process.exit(1); }
+}
+
 const sortedTexts = Object.fromEntries(Object.entries(texts).sort(([a], [b]) => a.localeCompare(b)));
 const out = `${JSON.stringify({ packages, android, native, assets, texts: sortedTexts })}\n`;
 if (check) {
