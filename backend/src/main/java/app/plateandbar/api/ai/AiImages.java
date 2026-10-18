@@ -220,6 +220,7 @@ final class AiImages {
     /** Width, height and the EXIF orientation (1 when absent), reading segment headers only; null when no frame header. */
     private static int[] jpegHeader(byte[] b) {
         int orientation = 1;
+        boolean exifSeen = false;
         int p = 2;
         while (p + 4 <= b.length) {
             if ((b[p] & 0xFF) != 0xFF) {
@@ -244,8 +245,9 @@ final class AiImages {
             if (m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC) {
                 return len < 7 ? null : new int[] {u16(b, p + 7), u16(b, p + 5), orientation};
             }
-            if (m == 0xE1) {
-                orientation = Math.max(orientation, exifOrientation(b, p + 4, p + 2 + len));
+            if (m == 0xE1 && !exifSeen && len >= 8 && new String(b, p + 4, 6, StandardCharsets.ISO_8859_1).equals("Exif\0\0")) {
+                exifSeen = true; // the first Exif segment decides; a later one is ignored
+                orientation = exifOrientation(b, p + 4, p + 2 + len);
             }
             p += 2 + len;
         }

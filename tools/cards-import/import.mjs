@@ -75,6 +75,15 @@ export const CARD_OVERRIDES = {
   },
 };
 
+// Cards held back until their sources are decided (issue #212: they cite only generic sources). The flag ships in
+// content/cards.json as `hidden: true` with a `hidden_reason`; the app and the site both read it (#969). Remove an id
+// here, and regenerate, once #212 is settled for that card.
+export const HELD_BACK = {
+  ramp: 'Source is generic ("Common coaching practice; no single study"); held back until #212 is decided.',
+  ladder: 'Source is generic ("Common coaching practice"); held back until #212 is decided.',
+  formfirst: 'Source is generic ("General motor-learning and strength research"); held back until #212 is decided.',
+};
+
 function applyOverride(id, card) {
   const o = CARD_OVERRIDES[id];
   if (!o) return card;
@@ -229,6 +238,7 @@ export function importCards(html) {
     ...(id === 'bulky' ? { audience: 'female', learn_insert_at: Number(m[1]) } : {}),
     ...(PLACEHOLDERS[id] ? { placeholders: PLACEHOLDERS[id], sections: sectionNames(id) } : {}),
     review_status: 'draft',
+    ...(HELD_BACK[id] ? { hidden: true, hidden_reason: HELD_BACK[id] } : {}),
   }));
   return { schema_version: 1, origin: 'docs/prototype/plate-and-bar.html (KB, LEARN), with CARD_OVERRIDES in tools/cards-import/import.mjs', split_names: names, cards };
 }

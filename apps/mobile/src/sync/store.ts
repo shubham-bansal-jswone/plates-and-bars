@@ -8,6 +8,8 @@ export const KEY_SERVER_DELETED = 'device.server_deleted';
 export const KEY_PHOTOS_WIPE = 'device.photos_wipe_pending';
 /** Settings edits whose save failed, kept across restarts (#651). Device-only, but removed by a store wipe: they belong to the account that is wiped. */
 export const KEY_SETTINGS_KEPT = 'device.settings_kept';
+/** Reminder choices (#943). Device-only like the settings edits kept above: removed by a store wipe, with the alarms. */
+export const KEY_REMINDERS = 'device.reminders';
 export const KEY_CURSOR = 'sync.cursor';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 

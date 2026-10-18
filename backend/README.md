@@ -42,7 +42,7 @@ keyword is registered with the schema library as a non-validation keyword so it 
   `Authorization`, `Content-Type`, `Accept` and `If-None-Match` request headers, `Retry-After` and `ETag` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   The one exception is `/api/v1/auth/**` for a cookie-mode origin, which gets credentials (below).
   Empty means every cross-origin call is refused.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`).
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`), `V10__barcode_cache.sql` (the barcode lookup cache, no user data).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Contract tests (#834): a test checks a real response with `ContractSchemas.assertResponse("METHOD /path", status, body)`, which validates it against the schema `openapi.yaml` gives that status. `ContractCoverageTest` runs last and fails when, in an unfiltered `./gradlew test`, an operation in the contract (only `GET /foods` is allowlisted, #200 decision 2) or an `/auth/*` or `/content/*` status never passed a validation. It checks what actually ran, so a skipped, disabled or commented-out test is caught; a `--tests` run does not enforce it.
 - Rate limits (`ratelimit` package, Bucket4j 8, Apache-2.0, in memory), all answering 429 `rate_limited` in the
@@ -63,10 +63,28 @@ keyword is registered with the schema library as a non-validation keyword so it 
 - Security signals (#714, `common.SecuritySignalFilter`, logger `app.plateandbar.security`): one INFO line per refused
   request (401, 403: status, method, path template, reason code) and per rate-limit hit (429: bucket name, path
   template; the bucket is the limit's own name carried on `RateLimitedException`, e.g. `public-ip`, `email-start-ip`,
-  `email-start-address`, `email-verify-address`, `ai-ip`, `ai-user`, `export-ip`, `export-user`, `user`). A routine
+  `email-start-address`, `email-verify-address`, `ai-ip`, `ai-user`, `export-ip`, `export-user`, `barcode-ip`, `user`). A routine
   `token_expired` 401 is logged at DEBUG only and does not use the refusal allowance. No IP, e-mail, user id, token, header or query string; ids in paths become `{id}`. Capped at 5 refusals
   per minute per client address and one rate-limit line per bucket and address per minute. Refresh-token reuse is
   logged separately by `AuthService` (#709). See `docs/INCIDENT-RESPONSE.md`.
+- Barcode lookup (#944, ADR 009, contract 0.1.23), package `foods`: `GET /api/v1/foods/barcode/{code}` is public (no sign-in; a bearer token is
+  ignored) and an Open Food Facts (OFF) proxy. It is **off by default** (`OFF_ENABLED`): while off it answers 503 `upstream_unavailable`
+  and calls nothing; turn it on only after the owner has filled in OFF's API usage form and chosen the contact address. Order of checks:
+  (1) the per-IP limit, its own scope `barcode-ip`, 20 per minute (`app.rate-limit.barcode-per-ip`), counted before validation and
+  also for a signed-in caller, who gets no per-user bucket on this path; 429 `rate_limited`; (2) the code: 8, 12 or 13 ASCII digits with a
+  valid GS1 check digit (`Gs1`, vectors in `packages/api/test-vectors/barcode-gs1.json`), else 400 `invalid_barcode`; (3) the `barcode_cache`
+  table (`V10__barcode_cache.sql`): a hit lives 30 days, a miss (OFF has no product, or none with nutrition values) 24 hours, expired rows are deleted on
+  write; there is no list or export over it (ODbL, ADR 009) and it holds no user data, so `DELETE /me` and `GET /me/export` do not touch it;
+  (4) one limiter shared by every call to OFF, 12 per minute (OFF allows 15), 503 `upstream_busy` with `Retry-After`. Cache hits and 400s never use
+  it. Concurrent requests for one code share one lookup. The call (`OffClient`): JDK `HttpClient` GET of OFF API v2 `/api/v2/product/{code}` with a
+  `fields=` whitelist, `User-Agent: PlateAndBar/<version> (<contact>)` (version from the jar manifest, contact from `OFF_CONTACT_EMAIL`), 3 s
+  connect and 5 s total read timeout (a slow body is cut off), a 256 KB body cap, no redirects, and one retry (I/O error, timeout or 5xx; the retry takes a limiter
+  token too, and with none left gives up). Any OFF failure is 503 `upstream_unavailable`; OFF's "no such product" is 404 `not_found`. `OffMapper`
+  returns only the contract's `OffProduct` fields: strings are stripped of control characters, trimmed and capped; a nutriment, `serving_quantity` or
+  `completeness` that is negative, not finite or not numeric is dropped (never clamped to 0); `code` is always the request's. No images, no bulk endpoint.
+  **The barcode is never logged**: the only log line for a lookup is `Open Food Facts lookup (outcome, ms)`; the security log shows the path as
+  `/api/v1/foods/barcode/{id}`; the request-line loggers (`DispatcherServlet`, `FilterChainProxy`) are pinned to INFO in `application.yml`. The barcode is
+  a path segment, so the reverse proxy's access log must redact it (infra PR #976) before this is enabled.
 - Sync (#28, ADR 001): `POST /api/v1/sync`, the whole offline-first round trip in one transaction. See "Sync" below.
 - Account rights (#192), package `account`:
   - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
@@ -341,11 +359,11 @@ cd backend
 ./gradlew test
 ```
 
-`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`, `SyncRecordCapIT`, `SyncRecordCountIT`, `RecordRecountIT`) use Testcontainers to start MySQL 8, so Docker must be running.
+`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`, `SyncRecordCapIT`, `SyncRecordCountIT`, `RecordRecountIT`) use Testcontainers to start MySQL 8, so Docker must be running. So do the barcode ITs (`BarcodeProxyIT`: the whole path against a fake OFF server on MockWebServer, Apache-2.0, with a settable clock for the 30 day and 24 hour cache lifetimes, the limiter order, retries, timeouts and the log check; `BarcodeDisabledIT`: the flag off; `BarcodeCacheIT`: migration V10 and the cache's lifetimes). No test calls the real Open Food Facts.
 `SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
 `AuthCookieIT` (Testcontainers) covers the web refresh cookie end to end; `CookieModeControllerTest`, `CookieModeCorsTest` and `CookieModeRateLimitTest` cover it per rule.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;
-`ContentBundlesTest` (loads `content-hash.json`), `ContentControllerTest`, `ContentRealFilesTest` and `ContentRateLimitTest` (WebMvc), `UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
+`Gs1Test` (loads the barcode vectors), `OffMapperTest`, `OffPropertiesTest`, `BarcodeServiceTest` (Mockito) and `FoodsControllerTest` (WebMvc, every status of the barcode operation against the contract, the per-IP scope, the no-logging check), `ContentBundlesTest` (loads `content-hash.json`), `ContentControllerTest`, `ContentRealFilesTest` and `ContentRateLimitTest` (WebMvc), `UuidsTest` (loads `packages/api/test-vectors/sync-ids.json`), `JsonContentTest`, `CursorTest`, `JwtServiceTest`, `GoogleIdTokenVerifierTest`, `RateLimiterTest` and `ClientIpResolverTest` are plain unit tests. None of these need Docker. Gradle sets throwaway
 `JWT_SIGNING_KEY`, `GOOGLE_CLIENT_IDS`, `SMTP_HOST` and `SMTP_FROM` for tests; `CONTENT_UPDATED_AT` has one `name=timestamp` entry per file in `content/` (the build sets it for Gradle; in an IDE set it, for example to `"$(backend/scripts/content-updated-at.sh)"`). Run tests from an IDE with the same variables.
 
 ## Environment variables
@@ -371,10 +389,13 @@ cd backend
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated web app origins, e.g. `https://app.example.com` |
 | `AUTH_COOKIE_ORIGINS` | empty | Comma-separated exact origins of the web app itself, the only ones that may use cookie mode for the refresh token (`X-Auth-Transport: cookie`). Separate from `CORS_ALLOWED_ORIGINS`; empty refuses cookie mode. See "Web refresh cookie" |
 | `SPRING_PROFILES_ACTIVE` | empty | `dev` swaps SMTP for the logging mail sender |
+| `OFF_ENABLED` | `false` | Turns on `GET /foods/barcode/{code}` (Open Food Facts proxy, #944). Off: the endpoint answers 503 `upstream_unavailable` and calls nothing. Turn on only after the owner has filled in OFF's API usage form |
+| `OFF_CONTACT_EMAIL` | empty, required while `OFF_ENABLED` | Contact address in the User-Agent `PlateAndBar/<version> (<contact>)`; at most 100 printable ASCII characters. The app refuses to start without it while enabled |
+| `OFF_BASE_URL` | `https://world.openfoodfacts.org` | Open Food Facts host (never taken from a request) |
 | `GOOGLE_CLIENT_IDS` | empty | Comma-separated OAuth client ids accepted as the Google ID token audience; empty refuses every Google sign-in |
 
 Rate limits are `app.rate-limit.<name>.capacity` and `.window` (a duration such as `60s`), for
-`health-per-ip`, `public-per-ip`, `email-start-per-ip`, `email-verify-per-ip`, `authenticated-per-user`, and
+`health-per-ip`, `public-per-ip`, `barcode-per-ip`, `email-start-per-ip`, `email-verify-per-ip`, `authenticated-per-user`, and
 `email-start-per-address` and `verify-failures-per-address` (each with `burst` and `sustained`). Set them in
 `application.yml` or as environment variables (`APP_RATELIMIT_PUBLICPERIP_CAPACITY=60`).
 
@@ -409,8 +430,8 @@ Secrets come from the environment only. Logs must never contain food, weight, he
 
 ## Layout
 
-Package by feature under `app.plateandbar.api`: `health`, `auth`, `common` (shared error handling);
-later `sync`, `foods`, `content`, `ai`, `account`.
+Package by feature under `app.plateandbar.api`: `health`, `auth`, `common` (shared error handling), `sync`, `foods`
+(the barcode lookup), `content`, `ai`, `account`.
 
 ## Error tracking (#687)
 

@@ -23,3 +23,7 @@ A bundle that another area still reads from the shipped import is read from the 
 ## Exercises (`src/workout/catalog.ts`)
 
 The exercises bundle is read through `chosenExercises` / `getCatalog`. A stored copy is rejected whole unless it keeps what the shipped copy fixes: every shipped exercise with its `meta.type` and `tags.equipment`, the shipped order of tags, every away entry, and every shipped ladder pinned BY POSITION (each shipped step keeps its names first and in order; steps, names after them and new ladders may be appended). So prepending an easier step to a shipped ladder, or reordering ladders or steps, rejects the copy. This is intended for v1 (conservative: a ladder position is what stored step-up and step-down history means); relax it only with a migration plan.
+
+## Exercise figures (`src/workout/figures.ts`, `ExerciseFigure.tsx`)
+
+`chosenFigures` reads `exercise-images` (inline SVG per exercise). Its validator is an allowlist: `svgAllowlist.ts` is a port of `tools/validate/svg-allowlist.mjs` (the app cannot import from `tools/`; keep the two in step), plus own_drawing and licence checks like the tool. One bad frame or field refuses the whole stored copy (the shipped one stays). The SVG is only ever given to react-native-svg (`SvgXml`) after the `--fig-*` variables and `currentColor` are replaced by palette colours; never inject it into the DOM. The reader runs before anything is rendered; the refresh step still stores a bundle without validating it (all bundles work that way).

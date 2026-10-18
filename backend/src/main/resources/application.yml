@@ -43,6 +43,12 @@ logging:
     org.springframework.web.servlet.mvc.method.annotation.HttpEntityMethodProcessor: INFO
     # Prints every bound SQL parameter at TRACE, which includes the stored record JSON.
     org.springframework.jdbc.core.StatementCreatorUtils: INFO
+    # These print the request line ("GET /api/v1/foods/barcode/<digits>") at DEBUG: the barcode is food data and is never logged (#944).
+    org.springframework.web.servlet.DispatcherServlet: INFO
+    org.springframework.security.web.FilterChainProxy: INFO
+    org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
+    # Prints "Authorizing GET /api/v1/foods/barcode/<digits>" at TRACE.
+    org.springframework.security.web.access.intercept.RequestMatcherDelegatingAuthorizationManager: INFO
     # Tomcat's HTTP/1.1 processor can print raw request bytes at DEBUG or TRACE.
     org.apache.coyote.http11: INFO
 
@@ -111,6 +117,13 @@ app:
     meal-photo-enabled: ${AI_MEAL_PHOTO_ENABLED:false}
     import-recipe-enabled: ${AI_IMPORT_RECIPE_ENABLED:false}
     form-check-enabled: ${AI_FORM_CHECK_ENABLED:false}
+  off:
+    # Barcode lookup through Open Food Facts (#944, ADR 009). Off until the owner has filled in OFF's API usage form and chosen the
+    # contact address; while off, GET /foods/barcode/{code} answers 503 upstream_unavailable and calls nothing.
+    enabled: ${OFF_ENABLED:false}
+    # Goes into the User-Agent (PlateAndBar/<version> (<contact>)); required while enabled. Environment only.
+    contact: ${OFF_CONTACT_EMAIL:}
+    base-url: ${OFF_BASE_URL:https://world.openfoodfacts.org}
   # Erasure ledger (#850, #887): DELETE /me appends the user id and time to erasures-<UTC day>.log in this directory
   # before it deletes, so a backup restore can replay the erasures. Empty = off (dev only). The staging stack sets it
   # to a dedicated volume.

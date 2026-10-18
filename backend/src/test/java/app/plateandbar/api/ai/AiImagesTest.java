@@ -259,32 +259,82 @@ class AiImagesTest {
         return ImageIO.read(new ByteArrayInputStream(jpeg));
     }
 
-    private static byte[] jpegWithOrientation(int w, int h, int orientation) throws IOException {
+    private static byte[] exifSegment(boolean littleEndian, int orientation) {
+        ByteBuffer tiff = ByteBuffer.allocate(26).order(littleEndian ? java.nio.ByteOrder.LITTLE_ENDIAN : java.nio.ByteOrder.BIG_ENDIAN)
+                .put(new byte[] {(byte) (littleEndian ? 'I' : 'M'), (byte) (littleEndian ? 'I' : 'M')})
+                .putShort((short) 42).putInt(8).putShort((short) 1)
+                .putShort((short) 0x0112).putShort((short) 3).putInt(1).putShort((short) orientation).putShort((short) 0).putInt(0);
+        byte[] exif = concat("Exif\0\0".getBytes(StandardCharsets.US_ASCII), tiff.array());
+        return ByteBuffer.allocate(4 + exif.length).put(new byte[] {(byte) 0xFF, (byte) 0xE1}).putShort((short) (exif.length + 2)).put(exif).array();
+    }
+
+    /** A 40x20 JPEG, a red 10x10 block at the top left, with the given APP1 segments after SOI. */
+    private static byte[] jpegWith(int w, int h, byte[]... segments) throws IOException {
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = img.createGraphics();
+        g.setColor(java.awt.Color.RED);
+        g.fillRect(0, 0, 10, 10);
+        g.dispose();
         ByteArrayOutputStream plain = new ByteArrayOutputStream();
         ImageIO.write(img, "jpeg", plain);
         byte[] j = plain.toByteArray();
-        ByteBuffer tiff = ByteBuffer.allocate(26).put(new byte[] {'M', 'M', 0, 42}).putInt(8).putShort((short) 1)
-                .putShort((short) 0x0112).putShort((short) 3).putInt(1).putShort((short) orientation).putShort((short) 0).putInt(0);
-        byte[] exif = concat("Exif\0\0".getBytes(StandardCharsets.US_ASCII), tiff.array());
-        ByteBuffer seg = ByteBuffer.allocate(4 + exif.length).put(new byte[] {(byte) 0xFF, (byte) 0xE1}).putShort((short) (exif.length + 2)).put(exif);
-        return concat(Arrays.copyOfRange(j, 0, 2), seg.array(), Arrays.copyOfRange(j, 2, j.length));
+        return concat(Arrays.copyOfRange(j, 0, 2), concat(segments), Arrays.copyOfRange(j, 2, j.length));
+    }
+
+    private static BufferedImage photo(byte[] jpeg) throws IOException {
+        return decoded(run(AiImages.Kind.PHOTO, slot("image/jpeg", Base64.getEncoder().encodeToString(jpeg))));
+    }
+
+    private static boolean red(BufferedImage img, int x, int y) {
+        int rgb = img.getRGB(x, y);
+        return (rgb >> 16 & 0xFF) > 180 && (rgb >> 8 & 0xFF) < 90 && (rgb & 0xFF) < 90;
+    }
+
+    /** Which corner (0 top left, 1 top right, 2 bottom right, 3 bottom left) is red, sampled a little inside. */
+    private static int redCorner(BufferedImage img) {
+        int r = img.getWidth() - 3;
+        int b = img.getHeight() - 3;
+        boolean[] c = {red(img, 3, 3), red(img, r, 3), red(img, r, b), red(img, 3, b)};
+        int found = -1;
+        for (int i = 0; i < 4; i++) {
+            if (c[i]) {
+                assertThat(found).as("only one red corner").isEqualTo(-1);
+                found = i;
+            }
+        }
+        return found;
     }
 
     @Test
     void theExifOrientationIsAppliedAndThenDropped() throws IOException {
-        for (int o : new int[] {5, 6, 7, 8}) {
-            byte[] out = run(AiImages.Kind.PHOTO, slot("image/jpeg", Base64.getEncoder().encodeToString(jpegWithOrientation(40, 20, o))));
-            BufferedImage img = decoded(out);
-            assertThat(img.getWidth()).as("orientation %d", o).isEqualTo(20);
-            assertThat(img.getHeight()).isEqualTo(40);
-            assertThat(hasApp1(out)).isFalse();
+        // where the red top-left corner of the stored image ends up once the photo is upright
+        int[] corner = {0, 0, 1, 2, 3, 0, 1, 2, 3};
+        for (boolean le : new boolean[] {false, true}) {
+            for (int o = 1; o <= 8; o++) {
+                byte[] out = run(AiImages.Kind.PHOTO, slot("image/jpeg", Base64.getEncoder().encodeToString(jpegWith(40, 20, exifSegment(le, o)))));
+                BufferedImage img = decoded(out);
+                String what = "orientation " + o + (le ? " II" : " MM");
+                assertThat(img.getWidth()).as(what).isEqualTo(o >= 5 ? 20 : 40);
+                assertThat(img.getHeight()).as(what).isEqualTo(o >= 5 ? 40 : 20);
+                assertThat(redCorner(img)).as(what).isEqualTo(corner[o]);
+                assertThat(hasApp1(out)).isFalse();
+            }
         }
-        for (int o : new int[] {1, 2, 3, 4}) {
-            BufferedImage img = decoded(run(AiImages.Kind.PHOTO,
-                    slot("image/jpeg", Base64.getEncoder().encodeToString(jpegWithOrientation(40, 20, o)))));
-            assertThat(img.getWidth()).as("orientation %d", o).isEqualTo(40);
-        }
+    }
+
+    @Test
+    void theFirstExifSegmentDecides() throws IOException {
+        BufferedImage img = photo(jpegWith(40, 20, exifSegment(false, 1), exifSegment(false, 6)));
+        assertThat(img.getWidth()).isEqualTo(40);
+    }
+
+    @Test
+    void anXmpSegmentBeforeTheExifSegmentDoesNotHideTheOrientation() throws IOException {
+        byte[] xmp = "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta/>".getBytes(StandardCharsets.US_ASCII);
+        byte[] xmpSegment = concat(new byte[] {(byte) 0xFF, (byte) 0xE1, (byte) ((xmp.length + 2) >> 8), (byte) (xmp.length + 2)}, xmp);
+        BufferedImage img = photo(jpegWith(40, 20, xmpSegment, exifSegment(false, 6)));
+        assertThat(img.getWidth()).isEqualTo(20);
+        assertThat(img.getHeight()).isEqualTo(40);
     }
 
     @Test
@@ -295,6 +345,28 @@ class AiImagesTest {
         BufferedImage out = decoded(run(AiImages.Kind.PHOTO, slot("image/png", Base64.getEncoder().encodeToString(png.toByteArray()))));
         assertThat(out.getWidth()).isEqualTo(1600);
         assertThat(out.getHeight()).isEqualTo(533);
+        // a transparent PNG is flattened on white
+        int rgb = out.getRGB(800, 266);
+        assertThat(rgb >> 16 & 0xFF).isGreaterThan(240);
+        assertThat(rgb >> 8 & 0xFF).isGreaterThan(240);
+        assertThat(rgb & 0xFF).isGreaterThan(240);
+    }
+
+    @Test
+    void theLimitsAreTheContractsAndTheSideLimitPasses() throws IOException {
+        assertThat(AiImages.Kind.PHOTO.maxBytes).isEqualTo(VECTORS.path("max_decoded_bytes").path("photo").asInt());
+        assertThat(AiImages.Kind.FRAME.maxBytes).isEqualTo(VECTORS.path("max_decoded_bytes").path("frame").asInt());
+        assertThat(AiImages.Kind.PHOTO.maxSide).isEqualTo(VECTORS.path("max_side_px").path("photo").asInt());
+        assertThat(AiImages.Kind.FRAME.maxSide).isEqualTo(VECTORS.path("max_side_px").path("frame").asInt());
+        assertThat(AiImages.MAX_PIXELS).isEqualTo(VECTORS.path("max_megapixels").asLong() * 1_000_000L);
+        assertThat(AiImages.MAX_METADATA_INFLATED).isEqualTo(VECTORS.path("max_metadata_inflated_bytes").asInt());
+        assertThat(AiImages.MAX_LONG_SIDE).isEqualTo(VECTORS.path("reencode").path("max_long_side_px").asInt());
+        for (AiImages.Kind kind : AiImages.Kind.values()) {
+            int side = kind.maxSide;
+            ByteArrayOutputStream png = new ByteArrayOutputStream();
+            ImageIO.write(new BufferedImage(side, 1, BufferedImage.TYPE_INT_RGB), "png", png);
+            assertThat(run(kind, slot("image/png", Base64.getEncoder().encodeToString(png.toByteArray())))).isNotEmpty();
+        }
     }
 
     // ---- memory and disk ----
