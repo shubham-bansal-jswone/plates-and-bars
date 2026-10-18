@@ -158,6 +158,15 @@ describe('the review sheet', () => {
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ protein_g: 0 }));
   });
 
+  it('clearing a field Open Food Facts provided, or the name, does not say "Not in the database", and Add is disabled', async () => {
+    await show();
+    await hit(EAN13);
+    await fireEvent.changeText(await screen.findByLabelText(t.protein), '');
+    await fireEvent.changeText(screen.getByLabelText(t.name), '');
+    expect(screen.queryByText(t.missing)).toBeNull();
+    expect(disabled('Add to breakfast')).toBe(true);
+  });
+
   it('a product with no name needs one typed', async () => {
     const lookup = jest.fn(async (_code: string) => found({ name: null }));
     await show({ lookup });
