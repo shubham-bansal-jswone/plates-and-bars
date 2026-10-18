@@ -2,10 +2,9 @@ import { useMemo } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
-import type { SQLiteDatabase } from 'expo-sqlite';
-import { DB_NAME, MIGRATIONS, migrate } from '../src/db/migrations';
+import { DB_NAME } from '../src/db/migrations';
+import { initDb } from '../src/db/initDb';
 import { lockedDb } from '../src/db/lockedDb';
-import { loadContent } from '../src/content/loader';
 import { ContentRefresher } from '../src/content/ContentRefresher';
 import { Gate } from '../src/state/Gate';
 import { FontsProvider } from '../src/theme/fonts';
@@ -16,16 +15,8 @@ import { SyncProvider } from '../src/sync/SyncProvider';
 import { initErrorTracking } from '../src/telemetry/errors';
 import { registerServiceWorker } from '../src/web/registerServiceWorker';
 
-initErrorTracking(); // no-op unless EXPO_PUBLIC_SENTRY_DSN is set
+initErrorTracking(); // no-op unless EXPO_PUBLIC_SENTRY_DSN is set; starts with no user, the install id is attached by initDb
 registerServiceWorker(); // production web only: offline start (#718)
-
-async function initDb(db: SQLiteDatabase): Promise<void> {
-  const version = await migrate(db);
-  if (version > MIGRATIONS.length) {
-    console.warn(`Local database schema v${version} is newer than this app (v${MIGRATIONS.length}).`);
-  }
-  await loadContent(db); // never throws; the bundled copies stay in use on any failure
-}
 
 function Providers() {
   const sqlite = useSQLiteContext();
