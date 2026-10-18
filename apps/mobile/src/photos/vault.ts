@@ -3,6 +3,7 @@ import { AESEncryptionKey, AESSealedData, aesDecryptAsync, aesEncryptAsync } fro
 import { Directory, File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { WriteLock } from '../db/writeLock';
+import { PHOTO_KEY, secureOptions } from '../secure/keystore';
 
 // Progress photos (#429): device only, never synced or uploaded. Native: AES-256-GCM (expo-crypto) with a random key
 // kept in expo-secure-store, one encrypted file per photo under <documents>/photos, the file name bound to the
@@ -13,7 +14,7 @@ import { WriteLock } from '../db/writeLock';
 export const POSES = ['front', 'side', 'back'] as const;
 export type Pose = (typeof POSES)[number];
 
-const KEY = 'pb.photo_key';
+const KEY = PHOTO_KEY;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const native = Platform.OS !== 'web';
 /** False on web: photos are kept for this session only. */
@@ -70,7 +71,7 @@ async function vaultKey(): Promise<AESEncryptionKey> {
   if (stored) return (key = await AESEncryptionKey.import(stored, 'base64'));
   deleteFolder();
   const fresh = await AESEncryptionKey.generate();
-  await SecureStore.setItemAsync(KEY, await fresh.encoded('base64'));
+  await SecureStore.setItemAsync(KEY, await fresh.encoded('base64'), secureOptions());
   return (key = fresh);
 }
 

@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
+import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DB_NAME, MIGRATIONS, migrate } from '../src/db/migrations';
 import { lockedDb } from '../src/db/lockedDb';
+import { resetKeystoreIfReinstalled, storeIsNew } from '../src/secure/keystore';
 import { loadContent } from '../src/content/loader';
 import { ContentRefresher } from '../src/content/ContentRefresher';
 import { Gate } from '../src/state/Gate';
@@ -20,10 +22,12 @@ initErrorTracking(); // no-op unless EXPO_PUBLIC_SENTRY_DSN is set
 registerServiceWorker(); // production web only: offline start (#718)
 
 async function initDb(db: SQLiteDatabase): Promise<void> {
+  const fresh = Platform.OS !== 'web' && (await storeIsNew(db)); // before the migration creates the file's tables
   const version = await migrate(db);
   if (version > MIGRATIONS.length) {
     console.warn(`Local database schema v${version} is newer than this app (v${MIGRATIONS.length}).`);
   }
+  if (Platform.OS !== 'web') await resetKeystoreIfReinstalled(db, fresh).catch(() => undefined); // retried next launch if it failed
   await loadContent(db); // never throws; the bundled copies stay in use on any failure
 }
 
