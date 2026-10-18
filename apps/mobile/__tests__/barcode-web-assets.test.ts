@@ -11,12 +11,14 @@ jest.mock('barcode-detector/ponyfill', () => ({ BarcodeDetector: class {}, setZX
 const app = join(__dirname, '..');
 const dir = join(app, 'public/zxing');
 const read = (p: string) => readFileSync(p, 'utf8');
-const wasm = readFileSync(join(dir, 'zxing_reader.wasm'));
+const wasmDir = join(dir, '3.1.3');
+const wasm = readFileSync(join(wasmDir, 'zxing_reader.wasm'));
 const sha = createHash('sha256').update(wasm).digest('hex');
 
 describe('self-hosted zxing reader', () => {
   it('ships the wasm and its licence, and nothing else', () => {
-    expect(readdirSync(dir).sort()).toEqual(['LICENSE.txt', 'zxing_reader.wasm']);
+    expect(readdirSync(dir).sort()).toEqual(['3.1.3', 'LICENSE.txt']);
+    expect(readdirSync(wasmDir)).toEqual(['zxing_reader.wasm']); // the folder name is the zxing-wasm version (see the next test)
   });
 
   it('the wasm is the one in the pinned npm package, and its sha256 is in the licence file', () => {
@@ -28,7 +30,7 @@ describe('self-hosted zxing reader', () => {
 
   it('the licence file carries the MIT text, the Apache-2.0 text, ZXing-C++ and libzueci', () => {
     const lic = read(join(dir, 'LICENSE.txt'));
-    for (const s of ['MIT License', 'Ze-Zheng Wu', 'Apache License', 'Version 2.0, January 2004', 'zxing-cpp', 'Nu-book Inc.', 'libzueci', 'BSD-3-Clause']) expect(lic).toContain(s);
+    for (const s of ['MIT License', 'Ze-Zheng Wu', 'Emscripten', 'Apache License', 'Version 2.0, January 2004', 'zxing-cpp', 'Nu-book Inc.', 'libzueci', 'BSD-3-Clause']) expect(lic).toContain(s);
   });
 
   it('pins barcode-detector and zxing-wasm exactly, and zxing-wasm is the version barcode-detector was built against', () => {
@@ -37,6 +39,11 @@ describe('self-hosted zxing reader', () => {
     expect(deps['zxing-wasm']).toBe('3.1.3');
     const bd = join(app, 'node_modules/barcode-detector/package.json');
     if (existsSync(bd)) expect(JSON.parse(read(bd)).dependencies['zxing-wasm']).toBe(deps['zxing-wasm']);
+    // barcode-detector inlines its own copy of the zxing-wasm glue, which names its version: a bump that changes the glue without the wasm fails here
+    const glue = join(app, 'node_modules/barcode-detector/dist/es/zxing-exported.js');
+    if (existsSync(glue)) expect(read(glue)).toContain(`zxing-wasm@${deps['zxing-wasm']}`);
+    // the served folder is the version
+    expect(existsSync(join(dir, deps['zxing-wasm'] as string, 'zxing_reader.wasm'))).toBe(true);
   });
 });
 
@@ -54,7 +61,7 @@ describe('the ponyfill never reaches a third party', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('../src/barcode/zxing-decoder');
     const locate = overrides[0]!.locateFile!;
-    expect(locate('zxing_reader.wasm', 'https://cdn.example/')).toBe('/zxing/zxing_reader.wasm');
+    expect(locate('zxing_reader.wasm', 'https://cdn.example/')).toBe('/zxing/3.1.3/zxing_reader.wasm');
     expect(locate('other.js', 'https://app.test/')).toBe('https://app.test/other.js');
   });
 

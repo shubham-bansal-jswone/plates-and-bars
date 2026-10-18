@@ -15,6 +15,9 @@ import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 import javax.imageio.IIOImage;
@@ -64,6 +67,13 @@ final class AiImages {
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
     /** A valid stand-in for a checked {@code data}, so the schema's regex has nothing long to chew on. */
     private static final String CHECKED = "AAAA";
+
+    /** Decodes and re-encodes running at once on this instance: 2 x (4096 x 4096 x 4 B, about 64 MB) of pixels at most (#990). */
+    static final int MAX_CONCURRENT = 2;
+    /** How long a request waits for a permit before it is answered 503 with Retry-After. */
+    static final long PERMIT_WAIT_MS = 2_000;
+    static final long RETRY_AFTER_SECONDS = 2;
+    static final Semaphore PERMITS = new Semaphore(MAX_CONCURRENT, true);
 
     static {
         ImageIO.setUseCache(false); // the default caches an input stream in a temp file
@@ -169,12 +179,38 @@ final class AiImages {
             if (png && !metadataWithinLimit(raw)) {
                 throw fault(path + ".data", "unreadable_image");
             }
-            return encode(decode(raw, kind, path), head[2]);
-        } catch (IOException | RuntimeException | DataFormatException e) {
+            return withPermit(PERMITS, PERMIT_WAIT_MS, () -> {
+                try {
+                    return encode(decode(raw, kind, path), head[2]);
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
+        } catch (RuntimeException | DataFormatException e) {
             if (e instanceof ApiException a) {
                 throw a;
             }
             throw fault(path + ".data", "unreadable_image"); // the cause can hold file details: not chained, not logged
+        }
+    }
+
+    /**
+     * Runs {@code work} holding one permit of {@code gate}, released whatever happens. Waits at most {@code waitMs}
+     * for it, then 503 {@link ImageBusyException}; an interrupted wait is the same, with the flag kept.
+     */
+    static <T> T withPermit(Semaphore gate, long waitMs, Supplier<T> work) {
+        try {
+            if (!gate.tryAcquire(waitMs, TimeUnit.MILLISECONDS)) {
+                throw new ImageBusyException(RETRY_AFTER_SECONDS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ImageBusyException(RETRY_AFTER_SECONDS);
+        }
+        try {
+            return work.get();
+        } finally {
+            gate.release();
         }
     }
 

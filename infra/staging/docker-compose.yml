@@ -92,6 +92,17 @@ services:
       AI_FORM_CHECK_ENABLED: ${AI_FORM_CHECK_ENABLED:-false}
       # Monthly token budget; 0 keeps every AI feature off, a flag alone is not enough (backend/README.md, AI).
       AI_MONTHLY_BUDGET_TOKENS: ${AI_MONTHLY_BUDGET_TOKENS:-0}
+      JAVA_TOOL_OPTIONS: -Xmx768m -XX:+ExitOnOutOfMemoryError
+    # Memory (#990, RUNBOOK.md section 2a): the container is capped and the JVM heap is set explicitly (-Xmx wins over the
+    # image's MaxRAMPercentage=75). Heap 768m = 2 concurrent image decodes (the API's cap) x about 200 MiB worst case each
+    # (a 16-bit RGBA PNG of 4000x4000: 4000x4000x8 B raster plus the resize copy; #1010 will refuse 16-bit PNGs) = 400 MiB,
+    # + about 64 MiB of bodies and copies in flight + about 256 MiB of normal working set (an ESTIMATE, not measured) + 48 MiB of slack
+    # (400 + 64 + 256 + 48 = 768).
+    # The other 384 MiB of the limit is metaspace, code cache, thread stacks and native buffers. ExitOnOutOfMemoryError: a heap
+    # OutOfMemoryError ends the JVM so the restart policy brings it back clean, rather than leaving a half-working API.
+    # test-compose-memory.sh checks the sums.
+    mem_limit: 1152m
+    memswap_limit: 1152m # no swap: an out-of-memory stays inside this container and the restart policy brings it back
     # No published ports: Caddy reaches api:8080 over the network.
     networks: [backend]
     volumes:
