@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Vibration } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -792,6 +792,24 @@ describe('Workout tab: first-time ramp', () => {
     expect(screen.getByText(/Working weight found/)).toBeTruthy();
   });
 
+  it('shows the Easy note after an Easy ramp set, with the next step, and drops it for a later rating (#823)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await press('Start the ramp for Machine Shoulder Press');
+    expect(screen.queryByText(/^Easy, so add a step/)).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Machine Shoulder Press ramp set 1 weight'), '20');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    expect(screen.queryByText(/^Easy, so add a step/)).toBeNull(); // done but not rated yet
+    await press('Machine Shoulder Press ramp set 1: Easy');
+    // A machine's step is 5 kg and its range starts at 8 reps.
+    expect(await screen.findByText('Easy, so add a step (about 25 kg) and do another ramp set of 8 reps.')).toBeTruthy();
+    await press('Mark Machine Shoulder Press ramp set 2 done'); // takes the +1 step weight
+    await press('Machine Shoulder Press ramp set 2: Just right');
+    await waitFor(() => expect(screen.getByText(/Working weight found/)).toBeTruthy());
+    expect(screen.queryByText(/^Easy, so add a step/)).toBeNull();
+  });
+
   it('keeps the find-your-weight guide hidden after "I know my weight", also after a reload (#139)', async () => {
     const db = await setup();
     await press('Start Push B');
@@ -853,6 +871,39 @@ describe('Workout tab: personal best', () => {
     await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
     expect(screen.queryByText(/New personal best/)).toBeNull();
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
+  });
+
+  it('vibrates once for a personal best, and not for the same day\'s next set (#823)', async () => {
+    const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
+    const lifts = { 'Barbell Bench Press': 60 };
+    const db = await setup({ lifts, hist: { 'Barbell Bench Press': [80, 90] } });
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    vibrate.mockClear(); // starting the session or ticking a set may start a rest; only the PB buzz is counted here
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '70');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(await screen.findByText('New personal best on Barbell Bench Press')).toBeTruthy();
+    expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 kg'), '72.5');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 reps'), '10');
+    await press('Mark Barbell Bench Press set 2 done');
+    await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
+    expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
+    vibrate.mockRestore();
+  });
+
+  it('does not vibrate when the session is not a new best (#823)', async () => {
+    const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
+    await setup({ lifts: { 'Barbell Bench Press': 60 }, hist: { 'Barbell Bench Press': [80, 90] } });
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '60');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
+    await press('Mark Barbell Bench Press set 1 done');
+    await waitFor(() => expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true));
+    expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(0);
+    vibrate.mockRestore();
   });
 
   it('does not toast when the session is not a new best', async () => {

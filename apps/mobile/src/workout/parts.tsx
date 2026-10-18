@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { buzz, restDoneBuzz } from '../haptics';
+import { BodyMap } from './BodyMap';
 import { getCatalog } from './catalog';
+import { musclesOf } from './muscles';
+import { VideoLink } from './VideoLink';
 
 /** A toggle chip (prototype `.chip` with `aria-pressed`). */
 /** `label` is the spoken name; `text` (default the label) is what shows. */
@@ -68,6 +72,14 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
   useEffect(() => {
     if (ended && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(REST_DONE);
   }, [ended]);
+  // One buzz per rest end. "+30 s" moves the end and re-arms it, as the prototype's `REST.buzzed = false`.
+  const buzzedEnd = useRef<number | null>(null);
+  useEffect(() => {
+    if (ended && buzzedEnd.current !== rest.end) {
+      buzzedEnd.current = rest.end;
+      buzz(restDoneBuzz());
+    }
+  }, [ended, rest.end]);
   const pct = Math.min(100, (1 - left / rest.total) * 100);
   return (
     // The outer layer is opaque and runs to the screen edge, so the page behind never shows through the gap around the panel.
@@ -126,6 +138,7 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
   const c = useTheme();
   if (!name) return null;
   const card = getCatalog().cards[name];
+  const { primary, secondary } = musclesOf([name]);
   return (
     <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
@@ -135,6 +148,7 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
           </Heading>
           {card ? (
             <>
+              {primary.length ? <BodyMap primary={primary} secondary={secondary} /> : null}
               <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>
                 <Text style={{ fontWeight: '700' }}>Where you should feel it: </Text>
                 {card.where_to_feel}
@@ -161,6 +175,7 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
           ) : (
             <Hint>No written guide for this exercise yet. Watch a couple of form videos, start light, and use the ramp to find your weight.</Hint>
           )}
+          <VideoLink name={name} />
           <Hint>Sharp or joint pain means stop, not push through. Muscle burn and effort are normal.</Hint>
           <Button label="Close" onPress={onClose} />
         </View>
