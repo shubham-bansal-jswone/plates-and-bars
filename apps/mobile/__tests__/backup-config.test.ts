@@ -122,20 +122,32 @@ class AppDelegate: ExpoAppDelegate {
     });
   });
 
-  it('app.json declares the collected data types from our flows: none used for tracking, diagnostics not linked to the user', () => {
+  it('app.json declares the collected data types from our flows (same as docs/PLAY-DATA-SAFETY.md), none used for tracking', () => {
     const ios = appJson.expo.ios as { privacyManifests: { NSPrivacyCollectedDataTypes: { NSPrivacyCollectedDataType: string; NSPrivacyCollectedDataTypeLinked: boolean; NSPrivacyCollectedDataTypeTracking: boolean; NSPrivacyCollectedDataTypePurposes: string[] }[] } };
-    const rows = ios.privacyManifests.NSPrivacyCollectedDataTypes;
-    const by = Object.fromEntries(rows.map((r) => [r.NSPrivacyCollectedDataType.replace('NSPrivacyCollectedDataType', ''), r]));
-    expect(Object.keys(by).sort()).toEqual(['CrashData', 'EmailAddress', 'Fitness', 'Health', 'OtherDiagnosticData', 'OtherUserContent', 'PerformanceData', 'UserID']);
-    for (const r of rows) expect(r.NSPrivacyCollectedDataTypeTracking).toBe(false);
-    for (const k of ['EmailAddress', 'Health', 'Fitness', 'OtherUserContent', 'UserID']) {
-      expect(by[k]?.NSPrivacyCollectedDataTypeLinked).toBe(true);
-      expect(by[k]?.NSPrivacyCollectedDataTypePurposes).toEqual(['NSPrivacyCollectedDataTypePurposeAppFunctionality']);
-    }
-    for (const k of ['CrashData', 'PerformanceData', 'OtherDiagnosticData']) {
-      expect(by[k]?.NSPrivacyCollectedDataTypeLinked).toBe(false);
-      expect(by[k]?.NSPrivacyCollectedDataTypePurposes).toEqual(['NSPrivacyCollectedDataTypePurposeAnalytics']);
-    }
+    const got = ios.privacyManifests.NSPrivacyCollectedDataTypes.map((r) => ({
+      type: r.NSPrivacyCollectedDataType.replace('NSPrivacyCollectedDataType', ''),
+      linked: r.NSPrivacyCollectedDataTypeLinked,
+      tracking: r.NSPrivacyCollectedDataTypeTracking,
+      purposes: r.NSPrivacyCollectedDataTypePurposes.map((p) => p.replace('NSPrivacyCollectedDataTypePurpose', '')),
+    }));
+    const af = ['AppFunctionality'];
+    const both = ['AppFunctionality', 'Analytics'];
+    expect(got).toEqual([
+      { type: 'EmailAddress', linked: true, tracking: false, purposes: af },
+      { type: 'Health', linked: true, tracking: false, purposes: af },
+      { type: 'Fitness', linked: true, tracking: false, purposes: af },
+      { type: 'SensitiveInfo', linked: true, tracking: false, purposes: af }, // pregnancy or breastfeeding status
+      { type: 'OtherUserContent', linked: true, tracking: false, purposes: af },
+      { type: 'UserID', linked: true, tracking: false, purposes: both },
+      { type: 'ProductInteraction', linked: true, tracking: false, purposes: af }, // card progress, check-in seen, dismissed suggestions
+      { type: 'OtherDataTypes', linked: true, tracking: false, purposes: af }, // sex and age
+      { type: 'DeviceID', linked: false, tracking: false, purposes: both }, // the per-install id
+      { type: 'CrashData', linked: false, tracking: false, purposes: both },
+      { type: 'PerformanceData', linked: false, tracking: false, purposes: both },
+      { type: 'OtherDiagnosticData', linked: false, tracking: false, purposes: both },
+    ]);
+    // Photos or Videos are not declared: photos never leave the device. Add them when the meal-photo AI call ships.
+    expect(got.map((r) => r.type)).not.toContain('PhotosorVideos');
   });
 
   it('only the camera and photo library strings are set, and the microphone one stays off', () => {
