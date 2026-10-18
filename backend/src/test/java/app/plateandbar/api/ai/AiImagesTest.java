@@ -329,6 +329,15 @@ class AiImagesTest {
     }
 
     @Test
+    void anXmpSegmentBeforeTheExifSegmentDoesNotHideTheOrientation() throws IOException {
+        byte[] xmp = "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta/>".getBytes(StandardCharsets.US_ASCII);
+        byte[] xmpSegment = concat(new byte[] {(byte) 0xFF, (byte) 0xE1, (byte) ((xmp.length + 2) >> 8), (byte) (xmp.length + 2)}, xmp);
+        BufferedImage img = photo(jpegWith(40, 20, xmpSegment, exifSegment(false, 6)));
+        assertThat(img.getWidth()).isEqualTo(20);
+        assertThat(img.getHeight()).isEqualTo(40);
+    }
+
+    @Test
     void aBigPhotoIsShrunkToTheLongSideLimit() throws IOException {
         BufferedImage big = new BufferedImage(3000, 1000, BufferedImage.TYPE_INT_ARGB);
         ByteArrayOutputStream png = new ByteArrayOutputStream();
