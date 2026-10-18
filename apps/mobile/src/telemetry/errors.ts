@@ -35,6 +35,8 @@ export async function forgetInstallId(): Promise<void> {
 export function initErrorTracking(
   dsn: string | undefined = process.env.EXPO_PUBLIC_SENTRY_DSN,
   environment: string | undefined = process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT,
+  /** `withoutInstallId`: do not read the keystore this launch (its id may be a stale one from before a reinstall). */
+  opts: { withoutInstallId?: boolean } = {},
 ): boolean {
   if (!dsn || !dsn.trim()) return false;
   Sentry.init({
@@ -55,6 +57,7 @@ export function initErrorTracking(
     beforeBreadcrumb: scrubBreadcrumb,
     beforeSend: (event) => scrubEvent(event, installId),
   });
+  if (opts.withoutInstallId) return true;
   loadInstallId()
     .then((id) => {
       installId = id;
@@ -62,4 +65,12 @@ export function initErrorTracking(
     })
     .catch(() => undefined); // events then carry no user id at all
   return true;
+}
+
+class KeystoreResetError extends Error {
+  name = 'KeystoreResetError';
+}
+/** The first-launch keystore clear failed every attempt. Carries no id and no text: only the error name reaches the server. */
+export function reportKeystoreResetFailed(): void {
+  Sentry.captureException(new KeystoreResetError('keystore reset failed'));
 }

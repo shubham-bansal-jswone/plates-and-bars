@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { secureOptions } from './keystore';
+import { secureOptions } from './keys';
 
 // expo-secure-store has no web implementation (its calls throw). On web these helpers are
 // deliberate no-ops: nothing is stored and loadTokens returns null, so the web build never throws.
