@@ -109,9 +109,13 @@ const ANDROID_LICENCES = [
   ['androidx.arch.core', 'Apache-2.0', null, 'core-common@2.2.0 core-runtime@2.2.0'],
   ['androidx.autofill', 'Apache-2.0', null, 'autofill@1.3.0'],
   ['androidx.biometric', 'Apache-2.0', null, 'biometric@1.1.0'],
+  // CameraX for the barcode scanner (#944). camera-core's POM names Apache-2.0 and BSD (libyuv, in libimage_processing_util_jni.so; see NATIVE below).
+  ['androidx.camera', 'Apache-2.0 AND BSD-3-Clause', 'libyuv.txt', 'camera-core@1.5.2'],
+  ['androidx.camera', 'Apache-2.0', null, 'camera-camera2@1.5.2 camera-lifecycle@1.5.2 camera-video@1.5.2 camera-view@1.5.2'],
+  ['androidx.camera.featurecombinationquery', 'Apache-2.0', null, 'featurecombinationquery@1.5.2'],
   ['androidx.cardview', 'Apache-2.0', null, 'cardview@1.0.0'],
   ['androidx.collection', 'Apache-2.0', null, 'collection@1.4.4 collection-jvm@1.4.4 collection-ktx@1.4.4'],
-  ['androidx.concurrent', 'Apache-2.0', null, 'concurrent-futures@1.1.0'],
+  ['androidx.concurrent', 'Apache-2.0', null, 'concurrent-futures@1.1.0 concurrent-futures-ktx@1.1.0'],
   ['androidx.constraintlayout', 'Apache-2.0', null, 'constraintlayout@2.1.0 constraintlayout-core@1.0.0'],
   ['androidx.coordinatorlayout', 'Apache-2.0', null, 'coordinatorlayout@1.2.0'],
   ['androidx.core', 'Apache-2.0', null, 'core@1.18.0 core-ktx@1.18.0 core-splashscreen@1.2.0 core-viewtree@1.0.0'],
@@ -156,6 +160,8 @@ const ANDROID_LICENCES = [
   ['com.google.code.findbugs', 'Apache-2.0 AND BSD-3-Clause', 'jsr305.txt', 'jsr305@3.0.2'],
   ['com.google.code.gson', 'Apache-2.0', null, 'gson@2.8.6'],
   ['com.google.errorprone', 'Apache-2.0', null, 'error_prone_annotations@2.15.0'],
+  // AutoValue (project and parent POM): Apache-2.0.
+  ['com.google.auto.value', 'Apache-2.0', null, 'auto-value-annotations@1.6.3'],
   ['com.google.guava', 'Apache-2.0', null, 'listenablefuture@1.0'],
   // Bolts 1.4.0 is BSD-3-Clause with Facebook's Additional Grant of Patent Rights v2 (both in licence-texts/bolts.txt).
   ['com.parse.bolts', 'BSD-3-Clause with Facebook Additional Grant of Patent Rights v2', 'bolts.txt', 'bolts-tasks@1.4.0'],
@@ -171,6 +177,8 @@ const ANDROID_LICENCES = [
   ['expo.modules.asset', 'MIT', 'expo.txt', 'expo.modules.asset@58.0.16'],
   ['expo.modules.router', 'MIT', 'expo.txt', 'expo.modules.router@58.0.22'],
   ['host.exp.exponent', 'MIT', 'expo.txt', 'expo.modules.clipboard@58.0.3 expo.modules.crypto@58.0.7 expo.modules.filesystem@58.0.9 expo.modules.font@58.0.8 expo.modules.haptics@58.0.7 expo.modules.imageloader@58.0.3 expo.modules.imagemanipulator@58.0.14 expo.modules.imagepicker@58.0.10 expo.modules.keepawake@58.0.3 expo.modules.linking@58.0.13 expo.modules.securestore@58.0.2 expo.modules.sharing@58.0.19 expo.modules.splashscreen@58.0.10 expo.modules.sqlite@58.0.13 expo.modules.statusbar@58.0.3'],
+  // zxing-cpp (barcode reader for the scanner, #944): its POM and LICENSE are Apache-2.0; the Android build has writers off, so the bundled libzint (BSD-3-Clause) is not in it.
+  ['io.github.zxing-cpp', 'Apache-2.0', 'zxing-cpp-android.txt', 'android@3.1.1'],
   ['io.github.expo', 'MIT', 'expo-modules-v2-android.txt', 'expo-modules-v2-react@0.2.5'],
   ['io.github.expo.kolibri', 'MIT', 'expo.txt', 'kolibri-android@0.2.3 runtime@0.2.3'],
   ['io.github.expo.pika', 'MIT', 'expo-pika.txt', 'pika-api@1.1.0'],
@@ -179,7 +187,7 @@ const ANDROID_LICENCES = [
   ['javax.inject', 'Apache-2.0', null, 'javax.inject@1'],
   ['org.brotli', 'MIT', 'brotli.txt', 'dec@0.1.2'],
   ['org.jetbrains', 'Apache-2.0', null, 'annotations@23.0.0'],
-  ['org.jetbrains.kotlin', 'Apache-2.0', null, 'kotlin-android-extensions-runtime@2.0.0 kotlin-annotations-jvm@1.3.72 kotlin-parcelize-runtime@2.0.0 kotlin-reflect@2.2.10 kotlin-stdlib@2.2.20 kotlin-stdlib-jdk7@2.2.10 kotlin-stdlib-jdk8@1.9.24'],
+  ['org.jetbrains.kotlin', 'Apache-2.0', null, 'kotlin-android-extensions-runtime@2.0.0 kotlin-annotations-jvm@1.3.72 kotlin-parcelize-runtime@2.0.0 kotlin-reflect@2.2.10 kotlin-stdlib@2.3.20 kotlin-stdlib-jdk7@2.2.10 kotlin-stdlib-jdk8@1.9.24'],
   ['org.jetbrains.kotlinx', 'Apache-2.0', null, 'kotlinx-coroutines-android@1.10.2 kotlinx-coroutines-core@1.10.2 kotlinx-coroutines-core-jvm@1.10.2'],
   ['org.jspecify', 'Apache-2.0', null, 'jspecify@1.0.0'],
 ];
@@ -243,6 +251,8 @@ const NATIVE = [
   ['libwebp', 'libwebp', '1.3.2', 'BSD-3-Clause', 'https://chromium.googlesource.com/webm/libwebp', ['libwebp.txt']],
   ['giflib', 'giflib', '5.2.1', 'MIT', 'https://giflib.sourceforge.net', ['giflib.txt', 'openbsd-reallocarray.txt']],
   ['zstd', 'Zstandard', '1.5.8 (development snapshot 1dbc2e0)', 'BSD-3-Clause', 'https://github.com/facebook/zstd', ['zstd.txt']], // dual-licensed BSD-3-Clause or GPL-2.0; the BSD licence is the one taken
+  ['zxing-cpp', 'zxing-cpp', '3.1.1', 'Apache-2.0', 'https://github.com/zxing-cpp/zxing-cpp', ['zxing-cpp.txt']], // statically links LLVM libc++ of NDK 27.1.12297006 (libcxx); the Android build has writers off, so the repo's libzint is not compiled in
+  ['libyuv', 'libyuv (in AndroidX CameraX camera-core)', 'bundled in androidx.camera:camera-core 1.5.2', 'BSD-3-Clause', 'https://chromium.googlesource.com/libyuv/libyuv', ['libyuv.txt']],
   ['sqlite', 'SQLite', '3.53.3', 'Public domain', 'https://sqlite.org', ['sqlite.txt']],
   ['libunwindstack', 'libunwindstack-ndk (Android Open Source Project)', '284202fb1e42', 'Apache-2.0', 'https://github.com/getsentry/libunwindstack-ndk', ['libunwindstack.txt']],
   ['mpack', 'MPack', '1.0', 'MIT', 'https://github.com/ludocode/mpack', ['mpack.txt']],
@@ -273,6 +283,9 @@ const NATIVE_SO = {
   'libexpo-modules-v2.so': [],
   'libexpo-modules-worklets.so': [],
   'libexpo-sqlite.so': ['sqlite'],
+  'libzxingcpp_android.so': ['zxing-cpp', 'libcxx'],
+  'libimage_processing_util_jni.so': ['libyuv'],
+  'libsurface_util_jni.so': [],
   'libworklets.so': ['worklets-queue'],
   'libreanimated.so': [],
   'libgesturehandler.so': [],
