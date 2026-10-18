@@ -1,0 +1,76 @@
+# Caddy (Apache-2.0) in front of GlitchTip (#828). Loaded alone by infra/monitoring/glitchtip/docker-compose.yml, so it
+# carries the global error-log block that Caddyfile.stack carries for the API host (a global block cannot live in an
+# imported file). Do not import this file into infra/caddy/Caddyfile.stack: two global blocks conflict.
+# Caddy obtains and renews the Let's Encrypt certificate itself (ports 80 and 443 must reach the host).
+# Validated in CI (caddy validate) on every change to this file.
+#
+# Environment (both have defaults so the file validates as is):
+#   GLITCHTIP_HOST      public host name of GlitchTip, e.g. errors.example.com (same value as in the DSN)
+#   GLITCHTIP_UPSTREAM  address of GlitchTip as Caddy reaches it, e.g. glitchtip:8000 (Compose service)
+{
+	# Caddy's own error lines carry the request: same filters as the access log below (#714).
+	log errors {
+		output stderr
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "\?.*$" ""
+			request>headers delete
+			resp_headers delete
+		}
+		include http.log.error
+	}
+}
+
+{$GLITCHTIP_HOST:errors.example.com} {
+	encode zstd gzip
+
+	# Access log (#714): same privacy filters and 14-day retention as Caddyfile.api; infra/scripts/check-caddy-access-log.sh
+	# fails CI if one goes missing. Written to /data (the caddy_data volume).
+	log glitchtip_access {
+		output file /data/glitchtip_access.log {
+			roll_size 10MiB
+			roll_interval 24h
+			roll_keep 15
+			roll_keep_for 336h
+		}
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "\?.*$" ""
+			request>headers delete
+			resp_headers delete
+		}
+	}
+
+	# No Content-Security-Policy here: the GlitchTip web UI is a single-page app whose needs are not pinned by this repo,
+	# and a wrong policy would lock the owner out. The ingest endpoints (/api/<id>/envelope/ ...) serve no HTML.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# Event ingest carries the sender's IP in X-Forwarded-For, which GlitchTip would store with the event. Drop it so the
+	# only address GlitchTip sees is Caddy's own (privacy rule: no IP address on events, infra/OBSERVABILITY.md).
+	reverse_proxy {$GLITCHTIP_UPSTREAM:glitchtip:8000} {
+		header_up -X-Forwarded-For
+		header_up -X-Real-IP
+	}
+}

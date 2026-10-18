@@ -1,0 +1,108 @@
+# GlitchTip (MIT, self-hosted Sentry-compatible error tracking) + PostgreSQL + Caddy (#828). INERT: nothing deploys
+# or starts this; the owner runs it on a host of their choice (infra/OBSERVABILITY.md, infra/RUNBOOK.md section 5b):
+#   cp .env.example .env && chmod 600 .env   # fill in; never commit .env
+#   docker compose up -d
+# Images are pinned by version and by digest of the multi-arch index; each has a linux/arm64 build (checked 2026-10-18,
+# `docker buildx imagetools inspect`; CI re-checks it). Secrets come from .env only, never from this file.
+# GlitchTip 6.2.x is one process: it serves HTTP and consumes the task queue, so there is no separate worker service
+# (a worker role is refused at start-up). Valkey is off (VALKEY_URL empty), as infra/OBSERVABILITY.md proposed.
+name: plateandbar-glitchtip
+
+x-logging: &logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+    labels: com.docker.compose.service
+
+services:
+  postgres:
+    image: postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_DB: glitchtip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD (hex, see .env.example)}
+    # GlitchTip partitions its tables; Postgres' default lock budget is too low (GlitchTip install docs).
+    command: ["postgres", "-c", "max_locks_per_transaction=512"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip -d glitchtip"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [monitoring]
+    # No published ports.
+
+  glitchtip:
+    image: glitchtip/glitchtip:6.2.6@sha256:a3d8eb1b36c1e1603d55ab32711ea3dd8115874742a781a57391a62a16e0dff6
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 768m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (random, at least 50 characters)}
+      DATABASE_URL: postgres://glitchtip:${POSTGRES_PASSWORD}@postgres:5432/glitchtip
+      # Public URL, used in the DSN and in e-mails. Same host as GLITCHTIP_HOST below.
+      GLITCHTIP_DOMAIN: https://${GLITCHTIP_HOST:?set GLITCHTIP_HOST}
+      ALLOWED_HOSTS: ${GLITCHTIP_HOST}
+      CSRF_TRUSTED_ORIGINS: https://${GLITCHTIP_HOST}
+      # Valkey off: empty string disables it (GlitchTip then needs only PostgreSQL).
+      VALKEY_URL: ""
+      # Closed after the owner's own user exists: creating it is a CLI step (RUNBOOK section 5b), not sign-up.
+      ENABLE_USER_REGISTRATION: "false"
+      ENABLE_ORGANIZATION_CREATION: "false"
+      # 30 days for every data type (events, transactions, logs, uptime, files), matching the backup retention.
+      GLITCHTIP_RETENTION_DAYS: "30"
+      GLITCHTIP_RELEASE_RETENTION_DAYS: "30"
+      # No GlitchTip-side uptime or logs features: Uptime Kuma does uptime, and the apps send no log events.
+      GLITCHTIP_ENABLE_UPTIME: "false"
+      GLITCHTIP_ENABLE_LOGS: "false"
+      # Server-side scrubbing of secrets, card numbers, private keys and e-mail addresses in every project, on top of
+      # the SDK allowlists (infra/OBSERVABILITY.md, Error tracking rules).
+      GLITCHTIP_PII_SCRUB_DEFAULT: '{"enabled": true, "scrub_emails": true, "aggressive_key_match": true}'
+      # Sized for the memory limit above.
+      WEB_CONCURRENCY: "1"
+      VTASKS_CONCURRENCY: "2"
+      # Alert e-mail through an SMTP account you already have (no vendor service).
+      EMAIL_HOST: ${EMAIL_HOST:?set EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?set DEFAULT_FROM_EMAIL}
+    # No published ports: Caddy reaches glitchtip:8000 over the network.
+    networks: [monitoring]
+
+  caddy:
+    image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 64m
+    depends_on: [glitchtip]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      GLITCHTIP_HOST: ${GLITCHTIP_HOST:?set GLITCHTIP_HOST}
+      GLITCHTIP_UPSTREAM: glitchtip:8000
+    command: caddy run --config /etc/caddy/sites/Caddyfile.glitchtip --adapter caddyfile
+    volumes:
+      - ../../caddy:/etc/caddy/sites:ro
+      - caddy_data:/data # certificates: keep, or Let's Encrypt rate limits bite after a rebuild
+      - caddy_config:/config
+    networks: [monitoring]
+
+networks:
+  monitoring:
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

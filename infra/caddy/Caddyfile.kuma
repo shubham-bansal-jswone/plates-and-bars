@@ -1,0 +1,69 @@
+# Caddy (Apache-2.0) in front of Uptime Kuma (#828). Loaded alone by infra/monitoring/uptime-kuma/docker-compose.yml, so
+# it carries the global error-log block (see Caddyfile.glitchtip). Kuma runs on its own host, never on the VM it watches.
+# Caddy obtains and renews the Let's Encrypt certificate itself (ports 80 and 443 must reach the host).
+# Validated in CI (caddy validate) on every change to this file.
+#
+# Environment (both have defaults so the file validates as is):
+#   KUMA_HOST      public host name of Uptime Kuma, e.g. status.example.com
+#   KUMA_UPSTREAM  address of Kuma as Caddy reaches it, e.g. kuma:3001 (Compose service)
+#
+# The push-monitor URL (/api/push/<token>) carries a secret token in its path. The access and error logs cut the token
+# as well as the query string (one regexp: the token, or the query). Kuma's UI uses WebSockets, which reverse_proxy passes.
+{
+	log errors {
+		output stderr
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "^(/api/push/)[^?]*|\?.*$" "$1"
+			request>headers delete
+			resp_headers delete
+		}
+		include http.log.error
+	}
+}
+
+{$KUMA_HOST:status.example.com} {
+	encode zstd gzip
+
+	log kuma_access {
+		output file /data/kuma_access.log {
+			roll_size 10MiB
+			roll_interval 24h
+			roll_keep 15
+			roll_keep_for 336h
+		}
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "^(/api/push/)[^?]*|\?.*$" "$1"
+			request>headers delete
+			resp_headers delete
+		}
+	}
+
+	# No Content-Security-Policy: Kuma's single-page UI needs inline script and WebSocket connections that this repo does not pin.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	reverse_proxy {$KUMA_UPSTREAM:kuma:3001}
+}
