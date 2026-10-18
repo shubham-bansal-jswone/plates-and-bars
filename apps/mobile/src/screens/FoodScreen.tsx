@@ -67,7 +67,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const water = useWater({ db, date: f.date, now, profile, adjustments: settings.adjustments, notify, reloadKey: dataVersion });
 
   if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
-  if (status !== 'ready' || !settingsReady || !f.ready) return <View style={styles.fill}><DateAnnouncer v={v} /><Page><DateBar v={v} /><Hint>Loading…</Hint></Page></View>;
+  if (status !== 'ready' || !settingsReady || !f.ready) return <View style={styles.fill}><DateAnnouncer v={v} /><Page>{/* the title's slot, so the bar keeps its position in the loaded tree and is not remounted when the day loads */}{null}<DateBar v={v} /><Hint>Loading…</Hint></Page></View>;
 
   // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
   const target = kcalTarget(f.date, { flex: settings.flex }, profile);
