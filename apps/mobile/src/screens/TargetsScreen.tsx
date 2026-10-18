@@ -23,6 +23,7 @@ import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
+import { DeviceStepsSection } from '../steps/DeviceStepsSection';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
 
@@ -135,6 +136,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
           </View>
         ) : null}
+        <DeviceStepsSection />
         <RemindersSection db={db} profile={profile} />
         {ready ? <WaterSizesSection sizes={settings.water_sizes} onChange={(k, ml) => update((s) => ({ water_sizes: { ...s.water_sizes, [k]: ml } }))} /> : null}
         {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Water sizes and before My foods as there; the list itself is on its own screen. */}

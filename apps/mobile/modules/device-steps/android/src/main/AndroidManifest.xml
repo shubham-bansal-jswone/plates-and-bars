@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Runtime permission on Android 10 (API 29) and later; the app asks for it with its own explanation (src/steps). -->
+  <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+  <!-- Phones without a step sensor can still install the app and type steps in. -->
+  <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
+</manifest>

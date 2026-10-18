@@ -135,13 +135,14 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
   /** Saves today's steps and sleep on the day note; an empty box clears that value. */
   const saveStepsSleep = useCallback(
     (stepsText: string, sleepText: string) => {
-      const r = stepsSleepSave(stepsText, sleepText);
+      const cur = notesRef.current.find((x) => x.date === date) ?? blankNote(date);
+      const r = stepsSleepSave(stepsText, sleepText, cur);
       if (r.kind === 'bad') return notify(r.message);
-      const { steps, steps_source, sleep } = r;
-      const n: DayNote = { ...(notesRef.current.find((x) => x.date === date) ?? blankNote(date)), steps, steps_source, sleep, updated_at: stamp(now()) };
+      const { steps, steps_source, sleep, stepsChanged } = r;
+      const n: DayNote = { ...cur, steps, steps_source, sleep, updated_at: stamp(now()) };
       notesRef.current = [...notesRef.current.filter((x) => x.date !== date), n];
       setNotes(notesRef.current);
-      enqueue(() => patchDayNote(db, date, { steps, steps_source, sleep }, n.updated_at));
+      enqueue(() => patchDayNote(db, date, stepsChanged ? { steps, steps_source, sleep } : { sleep }, n.updated_at));
       notify('Saved');
     },
     [db, date, now, notify, enqueue],

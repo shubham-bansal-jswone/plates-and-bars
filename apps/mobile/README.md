@@ -130,3 +130,7 @@ It serves `dist/` with the headers, completes setup in headless Chrome with the 
 ## Website links (#825)
 
 The privacy policy, terms and account deletion links (About, Your data, setup consent) point at the website origin in `EXPO_PUBLIC_SITE_URL`, an `https://` URL set at build time. Unset or not https, the links are hidden. The release workflows pass it (#827).
+
+## Phone step counter (#300)
+
+`modules/device-steps` is a local Expo module (Kotlin, Android only): it reads `Sensor.TYPE_STEP_COUNTER` through `SensorManager`, with no Google Play services, and returns the raw since-boot counter plus the uptime. It adds the `ACTIVITY_RECOGNITION` permission (runtime, API 29+, asked from `src/steps/sensor.ts` after our own explanation) and no `.so` or Maven artifact. The day-delta and reboot rules are in `packages/core` (`advanceSteps`); `src/steps/store.ts` keeps the baseline in the device-local `settings` table and writes `steps_source: 'device'` with `patchDayNote`. The Targets toggle is off by default and hidden on web, iOS and Expo Go (no module there), which keep typing steps in. The module needs a development build (`npx expo prebuild`, `npx expo run:android`); jest mocks `src/steps/sensor.ts`.

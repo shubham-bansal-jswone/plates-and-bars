@@ -11,6 +11,7 @@ import { loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
 import type { Profile } from '../setup/types';
 import { useTheme } from '../theme/useTheme';
 import { WhyLink } from '../why/WhyLink';
+import { useStoredText } from '../progress/useStoredText';
 
 interface Props {
   db: WorkoutDb;
@@ -79,7 +80,7 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
               <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(kcal)}</Text>
             </View>
           ))}
-          <StepsSleepInputs key={`${steps}:${sleep}`} steps={steps} sleep={sleep} goal={facts.stepsGoal} onSave={onSaveStepsSleep} />
+          <StepsSleepInputs key={date} steps={steps} sleep={sleep} goal={facts.stepsGoal} onSave={onSaveStepsSleep} />
           <Hint>Your calorie target already includes your usual training, so there’s no need to eat back workout calories. Workout and step numbers are rough estimates.</Hint>
         </View>
       ) : null}
@@ -89,8 +90,8 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
 
 /** Prototype's two inputs under the breakdown: steps today (with the target) and hours slept last night, each with its why-link. */
 function StepsSleepInputs({ steps, sleep, goal, onSave }: { steps: number | null; sleep: number | null; goal: number; onSave: (steps: string, sleep: string) => boolean }) {
-  const [s, setS] = useState(steps != null ? String(steps) : ''); // 0 is a real count (#303)
-  const [h, setH] = useState(sleep != null ? String(sleep) : ''); // 0 h is valid (contract 0-24)
+  const [s, setS] = useStoredText(steps != null ? String(steps) : ''); // 0 is a real count (#303)
+  const [h, setH] = useStoredText(sleep != null ? String(sleep) : ''); // 0 h is valid (contract 0-24)
   return (
     <View style={styles.gap}>
       <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={s} onChangeText={setS} />

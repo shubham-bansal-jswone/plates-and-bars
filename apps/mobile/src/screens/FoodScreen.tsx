@@ -3,6 +3,7 @@ import { WhyLink } from '../why/WhyLink';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
+import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
 import { checkinBannerDue, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logPrep, logTotals, planFlex, planForMeal, prepFor, proteinUpgrade, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type PrepEntry, type ProteinUpgrade } from '@plate-and-bar/core';
 import { fmt } from '../format';
@@ -58,7 +59,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   usePendingToast(notify);
-  const dataVersion = useDataVersion();
+  const dataVersion = useDataVersion() + useStepsVersion(); // a pulled record or a phone step reading changed a day note
   const v = useViewedDate(now);
   const f = useFoodDay({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const water = useWater({ db, date: f.date, now, profile, adjustments: settings.adjustments, notify, reloadKey: dataVersion });
