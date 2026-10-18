@@ -356,6 +356,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/foods/barcode/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up one packaged food by barcode (Open Food Facts)
+         * @description Returns a trimmed subset of the Open Food Facts product for one barcode, so the app
+         *     can show a review screen. The server maps nothing: turning this into a `UserFood`
+         *     (per-serving values, kJ to kcal, missing fields) is a rule in `packages/core`.
+         *     Public like `/content/*`, limited by the per-IP rate limit (a tighter bucket than
+         *     other endpoints). Needs a connection; a barcode the user already saved is found
+         *     locally (`UserFood.barcode`) with no call.
+         *
+         *     **Code.** Digits only, length 8, 12, 13 or 14, with a valid GS1 mod-10 check digit
+         *     (`test-vectors/barcode-gs1.json`). 8 digits is EAN-8 (GTIN-8); 12 is UPC-A; 13 is
+         *     EAN-13; 14 is GTIN-14. A UPC-E code (8 digits on the pack) must be expanded to its
+         *     12-digit UPC-A by the client first. A code that fails the length or check digit is
+         *     400 `invalid_barcode`, with no upstream call.
+         *
+         *     **404 `not_found`.** Open Food Facts has no such product, or has it with no
+         *     nutrition values at all. Also cached (a miss for 24 hours; a hit for 30 days).
+         *
+         *     **Data.** Community-contributed and unchecked: the app must show it as such and let
+         *     the user edit every number. Strings are trimmed, stripped of control characters and
+         *     length-capped; only the fields below are ever returned. No images.
+         *
+         *     **Licence.** Every 200 carries `source` (code `open_food_facts`, ODbL 1.0 / DbCL
+         *     1.0, link to the product page); the app shows that credit on each scanned food.
+         *
+         *     **503.** `upstream_unavailable`: Open Food Facts failed, timed out or answered
+         *     with an error. `upstream_busy`: the server's own limit on calls to Open Food Facts
+         *     is used up; `Retry-After` says when to retry. The app offers manual entry.
+         */
+        get: operations["getFoodByBarcode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -749,7 +794,12 @@ export interface components {
              * @description Stable machine-readable code. `token_expired`: refresh the access token and
              *     retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
              *     or expired. `not_found` (404): the named resource does not exist; today only
-             *     `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
+             *     `GET /content/{bundle}` for a bundle not in the manifest, and
+             *     `GET /foods/barcode/{code}` for a barcode Open Food Facts has no usable product
+             *     for. `invalid_barcode` (400, `GET /foods/barcode/{code}` only): the code fails
+             *     the length or GS1 check digit. `upstream_unavailable` and `upstream_busy` (503,
+             *     `GET /foods/barcode/{code}` only): Open Food Facts failed, or the server's own
+             *     limit on calls to it is used up (`Retry-After` is set). `quota_exceeded` (429): the daily AI quota is used up until
              *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
              *     the server; use the non-AI fallback. `account_full` (413, `POST /sync` only):
              *     the push would take the account over its record cap; nothing was applied (see
@@ -758,7 +808,7 @@ export interface components {
              *     like `internal`.
              * @enum {string}
              */
-            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled" | "account_full" | "forbidden";
+            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled" | "account_full" | "forbidden" | "invalid_barcode" | "upstream_unavailable" | "upstream_busy";
             /** @description Plain-language message safe to show the user. Never contains health data. */
             message: string;
             /** @description Per-field problems, for `invalid_request`. */
@@ -969,7 +1019,8 @@ export interface components {
         };
         /**
          * @description Where a row's values come from. Only the sources listed in ADR 005
-         *     (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed.
+         *     (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed, plus Open Food
+         *     Facts for barcode lookups only (ADR 009).
          */
         FoodSource: {
             /**
@@ -978,10 +1029,12 @@ export interface components {
              *     weighed in our kitchen tests. `label_typical`: packaged foods using typical
              *     nutrition-label values across common brands; in the prototype these are whey
              *     protein, Greek yogurt and makhana. `own_estimate`: our own rough estimate, not
-             *     weighed or cooked to a recipe (for example restaurant dishes).
+             *     weighed or cooked to a recipe (for example restaurant dishes). `open_food_facts`:
+             *     a community-contributed product from Open Food Facts (ODbL 1.0 / DbCL 1.0, ADR
+             *     009); only `GET /foods/barcode/{code}` returns it, never `/foods` or `content/`.
              * @enum {string}
              */
-            code: "usda_fdc" | "fssai" | "own_recipe" | "kitchen_test" | "label_typical" | "own_estimate";
+            code: "usda_fdc" | "fssai" | "own_recipe" | "kitchen_test" | "label_typical" | "own_estimate" | "open_food_facts";
             /**
              * @example USDA FoodData Central (SR Legacy)
              * @example Typical label values (packaged food)
@@ -996,6 +1049,74 @@ export interface components {
             url: string | null;
             /** @description Identifier in the source, such as a USDA FDC id. */
             reference: string | null;
+        };
+        /**
+         * @description Digits of a barcode: 8 (EAN-8), 12 (UPC-A), 13 (EAN-13) or 14 (GTIN-14) with a valid
+         *     GS1 mod-10 check digit. The pattern checks length and digits only; the check digit
+         *     is checked separately (`test-vectors/barcode-gs1.json`).
+         * @example 8901491101837
+         */
+        Barcode: string;
+        /**
+         * @description The only nutriment keys the server returns, numbers as Open Food Facts gives them
+         *     (the key names are Open Food Facts', so hyphens stay). Energy `-kcal_` is kilocalories
+         *     and `-kj_` is kilojoules; the rest are grams, and `_100g` is per 100 g (or 100 ml)
+         *     while `_serving` is per serving. A key is absent when Open Food Facts has no value,
+         *     so absence is not zero. `sugars` (total sugars) and bare `energy` (kilojoules) are
+         *     deliberately not here.
+         */
+        OffNutriments: {
+            "energy-kcal_100g"?: number;
+            "energy-kj_100g"?: number;
+            proteins_100g?: number;
+            carbohydrates_100g?: number;
+            fat_100g?: number;
+            fiber_100g?: number;
+            "added-sugars_100g"?: number;
+            "energy-kcal_serving"?: number;
+            "energy-kj_serving"?: number;
+            proteins_serving?: number;
+            carbohydrates_serving?: number;
+            fat_serving?: number;
+            fiber_serving?: number;
+            "added-sugars_serving"?: number;
+        };
+        /**
+         * @description A trimmed subset of an Open Food Facts product (ADR 009). Community data, unchecked.
+         *     Text is untrusted: show it as text, never interpret it.
+         */
+        OffProduct: {
+            code: components["schemas"]["Barcode"];
+            /** @description Product name; null or empty when Open Food Facts has none (the user types one). */
+            name: string | null;
+            /** @description Comma-separated brands as Open Food Facts gives them. */
+            brands: string | null;
+            /** @description Pack size as printed, e.g. "50g" or "1 l". */
+            quantity: string | null;
+            /** @description Serving as printed, e.g. "1 bar (45 g)". */
+            serving_size: string | null;
+            /** @description Serving size in grams (or millilitres for drinks); null when unknown. */
+            serving_quantity: number | null;
+            /**
+             * @description What the pack's own nutrition table is printed per. The `_100g` values are present either way.
+             * @enum {string|null}
+             */
+            nutrition_data_per: "100g" | "serving" | null;
+            nutriments: components["schemas"]["OffNutriments"];
+            /** @description Open Food Facts' own completeness score of the entry. */
+            completeness: number | null;
+            /** @description Open Food Facts state tags, e.g. `en:nutrition-facts-completed`. */
+            states_tags: string[];
+            /** @description Open Food Facts data quality error tags; non-empty means the entry has known problems. */
+            data_quality_errors_tags: string[];
+            /** @description Countries the product is sold in, e.g. `en:india`. */
+            countries_tags: string[];
+            /**
+             * Format: date-time
+             * @description When the entry was last edited upstream. Open Food Facts sends epoch seconds (`last_modified_t`); the server converts.
+             */
+            last_modified_at: string | null;
+            source: components["schemas"]["FoodSource"];
         };
         SyncRequest: {
             /** @description Opaque cursor from the last successful sync; null on first sync. */
@@ -1597,6 +1718,14 @@ export interface components {
         /** @description A personal food. Prototype: an item in `settings.myFoods`. */
         UserFood: components["schemas"]["SyncMeta"] & {
             name: string;
+            /**
+             * @description Optional. Set when the food was made from a barcode scan (Open Food Facts);
+             *     the app then shows the Open Food Facts credit on it and finds it again
+             *     without a network call. `origin` stays `custom`. Absent or null on every
+             *     other food, and on rows from older clients. Same digits as
+             *     `GET /foods/barcode/{code}`.
+             */
+            barcode?: string | null;
             /** @description Serving label, e.g. "1 katori". */
             unit: string;
             kcal: number;
@@ -2295,6 +2424,63 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["Internal"];
+        };
+    };
+    getFoodByBarcode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description The barcode digits. See above for the accepted lengths and check digit.
+                 * @example 8901491101837
+                 */
+                code: components["schemas"]["Barcode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The product. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OffProduct"];
+                };
+            };
+            /** @description The code is not a valid barcode (length or check digit). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Open Food Facts has no usable product for this barcode. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+            /** @description Open Food Facts could not be reached, or the server's own limit on calls to it is used up. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. Always present on `upstream_busy`; may be absent on `upstream_unavailable`. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getHealth: {
