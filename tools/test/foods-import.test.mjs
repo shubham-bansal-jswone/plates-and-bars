@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ALIAS_PHRASES, HELD_BACK, PRODUCE, SOURCES, SOURCE_OF, UNIT_GRAMS_RE, foodId, importFoods, serialize, servingGrams,
+  ALCOHOLIC, ALIAS_PHRASES, HELD_BACK, PRODUCE, SOURCES, SOURCE_OF, UNIT_GRAMS_RE, foodId, importFoods, serialize, servingGrams,
 } from '../foods-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -41,7 +41,7 @@ test('values are per serving and unchanged; carbs include fibre', () => {
     if (!f) continue;
     assert.equal(f.per_serving.kcal, g.kcal);
     assert.equal(f.per_serving.carbs_g, g.carbs);
-    assert.equal(f.per_serving.fibre_g, golden.fibreAndAddedSugarPerServing[g.name][0]);
+    assert.equal(f.per_serving.fibre_g, golden.fibreAndAddedSugarPerServing[g.name]?.[0] ?? null);
   }
 });
 
@@ -100,7 +100,7 @@ test('sources: contract codes, packaged foods are label_typical, FSSAI dairy per
   assert.equal(byName['Egg, whole'].source.code, 'usda_fdc');
   assert.equal(byName['Chicken breast, cooked'].source.code, 'own_recipe'); // raw value / cooking yield
   assert.equal(byName['Buttermilk (chaas)'].source.code, 'own_recipe'); // 80 g curd in the prototype
-  assert.deepEqual(HELD_BACK, ['Beer', 'Whisky, rum or vodka', 'Wine']);
+  assert.deepEqual(HELD_BACK, []);
   for (const f of out.foods) {
     assert.ok(Object.hasOwn(SOURCES, f.source.code));
     assert.ok(f.source.licence);
@@ -120,7 +120,8 @@ test('fruit and veg servings match PRODUCE in the prototype', () => {
 
 test('search and grams equal the prototype: foodMatch rows and unitGrams for every row', () => {
   const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
-  const aliasSrc = /const ALIAS = \{.*?\};/s.exec(html)[0];
+  // The base ALIAS table plus the prototype's later Object.assign edits (the drinks' "daru" aliases, #824).
+  const aliasSrc = [/const ALIAS = \{.*?\};/s.exec(html)[0], ...html.match(/^Object\.assign\(ALIAS, \{.*?\}\);$/gm)].join('\n');
   const matchSrc = /const foodMatch = .*?;\n/.exec(html)[0];
   const gramsSrc = /const unitGrams = .*?;\n/.exec(html)[0];
   const proto = new Function(`${aliasSrc}\n${matchSrc}\n${gramsSrc}\nreturn { foodMatch, unitGrams };`)();
@@ -188,4 +189,21 @@ test('every usda_fdc row names its FDC id and only usda_fdc rows do (#98)', () =
     if (f.source.code === 'usda_fdc') assert.match(f.source.reference, /^FDC \d+ \(SR Legacy: .+\), per 100 g x [\d.]+ g/, f.name);
     else assert.equal(f.source.reference, null, f.name);
   }
+});
+
+test('#824: the prototype drinks are foods with its servings, values and daru aliases, from SR Legacy, flagged alcohol', () => {
+  const rows = ['Beer', 'Whisky, rum or vodka', 'Wine'].map((n) => byName[n]);
+  assert.deepEqual(rows.map((f) => [f.name, f.serving, f.aliases, f.per_serving]), [
+    ['Beer', { label: '330 ml can', grams: null }, ['daru', 'alcohol'],
+      { kcal: 150, protein_g: 1.6, carbs_g: 13, fibre_g: null, added_sugar_g: null, fat_g: 0 }],
+    ['Whisky, rum or vodka', { label: '30 ml peg', grams: null }, ['daru', 'alcohol', 'peg', 'spirit'],
+      { kcal: 70, protein_g: 0, carbs_g: 0, fibre_g: null, added_sugar_g: null, fat_g: 0 }],
+    ['Wine', { label: '150 ml glass', grams: null }, ['alcohol'],
+      { kcal: 125, protein_g: 0.1, carbs_g: 4, fibre_g: null, added_sugar_g: null, fat_g: 0 }],
+  ]);
+  // The prototype's FIB has no row for them, so they count as "without fibre data" there too.
+  for (const f of rows) assert.ok(!Object.hasOwn(golden.fibreAndAddedSugarPerServing, f.name));
+  assert.deepEqual(rows.map((f) => f.source.reference.split(' (')[0]), ['FDC 168746', 'FDC 171919', 'FDC 173190']);
+  assert.ok(rows.every((f) => f.source.code === 'usda_fdc'));
+  assert.deepEqual(out.foods.filter((f) => 'alcohol' in f).map((f) => [f.name, f.alcohol]), ALCOHOLIC.map((n) => [n, true]));
 });
