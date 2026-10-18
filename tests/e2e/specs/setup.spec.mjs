@@ -25,7 +25,8 @@ test('a redo from Targets also ends on Food with the toast', async ({ page }) =>
     for (const no of await page.locator('[role="radiogroup"] [aria-label="No"]').all()) await no.click();
     await label(page, 'See my targets').or(label(page, 'Continue')).first().click();
   }
-  await results.click();
+  // Keep has its own message, so the first setup's toast (still on the Food tab mounted under setup) cannot satisfy this.
+  await label(page, 'Keep my current targets').click();
   await expect(page.getByRole('heading', { name: 'Food', exact: true })).toBeVisible();
-  await expect(page.getByText('Targets updated', { exact: true })).toBeVisible();
+  await expect(page.getByText('Setup saved, targets unchanged', { exact: true })).toBeVisible();
 });
