@@ -32,6 +32,7 @@ class SyncContractIT extends SyncITBase {
     private void assertSyncResponse(Resp r) {
         assertThat(r.status()).isEqualTo(200);
         assertConforms("SyncResponse", r.body());
+        ContractSchemas.assertResponse("POST /sync", 200, r.body().toString());
         // The envelope's SyncChanges and SyncConflict.server_record are validated by their own table's schema,
         // since SyncRecord is an anyOf that several tables satisfy.
         r.body().path("changes").properties().forEach(e -> {
