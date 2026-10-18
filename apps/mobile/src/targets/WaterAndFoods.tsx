@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { num, waterSizeEntry } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Caption, Field, Hint, Label, Press } from '../components/ui';
+import { OffCredit } from '../barcode/OffCredit';
 import { loadUserFoods, saveUserFood } from '../db/food';
 import { trackWrite } from '../db/pendingWrites';
 import type { WorkoutDb } from '../db/workouts';
@@ -90,6 +91,7 @@ export function MyFoodsSection({ db, notify }: { db: WorkoutDb; notify: (msg: st
             <View style={{ flex: 1 }}>
               <Text style={{ color: c.ink, fontSize: 16 }}>{f.name}</Text>
               <Text style={{ color: c.muted, fontSize: 13 }}>{`${f.kcal} kcal, ${f.protein_g} g protein`}</Text>
+              {f.barcode ? <OffCredit code={f.barcode} /> : null}
             </View>
             <Press accessibilityRole="button" accessibilityLabel={`Delete ${f.name}`} onPress={() => remove(f)} style={styles.x}>
               <Text style={{ color: c.ink, fontSize: 22 }}>×</Text>
