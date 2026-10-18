@@ -55,7 +55,8 @@ export function SignInScreen() {
         <H1>{t.title}</H1>
         <Hint>{unsynced > 0 ? t.unsynced(unsynced) : t.allSynced}</Hint>
         <View testID="account-full-live" accessibilityLiveRegion="polite">{s.accountFull ? <Note>{t.accountFull}</Note> : null}</View>
-        {s.last?.status === 'unavailable' || s.last?.status === 'offline' ? <Note>{t.retrying}</Note> : null}
+        <View testID="sign-in-unavailable-live" accessibilityLiveRegion="polite">{s.signInUnavailable ? <Note>{t.signInUnavailable}</Note> : null}</View>
+        {!s.signInUnavailable && (s.last?.status === 'unavailable' || s.last?.status === 'offline') ? <Note>{t.retrying}</Note> : null}
         {s.last?.status === 'rejected' ? <Note>{rejectedText(s.last)}</Note> : null}
         {s.last?.status === 'error' ? <Note>{t.failed}</Note> : null}
         {s.last?.status === 'consent_required' ? (
@@ -211,6 +212,7 @@ export function SignInScreen() {
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.optional}</Hint>
+      <View testID="sign-in-unavailable-live" accessibilityLiveRegion="polite">{s.signInUnavailable ? <Note>{t.signInUnavailable}</Note> : null}</View>
       {step === 'email' ? (
         <>
           <Field label={t.emailLabel} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" />

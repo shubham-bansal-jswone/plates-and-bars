@@ -2,7 +2,7 @@ import { createClient } from '@plate-and-bar/api';
 import { refreshJoinCount, refreshSession, syncOnce } from '../src/sync/engine';
 import { signOut, withSyncPaused } from '../src/sync/guard';
 import { KEY_USER, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, until } from './sync-helpers';
 import { saveWeightDoc } from './sync-fixtures';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -11,19 +11,17 @@ jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 const USER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const OTHER = '0c9d8e7f-6a5b-4c3d-8e2f-1a0b9c8d7e6f';
 const w = { id: null, version: 0, updated_at: '2026-10-09T06:00:00.000Z', deleted_at: null, date: '2026-10-08', weight_kg: 80 };
+const gates: (() => void)[] = [];
 const gate = () => {
   let release!: () => void;
   const p = new Promise<void>((r) => (release = r));
+  gates.push(release);
   return { p, release };
 };
 let joinBase = 0;
 beforeEach(() => void (joinBase = refreshJoinCount()));
-async function until(what: string, ok: () => boolean) {
-  for (let i = 0; !ok(); i++) {
-    if (i > 5000) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 1));
-  }
-}
+// A failed test must not leave a held refresh in the engine's in-flight map: the next tests would join it.
+afterEach(() => void gates.splice(0).forEach((release) => release()));
 /** Waits for observable state, never a fixed time: `n` /auth/refresh requests held at the server, and `joiners` refresh calls that joined one in flight (counted from the start of the test). */
 async function refreshHeld(server: { calls: { path: string }[] }, n: number, joiners = 0) {
   await until('held refresh requests', () => server.calls.filter((c) => c.path === '/auth/refresh').length >= n);
@@ -236,7 +234,7 @@ describe('refreshes are single-flight', () => {
     server.hold = slow.p;
     server.holdPath = '/auth/refresh';
     const leader = refreshSession({ ...deps, timeoutMs: 40 });
-    const joiner = refreshSession({ ...deps, timeoutMs: 5000 }); // started at once: the leader's 40 ms timeout must not race it
+    const joiner = refreshSession({ ...deps, timeoutMs: 5000 }); // started at once, so it joins well inside the leader's 40 ms timeout
     await refreshHeld(server, 1, 1);
     expect(await leader).toBe('unavailable');
     expect(await joiner).toBe('unavailable');

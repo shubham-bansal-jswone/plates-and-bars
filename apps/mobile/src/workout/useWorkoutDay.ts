@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { buzz, PB_BUZZ } from '../haptics';
 import {
   cantRule,
   noLoad,
@@ -30,7 +31,7 @@ import { buildSession } from './buildSession';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
 import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
-import { blankRow, exerciseRecord, exercisesFrom, isCardioOnly, mergeWorkout, setRecord, stamp, unversioned, type ExState, type Row } from './model';
+import { blankRow, carryOnto, exerciseRecord, exercisesFrom, isCardioOnly, mergeWorkout, setRecord, stamp, unversioned, type ExState, type Row } from './model';
 import type { Workout } from './types';
 
 export interface Day {
@@ -93,12 +94,16 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   const enqueue = useCallback((write: () => Promise<void>) => enqueueDay(write, () => notify('Couldn’t save that. Try again.')), [notify]);
   /** Start and second session build from stored history; a second tap while one runs is ignored. */
   const building = useRef(false);
+  /** Settles when the running Start has saved; an "Add ..." tapped meanwhile waits for it instead of being dropped (#864). */
+  const starting = useRef<Promise<'saved' | 'adopted' | 'failed'> | null>(null);
   /** The stored workout row as this screen last loaded or wrote it: a different stored stamp means it changed elsewhere. */
   const synced = useRef<Workout | null>(null);
   /** Bumped after a write merged a change made elsewhere, so the screen reloads and shows the merged session. */
   const [merged, setMerged] = useState(0);
   /** What writeWorkout changes in memory inside a transaction, applied once it has committed (a failed save leaves `synced` alone). */
   const deferred = useRef<(() => void)[]>([]);
+  /** Sets of the build Start dropped for an adopted session (#898): local id to the adopted id the entry was carried onto, or null when it was not. A queued write for a null one has nothing to save. */
+  const dropped = useRef(new Map<string, string | null>());
   /** One transaction over the day's writes; they run through the txn handle `h`. No reads beyond what the writes already do. */
   const atomic = async (task: (h: WorkoutDb) => Promise<void>) => {
     deferred.current = [];
@@ -159,10 +164,10 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Today's exercise by name when a queued write runs: a can't-do swap or an added exercise may have moved it (#439). */
   const exNamed = (name: string) => ref.current.exs.find((e) => e.name === name);
   /** Writes the rows with these ids of exercise `name`, looked up when the write runs; gone rows are skipped. */
-  const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[], h: WorkoutDb = db) => {
+  const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[], h: WorkoutDb = db, shown?: readonly ExState[]) => {
     const stored = new Map((await loadSets(h, date)).map((s) => [s.id, s]));
     for (const id of ids) {
-      const ex = exNamed(name);
+      const ex = (shown ?? ref.current.exs).find((e) => e.name === name);
       const j = ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
       if (!ex || j < 0) continue;
       const rec = setRecord(ex, kind, j, now());
@@ -197,7 +202,10 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     ref.current = { ...ref.current, lifts: { ...lifts, [ex.name]: res.record } };
     setDay(ref.current);
     await saveLift(db, ex.name, res.record);
-    if (res.toast) notify(`New personal best on ${ex.name}`);
+    if (res.toast) {
+      notify(`New personal best on ${ex.name}`);
+      buzz(PB_BUZZ);
+    }
   };
 
   /** Applies `fn` to a copy of today's exercise `i` and shows it at once; `persist` is queued and gets the exercise's name. */
@@ -214,88 +222,117 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Cardio minutes to keep: the screen's when the user changed them since `base`, else the stored row's (a pull may have changed them). A tombstoned base counts as no minutes: the screen showed none. */
   const minutes = (screen: number | null, base: Workout | null, stored: Workout): number | null => (screen === (base && !base.deleted_at ? base.cardio_min : null) ? stored.cardio_min : screen);
 
-  const start = useCallback(
-    async (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) => {
+  /** Starts the day's session from what `make` builds out of the stored history; shared by Start and the hand-picked start. */
+  const begin = async (make: (sessions: SessionLog, d: Day) => { workout: Omit<Workout, 'cardio_min'>; exs: ExState[] }) => {
       // A cardio-only day (minutes logged, no session) is not a started session: Start turns it into one and keeps the minutes.
       if (!profile || building.current || (ref.current.workout && !isCardioOnly(ref.current.workout))) return;
       building.current = true;
+      let finished: (outcome: 'saved' | 'adopted' | 'failed') => void = () => {};
+      let outcome: 'saved' | 'adopted' | 'failed' = 'failed';
+      starting.current = new Promise((r) => (finished = r));
       try {
         const sessions = await loadSessionLog(db);
         if (dateRef.current !== date) return; // the day changed while the history was read
         const d = clone(ref.current);
-        const built = buildSession({
-          template,
-          date,
-          profile,
-          where: override ?? profile.where,
-          sessions,
-          lifts: d.lifts,
-          ciChoice,
-          checkin,
-          focus,
-          exclusions,
-          swaps,
-          adjustments,
-        });
-        d.workout = {
-          id: null,
-          version: 0,
-          updated_at: stamp(now()),
-          deleted_at: null,
-          date,
-          template: templateName(template, override ?? profile.where),
-          base: template,
-          where: override,
-          cardio_min: d.workout?.cardio_min ?? null,
-          mods: built.mods,
-          exercises: [],
-          ci_choice: ciChoice,
-        };
+        const made = make(sessions, d);
+        d.workout = { ...made.workout, cardio_min: d.workout?.cardio_min ?? null };
         d.sessions = sessions;
-        d.exs = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
+        d.exs = made.exs;
         commit(d);
         // One transaction: the old sets' tombstones, the workout row and the new sets are stored together or not at all (#516).
-        await enqueue(() => atomic(async (h) => {
-          // Started over a session deleted on another device: its sets go with it, so the new session does not
-          // pick them up (the contract does not promise that the deleting device tombstoned them).
-          const stored = await loadWorkout(h, date);
-          if (stored && !stored.deleted_at && !isCardioOnly(stored)) {
-            // A live session is already stored (pulled from another device, or kept after a removal) that this screen
-            // has not shown yet: never overwrite it; read it again so it shows instead.
-            setMerged((n) => n + 1);
-            return;
-          }
-          const overTombstone = !!stored?.deleted_at;
-          if (overTombstone) {
-            const at = stamp(now());
-            for (const s of await loadSets(h, date)) if (!s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
-          }
-          // A cardio-only row pulled but not shown yet: its minutes carry over unless the user changed them on this screen.
-          const mine = ref.current.workout;
-          if (stored && !stored.deleted_at && mine) {
-            const keep = minutes(mine.cardio_min, synced.current, stored);
-            if (keep !== mine.cardio_min) {
-              // The ref changes now (the workout row below is built from it); the screen shows it once the transaction has committed.
-              ref.current = { ...ref.current, workout: { ...mine, cardio_min: keep } };
-              deferred.current.push(() => setDay(ref.current));
+        await enqueue(async () => {
+          let adopted = false;
+          await atomic(async (h) => {
+            // Started over a session deleted on another device: its sets go with it, so the new session does not
+            // pick them up (the contract does not promise that the deleting device tombstoned them).
+            const stored = await loadWorkout(h, date);
+            if (stored && !stored.deleted_at && !isCardioOnly(stored)) {
+              // A live session is already stored (pulled from another device, or kept after a removal) that this screen
+              // has not shown yet: never overwrite it; read it again so it shows instead.
+              // That session is stored, so Start counts as saved and a waiting Add applies to it, not to the one built here.
+              setMerged((n) => n + 1);
+              adopted = true;
+              // Writes queued against the local build (a tick made while Start waited) run after this and would write that build
+              // over the stored row (#898). Make the adopted session the one they act on, with the user's entries carried onto its
+              // matching sets; they then find the adopted rows by name and skip the local ids, keeping the stored id and version.
+              const { exs, changed, kept } = carryOnto(exercisesFrom(stored, await loadSets(h, date)), ref.current.exs);
+              for (const c of changed) await writeSets(c.name, 'work', c.ids, h, exs);
+              deferred.current.push(() => {
+                synced.current = stored;
+                kept.forEach((to, from) => dropped.current.set(from, to));
+                ref.current = { ...ref.current, workout: stored, exs };
+                setDay(ref.current);
+              });
+              return;
             }
-          }
-          await writeWorkout(overTombstone, h);
-          for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets), h);
-        }));
+            const overTombstone = !!stored?.deleted_at;
+            if (overTombstone) {
+              const at = stamp(now());
+              for (const s of await loadSets(h, date)) if (!s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
+            }
+            // A cardio-only row pulled but not shown yet: its minutes carry over unless the user changed them on this screen.
+            const mine = ref.current.workout;
+            if (stored && !stored.deleted_at && mine) {
+              const keep = minutes(mine.cardio_min, synced.current, stored);
+              if (keep !== mine.cardio_min) {
+                // The ref changes now (the workout row below is built from it); the screen shows it once the transaction has committed.
+                ref.current = { ...ref.current, workout: { ...mine, cardio_min: keep } };
+                deferred.current.push(() => setDay(ref.current));
+              }
+            }
+            await writeWorkout(overTombstone, h);
+            for (const ex of d.exs) await writeSets(ex.name, 'work', ids(ex.sets), h);
+          });
+          outcome = adopted ? 'adopted' : 'saved'; // only once the transaction has resolved: a failed COMMIT throws before this
+        });
       } finally {
         building.current = false;
+        starting.current = null;
+        finished(outcome);
       }
-    },
+  };
+
+  const start = useCallback(
+    (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) =>
+      begin((sessions, d) => {
+        const built = buildSession({ template, date, profile: profile as Profile, where: override ?? (profile as Profile).where, sessions, lifts: d.lifts, ciChoice, checkin, focus, exclusions, swaps, adjustments });
+        return {
+          workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: templateName(template, override ?? (profile as Profile).where), base: template, where: override, mods: built.mods, exercises: [], ci_choice: ciChoice },
+          exs: built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] })),
+        };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue],
   );
 
+  /** Start from one picked exercise (prototype `exPick` with no template): a "Session" with that exercise's default sets and the start screen's where override and check-in choice (prototype keeps `w.ciChoice`). */
+  const startPicked = (name: string, override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
+    begin((sessions, d) => {
+      const built = newExercise(name, { lifts: d.lifts, date }, 1);
+      return {
+        workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: 'Session', base: null, where: override, mods: {}, exercises: [], ci_choice: ciChoice },
+        exs: [{ name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: built.sets.map(() => blankRow()), ramp: [] }],
+      };
+    });
+
   const addSecond = useCallback(
     async (template: string) => {
-      if (!profile || building.current || !ref.current.workout) return;
+      // A tap during the Start save waits for it, then adds (the screen already shows the chips once Start has committed).
+      // If that save failed, give up: the failure toast stays and the user taps again. A date change while waiting drops the Add on purpose: the user left that day.
+      const started = starting.current ? await starting.current : 'saved';
+      if (started === 'failed') return;
+      if (!profile || building.current) return;
       building.current = true;
       try {
+        if (started === 'adopted') {
+          // Start kept the stored session; take it as the base, as the reload that is under way will. Done after `building` is claimed, so a double tap commits it once.
+          const [stored, storedSets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
+          if (dateRef.current !== date) return;
+          if (!stored || stored.deleted_at) return;
+          synced.current = stored;
+          commit({ ...ref.current, workout: stored, exs: exercisesFrom(stored, storedSets) });
+        }
+        if (!ref.current.workout) return;
         const sessions = await loadSessionLog(db);
         if (dateRef.current !== date) return; // the day changed while the history was read
         const d = clone(ref.current);
@@ -385,6 +422,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         else if (nx) startRest(ex.name, `Next: ${nx.name}`);
       },
       async (name) => {
+        if (dropped.current.get(id) === null) return;
         await atomic(async (h) => {
           await writeSets(name, 'work', [id], h);
           await writeWorkout(false, h);
@@ -405,6 +443,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         id = s.id;
       },
       async (name) => {
+        if (dropped.current.get(id) === null) return;
         await writeSets(name, 'work', [id]);
         await syncLift(name);
       },
@@ -734,5 +773,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, addSecond };
+  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, startPicked, addSecond };
 }

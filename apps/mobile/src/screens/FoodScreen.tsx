@@ -12,8 +12,8 @@ import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
 import type { WorkoutDb } from '../db/workouts';
 import { AddSheet } from '../food/AddSheet';
-import { CHECKIN_READY, CHECKIN_SEE, lowProtein, PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, toastMs, upgradeAdded } from '../food/copy';
-import { getFoodCatalog, type CatalogFood } from '../food/catalog';
+import { CHECKIN_READY, CHECKIN_SEE, lowProtein, PLAN_ITEM_GONE, plannedLogged, prepLine, prepLogged, SETUP_BANNER, toastMs, upgradeAdded } from '../food/copy';
+import { getCuisines, getFoodCatalog, type CatalogFood } from '../food/catalog';
 import { MEALS, type FoodLog, type Meal } from '../food/types';
 import { logOf, useFoodDay } from '../food/useFoodDay';
 import { DIET_CHIPS } from '../meals/copy';
@@ -27,6 +27,7 @@ import { useSettings } from '../state/SettingsProvider';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
+import { usePendingToast } from '../state/pendingToast';
 import { useAi } from '../ai/AiProvider';
 import { DescribeSheet } from '../ai/DescribeSheet';
 import { AI_COPY } from '../ai/copy';
@@ -56,6 +57,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), toastMs(msg));
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  usePendingToast(notify);
   const dataVersion = useDataVersion();
   const v = useViewedDate(now);
   const f = useFoodDay({ db, date: v.date, now, notify, reloadKey: dataVersion });
@@ -66,7 +68,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
 
   // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
   const target = kcalTarget(f.date, { flex: settings.flex }, profile);
-  const facts: FoodFacts[] = [...getFoodCatalog(), ...f.mineFacts];
+  // Shared foods, then eat-out dishes, then the user's foods: the first of a name with fibre data wins (prototype `FIB` before `myFoods`, #151).
+  const facts: FoodFacts[] = [...getFoodCatalog(), ...getCuisines().flatMap((c) => c.dishes), ...f.mineFacts];
   const t = logTotals(f.logs, facts);
   const left = target - t.kcal;
   const complete = f.note?.complete === true;
@@ -193,7 +196,12 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           onFlex={plan}
           onPlanWeek={() => router.push('/meal-plan')}
         />
-        {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} kcalEaten={t.kcal} reloadKey={dataVersion} /> : null}
+        {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} sleep={f.note?.sleep ?? null} onSaveStepsSleep={f.saveStepsSleep} kcalEaten={t.kcal} reloadKey={dataVersion} /> : (
+          <View style={[styles.banner, { backgroundColor: c.tint }]}>
+            <Text style={{ color: c.ink, flex: 1 }}>{SETUP_BANNER}</Text>
+            <Button label="Start setup" onPress={() => router.push('/setup' as never)} />
+          </View>
+        )}
         {water.target && water.ready ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} prep={prepFor(settings.prep, m, f.date)} onLogPrep={(id) => logPrepared(m, id)} upgrade={upgradeFor(m)} onUpgrade={(u) => { f.add(m, logOf(u.food, u.qty)); notify(upgradeAdded(u.food.name)); }} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => setAdding(m)} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
@@ -205,7 +213,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           </Press>
         ) : null}
       </Page>
-      {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} /> : null}
+      {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} canDescribe={ai.available('describe_meal')} /> : null}
       {describing ? <DescribeSheet meal={describing} onAdd={(n) => f.add(describing, n)} onClose={() => setDescribing(null)} /> : null}
       <ToastBar message={toast} />
     </View>

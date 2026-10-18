@@ -29,6 +29,7 @@ const spec = readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8");
 const exampleUser = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d";
 for (const [pattern, name] of [
   [/workout_id: ([0-9a-f-]{36})/g, "workouts:2026-10-08"],
+  [/table: workouts\s*\n\s*id: ([0-9a-f-]{36})/g, "workouts:2026-10-08"],
   [/weights:\s*\n\s*- id: ([0-9a-f-]{36})/g, "weights:2026-10-08"],
   [/profiles:\s*\n\s*- id: ([0-9a-f-]{36})/g, "profiles:me"],
   [/settings:\s*\n\s*- id: ([0-9a-f-]{36})/g, "settings:me"],
@@ -370,6 +371,37 @@ for (const [name, ex] of Object.entries(fullExamples ?? {})) {
   const cap = v.record_cap;
   if (!cap || !(cap.stored + cap.new_records > cap.limit)) failures.push(`/sync 413 example ${name}: record_cap.stored + new_records must exceed limit`);
 }
+// Replaced record on client_won (#792, ADR 007): an optional SyncRecord (so the record bounds apply), and in every
+// /sync conflict example it is present exactly on client_won, as the stored copy one version below server_version.
+const syncConflict = parsed.components.schemas.SyncConflict;
+if (syncConflict.properties.replaced_record?.$ref !== "#/components/schemas/SyncRecord") failures.push("SyncConflict.replaced_record must be a $ref to SyncRecord");
+if (syncConflict.required.includes("replaced_record")) failures.push("SyncConflict.replaced_record must stay optional (older servers never send it)");
+function conflictFaults(c) {
+  const out = [];
+  const r = c.replaced_record;
+  if (c.server_record?.id !== c.id || c.server_record?.version !== c.server_version) out.push("server_record is not the stored record (id, version = server_version)");
+  if (c.resolution !== "client_won" && r !== undefined) out.push("replaced_record on a conflict that is not client_won");
+  if (r !== undefined && (r.id !== c.id || r.version !== c.server_version - 1)) out.push("replaced_record is not the stored copy (id, version = server_version - 1)");
+  return out;
+}
+const syncExamples = Object.entries(parsed.paths["/sync"].post.responses["200"].content["application/json"].examples);
+let replacedSeen = 0;
+for (const [name, ex] of syncExamples) {
+  for (const [i, c] of ex.value.conflicts.entries()) {
+    for (const f of conflictFaults(c)) failures.push(`/sync 200 example ${name} conflicts[${i}]: ${f}`);
+    if (c.resolution === "client_won" && c.replaced_record) replacedSeen++;
+  }
+}
+if (replacedSeen === 0) failures.push("/sync 200 examples: no client_won conflict with replaced_record");
+// Must-fail vectors for the check itself: each broken conflict must be caught.
+const goodConflict = syncExamples.flatMap(([, ex]) => ex.value.conflicts).find((c) => c.replaced_record);
+for (const [what, broken] of [
+  ["on server_won", { ...goodConflict, resolution: "server_won" }],
+  ["wrong version", { ...goodConflict, replaced_record: { ...goodConflict?.replaced_record, version: goodConflict?.server_version } }],
+  ["wrong id", { ...goodConflict, replaced_record: { ...goodConflict?.replaced_record, id: "00000000-0000-4000-8000-000000000000" } }],
+]) {
+  if (goodConflict && conflictFaults(broken).length === 0) failures.push(`replaced_record check misses a conflict with it ${what}`);
+}
 // Web refresh cookie (#250, ADR 006): one cookie name everywhere, every Set-Cookie example and the auth tag carry the
 // required attributes and no Domain, the cookie path covers refresh and revoke, and the cookie-mode body token is empty.
 const cookieName = parsed.components.parameters.RefreshCookie.name;
@@ -405,4 +437,5 @@ console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
 console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and open objects, all bounded`);
 console.log(`openapi.yaml: ${mutants} bounds in ${aiRequests.size} AI request schemas (${[...aiRequests].join(", ")}), each one caught when removed`);
 console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, each one caught when opened; open core-owned objects carry x-max-json-bytes`);
+console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);

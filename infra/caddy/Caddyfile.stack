@@ -1,4 +1,29 @@
 # Entry point of the Compose stack (infra/staging/docker-compose.yml): the API host and the web app host.
 # Both files stay usable alone (Caddyfile.api for an API-only layout). Imports resolve relative to this file.
+# Error log (#714): Caddy's own errors (for example a 502 with the upstream down) carry the request, so they get the same
+# filters as the access logs in the two imported files: IP masked, query cut, headers dropped. Written to stderr
+# (docker compose logs caddy). It lives here because a global options block must be first in the file Caddy loads and
+# cannot sit in an imported file. Using Caddyfile.api or .web alone: copy this block to the top of that file.
+{
+	log errors {
+		output stderr
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "\?.*$" ""
+			request>headers delete
+			resp_headers delete
+		}
+		include http.log.error
+	}
+}
+
 import Caddyfile.api
 import Caddyfile.web

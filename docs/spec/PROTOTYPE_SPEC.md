@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-18 — the session's "Muscles today" map keeps a tap for its own date only (deliberate difference; prototype and golden fixtures unchanged).**
+- #769 (from #666 and PR #765, decided): the prototype's `sessionMapHtml` opens the map while no set is ticked, or when `S.ui.mapOpen` is set. Nothing writes `S.ui.mapOpen`, so a tap on the map lasts only until the next render, which sets it back to that default (a ticked set closes a map the user reopened). The flag also sits in the global `S.ui`, not per date. The app (`SessionView` in `apps/mobile/src/screens/WorkoutScreen.tsx`) starts from the same default (open until a set is ticked, then closed). Once the user taps, it keeps that choice through later ticks, and it keeps it only for the date on screen. `SessionView` is keyed by the workout date (`key={w.date}`), so moving to another date with the date bar, or a sync that loads another day's session, starts that date from the default again rather than carrying the tap over. A return to the first date also starts from the default. Tested in `apps/mobile/__tests__/workout-body-map.test.tsx` ("does not carry a tap choice to another day").
+
 **2026-10-17 — custom exercise names match case-insensitively (deliberate difference; prototype and golden fixtures unchanged).**
 - #665 (from #450, decided): the prototype checks a typed exercise name with exact case (`!TAGS[name]`), so "bench press" opens the tag sheet and makes a custom exercise. The app compares the typed name with every known exercise, built-in and custom, ignoring letter case (`exerciseNamed` in `apps/mobile/src/workout/catalog.ts`): typing "bench press" adds the built-in "Bench Press", and a custom exercise whose name is a known exercise in another letter case is refused at save. This avoids near-duplicate custom exercises. Only case is ignored: spaces and spelling still count, and when two known names differ only by case the first in catalog order wins.
 
@@ -249,7 +252,7 @@ Still open (#155): after M0, the planned count may move to the built session's r
 - `unitGrams` reads whole numbers only: a decimal loses its whole part ("1.5 g" reads 5). No content label has a decimal gram weight.
 - The added-sugar line checks the unrounded total, so 9.6 g is hidden although it would show as 10 g.
 - "≥3 meals" for a complete day counts logged items, not meal slots: three items in one meal count as three.
-- Cola's added sugar (35 g for "Cola (330 ml)") is only in the eat-out table, which is not in M0 content, so a logged cola counts no added sugar until that table ships.
+- Cola's added sugar (35 g for "Cola (330 ml)") is in the eat-out table only. The eat-out dishes carry fibre and added sugar from the prototype's `FIB` (#858), and the Food totals count them by logged name, as the prototype's `fibOf` does (#866), so a logged Cola counts 35 g.
 
 ---
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
-import { ScrollView, StyleSheet, Vibration, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { buzz, cookDoneBuzz } from '../haptics';
 import { stepMinutes } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Hint } from '../components/ui';
@@ -28,7 +29,7 @@ export function CookMode({ name, steps, onClose, onDone }: { name: string; steps
       if (s <= 0) {
         setEnd(null);
         setToast('Timer done');
-        Vibration.vibrate([300, 150, 300]);
+        buzz(cookDoneBuzz());
       }
     }, 1000);
     return () => clearInterval(id);

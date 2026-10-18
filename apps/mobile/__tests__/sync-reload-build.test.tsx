@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { openDb } from './sync-helpers';
+import { openDb, turns } from './sync-helpers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
@@ -70,7 +70,7 @@ describe('a reload that overlaps a session being built never replaces the built 
       await h.release(offset);
       await started;
     });
-    await act(async () => void (await new Promise((r) => setTimeout(r, 100))));
+    await act(async () => turns());
     expect(result.current.day.workout?.base).toBe('Upper A');
     expect(result.current.day.exs.length).toBeGreaterThan(0);
     const rows = await real.getAllAsync<{ key: string }>('SELECT key FROM workout_sets');
@@ -94,7 +94,7 @@ describe('a reload that overlaps a session being built never replaces the built 
       await h.release(offset);
       await added;
     });
-    await act(async () => void (await new Promise((r) => setTimeout(r, 100))));
+    await act(async () => turns());
     expect(result.current.day.exs.length).toBeGreaterThan(first);
     const rows = await real.getAllAsync<{ key: string }>('SELECT key FROM workout_sets');
     expect(rows.length).toBe(result.current.day.exs.reduce((n, e) => n + e.sets.length, 0));
@@ -113,7 +113,7 @@ describe("the can't-do answer when the rules could not be saved", () => {
     const rowsBefore = await real.getAllAsync('SELECT data FROM workout_sets');
     const name = result.current.day.exs[0]!.name;
     await act(async () => result.current.cant(0, { name, reason: 'dislike', dur: 'perm', scope: 'exercise', key: name }, null));
-    await act(async () => void (await new Promise((r) => setTimeout(r, 50))));
+    await act(async () => turns());
     expect(opts.saveRule).toHaveBeenCalled();
     expect(JSON.stringify(result.current.day.exs)).toBe(before);
     expect(await real.getAllAsync('SELECT data FROM workout_sets')).toEqual(rowsBefore);

@@ -53,6 +53,19 @@ async function open(prep?: (db: Db) => Promise<void> | void) {
 const mount = (db: Db) => render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
 const input = (label: string) => screen.getByLabelText(label);
 
+// A test that waits for the toast to go (2.2 s) runs on a fake clock: the wait counts test steps, not machine time. Microtasks and setImmediate stay real.
+let fake = false;
+const fakeClock = () => {
+  fake = true;
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+};
+afterEach(() => {
+  if (fake) jest.runOnlyPendingTimers();
+  fake = false;
+  jest.useRealTimers();
+});
+const toastGoes = () => act(async () => void jest.advanceTimersByTime(2300));
+
 describe('exercise settings sheet', () => {
   it('opens from the gear with the exercise as its title and its current equipment, step and range', async () => {
     await open();
@@ -73,7 +86,7 @@ describe('exercise settings sheet', () => {
     expect(input('Range low (reps)').props.value).toBe('6');
     expect(input('Range high').props.value).toBe('10');
     expect(screen.getByLabelText(`Save settings for ${BENCH}`)).toBeTruthy();
-    expect(screen.getByLabelText(`Reset ${BENCH} to default`)).toBeTruthy();
+    expect(screen.getByLabelText(`Reset to default for ${BENCH}`)).toBeTruthy();
   });
 
   it('Save writes the override and the card shows it at once: type, step, range, each-suffix and suggestion', async () => {
@@ -136,7 +149,7 @@ describe('exercise settings sheet', () => {
     });
     expect(screen.getByText(/Dumbbells, 8–12 reps, steps of 1 kg/)).toBeTruthy();
     await press(`${BENCH} settings`);
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     expect(screen.getByText('Back to defaults')).toBeTruthy();
     expect(screen.getByText(/Barbell, 6–10 reps, steps of 2.5 kg/)).toBeTruthy();
     expect(screen.getByText(SUGGESTED_BEFORE)).toBeTruthy();
@@ -178,6 +191,11 @@ describe('exercise settings sheet', () => {
     await press('Equipment: Assisted machine');
     expect(screen.getByLabelText('Weight jump 5 kg').props['aria-pressed']).toBe(true);
     expect(screen.getByLabelText('Weight jump 10 kg').props['aria-pressed']).toBe(false);
+    // Each range caption is visible but hidden from screen readers, so the field's name is read once.
+    for (const name of ['Range low (reps)', 'Range high']) {
+      expect(screen.getByText(name, { includeHiddenElements: true })).toBeTruthy();
+      expect(screen.queryByText(name)).toBeNull();
+    }
     await press('Equipment: Dumbbells');
     expect(screen.getByText('Smallest weight jump (per dumbbell)')).toBeTruthy();
     expect(screen.getByLabelText('Weight jump 2.5 kg').props['aria-pressed']).toBe(true);
@@ -232,7 +250,7 @@ describe('exercise settings sheet', () => {
     expect(screen.getByLabelText(`Close ${BENCH} settings`)).toBeTruthy();
     expect(screen.getByLabelText('Equipment: Cable').props['aria-pressed']).toBe(true);
     expect(input('Range high').props.value).toBe('14');
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     expect(screen.getByText(/Couldn’t read your saved settings/)).toBeTruthy();
     expect(db.rows.get('user_settings:me')).toBeUndefined();
   });
@@ -252,12 +270,14 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
   const NOT_STORED = 'Couldn’t save that on this device. Try again.';
 
   it('reports every failed save of the sheet, also a second one in a row', async () => {
+    fakeClock();
     const db = await open();
     db.failWrites = true;
     await press(`${BENCH} settings`);
     await press(`Save settings for ${BENCH}`);
     expect(await screen.findByText(NOT_STORED)).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText(NOT_STORED)).toBeNull(), { timeout: 4000 });
+    await toastGoes();
+    expect(screen.queryByText(NOT_STORED)).toBeNull();
     await press(`${BENCH} settings`);
     await press('Equipment: Cable');
     await press(`Save settings for ${BENCH}`);
@@ -287,12 +307,14 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
   });
 
   it('a retry that is stored after a failed save is not reported as failed', async () => {
+    fakeClock();
     const db = await open();
     db.failWrites = true;
     await press(`${BENCH} settings`);
     await press(`Save settings for ${BENCH}`);
     expect(await screen.findByText(NOT_STORED)).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText(NOT_STORED)).toBeNull(), { timeout: 4000 });
+    await toastGoes();
+    expect(screen.queryByText(NOT_STORED)).toBeNull();
     db.failWrites = false;
     await press(`${BENCH} settings`);
     await fireEvent.changeText(input('Range high'), '12');
@@ -392,7 +414,7 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     const db = await open((d) => saveSettings(d, { ...defaultSettings('2026-10-08T00:00:00Z'), exercise_overrides: { [BENCH]: { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 } } }));
     await press(`${BENCH} settings`);
     db.failWrites = true;
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     expect(await screen.findByText(NOT_STORED)).toBeTruthy();
     db.failWrites = false;
     expect(settingsOf(db).exercise_overrides[BENCH]).toBeDefined();
@@ -403,7 +425,7 @@ describe('exercise settings sheet: failed writes and the entry cap', () => {
     const other = { type: 'cable' as const, step_kg: 5, rep_low: 10, rep_high: 12 };
     await saveSettings(db, { ...defaultSettings('2026-10-08T01:00:00Z'), diet: 'veg', exercise_overrides: { [BENCH]: { type: 'machine', step_kg: 5, rep_low: 6, rep_high: 8 }, 'Pec Deck Fly': other } });
     await press(`${BENCH} settings`);
-    await press(`Reset ${BENCH} to default`);
+    await press(`Reset to default for ${BENCH}`);
     await waitFor(() => expect(Object.keys(settingsOf(db).exercise_overrides)).toEqual(['Pec Deck Fly']));
     expect(settingsOf(db).diet).toBe('veg');
   });

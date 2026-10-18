@@ -6,7 +6,7 @@ import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
-const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes'].map((n) => [n, []]));
+const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
@@ -123,10 +123,81 @@ const screens = {
   },
 };
 
+// Screens with a sheet open (#661). Each opens the sheet through its real opener and waits for the named dialog; scan() then
+// runs its usual auto-retrying level-one precondition and the same axe rules on the page with the sheet on top.
+const dialog = (page, name) => page.locator(`[role="dialog"][aria-label=${JSON.stringify(name)}]`);
+// The exercise-card openers (settings, Can't do, How to do, Add exercise) exist only in a started session.
+const openSession = async (page) => {
+  await tab(page, 'Workout');
+  await startSession(page);
+  await expect(page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]').first()).toBeVisible();
+};
+const sheets = {
+  'sheet-food-add': async (page) => {
+    await tab(page, 'Food');
+    await label(page, '+ Add to breakfast').click();
+    await expect(dialog(page, 'Add to breakfast')).toBeVisible();
+  },
+  // The exercise settings sheet (the gear on an exercise card), titled by the exercise.
+  'sheet-workout-settings': async (page) => {
+    await openSession(page);
+    const gear = page.getByRole('button', { name: / settings$/ }).first();
+    const name = (await gear.getAttribute('aria-label')).slice(0, -' settings'.length);
+    await gear.click();
+    await expect(dialog(page, name)).toBeVisible();
+  },
+  'sheet-workout-cant': async (page) => {
+    await openSession(page);
+    const opener = page.getByRole('button', { name: /^Can’t do / }).first();
+    const name = (await opener.getAttribute('aria-label')).slice('Can’t do '.length);
+    await opener.click();
+    await expect(dialog(page, `Can’t do ${name}?`)).toBeVisible();
+  },
+  'sheet-workout-howto': async (page) => {
+    await openSession(page);
+    const opener = page.getByRole('button', { name: /^How to do / }).first();
+    const name = (await opener.getAttribute('aria-label')).slice('How to do '.length);
+    await opener.click();
+    await expect(dialog(page, name)).toBeVisible();
+  },
+  'sheet-workout-add': async (page) => {
+    await openSession(page);
+    await label(page, 'Add exercise').click();
+    await expect(dialog(page, 'Add exercise')).toBeVisible();
+  },
+  // The custom exercise sheet: a typed name the library does not know asks for its muscles first.
+  'sheet-workout-custom': async (page) => {
+    await openSession(page);
+    await label(page, 'Add exercise').click();
+    await page.getByRole('textbox', { name: 'Your own exercise' }).fill('Zercher carry');
+    await label(page, 'Add the exercise you typed').click();
+    await expect(dialog(page, 'Zercher carry')).toBeVisible();
+  },
+  'sheet-progress-checkin': async (page) => {
+    await tab(page, 'Progress');
+    await label(page, 'New photo check-in').click();
+    await expect(dialog(page, 'Photo check-in')).toBeVisible();
+  },
+  'sheet-targets-avoid': async (page) => {
+    await tab(page, 'Targets');
+    await label(page, 'Add an exercise to avoid').click();
+    await expect(dialog(page, 'Exercise to avoid')).toBeVisible();
+  },
+  'sheet-targets-cant': async (page) => {
+    await tab(page, 'Targets');
+    await label(page, 'Add an exercise to avoid').click();
+    // The first exercise button in the sheet (the sheet's own controls carry other names).
+    const pick = dialog(page, 'Exercise to avoid').getByRole('button').first();
+    const name = await pick.getAttribute('aria-label');
+    await pick.click();
+    await expect(dialog(page, `Can’t do ${name}?`)).toBeVisible();
+  },
+};
+
 for (const scheme of ['light', 'dark']) {
   test.describe(`${scheme} mode`, () => {
     test.use({ colorScheme: scheme });
-    for (const [name, open] of Object.entries(screens)) {
+    for (const [name, open] of Object.entries({ ...screens, ...sheets })) {
       test(`axe: ${name}`, async ({ page }) => {
         if (name === 'consent' || name.startsWith('setup')) await open(page);
         else {

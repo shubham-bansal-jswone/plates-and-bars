@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import { dateLabel, dateSub, type ViewedDate } from '../state/ViewedDate';
 import { useTheme } from '../theme/useTheme';
@@ -8,7 +9,8 @@ import { Press } from './ui';
 /**
  * Says the new day once each time it changes (not on the first show). Mount it once per screen, outside whatever the screen swaps
  * while a day loads, so it is not remounted. Android and web read the polite live region, which is mounted empty and filled on a change
- * (as the rest timer's is); iOS has no live regions, so it is told with an announcement instead.
+ * (as the rest timer's is); iOS has no live regions, so it is told with an announcement instead, and only by the focused screen (the tabs stay
+ * mounted, so every one would otherwise announce the same change).
  */
 export function DateAnnouncer({ v }: { v: ViewedDate }) {
   const text = `${dateLabel(v.date, v.today)}, ${dateSub(v.date)}`;
@@ -19,10 +21,17 @@ export function DateAnnouncer({ v }: { v: ViewedDate }) {
     setSeen(text);
     setSaid(text);
   }
+  const focused = useRef(false);
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    return () => {
+      focused.current = false;
+    };
+  }, []));
   const first = useRef(true);
   useEffect(() => {
     if (first.current) first.current = false;
-    else if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(text);
+    else if (Platform.OS === 'ios' && focused.current) AccessibilityInfo.announceForAccessibility(text);
   }, [text]);
   return <Text testID="date-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{Platform.OS === 'ios' ? '' : said}</Text>;
 }

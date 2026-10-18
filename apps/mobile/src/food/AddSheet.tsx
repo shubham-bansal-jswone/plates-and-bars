@@ -1,21 +1,24 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { WhyLink } from '../why/WhyLink';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
+import { a11yState, Heading, Button, ErrorText, Field, Caption, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { AI_COPY } from '../ai/copy';
+import { DescribeBody } from '../ai/DescribeSheet';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
-import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
+import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, noMatch, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
 
 import type { UserFood } from './types';
 
-type Mode = 'list' | 'out' | 'custom';
+type Mode = 'list' | 'out' | 'custom' | 'describe';
 const MODES: [Mode, string][] = [['list', 'Food list'], ['out', 'Eating out'], ['custom', 'Custom']];
+const DESCRIBE_MODE: [Mode, string] = ['describe', AI_COPY.describeButton];
 
 interface Props {
   meal: string;
@@ -24,12 +27,17 @@ interface Props {
   onAdd: (n: NewLog) => void;
   onSaveMine: (f: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => UserFood;
   onClose: () => void;
+  /** True when the describe-meal feature is available (consent, server, signed in): shows the Describe it tab. */
+  canDescribe?: boolean;
 }
 
-/** The add-food sheet: food list (search, servings or grams), eating out, custom food. */
-export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: Props) {
+/** The add-food sheet: food list (search, servings or grams), eating out, custom food, and Describe it (AI) when it is on. */
+export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false }: Props) {
   const c = useTheme();
   const [mode, setMode] = useState<Mode>('list');
+  // Describe keeps its text, estimate and pending request while another tab is shown, as the prototype's FS does: it mounts on
+  // the first visit and is then only hidden. It stays reachable while selected even if AI is switched off, so its message shows.
+  const [seenDescribe, setSeenDescribe] = useState(false);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   const say = (text: string, error = false) => setStatus({ text, error });
   return (
@@ -38,16 +46,21 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
-            {MODES.map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); }}
+            {(canDescribe || mode === 'describe' ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k === 'describe') setSeenDescribe(true); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
             ))}
           </View>
-          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} /> : null}
+          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
+          {seenDescribe ? (
+            <View style={mode === 'describe' ? undefined : styles.hidden} accessibilityElementsHidden={mode !== 'describe'} importantForAccessibility={mode === 'describe' ? 'auto' : 'no-hide-descendants'}>
+              <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} />
+            </View>
+          ) : null}
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
@@ -61,18 +74,24 @@ type Say = (text: string, error?: boolean) => void;
 function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress: () => void; sub: string; badge?: boolean }) {
   const high = badge && highProtein(food);
   const c = useTheme();
+  const kcal = `${fmt(food.per_serving.kcal)} kcal`;
+  // WCAG 2.5.3: the accessible name is the visible text in reading order (name, kcal, then the detail line) plus a hint, so it
+  // starts with what a sighted user reads. The spaces after the name and the kcal keep a checker from joining them into one word.
+  // The kcal sits in the first line so the name stays a prefix even when a scroll edge clips the detail line.
   return (
-    <Press accessibilityRole="button" accessibilityLabel={`Add ${food.name}, ${sub}, ${fmt(food.per_serving.kcal)} kcal${high ? ', high protein' : ''}`} onPress={onPress} style={[styles.food, { backgroundColor: c.surface }]}>
+    <Press accessibilityRole="button" accessibilityLabel={`${food.name} ${kcal} ${sub}${high ? ' · high protein' : ''}, tap to add`} onPress={onPress} style={[styles.food, { backgroundColor: c.surface }]}>
       <View style={styles.fill}>
-        <Text style={{ color: c.ink, fontWeight: '600', fontSize: 16 }}>{food.name}</Text>
+        <View style={styles.foodHead}>
+          <Text style={{ color: c.ink, fontWeight: '600', fontSize: 16, flex: 1 }}>{food.name} </Text>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{kcal} </Text>
+        </View>
         <Text style={{ color: c.muted, fontSize: 14 }}>{sub}{high ? ' · high protein' : ''}</Text>
       </View>
-      <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(food.per_serving.kcal)}</Text>
     </Press>
   );
 }
 
-function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
+function ListTab({ mine, mineFacts, onAdd, say, canDescribe }: { canDescribe: boolean; mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
   const c = useTheme();
   const [q, setQ] = useState('');
   const [serv, setServ] = useState(1);
@@ -100,7 +119,7 @@ function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; m
       <Hint>{GRAMS_HINT}</Hint>
       <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={styles.search} />
       {list.length ? <Hint>{SOURCE_HINT}</Hint> : null}
-      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>No match. Use Custom to enter it yourself.</Hint>}
+      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>{noMatch(canDescribe)}</Hint>}
     </View>
   );
 }
@@ -128,6 +147,11 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
   );
 }
 
+/** A visible caption over one field of the custom-food grid; the caption text is the field's accessible name. */
+function Captioned({ label, children }: { label: string; children: ReactNode }) {
+  return <View style={styles.captioned}><Caption>{label}</Caption>{children}</View>;
+}
+
 function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; onAdd: (n: NewLog) => void; onSaveMine: Props['onSaveMine']; onClose: () => void; say: Say }) {
   const [f, setF] = useState({ name: '', kcal: '', protein: '', carbs: '', fat: '', qty: '1', unit: '' });
   const [save, setSave] = useState(true);
@@ -143,14 +167,15 @@ function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; on
   };
   return (
     <View style={styles.gap}>
+      <Caption>Food</Caption>
       <Field label="Food" placeholder="e.g. Office canteen thali" value={f.name} onChangeText={set('name')} style={styles.wide} />
       <View style={styles.row}>
-        <Field label="Calories (kcal)" placeholder="auto from macros" keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} />
-        <Field label="Servings" keyboardType="decimal-pad" value={f.qty} onChangeText={set('qty')} />
-        <Field label="Protein (g)" placeholder="Protein (g)" keyboardType="decimal-pad" value={f.protein} onChangeText={set('protein')} />
-        <Field label="Carbs (g)" placeholder="Carbs (g)" keyboardType="decimal-pad" value={f.carbs} onChangeText={set('carbs')} />
-        <Field label="Fat (g)" placeholder="Fat (g)" keyboardType="decimal-pad" value={f.fat} onChangeText={set('fat')} />
-        <Field label="Serving size" placeholder="1 plate" value={f.unit} onChangeText={set('unit')} />
+        <Captioned label="Calories (kcal)"><Field label="Calories (kcal)" placeholder="auto from macros" keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Servings"><Field label="Servings" keyboardType="decimal-pad" value={f.qty} onChangeText={set('qty')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Protein (g)"><Field label="Protein (g)" keyboardType="decimal-pad" value={f.protein} onChangeText={set('protein')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Carbs (g)"><Field label="Carbs (g)" keyboardType="decimal-pad" value={f.carbs} onChangeText={set('carbs')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Fat (g)"><Field label="Fat (g)" keyboardType="decimal-pad" value={f.fat} onChangeText={set('fat')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Serving size"><Field label="Serving size" placeholder="1 plate" value={f.unit} onChangeText={set('unit')} style={styles.fieldFill} /></Captioned>
       </View>
       <View style={styles.row}>
         <Switch accessibilityLabel="Save to my foods for next time" value={save} onValueChange={setSave} />
@@ -166,10 +191,14 @@ const styles = StyleSheet.create({
   body: { width: '100%', maxWidth: 560, gap: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   gap: { gap: 8 },
+  hidden: { display: 'none' },
   tab: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },
   fill: { flex: 1 },
+  foodHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   search: { maxWidth: undefined },
   wide: { maxWidth: undefined },
+  captioned: { gap: 4, minWidth: 90, flexGrow: 1, maxWidth: 160 },
+  fieldFill: { maxWidth: undefined, flexGrow: 0 },
 });

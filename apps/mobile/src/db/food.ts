@@ -32,13 +32,13 @@ export async function patchDayNote(db: StoreDb, date: string, patch: Partial<Pic
   await saveDayNote(db, { ...cur, ...patch, deleted_at: null, updated_at: updatedAt });
 }
 
-/** The user's foods, newest first (by `updated_at`), tombstones left out. */
+/** The user's foods, newest first (by `updated_at`, then name, then id so every device orders ties the same way; the id compare is by code unit, not `localeCompare`, because locales such as da and nb sort "aa" after "z" and devices would then disagree on which same-named food wins), tombstones left out. */
 export async function loadUserFoods(db: WorkoutDb): Promise<UserFood[]> {
   const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM user_foods');
   return rows
     .map((r) => JSON.parse(r.data) as UserFood)
     .filter((f) => !f.deleted_at)
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.name.localeCompare(b.name));
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.name.localeCompare(b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 export async function saveUserFood(db: StoreDb, f: UserFood): Promise<void> {

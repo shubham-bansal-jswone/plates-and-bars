@@ -81,7 +81,7 @@ describe('precache and fetch', () => {
       if ((typeof r === 'string' ? r : new URL(r.url).pathname) === '/') {
         reads += 1;
         most = Math.max(most, reads);
-        await new Promise((done) => setTimeout(done, 1));
+        await new Promise((done) => setImmediate(done));
         reads -= 1;
       }
       return real(r);

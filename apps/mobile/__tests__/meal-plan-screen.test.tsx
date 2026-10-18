@@ -12,6 +12,7 @@ import { getMealGrocery, getMealPlanning } from '../src/meals/content';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
+import { turns } from './sync-helpers';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -123,9 +124,7 @@ describe('Meal plan screen', () => {
       return read(sql, ...p);
     }) as typeof db.getFirstAsync;
     await render(withProfile(db, <MealPlanScreen db={db} onBack={jest.fn()} now={NOW} />));
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
+    await act(async () => turns());
     expect(screen.queryByLabelText('Use this plan')).toBeNull();
     expect(screen.getByText('Loading…')).toBeTruthy();
     await act(async () => release());

@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'infra/staging/**'
+      - 'infra/journald/**'
       - 'infra/caddy/**'
       - '.github/workflows/staging-config.yml'
   workflow_dispatch:
@@ -24,6 +25,12 @@ jobs:
       - uses: actions/checkout@v7
       - name: docker compose config with .env.example
         run: docker compose --env-file .env.example config --quiet
+      - name: the API reports its release as plateandbar-api@API_TAG (#827)
+        run: |
+          docker compose --env-file .env.example config | grep -qx '      SENTRY_RELEASE: plateandbar-api@local'
+          API_TAG=v1.2.3 docker compose --env-file .env.example config | grep -qx '      SENTRY_RELEASE: plateandbar-api@v1.2.3'
+          # deploy.sh writes API_RELEASE (the tag without its v), which wins
+          API_TAG=v1.2.3 API_RELEASE=1.2.3 docker compose --env-file .env.example config | grep -qx '      SENTRY_RELEASE: plateandbar-api@1.2.3'
       - name: required secrets must have no default
         run: |
           for v in MYSQL_ROOT_PASSWORD DB_PASSWORD JWT_SIGNING_KEY SMTP_HOST SMTP_FROM API_HOST API_TAG; do
@@ -34,16 +41,33 @@ jobs:
             grep -q "required variable $v" err.txt
           done
       - name: shellcheck
-        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh release.sh test-release.sh
+        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh release.sh test-release.sh restore-check.sh test-restore-check.sh
       - name: backup.sh against a stub docker
         run: ./test-backup.sh
       - name: deploy.sh against stubs (rollback on a failed health check)
         run: ./test-deploy.sh
       - name: release.sh against stubs (backup first, no deploy after a failed backup)
         run: ./test-release.sh
+      - name: restore-check.sh against a stub docker (stale dump, failed load, cleanup)
+        run: ./test-restore-check.sh
       - name: every image is pinned to a version
         run: |
           if docker compose --env-file .env.example config --images | grep -E ':latest$|^[^:]+$' | grep -v '^plateandbar-api:'; then
             echo "::error::unpinned image"; exit 1
           fi
           grep -Eq '^rclone_image="rclone/rclone:[0-9]+\.[0-9]+\.[0-9]+"$' backup.sh
+      - name: every service logs to journald
+        run: |
+          test "$(docker compose --env-file .env.example config | grep -c -E '^      driver: journald$')" = 3
+      - name: journald drop-in and installer
+        run: |
+          shellcheck ../journald/install.sh ../journald/test-install.sh
+          ../journald/test-install.sh
+      - name: erasure ledger upload and replay (shellcheck, then against a stub docker)
+        run: |
+          shellcheck -x ledger-lib.sh ledger-upload.sh ledger-replay.sh test-ledger.sh
+          ./test-ledger.sh
+      - name: erasure ledger R2 lifecycle rule (shellcheck, then against a stub curl)
+        run: |
+          shellcheck -x ledger-lifecycle.sh test-ledger-lifecycle.sh
+          ./test-ledger-lifecycle.sh

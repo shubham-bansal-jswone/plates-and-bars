@@ -24,14 +24,15 @@ function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | nu
       {open ? (
         <View style={{ paddingBottom: 10 }}>
           {e.url ? <Text selectable style={[type.caption, { color: c.link }]}>{e.url}</Text> : null}
-          <Text selectable style={[type.caption, { color: c.body }]}>{text ?? (e.from ? t.noText : t.noNotice)}</Text>
+          {e.in ? <Text style={[type.caption, { color: c.body }]}>{t.linkedInto(e.in)}</Text> : null}
+          <Text selectable style={[type.caption, { color: c.body }]}>{text ?? t.noNotice}</Text>
         </View>
       ) : null}
     </View>
   );
 }
 
-/** Every open-source package, Android library and bundled asset with its licence, from the build-time `licences.json`. Virtualised: there are hundreds of rows. */
+/** Every open-source package, Android library, native component and bundled asset with its licence, from the build-time `licences.json`. Virtualised: there are hundreds of rows. */
 export function LicencesScreen({ onBack }: { onBack: () => void }) {
   const c = useTheme();
   const [data, setData] = useState<LicenceData | null>(null);

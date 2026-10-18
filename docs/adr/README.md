@@ -10,3 +10,4 @@ Short records of decisions that shape the whole project, in Context / Decision /
 | [004](004-account-identity-and-device-ownership.md) | Account identity and device ownership: identities keyed by Google sub, one account per verified email, unsynced queue blocks account switch | Accepted |
 | [005](005-food-data-sources-own-estimates.md) | Food data sources (adds own estimates): supersedes 002, no IFCT or INDB | Accepted |
 | [006](006-web-refresh-token-cookie.md) | Web refresh token in an httpOnly, SameSite=Strict cookie, access token in memory; native unchanged (supersedes 003 in part) | Accepted |
+| [007](007-sync-conflict-replaced-record.md) | Sync conflicts return the replaced record on `client_won`, so the app can merge and re-push (adds to 001) | Accepted |

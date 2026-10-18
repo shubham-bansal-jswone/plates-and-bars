@@ -1,4 +1,9 @@
 spring:
+  mvc:
+    async:
+      # GET /me/export streams its body (#349); Tomcat's 30 s default would cut every export, download time included.
+      # Bounded in time by this and in number by app.export.max-concurrent.
+      request-timeout: 10m
   application:
     name: plate-and-bar-api
   datasource:
@@ -59,6 +64,9 @@ server:
   forward-headers-strategy: none
 
 app:
+  export:
+    # Exports streaming at once (each holds a database connection and a thread for the whole download); more is 429.
+    max-concurrent: ${EXPORT_MAX_CONCURRENT:2}
   sync:
     # Largest accepted POST /sync body in bytes; bigger is 400 invalid_request.
     max-body-bytes: ${SYNC_MAX_BODY_BYTES:2097152}
@@ -100,3 +108,8 @@ app:
     ask-why-enabled: ${AI_ASK_WHY_ENABLED:false}
     weekly-summary-enabled: ${AI_WEEKLY_SUMMARY_ENABLED:false}
     suggest-tags-enabled: ${AI_SUGGEST_TAGS_ENABLED:false}
+  # Erasure ledger (#850, #887): DELETE /me appends the user id and time to erasures-<UTC day>.log in this directory
+  # before it deletes, so a backup restore can replay the erasures. Empty = off (dev only). The staging stack sets it
+  # to a dedicated volume.
+  erasure-ledger:
+    dir: ${ERASURE_LEDGER_DIR:}

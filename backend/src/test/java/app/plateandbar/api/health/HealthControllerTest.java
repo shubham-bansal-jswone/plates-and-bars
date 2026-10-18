@@ -43,19 +43,23 @@ class HealthControllerTest {
 
     @Test
     void healthIsPublicAndMatchesContract() throws Exception {
-        mvc.perform(get("/api/v1/health"))
+        String body = mvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("{\"status\":\"ok\"}", JsonCompareMode.STRICT));
+                .andExpect(content().json("{\"status\":\"ok\"}", JsonCompareMode.STRICT))
+                .andReturn().getResponse().getContentAsString();
+        app.plateandbar.api.sync.ContractSchemas.assertResponse("GET /health", 200, body);
     }
 
     @Test
     void databaseDownIs503UnavailableErrorShape() throws Exception {
         Mockito.when(jdbc.queryForObject("SELECT 1", Integer.class))
                 .thenThrow(new CannotGetJdbcConnectionException("db down"));
-        mvc.perform(get("/api/v1/health"))
+        String body = mvc.perform(get("/api/v1/health"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("unavailable"))
-                .andExpect(jsonPath("$.message").value("Service temporarily unavailable."));
+                .andExpect(jsonPath("$.message").value("Service temporarily unavailable."))
+                .andReturn().getResponse().getContentAsString();
+        app.plateandbar.api.sync.ContractSchemas.assertResponse("GET /health", 503, body);
     }
 
     @Test

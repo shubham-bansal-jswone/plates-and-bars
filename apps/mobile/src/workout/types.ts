@@ -2,9 +2,9 @@ import type { Rate, SessionMods } from '@plate-and-bar/core';
 import type { SyncMeta } from '../setup/types';
 
 // Contract records (packages/api/openapi.yaml), snake_case. Workout is a natural-key table:
-// its contract id is a UUIDv5 that needs the user's namespace, so `id` stays null locally.
+// its contract id is a UUIDv5 that needs the user's namespace, so `id` is null on a row made on the device and the server id on a pulled one.
 // Lift records are not here: lift_stats keeps core's own record shape (see src/db/workouts.ts).
-// TODO(#31): fill in `id` (and `WorkoutSet.workout_id`, the UUIDv5 of `workouts:<date>`) once the store is bound to a user.
+// buildRecord sets the id (and `WorkoutSet.workout_id`, the UUIDv5 of `workouts:<date>`) at push time for the signed-in user; a pulled row keeps the server values (storeRecord).
 
 export type Form = 'yes' | 'no' | null;
 
@@ -22,7 +22,7 @@ export interface WorkoutExercise {
 
 /** Contract `Workout`: one per day. */
 export interface Workout extends Omit<SyncMeta, 'id'> {
-  id: null;
+  id: string | null;
   date: string;
   template: string | null;
   base: string | null;
@@ -37,8 +37,8 @@ export interface Workout extends Omit<SyncMeta, 'id'> {
 /** Contract `WorkoutSet`. */
 export interface WorkoutSet extends Omit<SyncMeta, 'id'> {
   id: string;
-  /** Null locally, see the note above. */
-  workout_id: null;
+  /** Null on a set made on the device, the server's workout id on a pulled one (see the note above). */
+  workout_id: string | null;
   exercise: string;
   kind: 'work' | 'ramp';
   set_index: number;

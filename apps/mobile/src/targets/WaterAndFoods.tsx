@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { num, waterSizeEntry } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Field, Hint, Label, Press } from '../components/ui';
+import { Caption, Field, Hint, Label, Press } from '../components/ui';
 import { loadUserFoods, saveUserFood } from '../db/food';
 import { trackWrite } from '../db/pendingWrites';
 import type { WorkoutDb } from '../db/workouts';
@@ -35,9 +35,11 @@ export function WaterSizesSection({ sizes, onChange }: { sizes: Settings['water_
       <Label>Water sizes</Label>
       <View style={styles.row}>
         <View style={styles.half}>
+          <Caption>Glass (ml)</Caption>
           <Field label="Glass (ml)" inputMode="numeric" value={text.glass_ml} onChangeText={(v) => edit('glass_ml', v)} />
         </View>
         <View style={styles.half}>
+          <Caption>Bottle (ml)</Caption>
           <Field label="Bottle (ml)" inputMode="numeric" value={text.bottle_ml} onChangeText={(v) => edit('bottle_ml', v)} />
         </View>
       </View>

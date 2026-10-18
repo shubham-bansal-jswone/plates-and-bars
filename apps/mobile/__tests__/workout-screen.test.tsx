@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Vibration } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -77,12 +77,28 @@ async function seedLift(db: Db, name: string, w: number, scores?: number[]) {
   db.rows.set(`lift_stats:${name}`, JSON.stringify(rec));
 }
 
+/** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
+const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
 const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
 const stored = <T,>(db: Db, key: string) => JSON.parse(db.rows.get(key) as string) as T;
 const storedSets = (db: Db) => [...db.sets.values()].map((s) => JSON.parse(s.data) as WorkoutSet);
 const placeholder = (label: string) => screen.getByLabelText(label).props.placeholder as string;
 /** The rest countdown reads the wall clock, so a test that checks its text freezes the clock first (#270): the text must not depend on how long the machine took. */
 const frozenClock = () => jest.spyOn(Date, 'now').mockReturnValue(Date.now());
+
+// A test that waits on a slow write or read, or on a toast, runs on a fake clock: findBy*/waitFor timeouts and toast timers then
+// count test steps, not machine time, so they cannot expire while a loaded machine is busy. Microtasks and setImmediate stay real.
+let fake = false;
+const fakeClock = () => {
+  fake = true;
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+};
+// Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
+afterEach(() => {
+  if (fake) jest.runOnlyPendingTimers();
+  fake = false;
+  jest.useRealTimers();
+});
 
 describe('Workout tab: preview and Start', () => {
   it('shows today’s planned session from core with a Start button', async () => {
@@ -153,6 +169,74 @@ describe('Workout tab: preview and Start', () => {
     await press('Training with dumbbells only today');
     expect(screen.getByLabelText('Dumbbells only').props['aria-pressed']).toBe(true);
     expect(screen.getByLabelText('Normal gym').props['aria-pressed']).toBe(false);
+  });
+
+  it('an Add tapped while the Start save is slow is kept and applied once the save is done (#864)', async () => {
+    fakeClock();
+    const db = await setup();
+    await screen.findByText('Push B day');
+    const real = db.runAsync.bind(db);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    db.runAsync = (async (sql: string, ...args: (string | number)[]) => {
+      if (/INTO workouts/.test(sql)) await gate;
+      return real(sql, ...args);
+    }) as typeof db.runAsync;
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    // The screen offers a second session once every exercise has a done set; the save is still held.
+    const first = screen.getAllByLabelText(/^Mark .* set 1 done$/).length;
+    for (const m of screen.getAllByLabelText(/^Mark .* set 1 done$/)) {
+      const n = /^Mark (.*) set 1 done$/.exec(m.props.accessibilityLabel as string)![1];
+      const wt = screen.queryByLabelText(`${n} set 1 kg`) ?? screen.queryByLabelText(`${n} set 1 kg each`);
+      if (wt) await fireEvent.changeText(wt, '10');
+      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
+      await press(`Mark ${n} set 1 done`);
+    }
+    await press('Training again later today?');
+    await press('Add Pull B');
+    expect(db.rows.get(`workouts:${DATE}`)).toBeUndefined(); // Start is still saving
+    release();
+    expect(await screen.findByText('Pull B added to today')).toBeTruthy();
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.length).toBe(first + 5));
+  });
+
+  it('an Add tapped while the Start save fails is dropped and the failure toast stays (#864)', async () => {
+    fakeClock();
+    const db = await setup();
+    await screen.findByText('Push B day');
+    const real = db.runAsync.bind(db);
+    let release: () => void = () => {};
+    let failed = false;
+    const gate = new Promise<void>((r) => (release = r));
+    db.runAsync = (async (sql: string, ...args: (string | number)[]) => {
+      if (/INTO workouts/.test(sql) && !failed) {
+        failed = true; // only Start's write fails; a later write would go through
+        await gate;
+        throw new Error('disk full');
+      }
+      return real(sql, ...args);
+    }) as typeof db.runAsync;
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    // The screen offers a second session once every exercise has a done set; the save is still held.
+    const first = screen.getAllByLabelText(/^Mark .* set 1 done$/).length;
+    for (const m of screen.getAllByLabelText(/^Mark .* set 1 done$/)) {
+      const n = /^Mark (.*) set 1 done$/.exec(m.props.accessibilityLabel as string)![1];
+      const wt = screen.queryByLabelText(`${n} set 1 kg`) ?? screen.queryByLabelText(`${n} set 1 kg each`);
+      if (wt) await fireEvent.changeText(wt, '10');
+      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
+      await press(`Mark ${n} set 1 done`);
+    }
+    await press('Training again later today?');
+    await press('Add Pull B');
+    expect(db.rows.get(`workouts:${DATE}`)).toBeUndefined(); // Start is still saving
+    release();
+    expect(await screen.findByText('Couldn’t save that. Try again.')).toBeTruthy();
+    await act(async () => {});
+    expect(screen.queryByText('Pull B added to today')).toBeNull();
+    // No Pull B exercises in storage (the done-set taps above are saved on their own, after the failed Start).
+    expect(stored<Workout>(db, `workouts:${DATE}`).exercises.length).toBe(first);
   });
 
   it('the other-template chips start with the where override', async () => {
@@ -259,12 +343,23 @@ describe('Workout tab: logging sets', () => {
     await started();
     const sets = () => screen.queryAllByLabelText(/^Barbell Bench Press set \d+ kg$/).length;
     const n = sets();
-    await press('Add a set to Barbell Bench Press');
+    await press('Add set to Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(n + 1));
-    for (let k = n + 1; k > 1; k--) await press('Remove the last set of Barbell Bench Press');
+    for (let k = n + 1; k > 1; k--) await press('Remove last set of Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(1));
-    expect(screen.queryByLabelText('Remove the last set of Barbell Bench Press')).toBeNull();
+    expect(screen.queryByLabelText('Remove last set of Barbell Bench Press')).toBeNull();
     expect(screen.getByText('Set removed')).toBeTruthy();
+  });
+
+  it('the set chips are named from their visible text (WCAG 2.5.3, #800)', async () => {
+    await started();
+    await press('Add set to Barbell Bench Press');
+    expect(screen.getAllByText('Add set').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Add set to Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Remove last set of Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Remove exercise Barbell Bench Press from today')).toBeTruthy();
+    await press('Remove exercise Barbell Bench Press from today');
+    expect(screen.getByLabelText('Tap again to remove Barbell Bench Press from today')).toBeTruthy();
   });
 
   it('Add exercise lists the library without today\'s exercises and adds the pick; Remove takes a second tap (#147)', async () => {
@@ -274,7 +369,7 @@ describe('Workout tab: logging sets', () => {
     await press('Add Goblet Squat');
     expect(await screen.findByText('Goblet Squat added')).toBeTruthy();
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toContain('Goblet Squat'));
-    await press('Remove Goblet Squat from today');
+    await press('Remove exercise Goblet Squat from today');
     expect(screen.getByLabelText('Tap again to remove Goblet Squat from today')).toBeTruthy();
     await press('Tap again to remove Goblet Squat from today');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).not.toContain('Goblet Squat'));
@@ -425,6 +520,7 @@ describe('Workout tab: logging sets', () => {
   });
 
   it('does not flash the add-your-weight hint while the weigh-ins load, when the profile has a weight', async () => {
+    fakeClock();
     const db = await setup({ lifts });
     const real = db.getAllAsync.bind(db);
     let release: () => void = () => {};
@@ -436,9 +532,7 @@ describe('Workout tab: logging sets', () => {
     await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
     await screen.findByText('Push B');
     await press('Mark Barbell Bench Press set 1 done');
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
+    await flush();
     expect(screen.queryByText(/Add your weight/)).toBeNull();
     release();
     expect(await screen.findByText('About 20 kcal burned')).toBeTruthy();
@@ -585,6 +679,7 @@ describe('Workout tab: logging sets', () => {
     });
 
     it('It hurt shows the safety note; Skip remaining sets keeps only the done sets', async () => {
+    fakeClock();
       const db = await started();
       await press(`Mark ${NAME} set 1 done`);
       await press(`${NAME}: It hurt`);
@@ -616,7 +711,7 @@ describe('Workout tab: logging sets', () => {
       await press(`${NAME}: It hurt`);
       await press(`Skip remaining sets of ${NAME}`);
       await waitFor(() => expect(screen.queryByLabelText(`${NAME} set 3 kg`)).toBeNull());
-      await press(`Add a set to ${NAME}`);
+      await press(`Add set to ${NAME}`);
       await waitFor(() => expect(screen.getByLabelText(`${NAME} set 3 kg`)).toBeTruthy());
       await waitFor(() => {
         const live = storedSets(db).filter((x) => x.exercise === NAME && x.kind === 'work' && !x.deleted_at);
@@ -681,6 +776,19 @@ describe('Workout tab: logging sets', () => {
 });
 
 describe('Workout tab: first-time ramp', () => {
+  it('shows short visible text on the ramp buttons and keeps the exercise in the spoken name, so they fit 360 px (#900)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    // The exercise name in the visible text made the buttons wider than a 360 px screen (prototype: "Start the ramp", "I know my weight").
+    expect(screen.getAllByText('Start the ramp').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('I know my weight').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^Start the ramp for /)).toBeNull();
+    expect(screen.queryByText(/^I know my weight for /)).toBeNull();
+    expect(screen.getByLabelText('Start the ramp for Machine Shoulder Press')).toBeTruthy();
+    expect(screen.getByLabelText('I know my weight for Machine Shoulder Press')).toBeTruthy();
+  });
+
   it('starts a ramp, stores its sets as kind ramp, and the rated weight becomes the working target', async () => {
     const db = await setup();
     await press('Start Push B');
@@ -695,6 +803,24 @@ describe('Workout tab: first-time ramp', () => {
     expect(ramp[0]).toMatchObject({ exercise: 'Machine Shoulder Press', set_index: 0, weight_kg: 20, reps: 10, done: true, rate: 'right' });
     expect(placeholder('Machine Shoulder Press set 1 kg')).toBe('20');
     expect(screen.getByText(/Working weight found/)).toBeTruthy();
+  });
+
+  it('shows the Easy note after an Easy ramp set, with the next step, and drops it for a later rating (#823)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await press('Start the ramp for Machine Shoulder Press');
+    expect(screen.queryByText(/^Easy, so add a step/)).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Machine Shoulder Press ramp set 1 weight'), '20');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    expect(screen.queryByText(/^Easy, so add a step/)).toBeNull(); // done but not rated yet
+    await press('Machine Shoulder Press ramp set 1: Easy');
+    // A machine's step is 5 kg and its range starts at 8 reps.
+    expect(await screen.findByText('Easy, so add a step (about 25 kg) and do another ramp set of 8 reps.')).toBeTruthy();
+    await press('Mark Machine Shoulder Press ramp set 2 done'); // takes the +1 step weight
+    await press('Machine Shoulder Press ramp set 2: Just right');
+    await waitFor(() => expect(screen.getByText(/Working weight found/)).toBeTruthy());
+    expect(screen.queryByText(/^Easy, so add a step/)).toBeNull();
   });
 
   it('keeps the find-your-weight guide hidden after "I know my weight", also after a reload (#139)', async () => {
@@ -732,10 +858,10 @@ describe('Workout tab: personal best', () => {
     await setup({ lifts: { 'Barbell Bench Press': 60 } });
     await press('Start Push B');
     await screen.findByText('Push B');
-    await press('Remove Barbell Bench Press from today');
+    await press('Remove exercise Barbell Bench Press from today');
     expect(screen.getByLabelText('Tap again to remove Barbell Bench Press from today')).toBeTruthy();
     await act(async () => void jest.advanceTimersByTime(4100));
-    expect(screen.getByLabelText('Remove Barbell Bench Press from today')).toBeTruthy();
+    expect(screen.getByLabelText('Remove exercise Barbell Bench Press from today')).toBeTruthy();
   });
 
   it('toasts a personal best once a day and records pb_toast_date', async () => {
@@ -758,6 +884,39 @@ describe('Workout tab: personal best', () => {
     await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
     expect(screen.queryByText(/New personal best/)).toBeNull();
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
+  });
+
+  it('vibrates once for a personal best, and not for the same day\'s next set (#823)', async () => {
+    const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
+    const lifts = { 'Barbell Bench Press': 60 };
+    const db = await setup({ lifts, hist: { 'Barbell Bench Press': [80, 90] } });
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    vibrate.mockClear(); // starting the session or ticking a set may start a rest; only the PB buzz is counted here
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '70');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(await screen.findByText('New personal best on Barbell Bench Press')).toBeTruthy();
+    expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 kg'), '72.5');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 reps'), '10');
+    await press('Mark Barbell Bench Press set 2 done');
+    await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
+    expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
+    vibrate.mockRestore();
+  });
+
+  it('does not vibrate when the session is not a new best (#823)', async () => {
+    const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
+    await setup({ lifts: { 'Barbell Bench Press': 60 }, hist: { 'Barbell Bench Press': [80, 90] } });
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '60');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
+    await press('Mark Barbell Bench Press set 1 done');
+    await waitFor(() => expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true));
+    expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(0);
+    vibrate.mockRestore();
   });
 
   it('does not toast when the session is not a new best', async () => {
@@ -813,27 +972,43 @@ describe('Workout tab: write ordering and guards', () => {
   });
 
   it('a rating given straight after a tick is kept in lift_stats even when the tick saves slowly', async () => {
+    fakeClock();
     const db = await setup({ lifts });
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
-    db.lag = (sql) => (sql.includes('workout_sets') ? 40 : 0);
+    // The tick's save stays queued until the test opens the gate, so the rating is given while it is still slow.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = (sql) => (sql.includes('workout_sets') ? gate : undefined);
     await press('Mark Barbell Bench Press set 1 done');
     await press('Barbell Bench Press set 1: Easy');
-    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').sets[0]?.rate).toBe('easy'), { timeout: 3000 });
-    await waitFor(() => expect(storedSets(db).find((s) => s.done)?.rate).toBe('easy'), { timeout: 3000 });
+    await flush();
+    // The gate really held the tick's save: nothing is stored yet.
+    expect(storedSets(db).find((s) => s.done && s.exercise === 'Barbell Bench Press')).toBeUndefined();
+    await act(async () => release());
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').sets[0]?.rate).toBe('easy'));
+    await waitFor(() => expect(storedSets(db).find((s) => s.done)?.rate).toBe('easy'));
   });
 
   it('a form answer on one exercise is kept when a tick on another saves slowly', async () => {
+    fakeClock();
     const db = await setup({ lifts });
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
     for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
     await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(3));
-    db.lag = (sql) => (sql.includes('INTO workouts') || sql.includes('workout_sets') ? 40 : 0);
+    // The tick's save stays queued until the test opens the gate, so the answer is given while it is still slow.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = (sql) => (sql.includes('INTO workouts') || sql.includes('workout_sets') ? gate : undefined);
     await press('Mark Barbell Bench Press set 1 done');
     await press('Overhead Cable Extension form: Not really');
-    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'), { timeout: 3000 });
-    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no'), { timeout: 3000 });
+    await flush();
+    // The gate really held the tick's save: the Bench tick is not stored yet.
+    expect(storedSets(db).find((s) => s.done && s.exercise === 'Barbell Bench Press')).toBeUndefined();
+    await act(async () => release());
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'));
+    await waitFor(() => expect(stored<LiftRecord>(db, 'lift_stats:Overhead Cable Extension').form).toBe('no'));
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').date).toBe(DATE);
   });
 

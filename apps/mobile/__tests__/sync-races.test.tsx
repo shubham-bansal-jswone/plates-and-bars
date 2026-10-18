@@ -4,7 +4,7 @@ import { Text } from 'react-native';
 import { applyPulled, pendingCount } from '../src/db/outbox';
 import { lockedDb } from '../src/db/lockedDb';
 import { writeLock } from '../src/db/writeLock';
-import { pauseSync, resumeSync, syncOnce } from '../src/sync/engine';
+import { pauseSync, resumeSync, syncIdle, syncOnce } from '../src/sync/engine';
 import { discardAll } from '../src/sync/guard';
 import { naturalId } from '../src/sync/ids';
 import { Stores } from '../src/sync/Stores';
@@ -12,7 +12,7 @@ import { SyncProvider, useSync } from '../src/sync/SyncProvider';
 import { useProfile } from '../src/state/ProfileProvider';
 import { gateRedirect } from '../src/state/gateRedirect';
 import { getCursor, getUserId, KEY_USER, setKv } from '../src/sync/store';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, turns, until } from './sync-helpers';
 import { saveWeightDoc } from './sync-fixtures';
 import { saveWeight } from '../src/db/progress';
 
@@ -29,6 +29,21 @@ const gate = () => {
   const p = new Promise<void>((r) => (release = r));
   return { p, release };
 };
+
+// Nothing may leave the engine paused or a run in flight: a later syncOnce/pauseSync in this module would hang or say 'paused'.
+// Raced against a short timer so one stuck run fails here with a clear message instead of costing every later test the full test timeout.
+afterEach(async () => {
+  const deps = { db: await openDb(), api: createClient(API, async () => null), tokens: memoryTokens({ access: 'a', refresh: 'r' }) };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stuck = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('The engine still has a run in flight after the test: a held fake-server request was never released.')), 2000);
+  });
+  try {
+    expect((await Promise.race([syncOnce(deps), stuck])).status).toBe('signed_out'); // 'paused' if the pause counter is not back to 0
+  } finally {
+    clearTimeout(timer);
+  }
+});
 
 async function setup(tokens = memoryTokens({ access: 'access-1', refresh: 'refresh-1' })) {
   const db = await openDb();
@@ -48,7 +63,7 @@ describe('discarding while a sync is running', () => {
     const slow = gate();
     server.hold = slow.p;
     const run = syncOnce(deps); // request in flight, response held
-    await new Promise((r) => setTimeout(r, 10));
+    await until("the held request", () => server.calls.length >= 1);
     const discard = discardAll(db, tokens);
     slow.release();
     await discard;
@@ -69,7 +84,7 @@ describe('discarding while a sync is running', () => {
     server.hold = slow.p;
     server.holdPath = '/auth/refresh'; // the 401 answers at once, the refresh request is the one that waits
     const run = syncOnce(deps);
-    await new Promise((r) => setTimeout(r, 10));
+    await until("the held refresh request", () => server.calls.length >= 2);
     expect(server.calls.map((c) => c.path)).toEqual(['/sync', '/auth/refresh']);
     const discard = discardAll(db, tokens);
     slow.release();
@@ -84,7 +99,7 @@ describe('discarding while a sync is running', () => {
     const slow = gate();
     server.hold = slow.p;
     const run = syncOnce(deps);
-    await new Promise((r) => setTimeout(r, 10));
+    await until("the held request", () => server.calls.length >= 1);
     await setKv(db, KEY_USER, OTHER_USER); // someone else owns the store now
     slow.release();
     expect((await run).status).toBe('paused');
@@ -110,14 +125,16 @@ describe('write lock', () => {
     const ui = lockedDb(db as never) as unknown as typeof db;
     const hold = gate();
     const order: string[] = [];
+    let open = false;
     const sync = applyPulled(db, 'weights', '2026-10-08', async (txn) => {
       await txn.runAsync("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-08', ?)", JSON.stringify(w('2026-10-08', 80)));
+      open = true;
       await hold.p; // the UI saves while the pulled write is open
       order.push('sync done');
     });
-    await new Promise((r) => setTimeout(r, 5));
+    await until('the pulled write to open', () => open);
     const save = ui.runAsync('INSERT OR REPLACE INTO weights (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify(w('2026-10-08', 81))).then(() => order.push('ui write'));
-    await new Promise((r) => setTimeout(r, 10));
+    await turns();
     expect(order).toEqual([]); // the UI write has not run inside the sync transaction
     hold.release();
     await Promise.all([sync, save]);
@@ -132,15 +149,17 @@ describe('write lock', () => {
     const ui = lockedDb(db as never) as unknown as typeof db;
     const hold = gate();
     let syncDone = false;
+    let open = false;
     const sync = applyPulled(db, 'weights', '2026-10-07', async (txn) => {
       await txn.runAsync("INSERT OR REPLACE INTO weights (key, data) VALUES ('2026-10-07', ?)", JSON.stringify(w('2026-10-07', 80)));
+      open = true;
       await hold.p;
       syncDone = true;
     });
-    await new Promise((r) => setTimeout(r, 5));
+    await until('the pulled write to open', () => open);
     let saved = false;
     const save = saveWeight(ui, { ...w('2026-10-08', 81), id: null } as never).then(() => (saved = true));
-    await new Promise((r) => setTimeout(r, 10));
+    await turns();
     expect(saved).toBe(false);
     hold.release();
     await Promise.all([sync, save]);
@@ -244,9 +263,29 @@ describe('a full account in the provider', () => {
     expect(latest.pending).toBe(1); // kept, not dropped
     await first.unmount();
     // After a restart the flag is read from the device before any request answers.
-    server.hold = new Promise<void>(() => undefined);
+    const release = server.block();
     await render(ui());
     await waitFor(() => expect(latest.accountFull).toBe(true));
-    server.hold = null;
+    await act(async () => {
+      release();
+      await syncIdle(); // the released run ends and its state updates land inside act
+    });
+    // a hold left pending would keep the engine's run in flight for the rest of the file
+  });
+});
+
+describe('a held fake-server request', () => {
+  it('lets the run end once released, so a later sync and pause in the same module complete', async () => {
+    const { deps, server } = await setup();
+    server.accessValid = 'access-1';
+    await saveWeightDoc(deps.db, w('2026-10-07', 80));
+    const release = server.block();
+    const held = syncOnce(deps); // waits on the server
+    await waitFor(() => expect(server.calls.length).toBeGreaterThan(0));
+    release();
+    expect((await held).status).toBe('ok');
+    expect((await syncOnce(deps)).status).toBe('ok');
+    await pauseSync(); // would never resolve while the held run was stuck
+    resumeSync();
   });
 });

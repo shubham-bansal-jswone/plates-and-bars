@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT } from '../src/ai/AiProvider';
 import { KEY_USER } from '../src/sync/store';
@@ -7,6 +7,7 @@ import { memoryTokenStore } from '../src/sync/tokens';
 import { CustomTagsSheet } from '../src/workout/CustomTagsSheet';
 import { FALLBACK_TAGS, tagsFromSuggestion } from '../src/workout/suggestTags';
 import * as suggestTags from '../src/workout/suggestTags';
+import { turns } from './sync-helpers';
 
 const blank = require('../../../packages/api/test-vectors/blank-text.json') as { must_fail: string[]; must_pass: string[] };
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
@@ -167,9 +168,9 @@ describe('custom exercise tag suggestion timing', () => {
     const read = jest.spyOn(suggestTags, 'tagsFromSuggestion');
     await open({ post });
     await waitFor(() => expect(post).toHaveBeenCalled());
-    screen.unmount();
+    await screen.unmount();
     answer({ data: SUGGESTION, response: res(200) });
-    await new Promise((r) => setTimeout(r, 20));
+    await act(async () => turns());
     expect(read).not.toHaveBeenCalled();
     read.mockRestore();
   });

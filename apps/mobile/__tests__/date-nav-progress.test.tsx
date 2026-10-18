@@ -7,10 +7,23 @@ import { saveLog, saveDayNote } from '../src/db/food';
 import { saveWeight } from '../src/db/progress';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
+import { WEEK_LOADING } from '../src/progress/copy';
+import { PHOTOS_NEW } from '../src/photos/copy';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
+// An in-memory photo vault: the photos stay on the real today, whatever day the bar shows.
+const mockPhotos = new Set<string>();
+jest.mock('../src/photos/vault', () => ({
+  POSES: ['front', 'side', 'back'],
+  persistent: true,
+  putPhoto: async () => undefined,
+  getPhoto: async (d: string, p: string) => (mockPhotos.has(`${d}|${p}`) ? 'AAAA' : null),
+  deletePhoto: async () => undefined,
+  onPhotosWiped: () => () => undefined,
+  photoDates: async () => [...new Set([...mockPhotos].map((k) => k.split('|')[0]))].sort(),
+}));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0); // Thursday
@@ -100,6 +113,36 @@ describe('Progress date navigation', () => {
     expect(screen.getByText('Today')).toBeTruthy();
     await act(async () => open());
     expect(await screen.findByLabelText('Save weight')).toBeTruthy();
+  });
+
+  it('keeps the check-in week on the viewed day while its days are read: Loading in the week card, not the other day’s bars', async () => {
+    const db = await setup();
+    await screen.findAllByLabelText(/not logged|kcal/); // today's week has loaded
+    const read = db.getFirstAsync.bind(db);
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('FROM workouts')) await gate; // only the 21-day check-in read goes through here
+      return read(sql, ...p);
+    }) as typeof db.getFirstAsync;
+    await back();
+    expect(await screen.findByText('Seven days to 7 Oct')).toBeTruthy();
+    expect(screen.getByText(WEEK_LOADING)).toBeTruthy();
+    expect(screen.queryByLabelText(/not logged|kcal/)).toBeNull();
+    await act(async () => open());
+    await waitFor(() => expect(screen.queryByText(WEEK_LOADING)).toBeNull());
+    expect(screen.getAllByLabelText(/not logged|kcal/).length).toBeGreaterThan(0);
+  });
+
+  it('photos stay on the real today when a past day is viewed', async () => {
+    mockPhotos.clear();
+    mockPhotos.add(`${TODAY}|front`);
+    await setup();
+    expect(await screen.findByText(PHOTOS_NEW(true))).toBeTruthy();
+    await back();
+    await screen.findByText('Yesterday');
+    expect(screen.getByText(PHOTOS_NEW(true))).toBeTruthy(); // not 'New photo check-in': today's photo is still today's
+    mockPhotos.clear();
   });
 
   describe('announcement', () => {

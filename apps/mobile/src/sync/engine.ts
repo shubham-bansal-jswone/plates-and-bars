@@ -1,14 +1,18 @@
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
-import { applyPulled, clearPushed, inTransaction, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
-import type { WorkoutDb } from '../db/workouts';
+import { applyPulled, clearPushed, hasPending, inTransaction, pendingChanges, type OutboxEntry, type PullDb, type SyncTableName } from '../db/outbox';
+import { loadWorkout, saveWorkout, type WorkoutDb } from '../db/workouts';
+import { mergeWorkout, unionWorkout } from '../workout/model';
+import type { Workout } from '../workout/types';
 import type { StoreDb } from '../db/records';
-import { InvalidRecord, buildRecord, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
+import { InvalidRecord, buildRecord, normalizeTimestamps, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
 import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
 import { quarantine } from './quarantine';
+import { forgetBase, restoreBases, setBase, takeBases } from './base';
 import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, markSent, setAccountFull, stampOf, touchHeld, unmarkSent, wasSent } from './held';
-import { withTimeout, REQUEST_TIMEOUT_MS } from './timeout';
+import { withTimeout, REFRESH_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from './timeout';
 import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
+import { signInUnavailable, takeAttempt, trackCookieCall } from './cookieHealth';
 import { authInit, cookieMode, refreshBody } from './transport';
 import { markSignOutPending, postRevoke, signOutPending, withTabLock } from './webSession';
 import { deleteKitchenPhoto } from '../photos/vault';
@@ -24,6 +28,8 @@ export type SyncStatus =
   | 'offline'
   /** 503 or a server error: try later; never signs out. */
   | 'unavailable'
+  /** Web only (ADR 006): sign-in and session refresh cannot work from this site (cookie-mode calls fail while the API answers). No automatic retry; a reload tries again. */
+  | 'sign_in_unavailable'
   /** 429: wait `retryAfterSec`. */
   | 'rate_limited'
   /** The server refused the request (400 or another 4xx); retrying the same request will not help. */
@@ -52,12 +58,21 @@ export interface SyncResult {
   accountFull?: boolean;
   /** For `error`: the exception's class name only. */
   errorName?: string;
+  /**
+   * The run failed (`offline` or `unavailable`) on the `/auth/refresh` request itself with an ambiguous outcome: no connection, a
+   * timeout or a 5xx. The server may have rotated the token meanwhile, and a retry is only safe inside its 60 s grace window, so
+   * the caller retries after `REFRESH_RETRY_MS` (20 s) instead of backing off (#762, #809). A definite refusal (a 4xx such as the
+   * Origin 403 of ADR 006) is not tagged: nothing was rotated, so it follows the normal schedule.
+   */
+  viaRefresh?: boolean;
 }
 
 export interface SyncDeps {
   db: SyncDb;
   api: ApiClient;
   tokens: TokenStore;
+  /** How long one refresh request may take before it is given up (default `REFRESH_TIMEOUT_MS`). Tests only. */
+  refreshTimeoutMs?: number;
   /** The clock in ms (tests set it); the held-record retry is once a day by this clock. */
   now?: () => number;
 }
@@ -81,7 +96,7 @@ const MAX_HELD_BATCHES = 50;
 const DAY_MS = 86_400_000;
 
 type Guard = (db: StoreDb) => Promise<void>;
-type Failure = { ok: false; result: SyncResult; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean; /** A 413 whose body is the `account_full` error (a 413 with any other body is a proxy refusing the size). */ accountFull?: { /** `record_cap.new_records`: how many records in the refused request the server does not store; unknown when absent. */ newRecords?: number } };
+type Failure = { ok: false; result: SyncResult; /** A 400, or a 413 that is not `account_full`: the request was refused whole and nothing in it was stored. */ refused?: true; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean; /** A 413 whose body is the `account_full` error (a 413 with any other body is a proxy refusing the size). */ accountFull?: { /** `record_cap.new_records`: how many records in the refused request the server does not store; unknown when absent. */ newRecords?: number } };
 type Outcome<T> = { ok: true; data: T } | Failure;
 const fail = (status: SyncStatus, retryAfterSec?: number): Failure => ({ ok: false, result: { status, conflicts: 0, ...(retryAfterSec ? { retryAfterSec } : {}) } });
 
@@ -96,16 +111,20 @@ function failFrom(res: Response, body?: unknown): Failure {
   if (res.status === 400 && error?.code === 'invalid_request' && Array.isArray(error.details)) {
     const fields = error.details.flatMap((d) => (typeof d?.field === 'string' ? [d.field] : []));
     const tooLarge = error.details.some((d) => (d as { issue?: unknown } | null)?.issue === 'too_large');
-    return { ...fail('rejected'), fields, ...(tooLarge ? { tooLarge } : {}) };
+    return { ...fail('rejected'), refused: true, fields, ...(tooLarge ? { tooLarge } : {}) };
   }
   // Any other 413: a proxy in front of the API refusing a large body before the server sees it, the same as `too_large`.
-  if (res.status === 413) return { ...fail('rejected'), tooLarge: true };
+  if (res.status === 413) return { ...fail('rejected'), refused: true, tooLarge: true };
+  if (res.status === 400) return { ...fail('rejected'), refused: true };
   if (res.status === 429) return fail('rate_limited', Math.max(1, Number(res.headers.get('Retry-After')) || DEFAULT_RETRY_SEC));
   return res.status >= 500 ? fail('unavailable') : fail('rejected');
 }
 
 /** A rejected fetch: no connection. Only this (not any exception) maps to `offline`. */
-class NetworkError extends Error {}
+class NetworkError extends Error {
+  /** The failed request was the token refresh (a lost response or a timeout): see `SyncResult.viaRefresh`. */
+  viaRefresh = false;
+}
 
 async function net<T>(call: () => Promise<T>): Promise<T> {
   try {
@@ -124,7 +143,7 @@ async function post(d: SyncDeps, body: Schemas['SyncRequest'], guard: Guard, own
     if (data) return { ok: true, data };
     if (response.ok) throw new Error('empty or malformed 2xx body'); // answered, but unusable: an error state
     if (response.status !== 401) return failFrom(response, error);
-    if (attempt === 1 || !(await refresh(d, owner))) return fail('signed_out');
+    if (attempt === 1 || !(await refreshForRun(d, owner))) return fail('signed_out');
     // The rotated pair is saved even when paused, but a paused run must not go on to push: the user may have chosen to discard.
     await guard(d.db);
   }
@@ -163,9 +182,43 @@ async function refresh(d: SyncDeps, owner: string | null, signal?: AbortSignal):
     return raceAbort(inflight, signal);
   }
   // Web: the pending flag is re-checked under the lock, because another tab may have signed out while this one waited.
-  const promise: Promise<boolean> = (cookieMode() ? withTabLock(async () => (signOutPending() ? false : rotate(d, owner, '', signal))) : rotate(d, owner, t?.refresh ?? '', signal)).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
+  const promise: Promise<boolean> = (cookieMode() ? withTabLock(async () => (signOutPending() ? false : rotate(d, owner, '', signal))) : rotate(d, owner, t?.refresh ?? '', signal)).catch((e: unknown) => Promise.reject(markViaRefresh(e))).finally(() => void (refreshing.get(key) === promise && refreshing.delete(key)));
   refreshing.set(key, promise);
   return promise;
+}
+
+/**
+ * `refresh` for a sync run. While sign-in is known to be unavailable from this site (#744) it sends nothing: the run ends
+ * `sign_in_unavailable` instead of trying a call that cannot work, so no retry loop runs behind the message. One attempt is let
+ * through when something asked for it (`allowOneAttempt`).
+ */
+async function refreshForRun(d: SyncDeps, owner: string | null): Promise<boolean> {
+  if (cookieMode() && signInUnavailable() && !takeAttempt()) throw new TransientError(fail('sign_in_unavailable'));
+  return refresh(d, owner);
+}
+
+/** Tags a failure of the refresh request so the run's result can say so (`SyncResult.viaRefresh`). */
+function markViaRefresh(e: unknown): unknown {
+  if (e instanceof NetworkError) e.viaRefresh = true;
+  else if (e instanceof TransientError && e.outcome.result.status === 'unavailable') e.outcome.result.viaRefresh = true;
+  return e;
+}
+
+/**
+ * A signal that aborts when either of the two does (AbortSignal.any is not in every runtime the app runs on). The listeners it
+ * adds to `a` and `b` are not removed: both are short-lived signals of one request (a timer's controller and the caller's
+ * timeout), dropped with it, so nothing accumulates.
+ */
+function either(a: AbortSignal | undefined, b: AbortSignal): AbortSignal {
+  if (!a) return b;
+  const c = new AbortController();
+  const fire = () => c.abort();
+  if (a.aborted || b.aborted) c.abort();
+  else {
+    a.addEventListener('abort', fire, { once: true });
+    b.addEventListener('abort', fire, { once: true });
+  }
+  return c.signal;
 }
 
 /** Rejects when `signal` aborts before `p` settles (the shared request itself keeps going for its leader). */
@@ -185,7 +238,11 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
   };
   let result;
   try {
-    result = await net(() => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal, ...authInit() }));
+    // Its own timeout, started here: inside the cross-tab lock, so the lock is held until this request settles or the timeout
+    // fires (never longer), and a refresh made from a sync run is bounded too (#762).
+    const timed = await withTimeout(d.refreshTimeoutMs ?? REFRESH_TIMEOUT_MS, (own) => net(() => trackCookieCall(d.api, () => d.api.POST('/auth/refresh', { body: refreshBody(refreshToken), signal: either(signal, own), ...authInit() }))));
+    if (timed.timedOut) throw new TransientError(fail('unavailable'));
+    result = timed.value;
   } catch (e) {
     // Aborted by the caller that started this request (its timeout): joiners must not read that as "offline".
     if (e instanceof NetworkError && signal?.aborted) throw new TransientError(fail('unavailable'));
@@ -194,6 +251,14 @@ async function rotate(d: SyncDeps, owner: string | null, refreshToken: string, s
   const { data, response } = result;
   if (data) {
     await sameOwner();
+    // Web: another tab ended the session while this request was in flight. Its revoke waits for the lock, so the new cookie is
+    // cleared right after; this tab must not bring an access token back for it.
+    if (cookieMode() && signOutPending()) {
+      // The cookie this response set (and the session behind it) must end: clear this tab's tokens and revoke it, as for another account's cookie.
+      await d.tokens.clear();
+      await postRevoke(d.api); // already under the tab lock
+      return false;
+    }
     // A cookie that belongs to another account than this store's must not carry this store's records to it (ADR 004).
     if (cookieMode() && owner && data.user.id !== owner) {
       await d.tokens.clear();
@@ -222,7 +287,7 @@ export type RefreshOutcome = 'ok' | 'ended' | 'offline' | 'unavailable';
  * while the request was in flight the answer is dropped and no tokens are saved or cleared: 'ended'. Otherwise 'ended'
  * means the session is over and the tokens are cleared; transient failures keep the tokens.
  */
-export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
+export async function refreshSession(d: Pick<SyncDeps, 'api' | 'tokens' | 'refreshTimeoutMs'> & { db: StoreDb; timeoutMs?: number }): Promise<RefreshOutcome> {
   const owner = await getUserId(d.db);
   try {
     // A stalled request is given up after the timeout, so the account lock is never held for long.
@@ -244,16 +309,40 @@ class TransientError extends Error {
 /**
  * Runs `write` for a pushed entry without queuing it again. `clean` is true when the record was not edited while the
  * request was in flight; if it was edited, the newer edit stays queued and the write must only touch sync fields.
+ * `after` runs last, only for a clean entry, and its writes stay queued (the merged workout day of #818).
  */
-async function settle(db: PullDb, e: OutboxEntry, guard: Guard, write: (txn: WorkoutDb, clean: boolean) => Promise<void>): Promise<void> {
+async function settle(db: PullDb, e: OutboxEntry, guard: Guard, write: (txn: WorkoutDb, clean: boolean) => Promise<void>, after?: (txn: WorkoutDb) => Promise<void>): Promise<void> {
   await inTransaction(db, async (txn) => {
     const seqOf = async () => (await txn.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', e.tbl, e.key))?.seq ?? null;
     const clean = (await seqOf()) === e.seq;
     await guard(txn);
     await write(txn as WorkoutDb, clean);
     await forgetSent(txn, e);
-    const after = await seqOf();
-    if (clean && after !== null) await clearPushed(txn, { tbl: e.tbl, key: e.key, seq: after });
+    if (e.tbl === 'workouts') await forgetBase(txn, e.key);
+    const left = await seqOf();
+    if (clean && left !== null) await clearPushed(txn, { tbl: e.tbl, key: e.key, seq: left });
+    // After the clear, so what it writes stays queued. Same transaction and owner guard as the write above (ADR 004).
+    if (clean) await after?.(txn as WorkoutDb);
+  });
+}
+
+/** Takes the kept bases of the days a request carries out of the store (see `takeBases`), under the owner guard. */
+async function holdBases(db: PullDb, dates: string[], guard: Guard): Promise<Map<string, Workout>> {
+  if (dates.length === 0) return new Map();
+  let taken = new Map<string, Workout>();
+  await inTransaction(db, async (txn) => {
+    await guard(txn);
+    taken = await takeBases(txn, dates);
+  });
+  return taken;
+}
+
+/** The server stored nothing of the request: its bases are good for the next one. */
+async function putBackBases(db: PullDb, bases: Map<string, Workout>, guard: Guard): Promise<void> {
+  if (bases.size === 0) return;
+  await inTransaction(db, async (txn) => {
+    await guard(txn);
+    await restoreBases(txn, bases);
   });
 }
 
@@ -290,7 +379,7 @@ export function resumeSync(): void {
 }
 
 /** True when a data_storage consent record is stored. */
-async function hasConsent(db: WorkoutDb): Promise<boolean> {
+export async function hasConsent(db: WorkoutDb): Promise<boolean> {
   const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM consents');
   return rows.some((r) => {
     const c = JSON.parse(r.data) as { kind?: string; deleted_at?: string | null };
@@ -334,11 +423,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let heldDone = false; // the held phase runs at most once per run
   let pushBlocked = false; // a full account refused a request of records it should store: the rest of the run only pulls
   const heldDue = () => full && !heldDone && !pushBlocked && (!heldTried || heldTried.user !== userId || now() - heldTried.at >= DAY_MS);
+  // A queued workout day is pulled before it is pushed (see `unionWorkout`): the push settles a stale one whole-record, which would
+  // drop what another device stored for the day, and the server does not send the loser's copy back.
+  let prePull = false;
   try {
+    prePull = await hasPending(d.db, 'workouts');
     // Web after a reload (or a refresh that could not finish): no access token in memory, so restore it from the cookie first.
-    if (cookieMode() && !(await d.tokens.load()) && !(await refresh(d, userId))) return { status: 'signed_out', conflicts: 0 };
+    if (cookieMode() && !(await d.tokens.load()) && !(await refreshForRun(d, userId))) return { status: 'signed_out', conflicts: 0 };
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const entries = pushBlocked ? [] : phase === 'held' ? (heldPlan.shift() ?? (await heldEntries(d.db, HELD_BATCH, sessionStamp))) : await pendingChanges(d.db, MAX_PUSH);
+      const entries = pushBlocked || prePull ? [] : phase === 'held' ? (heldPlan.shift() ?? (await heldEntries(d.db, HELD_BATCH, sessionStamp))) : await pendingChanges(d.db, MAX_PUSH);
       if (phase === 'held' && entries.length === 0) {
         // Every held record was tried this session: one more main round pulls what is left, then the run ends.
         heldTried = { user: userId, at: now() };
@@ -397,7 +490,11 @@ async function run(d: SyncDeps): Promise<SyncResult> {
       // A version-0 record in a request may be stored even if the answer is lost: mark it, so a tombstone made of it is retried, not dropped.
       const unsent = [...sent.values()].filter((s) => !s.record.version).map((s) => s.entry);
       const fresh = unsent.length > 0 ? await markSent(d.db, unsent, guard) : [];
+      // A base is only good for the first request that carries the day: if this one is stored and its answer lost, the base is stale.
+      // It leaves the store for this request and comes back only when the server refused the request whole (#792).
+      const bases = await holdBases(d.db, [...sent.values()].filter((s) => s.entry.tbl === 'workouts').map((s) => s.entry.key), guard);
       const out = await post(d, { cursor, changes: changes as Schemas['SyncChanges'] }, guard, userId);
+      if (!out.ok && (out.refused || out.accountFull)) await putBackBases(d.db, bases, guard);
       // The server answered a batch with some records it stores and some it does not: the stored ones are behind the new ones. Halve it.
       const refused = out.ok ? undefined : out.accountFull;
       // Only the records actually sent count (the byte budget or a gone record can leave some of the loaded ones out).
@@ -444,6 +541,8 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           round--;
           continue;
         }
+        // A 400 (and a proxy's 413) stores nothing: this request's marks are undone, so a version-0 day it carried counts as never seen again (#792).
+        if (out.refused) await unmarkSent(d.db, fresh, guard);
         if (out.tooLarge && sent.size > 0) {
           // The 400 names no record. Send half as many; one record alone that is still too large is set aside.
           if (sent.size > 1) {
@@ -498,19 +597,55 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           if (err instanceof InvalidRecord) continue; // stays queued; the server's copy cannot be stored
           throw err;
         }
+        // Only a day this request sent for the first time never saw a server copy; one an earlier lost answer may have stored did.
+        const neverSeen = !!fresh.some((f) => f.tbl === 'workouts' && f.key === s.entry.key);
+        // What the other device stored for the day. On `server_won` that is `server_record`. On `client_won` it is the copy this push
+        // replaced, which the server sends back (contract 0.1.20) unless it is an older server; and a retry whose first answer was lost
+        // is an idempotent `server_won` with no copy at all (the same content as this push): nothing to merge, the stored copy is adopted.
+        const other = c.resolution === 'client_won' ? (c.replaced_record as unknown as Doc | undefined) : same ? undefined : server;
+        let merged: Workout | null = null;
+        // Another device's day against this device's: keep what this one added (see `mergedWorkout`); written after the clear, so it is pushed again.
+        const merge = async (txn: WorkoutDb, clean: boolean) => {
+          if (clean && other && s.entry.tbl === 'workouts') merged = await mergedWorkout(txn, s.entry.key, other, server, c.server_version, neverSeen, bases.get(s.entry.key));
+        };
+        const requeue = async (txn: WorkoutDb) => {
+          if (!merged) return;
+          await saveWorkout(txn, merged);
+          // Only on `server_won` is the stored copy the other device's day, so the merged day differs from it by this device's own edits alone:
+          // it is the base for a second race (it is taken when the day is next sent). On `client_won` the stored copy is this device's own push and
+          // the merged day differs from it by the other device's older `replaced_record`; as a base that would read the older copy as this device's
+          // edit and overwrite the other device's later one. So no base is kept there: a second race falls back to whole-record.
+          if (c.resolution === 'server_won') await setBase(txn, s.entry.key, normalizeTimestamps(server) as Workout);
+        };
         if (same) {
-          // An idempotent retry (see POST /sync): adopt the stored version and time, nothing else changes.
-          await settle(d.db, s.entry, guard, (txn) => patchMeta(txn, s.entry.tbl, s.entry.key, { version: server.version as number, updated_at: server.updated_at as string }));
+          // The server's copy is this push as stored (an idempotent retry, or `client_won`): adopt the stored version and time, nothing else changes.
+          await settle(
+            d.db,
+            s.entry,
+            guard,
+            async (txn, clean) => {
+              await merge(txn, clean);
+              await patchMeta(txn, s.entry.tbl, s.entry.key, { version: server.version as number, updated_at: server.updated_at as string });
+            },
+            requeue,
+          );
           continue;
         }
         conflicts++;
         let adopted = false;
-        await settle(d.db, s.entry, guard, async (txn, clean) => {
-          if (clean) {
-            await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
-            adopted = true;
-          } else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
-        });
+        await settle(
+          d.db,
+          s.entry,
+          guard,
+          async (txn, clean) => {
+            if (clean) {
+              await merge(txn, clean);
+              await storeRecord(txn, s.entry.tbl, server, s.entry.tbl === 'workout_sets' ? await setWorkoutDate(txn, ctx, server) : null);
+              adopted = true;
+            } else await patchMeta(txn, s.entry.tbl, s.entry.key, { version: c.server_version });
+          },
+          requeue,
+        );
         // The server's copy of a kitchen test is a tombstone and now stands here: its vault photo goes too.
         if (adopted && s.entry.tbl === 'kitchen_tests' && server.deleted_at) await deleteKitchenPhoto(s.entry.key).catch(() => undefined);
       }
@@ -526,6 +661,15 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         await guard(txn);
         await setKv(txn, KEY_CURSOR, res.cursor);
       });
+      if (prePull) {
+        // Pulled what the server holds for the queued days; now the main rounds push them.
+        // Only the last page gives its round back, so a server that always says has_more cannot keep the run going.
+        if (!res.has_more) {
+          prePull = false;
+          round--;
+        }
+        continue;
+      }
       if (phase === 'held') {
         // The next batch of held records; at the cap or when the account has room again, back to the main rounds.
         if (!full || ++heldBatches >= MAX_HELD_BATCHES) phase = 'main';
@@ -551,7 +695,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   } catch (e) {
     if (e instanceof TransientError) return { ...e.outcome.result, conflicts, pulled, pushed, skipped, ...(quarantined ? { quarantined } : {}) };
     if (e instanceof Aborted) return { status: 'paused', conflicts, pulled, skipped };
-    if (e instanceof NetworkError) return { status: 'offline', conflicts, pulled, skipped };
+    if (e instanceof NetworkError) return { status: 'offline', conflicts, pulled, skipped, ...(e.viaRefresh ? { viaRefresh: true } : {}) };
     // Anything else is a bug or a local failure, not the network: report it as an error state (class name only).
     return { status: 'error', conflicts, pulled, skipped, errorName: e instanceof Error ? e.constructor.name : 'Unknown' };
   }
@@ -566,6 +710,11 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
       try {
         const key = localKey(tbl, rec);
         const setDate = tbl === 'workout_sets' ? await setWorkoutDate(db, ctx, rec) : null;
+        if (tbl === 'workouts' && (await unionPulled(db, key, rec, guard))) {
+          stored++;
+          ctx.dates?.set(String(rec.id), key);
+          continue;
+        }
         // A record with an unpushed local edit is skipped inside the transaction: the next push settles it through the server.
         if (await applyPulled(db, tbl, key, async (txn) => {
           await guard(txn);
@@ -586,4 +735,49 @@ async function pull(db: SyncDb, changes: Record<string, Doc[]>, ctx: PullCtx, gu
   await guard(db);
   await resolveOrphanSets(db, ctx);
   return { stored, skipped };
+}
+
+/**
+ * This device's workout row for `date` merged with `other`, the same day as another device stored it, or null when there is
+ * nothing to keep. The result carries `version` (the server's version of the day, so pushing it is an ordinary edit) and is
+ * null when it adds nothing to `server`, the copy about to be stored. Only where no removal can come back:
+ *  - the row never saw a server copy (`neverSeen`: version 0, and no earlier request carried it): `unionWorkout`;
+ *  - the copy the row grew from is known (`base`, kept by the pre-pull and taken for this request, and the version it holds): a three-way `mergeWorkout`.
+ * Otherwise both sides had a common base this merge does not have, and a removal would come back. A tombstone on either
+ * side is never merged: a deletion is not resurrected.
+ */
+async function mergedWorkout(db: StoreDb, date: string, other: Doc, server: Doc, version: number, neverSeen: boolean, base: Workout | undefined): Promise<Workout | null> {
+  const mine = await loadWorkout(db, date);
+  const theirs = normalizeTimestamps(other) as Workout;
+  if (!mine || mine.deleted_at || theirs.deleted_at) return null;
+  let out: Workout;
+  if (mine.version === 0) {
+    if (!neverSeen) return null;
+    out = unionWorkout(mine, theirs);
+  } else {
+    if (!base || base.deleted_at || base.version !== mine.version) return null;
+    out = mergeWorkout(base, mine, theirs);
+  }
+  out = { ...out, version };
+  return sameContent(out as unknown as Doc, server) ? null : out;
+}
+
+/**
+ * A pulled workout row against an unpushed local one: the two are merged (see `unionWorkout`) and the result stays queued
+ * at the pulled version, instead of the pull skipping it and the push conflicting. False when there is no such pair.
+ */
+async function unionPulled(db: SyncDb, date: string, rec: Doc, guard: Guard): Promise<boolean> {
+  let done = false;
+  await inTransaction(db, async (txn) => {
+    if (!(await hasPending(txn, 'workouts', date))) return; // not queued, or set aside: left to the usual path
+    await guard(txn);
+    const mine = await loadWorkout(txn, date);
+    const theirs = normalizeTimestamps(rec) as Workout;
+    // Only a day that never saw a server copy: otherwise both sides had a common base this merge does not have, and a removal would come back.
+    if (!mine || mine.version !== 0 || (await wasSent(txn, { tbl: 'workouts', key: date })) || mine.deleted_at || theirs.deleted_at) return;
+    await saveWorkout(txn, unionWorkout(mine, theirs));
+    await setBase(txn, date, theirs); // the copy this row grew from, for a merge if another device stores a later edit before the push (#818)
+    done = true;
+  });
+  return done;
 }

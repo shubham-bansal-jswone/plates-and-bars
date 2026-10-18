@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import app.plateandbar.api.common.ApiException;
+import app.plateandbar.api.sync.ContractSchemas;
 import app.plateandbar.api.support.ConcurrentListAppender;
 import app.plateandbar.api.support.MutableClock;
 import ch.qos.logback.classic.Level;
@@ -218,6 +219,7 @@ class AuthCookieIT {
     void signInSetsTheCookieAndTheBodyTokenIsEmptyAndOnlyAHashIsStored() {
         ResponseEntity<Map> res = signInWeb(uniq());
         assertThat(res.getStatusCode().value()).isEqualTo(200);
+        ContractSchemas.assertResponse("POST /auth/email/verify", 200, res.getBody());
         assertThat(res.getBody().get("refresh_token")).isEqualTo("");
         assertThat(res.getBody().get("access_token")).asString().isNotBlank();
         assertSetCookie(res, 7776000);
@@ -274,6 +276,7 @@ class AuthCookieIT {
 
         ResponseEntity<Map> rotated = web("/refresh", first, "{}");
         assertThat(rotated.getStatusCode().value()).isEqualTo(200);
+        ContractSchemas.assertResponse("POST /auth/refresh", 200, rotated.getBody());
         assertThat(rotated.getBody().get("refresh_token")).isEqualTo("");
         assertSetCookie(rotated, 7776000);
         String second = cookieValue(rotated);
