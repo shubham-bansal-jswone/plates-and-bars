@@ -622,3 +622,11 @@ export type { PrepEntry, AddPrepInput } from './prep';
 
 /** `checkinBannerDue` mirrors prototype `checkinBanner()`: Food's "weekly check-in is ready" banner (Sunday or Monday, today, not yet seen this week). */
 export { checkinBannerDue } from './progress';
+
+/**
+ * Cycle log (device only, never synced; #625). `cycInfo` mirrors prototype `cycInfo(date)` (stored data passed in);
+ * `waterRetentionPhase` its `luteal || period` test, `sameDayLastCycle` the "Same day last cycle" date, `addCycleStart` /
+ * `removeLastCycleStart` the `cyc-log` / `cyc-undo` actions, `emptyCycle` the `cyc-off` value.
+ */
+export { cycInfo, waterRetentionPhase, sameDayLastCycle, addCycleStart, removeLastCycleStart, emptyCycle } from './cycle';
+export type { CycleData, CycleInfo, CyclePhase } from './cycle';
