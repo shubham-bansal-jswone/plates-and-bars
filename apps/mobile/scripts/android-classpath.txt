@@ -152,7 +152,7 @@ io.sentry:sentry-android-ndk:8.57.0
 io.sentry:sentry-android-replay:8.57.0
 io.sentry:sentry-android:8.57.0
 io.sentry:sentry-native-ndk:0.16.6
-io.sentry:sentry:8.57.0
+io.sentry:sentry:8.57.0 META-INF/SENTRY_THIRD_PARTY_NOTICES.md@a2ea6ba8658edd12
 javax.inject:javax.inject:1
 org.brotli:dec:0.1.2
 org.jetbrains.kotlin:kotlin-android-extensions-runtime:2.0.0
