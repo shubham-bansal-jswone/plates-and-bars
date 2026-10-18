@@ -237,8 +237,8 @@ export interface PoseCue {
 
 /** The card cue shown when a counted rep stops above parallel. Slice 1 has no knee or trunk cues. */
 export const DEPTH_CUES: Readonly<Record<PoseExercise, PoseCue>> = {
-  'Bodyweight Squat': { exercise: 'Bodyweight Squat', list: 'key_cues', text: 'Sit back and down between your heels' },
-  'Goblet Squat': { exercise: 'Goblet Squat', list: 'key_cues', text: 'Sit down between your heels with your chest up' },
+  'Bodyweight Squat': { exercise: 'Bodyweight Squat', list: 'key_cues', text: 'Lower until your thighs are about parallel' },
+  'Goblet Squat': { exercise: 'Goblet Squat', list: 'key_cues', text: 'Lower until your thighs are about parallel' },
 };
 
 /** Result of `analyseSquat`: numbers and cue keys only. */
