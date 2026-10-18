@@ -1,4 +1,4 @@
-import { customFood, normaliseBarcode, sameBarcode, saveMyFood, saveScannedFood, scannedFood, MY_FOODS_MAX } from '../src/index';
+import { myFoodReplaced, customFood, normaliseBarcode, sameBarcode, saveMyFood, saveScannedFood, scannedFood, MY_FOODS_MAX } from '../src/index';
 
 type F = { name: string; barcode?: string | null; id?: string };
 const UPC_A = '042100005264';
@@ -69,7 +69,7 @@ describe('saveMyFood and barcoded foods (#944)', () => {
   });
 });
 
-describe('scannedFood (#944, spec D4.6)', () => {
+describe('scannedFood (#944, #944 D4 item 6)', () => {
   const water = { name: 'Diet cola', kcal: 0, protein: 0, carbs: 0, fat: 0, qty: '', unit: '' };
   it('accepts a product whose calories and macros are all genuine zeros', () => {
     expect(scannedFood(water)).toEqual({
@@ -87,9 +87,18 @@ describe('scannedFood (#944, spec D4.6)', () => {
     expect(customFood({ ...water, kcal: '0', protein: '10', carbs: '5', fat: '2' })).toMatchObject({ log: { kcal: 78 } });
   });
   it('a missing value is invalid, undefined, null, empty and junk alike', () => {
+    const field = { kcal: 'kcal', protein: 'protein_g', carbs: 'carbs_g', fat: 'fat_g' } as const;
     for (const k of ['kcal', 'protein', 'carbs', 'fat'] as const) {
-      for (const v of [undefined, null, '', '  ', 'abc']) expect(scannedFood({ ...water, [k]: v })).toEqual({ kind: 'no-kcal' });
+      for (const v of [undefined, null, '', '  ', 'abc']) expect(scannedFood({ ...water, [k]: v })).toEqual({ kind: 'missing', fields: [field[k]] });
     }
+  });
+  it('lists every missing field, in form order, so the app can flag each one', () => {
+    expect(scannedFood({ ...water, kcal: '', fat: undefined, carbs: 0 })).toEqual({ kind: 'missing', fields: ['kcal', 'fat_g'] });
+    expect(scannedFood({ ...water, kcal: null, protein: null, carbs: null, fat: null })).toEqual({ kind: 'missing', fields: ['kcal', 'protein_g', 'carbs_g', 'fat_g'] });
+  });
+  it('name and invalid checks come before missing', () => {
+    expect(scannedFood({ ...water, name: '', kcal: '' })).toEqual({ kind: 'no-name' });
+    expect(scannedFood({ ...water, fat: -1, kcal: '' })).toEqual({ kind: 'invalid' });
   });
   it('keeps customFood checks: name, length, negatives, quantity; and normal values', () => {
     expect(scannedFood({ ...water, name: ' ' })).toEqual({ kind: 'no-name' });
@@ -100,5 +109,42 @@ describe('scannedFood (#944, spec D4.6)', () => {
     expect(scannedFood({ name: ' Bar ', kcal: '200,5', protein: 10, carbs: '20', fat: 8, qty: '2', unit: ' 1 bar (50 g) ' })).toMatchObject({
       kind: 'ok', log: { name: 'Bar', qty: 2, kcal: 200.5 }, food: { unit: '1 bar (50 g)' },
     });
+  });
+});
+
+describe('myFoodReplaced agrees with both saves (#944)', () => {
+  const a: F = { name: 'Bar', barcode: OTHER, id: 'a' };
+  const upc: F = { name: 'Bar', barcode: UPC_A, id: 'u' };
+  const custom: F = { name: 'Bar', id: 'c' };
+  const nul: F = { name: 'Nul', barcode: null, id: 'n' };
+  const list: F[] = [a, upc, custom, nul, { name: 'Other', id: 'o' }];
+  const foods: F[] = [
+    { name: 'Bar', barcode: EAN13, id: 'new1' }, // same product as upc
+    { name: 'Renamed', barcode: OTHER, id: 'new2' },
+    { name: 'Bar', barcode: '4006381333931', id: 'new3' }, // new product, same name
+    { name: 'Bar', id: 'new4' }, // plain, named like scanned and custom foods
+    { name: 'Nul', id: 'new5' },
+    { name: 'Nothing', id: 'new6' },
+    { name: 'Bar', barcode: '', id: 'new7' },
+  ];
+  it('returns the existing record a save replaces, or undefined', () => {
+    expect(myFoodReplaced(list, foods[0] as F)).toBe(upc);
+    expect(myFoodReplaced(list, foods[1] as F)).toBe(a);
+    expect(myFoodReplaced(list, foods[2] as F)).toBeUndefined();
+    expect(myFoodReplaced(list, foods[3] as F)).toBe(custom); // never a scanned food
+    expect(myFoodReplaced(list, foods[4] as F)).toBe(nul);
+    expect(myFoodReplaced(list, foods[5] as F)).toBeUndefined();
+    expect(myFoodReplaced(list, foods[6] as F)).toBe(custom);
+  });
+  it('a plain save named like a scanned food replaces no scanned food', () => {
+    expect(myFoodReplaced([a, upc], { name: 'Bar' })).toBeUndefined();
+  });
+  it('the record it names is exactly the one both saves drop', () => {
+    for (const food of foods) {
+      const replaced = myFoodReplaced(list, food);
+      const expectedLeft = list.filter((x) => x !== replaced);
+      expect(saveMyFood(list, food)).toEqual([food, ...expectedLeft]);
+      expect(saveScannedFood(list, food)).toEqual([food, ...expectedLeft]);
+    }
   });
 });

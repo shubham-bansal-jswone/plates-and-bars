@@ -301,7 +301,7 @@ export type { SearchableFood, GramsFood, FoodFacts, FoodLogFacts, DayTotals, Com
  *   contract limit) and `invalid` included (#150); `saveMyFood` its save step, `MY_FOODS_MAX` its 60 (the my-foods list only;
  *   recipe and kitchen-test saves keep the prototype's 80). From #944, `saveMyFood` never drops a food that has a
  *   barcode by name.
- * - `saveScannedFood`, `scannedFood`, `normaliseBarcode` and `sameBarcode` are new #944 rules, not prototype ports: a barcode-keyed
+ * - `myFoodReplaced` is the saved food a save replaces (same rule as both saves); `saveScannedFood`, `scannedFood`, `normaliseBarcode` and `sameBarcode` are new #944 rules, not prototype ports: a barcode-keyed
  *   save (only the same product is replaced; UPC-A and its leading-0 EAN-13 are one), the scanned-food form check that
  *   accepts genuine zeros, and the shared barcode comparison.
  * - `userFoodFacts` mirrors the `myFoods` mapping of prototype `allFoods()`, `fibOf` and `produceOf` (contract `UserFood` in).
@@ -322,6 +322,7 @@ export {
   customFood,
   saveMyFood,
   saveScannedFood,
+  myFoodReplaced,
   scannedFood,
   normaliseBarcode,
   sameBarcode,
@@ -329,7 +330,7 @@ export {
   FOOD_NAME_MAX,
   userFoodFacts,
 } from './food';
-export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts, BarcodedFood, ScannedFoodInput, ScannedNumber } from './food';
+export type { FlexEntry, PlanFlexInput, PlanFlexResult, UndoFlexFloor, KcalTargetSettings, KcalTargetProfile, CustomFoodInput, CustomFoodResult, UserFoodFields, UserFoodFacts, BarcodedFood, ScannedFoodResult, ScannedMissingField, ScannedFoodInput, ScannedNumber } from './food';
 
 /**
  * Macro targets before setup (no profile), for the Food tab's ring and legend.

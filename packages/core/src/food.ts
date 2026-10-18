@@ -1,5 +1,5 @@
 import { addDays } from './dates';
-import { num } from './num';
+import { num, parseNum } from './num';
 import { toTargetsProfile, type SetupProfile } from './setup';
 import { calcTargets } from './targets';
 
@@ -531,7 +531,7 @@ const hasBarcode = (f: { barcode?: string | null | undefined }): boolean => !!f.
  */
 export function saveMyFood<T extends { name: string }>(myFoods: readonly T[], food: T): T[] {
   if (hasBarcode(food as BarcodedFood)) return saveScannedFood(myFoods as readonly (T & BarcodedFood)[], food as T & BarcodedFood);
-  return [food, ...myFoods.filter((x) => x.name !== food.name || hasBarcode(x as BarcodedFood))].slice(0, MY_FOODS_MAX);
+  return [food, ...myFoods.filter((x) => !replaces(food as BarcodedFood, x as BarcodedFood))].slice(0, MY_FOODS_MAX);
 }
 
 /**
@@ -544,7 +544,7 @@ export function saveMyFood<T extends { name: string }>(myFoods: readonly T[], fo
  */
 export function saveScannedFood<T extends BarcodedFood>(myFoods: readonly T[], food: T): T[] {
   if (!hasBarcode(food)) return saveMyFood(myFoods, food);
-  return [food, ...myFoods.filter((x) => !sameBarcode(x.barcode, food.barcode))].slice(0, MY_FOODS_MAX);
+  return [food, ...myFoods.filter((x) => !replaces(food, x))].slice(0, MY_FOODS_MAX);
 }
 
 /** A value as the review form holds it: a number, the typed text, or nothing. */
@@ -561,31 +561,59 @@ export interface ScannedFoodInput {
   unit: string;
 }
 
-/** A number or numeric text (comma decimal allowed) is present, a genuine 0 included; empty, null, undefined or junk is missing. */
-const present = (v: ScannedNumber): boolean => v !== null && v !== undefined && Number.isFinite(parseFloat(String(v).replace(',', '.')));
+/** The fields `scannedFood` can report missing, named as `OffMissingField` names them. */
+export type ScannedMissingField = 'kcal' | 'protein_g' | 'carbs_g' | 'fat_g';
+
+/** Result of `scannedFood`: `customFood`'s kinds, except a missing field gives `missing` (not `no-kcal`) so the app can flag each field. */
+export type ScannedFoodResult =
+  | Exclude<CustomFoodResult, { kind: 'no-kcal' }>
+  /** One or more of calories, protein, carbs, fat not entered (a typed 0 is entered): show "Not in the database. Enter it from the pack." on each field in `fields`. */
+  | { kind: 'missing'; fields: ScannedMissingField[] };
 
 /**
- * The scanned-food review form (#944, spec D4.6 "A genuine 0 must be typed"). Like `customFood`, but all four
+ * The scanned-food review form (#944, #944 D4 item 6 "A genuine 0 must be typed"). Like `customFood`, but all four
  * of calories, protein, carbs and fat must be present and a 0 is a real value: a product with every one at 0
  * (water, diet soda) is valid, and a typed 0 kcal stays 0 and is never swapped for a macro estimate.
- * A missing value gives `no-kcal`. Checks run in `customFood`'s order (name, name length, negatives and
+ * A missing value gives `missing`, listing the fields (never `no-kcal`, whose "Enter calories or at least one macro." wording is for the Custom tab). Checks run in `customFood`'s order (name, name length, negatives and
  * quantity, then missing). The result has `customFood`'s shape; the caller adds the barcode.
  *
  * A new rule from the #944 review (no prototype function; `customFood` keeps the prototype's rule for the Custom tab).
  */
-export function scannedFood(input: ScannedFoodInput): CustomFoodResult {
+export function scannedFood(input: ScannedFoodInput): ScannedFoodResult {
   const name = input.name.trim();
   if (!name) return { kind: 'no-name' };
   if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
   const k = num(input.kcal), p = num(input.protein), c = num(input.carbs), f = num(input.fat);
   const qty = num(input.qty) || 1;
   if (k < 0 || p < 0 || c < 0 || f < 0 || qty <= 0) return { kind: 'invalid' };
-  if (![input.kcal, input.protein, input.carbs, input.fat].every(present)) return { kind: 'no-kcal' };
+  const fields: ScannedMissingField[] = [];
+  if (parseNum(input.kcal) === null) fields.push('kcal');
+  if (parseNum(input.protein) === null) fields.push('protein_g');
+  if (parseNum(input.carbs) === null) fields.push('carbs_g');
+  if (parseNum(input.fat) === null) fields.push('fat_g');
+  if (fields.length) return { kind: 'missing', fields };
   return {
     kind: 'ok',
     log: { name, qty, kcal: k, protein_g: p, carbs_g: c, fat_g: f },
     food: { name, unit: input.unit.trim() || '1 serving', kcal: k, protein_g: p, carbs_g: c, fat_g: f, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' },
   };
+}
+
+/**
+ * The saved food a save of `food` replaces, or undefined. The same rule as `saveMyFood` and `saveScannedFood`
+ * (they share it): a food with a barcode matches by `sameBarcode`; a food without one matches by name, only among
+ * saved foods that have no barcode, so a plain save named like a scanned food replaces nothing. The app reuses
+ * the returned record's id and version. If several match (a list that already has duplicates), the first.
+ *
+ * A new rule from the #944 review (no prototype function).
+ */
+export function myFoodReplaced<T extends BarcodedFood>(myFoods: readonly T[], food: T): T | undefined {
+  return myFoods.find((x) => replaces(food, x));
+}
+
+/** True when saving `food` replaces the saved food `x`. */
+function replaces(food: BarcodedFood, x: BarcodedFood): boolean {
+  return hasBarcode(food) ? sameBarcode(x.barcode, food.barcode) : x.name === food.name && !hasBarcode(x);
 }
 
 /** A user food in the shape every food-maths function reads (see `userFoodFacts`). */
