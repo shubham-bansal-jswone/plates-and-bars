@@ -353,6 +353,45 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect((await loadProfile(db))!.targets).toEqual({ kcal: g.output.kcal, protein_g: g.output.protein, carbs_g: g.output.carbs, fat_g: g.output.fat });
   });
 
+  it('Recalculate then Keep leaves the stored 165 cm and the weight as they were (#872)', async () => {
+    const db = await redo();
+    await press('Keep my current targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect(await loadProfile(db)).toMatchObject({ height_cm: 165, weight_kg: 82 });
+  });
+
+  it('Back to step 0 on Recalculate, inches changed to 6, saves 167.6 cm (#872)', async () => {
+    const db = await redo();
+    for (let i = 0; i < 4; i++) await press('‹ Back');
+    await fireEvent.changeText(screen.getByLabelText('Height inches'), '6');
+    for (let i = 0; i < 3; i++) await press('Continue');
+    await press('See my targets');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))!.height_cm).toBe(167.6);
+  });
+
+  it('switching to cm, typing 170 and switching back leaves the shown, untouched 5 ft 5 in at the stored 165 cm (#872)', async () => {
+    const db = await redo();
+    for (let i = 0; i < 4; i++) await press('‹ Back');
+    await press('Use cm');
+    await fireEvent.changeText(screen.getByLabelText('Height in cm'), '170');
+    await press('Use feet and inches');
+    expect(screen.getByLabelText('Height inches').props.value).toBe('5');
+    for (let i = 0; i < 3; i++) await press('Continue');
+    await press('See my targets');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))!.height_cm).toBe(165);
+  });
+
+  it('Recalculate then Use these targets leaves the stored 165 cm (#872)', async () => {
+    const db = await redo();
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))!.height_cm).toBe(165);
+  });
+
   it('Keep my current targets keeps the four edited targets, saves the other answers and toasts', async () => {
     const db = await redo();
     await press('Keep my current targets');
@@ -396,8 +435,7 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     await redo();
     expect(screen.queryByText(/Mifflin-St Jeor/)).toBeNull();
     await press('Why these numbers?');
-    // The redo form shows the stored 165 cm as 5 ft 5 in, which is 165.1 cm, so the screen's BMR is the golden 1,706 plus 0.6. Pinned as is until #872 (recalc silently changes the stored height) is fixed; then this is 1,706.
-    expect(screen.getByText(/Resting, 1,707 kcal\./)).toBeTruthy();
+    expect(screen.getByText(/Resting, 1,706 kcal\./)).toBeTruthy();
     expect(screen.getByText(/Mifflin-St Jeor/)).toBeTruthy();
     expect(screen.getByText(/Calories, 1,990\./)).toBeTruthy();
     expect(screen.getByText(new RegExp(`Protein, ${g.output.protein} g\\.`))).toBeTruthy();
