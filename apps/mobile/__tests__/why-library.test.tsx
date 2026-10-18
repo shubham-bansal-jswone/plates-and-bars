@@ -8,7 +8,7 @@ import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { readLearn, withRead } from '../src/why/learn';
-import { cardOffered, chosenCards, HIDDEN_CARDS } from '../src/why/cards';
+import { cardOffered, chosenCards, hiddenCards } from '../src/why/cards';
 import * as SettingsProvider from '../src/state/SettingsProvider';
 import { WhyLink } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
@@ -19,9 +19,9 @@ jest.mock('expo-router', () => ({
 }));
 
 // The app's cards and hidden list through core: checks the bundle and hidden list against core's rule (DailyRead itself is covered by the Progress tests).
-const learnList = (sex?: string) => coreLearnList(chosenCards().cards, sex, HIDDEN_CARDS);
-const dailyRead = (raw: Record<string, unknown>, sex: string | undefined, today: string) => coreDailyRead(chosenCards().cards, sex, readLearn(raw), today, HIDDEN_CARDS);
-const shown = cards.cards.filter((c) => !HIDDEN_CARDS.includes(c.id));
+const learnList = (sex?: string) => coreLearnList(chosenCards().cards, sex, hiddenCards());
+const dailyRead = (raw: Record<string, unknown>, sex: string | undefined, today: string) => coreDailyRead(chosenCards().cards, sex, readLearn(raw), today, hiddenCards());
+const shown = cards.cards.filter((c) => !c.hidden);
 const profile = (sex: 'male' | 'female' = 'male') =>
   buildProfile({ ...emptyDraft(), sex, age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 9, 8));
 

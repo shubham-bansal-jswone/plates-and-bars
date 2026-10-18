@@ -60,6 +60,7 @@ export const ABOUT_COPY = {
   privacy: 'Your consent',
   food: 'Food data',
   fonts: 'Fonts',
+  drawings: 'Exercise drawings',
   bodyMap: 'Body map',
   exercises: 'Exercises',
   exercisesText: 'The exercise library and how-to notes are text only. The app shows no exercise photos.',

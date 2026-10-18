@@ -188,3 +188,86 @@ describe('PoseSession: live count, depth and tempo, then confirm', () => {
     expect(await screen.findByText('Rep 1')).toBeTruthy();
   });
 });
+
+describe('PoseSession: a hidden tab and a broken backend', () => {
+  // Jest runs as native: give the component the page events it listens to.
+  const g = globalThis as unknown as { document?: unknown; window?: unknown };
+  let doc: EventTarget & { hidden: boolean };
+  let win: EventTarget;
+  const saved = { document: g.document, window: g.window };
+  beforeEach(() => {
+    doc = Object.assign(new EventTarget(), { hidden: false });
+    win = new EventTarget();
+    g.document = doc;
+    g.window = win;
+  });
+  afterEach(() => {
+    g.document = saved.document;
+    g.window = saved.window;
+  });
+  const hide = () => {
+    doc.hidden = true;
+    doc.dispatchEvent(new Event('visibilitychange'));
+  };
+
+  it('stops the camera and ends the set with the reps so far when the tab is hidden while tracking', async () => {
+    const { detector, track } = await mount({ detector: scriptedDetector(repH(-0.2)) });
+    await press('Start camera');
+    await screen.findByText('Rep 1');
+    expect(track.stop).not.toHaveBeenCalled();
+    hide();
+    expect(track.stop).toHaveBeenCalled();
+    expect(detector.disposed).toBe(true);
+    expect(await screen.findByText("Counted 1 rep. 1 reached about parallel.")).toBeTruthy();
+  });
+
+  it('does nothing when the page becomes visible again', async () => {
+    const { track } = await mount({ detector: scriptedDetector(repH(-0.2)) });
+    await press('Start camera');
+    await screen.findByText('Rep 1');
+    doc.dispatchEvent(new Event('visibilitychange')); // hidden is false
+    expect(track.stop).not.toHaveBeenCalled();
+  });
+
+  it('also stops on pagehide', async () => {
+    const { track } = await mount({ detector: scriptedDetector(repH(-0.2)) });
+    await press('Start camera');
+    await screen.findByText('Rep 1');
+    win.dispatchEvent(new Event('pagehide'));
+    expect(track.stop).toHaveBeenCalled();
+  });
+
+  it('releases the camera and returns to the start when the tab is hidden during the countdown', async () => {
+    const { track } = await mount({ countdownSeconds: 5 });
+    await press('Start camera');
+    await screen.findByText('Get in position. Starting in 5.');
+    hide();
+    expect(track.stop).toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: 'Start camera' })).toBeTruthy();
+  });
+
+  it('drops a start still waiting for the model when the tab is hidden', async () => {
+    const { stream, track } = fakeStream();
+    let done!: (d: PoseDetector) => void;
+    const detector = scriptedDetector([]);
+    await mount({ getStream: async () => stream, load: () => new Promise<PoseDetector>((res) => (done = res)) });
+    await press('Start camera');
+    await waitFor(() => expect(done).toBeDefined());
+    hide();
+    expect(track.stop).toHaveBeenCalled();
+    done(detector);
+    await waitFor(() => expect(detector.disposed).toBe(true));
+    expect(screen.getByRole('button', { name: 'Start camera' })).toBeTruthy();
+  });
+
+  it('releases the camera and says the model failed when every frame throws, instead of blaming the framing', async () => {
+    const { stream, track } = fakeStream();
+    const broken: PoseDetector = { estimate: () => Promise.reject(new Error('webgl lost')), dispose: jest.fn() };
+    await mount({ getStream: async () => stream, load: async () => broken });
+    await press('Start camera');
+    expect(await screen.findByText(/tracking model could not load/)).toBeTruthy();
+    expect(screen.queryByText(/out of view/)).toBeNull();
+    expect(track.stop).toHaveBeenCalled();
+    expect(broken.dispose).toHaveBeenCalled();
+  });
+});

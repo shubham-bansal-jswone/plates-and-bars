@@ -1,3 +1,4 @@
+import { DEPTH_CUES } from '@plate-and-bar/core';
 import { hasCamera, poseAvailable, poseExercise } from '../src/pose/flag';
 
 describe('live pose tracking flag', () => {
@@ -32,5 +33,9 @@ describe('live pose tracking flag', () => {
     expect(poseExercise('Bodyweight Squat')).toBe('Bodyweight Squat');
     expect(poseExercise('Goblet Squat')).toBe('Goblet Squat');
     for (const n of ['Hack Squat', 'Leg Press', 'Barbell Back Squat', 'Push-up', '']) expect(poseExercise(n)).toBeNull();
+  });
+  it('covers exactly the exercises core has depth cues for', () => {
+    for (const n of Object.keys(DEPTH_CUES)) expect(poseExercise(n)).toBe(n);
+    for (const n of ['toString', '__proto__', 'constructor']) expect(poseExercise(n)).toBeNull();
   });
 });

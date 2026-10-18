@@ -1,10 +1,8 @@
 import { Platform } from 'react-native';
-import type { PoseExercise } from '@plate-and-bar/core';
+import { DEPTH_CUES, type PoseExercise } from '@plate-and-bar/core';
 
-/** The exercises live tracking has a count, depth and tempo for (slice 1 of #947). Machine squats and everything else are left out. */
-const POSE_EXERCISES: readonly string[] = ['Bodyweight Squat', 'Goblet Squat'];
-
-export const poseExercise = (name: string): PoseExercise | null => (POSE_EXERCISES.includes(name) ? (name as PoseExercise) : null);
+/** Live tracking covers the exercises core has depth cues for: adding one there is the only change needed. */
+export const poseExercise = (name: string): PoseExercise | null => (Object.prototype.hasOwnProperty.call(DEPTH_CUES, name) ? (name as PoseExercise) : null);
 
 /** A camera API exists (browsers only expose it on a secure origin). */
 export const hasCamera = (): boolean => typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function';

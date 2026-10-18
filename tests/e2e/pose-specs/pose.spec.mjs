@@ -7,7 +7,7 @@ import { answerSetup, expect, label, saved, tab, test } from '../support/app.mjs
 // The shared test fixture already fails a test on any Content-Security-Policy console message, any uncaught page error and any
 // request to a host other than 127.0.0.1.
 
-async function openTracker(page) {
+async function openTracker(page, requests) {
   await answerSetup(page, { days: 'None yet' });
   await label(page, 'Use these targets').click();
   await expect(page.getByRole('heading', { name: 'Food', exact: true })).toBeVisible();
@@ -23,8 +23,16 @@ async function openTracker(page) {
     .toBe(true);
   await label(page, 'Pick exercises').click();
   await saved(page, () => label(page, 'Add Goblet Squat').click());
+  // The lazy-loading guard: the requests are recorded from the first navigation, so a static import (which would put TF.js in the
+  // main bundle) shows up here as a chunk fetched too early.
+  const chunks = () => requests.map((r) => r.url.pathname).filter((p) => /\/pose-(session|detector)-[^/]*\.js$/.test(p));
+  expect(chunks()).toEqual([]);
   await label(page, 'Track this set of Goblet Squat').click();
   await expect(page.locator('[role="dialog"][aria-label="Track this set"]')).toBeVisible();
+  await expect(label(page, 'Start camera')).toBeVisible();
+  // the sheet loads the camera view chunk, and only that: the model chunk waits for "Start camera"
+  expect(chunks().some((p) => /\/pose-session-/.test(p))).toBe(true);
+  expect(chunks().some((p) => /\/pose-detector-/.test(p))).toBe(false);
 }
 
 /** Every same-origin request the page makes, with its method. */
@@ -44,9 +52,10 @@ async function cachedPaths(page) {
 
 async function runSet(page, requests) {
   await expect(page.getByText('The camera view stays on this phone. Nothing is recorded or sent.')).toBeVisible();
-  // Nothing of the pose bundle or the model has been requested before the user starts the camera.
+  // Nothing of the model (weights, .wasm files, its chunk) has been requested before the user starts the camera.
   const before = requests.map((r) => r.url.pathname);
   expect(before.filter((p) => /\/pose\//.test(p) || /pose-detector/.test(p))).toEqual([]);
+  requests.startedAt = requests.length;
   await label(page, 'Start camera').click();
   await expect(page.getByText(/Get in position\. Starting in \d\./)).toBeVisible();
   // 5 s countdown, then tracking runs on the fake frames
@@ -65,7 +74,8 @@ async function runSet(page, requests) {
   await expect(page.locator('[role="dialog"][aria-label="Track this set"]')).toHaveCount(0);
 }
 
-function expectOwnOriginOnly(requests, page) {
+function expectOwnOriginOnly(all, page) {
+  const requests = all.slice(all.startedAt); // from the moment the camera started
   const origin = new URL(page.url()).origin;
   for (const r of requests) expect(r.url.origin, `request to ${r.url}`).toBe(origin);
   const pose = requests.filter((r) => r.url.pathname.startsWith('/pose/'));
@@ -79,8 +89,8 @@ function expectOwnOriginOnly(requests, page) {
 }
 
 test('the pose screen loads under the real CSP, uses only our own origin, and caches nothing of it', async ({ page }) => {
-  await openTracker(page);
   const requests = recordRequests(page);
+  await openTracker(page, requests);
   await runSet(page, requests);
   expectOwnOriginOnly(requests, page);
   // not precached, not stored by the service worker: neither the weights, the .wasm files nor the pose chunks
@@ -110,11 +120,13 @@ test('with WebGL unavailable it falls back to single-thread WASM from our origin
       }
     };
   });
-  await openTracker(page);
-  const workersBefore = await page.evaluate(() => window.__blobWorkers);
   const requests = recordRequests(page);
+  await openTracker(page, requests);
+  const workersBefore = await page.evaluate(() => window.__blobWorkers);
   await runSet(page, requests);
   const paths = expectOwnOriginOnly(requests, page);
+  // Do not "simplify" the next two lines away: they are the real guard against the multi-threaded WASM backend. The console CSP check
+  // in the shared fixture does not catch it (checked by mutation: with the threaded build and these lines removed, the spec passes).
   expect(paths.filter((p) => p.startsWith('/pose/wasm/') && p.endsWith('.wasm')).length).toBeGreaterThan(0);
   expect(paths.some((p) => p.includes('threaded'))).toBe(false);
   expect(await page.evaluate(() => window.__blobWorkers)).toBe(workersBefore);
