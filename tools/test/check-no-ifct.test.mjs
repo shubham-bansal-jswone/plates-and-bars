@@ -130,7 +130,8 @@ test('a missing scan root fails (folder and file)', () => {
 test('a nonexistent path given to the CLI fails', () => {
   const r = run(`${here}/fixtures/no-such-folder`);
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /scan root missing/);
+  assert.match(r.stderr, /^scan root missing: .*no-such-folder$/m);
+  assert.doesNotMatch(r.stderr, /IFCT\/INDB found/);
 });
 
 test('shipped repo folders have no IFCT or INDB (the CI step)', () => {

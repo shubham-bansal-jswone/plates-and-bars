@@ -7,11 +7,16 @@ import { scanContent, scanRepo } from './check.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const target = process.argv[2] ? resolve(process.argv[2]) : null;
-const hits = target ? scanContent(target) : scanRepo(repo);
+const all = target ? scanContent(target) : scanRepo(repo);
+const isMissing = (h) => h.endsWith(': scan root missing');
+const missing = all.filter(isMissing);
+const hits = all.filter((h) => !isMissing(h));
 const where = target ?? 'the shipped folders';
+// a missing root is a broken check, not a finding: its own message, and the IFCT/INDB summary only for real hits
+for (const m of missing) console.error(`scan root missing: ${m.slice(0, -': scan root missing'.length)}`);
 if (hits.length) {
   console.error(hits.join('\n'));
   console.error(`IFCT/INDB found in ${where} (ADR 005 forbids it): ${hits.length} hit(s)`);
-  process.exit(1);
 }
+if (missing.length || hits.length) process.exit(1);
 console.log(`no IFCT/INDB under ${where}`);
