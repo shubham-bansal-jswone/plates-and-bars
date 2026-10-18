@@ -73,7 +73,7 @@ grep -q 'max_locks_per_transaction=512' "$g" || fail "glitchtip: postgres lock b
 if grep -q 'ENABLE_OPEN_USER_REGISTRATION' "$g"; then fail "glitchtip: ENABLE_OPEN_USER_REGISTRATION must not be set"; fi
 if grep -Eq 'valkey|redis' "$g"; then fail "glitchtip: valkey/redis must stay off"; fi
 
-# Caddy. Each file has two logs, the access log and the global error log, and each must carry every privacy filter on
+# Caddy. Each file has three logs, the access log, the global error log and the global default log (Host not in the per-host log map), and each must carry every privacy filter on
 # its own (a filter in one must not satisfy the other), so the blocks are cut out and checked one by one.
 cglitch="$root/infra/caddy/Caddyfile.glitchtip"
 kuma="$root/infra/caddy/Caddyfile.kuma"
@@ -101,7 +101,7 @@ for path, access, uri in (
     (sys.argv[2], "log kuma_access", r'request>uri regexp "(?i)(/api/push/)[^?]*|\?.*$" "$1"'),
 ):
     text = active(path)
-    for name, opener in (("access log", access), ("error log", "log errors")):
+    for name, opener in (("access log", access), ("error log", "log errors"), ("default log", "log default")):
         b = block(text, opener)
         flat = re.sub(r"\s+", " ", b)
         for what, needle in (
@@ -116,8 +116,11 @@ for path, access, uri in (
                 problems.append("%s: %s lacks %s" % (path, name, what))
         if "log_credentials" in b or "level DEBUG" in b:
             problems.append("%s: %s must not enable log_credentials or DEBUG" % (path, name))
-    if "include http.log.error" not in block(text, "log errors") or "output stderr" not in block(text, "log errors"):
-        problems.append(path + ": error log must include http.log.error and write to stderr")
+    if "include http.log.error http.handlers.reverse_proxy" not in re.sub(r"\s+", " ", block(text, "log errors")) \
+            or "output stderr" not in block(text, "log errors"):
+        problems.append(path + ": error log must include http.log.error and http.handlers.reverse_proxy and write to stderr")
+    if "output stderr" not in block(text, "log default"):
+        problems.append(path + ": default log must write to stderr")
     ab = block(text, access)
     for need in ("output file /data/", "roll_size 10MiB", "roll_interval 24h", "roll_keep 15", "roll_keep_for 336h"):
         if need not in ab:
@@ -129,7 +132,7 @@ for path, access, uri in (
             problems.append("%s: header block lacks %s" % (path, need))
 
 # GlitchTip stores the client IP it finds in these headers: all must be dropped before the upstream
-rp = block(active(sys.argv[1]), "reverse_proxy")
+rp = block(active(sys.argv[1]), "\treverse_proxy ")
 for h in ("X-Forwarded-For", "X-Real-IP", "Forwarded", "Client-IP", "True-Client-IP", "X-Cluster-Client-IP", "CF-Connecting-IP"):
     if "header_up -%s\n" % h not in rp + "\n":
         problems.append("%s: reverse_proxy must drop %s" % (sys.argv[1], h))
@@ -148,6 +151,6 @@ if problems:
     print("\n".join(problems), file=sys.stderr)
     sys.exit(1)
 PY
-"$root/infra/scripts/check-caddy-access-log.sh" "api=$cglitch" "stack=$cglitch" >/dev/null \
+"$root/infra/scripts/check-caddy-access-log.sh" "glitchtip=$cglitch" >/dev/null \
   || fail "Caddyfile.glitchtip lost a log filter"
 echo "monitoring config checks passed"

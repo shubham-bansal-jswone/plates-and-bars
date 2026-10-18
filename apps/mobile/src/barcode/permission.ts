@@ -1,0 +1,30 @@
+import { PermissionsAndroid, Platform } from 'react-native';
+import { BARCODE_COPY as t } from './copy';
+
+/**
+ * unavailable: no scanner here (not Android). denied: can still be asked. blocked: the system will not ask again (Settings only).
+ */
+export type CameraPermission = 'granted' | 'denied' | 'blocked' | 'unavailable';
+
+const CAMERA = PermissionsAndroid.PERMISSIONS.CAMERA;
+
+/** Whether the camera may be used now. Never asks. `denied` also covers "blocked", which only a request can tell apart. */
+export async function checkCamera(): Promise<CameraPermission> {
+  if (Platform.OS !== 'android') return 'unavailable';
+  try {
+    return (await PermissionsAndroid.check(CAMERA)) ? 'granted' : 'denied';
+  } catch {
+    return 'denied';
+  }
+}
+
+/** Asks for the camera with the rationale (Android shows it when the user refused once before). */
+export async function requestCamera(): Promise<CameraPermission> {
+  if (Platform.OS !== 'android') return 'unavailable';
+  try {
+    const r = await PermissionsAndroid.request(CAMERA, { title: t.rationaleTitle, message: t.rationale, buttonPositive: t.allow, buttonNegative: t.cancel });
+    return r === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : r === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ? 'blocked' : 'denied';
+  } catch {
+    return 'denied';
+  }
+}

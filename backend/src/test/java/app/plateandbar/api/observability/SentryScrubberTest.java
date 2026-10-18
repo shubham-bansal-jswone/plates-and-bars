@@ -120,6 +120,13 @@ class SentryScrubberTest {
     }
 
     @Test
+    void aBarcodeUrlIsRewrittenToACodePlaceholder() throws Exception {
+        SentryEvent e = event("GET", "https://api.example.com/api/v1/foods/barcode/8901491101837", null, null, "boom");
+        String out = json(scrubber.execute(e, new Hint()));
+        assertThat(out).doesNotContain("8901491101837").contains("/api/v1/foods/barcode/{code}");
+    }
+
+    @Test
     void eventWithoutRequestOrUserIsFine() throws Exception {
         SentryEvent e = new SentryEvent(new RuntimeException("x"));
         assertThat(json(scrubber.execute(e, new Hint()))).doesNotContain("\"user\"", "\"request\"");

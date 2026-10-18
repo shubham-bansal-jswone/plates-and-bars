@@ -4,6 +4,29 @@
 # The security headers below mirror apps/site/public/_headers (Cloudflare Pages format, which Caddy ignores).
 # Keep them in step: infra/scripts/check-caddy-headers.sh fails CI when they drift.
 # Validated in CI (caddy validate) on every change to this file.
+{
+	# Default log (#714): the site has no log directive, so Caddy writes no access lines for it; its error lines (a 5xx carries the URI, the client
+	# IP and the User-Agent) go to stderr through this filter: IP masked to /24 or /48, query cut, headers dropped.
+	# infra/scripts/check-caddy-access-log.sh fails CI if one of these goes missing.
+	log default {
+		output stderr
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "\?.*$" ""
+			request>headers delete
+			resp_headers delete
+		}
+	}
+}
+
 example.com {
 	root * /srv/site
 	encode zstd gzip

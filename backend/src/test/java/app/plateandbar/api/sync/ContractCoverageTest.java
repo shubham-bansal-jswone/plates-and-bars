@@ -23,8 +23,14 @@ import tools.jackson.databind.JsonNode;
 class ContractCoverageTest {
 
     /** Operations with no schema-checked test, and why. Nothing else may be listed. */
-    static final Map<String, String> ALLOWLIST =
-            Map.of("GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)");
+    static final Map<String, String> ALLOWLIST = Map.of(
+            "GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)",
+            // TODO(#946): remove when the backend endpoints land
+            "POST /ai/meal-photo", "contract first, backend follows (#946)",
+            // TODO(#946): remove when the backend endpoints land
+            "POST /ai/import-recipe", "contract first, backend follows (#946)",
+            // TODO(#946): remove when the backend endpoints land
+            "POST /ai/form-check", "contract first, backend follows (#946)");
 
     private static void requireUnfilteredRun() {
         if (Boolean.getBoolean("contract.coverage.enforce")) {
@@ -73,6 +79,23 @@ class ContractCoverageTest {
             String[] p = k.split(" ");
             assertThat(paths.path(p[1]).path(p[0].toLowerCase()).isMissingNode()).as(k).isFalse();
         });
-        assertThat(ALLOWLIST.keySet()).containsExactly("GET /foods");
+        // Pinned exactly: adding an operation here needs a reviewed change to this list. The TODO(#946) entries go
+        // when the backend endpoints land (the test below fails until they do).
+        assertThat(ALLOWLIST.keySet()).containsExactlyInAnyOrder(
+                "GET /foods",
+                "POST /ai/meal-photo", "POST /ai/import-recipe", "POST /ai/form-check");
+    }
+
+    @Test
+    void noAllowlistedOperationHasASchemaCheckedTestYet() {
+        requireUnfilteredRun();
+        Set<String> recorded = ContractSchemas.recorded();
+        Set<String> stale = new TreeSet<>();
+        ALLOWLIST.keySet().forEach(name -> {
+            if (recorded.stream().anyMatch(c -> c.startsWith(name + " "))) {
+                stale.add(name);
+            }
+        });
+        assertThat(stale).as("allowlisted operations that now have a schema-checked test: remove them from ALLOWLIST").isEmpty();
     }
 }

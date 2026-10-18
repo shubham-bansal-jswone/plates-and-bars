@@ -85,6 +85,7 @@ Dishes are Food rows plus `cuisine` (and `alcohol: true` on the four alcoholic d
 Everything is derived from the prototype by running its own code with stub state; no text is hand-typed.
 
 - `cards.json`: `learn_order` is the card's index in the prototype's `LEARN` list (null if absent). `bulky` has `audience: "female"` and `learn_insert_at` (the index the prototype splices it into the list for female profiles).
+- `cards.json`: a held-back card (#212: `ramp`, `ladder`, `formfirst`) has `hidden: true` and a `hidden_reason`; absent means shown. This is the single list: the app and the site read it (`HELD_BACK` in `cards-import/import.mjs` writes it). Old copies without the field stay valid; the schema_version stays 1.
 - Body syntax for the three cards built from the user's numbers (`targets`, `protein`, `split`). `placeholders` lists `{name}` values and `sections` lists the optional inline sections. The app fills values from `packages/core`; the cards carry no numbers.
   - `{name}` is replaced by a value (`{kcal}`, `{protein_g}`, `{tdee}`, `{bmr}`, `{movement}`, `{training}`, `{digestion}`, `{weight}`, `{protein_floor}`, supplied by `packages/core` in the app, not computed from 1.6 here, `{minutes}`, `{days}`, `{split_name}`).
   - `{?sec}text{/sec}` is shown only when the section applies; `{?sec}yes{:}no{/sec}` shows `no` otherwise. Sections do not nest.

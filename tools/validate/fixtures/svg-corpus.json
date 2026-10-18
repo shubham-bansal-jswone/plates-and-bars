@@ -880,5 +880,145 @@
   "w": 320,
   "h": 240,
   "ok": false
+ },
+ {
+  "name": "refuse: exponent in cx",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><circle cx=\"1e3\" cy=\"1\" r=\"1\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: exponent in x1",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"1e2\" y1=\"0\" x2=\"1\" y2=\"1\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: exponent in a transform argument",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><g transform=\"translate(1e2 3)\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: exponent in rotate",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><g transform=\"rotate(5e1)\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: exponent in rx",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><ellipse cx=\"1\" cy=\"1\" rx=\"2E1\" ry=\"1\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linejoin \"arcs\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"arcs\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linejoin \"miter-clip\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"miter-clip\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linejoin \"inherit\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"inherit\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linejoin \"Round\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"Round\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linejoin \"\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linecap \"inherit\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"inherit\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linecap \"arcs\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"arcs\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linecap \"Butt\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"Butt\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "refuse: stroke-linecap \"\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": false
+ },
+ {
+  "name": "accept: stroke-linejoin \"miter\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"miter\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": true
+ },
+ {
+  "name": "accept: stroke-linejoin \"round\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"round\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": true
+ },
+ {
+  "name": "accept: stroke-linejoin \"bevel\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linejoin=\"bevel\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": true
+ },
+ {
+  "name": "accept: stroke-linecap \"butt\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"butt\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": true
+ },
+ {
+  "name": "accept: stroke-linecap \"round\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"round\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": true
+ },
+ {
+  "name": "accept: stroke-linecap \"square\"",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"square\"/></svg>",
+  "w": 320,
+  "h": 240,
+  "ok": true
  }
 ]

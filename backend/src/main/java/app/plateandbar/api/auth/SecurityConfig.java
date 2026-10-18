@@ -27,7 +27,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 /**
- * Everything under /api/v1 needs a valid access JWT except /api/v1/health and /api/v1/auth/*
+ * Everything under /api/v1 needs a valid access JWT except /api/v1/health, /api/v1/auth/*, /api/v1/content/* and /api/v1/foods/barcode/*
  * (see {@link JwtAuthFilter}). Failures use the contract's Error shape.
  */
 @Configuration
@@ -66,7 +66,7 @@ public class SecurityConfig {
                 .securityContext(c -> c.securityContextRepository(
                         new org.springframework.security.web.context.RequestAttributeSecurityContextRepository()))
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers("/api/v1/health", "/api/v1/auth/**", "/api/v1/content/**").permitAll()
+                        .requestMatchers("/api/v1/health", "/api/v1/auth/**", "/api/v1/content/**", "/api/v1/foods/barcode/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(denied))
                 .addFilterBefore(jwtFilter, AnonymousAuthenticationFilter.class)

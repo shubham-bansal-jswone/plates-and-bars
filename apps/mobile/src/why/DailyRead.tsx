@@ -6,7 +6,7 @@ import { Text } from '../components/Text';
 import { localDate } from '../setup/logic';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
-import { chosenCards, HIDDEN_CARDS, type WhyValues } from './cards';
+import { chosenCards, hiddenCards, type WhyValues } from './cards';
 import { readLearn } from './learn';
 import { WhySheet } from './WhyLink';
 
@@ -25,7 +25,7 @@ export function DailyRead({ sex, values, now = () => new Date() }: { sex?: strin
     if (ready && start === null && update) update((x) => ({ learn: { ...x.learn, start: today } }));
   }, [ready, start, today, update]);
   if (!s || !ready) return null;
-  const { next, readN, total } = dailyRead(chosenCards().cards, sex, { start, read }, today, HIDDEN_CARDS);
+  const { next, readN, total } = dailyRead(chosenCards().cards, sex, { start, read }, today, hiddenCards());
   // The sheet stays up after the read mark moves the card on.
   if (!next && !open) return null;
   return (
