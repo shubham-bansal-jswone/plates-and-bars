@@ -6,6 +6,7 @@
 # Usage: infra/staging/release.sh v1.2.3 <sha>
 #   <sha> is the commit the workflow verified (on main) and checked out; HEAD and the tag must both be exactly that
 #   commit, so a tag moved after approval is refused instead of deploying an unchecked commit.
+# Refuses when .env has SENTRY_DSN and SENTRY_ENVIRONMENT is not production.
 # Exit status: 0 released and healthy; 1 refused, backup failed, or deploy failed (rolled back where possible).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -17,6 +18,13 @@ head_sha="$(git rev-parse HEAD)"
 tag_sha="$(git rev-parse "refs/tags/$tag^{commit}")"
 [ "$head_sha" = "$sha" ] || { echo "checkout is at $head_sha, not the verified commit $sha: check it out first" >&2; exit 1; }
 [ "$tag_sha" = "$sha" ] || { echo "tag $tag now points at $tag_sha, not the verified commit $sha: the tag was moved, refusing" >&2; exit 1; }
+
+# an API with error tracking on must not report production events as staging (the compose default): refuse before any change
+env_get() { if [ -f .env ]; then sed -n "s/^$1=//p" .env | tail -n 1; fi; }
+if [ -n "$(env_get SENTRY_DSN)" ] && [ "$(env_get SENTRY_ENVIRONMENT)" != production ]; then
+  echo "SENTRY_DSN is set but SENTRY_ENVIRONMENT is not 'production' in .env: set it, then release again" >&2
+  exit 1
+fi
 
 echo "backing up before releasing $tag"
 ./backup.sh || { echo "backup failed: not deploying $tag" >&2; exit 1; }
