@@ -1,4 +1,4 @@
-import { Platform, requireOptionalNativeModule } from 'expo';
+import { Platform } from 'react-native';
 
 /** One repeating reminder as the Android module keeps it. `days` are weekdays, 0 = Sunday, as in packages/core. */
 export interface NativeRule {
@@ -21,7 +21,11 @@ interface PlateRemindersModule {
   cancelAll(): Promise<void>;
 }
 
-/** Null off Android, and in a build that does not have the module (Expo Go, tests). */
-const native: PlateRemindersModule | null = Platform.OS === 'android' ? requireOptionalNativeModule<PlateRemindersModule>('PlateReminders') : null;
+/**
+ * Null off Android, and in a build that does not have the module (Expo Go, tests). Read from the Expo modules global (what
+ * `requireOptionalNativeModule` reads) instead of importing `expo`, which would load the whole SDK into every file that wipes the store.
+ */
+const registry = (globalThis as { expo?: { modules?: Record<string, unknown> } }).expo?.modules;
+const native: PlateRemindersModule | null = Platform.OS === 'android' ? ((registry?.PlateReminders as PlateRemindersModule | undefined) ?? null) : null;
 
 export default native;
