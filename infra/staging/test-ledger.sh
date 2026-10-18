@@ -24,7 +24,12 @@ bucket_path() { local p="${1#bk:plateandbar-backups/}"; echo "$STUB_BUCKET/$p"; 
 case "$1" in
   volume) [ -z "${STUB_NO_VOLUME:-}" ] ;;
   compose | exec)
-    if [ "$1 $2" = "compose ps" ]; then [ -z "${STUB_API_RUNNING:-}" ] || echo "abc123api"; exit 0; fi
+    if [ "$1 $2" = "compose ps" ]; then
+      [ -z "${STUB_PS_FAIL:-}" ] || { echo "no configuration file provided" >&2; exit 1; }
+      # like compose: lists the API only for a state that was asked for with --status
+      [[ " $* " == *" --status ${STUB_API_STATE:-running} "* ]] && [ -n "${STUB_API_RUNNING:-}" ] && echo "abc123api"
+      exit 0
+    fi
     # the fake database: users.txt (ids), weights.txt (user_id per child row, deleted with the user: ON DELETE CASCADE),
     # user_emails.txt (id TAB email: users.email and auth_identities), codes.txt and failures.txt (email_sign_in_codes and
     # email_verify_failures: one e-mail per row, NO foreign key, deleted only by the joins on the user's e-mail)
@@ -381,7 +386,19 @@ reset; mkdir -p "$dir"; printf '%s\t%s\n' "$A" "$(ago 1)" > "$(bobj 1)"
 if STUB_API_RUNNING=1 replay live; then fail "API running: exited 0"; fi
 grep -q 'the API container is running' "$tmp/out" || fail "API running not explained"
 [ ! -s "$STUB_SQL" ] || fail "SQL ran while the API was running"
-grep -q '^compose ps -q --status running api$' "$STUB_LOG" || fail "the API state was not checked"
+grep -q '^compose ps -q --status running --status restarting api$' "$STUB_LOG" || fail "the API state was not checked"
+
+echo "replay: live mode refuses when the API is restarting (#880)"
+reset; mkdir -p "$dir"; printf '%s\t%s\n' "$A" "$(ago 1)" > "$(bobj 1)"
+if STUB_API_RUNNING=1 STUB_API_STATE=restarting replay live; then fail "API restarting: exited 0"; fi
+grep -q 'the API container is running or restarting' "$tmp/out" || fail "API restarting not explained"
+[ ! -s "$STUB_SQL" ] || fail "SQL ran while the API was restarting"
+
+echo "replay: live mode refuses when docker compose ps fails (#880)"
+reset; mkdir -p "$dir"; printf '%s\t%s\n' "$A" "$(ago 1)" > "$(bobj 1)"
+if STUB_PS_FAIL=1 replay live; then fail "compose ps failed: exited 0"; fi
+grep -q 'cannot tell whether the API container is running' "$tmp/out" || fail "failed compose ps not explained"
+[ ! -s "$STUB_SQL" ] || fail "SQL ran after a failed compose ps"
 
 echo "replay: the compose ledger directory is the volume the uploader reads"
 grep -q 'ERASURE_LEDGER_DIR: /var/lib/plateandbar/erasure$' "$here/docker-compose.yml" || fail "ERASURE_LEDGER_DIR changed: ledger-upload.sh reads the top of the volume"

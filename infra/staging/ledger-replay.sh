@@ -23,8 +23,10 @@ fail() { echo "ledger-replay FAILED: $*" >&2; exit 1; }
 inner='MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -N -B plateandbar'
 case "${1:-}" in
   live) [ "$#" -eq 1 ] || fail "usage: ledger-replay.sh live | container NAME"
-    # the API must not serve (or write) between the dump load and the replay
-    [ -z "$(docker compose ps -q --status running api)" ] || fail "the API container is running: docker compose stop api first"
+    # the API must not serve (or write) between the dump load and the replay. A failed `compose ps` (#880) is not "stopped",
+    # and an API stuck in "restarting" is up between its crashes.
+    running="$(docker compose ps -q --status running --status restarting api)" || fail "cannot tell whether the API container is running (docker compose ps failed): docker compose stop api first"
+    [ -z "$running" ] || fail "the API container is running or restarting: docker compose stop api first"
     echo "target: compose project in $PWD, service mysql, database plateandbar"
     sql() { docker compose exec -T mysql sh -c "$inner"; } ;;
   container) [ "$#" -eq 2 ] || fail "usage: ledger-replay.sh live | container NAME"
