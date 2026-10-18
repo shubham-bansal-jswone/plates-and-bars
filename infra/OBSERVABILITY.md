@@ -1,6 +1,6 @@
 # Error tracking and uptime: proposal (#306)
 
-Status: proposal. The mobile app has the Sentry SDK wired, off unless a DSN is set (see "Mobile app wiring"); the backend SDK, GlitchTip and Uptime Kuma are not installed. Licences checked 2026-10-09 against the upstream LICENSE files; re-check before installing.
+Status: proposal. The mobile app has the Sentry SDK wired, off unless a DSN is set (see "Mobile app wiring"); the backend SDK is wired the same way (#717, off unless `SENTRY_DSN` is set); GlitchTip and Uptime Kuma are not installed. Licences checked 2026-10-09 against the upstream LICENSE files; re-check before installing.
 
 The plan (`docs/development-plan.md`, Monitoring) names Sentry free tier and UptimeRobot. Both are hosted vendor services with their own terms, which conflicts with the open-source-only rule. `docs/` is owned by Shubham, so the plan text is not edited here; if you accept this proposal, update that row.
 
@@ -53,13 +53,13 @@ The backup heartbeat is a `curl` at the end of `infra/staging/backup.sh`, sent o
 
 ## Mobile app wiring (#687)
 
-- SDK: `@sentry/react-native` (MIT, checked 2026-10-17; the version Expo SDK 58 pins). Initialised in `apps/mobile/app/_layout.tsx` only when `EXPO_PUBLIC_SENTRY_DSN` is set at build time; with no DSN the SDK is not started and sends nothing. Put the `mobile` project DSN in a GitHub secret and pass it to the release build.
+- SDK: `@sentry/react-native` (MIT, checked 2026-10-17; the version Expo SDK 58 pins). Initialised in `apps/mobile/app/_layout.tsx` only when `EXPO_PUBLIC_SENTRY_DSN` is set at build time; with no DSN the SDK is not started and sends nothing. The release workflows pass it from the optional environment variable `EXPO_PUBLIC_SENTRY_DSN` and set `EXPO_PUBLIC_SENTRY_ENVIRONMENT` (`production` on `v*` tags, `staging` otherwise); the DSN goes in only after the privacy page and the Play data-safety answers are published (#748, #827; `infra/README.md`).
 - `@sentry/cli` (a hard dependency of the SDK) is FSL-1.1-MIT, which is not open source. It is replaced by an empty MIT stub through npm `overrides`, and a test fails if any FSL package reaches the lockfile.
 - Tracing is off (no sample rate, empty `tracePropagationTargets`, transactions dropped), so no `sentry-trace` or `baggage` header leaves the app.
 - Scrubbing is fail-closed, in `apps/mobile/src/telemetry/scrub.ts` and tested on a probe event carrying a food name and a weight in every field (`apps/mobile/__tests__/error-tracking.test.ts`): the event is rebuilt from an allowlist; exception values, message, `logentry`, `extra`, `tags`, request, transaction and fingerprint never leave; breadcrumbs carry no message or data; the user is a random install id.
 - Native Android crashes are sent by the native SDK and skip the JS `beforeSend`; they carry stack frames, device data, the install id and the scrubbed breadcrumbs only.
 - The SDK adds `ACCESS_NETWORK_STATE` to the Android manifest. List it and crash reporting in the privacy notice and the Play data-safety answers (docs follow-up).
-- Not done: source-map upload (needs the CLI; not wanted), Git-tag releases. The backend side of #687 and the backup heartbeat are done.
+- Not done: source-map upload (needs the CLI; not wanted), and the app's `environment` and `release` in `Sentry.init` (#826). The API's release is `plateandbar-api@<API_TAG>` from the compose file (#827). The backend side of #687 and the backup heartbeat are done.
 
 ## Install outline (do not run yet)
 

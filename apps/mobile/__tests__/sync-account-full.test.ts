@@ -357,10 +357,20 @@ describe('the retry of held records', () => {
   it('discarding a refused (quarantined) record removes its sent mark', async () => {
     const c = await setup();
     c.server.rejectIf = (t, r) => (t === 'weights' && (r.weight_kg as number) <= 0 ? 'weight_kg' : null);
+    // An earlier request carried it and its answer was lost, so the mark stays through the refusal (the server may hold it).
+    await lose(c, [date(5)]);
     await saveWeightDoc(c.db, weight(date(5), -1));
     await syncOnce(c.deps);
     expect(await getKv(c.db, `sync.sent.weights.${date(5)}`)).not.toBeNull();
     expect(await discardQuarantined(c.db)).toBe(1);
+    expect(await getKv(c.db, `sync.sent.weights.${date(5)}`)).toBeNull();
+  });
+
+  it('a 400 undoes the marks its own request made: the server stored nothing (#792)', async () => {
+    const c = await setup();
+    c.server.rejectIf = (t, r) => (t === 'weights' && (r.weight_kg as number) <= 0 ? 'weight_kg' : null);
+    await saveWeightDoc(c.db, weight(date(5), -1));
+    await syncOnce(c.deps);
     expect(await getKv(c.db, `sync.sent.weights.${date(5)}`)).toBeNull();
   });
 

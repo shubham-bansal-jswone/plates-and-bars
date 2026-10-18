@@ -60,6 +60,18 @@ for bad in 1.2.3 v1.2 v1.2.3-rc1 main 'v1.2.3;x' v1.2.3/x; do
   if rel "$bad"; then fail "accepted tag '$bad'"; fi
   [ ! -s "$STUB_LOG" ] || fail "backup or deploy ran for tag '$bad'"
 done
+# error tracking on in production needs SENTRY_ENVIRONMENT=production in .env, checked before the backup
+for env in 'SENTRY_DSN=https://k@e.example/1' $'SENTRY_DSN=https://k@e.example/1\nSENTRY_ENVIRONMENT=staging'; do
+  printf '%s\n' "$env" > "$tmp/s/.env"
+  if rel v1.2.3; then fail "released with a DSN and a non-production SENTRY_ENVIRONMENT"; fi
+  [ ! -s "$STUB_LOG" ] || fail "backup or deploy ran with SENTRY_ENVIRONMENT not production"
+  grep -q "SENTRY_ENVIRONMENT is not 'production'" "$tmp/out" || fail "wrong error: $(cat "$tmp/out")"
+done
+printf 'SENTRY_DSN=https://k@e.example/1\nSENTRY_ENVIRONMENT=production\n' > "$tmp/s/.env"
+rel v1.2.3 || fail "refused a DSN with SENTRY_ENVIRONMENT=production: $(cat "$tmp/out")"
+printf 'SENTRY_DSN=\nSENTRY_ENVIRONMENT=staging\n' > "$tmp/s/.env"
+rel v1.2.3 || fail "refused an empty DSN: $(cat "$tmp/out")"
+rm -f "$tmp/s/.env"
 if "$tmp/s/release.sh" > /dev/null 2>&1; then fail "accepted no tag"; fi
 if "$tmp/s/release.sh" v1.2.3 > /dev/null 2>&1; then fail "accepted no sha"; fi
 
