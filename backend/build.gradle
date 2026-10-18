@@ -13,6 +13,15 @@ java {
     }
 }
 
+// Security overrides (#937). Spring Boot 4.1.1 is the newest stable release (4.2 is milestone only) and still manages
+// Tomcat 11.0.24 and Jackson 3.1.5, which are affected by:
+//   Tomcat, fixed in 11.0.25: GHSA-9xv2-5v5q-p794, GHSA-gcx9-497g-6cp6, GHSA-h3x4-894j-xpx5
+//   Jackson 3, fixed in 3.1.7: GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89, GHSA-cxp5-3px4-pw24, GHSA-q4xh-88c3-wmh7,
+//   GHSA-wv8q-qhhj-9h54
+// Drop these two lines once the Spring Boot version above manages Tomcat >= 11.0.25 and Jackson 3 >= 3.1.7.
+ext['tomcat.version'] = '11.0.25'
+ext['jackson-bom.version'] = '3.1.7'
+
 repositories {
     mavenCentral()
 }
