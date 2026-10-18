@@ -9,6 +9,8 @@ describe('gateRedirect', () => {
   it('opens to targets when a profile exists', () => expect(gateRedirect({ ...base, hasProfile: true })).toBe('/targets'));
   it('sends a bare /setup (reload, restored URL) to targets once a profile exists', () => expect(gateRedirect({ ...base, hasProfile: true, pathname: '/setup', firstOpen: false })).toBe('/targets'));
   it('lets a user with a profile stay on setup when Redo or Recalculate asked for it', () => expect(gateRedirect({ ...base, hasProfile: true, pathname: '/setup', firstOpen: false, redo: true })).toBeNull());
+  it('leaves /setup alone while setup is saving and leaving for Food (profile just saved)', () => expect(gateRedirect({ ...base, hasProfile: true, pathname: '/setup', firstOpen: false, leaving: true })).toBeNull());
+  it('still sends a profile pulled mid-setup to targets when setup is not leaving', () => expect(gateRedirect({ ...base, hasProfile: true, pathname: '/setup', firstOpen: false, leaving: false })).toBe('/targets'));
   it('does not pull the user back to targets later', () => expect(gateRedirect({ ...base, hasProfile: true, firstOpen: false })).toBeNull());
   it('stays out of setup after Skip for now', () => expect(gateRedirect({ ...base, skipped: true })).toBeNull());
 });
