@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # R2 lifecycle rule for the erasure ledger (#911), the backstop for ledger-upload.sh's own pruning: it expires every object
 # under erasure-ledger/ 47 days after it was last written (the 45-day retention, plus one day past the script's own
-# "at most 46 days"), so the day objects of a retired VM, which no upload run prunes any more, still go.
+# "at most 46 days"). Every running VM's upload prunes every prefix, so the rule only matters when no VM runs the upload
+# at all (every VM retired or its cron stopped).
 #   ./ledger-lifecycle.sh apply   puts the rule on the bucket (idempotent), then checks it
 #   ./ledger-lifecycle.sh check   exits non-zero unless the rule exists, is enabled, covers erasure-ledger/ and says 47 days
 # Uses the S3 API call PutBucketLifecycleConfiguration / GetBucketLifecycleConfiguration, which R2 supports (checked

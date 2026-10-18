@@ -50,6 +50,12 @@ read_volume() {
     || fail "cannot read the ledger from the volume"
   if [ -s "$work/vol.tar" ]; then tar -xf "$work/vol.tar" -C "$work/vol" || fail "cannot read the ledger from the volume"; fi
 }
+# rclone deletefile exits 4 when the object is already gone (another VM's run pruned it first): that is the goal, not an error
+delete_object() {
+  local rc=0
+  rclone deletefile "$1" < /dev/null || rc=$?
+  [ "$rc" -eq 0 ] || [ "$rc" -eq 4 ]
+}
 valid_lines() { grep -E -x "$ledger_line" "$@" || true; }
 day_of() { [[ "$1" =~ ^erasures-([0-9]{4}-[0-9]{2}-[0-9]{2})\.log$ ]] && printf '%s' "${BASH_REMATCH[1]}"; }
 
@@ -144,7 +150,7 @@ echo "ledger unchanged: $unchanged day object(s)"
 
 # 4. the 45-day snapshots of the first ledger version: their entries are in the day objects now
 if [ "${#old_objects[@]}" -gt 0 ]; then
-  for o in "${old_objects[@]}"; do rclone deletefile "$ledger_dest/$o" < /dev/null; done
+  for o in "${old_objects[@]}"; do delete_object "$ledger_dest/$o"; done
   echo "split ${#old_objects[@]} snapshot object(s) into day objects and deleted them"
 fi
 
@@ -152,7 +158,7 @@ fi
 while IFS= read -r o; do
   d="$(day_of "$o")" || continue
   if [[ "$d" < "$keep_from" ]]; then
-    rclone deletefile "$ledger_dest/$o" < /dev/null
+    delete_object "$ledger_dest/$o"
     echo "deleted day object $o (more than $ledger_retention_days days old)"
   fi
 done <<< "$listing"
@@ -164,7 +170,7 @@ while IFS= read -r o; do
   [ "${o%/*}" != "$prefix" ] || continue # our own prefix is done above
   d="$(day_of "${o##*/}")" || continue
   if [[ "$d" < "$keep_from" ]]; then
-    rclone deletefile "$ledger_root/$o" < /dev/null
+    delete_object "$ledger_root/$o"
     echo "deleted day object $o (more than $ledger_retention_days days old)"
   fi
 done <<< "$all_objects"
