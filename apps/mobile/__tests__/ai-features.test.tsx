@@ -11,7 +11,7 @@ import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryTokenStore } from '../src/sync/tokens';
 import { KEY_USER } from '../src/sync/store';
 import { withSyncPaused } from '../src/sync/guard';
-import { Pressable, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { WhyLink } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
@@ -236,6 +236,25 @@ describe('Describe a meal', () => {
       await fireEvent.press(screen.getByRole('tab', { name: 'Describe it' }));
       expect(screen.getByLabelText('Item 1 Roti calories (kcal)').props.value).toBe('240');
       expect(POST).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides the kept Describe body, but not from the tree, while another tab is shown', async () => {
+      const { api } = on();
+      await food(optedIn(), api);
+      await openAdd();
+      await fireEvent.press(await screen.findByRole('tab', { name: 'Describe it' }));
+      expect(screen.getByLabelText('Describe your meal')).toBeVisible();
+      await fireEvent.press(screen.getByRole('tab', { name: 'Food list' }));
+      const kept = screen.getByLabelText('Describe your meal', { includeHiddenElements: true });
+      expect(kept).not.toBeVisible();
+      // Also on its own: not shown (display none) even for a viewer that ignores the accessibility-hiding props.
+      let n = kept.parent;
+      let none = false;
+      while (n && !none) {
+        none = StyleSheet.flatten(n.props.style)?.display === 'none';
+        n = n.parent;
+      }
+      expect(none).toBe(true);
     });
 
     it('shows the quota message in the tab when the quota is used up', async () => {
