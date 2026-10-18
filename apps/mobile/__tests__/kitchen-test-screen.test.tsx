@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenTable, kitchenTest } from '@plate-and-bar/core';
 import { KitchenTestScreen } from '../src/screens/KitchenTestScreen';
@@ -38,6 +39,27 @@ it('hides the visible captions from screen readers; the fields speak the labels'
     expect(screen.getByText(caption, { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByText(caption)).toBeNull();
     expect(screen.getByLabelText(field)).toBeTruthy();
+  }
+});
+it('captions the weight fields, hidden from screen readers; each field keeps the caption as its name', async () => {
+  await setup();
+  await start();
+  for (const name of ['Empty pot (g)', 'Pot with food (g)', 'Or cooked weight directly (g)', 'One serving (g)']) {
+    expect(screen.getByText(name, { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText(name)).toBeNull();
+    expect(screen.getByLabelText(name)).toBeTruthy();
+  }
+});
+it('keeps each weight caption 4 px above its own field, with the larger gap above the caption', async () => {
+  await setup();
+  await start();
+  for (const name of ['Or cooked weight directly (g)', 'One serving (g)']) {
+    const caption = screen.getByText(name, { includeHiddenElements: true });
+    const field = screen.getByLabelText(name);
+    let pair = caption.parent!;
+    while (!within(pair).queryByLabelText(name)) pair = pair.parent!;
+    expect(StyleSheet.flatten(pair.props.style)).toMatchObject({ gap: 4 });
+    expect(within(pair).queryAllByLabelText(/\(g\)$/)).toEqual([field]);
   }
 });
 // Dal 150 g dry + ghee 15 g, pot 500 g empty, 1,500 g full, a 250 g serving.
