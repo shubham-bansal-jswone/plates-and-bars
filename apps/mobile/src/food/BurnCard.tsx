@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { BURN_RANGE, burnToday, latestWeight, workoutBurn, type BurnToday } from '@plate-and-bar/core';
+import { addDays, BURN_RANGE, burnToday, latestWeight, stepsTarget, workoutBurn, type BurnToday } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { fmt } from '../format';
-import { Button, Card, Hint } from '../components/ui';
+import { Button, Card, Field, Hint } from '../components/ui';
+import { loadDayNote } from '../db/food';
 import { loadWeights } from '../db/progress';
 import { loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
 import type { Profile } from '../setup/types';
 import { useTheme } from '../theme/useTheme';
+import { WhyLink } from '../why/WhyLink';
 
 interface Props {
   db: WorkoutDb;
@@ -16,6 +18,10 @@ interface Props {
   profile: Profile;
   /** The day's steps from its note, if any. */
   steps: number | null;
+  /** The day's hours slept from its note, if any. */
+  sleep: number | null;
+  /** Saves the two boxes on the day note (the same rule and write as Progress); false when an entry was refused. */
+  onSaveStepsSleep: (steps: string, sleep: string) => boolean;
   /** Kcal eaten so far (digestion is a tenth of it). */
   kcalEaten: number;
   /** Changes when sync stored pulled records. */
@@ -23,17 +29,18 @@ interface Props {
 }
 
 /** Prototype `energyHtml`: "Estimated burn today so far" as a range, with a Details breakdown. Everything is core's `burnToday`. */
-export function BurnCard({ db, date, profile, steps, kcalEaten, reloadKey = 0 }: Props) {
+export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kcalEaten, reloadKey = 0 }: Props) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
-  const [facts, setFacts] = useState<{ kg: number; sets: Awaited<ReturnType<typeof loadSets>>; cardio: number | null } | null>(null);
+  const [facts, setFacts] = useState<{ kg: number; sets: Awaited<ReturnType<typeof loadSets>>; cardio: number | null; stepsGoal: number } | null>(null);
   // Tab screens stay mounted, so a set ticked or a weigh-in added elsewhere is read again each time the tab is shown.
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
   useEffect(() => {
     let live = true;
-    Promise.all([loadWeights(db), loadSets(db, date), loadWorkout(db, date)])
-      .then(([w, sets, workout]) => live && setFacts({ kg: latestWeight(w, date) ?? profile.weight_kg, sets, cardio: workout?.cardio_min ?? null }))
+    const before = Array.from({ length: 7 }, (_, i) => addDays(date, i - 7));
+    Promise.all([loadWeights(db), loadSets(db, date), loadWorkout(db, date), Promise.all(before.map((d) => loadDayNote(db, d)))])
+      .then(([w, sets, workout, notes]) => live && setFacts({ kg: latestWeight(w, date) ?? profile.weight_kg, sets, cardio: workout?.cardio_min ?? null, stepsGoal: stepsTarget(notes.filter((n) => n !== null), date) }))
       .catch(() => {});
     return () => {
       live = false;
@@ -72,10 +79,28 @@ export function BurnCard({ db, date, profile, steps, kcalEaten, reloadKey = 0 }:
               <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(kcal)}</Text>
             </View>
           ))}
+          <StepsSleepInputs key={`${steps}:${sleep}`} steps={steps} sleep={sleep} goal={facts.stepsGoal} onSave={onSaveStepsSleep} />
           <Hint>Your calorie target already includes your usual training, so there’s no need to eat back workout calories. Workout and step numbers are rough estimates.</Hint>
         </View>
       ) : null}
     </Card>
+  );
+}
+
+/** Prototype's two inputs under the breakdown: steps today (with the target) and hours slept last night, each with its why-link. */
+function StepsSleepInputs({ steps, sleep, goal, onSave }: { steps: number | null; sleep: number | null; goal: number; onSave: (steps: string, sleep: string) => boolean }) {
+  const [s, setS] = useState(steps != null ? String(steps) : ''); // 0 is a real count (#303)
+  const [h, setH] = useState(sleep != null ? String(sleep) : ''); // 0 h is valid (contract 0-24)
+  return (
+    <View style={styles.gap}>
+      <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={s} onChangeText={setS} />
+      <Hint>{`steps today, target about ${fmt(goal)}`}</Hint>
+      <WhyLink id="activity" />
+      <Field label="Hours slept last night" inputMode="decimal" placeholder="Hours" value={h} onChangeText={setH} />
+      <Hint>hours slept last night (aim for 7–9)</Hint>
+      <WhyLink id="sleep" />
+      <Button label="Save" a11yLabel="Save steps and sleep from the burn details" onPress={() => onSave(s, h)} />
+    </View>
   );
 }
 
