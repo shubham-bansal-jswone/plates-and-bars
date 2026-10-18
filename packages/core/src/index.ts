@@ -694,3 +694,6 @@ export {
   capPhotoItems, clampPhotoServings, stepPhotoAdj, photoMacros, photoLogQty, photoEstimateLog, photoAdjLabel,
 } from './photoMeal';
 export type { PhotoMacros } from './photoMeal';
+
+/** Recipe import (#1011): `importedGrams` mirrors `String(Math.round(num(i.grams)))` in prototype `importRecipe`. */
+export { importedGrams } from './recipeImport';
