@@ -44,6 +44,13 @@ jobs:
         run: infra/scripts/detect-changes.sh "$BASE"
       - name: detect-changes.sh sample diffs
         run: infra/scripts/test-detect-changes.sh
+      # `expo prebuild` writes apps/mobile/android/, apps/mobile/ios/ and a package.json whose
+      # scripts are in the run: form. None of it belongs in the history (#980); the native folders
+      # are ignored by apps/mobile/.gitignore and android-release.yml builds them in CI.
+      - name: No expo prebuild output committed
+        run: infra/scripts/check-prebuild-output.sh
+      - name: check-prebuild-output.sh sample trees
+        run: infra/scripts/test-check-prebuild-output.sh
 
   api:
     name: api (lint, types, stale client)

@@ -629,7 +629,8 @@ export interface paths {
          *     the prototype's `askWhy()`.
          *
          *     **Grounding.** The answer is grounded only on the cards in `content/cards.json`
-         *     (the version the server deploys). The server sends the model every card's title,
+         *     (the version the server deploys). The server sends the model every card that is not
+         *     marked `hidden: true` (a held-back card is never sent to the model), with its title,
          *     summary, body, evidence level and source, says which card the user was reading,
          *     and instructs it to use nothing else: if the cards do not answer the question it
          *     says the app's cards don't cover it yet and suggests a coach, dietitian or doctor
@@ -645,9 +646,10 @@ export interface paths {
          *
          *     `card_id` in the response is the card the answer is based on (usually the one
          *     being read, possibly another card), or null when the cards don't cover the
-         *     question. The server checks it against `content/cards.json` before answering.
-         *     A request `card_id` not in `content/cards.json` is 400 `invalid_request` with
-         *     `details[].field` = `card_id`.
+         *     question. The server checks it against the cards in `content/cards.json` that are not
+         *     marked `hidden: true` before answering. A request `card_id` that is not one of those
+         *     is 400 `invalid_request` with `details[].field` = `card_id` and issue `unknown`; a
+         *     hidden card's id gets the same 400 as an unknown id.
          *
          *     Non-AI fallback: the card itself. See the `ai` tag for quota, kill-switch,
          *     rate-limit and no-logging rules.
@@ -2339,6 +2341,31 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description `feature_disabled`: the feature is switched off on the server (kill switch, budget
+         *     cap, or not yet launched); show the non-AI fallback. `unavailable`: no usable
+         *     answer; the user may try again. Either the provider failed or timed out before any
+         *     billed reply (the quota unit is released), or the provider's reply could not be
+         *     parsed or failed the output checks (the provider billed it, so the unit is kept).
+         *     The body is the same in both cases and carries no `quota`; the app reads
+         *     `GET /ai/status` for the remaining quota.
+         *
+         *     The image calls have one more `unavailable` case: the server is busy decoding other
+         *     images (it decodes a few at a time and waits a moment for a turn). The quota unit is
+         *     not taken (the refusal comes before it is reserved), so the call costs nothing, and
+         *     `Retry-After` says how long to wait before retrying. `Retry-After` is set only in
+         *     that busy case.
+         */
+        AiImageUnavailable: {
+            headers: {
+                /** @description How long to wait, in seconds, before retrying because the server is busy decoding images. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         /**
@@ -2994,7 +3021,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["AiLimited"];
             500: components["responses"]["Internal"];
-            503: components["responses"]["AiUnavailable"];
+            503: components["responses"]["AiImageUnavailable"];
         };
     };
     importRecipe: {
@@ -3024,7 +3051,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["AiLimited"];
             500: components["responses"]["Internal"];
-            503: components["responses"]["AiUnavailable"];
+            503: components["responses"]["AiImageUnavailable"];
         };
     };
     formCheck: {
@@ -3054,7 +3081,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["AiLimited"];
             500: components["responses"]["Internal"];
-            503: components["responses"]["AiUnavailable"];
+            503: components["responses"]["AiImageUnavailable"];
         };
     };
     getContentManifest: {
