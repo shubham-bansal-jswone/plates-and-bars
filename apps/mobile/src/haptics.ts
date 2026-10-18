@@ -1,4 +1,4 @@
-import { Vibration } from 'react-native';
+import { Platform, Vibration } from 'react-native';
 
 /**
  * Vibrates the phone (prototype `navigator.vibrate`). A no-op where the device or the browser cannot, and never throws.
@@ -12,7 +12,10 @@ export function buzz(pattern: number | number[]): void {
   }
 }
 
-/** Rest timer reached 0 (prototype `tickRest`). */
-export const REST_DONE_BUZZ = [250, 120, 250];
+/**
+ * Rest timer reached 0 (prototype `tickRest`: buzz 250, pause 120, buzz 250). Android reads a pattern as [wait, buzz, pause, buzz, ...], so it
+ * starts with a 0 wait to put the pauses at even positions; the web (navigator.vibrate) reads it as [buzz, pause, buzz].
+ */
+export const restDoneBuzz = (): number[] => (Platform.OS === 'android' ? [0, 250, 120, 250] : [250, 120, 250]);
 /** A new personal best (prototype `checkBest`). */
 export const PB_BUZZ = 60;

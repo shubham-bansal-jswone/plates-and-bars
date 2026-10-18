@@ -5,7 +5,7 @@ import { Text } from '../components/Text';
 import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { buzz, REST_DONE_BUZZ } from '../haptics';
+import { buzz, restDoneBuzz } from '../haptics';
 import { BodyMap } from './BodyMap';
 import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
@@ -72,14 +72,14 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
   useEffect(() => {
     if (ended && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(REST_DONE);
   }, [ended]);
-  // One buzz per rest, as the prototype's `REST.buzzed`: "+30 s" after the end does not buzz again.
-  const buzzed = useRef(false);
+  // One buzz per rest end. "+30 s" moves the end and re-arms it, as the prototype's `REST.buzzed = false`.
+  const buzzedEnd = useRef<number | null>(null);
   useEffect(() => {
-    if (ended && !buzzed.current) {
-      buzzed.current = true;
-      buzz(REST_DONE_BUZZ);
+    if (ended && buzzedEnd.current !== rest.end) {
+      buzzedEnd.current = rest.end;
+      buzz(restDoneBuzz());
     }
-  }, [ended]);
+  }, [ended, rest.end]);
   const pct = Math.min(100, (1 - left / rest.total) * 100);
   return (
     // The outer layer is opaque and runs to the screen edge, so the page behind never shows through the gap around the panel.

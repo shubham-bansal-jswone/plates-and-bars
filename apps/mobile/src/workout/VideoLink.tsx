@@ -11,7 +11,7 @@ export const videoUrl = (name: string): string => 'https://www.youtube.com/resul
 export function VideoLink({ name }: { name: string }) {
   const c = useTheme();
   return (
-    <Press accessibilityRole="link" accessibilityLabel={`Watch form videos for ${name} on YouTube, opens outside the app`} onPress={() => void Linking.openURL(videoUrl(name)).catch(() => undefined)} style={{ minHeight: 44, justifyContent: 'center' }}>
+    <Press accessibilityRole="link" accessibilityLabel={`Watch form videos on YouTube for ${name}, opens outside the app`} onPress={() => void Linking.openURL(videoUrl(name)).catch(() => undefined)} style={{ minHeight: 44, justifyContent: 'center' }}>
       <Text style={[type.textBody, { color: c.link }]}>Watch form videos on YouTube ↗</Text>
     </Press>
   );
