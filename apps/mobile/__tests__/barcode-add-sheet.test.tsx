@@ -5,7 +5,7 @@ import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { BARCODE_COPY as t } from '../src/barcode/copy';
 import type { ScannerViewProps } from '../modules/plate-barcode-scanner';
 import { memoryDb, withProfile } from './helpers';
-import { EAN13, json, product } from './barcode-fixtures';
+import { EAN13, json, product, UPC_A } from './barcode-fixtures';
 
 // Scan barcode on the Food list tab, end to end through the real flow, the real client over a stubbed fetch, and the record store.
 let scannerProps: ScannerViewProps | null = null;
@@ -54,7 +54,15 @@ const open = async () => {
   await fireEvent.press(screen.getByLabelText('+ Add to breakfast'));
   await screen.findByLabelText('Search foods');
 };
-const hit = (code: string) => act(async () => scannerProps!.onBarcode({ nativeEvent: { code, format: 'EAN_13' } } as never));
+const hit = (code: string, format = 'EAN_13') => act(async () => scannerProps!.onBarcode({ nativeEvent: { code, format } } as never));
+
+/** One scan from the Add sheet to the saved food; the lookup answers `p`. */
+async function scanAndAdd(code: string, format = 'EAN_13') {
+  await open();
+  await fireEvent.press(screen.getByLabelText(t.scanButtonA11y));
+  await screen.findByTestId('scanner');
+  await hit(code, format);
+}
 
 describe('Scan barcode on the Add sheet (behind EXPO_PUBLIC_BARCODE_SCAN)', () => {
   it('is off by default: no button, and the tabs are the same', async () => {
@@ -186,5 +194,94 @@ describe('Scan barcode on the Add sheet (behind EXPO_PUBLIC_BARCODE_SCAN)', () =
     expect(await screen.findByText(t.offline)).toBeTruthy();
     expect(screen.getByRole('button', { name: t.byHand })).toBeTruthy();
     expect(docs(db, 'food_logs')).toHaveLength(0);
+  });
+
+  describe('saving never loses a different food (reviewer probes on #1004)', () => {
+    const add = async (n: number) => {
+      await fireEvent.press(await screen.findByRole('button', { name: 'Add to breakfast' }));
+      await waitFor(() => expect(docs(db(), 'food_logs')).toHaveLength(n));
+      await waitFor(() => expect(screen.queryByLabelText('Search foods')).toBeNull());
+    };
+    let current: Db;
+    const db = () => current;
+
+    it('two products with the same OFF name are two saved foods, and the first keeps its numbers and id', async () => {
+      fetchMock.mockImplementation(async (req) => json(200, product({ code: req.url.split('/').pop() as string })));
+      current = await setup();
+      await scanAndAdd(EAN13);
+      await add(1);
+      const first = docs(current, 'user_foods')[0];
+      await scanAndAdd(UPC_A, 'UPC_A');
+      await fireEvent.changeText(await screen.findByLabelText(t.calories), '333');
+      await add(2);
+      const foods = docs(current, 'user_foods');
+      expect(foods).toHaveLength(2);
+      expect(foods.every((f) => !f.deleted_at)).toBe(true);
+      expect(foods.find((f) => f.barcode === EAN13)).toMatchObject({ id: first.id, kcal: 200 });
+      expect(foods.find((f) => f.barcode === UPC_A)).toMatchObject({ kcal: 333 });
+      expect(new Set(foods.map((f) => f.id)).size).toBe(2);
+    });
+
+    it('a rescan as the 13-digit form finds the 12-digit save with no request, and a rename keeps one food', async () => {
+      fetchMock.mockImplementation(async () => json(200, product({ code: UPC_A })));
+      current = await setup();
+      await scanAndAdd(UPC_A, 'UPC_A');
+      await add(1);
+      await scanAndAdd(`0${UPC_A}`);
+      expect(await screen.findByText(t.savedNote)).toBeTruthy();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await fireEvent.changeText(screen.getByLabelText(t.name), 'Renamed bar');
+      await add(2);
+      const foods = docs(current, 'user_foods').filter((f) => !f.deleted_at);
+      expect(foods).toHaveLength(1);
+      expect(foods[0]).toMatchObject({ name: 'Renamed bar', barcode: UPC_A });
+    });
+
+    it('renaming a scanned food to the name of an unrelated custom food keeps both', async () => {
+      fetchMock.mockImplementation(async () => json(200, product()));
+      current = await setup();
+      await open();
+      await fireEvent.press(screen.getByLabelText('Custom'));
+      await fireEvent.changeText(screen.getByLabelText('Food'), 'Home thali');
+      await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '500');
+      await fireEvent.press(screen.getByLabelText('Add to breakfast'));
+      await waitFor(() => expect(docs(current, 'food_logs')).toHaveLength(1));
+      await waitFor(() => expect(screen.queryByLabelText('Search foods')).toBeNull());
+      await scanAndAdd(EAN13);
+      await fireEvent.changeText(await screen.findByLabelText(t.name), 'Home thali');
+      await add(2);
+      const foods = docs(current, 'user_foods').filter((f) => !f.deleted_at);
+      expect(foods.map((f) => f.barcode ?? null).sort()).toEqual([EAN13, null]);
+      expect(new Set(foods.map((f) => f.id)).size).toBe(2);
+    });
+
+    it('a plain Custom save named like a scanned food does not replace it: both rows survive with distinct ids', async () => {
+      fetchMock.mockImplementation(async () => json(200, product()));
+      current = await setup();
+      await scanAndAdd(EAN13);
+      await add(1);
+      await open();
+      await fireEvent.press(screen.getByLabelText('Custom'));
+      await fireEvent.changeText(screen.getByLabelText('Food'), 'Peanut bar (Acme)');
+      await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '123');
+      await fireEvent.press(screen.getByLabelText('Add to breakfast'));
+      await waitFor(() => expect(docs(current, 'food_logs')).toHaveLength(2));
+      const foods = docs(current, 'user_foods').filter((f) => !f.deleted_at);
+      expect(foods).toHaveLength(2);
+      expect(new Set(foods.map((f) => f.id)).size).toBe(2);
+      expect(foods.find((f) => f.barcode === EAN13)).toMatchObject({ kcal: 200 });
+      expect(foods.find((f) => !f.barcode)).toMatchObject({ kcal: 123 });
+    });
+
+    it('a product whose calories and macros are all genuinely 0 can be added, and a typed 0 kcal stays 0', async () => {
+      const zero = { 'energy-kcal_100g': 0, proteins_100g: 0, carbohydrates_100g: 0, fat_100g: 0 };
+      fetchMock.mockImplementation(async () => json(200, product({ name: 'Diet soda', brands: null, nutriments: zero, serving_size: null, serving_quantity: null })));
+      current = await setup();
+      await scanAndAdd(EAN13);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Add to breakfast' }));
+      await waitFor(() => expect(docs(current, 'food_logs')).toHaveLength(1));
+      expect(docs(current, 'food_logs')[0]).toMatchObject({ name: 'Diet soda', kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+      expect(docs(current, 'user_foods')[0]).toMatchObject({ kcal: 0, barcode: EAN13 });
+    });
   });
 });

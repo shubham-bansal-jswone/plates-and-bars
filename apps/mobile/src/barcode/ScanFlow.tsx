@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 import { createClient, type ApiClient } from '@plate-and-bar/api';
-import { customFood, servingUnitTooLong, type OffMissingField, type OffUserFoodDraft, type UserFoodFields } from '@plate-and-bar/core';
+import { scannedFood, servingUnitTooLong, type OffMissingField, type ScannedMissingField, type OffUserFoodDraft, type UserFoodFields } from '@plate-and-bar/core';
 import { CUSTOM_MESSAGE, UNIT_TOO_LONG } from '../food/copy';
 import { Button, Caption, ErrorText, Field, H1, Hint, Label, Note, Page, Switch } from '../components/ui';
 import { Text } from '../components/Text';
@@ -136,13 +136,14 @@ function Review({ step, meal, onAdd, onSaveMine, onScan, onClose, onDone }: { on
   const [save, setSave] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof Form) => (v: string) => { setF((o) => ({ ...o, [k]: v })); setError(null); };
-  // A field OFF did not have stays flagged until it is filled. A genuine 0 must be typed, so "0" counts as filled and "" does not.
-  const flagged = (k: OffMissingField, v: string): boolean => step.missing.includes(k) && v.trim() === '';
-  const incomplete = flagged('name', f.name) || flagged('kcal', f.kcal) || flagged('protein_g', f.protein) || flagged('carbs_g', f.carbs) || flagged('fat_g', f.fat);
-  const blank = f.name.trim() === '' || [f.kcal, f.protein, f.carbs, f.fat].some((v) => v.trim() === '');
+  // Core's scannedFood: all four numbers must be entered and a typed 0 is a real value (water, diet soda), so "0" counts as filled and "" does not.
+  const r = scannedFood({ ...f, qty });
+  const missingFields = r.kind === 'missing' ? r.fields : [];
+  const flagged = (k: ScannedMissingField): boolean => missingFields.includes(k);
+  const nameFlag = f.name.trim() === '';
 
   const submit = () => {
-    const r = customFood({ ...f, qty });
+    if (r.kind === 'missing') return;
     if (r.kind !== 'ok') return setError(CUSTOM_MESSAGE[r.kind]);
     const food: UserFoodFields & { barcode: string } = {
       ...r.food,
@@ -150,7 +151,7 @@ function Review({ step, meal, onAdd, onSaveMine, onScan, onClose, onDone }: { on
       fibre_g: draft.fibre_g,
       added_sugar_g: draft.added_sugar_g,
       fruit_veg_servings: null,
-      barcode: step.code,
+      barcode: saved?.barcode ?? step.code, // a saved food keeps the code it was saved under (12 or 13 digits)
     };
     // Only a saved food carries the unit, so a long unit blocks only when it would be saved (as on the Custom tab).
     if ((save || saved) && servingUnitTooLong(food.unit)) return setError(UNIT_TOO_LONG);
@@ -170,13 +171,13 @@ function Review({ step, meal, onAdd, onSaveMine, onScan, onClose, onDone }: { on
       {warnings.map((w) => (w ? <ErrorText key={w}>{w}</ErrorText> : null))}
       {found?.carbsFibreHint ? <Hint>{t.carbsFibre}</Hint> : null}
       {found?.liquid ? <Hint>{t.liquid}</Hint> : null}
-      <Captioned label={t.name} flag={flagged('name', f.name)}><Field label={t.name} value={f.name} onChangeText={set('name')} /></Captioned>
+      <Captioned label={t.name} flag={nameFlag}><Field label={t.name} value={f.name} onChangeText={set('name')} /></Captioned>
       <Captioned label={t.serving}><Field label={t.serving} value={f.unit} onChangeText={set('unit')} /></Captioned>
       <View style={styles.grid}>
-        <Captioned label={t.calories} flag={flagged('kcal', f.kcal)}><Field label={t.calories} keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} /></Captioned>
-        <Captioned label={t.protein} flag={flagged('protein_g', f.protein)}><Field label={t.protein} keyboardType="decimal-pad" value={f.protein} onChangeText={set('protein')} /></Captioned>
-        <Captioned label={t.carbs} flag={flagged('carbs_g', f.carbs)}><Field label={t.carbs} keyboardType="decimal-pad" value={f.carbs} onChangeText={set('carbs')} /></Captioned>
-        <Captioned label={t.fat} flag={flagged('fat_g', f.fat)}><Field label={t.fat} keyboardType="decimal-pad" value={f.fat} onChangeText={set('fat')} /></Captioned>
+        <Captioned label={t.calories} flag={flagged('kcal')}><Field label={t.calories} keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} /></Captioned>
+        <Captioned label={t.protein} flag={flagged('protein_g')}><Field label={t.protein} keyboardType="decimal-pad" value={f.protein} onChangeText={set('protein')} /></Captioned>
+        <Captioned label={t.carbs} flag={flagged('carbs_g')}><Field label={t.carbs} keyboardType="decimal-pad" value={f.carbs} onChangeText={set('carbs')} /></Captioned>
+        <Captioned label={t.fat} flag={flagged('fat_g')}><Field label={t.fat} keyboardType="decimal-pad" value={f.fat} onChangeText={set('fat')} /></Captioned>
         <Captioned label="Servings"><Field label="Servings" keyboardType="decimal-pad" value={qty} onChangeText={setQty} /></Captioned>
       </View>
       <OffCredit code={step.code} />
@@ -187,7 +188,7 @@ function Review({ step, meal, onAdd, onSaveMine, onScan, onClose, onDone }: { on
         </View>
       )}
       {error ? <ErrorText>{error}</ErrorText> : null}
-      <Button label={`Add to ${meal.toLowerCase()}`} a11yLabel={`Add to ${meal.toLowerCase()}`} onPress={submit} disabled={incomplete || blank} />
+      <Button label={`Add to ${meal.toLowerCase()}`} a11yLabel={`Add to ${meal.toLowerCase()}`} onPress={submit} disabled={r.kind === 'missing' || r.kind === 'no-name'} />
       <Button kind="ghost" label={t.scanAgain} onPress={onScan} />
       <Button kind="ghost" label={t.close} onPress={onClose} />
     </Page>
