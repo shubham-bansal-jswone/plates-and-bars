@@ -1,0 +1,8 @@
+// Init script for the weekly dependency scan (#930). Turns on Gradle dependency locking for the runtimeClasspath only
+// (what ships in the API image), so `./gradlew dependencies --configuration runtimeClasspath --write-locks` writes
+// backend/gradle.lockfile in the CI workspace, which OSV-Scanner reads. Nothing is committed; build.gradle is untouched.
+allprojects {
+    configurations.matching { it.name == 'runtimeClasspath' }.configureEach {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
