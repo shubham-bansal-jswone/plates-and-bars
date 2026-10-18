@@ -368,9 +368,16 @@ export interface paths {
          * @description Returns a trimmed subset of the Open Food Facts product for one barcode, so the app
          *     can show a review screen. The server maps nothing: turning this into a `UserFood`
          *     (per-serving values, kJ to kcal, missing fields) is a rule in `packages/core`.
-         *     Public like `/content/*`, limited by the per-IP rate limit (a tighter bucket than
-         *     other endpoints). Needs a connection; a barcode the user already saved is found
+         *     Public like `/content/*`. Needs a connection; a barcode the user already saved is found
          *     locally (`UserFood.barcode`) with no call.
+         *
+         *     **Limits and order of checks.** This operation allows 20 requests per minute per
+         *     client IP. Calls from the server to Open Food Facts share one limit of 12 per
+         *     minute (Open Food Facts allows 15 per minute per IP). The server checks, in this
+         *     order: (1) the code's pattern and GS1 check digit, 400 `invalid_barcode`; (2) the
+         *     per-IP limit, 429 `rate_limited`; (3) the cache, a hit (found or not found) is
+         *     answered with no upstream call; (4) the upstream limit, 503 `upstream_busy` with
+         *     `Retry-After`. Cache hits and 400s never use the upstream limit.
          *
          *     **Code.** Digits only, length 8, 12 or 13, with a valid GS1 mod-10 check digit
          *     (`test-vectors/barcode-gs1.json`). 8 digits is EAN-8 (GTIN-8); 12 is UPC-A; 13 is
@@ -383,14 +390,17 @@ export interface paths {
          *
          *     **Data.** Community-contributed and unchecked: the app must show it as such and let
          *     the user edit every number. Strings are trimmed, stripped of control characters and
-         *     length-capped; only the fields below are ever returned. No images.
+         *     length-capped; only the fields below are ever returned. No images. A nutriment or
+         *     `serving_quantity` value from Open Food Facts that is negative, not a finite number
+         *     or not numeric is dropped and treated as missing (never clamped or set to zero); a
+         *     numeric string such as "12.5" is read as that number.
          *
          *     **Licence.** Every 200 carries `source` (code `open_food_facts`, ODbL 1.0 / DbCL
          *     1.0, link to the product page); the app shows that credit on each scanned food.
          *
          *     **503.** `upstream_unavailable`: Open Food Facts failed, timed out or answered
-         *     with an error. `upstream_busy`: the server's own limit on calls to Open Food Facts
-         *     is used up; `Retry-After` says when to retry. The app offers manual entry.
+         *     with an error. `upstream_busy`: the server's shared limit of 12 calls per minute to
+         *     Open Food Facts is used up; `Retry-After` says when to retry. The app offers manual entry.
          */
         get: operations["getFoodByBarcode"];
         put?: never;
@@ -1084,6 +1094,10 @@ export interface components {
         /**
          * @description A trimmed subset of an Open Food Facts product (ADR 009). Community data, unchecked.
          *     Text is untrusted: show it as text, never interpret it.
+         *
+         *     `code` is always the code from the request path, unchanged (Open Food Facts may
+         *     store a UPC-A as 13 digits with a leading 0; the server does not pass that
+         *     through), so the app can save it as `UserFood.barcode` and find it again locally.
          *
          *     Field names are this contract's, not Open Food Facts': `name` (OFF `product_name`),
          *     `brands`, `quantity`, `serving_size`, `serving_quantity` (grams or millilitres),

@@ -461,6 +461,49 @@ for (const c of ["invalid_barcode", "upstream_unavailable", "upstream_busy"]) if
 if (parsed.components.schemas.UserFood.allOf[1].properties.barcode?.pattern !== "^([0-9]{8}|[0-9]{12,13})$") failures.push("UserFood.barcode pattern missing");
 if (parsed.components.schemas.UserFood.allOf[1].required.includes("barcode")) failures.push("UserFood.barcode must stay optional (older clients do not send it)");
 
+// OffProduct and OffNutriments are responses, so the record bound checks above do not reach them (#944): pin them closed, the exact
+// nutriment key set and a bound on every string and array, then mutate each pin and require the check to notice.
+const OFF_NUTRIMENT_KEYS = ["energy-kcal", "energy-kj", "proteins", "carbohydrates", "fat", "fiber", "added-sugars"].flatMap((k) => [`${k}_100g`, `${k}_serving`]).sort();
+const checkOff = (schemas) => {
+  const out = [];
+  const nut = schemas.OffNutriments;
+  const prod = schemas.OffProduct;
+  if (nut?.additionalProperties !== false) out.push("OffNutriments must be closed (additionalProperties: false)");
+  if (prod?.additionalProperties !== false) out.push("OffProduct must be closed (additionalProperties: false)");
+  if (JSON.stringify(Object.keys(nut?.properties ?? {}).sort()) !== JSON.stringify(OFF_NUTRIMENT_KEYS)) out.push("OffNutriments keys differ from the whitelist");
+  for (const [k, v] of Object.entries(nut?.properties ?? {})) if (v.type !== "number" || v.minimum !== 0) out.push(`OffNutriments.${k} must be a number with minimum 0`);
+  const required = new Set(prod?.required ?? []);
+  for (const k of Object.keys(prod?.properties ?? {})) if (!required.has(k)) out.push(`OffProduct.${k} must be required`);
+  for (const [k, v] of Object.entries(prod?.properties ?? {})) {
+    const types = [v.type].flat();
+    if (types.includes("string") && !v.format && !v.enum && !v.$ref && v.maxLength === undefined) out.push(`OffProduct.${k} string needs maxLength`);
+    if (types.includes("array")) {
+      if (v.maxItems === undefined) out.push(`OffProduct.${k} array needs maxItems`);
+      if (v.items?.type === "string" && v.items.maxLength === undefined) out.push(`OffProduct.${k} items need maxLength`);
+    }
+  }
+  return out;
+};
+failures.push(...checkOff(parsed.components.schemas));
+const offMutants = [
+  ["open OffNutriments", (c) => delete c.OffNutriments.additionalProperties],
+  ["open OffProduct", (c) => delete c.OffProduct.additionalProperties],
+  ["add sugars_100g", (c) => (c.OffNutriments.properties.sugars_100g = { type: "number", minimum: 0 })],
+  ["drop a nutriment key", (c) => delete c.OffNutriments.properties.fat_100g],
+  ["drop name maxLength", (c) => delete c.OffProduct.properties.name.maxLength],
+  ["drop states_tags maxItems", (c) => delete c.OffProduct.properties.states_tags.maxItems],
+  ["drop tag item maxLength", (c) => delete c.OffProduct.properties.countries_tags.items.maxLength],
+  ["unrequire name", (c) => c.OffProduct.required.splice(c.OffProduct.required.indexOf("name"), 1)],
+];
+for (const [name, mutate] of offMutants) {
+  const copy = structuredClone(parsed.components.schemas);
+  mutate(copy);
+  if (checkOff(copy).length === 0) failures.push(`OffProduct check did not notice: ${name}`);
+}
+for (const [name, ex] of Object.entries(barcodeOp.responses["200"].content["application/json"].examples)) {
+  if (ex.value.code !== ex.value.source.reference) failures.push(`barcode example ${name}: code must equal source.reference`);
+}
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
@@ -475,3 +518,4 @@ console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, ea
 console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);
 console.log(`barcode-gs1.json: ${barcode.valid.length} valid and ${barcode.invalid.length} invalid codes, ${barcode.upc_e_expansion.length} UPC-E expansions, /foods/barcode examples and error codes verified`);
+console.log(`openapi.yaml: OffProduct and OffNutriments closed, ${OFF_NUTRIMENT_KEYS.length} nutriment keys pinned, strings and arrays bounded, ${offMutants.length} mutations caught`);
