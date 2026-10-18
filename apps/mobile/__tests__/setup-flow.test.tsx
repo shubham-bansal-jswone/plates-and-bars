@@ -10,7 +10,7 @@ import { loadWeights, saveWeight } from '../src/db/progress';
 import { buildResults } from '../src/setup/results';
 import { fmt } from '../src/format';
 import { resetPendingToast, usePendingToast } from '../src/state/pendingToast';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Text } from 'react-native';
 
 const mockReplace = jest.fn();
@@ -320,7 +320,9 @@ let refocus: () => void = () => undefined;
 function ToastProbe() {
   const [m, setM] = useState('');
   const [n, setN] = useState(0);
-  refocus = () => setN((x) => x + 1); // the focus effect runs again when the callback changes
+  useEffect(() => {
+    refocus = () => setN((x) => x + 1); // the focus effect runs again when the callback changes
+  }, []);
   usePendingToast(useCallback((x: string) => setM(x), [n])); // eslint-disable-line react-hooks/exhaustive-deps
   return <Text>{m ? `toast: ${m}` : 'no toast'}</Text>;
 }
