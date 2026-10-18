@@ -222,3 +222,26 @@ What a content-only fix cannot do:
 - Reach a phone that has never been online since install, or that has not opened the app.
 
 After a content-only release, check the first three journeys of the checklist on a phone with the previous app version.
+
+## 9. Turning on the barcode lookup (#944, #987)
+
+Off by default (`OFF_ENABLED=false`): `GET /api/v1/foods/barcode/{code}` answers 503 `upstream_unavailable` and calls nothing. The same compose file serves staging and production; set the values in each VM's own `.env`. **Owner** steps, in order:
+
+1. Fill in Open Food Facts' API usage form (the one that registers an app that calls their API; find the current link on the OFF API documentation, <https://openfoodfacts.github.io/openfoodfacts-server/api/>) and read their terms for the data (ODbL, ADR 009).
+2. Choose the contact email that goes into the User-Agent (`PlateAndBar/<version> (<email>)`, at most 100 printable ASCII characters). It is sent to OFF with every lookup, so use a role address you are happy to publish, not a personal one.
+3. In the VM's `.env` set `OFF_CONTACT_EMAIL=<email>` and `OFF_ENABLED=true`. **The API refuses to start with `OFF_ENABLED=true` and an empty address**; if it restarts in a loop after this change, read `docker compose logs --tail 50 api` and check that line. Leave `OFF_BASE_URL` unset.
+4. The Caddy access log must redact the barcode before this is on (infra PR #976, merged): check that the VM's Caddy is up to date (`docker compose restart caddy` after a `git pull`, since the Caddyfile is a bind mount) and that `infra/scripts/check-caddy-access-log.sh` passes.
+5. `docker compose up -d api` (no rebuild; the flags are read at start), then `curl -s https://$API_HOST/api/v1/foods/barcode/737628064502`: expect 200 or 404 `not_found`, not 503 `upstream_unavailable`.
+
+To switch it off set `OFF_ENABLED=false` (or empty it) and run `docker compose up -d api`; nothing needs undoing.
+
+## 10. Turning on the AI image features (#946, #985)
+
+Three flags, all off by default: `AI_MEAL_PHOTO_ENABLED`, `AI_IMPORT_RECIPE_ENABLED`, `AI_FORM_CHECK_ENABLED`. A feature is on only while its flag is true, `AI_MONTHLY_BUDGET_TOKENS` is positive and a real provider is wired in; while only the stub exists every AI feature stays off whatever the flags say (`backend/README.md`, AI). **Owner** steps, in order:
+
+1. Choose a provider and a monthly budget (#926: the Claude `AiProvider` is not built yet; AI stays off until you pick provider and budget). Record the key as a VM environment variable only, never in the repository. The compose file passes no provider key yet: when #926 adds a provider, its key variable needs the same passthrough in `docker-compose.yml` (and an entry in `.env.example`) before it reaches the API.
+2. Confirm #990 (decode concurrency cap and heap decision) is merged and its infra PR, which sets the API container's memory limit, is deployed on that VM: `docker inspect --format '{{.HostConfig.Memory}}' plateandbar-staging-api-1` must not print 0. Image calls decode photos in memory; do not enable them without this.
+3. In the VM's `.env` set the wanted flags to `true` and `AI_MONTHLY_BUDGET_TOKENS` to a positive token count (0, the default, keeps everything off), then `docker compose up -d api`. Enable one feature at a time, staging first.
+4. Check `curl -s -H "Authorization: Bearer <token>" https://$API_HOST/api/v1/ai/status`: the feature reads `true`, the others `false`.
+
+To switch a feature off set its flag to `false` (or the budget to `0` for all of them) and run `docker compose up -d api`.
