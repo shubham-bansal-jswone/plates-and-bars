@@ -167,6 +167,51 @@ describe('Describe a meal', () => {
     expect(logs(db)[0]).toMatchObject({ name: 'Roti (2 medium)', kcal: 200, protein_g: 7, meal: 'Breakfast', food_id: null });
   });
 
+  describe('from the add sheet (#874)', () => {
+    const openAdd = async (meal = 'breakfast') => fireEvent.press(await screen.findByLabelText(`+ Add to ${meal}`));
+
+    it('has a Describe it entry that opens the same Describe flow and logs to that meal and the viewed day', async () => {
+      const { api, POST } = on();
+      POST.mockResolvedValue({ data: { items: [ROTI], quota: QUOTA }, response: res(200) });
+      const db = await food(optedIn(), api);
+      await fireEvent.press(await screen.findByRole('button', { name: 'Previous day' }));
+      await openAdd('lunch');
+      await fireEvent.press(await screen.findByLabelText('Describe it, AI estimate'));
+      expect(screen.queryByLabelText('Search foods')).toBeNull();
+      await fireEvent.changeText(await screen.findByLabelText('Describe your meal'), '2 rotis');
+      await fireEvent.press(screen.getByLabelText('Estimate'));
+      await fireEvent.press(await screen.findByLabelText('Add 1 item to lunch'));
+      await waitFor(() => expect(logs(db)).toHaveLength(1));
+      expect(logs(db)[0]).toMatchObject({ name: 'Roti (2 medium)', meal: 'Lunch', date: '2026-10-07' });
+    });
+
+    it('names the entry from its visible text and the no-match hint points at it', async () => {
+      const { api } = on();
+      await food(optedIn(), api);
+      await openAdd();
+      expect(screen.getByRole('button', { name: 'Describe it, AI estimate' })).toBeTruthy();
+      await fireEvent.changeText(screen.getByLabelText('Search foods'), 'zzzz');
+      expect(screen.getByText('No match. Use Custom to enter it yourself, or Describe to have AI estimate it.')).toBeTruthy();
+    });
+
+    it('with the feature off, the sheet has no entry and the hint does not mention Describe', async () => {
+      const { api, GET } = fakeApi();
+      await food(optedIn(), api);
+      await waitFor(() => expect(GET).toHaveBeenCalledWith('/ai/status', expect.anything()));
+      await openAdd();
+      expect(screen.queryByLabelText('Describe it, AI estimate')).toBeNull();
+      await fireEvent.changeText(screen.getByLabelText('Search foods'), 'zzzz');
+      expect(screen.getByText('No match. Use Custom to enter it yourself.')).toBeTruthy();
+    });
+
+    it('without consent, the sheet has no entry', async () => {
+      const { api } = on();
+      await food(kvDb({ [KEY_USER]: 'u1' }), api);
+      await openAdd();
+      expect(screen.queryByLabelText('Describe it, AI estimate')).toBeNull();
+    });
+  });
+
   it('removing a suggestion keeps it out of the log', async () => {
     const { api, POST } = on();
     POST.mockResolvedValue({ data: { items: [ROTI, { ...ROTI, name: 'Dal' }], quota: QUOTA }, response: res(200) });

@@ -8,7 +8,7 @@ import { fmt } from '../format';
 import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { useAi } from '../ai/AiProvider';
+import { AI_COPY } from '../ai/copy';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
 import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, noMatch, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
@@ -25,10 +25,12 @@ interface Props {
   onAdd: (n: NewLog) => void;
   onSaveMine: (f: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => UserFood;
   onClose: () => void;
+  /** Opens the Describe flow for this meal. Given only when the describe-meal feature is available (consent, server, signed in). */
+  onDescribe?: () => void;
 }
 
-/** The add-food sheet: food list (search, servings or grams), eating out, custom food. */
-export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: Props) {
+/** The add-food sheet: food list (search, servings or grams), eating out, custom food, and Describe it (AI) when it is on. */
+export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, onDescribe }: Props) {
   const c = useTheme();
   const [mode, setMode] = useState<Mode>('list');
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
@@ -45,8 +47,13 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
             ))}
+            {onDescribe ? (
+              <Press hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="button" accessibilityLabel={`${AI_COPY.describeButton}, AI estimate`} onPress={onDescribe} style={[styles.tab, { backgroundColor: c.surfaceSoft }]}>
+                <Text style={{ color: c.ink, ...type.buttonSm }}>{AI_COPY.describeButton}</Text>
+              </Press>
+            ) : null}
           </View>
-          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} /> : null}
+          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={!!onDescribe} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
@@ -79,9 +86,8 @@ function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress:
   );
 }
 
-function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
+function ListTab({ mine, mineFacts, onAdd, say, canDescribe }: { canDescribe: boolean; mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
   const c = useTheme();
-  const ai = useAi();
   const [q, setQ] = useState('');
   const [serv, setServ] = useState(1);
   const [grams, setGrams] = useState('');
@@ -108,7 +114,7 @@ function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; m
       <Hint>{GRAMS_HINT}</Hint>
       <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={styles.search} />
       {list.length ? <Hint>{SOURCE_HINT}</Hint> : null}
-      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>{noMatch(ai.available('describe_meal'))}</Hint>}
+      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>{noMatch(canDescribe)}</Hint>}
     </View>
   );
 }
