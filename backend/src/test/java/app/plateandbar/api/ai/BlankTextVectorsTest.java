@@ -29,14 +29,8 @@ class BlankTextVectorsTest {
 
     private static List<String[]> fields() {
         List<String[]> out = new ArrayList<>();
-        // TODO(#946): the two image-call fields are in the vectors before the backend has their schemas; the backend
-        // PR removes this filter and raises the size to 5.
-        VECTORS.path("fields").forEach(f -> {
-            if (!f.asString().startsWith("MealPhotoRequest.") && !f.asString().startsWith("ImportRecipeRequest.")) {
-                out.add(f.asString().split("\\."));
-            }
-        });
-        assertThat(out).hasSize(3);
+        VECTORS.path("fields").forEach(f -> out.add(f.asString().split("\\.")));
+        assertThat(out).hasSize(5);
         return out;
     }
 
@@ -44,6 +38,9 @@ class BlankTextVectorsTest {
         var body = JSON.createObjectNode().put(field[1], text);
         if (field[0].equals("AskWhyRequest")) {
             body.put("card_id", "protein");
+        }
+        if (field[0].equals("MealPhotoRequest")) {
+            body.putObject("image").put("media_type", "image/png").put("data", "AAAA"); // required; the text is under test
         }
         return SCHEMAS.problems(field[0], body);
     }
@@ -85,14 +82,20 @@ class BlankTextVectorsTest {
         for (C c : List.of(
                 new C("text", b -> service.describeMeal("u", b)),
                 new C("question", b -> service.askWhy("u", b)),
-                new C("name", b -> service.suggestTags("u", b)))) {
-            var body = JSON.createObjectNode().put(c.field(), blank);
+                new C("name", b -> service.suggestTags("u", b)),
+                new C("hint", b -> service.mealPhoto("u", b)),
+                new C("recipe text", b -> service.importRecipe("u", b)))) {
+            var body = JSON.createObjectNode().put(c.field().equals("recipe text") ? "text" : c.field(), blank);
             if (c.field().equals("question")) {
                 body.put("card_id", "protein");
             }
+            if (c.field().equals("hint")) {
+                body.putObject("image").put("media_type", "image/png").put("data", "AAAA");
+            }
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> c.call().accept(body))
                     .isInstanceOfSatisfying(app.plateandbar.api.common.ApiException.class, e ->
-                            assertThat(e.details()).containsExactly(new ErrorResponse.Detail(c.field(), "pattern")));
+                            assertThat(e.details()).containsExactly(
+                            new ErrorResponse.Detail(c.field().equals("recipe text") ? "text" : c.field(), "pattern")));
         }
         org.mockito.Mockito.verifyNoInteractions(provider);
         org.mockito.Mockito.verify(quotas, org.mockito.Mockito.never()).reserve(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());

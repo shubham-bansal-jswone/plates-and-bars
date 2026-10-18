@@ -30,4 +30,22 @@ class AiContentTest {
         assertThat(c.isCatalogueExercise("Goblet Squat")).isTrue();
         assertThat(c.isCatalogueExercise("My Secret Lift")).isFalse();
     }
+
+    @Test
+    void theBuiltInFoodsTheRawTableAndTheExerciseCardsLoadFromTheBundledContent() {
+        AiContent c = new AiContent(new ObjectMapper());
+        assertThat(c.hasFood("Roti / chapati")).isTrue();
+        assertThat(c.hasFood("roti / chapati")).as("a food match is exact").isFalse();
+        AiContent.Food roti = java.util.stream.StreamSupport.stream(c.foods().spliterator(), false)
+                .filter(f -> f.name().equals("Roti / chapati")).findFirst().orElseThrow();
+        assertThat(roti.serving()).isEqualTo("1 medium (30 g atta)");
+        assertThat(roti.kcal()).isEqualTo(102);
+        assertThat(c.rawIngredient(" toor DAL (dry) ")).contains("Toor dal (dry)");
+        assertThat(c.rawIngredient("Moonrock")).isEmpty();
+        assertThat(c.rawIngredientNames()).contains("Toor dal (dry)");
+        AiContent.ExerciseCard card = c.exerciseCard("Goblet Squat").orElseThrow();
+        assertThat(card.keyCues()).contains("Sit down between your heels with your chest up");
+        assertThat(card.commonMistakes()).isNotEmpty();
+        assertThat(c.exerciseCard("My Secret Lift")).isEmpty();
+    }
 }
