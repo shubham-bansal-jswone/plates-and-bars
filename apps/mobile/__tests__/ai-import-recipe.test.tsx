@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
+import { importedRecipe } from '../src/ai/recipeImport';
 import { IMAGE_ISSUES } from '../src/ai/client';
 import { IMAGE_ISSUE_MESSAGE } from '../src/ai/copy';
 import { RecipesScreen } from '../src/screens/RecipesScreen';
@@ -453,5 +454,16 @@ describe('failures fall back and say so', () => {
     mockPicker.granted = false;
     await fireEvent.press(await screen.findByLabelText('Take a photo of the recipe'));
     expect(await screen.findByText('Camera access is off. Allow it in Settings, or choose a photo instead.')).toBeTruthy();
+  });
+});
+
+describe('importedRecipe on junk amounts', () => {
+  it('gives "0" grams, as the prototype does, never "NaN"', () => {
+    const r = importedRecipe(
+      { name: 'Dal', katoris: 2, steps: [], unmatched: [], ingredients: [{ ingredient: 'toor dal', amount: 'abc', unit: 'g' }, { ingredient: 'mystery', amount: undefined, unit: 'g' }] } as never,
+      new Set(['toor dal']),
+    );
+    expect(r.rows).toEqual([{ ingredient: 'toor dal', amount: '0', unit: 'g' }]);
+    expect(r.unmatched).toEqual(['mystery (0 g)']);
   });
 });
