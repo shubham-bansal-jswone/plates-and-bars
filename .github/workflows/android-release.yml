@@ -41,6 +41,11 @@ on:
       - 'infra/scripts/test-release-env.sh'
       - 'infra/scripts/check-site-url.sh'
       - 'infra/scripts/test-check-site-url.sh'
+      # the Android licence list (#835): a dependency change can change the release classpath
+      - 'apps/mobile/package-lock.json'
+      - 'apps/mobile/scripts/android-classpath.init.gradle'
+      - 'apps/mobile/scripts/android-classpath.txt'
+      - 'apps/mobile/scripts/licences.mjs'
   workflow_dispatch:
 
 permissions:
@@ -95,6 +100,23 @@ jobs:
         run: ../../infra/scripts/check-site-url.sh "$IS_RELEASE" "$SITE_URL_CHECK"
       - name: Generate the native project
         run: npx expo prebuild --platform android --no-install
+      # About lists the Android libraries from the committed apps/mobile/scripts/android-classpath.txt (#835). Resolve the
+      # real releaseRuntimeClasspath with a plain-Gradle init script (no plugin) and fail if an artifact has no licence row
+      # in scripts/licences.mjs or the list differs from the committed one. No secrets reach this step.
+      - name: Android licence list matches the resolved release classpath
+        id: classpath
+        working-directory: apps/mobile/android
+        run: |
+          ./gradlew --no-daemon --no-configuration-cache -q -I ../scripts/android-classpath.init.gradle :app:writeReleaseClasspath -PclasspathOut="$RUNNER_TEMP/android-classpath.txt"
+          node ../scripts/licences.mjs --classpath "$RUNNER_TEMP/android-classpath.txt"
+      - name: Upload the resolved classpath (copy it over scripts/android-classpath.txt)
+        if: failure() && steps.classpath.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-classpath
+          path: ${{ runner.temp }}/android-classpath.txt
+          if-no-files-found: warn
+          retention-days: 14
       - name: Decode keystore (only when supplied)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
