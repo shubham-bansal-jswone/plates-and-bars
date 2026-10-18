@@ -557,10 +557,10 @@ const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
 const crc32 = (b) => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
 const pngChunk = (type, data) => { const b = Buffer.alloc(12 + data.length); b.writeUInt32BE(data.length, 0); b.write(type, 4); data.copy(b, 8); b.writeUInt32BE(crc32(b.subarray(4, 8 + data.length)), 8 + data.length); return b; };
-const pngBytes = (w, h) => {
+const pngBytes = (w, h, depth = 8) => {
   const b = Buffer.alloc(8 + 25 + 12);
   PNG_SIG.copy(b);
-  b.writeUInt32BE(13, 8); b.write("IHDR", 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
+  b.writeUInt32BE(13, 8); b.write("IHDR", 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20); b[24] = depth; b[25] = 2;
   b.writeUInt32BE(0, 33); b.write("IEND", 37);
   return b;
 };
@@ -618,6 +618,7 @@ function imageFault(media_type, data, kind) {
   const [w, h] = dims;
   if (w > imgv.max_side_px[kind] || h > imgv.max_side_px[kind] || w * h > imgv.max_megapixels * 1e6) return "dimensions";
   if (isPng) {
+    if (buf[24] > 8) return "unreadable_image"; // IHDR bit depth above 8: refused on the header, before any decode
     if (!buf.includes("IEND") || pngMetadataBomb(buf)) return "unreadable_image";
   } else if (buf.at(-2) !== 0xff || buf.at(-1) !== 0xd9) return "unreadable_image";
   return null;
@@ -640,7 +641,7 @@ function jpegHasGps(buf) {
 for (const c of imgv.cases) {
   let data = c.data;
   if (c.build?.pad_to_bytes) data = Buffer.concat([Buffer.from(imgv.cases[0].data, "base64"), Buffer.alloc(c.build.pad_to_bytes)]).subarray(0, c.build.pad_to_bytes).toString("base64");
-  if (c.build?.png_dims) data = pngBytes(...c.build.png_dims).toString("base64");
+  if (c.build?.png_dims) data = pngBytes(...c.build.png_dims, c.build.png_bit_depth).toString("base64");
   if (c.build?.png_text_chunk) data = withText(Buffer.from(imgv.cases[0].data, "base64"), c.build.png_text_chunk.type, c.build.png_text_chunk.inflated_bytes).toString("base64");
   const got = imageFault(c.media_type, data, c.kind);
   if (got !== c.issue) failures.push(`ai-images.json "${c.name}": checker says ${got}, vector says ${c.issue}`);

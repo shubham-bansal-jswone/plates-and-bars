@@ -89,7 +89,7 @@ class AiImagesTest {
         }
         if (build.has("png_dims")) {
             ByteBuffer ihdr = ByteBuffer.allocate(13).putInt(build.path("png_dims").get(0).asInt())
-                    .putInt(build.path("png_dims").get(1).asInt()).put(new byte[] {8, 2, 0, 0, 0});
+                    .putInt(build.path("png_dims").get(1).asInt()).put(new byte[] {(byte) build.path("png_bit_depth").asInt(8), 2, 0, 0, 0});
             return concat(Arrays.copyOfRange(PNG_8X8, 0, 8), chunk("IHDR", ihdr.array()));
         }
         if (build.has("png_text_chunk")) {
