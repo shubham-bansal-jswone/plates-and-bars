@@ -1,0 +1,66 @@
+// Gradle init script: writes the Maven libraries that ship in the release build, sorted, one per line:
+//   group:name:version[ <path of a NOTICE file inside the artifact>@<first 16 hex of its sha256>]...
+// Plain Gradle API, no plugin. scripts/licences.mjs reads the committed copy (scripts/android-classpath.txt).
+//
+//   cd android   # after `npx expo prebuild --platform android`
+//   ./gradlew --no-daemon --no-configuration-cache -q -I ../scripts/android-classpath.init.gradle :app:writeReleaseClasspath -PclasspathOut=<file>
+//
+// Listed: every module component of :app's releaseRuntimeClasspath, after conflict resolution and substitution.
+// Left out: Gradle subprojects (React Native libraries and Expo modules built from node_modules, listed as npm packages)
+// and platforms (BOMs), which put no code in the APK.
+// NOTICE files: Apache-2.0 section 4(d) asks for them to be passed on, and the APK packaging drops META-INF/NOTICE*, so each one
+// found in an artifact (or in a jar inside it, such as an AAR's classes.jar) is recorded by hash for licences.mjs to match.
+import java.security.MessageDigest
+import java.util.zip.ZipInputStream
+
+allprojects {
+  if (path != ':app') return
+  tasks.register('writeReleaseClasspath') {
+    doLast {
+      def out = project.findProperty('classpathOut')
+      if (!out) throw new GradleException('pass -PclasspathOut=<file>')
+      def config = configurations.releaseRuntimeClasspath
+      def category = { v -> def k = v.attributes.keySet().find { it.name == 'org.gradle.category' }; k ? v.attributes.getAttribute(k).toString() : null }
+      def platform = { v -> category(v) in ['platform', 'enforced-platform'] }
+      def coord = { id -> "${id.group}:${id.module}:${id.version}".toString() }
+      def lines = new TreeMap<String, TreeSet<String>>()
+      config.incoming.resolutionResult.allComponents
+        .findAll { it.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+        .findAll { c -> c.variants.isEmpty() || !c.variants.every(platform) }
+        .each { lines[coord(it.id)] = new TreeSet<String>() }
+
+      def notices
+      notices = { InputStream input, String prefix, Set<String> found ->
+        def zip = new ZipInputStream(input)
+        for (def e = zip.nextEntry; e != null; e = zip.nextEntry) {
+          if (e.directory) continue
+          def bytes = zip.readAllBytes()
+          if (e.name ==~ /(?i)(.*\/)?NOTICE(\.[a-z]+)?/) {
+            def sha = MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString().take(16)
+            found << "${prefix}${e.name}@${sha}".toString()
+          } else if (e.name.endsWith('.jar')) {
+            notices(new ByteArrayInputStream(bytes), "${prefix}${e.name}!", found)
+          }
+        }
+      }
+      def fromAar = new HashSet<String>() // an AAR's jar is also offered as a transformed 'jar' artifact: read the AAR only
+      ['aar', 'jar'].each { type ->
+        def view = config.incoming.artifactView {
+          lenient = true
+          attributes { attribute(Attribute.of('artifactType', String), type) }
+        }
+        view.artifacts.each { a ->
+          def id = a.id.componentIdentifier
+          if (!(id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier)) return
+          def found = lines[coord(id)]
+          if (found == null || !a.file.name.endsWith(".${type}") || (type == 'jar' && coord(id) in fromAar)) return
+          if (type == 'aar') fromAar << coord(id)
+          a.file.withInputStream { notices(it, '', found) }
+        }
+      }
+      def text = lines.collect { c, n -> ([c] + n.toList()).join(' ') }
+      new File(out.toString()).text = text.join('\n') + '\n'
+      println "wrote ${text.size()} libraries to ${out}"
+    }
+  }
+}

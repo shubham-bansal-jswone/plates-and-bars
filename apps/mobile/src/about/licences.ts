@@ -5,7 +5,6 @@ export interface LicenceEntry {
   version: string | null;
   licence: string;
   url?: string | null;
-  from?: string[];
   /** Id into `texts`; null when the package ships no licence file. */
   text?: string | null;
 }
@@ -25,7 +24,6 @@ export const LICENCES_COPY = {
   open: 'View open-source licences',
   licence: (l: string) => `Licence: ${l}`,
   noNotice: 'This package ships no separate licence file. The licence above is the one it declares.',
-  noText: 'Read the licence at the link above.',
   loading: 'Loading licences',
   failed: 'The licences could not be loaded. Check your connection and try again.',
   retry: 'Try again',
@@ -33,7 +31,7 @@ export const LICENCES_COPY = {
   npm: 'JavaScript packages',
   npmHint: 'Production dependencies of the app, from its lockfile.',
   android: 'Android libraries',
-  androidHint: 'Libraries declared by React Native and the Expo modules, with the standard text of each licence. Libraries those pull in further down are not listed.',
+  androidHint: 'Every library in the Android release build, as Gradle resolved it, with its licence text and any NOTICE file it ships.',
   repoDocs: 'Plate & Bar licence files',
 };
 
