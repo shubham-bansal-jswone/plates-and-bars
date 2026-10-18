@@ -18,6 +18,8 @@ Specs (one concern each, every test starts with an empty browser profile):
 
 - `pose-specs/pose.spec.mjs` (own config, `playwright.pose.config.mjs`): live pose tracking (#947) on a build with `EXPO_PUBLIC_POSE_TRACKING=1`, a fake camera and the real CSP. Run with `npm run test:pose` (see "Pose tracking test").
 
+- `barcode-specs/barcode.spec.mjs` (own config, `playwright.barcode.config.mjs`): the web barcode scanner (#944) on a build with `EXPO_PUBLIC_BARCODE_SCAN=1`, a fake camera showing one EAN-13 and the real CSP. Run with `npm run test:barcode` (see "Barcode scanner test").
+
 Rules: only `127.0.0.1` is reachable (every other request is aborted and every test fails at teardown if there was one); no sign-in and no server, so sync and AI are off; selectors are `aria-label`s; there are no fixed sleeps (`saved()` waits for the app's SQLite worker to answer its writes).
 
 ## Run locally
@@ -53,6 +55,17 @@ cd ../../tests/e2e && npm run test:pose
 ```
 
 Chromium starts with `--use-fake-device-for-media-stream` (a synthetic video, no person in it), so the model runs on real frames and finds nobody. The spec checks the browser side: the screen loads under the shipped CSP with no violation, every request goes to our own origin (the weights and `.wasm` files under `/pose/` included), nothing but GET is sent, nothing of it is in the service worker cache, and with WebGL refused it falls back to single-thread WASM without a `blob:` worker. Counting with a person in view is covered by jest with a scripted model.
+
+## Barcode scanner test
+
+Like the pose test, the flag is compiled in, so the suite has its own export and config:
+
+```
+cd apps/mobile && EXPO_PUBLIC_BARCODE_SCAN=1 npx expo export --platform web --output-dir ../../tests/e2e/.barcode-dist
+cd ../../tests/e2e && npm run test:barcode
+```
+
+Chromium starts with `--use-file-for-fake-video-capture` pointing at a clip the config writes to the temp folder (`support/ean13-video.mjs`: one EAN-13, black bars on white, no binary in git). The spec opens the scanner's dev screen (`/barcode-dev`) and checks, under the shipped CSP: with no native `BarcodeDetector` the code is read by zxing-wasm, whose chunk (`zxing-decoder-*`) and `/zxing/zxing_reader.wasm` (served as `application/wasm`) are fetched only when the scanner opens and are not in the service worker cache; with a native detector that lists `ean_13` neither is fetched (skipped on a Chromium without one); every request goes to our own origin and none but GET is made; the camera tracks are stopped when the scanner closes; a refused camera shows the typed-number path, which refuses a bad check digit.
 
 ## Play Store graphics (on demand, not CI)
 

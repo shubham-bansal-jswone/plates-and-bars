@@ -4,3 +4,4 @@ playwright-report/
 .chromium/
 .sync-dist/
 .pose-dist/
+.barcode-dist/

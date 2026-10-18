@@ -102,6 +102,16 @@ describe('precache and fetch', () => {
     expect(sw.assetPaths(`a("${POSE}") b("${DETECTOR}") c("${WORKER}")`)).toEqual([WORKER]);
   });
 
+  it('never precaches the web barcode reader chunk or its .wasm (on demand only, #944)', async () => {
+    const ZX = '/_expo/static/js/web/zxing-decoder-cc33.js';
+    const withZx = { ...files, [ENTRY]: `x("${WORKER}");import("${ZX}");w("/zxing/zxing_reader.wasm")` };
+    const { stores, fetched } = install(withZx);
+    await sw.precache();
+    expect([...stores.get(`pb-shell-${ENTRY}`)!.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());
+    expect(fetched.filter((p) => p.includes('zxing'))).toEqual([]);
+    expect(sw.assetPaths(`a("${ZX}") c("${WORKER}")`)).toEqual([WORKER]);
+  });
+
   it('a pose chunk is fetched from the network when asked for, and not stored', async () => {
     const POSE = '/_expo/static/js/web/pose-session-aa11.js';
     const { stores } = install({ ...files, [POSE]: 'chunk' });
