@@ -2,7 +2,7 @@ import { validMealPlan } from '../meals/validPlan';
 import type { Settings } from '../settings/types';
 import type { StoreDb } from './records';
 
-// One Settings record per install, under the local key 'me'; its id stays null until #31 (see `Settings.id`).
+// One Settings record per install, under the local key 'me'; its id is null on a row made on the device and the server id on a pulled one (see `Settings.id`).
 const KEY = 'me';
 
 export async function loadSettings(db: StoreDb): Promise<Settings | null> {

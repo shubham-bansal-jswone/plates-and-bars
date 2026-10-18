@@ -7,11 +7,11 @@ import type { SyncMeta } from '../setup/types';
  */
 export interface Settings extends Omit<SyncMeta, 'id'> {
   /**
-   * Null locally. Settings is a natural-key table (one per user): its contract id is the UUIDv5 of
-   * `settings:me`, computed at push time for the signed-in user (sync/records.ts buildRecord); no device namespace is invented
+   * Null on a row made on the device, the server id on a pulled one. Settings is a natural-key table (one per user): its contract id is the UUIDv5 of
+   * `settings:me`, computed at push time for the signed-in user (sync/records.ts buildRecord, same value either way); no device namespace is invented
    * here (see /sync "Record ids").
    */
-  id: null;
+  id: string | null;
   /** Focus muscles (contract `Muscle` names). */
   focus: string[];
   /** Rest timer turned off. */
