@@ -75,5 +75,21 @@ class ContractCoverageTest {
             String[] p = k.split(" ");
             assertThat(paths.path(p[1]).path(p[0].toLowerCase()).isMissingNode()).as(k).isFalse();
         });
+        assertThat(ALLOWLIST.keySet())
+                .as("the allowlist is pinned: add or remove entries here on purpose")
+                .containsExactlyInAnyOrder("GET /foods", "GET /foods/barcode/{code}");
+    }
+
+    @Test
+    void noAllowlistedOperationHasASchemaCheckedTest() {
+        requireUnfilteredRun();
+        Set<String> recorded = ContractSchemas.recorded();
+        Set<String> stale = new TreeSet<>();
+        ALLOWLIST.keySet().forEach(k -> {
+            if (recorded.stream().anyMatch(c -> c.startsWith(k + " "))) {
+                stale.add(k);
+            }
+        });
+        assertThat(stale).as("allowlisted operations that now have a schema-checked test: remove them from ALLOWLIST").isEmpty();
     }
 }
