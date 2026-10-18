@@ -705,3 +705,9 @@ export type { PhotoMacros } from './photoMeal';
 
 /** Recipe import (#1011): `importedGrams` mirrors `String(Math.round(num(i.grams)))` in prototype `importRecipe`. */
 export { importedGrams } from './recipeImport';
+
+/**
+ * Form check frame positions (#1011): `framePositions` mirrors `at` and `frameDuration` mirrors `dur` in prototype `videoFrames`
+ * (12% to 88% of the clip, 5 s when the length is unknown); `frameTimesMs` is the same rounded to whole ms.
+ */
+export { FRAME_DEFAULT_DURATION_MS, FRAME_START, FRAME_SPAN, FRAME_COUNT, frameDuration, framePositions, frameTimesMs } from './formFrames';
