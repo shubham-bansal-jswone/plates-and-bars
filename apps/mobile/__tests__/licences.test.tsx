@@ -19,9 +19,9 @@ describe('generated licences.json', () => {
     expect(d.packages.find((p) => p.name === '@sentry/cli')).toMatchObject({ version: '0.0.0-stub', licence: 'MIT' });
     expect(d.android.length).toBeGreaterThan(10);
   });
-  it('gives every entry a licence, and lists the fonts, Ionicons and the pose model files', () => {
+  it('gives every entry a licence, and lists the fonts, Ionicons and the pose and barcode files', () => {
     for (const e of [...d.packages, ...d.android, ...d.assets]) expect(e.licence).toBeTruthy();
-    expect(d.assets.map((a) => a.name)).toEqual(['Inter (font)', 'Roboto (font)', 'Ionicons (icons)', 'MoveNet Lightning (pose model weights)', 'TensorFlow.js WebAssembly runtime (pose tracking)']);
+    expect(d.assets.map((a) => a.name)).toEqual(['Inter (font)', 'Roboto (font)', 'Ionicons (icons)', 'MoveNet Lightning (pose model weights)', 'ZXing-C++ WebAssembly reader (web barcode scanner)', 'TensorFlow.js WebAssembly runtime (pose tracking)']);
     for (const e of d.assets) expect(d.texts[e.text!]).toBeTruthy();
   });
   it('only references texts that exist', () => {

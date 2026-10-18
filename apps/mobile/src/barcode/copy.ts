@@ -17,6 +17,7 @@ export const BARCODE_COPY = {
   use: 'Use this number',
   invalid: 'That number does not look right. Check the digits on the pack.',
   scanAgain: 'Scan again',
+  cameraView: 'Camera view for reading a barcode',
   torchOn: 'Turn the torch on',
   torchOff: 'Turn the torch off',
   close: 'Close',
