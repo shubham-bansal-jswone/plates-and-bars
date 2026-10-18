@@ -3,6 +3,7 @@ package app.plateandbar.api.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 class AiContentTest {
@@ -29,6 +30,31 @@ class AiContentTest {
         assertThat(c.hasCard("nope")).isFalse();
         assertThat(c.isCatalogueExercise("Goblet Squat")).isTrue();
         assertThat(c.isCatalogueExercise("My Secret Lift")).isFalse();
+    }
+
+    @Test
+    void aCardFlaggedHiddenIsAbsentFromThePromptAndNeitherARequestNorAReplyMayNameIt() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        java.util.List<String> hidden = new java.util.ArrayList<>();
+        try (java.io.InputStream in = AiContent.class.getResourceAsStream("/content/cards.json")) {
+            for (tools.jackson.databind.JsonNode n : json.readTree(in).path("cards")) {
+                if (n.path("hidden").asBoolean(false)) {
+                    hidden.add(n.path("id").asString());
+                }
+            }
+        }
+        assertThat(hidden).as("the bundled cards.json holds back at least one card").isNotEmpty();
+        AiContent c = new AiContent(json);
+        String input = AiPrompts.askWhy(c.cards(), "protein", "why?").input();
+        for (String id : hidden) {
+            assertThat(c.hasCard(id)).as(id).isFalse();
+            assertThat(input).as(id).doesNotContain("[card " + id + "]");
+            ObjectNode reply = new AiReplies(json, new AiSchemas(), c)
+                    .askWhy("{\"answer\":\"Because.\",\"card_id\":\"" + id + "\"}").orElseThrow();
+            assertThat(reply.path("card_id").isNull()).as(id).isTrue();
+        }
+        assertThat(input).contains("[card protein]");
+        assertThat(c.hasCard("protein")).isTrue();
     }
 
     @Test
