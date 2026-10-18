@@ -1,0 +1,25 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.plateandbar.barcode'
+version = '0.1.0'
+
+android {
+  namespace "app.plateandbar.barcode"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+// Open-source only (#944): CameraX (Apache-2.0, Google Maven) and zxing-cpp (Apache-2.0, Maven Central). No ML Kit, no Play services.
+// The versions are the ones scripts/licences.mjs has a checked row for; a change needs the rows and scripts/android-classpath.txt updated.
+dependencies {
+  implementation 'androidx.camera:camera-core:1.5.2'
+  implementation 'androidx.camera:camera-camera2:1.5.2'
+  implementation 'androidx.camera:camera-lifecycle:1.5.2'
+  implementation 'androidx.camera:camera-view:1.5.2'
+  implementation 'io.github.zxing-cpp:android:3.1.1'
+}
