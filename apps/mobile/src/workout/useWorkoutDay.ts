@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { buzz, PB_BUZZ } from '../haptics';
 import {
   cantRule,
   noLoad,
@@ -197,7 +198,10 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     ref.current = { ...ref.current, lifts: { ...lifts, [ex.name]: res.record } };
     setDay(ref.current);
     await saveLift(db, ex.name, res.record);
-    if (res.toast) notify(`New personal best on ${ex.name}`);
+    if (res.toast) {
+      notify(`New personal best on ${ex.name}`);
+      buzz(PB_BUZZ);
+    }
   };
 
   /** Applies `fn` to a copy of today's exercise `i` and shows it at once; `persist` is queued and gets the exercise's name. */
