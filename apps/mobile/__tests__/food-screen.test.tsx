@@ -19,15 +19,6 @@ jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
   return { __esModule: true, default: (p: Record<string, unknown>) => { mockPressed.push(p); return React.createElement(Actual, p); } };
 });
 
-// Fixture until the drinks content (#858) gives the eat-out Cola its fibre (0 g) and added sugar (35 g), as the prototype's FIB does.
-jest.mock('../src/food/catalog', () => {
-  const actual = jest.requireActual('../src/food/catalog');
-  return {
-    ...actual,
-    getCuisines: () => actual.getCuisines().map((c: { dishes: { name: string; per_serving: object }[] }) => ({ ...c, dishes: c.dishes.map((d) => (d.name === 'Cola (330 ml)' ? { ...d, per_serving: { ...d.per_serving, fibre_g: 0, added_sugar_g: 35 } } : d)) })),
-  };
-});
-
 const mockFocus = { n: 0 };
 const mockPush = jest.fn();
 const mockNavigate = jest.fn();
