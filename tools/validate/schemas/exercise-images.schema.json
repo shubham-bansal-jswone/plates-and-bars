@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plateandbar.app/schemas/exercise-images.schema.json",
+  "title": "content/exercise-images.json",
+  "description": "Own SVG start/end figures per exercise (issue #653). tools/validate/exercise-images.mjs enforces this and the cross-file rules (every key is an exercise in exercises.json, unique files and source ids, no colours baked into the SVG).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "images"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "images": {
+      "type": "object",
+      "description": "Keyed by exercise name as in exercises.json.",
+      "additionalProperties": { "$ref": "#/$defs/image" }
+    }
+  },
+  "$defs": {
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "w", "h", "svg"],
+      "properties": {
+        "file": { "type": "string", "pattern": "^svg/[a-z0-9]+(-[a-z0-9]+)*\\.svg$", "description": "Unique logical file name; the SVG text is inline in svg so the bundle is self-contained." },
+        "w": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "h": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "svg": { "type": "string", "maxLength": 8192, "description": "At most 8192 bytes. viewBox is 0 0 w h. Colours only none, currentColor or var(--fig-body|arm|hl|eq|bg)." }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frames", "source", "source_id", "licence", "licence_url", "author", "author_url", "source_url", "changes", "alt", "note"],
+      "properties": {
+        "frames": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "$ref": "#/$defs/frame" }, "description": "Start frame, then end frame. One frame for moves without a useful end pose." },
+        "source": { "enum": ["own_drawing", "wger", "wikimedia_commons"] },
+        "source_id": { "type": "string", "minLength": 1 },
+        "licence": { "enum": ["CC-BY-4.0", "CC0-1.0"] },
+        "licence_url": { "type": "string", "format": "uri" },
+        "author": { "type": "string", "minLength": 1 },
+        "author_url": { "type": ["string", "null"], "format": "uri" },
+        "source_url": { "type": ["string", "null"], "format": "uri" },
+        "changes": { "type": ["string", "null"] },
+        "alt": { "type": ["string", "null"], "maxLength": 140 },
+        "note": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
