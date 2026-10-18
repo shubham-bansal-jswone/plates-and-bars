@@ -1,4 +1,4 @@
-import { DEFAULT_PREFS, buildSlots, clock, inQuiet, minutesOf, movedByQuiet, parsePrefs, type ReminderPrefs } from '../src/reminders/schedule';
+import { CLOCK_ERRORS, DEFAULT_PREFS, buildSlots, clock, parseClock, inQuiet, minutesOf, movedByQuiet, parsePrefs, type ReminderPrefs } from '../src/reminders/schedule';
 import { nativeRules } from '../src/reminders/sync';
 
 const on = (p: Partial<ReminderPrefs>): ReminderPrefs => ({ ...DEFAULT_PREFS, ...p });
@@ -14,6 +14,24 @@ describe('reminder times', () => {
     expect(clock(450)).toBe('07:30');
     expect(clock(24 * 60)).toBe('00:00');
     expect(clock(-30)).toBe('23:30');
+  });
+});
+
+describe('parseClock (a number pad has no colon on most phones)', () => {
+  it.each([['0815'], ['815'], ['8.15'], ['8:15'], ['08:15'], ['08.15'], [' 815 ']])('%s gives 08:15', (typed) => {
+    expect(parseClock(typed)).toEqual({ ok: true, time: '08:15' });
+  });
+  it('other valid times', () => {
+    expect(parseClock('0000')).toEqual({ ok: true, time: '00:00' });
+    expect(parseClock('2359')).toEqual({ ok: true, time: '23:59' });
+    expect(parseClock('730')).toEqual({ ok: true, time: '07:30' });
+    expect(parseClock('7:30')).toEqual({ ok: true, time: '07:30' });
+  });
+  it('says what is wrong', () => {
+    expect(parseClock('')).toEqual({ ok: false, error: CLOCK_ERRORS.empty });
+    expect(parseClock('  ')).toEqual({ ok: false, error: CLOCK_ERRORS.empty });
+    for (const bad of ['8', '08', '8:5', '8.5', '12345', 'ab', '8:15pm', '08::15', '-815']) expect(parseClock(bad)).toEqual({ ok: false, error: CLOCK_ERRORS.shape });
+    for (const bad of ['2400', '24:00', '1260', '12.60', '0075']) expect(parseClock(bad)).toEqual({ ok: false, error: CLOCK_ERRORS.range });
   });
 });
 

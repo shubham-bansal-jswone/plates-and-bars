@@ -40,6 +40,27 @@ export function minutesOf(t: unknown): number | null {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
+export type ClockInput = { ok: true; time: ClockTime } | { ok: false; error: string };
+
+export const CLOCK_ERRORS = {
+  empty: 'Enter a time, like 07:30.',
+  shape: 'Use a time like 07:30 or 0730.',
+  range: 'Hours go from 00 to 23 and minutes from 00 to 59.',
+} as const;
+
+/**
+ * Reads a time as people type it on a number pad: "0815", "815", "8.15", "8:15" or "08:15" all give "08:15". Without a
+ * separator the last two digits are the minutes; with one, the minutes are exactly two digits.
+ */
+export function parseClock(input: string): ClockInput {
+  const t = input.trim();
+  if (t === '') return { ok: false, error: CLOCK_ERRORS.empty };
+  const m = /^(\d{1,2})[.:](\d{2})$/.exec(t) ?? /^(\d{1,2})(\d{2})$/.exec(t);
+  if (!m) return { ok: false, error: CLOCK_ERRORS.shape };
+  const time = `${m[1]!.padStart(2, '0')}:${m[2]}`;
+  return minutesOf(time) === null ? { ok: false, error: CLOCK_ERRORS.range } : { ok: true, time };
+}
+
 export function clock(minutes: number): ClockTime {
   const m = ((minutes % DAY) + DAY) % DAY;
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;

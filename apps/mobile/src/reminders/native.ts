@@ -25,6 +25,8 @@ interface PlateRemindersModule {
  * Null off Android, and in a build that does not have the module (Expo Go, tests). Read from the Expo modules global (what
  * `requireOptionalNativeModule` reads) instead of importing `expo`, which would load the whole SDK into every file that wipes the store.
  */
+// Relies on expo-modules-core 58.0.x (SDK 58), which installs `globalThis.expo.modules` natively before the bundle runs. It skips
+// `requireOptionalNativeModule`'s fallbacks and reads once at import time: re-check this when the SDK is upgraded.
 const registry = (globalThis as { expo?: { modules?: Record<string, unknown> } }).expo?.modules;
 const native: PlateRemindersModule | null = Platform.OS === 'android' ? ((registry?.PlateReminders as PlateRemindersModule | undefined) ?? null) : null;
 
