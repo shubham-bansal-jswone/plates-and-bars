@@ -10,7 +10,7 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
-**2026-10-19 — in sequence mode, hand-picked sessions do not reset the workout order (spec-change; prototype and golden fixtures unchanged).**
+**2026-10-19 — in sequence mode, hand-picked sessions do not reset the workout order (deliberate difference; prototype and golden fixtures unchanged).**
 - #1019 (implemented in PR #1029). In sequence mode the next workout follows the most recent day that has a real template:
 - Hand-picked days (no template, or "Session", core's `HAND_PICKED`) are skipped, so a one-off session does not send the sequence back to the start.
 - A template that is no longer in the plan (for example after a split change) restarts at the first entry.

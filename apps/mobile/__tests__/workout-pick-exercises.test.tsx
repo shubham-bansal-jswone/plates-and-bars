@@ -1,3 +1,4 @@
+import { HAND_PICKED } from '@plate-and-bar/core';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -31,7 +32,7 @@ describe('Workout start: Pick exercises', () => {
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
-    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ id: null, template: 'Session', base: null, where: null, date: DATE });
+    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ id: null, template: HAND_PICKED, base: null, where: null, date: DATE });
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Barbell Bench Press']);
     const sets = () => [...db.sets.values()].map((s) => JSON.parse(s.data) as WorkoutSet);
     expect(sets()).toHaveLength(3);
@@ -50,7 +51,7 @@ describe('Workout start: Pick exercises', () => {
     await press('Add Dumbbell Curl');
     await press('Start this exercise');
     await screen.findByText('Session');
-    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ where: 'dumbbells', template: 'Session', base: null });
+    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ where: 'dumbbells', template: HAND_PICKED, base: null });
   });
 
   it('a planned day keeps its Start button and template chips, and can pick instead', async () => {
@@ -123,7 +124,7 @@ describe('Pick exercises keeps what the day already holds', () => {
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
-    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Session', cardio_min: 25 }));
+    await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: HAND_PICKED, cardio_min: 25 }));
   });
 
   it('the check-in choice made on the start screen is stored as ci_choice', async () => {
@@ -135,6 +136,6 @@ describe('Pick exercises keeps what the day already holds', () => {
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
-    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Session', ci_choice: 'light' });
+    expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: HAND_PICKED, ci_choice: 'light' });
   });
 });
