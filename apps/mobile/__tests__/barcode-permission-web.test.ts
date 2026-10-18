@@ -1,10 +1,10 @@
-// On the web react-native's PermissionsAndroid has no PERMISSIONS table. Found by the Playwright spec (#944): the module threw when it
-// loaded, so the scanner screen crashed in the browser. Loading it must not read the table.
 import { checkCamera, requestCamera } from '../src/barcode/permission';
 
+// On the web react-native's PermissionsAndroid has no PERMISSIONS table. The web e2e suite found it on PR #1004: the Add sheet imports the
+// scanner flow, the permission module threw when it loaded, and the whole web app failed to start. Loading it must not read the table.
 jest.mock('react-native', () => ({ Platform: { OS: 'web' }, PermissionsAndroid: {} }));
 
-it('loads and answers on the web without PermissionsAndroid.PERMISSIONS', async () => {
+it('loads and answers on the web without PermissionsAndroid.PERMISSIONS: a browser with a camera API is granted (it asks when the camera opens)', async () => {
   const g = globalThis as unknown as { navigator?: unknown };
   const saved = g.navigator;
   g.navigator = { mediaDevices: { getUserMedia: jest.fn() } };

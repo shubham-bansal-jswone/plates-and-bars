@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, saveMyFood, userFoodFacts, type CustomFoodResult } from '@plate-and-bar/core';
+import { addDays, saveMyFood, userFoodFacts, type UserFoodFields } from '@plate-and-bar/core';
 import { loadDayNote, loadLogs, loadUserFoods, patchDayNote, saveLog, saveUserFood } from '../db/food';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
@@ -211,14 +211,18 @@ export function useFoodDay({ db, date, now, notify, reloadKey = 0 }: Options) {
     [db, date, now, enqueue, notify],
   );
 
-  /** Saves a custom food to my foods (core's `saveMyFood`: newest first, same name replaced, capped); foods pushed out are tombstoned. */
+  /**
+   * Saves a custom food to my foods (core's `saveMyFood`: newest first, same name replaced, capped); foods pushed out are tombstoned.
+   * A food with a barcode replaces the saved food with the same barcode first (so a renamed scanned food keeps its id), else the same name.
+   */
   const saveMine = useCallback(
-    (food: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => {
+    (food: UserFoodFields & { barcode?: string | null }) => {
       const t = stamp(now());
-      const same = mineRef.current.find((f) => f.name === food.name);
+      const cur = mineRef.current;
+      const same = (food.barcode ? cur.find((f) => f.barcode === food.barcode) : undefined) ?? cur.find((f) => f.name === food.name);
       const rec: UserFood = { ...food, id: same?.id ?? newId(), version: same?.version ?? 0, updated_at: t, deleted_at: null };
-      const next = saveMyFood(mineRef.current, rec);
-      const dropped = mineRef.current.filter((f) => f.name !== food.name && !next.includes(f)).map((f) => ({ ...f, deleted_at: t, updated_at: t }));
+      const next = saveMyFood(same ? cur.filter((f) => f.id !== same.id) : cur, rec);
+      const dropped = cur.filter((f) => f.id !== rec.id && !next.includes(f)).map((f) => ({ ...f, deleted_at: t, updated_at: t }));
       mineRef.current = next;
       setMine(next);
       enqueue(async () => {
