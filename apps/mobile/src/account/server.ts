@@ -6,6 +6,7 @@ import { refreshSession } from '../sync/engine';
 import { OwnerChanged, wipeLocalStore, withSyncPaused } from '../sync/guard';
 import { KEY_SERVER_DELETED, getKv, getUserId, setKv } from '../sync/store';
 import type { Tokens } from '../secure/tokens';
+import { forgetInstallId } from '../telemetry/errors';
 import type { TokenStore } from '../sync/tokens';
 
 type Db = StoreDb & PullDb;
@@ -153,6 +154,8 @@ export async function deleteEverything(d: { db: Db; api: ApiClient | null; token
     } catch (e) {
       return e instanceof OwnerChanged ? { kind: 'owner_changed', server } : { kind: 'local_failed' };
     }
+    // Everything else is gone, so the random install id goes too. Best effort: a keystore failure must not turn a finished delete into an error.
+    await forgetInstallId().catch(() => undefined);
     return { kind: 'deleted', server, linked: userId !== null };
   });
 }

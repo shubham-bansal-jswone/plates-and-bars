@@ -1,12 +1,13 @@
 import type { Breadcrumb, ErrorEvent } from '@sentry/react-native';
-import { initErrorTracking } from '../src/telemetry/errors';
+import { forgetInstallId, initErrorTracking } from '../src/telemetry/errors';
 import { scrubBreadcrumb, scrubEvent } from '../src/telemetry/scrub';
 import { until } from './sync-helpers';
 
 const mockInit = jest.fn();
 const mockSetUser = jest.fn();
 jest.mock('@sentry/react-native', () => ({ init: (o: unknown) => mockInit(o), setUser: (u: unknown) => mockSetUser(u) }));
-jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => 'install-1'), setItemAsync: jest.fn() }));
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => 'install-1'), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(async () => undefined) }));
+const mockDelete = jest.requireMock('expo-secure-store').deleteItemAsync as jest.Mock;
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { version: '1.2.3', android: { versionCode: 1002003 } } } }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'web-id' }));
 
@@ -142,6 +143,18 @@ describe('initErrorTracking', () => {
     await until('the install id to be set', () => mockSetUser.mock.calls.length > 0);
     expect(mockSetUser).toHaveBeenCalledWith({ id: 'install-1' });
     expect(o.beforeSend({ message: FOOD, user: { email: 'a@b.c' } })).toEqual({ user: { id: 'install-1' }, contexts: {}, breadcrumbs: [] });
+  });
+
+  it('forgetInstallId drops the Sentry user, the in-memory id and the keystore copy, so later events carry no id', async () => {
+    expect(initErrorTracking('https://key@glitchtip.example/1')).toBe(true);
+    const o = mockInit.mock.calls[0]![0];
+    await until('the install id to be set', () => mockSetUser.mock.calls.length > 0);
+    expect(o.beforeSend({ message: 'x' }).user).toEqual({ id: 'install-1' });
+    mockSetUser.mockClear();
+    await forgetInstallId();
+    expect(mockSetUser).toHaveBeenCalledWith(null);
+    expect(mockDelete).toHaveBeenCalledWith('pb.install_id');
+    expect(o.beforeSend({ message: 'x' }).user).toBeUndefined();
   });
 
   it('sets the environment (default development) and the release, and both survive the scrubber', () => {
