@@ -46,6 +46,7 @@ object Scheduler {
     load(context).forEach { cancel(context, it.id) }
     val valid = rules.filter { it.isValid() }
     save(context, valid)
+    if (valid.isNotEmpty()) ensureChannel(context) // so "Reminders" shows in the system settings once a reminder is on
     valid.forEach { arm(context, it) }
   }
 

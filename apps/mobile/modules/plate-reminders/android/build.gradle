@@ -12,6 +12,10 @@ android {
     versionCode 1
     versionName '1.0.0'
   }
+  // A NewApi error (a call above minSdk) must fail the build: it crashes older phones at the moment a reminder fires.
+  lint {
+    abortOnError true
+  }
 }
 
 dependencies {

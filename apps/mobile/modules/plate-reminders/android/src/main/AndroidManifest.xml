@@ -5,8 +5,8 @@
 
   <application>
     <receiver android:name="app.plateandbar.reminders.ReminderReceiver" android:exported="false" />
-    <!-- System broadcasts only: re-arm after a reboot, an app update, or a clock or time zone change. -->
-    <receiver android:name="app.plateandbar.reminders.RearmReceiver" android:exported="true">
+    <!-- System broadcasts only (delivered to a non-exported receiver; any other action is ignored): re-arm after a reboot, an app update, or a clock or time zone change. -->
+    <receiver android:name="app.plateandbar.reminders.RearmReceiver" android:exported="false">
       <intent-filter>
         <action android:name="android.intent.action.BOOT_COMPLETED" />
         <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

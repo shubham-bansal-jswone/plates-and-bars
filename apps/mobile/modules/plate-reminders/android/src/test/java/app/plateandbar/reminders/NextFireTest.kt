@@ -48,5 +48,7 @@ class NextFireTest {
     assertFalse(rule(listOf(7)).isValid())
     assertFalse(rule(listOf(1), hour = 24).isValid())
     assertFalse(rule(listOf(1)).copy(route = "https://example.com").isValid())
+    assertFalse(rule(listOf(1)).copy(route = "plateandbar://data").isValid()) // only the three tabs
+    assertTrue(rule(listOf(1)).copy(route = "plateandbar://").isValid())
   }
 }

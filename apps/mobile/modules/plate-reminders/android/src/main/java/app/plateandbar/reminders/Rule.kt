@@ -7,7 +7,7 @@ import java.util.TimeZone
 
 /**
  * One repeating reminder: [hour]:[minute] local time on each of [days] (0 = Sunday ... 6 = Saturday, as in packages/core).
- * [route] is the deep link opened by a tap and must be a plateandbar:// URL. What to schedule is decided by the app
+ * [route] is the deep link opened by a tap and must be one of [ROUTES]. What to schedule is decided by the app
  * (packages/core and src/reminders); this side only keeps the rules and fires them.
  */
 data class Rule(
@@ -21,14 +21,15 @@ data class Rule(
 ) {
   fun isValid(): Boolean =
     id.isNotEmpty() && hour in 0..23 && minute in 0..59 && days.isNotEmpty() && days.all { it in 0..6 } &&
-      route.startsWith(ROUTE_PREFIX)
+      route in ROUTES
 
   fun toJson(): JSONObject = JSONObject()
     .put("id", id).put("hour", hour).put("minute", minute)
     .put("days", JSONArray(days)).put("title", title).put("body", body).put("route", route)
 
   companion object {
-    const val ROUTE_PREFIX = "plateandbar://"
+    /** The only links a tap may open: the Food, Progress and Workout tabs. */
+    val ROUTES = setOf("plateandbar://", "plateandbar://progress", "plateandbar://workout")
 
     fun fromJson(o: JSONObject): Rule {
       val d = o.getJSONArray("days")
