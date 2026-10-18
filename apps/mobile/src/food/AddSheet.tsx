@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { WhyLink } from '../why/WhyLink';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type CustomFoodResult, type UserFoodFacts } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
+import { a11yState, Heading, Button, ErrorText, Field, Caption, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AI_COPY } from '../ai/copy';
@@ -147,6 +147,11 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
   );
 }
 
+/** A visible caption over one field of the custom-food grid; the caption text is the field's accessible name. */
+function Captioned({ label, children }: { label: string; children: ReactNode }) {
+  return <View style={styles.captioned}><Caption>{label}</Caption>{children}</View>;
+}
+
 function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; onAdd: (n: NewLog) => void; onSaveMine: Props['onSaveMine']; onClose: () => void; say: Say }) {
   const [f, setF] = useState({ name: '', kcal: '', protein: '', carbs: '', fat: '', qty: '1', unit: '' });
   const [save, setSave] = useState(true);
@@ -162,14 +167,15 @@ function CustomTab({ meal, onAdd, onSaveMine, onClose, say }: { meal: string; on
   };
   return (
     <View style={styles.gap}>
+      <Caption>Food</Caption>
       <Field label="Food" placeholder="e.g. Office canteen thali" value={f.name} onChangeText={set('name')} style={styles.wide} />
       <View style={styles.row}>
-        <Field label="Calories (kcal)" placeholder="auto from macros" keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} />
-        <Field label="Servings" keyboardType="decimal-pad" value={f.qty} onChangeText={set('qty')} />
-        <Field label="Protein (g)" placeholder="Protein (g)" keyboardType="decimal-pad" value={f.protein} onChangeText={set('protein')} />
-        <Field label="Carbs (g)" placeholder="Carbs (g)" keyboardType="decimal-pad" value={f.carbs} onChangeText={set('carbs')} />
-        <Field label="Fat (g)" placeholder="Fat (g)" keyboardType="decimal-pad" value={f.fat} onChangeText={set('fat')} />
-        <Field label="Serving size" placeholder="1 plate" value={f.unit} onChangeText={set('unit')} />
+        <Captioned label="Calories (kcal)"><Field label="Calories (kcal)" placeholder="auto from macros" keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Servings"><Field label="Servings" keyboardType="decimal-pad" value={f.qty} onChangeText={set('qty')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Protein (g)"><Field label="Protein (g)" keyboardType="decimal-pad" value={f.protein} onChangeText={set('protein')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Carbs (g)"><Field label="Carbs (g)" keyboardType="decimal-pad" value={f.carbs} onChangeText={set('carbs')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Fat (g)"><Field label="Fat (g)" keyboardType="decimal-pad" value={f.fat} onChangeText={set('fat')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Serving size"><Field label="Serving size" placeholder="1 plate" value={f.unit} onChangeText={set('unit')} style={styles.fieldFill} /></Captioned>
       </View>
       <View style={styles.row}>
         <Switch accessibilityLabel="Save to my foods for next time" value={save} onValueChange={setSave} />
@@ -193,4 +199,6 @@ const styles = StyleSheet.create({
   foodHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   search: { maxWidth: undefined },
   wide: { maxWidth: undefined },
+  captioned: { gap: 4, minWidth: 90, flexGrow: 1, maxWidth: 160 },
+  fieldFill: { maxWidth: undefined, flexGrow: 0 },
 });

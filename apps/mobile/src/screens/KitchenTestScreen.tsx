@@ -154,11 +154,23 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
         </View>
         <View style={styles.gap}>
           <View style={styles.wrap}>
-            <Field label="Empty pot (g)" placeholder="Empty pot (g)" keyboardType="numeric" value={d.pot} onChangeText={(pot) => set({ pot })} />
-            <Field label="Pot with food (g)" placeholder="Pot with food (g)" keyboardType="numeric" value={d.potFull} onChangeText={(potFull) => set({ potFull })} />
+            <View style={{ gap: 4, minWidth: 90, flexGrow: 1, maxWidth: 160 }}>
+              <Caption>Empty pot (g)</Caption>
+              <Field style={{ maxWidth: undefined }} label="Empty pot (g)" keyboardType="numeric" value={d.pot} onChangeText={(pot) => set({ pot })} />
+            </View>
+            <View style={{ gap: 4, minWidth: 90, flexGrow: 1, maxWidth: 160 }}>
+              <Caption>Pot with food (g)</Caption>
+              <Field style={{ maxWidth: undefined }} label="Pot with food (g)" keyboardType="numeric" value={d.potFull} onChangeText={(potFull) => set({ potFull })} />
+            </View>
           </View>
-          <Field label="Or cooked weight directly (g)" placeholder="Or cooked weight (g)" keyboardType="numeric" value={d.cooked} onChangeText={(cooked) => set({ cooked })} />
-          <Field label="One serving (g)" placeholder="One serving (g)" keyboardType="numeric" value={d.serving} onChangeText={(serving) => set({ serving })} />
+          <View style={{ gap: 4 }}>
+            <Caption>Or cooked weight directly (g)</Caption>
+            <Field label="Or cooked weight directly (g)" keyboardType="numeric" value={d.cooked} onChangeText={(cooked) => set({ cooked })} />
+          </View>
+          <View style={{ gap: 4 }}>
+            <Caption>One serving (g)</Caption>
+            <Field label="One serving (g)" keyboardType="numeric" value={d.serving} onChangeText={(serving) => set({ serving })} />
+          </View>
           <Label>Serving is a</Label>
           <View style={styles.wrap}>{SERVING_NAMES.map((n) => <Chip key={n} label={n} pressed={d.sname === n} onPress={() => set({ sname: n })} />)}</View>
         </View>
