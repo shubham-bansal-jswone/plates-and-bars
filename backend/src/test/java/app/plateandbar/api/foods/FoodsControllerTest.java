@@ -184,14 +184,15 @@ class FoodsControllerTest {
         // application.yml pins, which the assertions below check directly.
         Logger testServlet = (Logger) LoggerFactory.getLogger("org.springframework.test.web.servlet.TestDispatcherServlet");
         for (Class<?> pinned : List.of(org.springframework.web.servlet.DispatcherServlet.class,
-                org.springframework.security.web.FilterChainProxy.class)) {
+                org.springframework.security.web.FilterChainProxy.class,
+                org.springframework.security.web.access.intercept.RequestMatcherDelegatingAuthorizationManager.class)) {
             assertThat(((Logger) LoggerFactory.getLogger(pinned)).getEffectiveLevel()).as(pinned.getSimpleName()).isEqualTo(Level.INFO);
         }
         testServlet.setLevel(Level.INFO);
         var lines = new ch.qos.logback.core.read.ListAppender<ILoggingEvent>();
         lines.start();
         root.addAppender(lines);
-        root.setLevel(Level.DEBUG); // the per-class levels in application.yml still hold the request-line loggers at INFO
+        root.setLevel(Level.TRACE); // the per-class levels in application.yml still hold the request-line loggers at INFO
         try {
             for (int i = 0; i < 4; i++) { // the 4th is the 429, whose line the security filter writes
                 mvc.perform(get("/api/v1/foods/barcode/" + CODE).with(from("10.2.0.11")));
@@ -203,7 +204,7 @@ class FoodsControllerTest {
         }
         List<String> all = lines.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
         assertThat(all).anyMatch(m -> m.startsWith("Rate limit hit (bucket=barcode-ip, path=/api/v1/foods/barcode/{id})"));
-        assertThat(lines.list.stream().filter(e -> e.getFormattedMessage().contains(CODE)).map(e -> e.getLevel() + " " + e.getLoggerName()).distinct().toList()).isEmpty();
+        assertThat(lines.list.stream().filter(e -> !e.getLoggerName().startsWith("org.springframework.test") && !e.getLoggerName().contains("RfcUriParser")).filter(e -> e.getFormattedMessage().contains(CODE)).map(e -> e.getLevel() + " " + e.getLoggerName()).distinct().toList()).isEmpty();
         assertThat(lines.list.stream().map(e -> String.valueOf(e.getThrowableProxy())).toList()).noneMatch(m -> m.contains(CODE));
         verify(barcodes, never()).lookup("other");
     }

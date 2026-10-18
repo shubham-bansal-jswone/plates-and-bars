@@ -47,6 +47,8 @@ logging:
     org.springframework.web.servlet.DispatcherServlet: INFO
     org.springframework.security.web.FilterChainProxy: INFO
     org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
+    # Prints "Authorizing GET /api/v1/foods/barcode/<digits>" at TRACE.
+    org.springframework.security.web.access.intercept.RequestMatcherDelegatingAuthorizationManager: INFO
     # Tomcat's HTTP/1.1 processor can print raw request bytes at DEBUG or TRACE.
     org.apache.coyote.http11: INFO
 
