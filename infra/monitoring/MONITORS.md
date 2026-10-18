@@ -2,7 +2,7 @@
 
 What to add in Uptime Kuma after the owner steps in `infra/RUNBOOK.md` section 5. Kuma 2.x has no import file for monitors (the JSON backup and import of 1.x was removed), so this table is the source of truth and the monitors are created by hand in the UI (about ten minutes). Replace `<API_HOST>`, `<WEB_HOST>`, `<SITE_HOST>` and `<GLITCHTIP_HOST>` with the real hosts (`API_HOST` and `WEB_HOST` are in `infra/staging/.env`).
 
-Defaults for every row: heartbeat interval 60 s unless stated, **Retries 1** (one retry before DOWN, so the alert fires on the second consecutive failure), notifier: the e-mail (SMTP) notifier set up once and attached to all monitors.
+Defaults for every row: heartbeat interval 60 s unless stated, **Retries 1** for the URL monitors (one retry before DOWN, so the alert fires on the second consecutive failure); **Retries 0** for the push monitors (their retry interval would otherwise stretch a missed ping to twice the heartbeat interval). Notifier: the e-mail (SMTP) notifier set up once and attached to all monitors.
 
 ## URL monitors (pull)
 

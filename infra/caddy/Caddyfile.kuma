@@ -8,7 +8,7 @@
 #   KUMA_UPSTREAM  address of Kuma as Caddy reaches it, e.g. kuma:3001 (Compose service)
 #
 # The push-monitor URL (/api/push/<token>) carries a secret token in its path. The access and error logs cut the token
-# as well as the query string (one regexp: the token, or the query). Kuma's UI uses WebSockets, which reverse_proxy passes.
+# as well as the query string (one case-insensitive regexp: the token, or the query; Kuma's router accepts /API/PUSH/ too). Kuma's UI uses WebSockets, which reverse_proxy passes.
 {
 	log errors {
 		output stderr
@@ -22,7 +22,7 @@
 				ipv4 24
 				ipv6 48
 			}
-			request>uri regexp "^(/api/push/)[^?]*|\?.*$" "$1"
+			request>uri regexp "(?i)(/api/push/)[^?]*|\?.*$" "$1"
 			request>headers delete
 			resp_headers delete
 		}
@@ -50,7 +50,7 @@
 				ipv4 24
 				ipv6 48
 			}
-			request>uri regexp "^(/api/push/)[^?]*|\?.*$" "$1"
+			request>uri regexp "(?i)(/api/push/)[^?]*|\?.*$" "$1"
 			request>headers delete
 			resp_headers delete
 		}

@@ -4,8 +4,9 @@
 #   docker compose up -d
 # Images are pinned by version and by digest of the multi-arch index; each has a linux/arm64 build (checked 2026-10-18,
 # `docker buildx imagetools inspect`; CI re-checks it). Secrets come from .env only, never from this file.
-# GlitchTip 6.2.x is one process: it serves HTTP and consumes the task queue, so there is no separate worker service
-# (a worker role is refused at start-up). Valkey is off (VALKEY_URL empty), as infra/OBSERVABILITY.md proposed.
+# GlitchTip 6.2.6 starts in web-only mode by default (SERVER_ROLE=web: no migrations, no worker). SERVER_ROLE=all_in_one
+# (set below) runs the migrations and one process that serves HTTP and embeds the task worker and scheduler (retention
+# sweep, alert mails), so there is no separate worker service. Valkey is off (VALKEY_URL empty), as infra/OBSERVABILITY.md proposed.
 name: plateandbar-glitchtip
 
 x-logging: &logging
@@ -41,11 +42,13 @@ services:
     image: glitchtip/glitchtip:6.2.6@sha256:a3d8eb1b36c1e1603d55ab32711ea3dd8115874742a781a57391a62a16e0dff6
     restart: unless-stopped
     logging: *logging
-    mem_limit: 768m
+    mem_limit: 1g
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      # Without this the container serves an empty database and never processes events or the retention sweep.
+      SERVER_ROLE: all_in_one
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (random, at least 50 characters)}
       DATABASE_URL: postgres://glitchtip:${POSTGRES_PASSWORD}@postgres:5432/glitchtip
       # Public URL, used in the DSN and in e-mails. Same host as GLITCHTIP_HOST below.
@@ -66,9 +69,13 @@ services:
       # Server-side scrubbing of secrets, card numbers, private keys and e-mail addresses in every project, on top of
       # the SDK allowlists (infra/OBSERVABILITY.md, Error tracking rules).
       GLITCHTIP_PII_SCRUB_DEFAULT: '{"enabled": true, "scrub_emails": true, "aggressive_key_match": true}'
-      # Sized for the memory limit above.
+      # Sized for the memory limit above: one web worker; the event-ingest queue defaults to 12 concurrent tasks in batches
+      # of 25, which is far more than this load needs and costs memory. (VTASKS_CONCURRENCY is not read by 6.2.6.)
       WEB_CONCURRENCY: "1"
-      VTASKS_CONCURRENCY: "2"
+      VTASKS_INGEST_CONCURRENCY: "2"
+      # Granian recycles a worker above this RSS (MiB). The image default is max(half the limit, 1024), which is the whole
+      # limit here, so the OOM killer would fire first.
+      GRANIAN_WORKERS_MAX_RSS: "640"
       # Alert e-mail through an SMTP account you already have (no vendor service).
       EMAIL_HOST: ${EMAIL_HOST:?set EMAIL_HOST}
       EMAIL_PORT: ${EMAIL_PORT:-587}

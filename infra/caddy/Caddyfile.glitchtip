@@ -67,10 +67,16 @@
 		-Server
 	}
 
-	# Event ingest carries the sender's IP in X-Forwarded-For, which GlitchTip would store with the event. Drop it so the
+	# Event ingest carries the sender's IP in X-Forwarded-For (and, for GlitchTip's IP lookup, the other client-IP headers below),
+	# which GlitchTip would store with the event. Drop them so the
 	# only address GlitchTip sees is Caddy's own (privacy rule: no IP address on events, infra/OBSERVABILITY.md).
 	reverse_proxy {$GLITCHTIP_UPSTREAM:glitchtip:8000} {
 		header_up -X-Forwarded-For
 		header_up -X-Real-IP
+		header_up -Forwarded
+		header_up -Client-IP
+		header_up -True-Client-IP
+		header_up -X-Cluster-Client-IP
+		header_up -CF-Connecting-IP
 	}
 }
