@@ -101,6 +101,9 @@ export function splitFor(profile: PlanProfile | null | undefined): Split {
   return SPLITS[d as 2 | 3 | 4 | 5 | 6];
 }
 
+/** The app's label for a session with no plan template (`base: null`). */
+const HAND_PICKED = 'Session';
+
 /** Mirrors prototype `planList()`. */
 export function planList(profile: PlanProfile | null | undefined): readonly string[] {
   return splitFor(profile).list;
@@ -125,7 +128,7 @@ export function sessionDates(sessions: SessionLog, before: string): string[] {
  *
  * - A week plan for `date`'s week wins: the next unfinished entry in its list.
  * - Sundays are always rest otherwise.
- * - In sequence mode, the template after the most recent one done that is in the plan, skipping hand-picked days (first if none; #1019).
+ * - In sequence mode, the template after the most recent one done with a real template, skipping hand-picked days (first if none; #1019).
  * - Otherwise the weekday's template from `splitFor`.
  *
  * Mirrors prototype `planned(date)` (state passed in instead of read from `S`).
@@ -142,10 +145,17 @@ export function planned(date: string, state: PlanState): string | null {
     if (!PL.length) return null;
     const ds = sessionDates(state.sessions, date);
     // Spec deviation (#1019): the prototype takes the very last session, so a hand-picked one
-    // (template not in the plan) restarts the sequence. Here such days are skipped: the next
-    // workout follows the most recent day whose template is in the plan.
+    // (no template, or "Session") restarts the sequence. Here hand-picked days are skipped and the
+    // walk stops at the most recent day with a real template; if that template is not in the
+    // current plan (for example after a split change), the sequence starts at the first entry.
     let i = -1;
-    for (let k = ds.length - 1; k >= 0 && i < 0; k--) i = PL.indexOf(state.sessions[ds[k] as string]?.t as string);
+    for (let k = ds.length - 1; k >= 0; k--) {
+      const t = state.sessions[ds[k] as string]?.t;
+      if (t && t !== HAND_PICKED) {
+        i = PL.indexOf(t);
+        break;
+      }
+    }
     return PL[(i + 1) % PL.length] as string;
   }
   return dayTemplate(date, state.profile);

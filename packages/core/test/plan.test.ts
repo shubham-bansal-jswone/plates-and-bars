@@ -14,7 +14,6 @@ import {
   type PlanState,
   type SessionLog,
 } from '../src/index';
-import { sessionDates } from '../src/plan';
 import { loadGolden } from './helpers';
 import { loadProto, rng } from './prototype-plan';
 
@@ -124,6 +123,19 @@ describe('plan: edge cases', () => {
     expect(planned('2026-10-07', s)).toBe('Upper A');
   });
 
+  it('sequence mode: after a split change the last real template is not in the plan, so it starts at the first entry', () => {
+    const sessions = {
+      '2026-09-20': { t: 'Full body B', n: 12 },
+      '2026-10-05': { t: 'Upper A', n: 12 },
+      '2026-10-06': { t: 'Lower A', n: 10 },
+      '2026-10-07': { t: 'Session', n: 6 },
+    };
+    // 3-day plan (Full body A, B, C): Lower A is not in it; do not walk back to Full body B.
+    const s: PlanState = { ...state({ days: 3 }, sessions), mode: 'sequence' };
+    expect(planned('2026-10-08', s)).toBe('Full body A');
+    expect(planned('2026-10-08', { ...s, sessions: { ...sessions, '2026-10-06': { t: 'Full body A', n: 10 } } })).toBe('Full body B');
+  });
+
   it('a week plan for this week wins, even on Sunday, and ends when its list runs out', () => {
     const weekPlan = { start: '2026-10-05', list: ['Legs A', 'Push A'] };
     const s: PlanState = { ...state({ days: 3 }, { '2026-10-05': { t: 'Legs A', n: 10 }, '2026-10-04': { t: 'Pull A', n: 9 } }), weekPlan };
@@ -168,13 +180,10 @@ describe('planned: differential against the prototype source', () => {
       for (const date of dates) {
         const ours = planned(date, s);
         const theirs = proto.planned(date);
-        // Known deviation (#1019): after a session whose template is not in the plan, sequence mode
-        // looks further back instead of restarting. Not comparable with the prototype there.
-        if (s.mode === 'sequence' && ours !== theirs) {
-          const ds = sessionDates(sessions, date);
-          const lastT = ds.length ? sessions[ds[ds.length - 1] as string]?.t : undefined;
-          if (lastT !== undefined && !planList(profile).includes(lastT)) continue;
-        }
+        // Known deviation (#1019): the prototype restarts the sequence after a hand-picked session.
+        // Skip only a date that is in the sequence branch and where the prototype restarted.
+        const inSequenceBranch = s.mode === 'sequence' && !(s.weekPlan && s.weekPlan.start === mondayOf(date)) && new Date(`${date}T00:00:00Z`).getUTCDay() !== 0;
+        if (inSequenceBranch && ours !== theirs && theirs === planList(profile)[0]) continue;
         if (ours !== theirs) mismatches.push({ date, s, ours, theirs });
       }
     }
