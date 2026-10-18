@@ -158,9 +158,9 @@ jobs:
           restore-keys: ${{ steps.ccache-key.outputs.prefix }}-
       - name: Install ccache
         run: command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
-      - name: Reminders and pose module unit tests and lint (NewApi against minSdk)
+      - name: Local modules unit tests and lint (NewApi against minSdk)
         working-directory: apps/mobile/android
-        run: ./gradlew --no-daemon -q :plate-reminders:testDebugUnitTest :plate-reminders:lintDebug :plate-pose:testDebugUnitTest :plate-pose:lintDebug
+        run: ./gradlew --no-daemon -q :plate-reminders:testDebugUnitTest :plate-reminders:lintDebug :plate-pose:testDebugUnitTest :plate-pose:lintDebug :plate-barcode-scanner:lintDebug :device-steps:lintDebug
       # About lists the Android libraries from the committed apps/mobile/scripts/android-classpath.txt (#835). Resolve the
       # real releaseRuntimeClasspath with a plain-Gradle init script (no plugin) and fail if an artifact has no licence row
       # in scripts/licences.mjs or the list differs from the committed one. No secrets reach this step.
