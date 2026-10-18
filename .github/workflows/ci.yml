@@ -318,11 +318,25 @@ jobs:
       - name: Pose tracking tests
         working-directory: tests/e2e
         run: npm run test:pose
+      # Barcode scanning (#944) is off in the builds above. Its own build has the flag on; Linux Chromium has no BarcodeDetector, so the zxing-wasm fallback runs.
+      - name: Build the web app with barcode scanning on
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: 1
+          EXPO_PUBLIC_BARCODE_SCAN: 1
+        run: npx expo export --platform web --output-dir ../../tests/e2e/.barcode-dist
+      - name: Barcode tests
+        working-directory: tests/e2e
+        run: |
+          echo "::notice::Linux Chromium has no built-in BarcodeDetector: the zxing-wasm fallback is exercised and the native-detector test skips."
+          npm run test:barcode
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: e2e-traces
-          path: tests/e2e/test-results/
+          path: |
+            tests/e2e/test-results/
+            tests/e2e/.barcode-dist/
           retention-days: 7
 
   e2e-sync:

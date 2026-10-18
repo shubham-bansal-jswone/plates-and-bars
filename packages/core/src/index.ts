@@ -72,7 +72,7 @@ export type { HealthProfile, ScreenAnswer, ScreenAnswers } from './health';
  * - `TEMPLATES`, `ORDER`, `SPLITS` mirror the prototype tables of the same name.
  * - `mondayOf`, `daysBetween` mirror the prototype date helpers; `weekdayOf` mirrors `parseYmd(date).getDay()`.
  */
-export { planned, missed, CONDENSED, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS } from './plan';
+export { planned, missed, CONDENSED, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS, HAND_PICKED } from './plan';
 export type { PlanProfile, PlanState, SessionEntry, SessionLog, Split, WeekPlan, Where, Experience } from './plan';
 export { mondayOf, daysBetween, weekdayOf } from './dates';
 
@@ -691,3 +691,17 @@ export type { CycleData, CycleInfo, CyclePhase } from './cycle';
  */
 export { seededSession } from './seeded';
 export type { SeededSession, SeededSessionInput } from './seeded';
+
+/**
+ * Meal photo rules (#1011). `capPhotoItems` mirrors `raw.slice(0, 12)` and `clampPhotoServings` the 0.25 to 6 clamp in prototype
+ * `analysePhoto`; `photoMacros` mirrors `phMacros`; `photoLogQty` and `photoEstimateLog` the `r1` / `Math.round` amounts in `ph-add`;
+ * `stepPhotoAdj` the 0.5 to 2 step 0.25 portion slider; `photoAdjLabel` its `r1(it.adj)` label.
+ */
+export {
+  PHOTO_ITEMS_MAX, PHOTO_SERVINGS_MIN, PHOTO_SERVINGS_MAX, PHOTO_ADJ_MIN, PHOTO_ADJ_MAX, PHOTO_ADJ_STEP,
+  capPhotoItems, clampPhotoServings, stepPhotoAdj, photoMacros, photoLogQty, photoEstimateLog, photoAdjLabel,
+} from './photoMeal';
+export type { PhotoMacros } from './photoMeal';
+
+/** Recipe import (#1011): `importedGrams` mirrors `String(Math.round(num(i.grams)))` in prototype `importRecipe`. */
+export { importedGrams } from './recipeImport';

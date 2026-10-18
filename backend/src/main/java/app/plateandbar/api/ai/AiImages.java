@@ -38,7 +38,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Checks run in the contract's order for one image: {@code unsupported_type}, {@code invalid_base64},
  * {@code too_large} (arithmetic on the base64 length, before any decoding), {@code type_mismatch} (magic bytes),
- * {@code dimensions} (read from the header), {@code unreadable_image}. The first two checks are a linear scan, so the
+ * {@code dimensions} (read from the header), {@code unreadable_image} (including a PNG whose header bit depth is above 8,
+ * refused before a permit is taken or a pixel is decoded). The first two checks are a linear scan, so the
  * schema's regex never runs on a megabyte of text ({@link #screen}). The image is then decoded on its own with
  * every metadata block skipped and written again as a new JPEG, so EXIF, GPS, XMP and thumbnails cannot leave.
  */
@@ -175,6 +176,9 @@ final class AiImages {
             throw fault(path + ".data", "unreadable_image");
         }
         checkDimensions(head[0], head[1], kind, path);
+        if (png && (raw[24] & 0xFF) > 8) {
+            throw fault(path + ".data", "unreadable_image"); // 16 bits a channel: twice the raster the limits size for (#1010)
+        }
         try {
             if (png && !metadataWithinLimit(raw)) {
                 throw fault(path + ".data", "unreadable_image");
@@ -243,9 +247,9 @@ final class AiImages {
         return (b[p] & 0xFF) << 8 | (b[p + 1] & 0xFF);
     }
 
-    /** Width and height from the IHDR (orientation 1), or null when there is no IHDR. A PNG has no orientation we read. */
+    /** Width and height from the IHDR (orientation 1), or null when there is no IHDR (24 bytes plus the bit depth byte). A PNG has no orientation we read. */
     private static int[] pngHeader(byte[] b) {
-        if (b.length < 24 || b[12] != 'I' || b[13] != 'H' || b[14] != 'D' || b[15] != 'R') {
+        if (b.length < 25 || b[12] != 'I' || b[13] != 'H' || b[14] != 'D' || b[15] != 'R') {
             return null;
         }
         long w = u32(b, 16);

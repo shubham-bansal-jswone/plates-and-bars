@@ -164,7 +164,8 @@ keyword is registered with the schema library as a non-validation keyword so it 
     before the schema's regex ever sees it (the request is validated with the checked `data` swapped for a stand-in), the size
     is worked out from the text length, and the width and height are read from the PNG IHDR or JPEG frame header before a
     pixel is decoded. A PNG `zTXt`, `iTXt` (compressed) or `iCCP` chunk that inflates past 65,536 bytes is `unreadable_image`
-    (the inflate stops at 65,537 into an 8 KB buffer). Each image is then decoded alone (`ImageIO.setUseCache(false)`, an
+    (the inflate stops at 65,537 into an 8 KB buffer). A PNG whose IHDR bit depth is above 8 is `unreadable_image` too, read
+    from the header before a permit is taken (#1010). Each image is then decoded alone (`ImageIO.setUseCache(false)`, an
     in-memory stream, metadata ignored), turned upright by its EXIF orientation (the one tag read), shrunk to 1,600 px and
     written as a new JPEG with no metadata, so EXIF, GPS, XMP and thumbnails never reach the provider
     (`AiProvider.complete(feature, instructions, input, jpegImages)`; the default refuses images, so a text-only provider
