@@ -57,6 +57,11 @@ for kind in stack site; do
   mutate "$kind" "log default keeps request headers" '/^\tlog default {/,/^\t}$/{/request>headers delete/d;}'
   mutate "$kind" "log default keeps response headers" '/^\tlog default {/,/^\t}$/{/resp_headers delete/d;}'
 done
+# the `log errors` block on its own (the default block repeats every filter)
+mutate stack "log errors with ipv4 32" '/^\tlog errors {/,/^\t}$/s/ipv4 24/ipv4 32/'
+mutate stack "log errors without the barcode rule" '/^\tlog errors {/,/^\t}$/{/foods\/barcode/d;}'
+mutate stack "log errors without client_ip mask" '/^\tlog errors {/,/^\t}$/{/request>client_ip ip_mask/,/^\t\t\t}$/d;}'
+mutate stack "log errors keeps request headers" '/^\tlog errors {/,/^\t}$/{/request>headers delete/d;}'
 mutate stack "log default without the barcode rule" '/^\tlog default {/,/^\t}$/{/foods\/barcode/d;}'
 mutate glitchtip "log default block removed" '/^\tlog default {/,/^\t}$/d'
 mutate glitchtip "log default keeps request headers" '/^\tlog default {/,/^\t}$/{/request>headers delete/d;}'

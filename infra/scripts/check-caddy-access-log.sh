@@ -43,6 +43,22 @@ for arg in "$@"; do
       dneed "the barcode redaction"    'request>uri regexp "\(\?i\)\(/foods/barcode\)\(\?:/\|%2f\)\.\+\$" "\$\{1\}/\{code\}"'
     fi
   fi
+  if [ "$kind" = stack ]; then
+    # the global `log errors` block, cut out the same way: the filters of the default block must not satisfy it
+    eflat="$(grep -v '^[[:space:]]*#' "$f" | awk '/^[[:space:]]*log errors \{/ {on=1} on {print; n+=gsub(/\{/,"{"); m+=gsub(/\}/,"}"); if (n>0 && n==m) exit}' | tr '\n\t' '  ' | tr -s ' ')"
+    eneed() { # eneed <description> <extended regex>, inside the log errors block
+      printf '%s\n' "$eflat" | grep -Eq -- "$2" || { echo "::error::$f: $kind log errors lacks $1"; status=1; }
+    }
+    eneed "a log errors block"         '^ ?log errors \{ output stderr format filter \{ wrap json'
+    for field in remote_ip client_ip; do
+      eneed "request>$field ip_mask { ipv4 24 ipv6 48 }" "request>$field ip_mask \\{ ipv4 24 ipv6 48 \\}"
+    done
+    eneed "the query-string cut"       'request>uri regexp "\\\?\.\*\$" ""'
+    eneed "request>headers delete"     'request>headers delete'
+    eneed "resp_headers delete"        'resp_headers delete'
+    eneed "the barcode redaction"      'request>uri regexp "\(\?i\)\(/foods/barcode\)\(\?:/\|%2f\)\.\+\$" "\$\{1\}/\{code\}"'
+    eneed "include http.log.error http.handlers.reverse_proxy" 'include http\.log\.error http\.handlers\.reverse_proxy( |$)'
+  fi
   if [ "$kind" = site ]; then
     if printf '%s\n' "$flat" | grep -Eq 'log_credentials|level DEBUG'; then
       echo "::error::$f: log must not enable log_credentials"; status=1

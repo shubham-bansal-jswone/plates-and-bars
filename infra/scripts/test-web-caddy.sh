@@ -172,5 +172,11 @@ while IFS= read -r wline; do
   done
   printf '%s' "$wline" | grep -Eq '"remote_ip":"[0-9]+\.[0-9]+\.[0-9]+\.0"' || fail "reverse_proxy/default log: remote_ip not masked: $wline"
 done <<< "$wlines"
+# whatever logger wrote it: nothing in the container's whole output may hold the barcode, a header value or the raw IP
+wall="$(docker logs "$wcid" 2>&1)"
+[ -n "$wall" ] || fail "cut-off upstream container: no log output at all"
+for secret in 5449 sekrit 203.0.113; do
+  case "$wall" in *"$secret"*) fail "docker logs of the cut-off upstream container leak '$secret'" ;; esac
+done
 echo "Caddyfile.stack error log tests passed"
 echo "Caddyfile.web serving tests passed"
