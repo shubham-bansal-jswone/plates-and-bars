@@ -10,7 +10,8 @@
     "preview": "astro preview",
     "check": "astro check && npm test",
     "test": "node --test scripts/*.test.mjs",
-    "a11y": "npm run build && node scripts/a11y.mjs",
+    "blog-check": "node scripts/blog-check.mjs",
+    "a11y": "npm run build && node scripts/blog-check.mjs && node scripts/a11y.mjs",
     "placeholders": "node scripts/placeholders.mjs"
   },
   "engines": {
