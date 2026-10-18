@@ -39,6 +39,9 @@ test('log a meal offline, sync it to a second device, then delete the account', 
   // Delete the account on A (it is online, so the server deletes too).
   await tab(a, 'Targets');
   await label(a, 'Download or delete my data').click();
+  // The screen reads the consent record before it shows where the data is saved, and that line pushes the buttons down.
+  // Click only after it is there: a click that lands during the shift hits the text, not the button (#986).
+  await expect(a.getByText('Saved privately to your account.')).toBeVisible();
   await label(a, 'Delete everything').click();
   await label(a, 'Yes, delete everything').click();
   await expect(a.getByText('Everything deleted. Your account and the data on this device are gone.')).toBeVisible();
