@@ -35,7 +35,7 @@ export async function withSyncPaused<T>(f: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Deletes the previous user's local store in one transaction under the write lock: every synced table, the outbox and the
+ * Deletes the previous user's local store in one transaction under the write lock: every synced table, the cycle log, the outbox and the
  * sync bookkeeping. Other device-only flags in `settings` stay, except that a forced wipe also removes the pending-wipe
  * marker (`device.server_deleted`), since what it stands for is done. Unless `force`, it counts the unsynced changes in the same
  * transaction and wipes nothing when there are any; the count is returned (0 means wiped).
@@ -56,6 +56,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     if (pending > 0 && !opts.force) return;
     for (const local of Object.values(SYNC_TABLES)) await txn.runAsync(`DELETE FROM ${local}`);
     await txn.runAsync('DELETE FROM sync_outbox');
+    await txn.runAsync('DELETE FROM cycle_log'); // device-only, but it belongs to the account that is wiped (#625)
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_REMINDERS);

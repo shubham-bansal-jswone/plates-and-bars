@@ -48,8 +48,9 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
       if (db.failWrites) throw new Error('disk full');
       const held = db.hold?.(sql);
       if (held) await held; // no extra microtask turn for the many tests that never set `hold`
-      if (sql.startsWith('DELETE FROM settings WHERE key')) {
-        rows.delete(`settings:${p[0]}`);
+      const del = /^DELETE FROM (\w+) WHERE key/.exec(sql);
+      if (del) {
+        rows.delete(`${del[1]}:${p[0]}`);
         return;
       }
       const table = /INTO (\w+)/.exec(sql)![1];

@@ -356,6 +356,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/foods/barcode/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up one packaged food by barcode (Open Food Facts)
+         * @description Returns a trimmed subset of the Open Food Facts product for one barcode, so the app
+         *     can show a review screen. The server maps nothing: turning this into a `UserFood`
+         *     (per-serving values, kJ to kcal, missing fields) is a rule in `packages/core`.
+         *     Public like `/content/*`. Needs a connection; a barcode the user already saved is found
+         *     locally (`UserFood.barcode`) with no call.
+         *
+         *     **Limits and order of checks.** This operation allows 20 requests per minute per
+         *     client IP. Calls from the server to Open Food Facts share one limit of 12 per
+         *     minute (Open Food Facts allows 15 per minute per IP). The server checks, in this
+         *     order: (1) the per-IP limit, 429 `rate_limited`, so invalid codes count toward it; (2)
+         *     the code's pattern and GS1 check digit, 400 `invalid_barcode`; (3) the cache, a hit (found or not found) is
+         *     answered with no upstream call; (4) the upstream limit, 503 `upstream_busy` with
+         *     `Retry-After`. Cache hits and 400s never use the upstream limit.
+         *
+         *     **Code.** Digits only, length 8, 12 or 13, with a valid GS1 mod-10 check digit
+         *     (`test-vectors/barcode-gs1.json`). 8 digits is EAN-8 (GTIN-8); 12 is UPC-A; 13 is
+         *     EAN-13. GTIN-14 is not accepted. A UPC-E code (8 digits on the pack) must be expanded to its
+         *     12-digit UPC-A by the client first. A code that fails the length or check digit is
+         *     400 `invalid_barcode`, with no upstream call.
+         *
+         *     **404 `not_found`.** Open Food Facts has no such product, or has it with no
+         *     nutrition values at all. Also cached (a miss for 24 hours; a hit for 30 days).
+         *
+         *     **Data.** Community-contributed and unchecked: the app must show it as such and let
+         *     the user edit every number. Strings are trimmed, stripped of control characters and
+         *     length-capped; only the fields below are ever returned. No images. A nutriment or
+         *     `serving_quantity` value from Open Food Facts that is negative, not a finite number
+         *     or not numeric is dropped and treated as missing (never clamped or set to zero); a
+         *     numeric string such as "12.5" is read as that number.
+         *
+         *     **Licence.** Every 200 carries `source` (code `open_food_facts`, ODbL 1.0 / DbCL
+         *     1.0, link to the product page); the app shows that credit on each scanned food.
+         *
+         *     **503.** `upstream_unavailable`: Open Food Facts failed, timed out or answered
+         *     with an error. `upstream_busy`: the server's shared limit of 12 calls per minute to
+         *     Open Food Facts is used up; `Retry-After` says when to retry. The app offers manual entry.
+         */
+        get: operations["getFoodByBarcode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -673,6 +728,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/meal-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate a meal's macros from a photo
+         * @description Looks at one photo of a meal and estimates each food or drink visible, assuming
+         *     typical home-style cooking in India. Mirrors the prototype's `analysePhoto()`. The
+         *     optional `hint` is the prototype's "Anything the photo can't show?" note (hidden
+         *     oil or ghee, a count the photo hides).
+         *
+         *     **Grounding.** As in the prototype, the server sends the model the built-in food
+         *     list (`content/foods.json`: name, serving, macros per serving; content, not account
+         *     data) and never the user's own foods. For each item the model sets `match` to the
+         *     exact name of a built-in food that fits, with `servings` of that food's serving
+         *     shown, or null with its own estimate. The app uses the food table's macros times
+         *     `servings` for a matched item, and the item's own numbers otherwise (`src` db or
+         *     est in the prototype), and offers a swap to any food on the device.
+         *
+         *     Items have the `MealEstimateItem` shape (numbers are for the whole portion shown,
+         *     carbohydrate includes fibre) plus `confidence`, `match` and `servings`. `not_food` is true, with `items` empty,
+         *     when the photo shows no food (prototype: "Couldn't spot food in this photo."). The
+         *     app shows the items for the user to confirm before logging (suggest and confirm);
+         *     nothing is logged or stored by this call.
+         *
+         *     Image rules (type, size, EXIF, privacy) are in the `ai` tag, Images. Non-AI
+         *     fallback: Describe it, the food list and Custom entry.
+         */
+        post: operations["mealPhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/import-recipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn recipe text or a photo of a recipe into a draft recipe
+         * @description Reads pasted recipe text, a photo of a cookbook page, or both (send at least one),
+         *     and returns a draft in the recipe builder's terms. Mirrors the prototype's
+         *     `importRecipe()`. Each ingredient is matched to a name in
+         *     `content/raw-ingredients.json` (the version the server deploys) and given a raw
+         *     weight in grams, converting cups, spoons and pieces. The yield is estimated in
+         *     katoris (about 150 g cooked, `Recipe.yield_mode` = `katori`).
+         *
+         *     An ingredient that is not in the raw table, or whose weight is unusable (not
+         *     finite, zero or less, or over 10,000 g), is not returned in `ingredients`; its
+         *     text as written goes in `unmatched` so the app can show what to add by hand.
+         *     `ingredients` is empty when nothing matched; the app then shows "Couldn't read
+         *     that recipe. Try pasting the ingredient list." The draft is not a saved `Recipe`
+         *     (no id, version or timestamps): the app opens it in the recipe builder for the
+         *     user to check the amounts and save (suggest and confirm); nothing is stored by
+         *     this call.
+         *
+         *     Image rules are in the `ai` tag, Images. Non-AI fallback: the recipe builder.
+         */
+        post: operations["importRecipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/form-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Second opinion on exercise form from a few still frames
+         * @description Judges 2 to 4 still frames, in order, from the user's own video of one set of a
+         *     catalogue exercise. Mirrors the prototype's film-and-check form review
+         *     (`onFormVideo()`). The video never leaves the phone: the app cuts the frames on the
+         *     device and sends only those, only when the user has turned AI features on.
+         *
+         *     **Grounding.** The server looks up the exercise in `content/exercises.json`
+         *     `cards` (the version it deploys) and sends the model that card's `key_cues` and
+         *     `common_mistakes` and the frames. For each key cue the model judges only what is
+         *     clearly visible, answers `unclear` when the angle or quality does not show it, and
+         *     is told to be specific and kind and never to diagnose an injury. A request
+         *     `exercise` that is not a key of `cards` (a custom exercise has no cues) is 400
+         *     `invalid_request` with `details[].field` = `exercise`; the app does not offer the
+         *     check for it.
+         *
+         *     `visible` is false when the user's body was not clearly in frame; the app then asks
+         *     for a side view with the whole body in frame. Each `checks[].cue` is one of the
+         *     card's `key_cues` verbatim (the server drops any other). The app always shows
+         *     the "second opinion, not a coach" note; nothing is stored by this call.
+         *
+         *     Image rules are in the `ai` tag, Images. Non-AI fallback: the cue checklist on the
+         *     exercise card.
+         */
+        post: operations["formCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/content/manifest": {
         parameters: {
             query?: never;
@@ -749,7 +920,12 @@ export interface components {
              * @description Stable machine-readable code. `token_expired`: refresh the access token and
              *     retry. `unauthorized`: sign in again. `invalid_code`: the emailed code is wrong
              *     or expired. `not_found` (404): the named resource does not exist; today only
-             *     `GET /content/{bundle}` for a bundle not in the manifest. `quota_exceeded` (429): the daily AI quota is used up until
+             *     `GET /content/{bundle}` for a bundle not in the manifest, and
+             *     `GET /foods/barcode/{code}` for a barcode Open Food Facts has no usable product
+             *     for. `invalid_barcode` (400, `GET /foods/barcode/{code}` only): the code fails
+             *     the length or GS1 check digit. `upstream_unavailable` and `upstream_busy` (503,
+             *     `GET /foods/barcode/{code}` only): Open Food Facts failed, or the server's own
+             *     limit on calls to it is used up (`Retry-After` is set). `quota_exceeded` (429): the daily AI quota is used up until
              *     `quota.resets_at`. `feature_disabled` (503): the AI feature is switched off on
              *     the server; use the non-AI fallback. `account_full` (413, `POST /sync` only):
              *     the push would take the account over its record cap; nothing was applied (see
@@ -758,7 +934,7 @@ export interface components {
              *     like `internal`.
              * @enum {string}
              */
-            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled" | "account_full" | "forbidden";
+            code: "invalid_request" | "unauthorized" | "token_expired" | "invalid_code" | "not_found" | "rate_limited" | "internal" | "unavailable" | "quota_exceeded" | "feature_disabled" | "account_full" | "forbidden" | "invalid_barcode" | "upstream_unavailable" | "upstream_busy";
             /** @description Plain-language message safe to show the user. Never contains health data. */
             message: string;
             /** @description Per-field problems, for `invalid_request`. */
@@ -969,7 +1145,8 @@ export interface components {
         };
         /**
          * @description Where a row's values come from. Only the sources listed in ADR 005
-         *     (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed.
+         *     (`docs/adr/005-food-data-sources-own-estimates.md`) are allowed, plus Open Food
+         *     Facts for barcode lookups only (ADR 009).
          */
         FoodSource: {
             /**
@@ -978,10 +1155,12 @@ export interface components {
              *     weighed in our kitchen tests. `label_typical`: packaged foods using typical
              *     nutrition-label values across common brands; in the prototype these are whey
              *     protein, Greek yogurt and makhana. `own_estimate`: our own rough estimate, not
-             *     weighed or cooked to a recipe (for example restaurant dishes).
+             *     weighed or cooked to a recipe (for example restaurant dishes). `open_food_facts`:
+             *     a community-contributed product from Open Food Facts (ODbL 1.0 / DbCL 1.0, ADR
+             *     009); only `GET /foods/barcode/{code}` returns it, never `/foods` or `content/`.
              * @enum {string}
              */
-            code: "usda_fdc" | "fssai" | "own_recipe" | "kitchen_test" | "label_typical" | "own_estimate";
+            code: "usda_fdc" | "fssai" | "own_recipe" | "kitchen_test" | "label_typical" | "own_estimate" | "open_food_facts";
             /**
              * @example USDA FoodData Central (SR Legacy)
              * @example Typical label values (packaged food)
@@ -996,6 +1175,85 @@ export interface components {
             url: string | null;
             /** @description Identifier in the source, such as a USDA FDC id. */
             reference: string | null;
+        };
+        /**
+         * @description Digits of a barcode: 8 (EAN-8), 12 (UPC-A) or 13 (EAN-13) with a valid
+         *     GS1 mod-10 check digit. The pattern checks length and digits only; the check digit
+         *     is checked separately (`test-vectors/barcode-gs1.json`).
+         * @example 8901491101837
+         */
+        Barcode: string;
+        /**
+         * @description The only nutriment keys the server returns, numbers as Open Food Facts gives them
+         *     (the key names are Open Food Facts', so hyphens stay). Energy `-kcal_` is kilocalories
+         *     and `-kj_` is kilojoules; the rest are grams, and `_100g` is per 100 g (or 100 ml)
+         *     while `_serving` is per serving. A key is absent when Open Food Facts has no value,
+         *     so absence is not zero. `sugars` (total sugars) and bare `energy` (kilojoules) are
+         *     deliberately not here.
+         */
+        OffNutriments: {
+            "energy-kcal_100g"?: number;
+            "energy-kj_100g"?: number;
+            proteins_100g?: number;
+            carbohydrates_100g?: number;
+            fat_100g?: number;
+            fiber_100g?: number;
+            "added-sugars_100g"?: number;
+            "energy-kcal_serving"?: number;
+            "energy-kj_serving"?: number;
+            proteins_serving?: number;
+            carbohydrates_serving?: number;
+            fat_serving?: number;
+            fiber_serving?: number;
+            "added-sugars_serving"?: number;
+        };
+        /**
+         * @description A trimmed subset of an Open Food Facts product (ADR 009). Community data, unchecked.
+         *     Text is untrusted: show it as text, never interpret it.
+         *
+         *     `code` is always the code from the request path, unchanged (Open Food Facts may
+         *     store a UPC-A as 13 digits with a leading 0; the server does not pass that
+         *     through), so the app can save it as `UserFood.barcode` and find it again locally.
+         *
+         *     Field names are this contract's, not Open Food Facts': `name` (OFF `product_name`),
+         *     `brands`, `quantity`, `serving_size`, `serving_quantity` (grams or millilitres),
+         *     `nutrition_data_per`, `nutriments`, `completeness`, `states_tags`,
+         *     `data_quality_errors_tags`, `countries_tags`, and `last_modified_at` (OFF
+         *     `last_modified_t` converted to ISO 8601 UTC). Only the `nutriments` keys keep OFF's
+         *     own names.
+         */
+        OffProduct: {
+            code: components["schemas"]["Barcode"];
+            /** @description Product name; null or empty when Open Food Facts has none (the user types one). */
+            name: string | null;
+            /** @description Comma-separated brands as Open Food Facts gives them. */
+            brands: string | null;
+            /** @description Pack size as printed, e.g. "50g" or "1 l". */
+            quantity: string | null;
+            /** @description Serving as printed, e.g. "1 bar (45 g)". */
+            serving_size: string | null;
+            /** @description Serving size in grams (or millilitres for drinks); null when unknown. */
+            serving_quantity: number | null;
+            /**
+             * @description What the pack's own nutrition table is printed per. The `_100g` values are present either way.
+             * @enum {string|null}
+             */
+            nutrition_data_per: "100g" | "serving" | null;
+            nutriments: components["schemas"]["OffNutriments"];
+            /** @description Open Food Facts' own completeness score of the entry. */
+            completeness: number | null;
+            /** @description Open Food Facts state tags, e.g. `en:nutrition-facts-completed`. */
+            states_tags: string[];
+            /** @description Open Food Facts data quality error tags; non-empty means the entry has known problems. */
+            data_quality_errors_tags: string[];
+            /** @description Countries the product is sold in, e.g. `en:india`. */
+            countries_tags: string[];
+            /**
+             * Format: date-time
+             * @description When the entry was last edited upstream. Open Food Facts sends epoch seconds (`last_modified_t`); the server converts.
+             */
+            last_modified_at: string | null;
+            source: components["schemas"]["FoodSource"];
         };
         SyncRequest: {
             /** @description Opaque cursor from the last successful sync; null on first sync. */
@@ -1175,6 +1433,12 @@ export interface components {
                 weekly_summary: boolean;
                 /** @description Custom exercise tag suggestion. Optional, so a server that does not send it has the feature off. */
                 suggest_tags?: boolean;
+                /** @description Meal photo (`POST /ai/meal-photo`). Optional, so a server that does not send it has the feature off. */
+                meal_photo?: boolean;
+                /** @description Recipe import (`POST /ai/import-recipe`). Optional, so a server that does not send it has the feature off. */
+                import_recipe?: boolean;
+                /** @description Form check (`POST /ai/form-check`). Optional, so a server that does not send it has the feature off. */
+                form_check?: boolean;
             };
             quota: components["schemas"]["AiQuota"];
         };
@@ -1297,6 +1561,125 @@ export interface components {
         WeeklySummaryResponse: {
             /** @description Three plain sentences; no headings, lists or emojis. */
             text: string;
+            quota: components["schemas"]["AiQuota"];
+        };
+        /**
+         * @description One photo sent to an AI image call, base64 in the JSON body (see the `ai` tag,
+         *     Images, for why and for the type, size and metadata rules). Up to 1,200,000 decoded
+         *     bytes and 4,096 px a side. The app sends the re-encoded, resized copy it shows the
+         *     user, never the original file.
+         */
+        AiImage: {
+            /** @enum {string} */
+            media_type: "image/jpeg" | "image/png";
+            /**
+             * @description The image bytes, standard base64 with padding (a multiple of 4 characters), no line
+             *     breaks, no `data:` prefix.
+             *     1,600,000 characters is 1,200,000 bytes.
+             */
+            data: string;
+        };
+        /**
+         * @description One still frame of a form check: the same shape as `AiImage` but at most 350,000
+         *     decoded bytes and 640 px a side (so four frames fit under the 2 MB body limit and
+         *     in memory; the server decodes one at a time). The prototype cuts frames at 640 px,
+         *     JPEG quality 0.75.
+         */
+        AiFrame: {
+            /** @enum {string} */
+            media_type: "image/jpeg" | "image/png";
+            /** @description Standard base64 with padding, a multiple of 4 characters. 466,668 characters is 350,000 bytes. */
+            data: string;
+        };
+        MealPhotoRequest: {
+            image: components["schemas"]["AiImage"];
+            /**
+             * @description What the photo cannot show (hidden oil or ghee, a count). Optional; when sent it
+             *     must not be blank (see the wire conventions), so the app leaves it out when empty.
+             *     Prototype: `#phHint`.
+             */
+            hint?: string;
+        };
+        MealPhotoResponse: {
+            /** @description True when the photo shows no food; `items` is then empty. Prototype: `notFood`. */
+            not_food: boolean;
+            /** @description One entry per distinct food or drink visible; empty when none. */
+            items: components["schemas"]["MealPhotoItem"][];
+            quota: components["schemas"]["AiQuota"];
+        };
+        /**
+         * @description A `MealEstimateItem` (`qty` is the portion judged from the plate), how sure the model is, and
+         *     the built-in food it matched, if any.
+         */
+        MealPhotoItem: components["schemas"]["MealEstimateItem"] & {
+            /**
+             * @description Prototype: `confidence`. The app marks `low` as unsure.
+             * @enum {string}
+             */
+            confidence: "high" | "medium" | "low";
+            /**
+             * @description The exact `name` of a built-in food in `content/foods.json` that this item is,
+             *     or null when none fits (the server checks it and sends null otherwise). Optional,
+             *     so a server that does not send it means null. Prototype: `match`.
+             */
+            match?: string | null;
+            /**
+             * @description How many of the matched food's serving size are shown; 1 when `match` is null.
+             *     Optional, read as 1 when absent. Prototype: `servings`, clamped to 0.25 to 6.
+             */
+            servings?: number;
+        };
+        /** @description Send `text`, `image` or both; a body with neither is 400 `invalid_request`. */
+        ImportRecipeRequest: {
+            /** @description The recipe as pasted. Must not be blank (see the wire conventions). Prototype: `#impTxt`, cut at 6,000 characters. */
+            text?: string;
+            image?: components["schemas"]["AiImage"];
+        };
+        /**
+         * @description A draft for the recipe builder, not a saved `Recipe`: the fields the builder needs,
+         *     in the same units, with no id, version or timestamps.
+         */
+        ImportRecipeResponse: {
+            /** @description The recipe's title; the server uses "Imported recipe" when the model gives none. */
+            name: string;
+            /** @description Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`; the server uses 4 when the model gives none (as the prototype does). */
+            katoris: number;
+            /** @description Matched ingredients, in grams (`unit` is always `g`); empty when none matched. */
+            ingredients: (components["schemas"]["Ingredient"] & {
+                /** @constant */
+                unit?: "g";
+            })[];
+            steps: string[];
+            /** @description Ingredients as written that could not be matched, for the user to add by hand. */
+            unmatched: string[];
+            quota: components["schemas"]["AiQuota"];
+        };
+        FormCheckRequest: {
+            /**
+             * @description A key of `content/exercises.json` `cards` (for example `Goblet Squat`); anything
+             *     else is 400 with `details[].field` = `exercise`. A custom exercise has no cues, so
+             *     the app does not offer the check for it.
+             */
+            exercise: string;
+            /** @description Still frames in the order they occur in the set. The video itself never leaves the phone. */
+            frames: components["schemas"]["AiFrame"][];
+        };
+        FormCheckResponse: {
+            /** @description False when the user's body was not clearly in frame; `checks` is then empty. */
+            visible: boolean;
+            checks: {
+                /** @description One of the exercise card's `key_cues`, verbatim. */
+                cue: string;
+                /**
+                 * @description `unclear` when the angle or quality does not let the model tell.
+                 * @enum {string}
+                 */
+                status: "good" | "watch" | "unclear";
+                /** @description A specific, kind remark; may be empty. */
+                note: string;
+            }[];
+            /** @description One short overall remark; may be empty. Never a diagnosis. */
+            summary: string;
             quota: components["schemas"]["AiQuota"];
         };
         /**
@@ -1597,6 +1980,14 @@ export interface components {
         /** @description A personal food. Prototype: an item in `settings.myFoods`. */
         UserFood: components["schemas"]["SyncMeta"] & {
             name: string;
+            /**
+             * @description Optional. Set when the food was made from a barcode scan (Open Food Facts);
+             *     the app then shows the Open Food Facts credit on it and finds it again
+             *     without a network call. `origin` stays `custom`. Absent or null on every
+             *     other food, and on rows from older clients. Same digits as
+             *     `GET /foods/barcode/{code}`.
+             */
+            barcode?: string | null;
             /** @description Serving label, e.g. "1 katori". */
             unit: string;
             kcal: number;
@@ -2297,6 +2688,63 @@ export interface operations {
             500: components["responses"]["Internal"];
         };
     };
+    getFoodByBarcode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description The barcode digits. See above for the accepted lengths and check digit.
+                 * @example 8901491101837
+                 */
+                code: components["schemas"]["Barcode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The product. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OffProduct"];
+                };
+            };
+            /** @description The code is not a valid barcode (length or check digit). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Open Food Facts has no usable product for this barcode. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["Internal"];
+            /** @description Open Food Facts could not be reached, or the server's own limit on calls to it is used up. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. Always present on `upstream_busy`; may be absent on `upstream_unavailable`. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;
@@ -2510,6 +2958,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WeeklySummaryResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    mealPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MealPhotoRequest"];
+            };
+        };
+        responses: {
+            /** @description The estimated items and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MealPhotoResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    importRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRecipeRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft recipe and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRecipeResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    formCheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description The cue checks and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormCheckResponse"];
                 };
             };
             400: components["responses"]["InvalidRequest"];
