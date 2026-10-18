@@ -65,6 +65,7 @@ test("build without PUBLIC_WEB_APP_URL: no link, today's badge, no web deletion 
   assert.ok(!b.landing.includes("Use it on the web"));
   assert.ok(!b.deletion.includes("Delete on the web"));
   assert.ok(b.deletion.includes("If you cannot use the app"));
+  assert.ok(b.deletion.includes("This is the way to delete your account."));
   assert.ok(b.deletion.includes("DRAFT. Pending lawyer review"));
 });
 
@@ -78,7 +79,12 @@ test("build with PUBLIC_WEB_APP_URL: the call to action, the new badge, and the 
   const email = b.deletion.indexOf("If you cannot use the app");
   assert.ok(web > 0 && email > web, "web path is listed before the email path");
   assert.match(b.deletion.slice(web, email), /href="https:\/\/app\.example\.test\/"/);
-  for (const step of ["6-digit code", '"Your data"', '"Delete everything"']) assert.ok(b.deletion.slice(web, email).includes(step), step);
+  // The app's own labels: the SyncBadge, the Targets button and the account screen.
+  for (const step of ['"Sign in to sync"', "6-digit code", "On Targets", '"Download or delete my data"', '"Your data"', '"Delete everything"']) {
+    assert.ok(b.deletion.slice(web, email).includes(step), step);
+  }
+  // With a second self-service path the app is no longer "the way" to delete.
+  assert.ok(!b.deletion.includes("This is the way to delete your account."));
   assert.ok(b.deletion.includes("DRAFT. Pending lawyer review"));
 });
 
