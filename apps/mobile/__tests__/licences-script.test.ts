@@ -201,3 +201,37 @@ describe('Android section of licences.json', () => {
     expect(data.texts[by('io.sentry:sentry').text]).toContain('NOTICE (META-INF/SENTRY_THIRD_PARTY_NOTICES.md)\n\n# Third-Party Software Notices and Information');
   });
 });
+
+// #965: NOTICE (third-party material only) must not credit images THIRD_PARTY.md marks as own work.
+describe('scripts/licences.mjs NOTICE and THIRD_PARTY.md agree on app images', () => {
+  const repoRoot = join(app, '../..');
+  const runWith = (notice: string, thirdParty: string) => {
+    const d = mkdtempSync(join(tmpdir(), 'notice-'));
+    try {
+      writeFileSync(join(d, 'NOTICE'), notice);
+      writeFileSync(join(d, 'THIRD_PARTY.md'), thirdParty);
+      return spawnSync('node', ['scripts/licences.mjs', '--check'], { cwd: app, encoding: 'utf8', env: { ...process.env, LICENCES_REPO_DIR: d } } as never);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  };
+  const notice = readFileSync(join(repoRoot, 'NOTICE'), 'utf8');
+  const thirdParty = readFileSync(join(repoRoot, 'THIRD_PARTY.md'), 'utf8');
+
+  it('passes with the committed files', () => {
+    expect(runWith(notice, thirdParty).status).toBe(0);
+  });
+  it('fails when NOTICE lists an own-work PNG', () => {
+    const r = runWith(`${notice}\n- Splash image apps/mobile/assets/splash-icon.png from a template.\n`, thirdParty);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('NOTICE lists splash-icon.png but THIRD_PARTY.md marks it own work');
+  });
+  it('fails when THIRD_PARTY.md has no own-work row for the images', () => {
+    const r = runWith(notice, thirdParty.split('\n').filter((l) => !l.includes('apps/mobile/assets')).join('\n'));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no row marking the app icon and splash images');
+  });
+  it('accepts the row in any letter case', () => {
+    expect(runWith(notice, thirdParty.replace('Own work (original artwork', 'own work (original artwork')).status).toBe(0);
+  });
+});
