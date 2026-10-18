@@ -138,10 +138,6 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
-      {/* A signed-in user's consent is read async; show no storage line until it is known rather than a wrong one. */}
-      {s.signedIn && consented === null ? null : (
-        <Hint>{`${s.signedIn && consented ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
-      )}
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
       {message ? <Note>{message}</Note> : null}
@@ -168,6 +164,10 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
             setStep('confirm');
           }}
         />
+        {/* Below the buttons, not above: it appears once the async consent read finishes, and must not push the buttons down under a tap (#1035). */}
+        {s.signedIn && consented === null ? null : (
+          <Hint>{`${s.signedIn && consented ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
+        )}
         <LegalLinks />
         <Button kind="link" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as never))} />
       </View>

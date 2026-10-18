@@ -86,6 +86,36 @@ describe('data screen (#27)', () => {
     expect(screen.queryByText(DATA_COPY.storageDevice)).toBeNull();
   });
 
+  it('keeps the buttons where they were when the consent read resolves, so a tap never lands on the late storage line (#1035)', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const db = consented();
+    const read = db.getAllAsync.bind(db);
+    db.getAllAsync = (async (...a: Parameters<typeof read>) => {
+      await gate;
+      return read(...a);
+    }) as typeof db.getAllAsync;
+    await show({ signedIn: true }, db);
+    // Position of a control = number of nodes rendered before it; content inserted above it would shift this.
+    const position = (label: string) => {
+      const nodes: { props?: Record<string, unknown> }[] = [];
+      const walk = (n: unknown) => {
+        if (n === null || typeof n !== 'object') return;
+        if (Array.isArray(n)) return n.forEach(walk);
+        nodes.push(n as { props?: Record<string, unknown> });
+        walk((n as { children?: unknown }).children);
+      };
+      walk(screen.toJSON());
+      return nodes.findIndex((n) => n.props?.accessibilityLabel === label);
+    };
+    const labels = ['Delete everything', 'Download my data'];
+    const before = labels.map(position);
+    expect(before.every((i) => i >= 0)).toBe(true);
+    release();
+    expect(await screen.findByText('Saved privately to your account.')).toBeTruthy();
+    expect(labels.map(position)).toEqual(before);
+  });
+
   it('a signed-in user without the data_storage consent is told the data stays on the device, as nothing uploads', async () => {
     await show({ signedIn: true });
     expect(await screen.findByText(DATA_COPY.storageDevice)).toBeTruthy();
