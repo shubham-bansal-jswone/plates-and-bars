@@ -10,8 +10,8 @@ export interface StoreDb {
   runAsync(sql: string, ...params: (string | number)[]): Promise<unknown>;
 }
 
-// One profile per install, under the local key 'me'. Its record id stays null until the store is bound
-// to a user (see `Profile.id`). Consents are dated records, one row per agreement, keyed by their random id.
+// One profile per install, under the local key 'me'. Its record id is null on a row made on the device and the server id on a pulled one; buildRecord sets it at push
+// for the signed-in user (see `Profile.id`). Consents are dated records, one row per agreement, keyed by their random id.
 const KEY = 'me';
 
 export async function loadProfile(db: StoreDb): Promise<Profile | null> {
