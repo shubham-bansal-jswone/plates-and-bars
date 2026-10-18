@@ -1,0 +1,1 @@
+int drawable ic_reminder 0x0

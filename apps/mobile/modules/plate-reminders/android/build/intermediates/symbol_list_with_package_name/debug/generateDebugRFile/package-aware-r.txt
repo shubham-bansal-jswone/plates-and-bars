@@ -1,0 +1,2 @@
+app.plateandbar.reminders
+drawable ic_reminder

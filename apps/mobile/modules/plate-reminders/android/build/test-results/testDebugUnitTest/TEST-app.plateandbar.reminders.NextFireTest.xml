@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.plateandbar.reminders.NextFireTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-18T15:49:32.935Z" hostname="JSWs-MacBook-Pro" time="0.016">
+  <properties/>
+  <testcase name="passedTodayGoesToTheNextListedDay" classname="app.plateandbar.reminders.NextFireTest" time="0.011"/>
+  <testcase name="validity" classname="app.plateandbar.reminders.NextFireTest" time="0.003"/>
+  <testcase name="followsTheLocalZone" classname="app.plateandbar.reminders.NextFireTest" time="0.0"/>
+  <testcase name="laterTheSameDay" classname="app.plateandbar.reminders.NextFireTest" time="0.0"/>
+  <testcase name="exactlyNowIsNotNext" classname="app.plateandbar.reminders.NextFireTest" time="0.0"/>
+  <testcase name="noDaysNoFire" classname="app.plateandbar.reminders.NextFireTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

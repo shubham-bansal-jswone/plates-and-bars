@@ -48,6 +48,8 @@ on:
       - 'apps/mobile/scripts/licences.mjs'
       - 'apps/mobile/scripts/android-native-libs.txt'
       - 'apps/mobile/scripts/licence-texts/**'
+      # our own Kotlin module (#943): built here, and its JVM unit tests run below
+      - 'apps/mobile/modules/**'
   workflow_dispatch:
 
 permissions:
@@ -102,6 +104,9 @@ jobs:
         run: ../../infra/scripts/check-site-url.sh "$IS_RELEASE" "$SITE_URL_CHECK"
       - name: Generate the native project
         run: npx expo prebuild --platform android --no-install
+      - name: Reminders module unit tests (next-fire rule)
+        working-directory: apps/mobile/android
+        run: ./gradlew --no-daemon -q :plate-reminders:testDebugUnitTest
       # About lists the Android libraries from the committed apps/mobile/scripts/android-classpath.txt (#835). Resolve the
       # real releaseRuntimeClasspath with a plain-Gradle init script (no plugin) and fail if an artifact has no licence row
       # in scripts/licences.mjs or the list differs from the committed one. No secrets reach this step.
