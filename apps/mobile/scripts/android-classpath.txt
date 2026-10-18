@@ -152,6 +152,7 @@ host.exp.exponent:expo.modules.sharing:58.0.19
 host.exp.exponent:expo.modules.splashscreen:58.0.10
 host.exp.exponent:expo.modules.sqlite:58.0.13
 host.exp.exponent:expo.modules.statusbar:58.0.3
+host.exp.exponent:expo.modules.videothumbnails:58.0.2
 io.github.expo.kolibri:kolibri-android:0.2.3
 io.github.expo.kolibri:runtime:0.2.3
 io.github.expo.pika:pika-api:1.1.0
