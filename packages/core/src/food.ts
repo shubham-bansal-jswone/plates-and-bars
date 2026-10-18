@@ -122,15 +122,16 @@ export function quantityFromGrams(food: GramsFood, grams: number | string): Gram
   return qty ? { kind: 'grams', qty } : { kind: 'too-small' };
 }
 
-/** The first food named `name` with fibre data, as prototype `fibOf` (shared `FIB`, then the user's foods). */
+/** The first food named `name` with fibre data, as prototype `fibOf` (shared `FIB`, which holds the shared foods and the eat-out dishes, then the user's foods). */
 function fibreOf(name: string, foods: readonly FoodFacts[]): FoodFacts | undefined {
   return foods.find((f) => f.name === name && f.per_serving.fibre_g !== null);
 }
 
 /**
  * Day totals of the logs: energy and macros from each log's own per-serving values × `qty`, fibre and
- * added sugar from the food of the same name. Pass the shared foods, then the user's foods (names are
- * unique within each), so a shared food wins, as prototype `FIB` is read before `myFoods`.
+ * added sugar from the food of the same name. Pass the shared foods, then the eat-out dishes, then the
+ * user's foods (names are unique within each), so a shared food or eat-out dish wins, as prototype `FIB`
+ * (which holds both) is read before `myFoods`.
  *
  * Mirrors prototype `totals(meals)` plus the `fib`, `sug` and `unknown` parts of `fibreTotals(meals)`.
  */
@@ -163,7 +164,7 @@ export function fibreTarget(kcalTarget: number): number {
 /**
  * Fruit and veg servings eaten (out of `FRUIT_VEG_TARGET`), unrounded; show with one decimal (prototype
  * `r1`). Each log counts the first nonzero `fruit_veg_servings` of a food with its name × `qty`. Pass
- * the shared foods, then the user's foods, as for `logTotals`.
+ * the shared foods, then the eat-out dishes, then the user's foods, as for `logTotals`.
  *
  * Mirrors the `veg` part of prototype `fibreTotals(meals)` with `produceOf(m)`.
  */
