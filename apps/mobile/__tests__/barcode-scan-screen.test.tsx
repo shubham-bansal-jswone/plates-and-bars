@@ -1,4 +1,4 @@
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { BarcodeScanScreen } from '../src/barcode/BarcodeScanScreen';
 import { BARCODE_COPY as t } from '../src/barcode/copy';
@@ -105,8 +105,22 @@ describe('scanning', () => {
     expect(scannerProps!.active).toBe(true);
     await hit(GOOD);
     expect(onCode).toHaveBeenCalledTimes(1);
-    expect(onCode).toHaveBeenCalledWith(GOOD, { kind: 'scan', format: 'EAN_13' });
+    expect(onCode).toHaveBeenCalledWith({ ok: true, format: 'EAN-13', code: GOOD }, { kind: 'scan', format: 'EAN_13' });
     expect(scannerProps!.active).toBe(false);
+  });
+
+  it('expands a scanned UPC-E to its 12-digit UPC-A', async () => {
+    const { onCode } = await show('granted');
+    await screen.findByTestId('scanner');
+    await hit('04252614', 'UPC_E');
+    expect(onCode).toHaveBeenCalledWith({ ok: true, format: 'UPC-A', code: '042100005264' }, { kind: 'scan', format: 'UPC_E' });
+  });
+
+  it('keeps a scanned EAN-8 at 8 digits', async () => {
+    const { onCode } = await show('granted');
+    await screen.findByTestId('scanner');
+    await hit('96385074', 'EAN_8');
+    expect(onCode).toHaveBeenCalledWith({ ok: true, format: 'EAN-8', code: '96385074' }, { kind: 'scan', format: 'EAN_8' });
   });
 
   it('ignores a read whose check digit is wrong, says so, and re-arms on "Scan again"', async () => {
@@ -150,7 +164,7 @@ describe('manual entry', () => {
     await screen.findByLabelText(t.fieldLabel);
     await type('5000 1126 37922');
     await fireEvent.press(screen.getByRole('button', { name: t.use }));
-    expect(onCode).toHaveBeenCalledWith(GOOD, { kind: 'typed' });
+    expect(onCode).toHaveBeenCalledWith({ ok: true, format: 'EAN-13', code: GOOD }, { kind: 'typed' });
   });
 
   it('rejects a wrong check digit and clears the message on the next keystroke', async () => {
@@ -169,12 +183,69 @@ describe('manual entry', () => {
     await fireEvent.press(await screen.findByRole('button', { name: t.typeInstead }));
     await type('96385074');
     await fireEvent.press(screen.getByRole('button', { name: t.use }));
-    expect(onCode).toHaveBeenCalledWith('96385074', { kind: 'typed' });
+    expect(onCode).toHaveBeenCalledWith({ ok: true, format: 'EAN-8', code: '96385074' }, { kind: 'typed' });
+  });
+
+  it('refuses a typed 8-digit number that is only valid as UPC-E', async () => {
+    const { onCode } = await show('unavailable');
+    await screen.findByLabelText(t.fieldLabel);
+    await type('04252614');
+    await fireEvent.press(screen.getByRole('button', { name: t.use }));
+    expect(onCode).not.toHaveBeenCalled();
+    expect(screen.getByText(t.invalid)).toBeTruthy();
+  });
+
+  it('strips hyphens as well as spaces', async () => {
+    const { onCode } = await show('unavailable');
+    await screen.findByLabelText(t.fieldLabel);
+    await type('96385-074');
+    await fireEvent.press(screen.getByRole('button', { name: t.use }));
+    expect(onCode).toHaveBeenCalledWith({ ok: true, format: 'EAN-8', code: '96385074' }, { kind: 'typed' });
+  });
+
+  it('has a visible caption on the field', async () => {
+    await show('unavailable');
+    expect(await screen.findByText(t.fieldLabel, { includeHiddenElements: true })).toBeTruthy(); // aria-hidden: the field's own label is the spoken one
   });
 
   it('Close calls onClose', async () => {
     const { onClose } = await show('unavailable');
     await fireEvent.press(await screen.findByRole('button', { name: t.close }));
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('coming back from Settings', () => {
+  let handlers: ((s: string) => void)[];
+  beforeEach(() => {
+    handlers = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation(((_: string, h: (s: string) => void) => {
+      handlers.push(h);
+      return { remove: () => undefined };
+    }) as never);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('re-checks a blocked camera when the app becomes active and starts scanning', async () => {
+    await show('blocked');
+    expect(await screen.findByText(t.denied)).toBeTruthy();
+    mockCheck.mockResolvedValue('granted');
+    await act(async () => handlers.forEach((h) => h('active')));
+    expect(await screen.findByTestId('scanner')).toBeTruthy();
+    expect(screen.queryByText(t.denied)).toBeNull();
+  });
+
+  it('does not re-check on other app states', async () => {
+    await show('blocked');
+    await screen.findByText(t.denied);
+    mockCheck.mockClear();
+    await act(async () => handlers.forEach((h) => h('background')));
+    expect(mockCheck).not.toHaveBeenCalled();
+  });
+
+  it('listens only while the permission is missing', async () => {
+    await show('granted');
+    await screen.findByTestId('scanner');
+    expect(handlers).toHaveLength(0);
   });
 });

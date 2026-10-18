@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { AppState, Linking, StyleSheet, View } from 'react-native';
+import { validateBarcode, type BarcodeCheck, type ScannerFormat } from '@plate-and-bar/core';
 import { BarcodeScannerView, type BarcodeEvent, type BarcodeFormat } from '../../modules/plate-barcode-scanner';
-import { Button, ErrorText, Field, H1, Heading, Hint, Page } from '../components/ui';
+import { Button, Caption, ErrorText, Field, H1, Heading, Hint, Page } from '../components/ui';
 import { buzz } from '../haptics';
 import { useTheme } from '../theme/useTheme';
 import { BARCODE_COPY as t } from './copy';
-import { barcodeDigits } from './digits';
 import { checkCamera, requestCamera, type CameraPermission } from './permission';
+
+/** A barcode that passed core's check: `code` is EAN-8, EAN-13 or the 12-digit UPC-A (a scanned UPC-E is already expanded). */
+export type ValidBarcode = Extract<BarcodeCheck, { ok: true }>;
+
+const HINT: Record<BarcodeFormat, ScannerFormat> = { EAN_13: 'ean_13', EAN_8: 'ean_8', UPC_A: 'upc_a', UPC_E: 'upc_e' };
 
 export type ScanSource = { kind: 'scan'; format: BarcodeFormat } | { kind: 'typed' };
 
@@ -15,7 +20,7 @@ export type ScanSource = { kind: 'scan'; format: BarcodeFormat } | { kind: 'type
  * came from; the caller decides what to do next (the app wiring comes later). Camera frames stay in memory in the native view:
  * nothing is stored or sent. A read pauses the scanner until the screen is shown again.
  */
-export function BarcodeScanScreen({ onCode, onClose }: { onCode: (digits: string, source: ScanSource) => void; onClose: () => void }) {
+export function BarcodeScanScreen({ onCode, onClose }: { onCode: (barcode: ValidBarcode, source: ScanSource) => void; onClose: () => void }) {
   const c = useTheme();
   const [permission, setPermission] = useState<CameraPermission | null>(null);
   const [typing, setTyping] = useState(false);
@@ -35,25 +40,39 @@ export function BarcodeScanScreen({ onCode, onClose }: { onCode: (digits: string
     };
   }, []);
 
+  // Back from Settings: the user may have turned the camera on.
+  useEffect(() => {
+    if (permission !== 'blocked' && permission !== 'denied') return;
+    let live = true;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void checkCamera().then((p) => live && setPermission(p));
+    });
+    return () => {
+      live = false;
+      sub.remove();
+    };
+  }, [permission]);
+
   const ask = async () => setPermission(await requestCamera());
 
   const scanning = permission === 'granted' && !cameraFailed;
   const fieldOpen = typing || !scanning;
 
   const submit = () => {
-    const digits = barcodeDigits(text);
-    if (digits === null) {
+    // Core does not trim: strip the spaces and hyphens a pack may print. A typed 8-digit number is an EAN-8 (no scanner hint).
+    const check = validateBarcode(text.replace(/[\s-]/g, ''));
+    if (!check.ok) {
       setError(t.invalid);
       return;
     }
     setError(null);
-    onCode(digits, { kind: 'typed' });
+    onCode(check, { kind: 'typed' });
   };
 
   const onBarcode = (e: BarcodeEvent) => {
     const { code, format } = e.nativeEvent;
-    const digits = barcodeDigits(code);
-    if (digits === null) {
+    const check = validateBarcode(code, HINT[format]);
+    if (!check.ok) {
       // The reader checks the digit already; a misread that got through pauses the scanner until the user taps "Scan again".
       setActive(false);
       setMisread(true);
@@ -61,14 +80,14 @@ export function BarcodeScanScreen({ onCode, onClose }: { onCode: (digits: string
     }
     setActive(false);
     buzz(40);
-    onCode(digits, { kind: 'scan', format });
+    onCode(check, { kind: 'scan', format });
   };
 
   return (
     <Page>
       <H1>{t.title}</H1>
       {permission === null ? null : scanning ? (
-        <View accessible accessibilityLabel={t.viewfinder} style={[styles.finder, { backgroundColor: c.surfaceSoft }]}>
+        <View style={[styles.finder, { backgroundColor: c.surfaceSoft }]}>
           <BarcodeScannerView
             style={StyleSheet.absoluteFill}
             torch={torch}
@@ -103,6 +122,7 @@ export function BarcodeScanScreen({ onCode, onClose }: { onCode: (digits: string
       {fieldOpen && permission !== null ? (
         <View style={styles.typed}>
           <Heading level={2}>{t.typeInstead}</Heading>
+          <Caption>{t.fieldLabel}</Caption>
           <Field
             label={t.fieldLabel}
             placeholder={t.fieldHint}

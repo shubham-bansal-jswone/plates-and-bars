@@ -2,6 +2,7 @@ zxing-cpp
 
 Copyright 2016 Nu-book Inc.
 Copyright 2016 ZXing authors
+Copyright 2017-2026 Axel Waggershauser
 and the zxing-cpp contributors
 
                                  Apache License

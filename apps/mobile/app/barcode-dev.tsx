@@ -21,5 +21,5 @@ export default function BarcodeDev() {
       </Page>
     );
   }
-  return <BarcodeScanScreen key={round} onCode={(digits, s) => setResult(`${digits} (${s.kind === 'scan' ? s.format : 'typed'})`)} onClose={() => router.back()} />;
+  return <BarcodeScanScreen key={round} onCode={(b, s) => setResult(`${b.code} (${b.format}, ${s.kind === 'scan' ? s.format : 'typed'})`)} onClose={() => router.back()} />;
 }

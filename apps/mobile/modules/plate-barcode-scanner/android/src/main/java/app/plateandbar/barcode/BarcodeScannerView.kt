@@ -48,13 +48,15 @@ class BarcodeScannerView(context: Context, appContext: AppContext) : ExpoView(co
     scaleType = PreviewView.ScaleType.FILL_CENTER
     implementationMode = PreviewView.ImplementationMode.COMPATIBLE
   }
-  private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+  // One executor per start: a detach shuts it down and the next attach makes a new one.
+  private var analysisExecutor: ExecutorService? = null
   private val reading = AtomicBoolean(true)
   private var provider: ProcessCameraProvider? = null
   private var camera: Camera? = null
   private var torchWanted = false
   private var started = false
-  private var stopped = false
+  // Bumped on every release, so a camera-provider callback from an earlier start is ignored.
+  private var generation = 0
 
   override val shouldUseAndroidLayout = true
 
@@ -73,7 +75,7 @@ class BarcodeScannerView(context: Context, appContext: AppContext) : ExpoView(co
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
-    if (!started && !stopped) start()
+    if (!started) start()
   }
 
   private fun start() {
@@ -83,9 +85,12 @@ class BarcodeScannerView(context: Context, appContext: AppContext) : ExpoView(co
       return
     }
     started = true
+    val gen = generation
+    val executor = Executors.newSingleThreadExecutor()
+    analysisExecutor = executor
     val future = ProcessCameraProvider.getInstance(context)
     future.addListener({
-      if (stopped) return@addListener
+      if (gen != generation) return@addListener
       try {
         val cameraProvider = future.get()
         provider = cameraProvider
@@ -101,7 +106,7 @@ class BarcodeScannerView(context: Context, appContext: AppContext) : ExpoView(co
           )
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
           .build()
-        analysis.setAnalyzer(analysisExecutor) { image ->
+        analysis.setAnalyzer(executor) { image ->
           try {
             if (reading.get()) {
               val hit = reader.read(image).firstOrNull()
@@ -127,15 +132,18 @@ class BarcodeScannerView(context: Context, appContext: AppContext) : ExpoView(co
     }, ContextCompat.getMainExecutor(context))
   }
 
+  /** Unbinds the camera and drops the analyser thread; the next attach starts again (a screen can detach this view while another covers it). */
   fun stop() {
-    stopped = true
+    generation++
+    started = false
     try {
       provider?.unbindAll()
     } catch (_: Exception) {
       // already gone
     }
     camera = null
-    analysisExecutor.shutdown()
+    analysisExecutor?.shutdown()
+    analysisExecutor = null
   }
 
   override fun onDetachedFromWindow() {
