@@ -15,6 +15,7 @@ CI and security automation for Plate & Bar. Owned by the Infra lane (`infra/`, `
 | `.github/workflows/web-deploy.yml` | push to `main` (to `staging`), tag `v*` (to `production`), manual; PR touching `infra/caddy/` or the web scripts (validate only) | Builds `npx expo export --platform web` with `EXPO_PUBLIC_API_URL` and rsyncs `dist/` to the Caddy VM; skipped until repository variable `WEB_DEPLOY_ENABLED` is `true` (see Web app deploy) |
 | `.github/workflows/android-release.yml` | tag `v*`, manual, PR touching the workflow | `expo prebuild` + Gradle `assembleRelease bundleRelease`; uploads APK and AAB as an artifact (see below) |
 | `.github/workflows/security.yml` | PR, push to `main`, weekly | gitleaks secret scan, dependency review (PRs) |
+| `.github/workflows/test-under-load.yml` | nightly 03:17 UTC, manual (never PRs) | `npm run test:load` in `apps/mobile`: the jest suite under CPU load (#660). Manual inputs `stall_ms` and `pattern` reach the shell only through `env:`; read-only token, no secrets, 45 minute timeout (not a required check) |
 | `.github/dependabot.yml` | weekly | Updates for GitHub Actions, npm (`packages/api`, `packages/core`, `apps/mobile`, `tools`) and `backend` (gradle) |
 
 Why one `ci.yml` instead of a workflow per folder with `on.paths`: a path-filtered workflow that does not trigger never reports, so a required check would stay "pending" forever. Instead, `infra/scripts/detect-changes.sh` does the path filtering and non-applicable jobs are skipped, which branch protection treats as passing.
