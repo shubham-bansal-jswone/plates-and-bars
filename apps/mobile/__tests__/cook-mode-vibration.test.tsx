@@ -1,5 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Platform, Vibration } from 'react-native';
+jest.mock('expo-haptics', () => ({
+  notificationAsync: jest.fn(() => Promise.resolve()),
+  NotificationFeedbackType: { Success: 'success' },
+}));
+import * as Haptics from 'expo-haptics';
 import { CookMode } from '../src/recipes/CookMode';
 
 const os = (name: string) => jest.replaceProperty(Platform, 'OS', name as 'android');
@@ -16,7 +21,10 @@ async function finishTimer(): Promise<jest.SpyInstance> {
 }
 
 describe('Cook mode timer vibration (#873)', () => {
-  beforeEach(() => jest.useFakeTimers());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+  });
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
@@ -30,5 +38,12 @@ describe('Cook mode timer vibration (#873)', () => {
   it('on web the pattern is on, off, on', async () => {
     os('web');
     expect(await finishTimer()).toHaveBeenCalledWith([300, 150, 300]);
+  });
+
+  it('on iOS it plays one system haptic and never the pattern, which iOS would play as three buzzes (#885)', async () => {
+    os('ios');
+    const vibrate = await finishTimer();
+    expect(vibrate).not.toHaveBeenCalled();
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
   });
 });

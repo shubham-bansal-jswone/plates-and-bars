@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
-import { Platform, ScrollView, StyleSheet, Vibration, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { buzz, cookDoneBuzz } from '../haptics';
 import { stepMinutes } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Hint } from '../components/ui';
@@ -28,8 +29,7 @@ export function CookMode({ name, steps, onClose, onDone }: { name: string; steps
       if (s <= 0) {
         setEnd(null);
         setToast('Timer done');
-        // Two pulses. On Android the first entry is a delay and even positions are pauses, so it needs a leading 0 (#873); web takes [on, off, on]. iOS is not tuned yet: React Native plays a fixed ~400 ms buzz after each entry, so this plays three buzzes there (v2, #885).
-        Vibration.vibrate(Platform.OS === 'android' ? [0, 300, 150, 300] : [300, 150, 300]);
+        buzz(cookDoneBuzz());
       }
     }, 1000);
     return () => clearInterval(id);
