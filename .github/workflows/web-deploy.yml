@@ -10,6 +10,12 @@ name: Web app deploy
 #   variables  EXPO_PUBLIC_API_URL (https://<API_HOST>/api/v1, baked into the bundle; define it in each environment and
 #              never as a repository variable, so one environment can never inherit another's API), WEB_SSH_HOST, WEB_SSH_USER,
 #              WEB_ROOT (the VM directory mounted at /srv/web, for example /opt/plateandbar/infra/staging/web)
+#   optional   variables, inert when unset, passed only to the build step (never npm ci): EXPO_PUBLIC_SENTRY_DSN (empty = the app
+#              sends nothing; set it only after the privacy page and the Play data-safety answers name crash reports, #748, #827;
+#              it needs WEB_SENTRY_ORIGIN, its origin, in the same environment and in the VM .env, checked before the build) and
+#              EXPO_PUBLIC_SITE_URL (https origin of the website, for the app's privacy links, #825; REQUIRED in `production`, the job fails without it).
+#              On a v* tag the version (tag without the v) is stamped into app.json, so the web release is plate-and-bar@X.Y.Z.
+#              EXPO_PUBLIC_SENTRY_ENVIRONMENT is set by the workflow: `production` on a v* tag, `staging` otherwise.
 #   secrets    WEB_SSH_KEY (private key of a user that can write only WEB_ROOT), WEB_SSH_KNOWN_HOSTS (ssh-keyscan -t ed25519 host)
 # See infra/README.md (Web app deploy) and infra/RUNBOOK.md section 7.
 on:
@@ -27,9 +33,12 @@ on:
       - 'infra/scripts/check-web-root.sh'
       - 'infra/scripts/test-check-web-root.sh'
       - 'infra/scripts/test-web-caddy.sh'
+      - 'infra/scripts/check-site-url.sh'
+      - 'infra/scripts/test-check-site-url.sh'
       - 'infra/scripts/check-sentry-origin.sh'
       - 'infra/scripts/test-check-sentry-origin.sh'
       - 'infra/scripts/check-caddy-headers.sh'
+      - 'infra/scripts/test-release-env.sh'
       - '.github/workflows/web-deploy.yml'
   workflow_dispatch:
 
@@ -52,12 +61,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-web-root.sh infra/scripts/test-check-web-root.sh infra/scripts/check-sentry-origin.sh infra/scripts/test-check-sentry-origin.sh infra/scripts/test-web-caddy.sh
+        run: shellcheck infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-web-root.sh infra/scripts/test-check-web-root.sh infra/scripts/check-sentry-origin.sh infra/scripts/test-check-sentry-origin.sh infra/scripts/check-site-url.sh infra/scripts/test-check-site-url.sh infra/scripts/test-release-env.sh infra/scripts/test-web-caddy.sh
       - name: API URL, web root and error-tracking origin checks (test)
         run: |
           infra/scripts/test-check-api-url.sh
           infra/scripts/test-check-web-root.sh
           infra/scripts/test-check-sentry-origin.sh
+          infra/scripts/test-check-site-url.sh
+          infra/scripts/test-release-env.sh
       - name: Caddyfile.web serves the isolation headers, caching and SPA fallback (official Caddy image, Apache-2.0)
         run: infra/scripts/test-web-caddy.sh
 
@@ -82,6 +93,10 @@ jobs:
         env:
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
+          WEB_SENTRY_ORIGIN: ${{ vars.WEB_SENTRY_ORIGIN }}
+          SENTRY_DSN_CHECK: ${{ vars.EXPO_PUBLIC_SENTRY_DSN }}
+          SITE_URL_CHECK: ${{ vars.EXPO_PUBLIC_SITE_URL }}
+          IS_PRODUCTION: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
           if [ "${GITHUB_REF_TYPE}" = tag ]; then
             if ! printf '%s' "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -95,6 +110,10 @@ jobs:
             fi
           fi
           infra/scripts/check-api-url.sh "$EXPO_PUBLIC_API_URL"
+          # a DSN without its origin in the web CSP would drop every report silently
+          infra/scripts/check-sentry-origin.sh "$WEB_SENTRY_ORIGIN" "$SENTRY_DSN_CHECK"
+          # a production build needs the website for the privacy link
+          infra/scripts/check-site-url.sh "$IS_PRODUCTION" "$SITE_URL_CHECK"
           : "${SSH_HOST:?WEB_SSH_HOST is not set}" "${SSH_USER:?WEB_SSH_USER is not set}" "${WEB_ROOT:?WEB_ROOT is not set}"
           # the values end up in ssh and rsync arguments and in a remote path: plain characters only
           printf '%s' "$SSH_USER" | grep -Eq '^[A-Za-z_][A-Za-z0-9_-]*$' || { echo "::error::WEB_SSH_USER must be a plain user name"; exit 1; }
@@ -106,12 +125,32 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Stamp the version into app.json (tag builds, as Android does; CI checkout only, not committed)
+        if: github.ref_type == 'tag'
+        working-directory: apps/mobile
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # the tag was checked as vMAJOR.MINOR.PATCH above; the web release becomes plate-and-bar@MAJOR.MINOR.PATCH
+          VERSION="${REF_NAME#v}" node -e '
+          const fs = require("fs");
+          const json = JSON.parse(fs.readFileSync("app.json", "utf8"));
+          if (!json.expo) { console.error("app.json has no expo"); process.exit(1); }
+          json.expo.version = process.env.VERSION;
+          fs.writeFileSync("app.json", JSON.stringify(json, null, 2) + "\n");
+          '
       - name: Build the web export
         working-directory: apps/mobile
         env:
           EXPO_NO_TELEMETRY: 1 # Expo CLI sends telemetry otherwise
+          # baked into the bundle by Metro; only this step, never npm ci
+          EXPO_PUBLIC_SENTRY_DSN: ${{ vars.EXPO_PUBLIC_SENTRY_DSN }}
+          EXPO_PUBLIC_SENTRY_ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+          EXPO_PUBLIC_SITE_URL: ${{ vars.EXPO_PUBLIC_SITE_URL }}
         run: |
-          npm ci
           npx expo export --platform web
           test -s dist/index.html
       - name: Install SSH key

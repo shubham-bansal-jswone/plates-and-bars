@@ -114,6 +114,10 @@ npx expo export --platform web && node scripts/web-reload.mjs
 
 It serves `dist/` with the headers, completes setup in headless Chrome with the network switched off (all writes are local), tries a reload offline (the export carries `sw.js` now, so this usually comes back from the service worker; the script logs whichever way it goes, and `tests/e2e/specs/offline.spec.mjs` is what asserts the offline start), goes back online, reloads, and checks the Targets screen comes back from SQLite without asking for setup again.
 
+## Tests under load
+
+`npm run test:load` (`scripts/test-under-load.mjs`) runs the jest suite while CPU burner processes keep the machine busy, to catch tests that depend on wall-clock time (#660). `--burners N` sets the number of burners (default one per CPU), `--stall-ms MS` also blocks the event loop for MS ms on every turn inside each test file (a slow machine on demand; it makes a file many times slower, so use it on single files, not the whole suite), and any other argument goes to jest (`--maxWorkers=2` is added unless you pass your own `-w`, `--maxWorkers`, `-i` or `--runInBand`). It is for a manual or nightly run, not every pull request. A test that fails here but passes alone and on a quiet machine waits on real time: drive it with a gate, a count of event-loop turns (`until`/`turns` in `__tests__/sync-helpers.ts`) or a scoped fake clock, as `__tests__/recovery-reentry.test.tsx` does, never a longer timeout or a retry. If the script itself is SIGKILLed, jest is left to finish on its own, but the burners always stop (no handler can run on SIGKILL, so they notice the parent is gone and quit by themselves).
+
 ## Website links (#825)
 
 The privacy policy, terms and account deletion links (About, Your data, setup consent) point at the website origin in `EXPO_PUBLIC_SITE_URL`, an `https://` URL set at build time. Unset or not https, the links are hidden. The release workflows pass it (#827).
