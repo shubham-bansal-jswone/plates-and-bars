@@ -4,9 +4,10 @@ import type { StoreDb } from '../db/records';
 import { bumpStoreEpoch, revertStoreEpoch, storeEpoch } from '../db/storeEpoch';
 import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_PHOTOS_WIPE, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
+import { KEY_PHOTOS_WIPE, KEY_REMINDERS, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { markSignOutPending } from './webSession';
+import { cancelReminders } from '../reminders/sync';
 import { announceWipe, wipePhotos } from '../photos/vault';
 
 // Device ownership rules of ADR 004 (#31): the local store belongs to one user; unsynced changes are never pushed under
@@ -57,6 +58,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     await txn.runAsync('DELETE FROM sync_outbox');
     await txn.runAsync("DELETE FROM settings WHERE key LIKE 'sync.%'");
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
+    await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_REMINDERS);
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", KEY_PHOTOS_WIPE);
     bumpStoreEpoch();
@@ -66,7 +68,10 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     revertStoreEpoch(epochBefore);
     throw e;
   });
-  if (pending === 0) await finishPhotoWipe(db);
+  if (pending === 0) {
+    await cancelReminders(); // the choices are gone: no alarm may outlive them
+    await finishPhotoWipe(db);
+  }
   return pending;
 }
 
