@@ -27,8 +27,8 @@ describe('Cook mode timer vibration (#873)', () => {
     expect(await finishTimer()).toHaveBeenCalledWith([0, 300, 150, 300]);
   });
 
-  it('on iOS the pattern is on, off, on', async () => {
-    os('ios');
+  it('on web the pattern is on, off, on', async () => {
+    os('web');
     expect(await finishTimer()).toHaveBeenCalledWith([300, 150, 300]);
   });
 });

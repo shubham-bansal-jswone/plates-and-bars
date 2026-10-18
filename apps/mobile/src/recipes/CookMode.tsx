@@ -28,7 +28,7 @@ export function CookMode({ name, steps, onClose, onDone }: { name: string; steps
       if (s <= 0) {
         setEnd(null);
         setToast('Timer done');
-        // Two pulses. On Android the first entry is a delay and even positions are pauses, so it needs a leading 0 (#873); iOS and web take [on, off, on].
+        // Two pulses. On Android the first entry is a delay and even positions are pauses, so it needs a leading 0 (#873); web takes [on, off, on]. iOS is not tuned yet: React Native plays a fixed ~400 ms buzz after each entry, so this plays three buzzes there (v2, #885).
         Vibration.vibrate(Platform.OS === 'android' ? [0, 300, 150, 300] : [300, 150, 300]);
       }
     }, 1000);
