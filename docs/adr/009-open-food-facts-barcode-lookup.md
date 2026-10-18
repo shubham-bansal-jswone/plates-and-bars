@@ -27,7 +27,7 @@ The IFCT and INDB ban is unrelated and unchanged: OFF rows are not IFCT or INDB 
 - **Not medical data.** The app shows the data as community-entered and to be checked against the pack; the existing not-medical-advice text applies.
 - **Proxy, not direct calls.** The app never calls OFF. The server does, with a fixed host, our `User-Agent` and contact, a shared upstream limit of 12 calls per minute (OFF allows 15 per IP) and no logging of the barcode by the API, so OFF never sees the user's IP, name or account.
 - **Logging.** The API does not log the barcode. It is a path segment, so the reverse proxy's access log must redact `/foods/barcode/<digits>` before the backend proxy ships (infra step of #944); the privacy promise depends on both.
-- **Abuse limits.** 20 requests per minute per client IP on the endpoint; one shared limiter of 12 calls per minute to OFF. Cache hits and invalid codes do not use the OFF limiter. Order: validate (400), per-IP limit (429), cache, OFF limiter (503 `upstream_busy`, `Retry-After`).
+- **Abuse limits.** 20 requests per minute per client IP on the endpoint; one shared limiter of 12 calls per minute to OFF. Cache hits and invalid codes do not use the OFF limiter. Order: per-IP limit (429, so invalid codes count toward it), validate (400), cache, OFF limiter (503 `upstream_busy`, `Retry-After`).
 - Retention of the cache is stated on the privacy page.
 
 ## Consequences

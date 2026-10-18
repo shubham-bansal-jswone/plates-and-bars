@@ -374,8 +374,8 @@ export interface paths {
          *     **Limits and order of checks.** This operation allows 20 requests per minute per
          *     client IP. Calls from the server to Open Food Facts share one limit of 12 per
          *     minute (Open Food Facts allows 15 per minute per IP). The server checks, in this
-         *     order: (1) the code's pattern and GS1 check digit, 400 `invalid_barcode`; (2) the
-         *     per-IP limit, 429 `rate_limited`; (3) the cache, a hit (found or not found) is
+         *     order: (1) the per-IP limit, 429 `rate_limited`, so invalid codes count toward it; (2)
+         *     the code's pattern and GS1 check digit, 400 `invalid_barcode`; (3) the cache, a hit (found or not found) is
          *     answered with no upstream call; (4) the upstream limit, 503 `upstream_busy` with
          *     `Retry-After`. Cache hits and 400s never use the upstream limit.
          *
