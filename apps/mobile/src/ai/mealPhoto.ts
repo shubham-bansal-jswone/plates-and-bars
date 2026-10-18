@@ -96,6 +96,7 @@ export function logFromRow(r: PhotoRow): CustomFoodResult | { kind: 'ok'; log: N
   }
   const m = rowMacros(r);
   const q = r.portion.trim();
-  const res = customFood({ name: q ? `${r.name.trim()} (${q})` : r.name, kcal: String(Math.round(m.kcal)), protein: String(r1(m.protein_g)), carbs: String(r1(m.carbs_g)), fat: String(r1(m.fat_g)), qty: '1', unit: q });
+  // Logged under the plain name as the prototype's `ph-add` does (no portion suffix; that is Describe it's rule), so it agrees with the saved-food path.
+  const res = customFood({ name: r.name.trim(), kcal: String(Math.round(m.kcal)), protein: String(r1(m.protein_g)), carbs: String(r1(m.carbs_g)), fat: String(r1(m.fat_g)), qty: '1', unit: q });
   return res.kind === 'ok' ? { kind: 'ok', log: { ...res.log, foodId: null } } : res;
 }
