@@ -1,7 +1,7 @@
-import { seededSession, type SeededSessionInput } from '../src/index';
+import { BALANCE_EXERCISE, seededSession, type SeededSessionInput } from '../src/index';
 
 const tags = {};
-const base: SeededSessionInput = { base: 'pull-a', seeded: ['Row', 'Curl', 'Pulldown'], picks: ['Row', 'Pulldown', 'Face Pull'], date: '2026-05-13', where: 'gym', tags, lastSets: () => 4 };
+const base: SeededSessionInput = { base: 'pull-a', seeded: ['Row', 'Curl', 'Pulldown'].map((name) => ({ name })), picks: ['Row', 'Pulldown', 'Face Pull'], date: '2026-05-13', where: 'gym', tags, lastSets: () => 4 };
 
 describe('seededSession (#1020)', () => {
   it('keeps the base', () => {
@@ -35,5 +35,20 @@ describe('seededSession (#1020)', () => {
     const s = seededSession(base);
     expect(s.mods).toEqual({ light: false, short: false, where: 'gym', deload: false, reentry: 0 });
     expect(s.exercises.map((e) => e.sets)).toEqual([4, 4, 4]);
+  });
+  it('a seeded balance exercise keeps exactly 2 sets with no adjustment (60+, lastSets 4)', () => {
+    const s = seededSession({ ...base, profile: { age: 65 } as never, seeded: [{ name: 'Row' }, { name: BALANCE_EXERCISE }], picks: ['Row', BALANCE_EXERCISE] });
+    expect(s.exercises).toEqual([
+      { name: 'Row', sets: 4, bridge: false },
+      { name: BALANCE_EXERCISE, sets: 2, bridge: false },
+    ]);
+  });
+  it('a seeded bridge keeps bridge: true and the 2-set cap', () => {
+    const s = seededSession({ ...base, seeded: [{ name: 'Row' }, { name: 'Glute Bridge', bridge: true }], picks: ['Row', 'Glute Bridge'] });
+    expect(s.exercises[1]).toEqual({ name: 'Glute Bridge', sets: 2, bridge: true });
+  });
+  it('an added pick gets no focus set', () => {
+    const s = seededSession({ ...base, focus: ['biceps'], tags: { Row: { pattern: 'h-pull', primary: ['biceps'], secondary: [], family: '', equipment: '', difficulty: 1, joints: [] }, 'Face Pull': { pattern: 'h-pull', primary: ['biceps'], secondary: [], family: '', equipment: '', difficulty: 1, joints: [] } } as never, lastSets: () => 3 });
+    expect(s.exercises.map((e) => e.sets)).toEqual([4, 3, 3]);
   });
 });
