@@ -162,6 +162,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: node validate/cli.mjs
+      # ADR 002/005: no IFCT or INDB in content, app content, seed data or backend resources (fast, reads a few small folders)
+      - run: npm run check:sources
 
   # docs/spec/golden is generated from docs/prototype/plate-and-bar.html by tools/golden-gen and never edited by hand.
   # This fails when either side changed without regenerating (the other half, core's golden tests drifting from the
