@@ -17,20 +17,20 @@ export interface WhyCard {
   audience?: string;
   placeholders?: string[];
   sections?: string[];
+  /** True for a card held back until its sources are decided (#212); absent means shown. Needs `hidden_reason`. */
+  hidden?: true;
+  hidden_reason?: string;
 }
 interface CardsBundle { cards: WhyCard[] }
 
-/**
- * Cards held back until their sources are decided (issue #212: only generic sources are cited). Remove an id here when the
- * issue is settled; the card then shows wherever its link is placed.
- */
-export const HIDDEN_CARDS: readonly string[] = ['ramp', 'ladder', 'formfirst'];
-
 const TEXT_MAX = 5000;
+/** Ids of the cards the chosen copy holds back (`hidden: true` in content/cards.json, #969; #212 until their sources are decided). */
+export const hiddenCards = (): string[] => chosenCards().cards.filter((c) => c.hidden === true).map((c) => c.id);
+
 const shippedIds = (cardsContent as unknown as CardsBundle).cards.map((c) => c.id);
 const name = (v: unknown): v is string => isStr(v) && /^[a-z][a-z0-9_]*$/.test(v) && v.length <= 40 && !isProtoName(v);
 
-// Mirrors tools/validate/cards.mjs: shape, evidence, snake-case unique id, unique title, learn_order (integer or null,
+// Mirrors tools/validate/cards.mjs: shape, evidence, `hidden` (true or absent, with a reason), snake-case unique id, unique title, learn_order (integer or null,
 // unique), learn_insert_at, and the body syntax (`bodyErrors` below). Additions and edits are allowed, but every shipped
 // id stays, since screens link to cards by id. Names also reject Object.prototype members.
 
@@ -64,6 +64,7 @@ function isCard(v: unknown): v is WhyCard {
     isObj(v) && name(v.id) && isTrimmedText(300)(v.title) && isTrimmedText(1000)(v.summary) && isTrimmedText(TEXT_MAX)(v.body) &&
     isTrimmedText(1000)(v.source) && (v.evidence === 'Strong' || v.evidence === 'Moderate' || v.evidence === 'Emerging') &&
     (v.review_status === 'draft' || v.review_status === 'reviewed') &&
+    (v.hidden === undefined ? v.hidden_reason === undefined : v.hidden === true && isTrimmedText(1000)(v.hidden_reason)) &&
     (v.placeholders === undefined || isArrOf(v.placeholders, name)) && (v.sections === undefined || isArrOf(v.sections, name)) &&
     (v.learn_order === null || Number.isInteger(v.learn_order)) &&
     (v.learn_insert_at === undefined || Number.isInteger(v.learn_insert_at)) &&
@@ -84,7 +85,8 @@ export const chosenCards = contentReader('cards', cardsContent as unknown as Car
 
 /** A card by id, or null when there is none or it is held back. Call it where it is used, not at module level. */
 export function whyCard(id: string): WhyCard | null {
-  return HIDDEN_CARDS.includes(id) ? null : chosenCards().cards.find((c) => c.id === id) ?? null;
+  const card = chosenCards().cards.find((c) => c.id === id);
+  return card && card.hidden !== true ? card : null;
 }
 
 /** Values for a card's `{placeholder}`s and `{?section}`s; a missing value turns its section off (or shows its `{:}` part). */
