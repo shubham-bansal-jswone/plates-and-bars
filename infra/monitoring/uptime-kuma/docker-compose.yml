@@ -1,0 +1,53 @@
+# Uptime Kuma (MIT, self-hosted uptime monitor) + Caddy (#828). INERT: nothing deploys or starts this. It must run on a
+# host other than the one it watches (the staging VM), or an outage there silences the alert (infra/OBSERVABILITY.md).
+#   cp .env.example .env && chmod 600 .env   # fill in; never commit .env
+#   docker compose up -d
+# Images pinned by version and by digest of the multi-arch index; each has a linux/arm64 build (checked 2026-10-18).
+# The slim image omits the Chromium needed only for Kuma's real-browser monitors, which the monitor list does not use.
+# Kuma holds no secrets in this file: its own data (monitors, notifier credentials, push tokens) is in the kuma_data volume.
+name: plateandbar-kuma
+
+x-logging: &logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+    labels: com.docker.compose.service
+
+services:
+  kuma:
+    image: louislam/uptime-kuma:2.5.6-slim@sha256:5db97dbbef610276e1699f3ece586c3509c8fd35de75d45ff5109761a1b377dc
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    volumes:
+      - kuma_data:/app/data
+    # No published ports: Caddy reaches kuma:3001 over the network. The image defines its own health check.
+    networks: [monitoring]
+
+  caddy:
+    image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 64m
+    depends_on: [kuma]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      KUMA_HOST: ${KUMA_HOST:?set KUMA_HOST}
+      KUMA_UPSTREAM: kuma:3001
+    command: caddy run --config /etc/caddy/sites/Caddyfile.kuma --adapter caddyfile
+    volumes:
+      - ../../caddy:/etc/caddy/sites:ro
+      - caddy_data:/data # certificates: keep, or Let's Encrypt rate limits bite after a rebuild
+      - caddy_config:/config
+    networks: [monitoring]
+
+networks:
+  monitoring:
+
+volumes:
+  kuma_data:
+  caddy_data:
+  caddy_config:
