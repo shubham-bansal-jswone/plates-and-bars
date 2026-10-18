@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.24
+  version: 0.1.25
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -340,7 +340,11 @@ tags:
         (compression flag 1) or `iCCP` chunk that inflates to more than 65,536 bytes is
         always refused as `unreadable_image`. The server checks this with a bounded
         inflate that stops at 65,537 bytes, before decoding, so a small file cannot expand
-        into memory.
+        into memory;
+      - a PNG whose IHDR bit depth is above 8 (16 bits a channel) is always refused as
+        `unreadable_image`, read from the header after the dimensions check and before
+        any decode: its raster is twice the size the limits above allow for, and the app
+        only sends JPEG.
 
       Image checks run in the request-validation step (before the quota) and each
       failure is 400 `invalid_request` with `details[].field` naming the image
