@@ -41,6 +41,10 @@ The web server port is resolved once, in `support/port.mjs`, and the Playwright 
 
 `npm run test:port` checks this (taken port fails fast, `E2E_REUSE=1` reuses, `0` picks a free port); CI runs it before the browser tests.
 
+## Play Store graphics (on demand, not CI)
+
+`store/screenshots.mjs` and `store/export-graphics.mjs` generate the images in `docs/store/` (`npm run store:screenshots`, `npm run store:graphics`). They are plain scripts, not specs, so `playwright test` ignores them and CI never runs them. See `docs/store/README.md`.
+
 ## Sync tests (real backend)
 
 `sync-specs/sync.spec.mjs`: sign in by emailed code, log a meal offline (badge says not synced), go online (badge clears), a second browser context signs in and sees the meal, delete the account on the first (the second is signed out on its next sync). It needs Docker and runs in CI as the "e2e (sync, Playwright)" job; the fast suite above never needs it.

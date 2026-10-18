@@ -1,0 +1,23 @@
+{
+  "_note": "Made-up demo profile and data for the Play Store screenshots. No real person. Read by store/screenshots.mjs.",
+  "clock": "2026-10-12T14:30:00+05:30",
+  "setup": { "age": "30", "days": "6" },
+  "history": [
+    { "daysAgo": 6, "weightKg": "83.4", "glasses": 7, "meals": { "breakfast": ["Poha"], "lunch": ["Dal", "Rice, cooked", "Roti / chapati"], "dinner": ["Chicken curry", "Roti / chapati"] } },
+    { "daysAgo": 5, "weightKg": "83.1", "glasses": 9, "meals": { "breakfast": ["Oats, dry", "Banana"], "lunch": ["Rajma / chole", "Rice, cooked"], "snacks": ["Roasted chana"], "dinner": ["Paneer bhurji", "Roti / chapati", "Roti / chapati"] } },
+    { "daysAgo": 4, "weightKg": "82.9", "glasses": 8, "meals": { "breakfast": ["Idli", "Sambar"], "lunch": ["Chicken breast, cooked", "Rice, cooked", "Dal"], "dinner": ["Dal", "Mixed veg sabzi", "Roti / chapati"] } },
+    { "daysAgo": 3, "weightKg": "82.6", "glasses": 6, "meals": { "breakfast": ["Egg, whole", "Egg, whole", "Brown bread"], "lunch": ["Dal", "Rice, cooked", "Mixed veg sabzi"], "snacks": ["Whey protein"], "dinner": ["Chicken curry", "Rice, cooked"] } },
+    { "daysAgo": 2, "weightKg": "82.4", "glasses": 9, "meals": { "breakfast": ["Upma", "Curd / dahi"], "lunch": ["Rajma / chole", "Roti / chapati", "Roti / chapati"], "snacks": ["Apple"], "dinner": ["Paneer", "Mixed veg sabzi", "Roti / chapati"] } },
+    { "daysAgo": 1, "weightKg": "82.2", "glasses": 8, "meals": { "breakfast": ["Dosa, plain", "Sambar"], "lunch": ["Chicken curry", "Rice, cooked"], "snacks": ["Greek yogurt, plain"], "dinner": ["Dal", "Roti / chapati", "Sprouts salad"] } }
+  ],
+  "today": {
+    "weightKg": "82.0",
+    "glasses": 5,
+    "meals": {
+      "breakfast": ["Egg, whole", "Egg, whole", "Brown bread", "Banana"],
+      "lunch": ["Dal", "Rice, cooked", "Mixed veg sabzi", "Roti / chapati"],
+      "snacks": ["Greek yogurt, plain", "Almonds"]
+    }
+  },
+  "workout": { "weightKg": "40", "reps": "9", "setsToTick": 3 }
+}

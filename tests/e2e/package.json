@@ -7,6 +7,8 @@
   "scripts": {
     "install:chromium": "node scripts/install-chromium.mjs",
     "test": "playwright test",
+    "store:graphics": "node store/export-graphics.mjs",
+    "store:screenshots": "node store/screenshots.mjs",
     "test:port": "node --test port.test.mjs",
     "test:sync": "playwright test -c playwright.sync.config.mjs"
   },
