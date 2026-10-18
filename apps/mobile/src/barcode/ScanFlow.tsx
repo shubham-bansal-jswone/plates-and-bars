@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Modal, StyleSheet, View } from 'react-native';
 import { createClient, type ApiClient } from '@plate-and-bar/api';
 import { customFood, servingUnitTooLong, type OffMissingField, type OffUserFoodDraft, type UserFoodFields } from '@plate-and-bar/core';
-import { UNIT_TOO_LONG } from '../food/copy';
+import { CUSTOM_MESSAGE, UNIT_TOO_LONG } from '../food/copy';
 import { Button, Caption, ErrorText, Field, H1, Hint, Label, Note, Page, Switch } from '../components/ui';
 import { Text } from '../components/Text';
 import type { NewLog } from '../food/useFoodDay';
@@ -33,7 +33,10 @@ interface Props {
   onSaveMine: SaveFood;
   /** "Enter by hand": the caller opens its Custom form with this code. */
   onCustom: (code: string) => void;
+  /** Close and Android back: back to the Food list, the Add sheet stays open. */
   onClose: () => void;
+  /** Add was pressed and the food is logged: close the whole Add sheet. */
+  onDone: () => void;
   /** Tests inject a lookup; the app builds a token-less client for `EXPO_PUBLIC_API_URL`. */
   lookup?: Lookup;
 }
@@ -43,7 +46,7 @@ interface Props {
  * every number editable, then Add. Every failure has a way out to the Custom form. Nothing here blocks on the network: the
  * lookup is one request and the rest of the app keeps working underneath.
  */
-export function ScanFlow({ meal, mine, onAdd, onSaveMine, onCustom, onClose, lookup }: Props) {
+export function ScanFlow({ meal, mine, onAdd, onSaveMine, onCustom, onClose, onDone, lookup }: Props) {
   const api = useMemo<ApiClient | null>(() => (API_URL ? createClient(API_URL, () => null) : null), []);
   const [step, setStep] = useState<Step>({ k: 'scan', round: 0 });
   const live = useRef(true);
@@ -96,7 +99,7 @@ export function ScanFlow({ meal, mine, onAdd, onSaveMine, onCustom, onClose, loo
         </Page>
       ) : null}
       {step.k === 'problem' ? <ProblemView step={step} onRetry={() => void start(step.code, true)} onCustom={() => onCustom(step.code)} onScan={again} onClose={onClose} /> : null}
-      {step.k === 'review' ? <Review step={step} meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onScan={again} onClose={onClose} /> : null}
+      {step.k === 'review' ? <Review step={step} meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onScan={again} onClose={onClose} onDone={onDone} /> : null}
     </Modal>
   );
 }
@@ -126,7 +129,7 @@ function ProblemView({ step, onRetry, onCustom, onScan, onClose }: { step: Extra
 type Form = { name: string; unit: string; kcal: string; protein: string; carbs: string; fat: string };
 const text = (n: number | null): string => (n === null ? '' : String(n));
 
-function Review({ step, meal, onAdd, onSaveMine, onScan, onClose }: { step: Extract<Step, { k: 'review' }>; meal: string; onAdd: (n: NewLog) => void; onSaveMine: SaveFood; onScan: () => void; onClose: () => void }) {
+function Review({ step, meal, onAdd, onSaveMine, onScan, onClose, onDone }: { onDone: () => void; step: Extract<Step, { k: 'review' }>; meal: string; onAdd: (n: NewLog) => void; onSaveMine: SaveFood; onScan: () => void; onClose: () => void }) {
   const { draft, found, saved } = step;
   const [f, setF] = useState<Form>({ name: draft.name, unit: draft.unit, kcal: text(draft.kcal), protein: text(draft.protein_g), carbs: text(draft.carbs_g), fat: text(draft.fat_g) });
   const [qty, setQty] = useState('1');
@@ -140,7 +143,7 @@ function Review({ step, meal, onAdd, onSaveMine, onScan, onClose }: { step: Extr
 
   const submit = () => {
     const r = customFood({ ...f, qty });
-    if (r.kind !== 'ok') return setError(r.kind === 'no-name' ? 'Give the food a name.' : r.kind === 'name-too-long' ? 'That name is too long. Shorten it.' : r.kind === 'no-kcal' ? 'Enter calories or at least one macro.' : 'Calories, macros and servings can’t be negative, and servings must be more than 0.');
+    if (r.kind !== 'ok') return setError(CUSTOM_MESSAGE[r.kind]);
     const food: UserFoodFields & { barcode: string } = {
       ...r.food,
       unit: f.unit.trim() || draft.unit,
@@ -155,7 +158,7 @@ function Review({ step, meal, onAdd, onSaveMine, onScan, onClose }: { step: Extr
     if (saved && !changed(saved, food)) foodId = saved.id;
     else if (save || saved) foodId = onSaveMine(food).id;
     onAdd({ ...r.log, foodId });
-    onClose();
+    onDone();
   };
 
   const warnings = found ? [found.warnings.includes('looks_off') ? t.looksOff : null, found.warnings.some((w) => w === 'low_completeness' || w === 'nutrition_to_be_completed') ? t.incomplete : null, found.warnings.includes('quality_errors') ? t.qualityErrors : null] : [];

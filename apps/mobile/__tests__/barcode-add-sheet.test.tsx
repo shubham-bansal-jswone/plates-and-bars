@@ -128,6 +128,35 @@ describe('Scan barcode on the Add sheet (behind EXPO_PUBLIC_BARCODE_SCAN)', () =
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('Close on the scanner returns to the Food list with the sheet still open', async () => {
+    await setup();
+    await open();
+    await fireEvent.press(screen.getByLabelText(t.scanButtonA11y));
+    await screen.findByTestId('scanner');
+    await fireEvent.press(screen.getByRole('button', { name: t.close }));
+    await waitFor(() => expect(screen.queryByTestId('scanner')).toBeNull());
+    expect(screen.getByLabelText('Search foods')).toBeTruthy();
+  });
+
+  it('the code from Enter by hand is not carried to a later Custom food after the tab changes', async () => {
+    fetchMock.mockResolvedValue(json(404, { code: 'not_found', message: 'x' }));
+    const db = await setup();
+    await open();
+    await fireEvent.press(screen.getByLabelText(t.scanButtonA11y));
+    await screen.findByTestId('scanner');
+    await hit(EAN13);
+    await fireEvent.press(await screen.findByRole('button', { name: t.byHand }));
+    expect(await screen.findByText(`${t.customCode} ${EAN13}`)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Food list'));
+    await fireEvent.press(screen.getByLabelText('Custom'));
+    expect(screen.queryByText(`${t.customCode} ${EAN13}`)).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Food'), 'Thali');
+    await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '500');
+    await fireEvent.press(screen.getByLabelText('Add to breakfast'));
+    await waitFor(() => expect(docs(db, 'user_foods')).toHaveLength(1));
+    expect(docs(db, 'user_foods')[0].barcode).toBeUndefined();
+  });
+
   it('404: Enter by hand opens Custom with the code, which is saved with the food', async () => {
     fetchMock.mockResolvedValue(json(404, { code: 'not_found', message: 'x' }));
     const db = await setup();

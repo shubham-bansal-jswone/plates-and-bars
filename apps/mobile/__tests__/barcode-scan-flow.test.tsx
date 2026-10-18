@@ -6,6 +6,7 @@ import type { LookupResult } from '../src/barcode/lookup';
 import { offToUserFood } from '@plate-and-bar/core';
 import type { ScannerViewProps } from '../modules/plate-barcode-scanner';
 import type { UserFood } from '../src/food/types';
+import { CUSTOM_MESSAGE } from '../src/food/copy';
 import { EAN13, product, UPC_A, UPC_E } from './barcode-fixtures';
 
 let scannerProps: ScannerViewProps | null = null;
@@ -37,9 +38,10 @@ async function show({ mine = [], lookup = jest.fn(async (_code: string) => found
   const onSaveMine = jest.fn((f: object) => ({ ...saved(), ...f, id: 'new-1' }) as UserFood);
   const onCustom = jest.fn();
   const onClose = jest.fn();
-  await render(<ScanFlow meal="Breakfast" mine={mine} onAdd={onAdd} onSaveMine={onSaveMine} onCustom={onCustom} onClose={onClose} lookup={lookup} />);
+  const onDone = jest.fn();
+  await render(<ScanFlow meal="Breakfast" mine={mine} onAdd={onAdd} onSaveMine={onSaveMine} onCustom={onCustom} onClose={onClose} onDone={onDone} lookup={lookup} />);
   await screen.findByTestId('scanner');
-  return { onAdd, onSaveMine, onCustom, onClose, lookup };
+  return { onAdd, onSaveMine, onCustom, onClose, onDone, lookup };
 }
 const hit = (code: string, format = 'EAN_13') => act(async () => scannerProps!.onBarcode({ nativeEvent: { code, format } } as never));
 const type = async (digits: string) => {
@@ -84,7 +86,7 @@ describe('lookup only after validation', () => {
 
 describe('the review sheet', () => {
   it('shows the lookup line, the banner, the credit and the prefilled values; Add logs and saves a synced food with the barcode', async () => {
-    const { onAdd, onSaveMine, onClose } = await show();
+    const { onAdd, onSaveMine, onClose, onDone } = await show();
     await hit(EAN13);
     expect(await screen.findByText(t.lookupNote)).toBeTruthy();
     expect(screen.getByText(t.banner)).toBeTruthy();
@@ -100,7 +102,24 @@ describe('the review sheet', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Add to breakfast' }));
     expect(onSaveMine).toHaveBeenCalledWith(expect.objectContaining({ name: 'Peanut bar (Acme)', unit: '1 bar (50 g)', kcal: 200, protein_g: 10, carbs_g: 20, fat_g: 8, fibre_g: 3, origin: 'custom', barcode: EAN13 }));
     expect(onAdd).toHaveBeenCalledWith({ name: 'Peanut bar (Acme)', qty: 1, kcal: 200, protein_g: 10, carbs_g: 20, fat_g: 8, foodId: 'new-1' });
-    expect(onClose).toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('Close on the review goes back, it does not close the sheet (only Add does)', async () => {
+    const { onClose, onDone } = await show();
+    await hit(EAN13);
+    await fireEvent.press(await screen.findByRole('button', { name: t.close }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it('a name that is too long shows the shared Custom-tab message', async () => {
+    await show();
+    await hit(EAN13);
+    await fireEvent.changeText(await screen.findByLabelText(t.name), 'x'.repeat(201));
+    await fireEvent.press(screen.getByRole('button', { name: 'Add to breakfast' }));
+    expect(await screen.findByText(CUSTOM_MESSAGE['name-too-long'])).toBeTruthy();
   });
 
   it('edits count, and the servings multiply the log', async () => {
@@ -268,7 +287,7 @@ describe('when the lookup does not give a product', () => {
 
   it('with no server in the build there is no request at all: it reads as offline', async () => {
     const onClose = jest.fn();
-    await render(<ScanFlow meal="Lunch" mine={[]} onAdd={jest.fn()} onSaveMine={jest.fn()} onCustom={jest.fn()} onClose={onClose} />);
+    await render(<ScanFlow meal="Lunch" mine={[]} onAdd={jest.fn()} onSaveMine={jest.fn()} onCustom={jest.fn()} onClose={onClose} onDone={jest.fn()} />);
     await screen.findByTestId('scanner');
     await hit(EAN13);
     expect(await screen.findByText(t.offline)).toBeTruthy();

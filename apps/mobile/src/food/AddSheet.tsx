@@ -56,7 +56,7 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
             {(canDescribe || mode === 'describe' ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k === 'describe') setSeenDescribe(true); }}
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k !== 'custom') setCustomCode(null); if (k === 'describe') setSeenDescribe(true); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
@@ -75,7 +75,7 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
         </View>
       </ScrollView>
       {scanning ? (
-        <ScanFlow meal={meal} mine={mine} onAdd={onAdd} onSaveMine={onSaveMine} onClose={() => { setScanning(false); onClose(); }}
+        <ScanFlow meal={meal} mine={mine} onAdd={onAdd} onSaveMine={onSaveMine} onClose={() => setScanning(false)} onDone={() => { setScanning(false); onClose(); }}
           onCustom={(code) => { setScanning(false); setCustomCode(code); setMode('custom'); setStatus(null); }} />
       ) : null}
     </SheetModal>
