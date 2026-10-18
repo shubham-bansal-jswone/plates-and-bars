@@ -1,13 +1,22 @@
 import type { Breadcrumb, ErrorEvent } from '@sentry/react-native';
-import { initErrorTracking } from '../src/telemetry/errors';
-import { forgetInstallId } from '../src/telemetry/installId';
 import { scrubBreadcrumb, scrubEvent } from '../src/telemetry/scrub';
-import { until } from './sync-helpers';
 
+type Errors = typeof import('../src/telemetry/errors');
+type InstallId = typeof import('../src/telemetry/installId');
+/** The modules keep state (started, the install id), so each use gets a fresh copy, as after an app start. */
+function fresh(): Errors & InstallId {
+  let m: (Errors & InstallId) | undefined;
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    m = { ...(require('../src/telemetry/errors') as Errors), ...(require('../src/telemetry/installId') as InstallId) };
+  });
+  return m as Errors & InstallId;
+}
 const mockInit = jest.fn();
 const mockSetUser = jest.fn();
 jest.mock('@sentry/react-native', () => ({ init: (o: unknown) => mockInit(o), setUser: (u: unknown) => mockSetUser(u) }));
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => 'install-1'), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(async () => undefined) }));
+const mockGet = jest.requireMock('expo-secure-store').getItemAsync as jest.Mock;
 const mockDelete = jest.requireMock('expo-secure-store').deleteItemAsync as jest.Mock;
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { version: '1.2.3', android: { versionCode: 1002003 } } } }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'web-id' }));
@@ -123,15 +132,18 @@ describe('scrubBreadcrumb', () => {
 describe('initErrorTracking', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('does not initialise the SDK without a DSN', () => {
+  it('does not initialise the SDK without a DSN', async () => {
+    const { initErrorTracking, attachInstallId } = fresh();
     expect(initErrorTracking(undefined)).toBe(false);
     expect(initErrorTracking('')).toBe(false);
     expect(initErrorTracking('   ')).toBe(false);
     expect(mockInit).not.toHaveBeenCalled();
+    await attachInstallId();
     expect(mockSetUser).not.toHaveBeenCalled();
   });
 
   it('initialises with PII off, no screenshots, no tracing and the scrubbers when a DSN is set', async () => {
+    const { initErrorTracking, attachInstallId } = fresh();
     expect(initErrorTracking('https://key@glitchtip.example/1')).toBe(true);
     const o = mockInit.mock.calls[0]![0];
     expect(o).toMatchObject({ dsn: 'https://key@glitchtip.example/1', sendDefaultPii: false, attachScreenshot: false, attachViewHierarchy: false, enableAutoPerformanceTracing: false, tracePropagationTargets: [] });
@@ -141,15 +153,37 @@ describe('initErrorTracking', () => {
     expect(o.beforeSendTransaction({ type: 'transaction' })).toBeNull();
     expect(o.integrations([{ name: 'Breadcrumbs' }, { name: 'Other' }])).toEqual([{ name: 'Other' }]);
     expect(o.beforeBreadcrumb({ category: 'console' })).toBeNull();
-    await until('the install id to be set', () => mockSetUser.mock.calls.length > 0);
+    // Started at once with no user and no keystore read: an error now is reported, without an id.
+    expect(mockSetUser).not.toHaveBeenCalled();
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(o.beforeSend({ message: FOOD, user: { email: 'a@b.c' } })).toEqual({ contexts: {}, breadcrumbs: [] });
+    await attachInstallId();
     expect(mockSetUser).toHaveBeenCalledWith({ id: 'install-1' });
     expect(o.beforeSend({ message: FOOD, user: { email: 'a@b.c' } })).toEqual({ user: { id: 'install-1' }, contexts: {}, breadcrumbs: [] });
   });
 
+  it('runs the SDK init once however often it is called (a provider remount)', () => {
+    const { initErrorTracking } = fresh();
+    expect(initErrorTracking('https://key@glitchtip.example/1')).toBe(true);
+    expect(initErrorTracking('https://key@glitchtip.example/1')).toBe(true);
+    expect(mockInit).toHaveBeenCalledTimes(1);
+  });
+
+  it('attachInstallId does nothing when tracking is off, and never rejects', async () => {
+    const { attachInstallId, initErrorTracking } = fresh();
+    await attachInstallId();
+    expect(mockGet).not.toHaveBeenCalled();
+    initErrorTracking('https://key@glitchtip.example/1');
+    mockGet.mockRejectedValueOnce(new Error('keychain'));
+    await expect(attachInstallId()).resolves.toBeUndefined();
+    expect(mockSetUser).not.toHaveBeenCalled();
+  });
+
   it('forgetInstallId drops the Sentry user, the in-memory id and the keystore copy, so later events carry no id', async () => {
+    const { initErrorTracking, attachInstallId, forgetInstallId } = fresh();
     expect(initErrorTracking('https://key@glitchtip.example/1')).toBe(true);
     const o = mockInit.mock.calls[0]![0];
-    await until('the install id to be set', () => mockSetUser.mock.calls.length > 0);
+    await attachInstallId();
     expect(o.beforeSend({ message: 'x' }).user).toEqual({ id: 'install-1' });
     mockSetUser.mockClear();
     await forgetInstallId();
@@ -159,11 +193,11 @@ describe('initErrorTracking', () => {
   });
 
   it('sets the environment (default development) and the release, and both survive the scrubber', () => {
-    initErrorTracking('https://key@glitchtip.example/1');
+    fresh().initErrorTracking('https://key@glitchtip.example/1');
     expect(mockInit.mock.calls[0]![0]).toMatchObject({ environment: 'development', release: 'plate-and-bar@1.2.3+1002003' });
-    initErrorTracking('https://key@glitchtip.example/1', '  ');
+    fresh().initErrorTracking('https://key@glitchtip.example/1', '  ');
     expect(mockInit.mock.calls[1]![0].environment).toBe('development');
-    initErrorTracking('https://key@glitchtip.example/1', 'production');
+    fresh().initErrorTracking('https://key@glitchtip.example/1', 'production');
     const o = mockInit.mock.calls[2]![0];
     expect(o.environment).toBe('production');
     // The SDK stamps these on the event before beforeSend; the scrubber must keep them.
@@ -175,7 +209,7 @@ describe('initErrorTracking', () => {
     const was = process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT;
     process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT = 'staging';
     try {
-      initErrorTracking('https://key@glitchtip.example/1');
+      fresh().initErrorTracking('https://key@glitchtip.example/1');
     } finally {
       if (was === undefined) delete process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT;
       else process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT = was;
