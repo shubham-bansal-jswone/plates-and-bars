@@ -1,13 +1,18 @@
 {
   "cards": {
-    "sha256": "682ede9442493b4848a0ffd16eaa5e486709ce455136c0ae63e6a459a5bd0337",
+    "sha256": "6a949ea289209fde79bf1abb41ba10285fa0f69c4280a61a19cb9506e4eba14c",
     "schema_version": 1,
-    "updated_at": "2026-10-18T16:27:38Z"
+    "updated_at": "2026-10-17T18:25:55Z"
   },
   "eatout": {
     "sha256": "db9e4c135859d790bab85ae3977e92c4e1679809702cdbdc2d1dea291ec9bf60",
     "schema_version": 1,
     "updated_at": "2026-10-18T00:57:03Z"
+  },
+  "exercise-images": {
+    "sha256": "3604ad163982ce03ae4344328543560d07af7ffbf6d61b44a20d22c5127e364b",
+    "schema_version": 1,
+    "updated_at": "2026-10-18T15:52:31Z"
   },
   "exercises": {
     "sha256": "266b72969634c59a493b27f56f67af9f33972031e2201a9e2db05535c5905934",
