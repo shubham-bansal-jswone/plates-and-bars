@@ -1,5 +1,5 @@
 import { StyleSheet, Text as RNText, type TextProps } from 'react-native';
-import { useFontFamily } from '../theme/fonts';
+import { useFontFamily, useFontsReady } from '../theme/fonts';
 
 /**
  * react-native's Text in the app fonts. Custom fonts have one family per weight, so the family is chosen from
@@ -8,7 +8,9 @@ import { useFontFamily } from '../theme/fonts';
  */
 export function Text({ style, ...rest }: TextProps) {
   const family = useFontFamily();
+  const ready = useFontsReady();
   const flat = StyleSheet.flatten(style) ?? {};
-  const fontFamily = family(flat.fontWeight);
+  // Only once loaded: the bundled fonts are one family per weight, so only then can fontWeight be reset; before that the style's own weight must stay.
+  const fontFamily = ready ? family(flat.fontWeight) : undefined;
   return <RNText {...rest} style={fontFamily ? [flat, { fontFamily, fontWeight: 'normal' }] : flat} />;
 }
