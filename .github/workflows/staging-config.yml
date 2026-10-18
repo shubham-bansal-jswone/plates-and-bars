@@ -41,7 +41,9 @@ jobs:
             grep -q "required variable $v" err.txt
           done
       - name: shellcheck
-        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh release.sh test-release.sh restore-check.sh test-restore-check.sh test-compose-memory.sh
+        run: shellcheck backup.sh test-backup.sh deploy.sh test-deploy.sh release.sh test-release.sh restore-check.sh test-restore-check.sh test-compose-flags.sh test-compose-memory.sh
+      - name: v1.1 switches (barcode proxy, AI image calls) are off by default
+        run: ./test-compose-flags.sh
       - name: backup.sh against a stub docker
         run: ./test-backup.sh
       - name: deploy.sh against stubs (rollback on a failed health check)
