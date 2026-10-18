@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import type { ApiClient } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
 import { AiSection } from '../src/ai/AiSection';
+import { useRequest } from '../src/ai/useRequest';
 import { IMAGE_ISSUES } from '../src/ai/client';
 import { IMAGE_ISSUE_MESSAGE } from '../src/ai/copy';
 import { PhotoTooBig, shrinkForAi } from '../src/ai/photo';
@@ -247,7 +248,7 @@ describe('the flow', () => {
     expect(logs(db)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'Roti / chapati', qty: 2, kcal: 102, meal: 'Breakfast', date: '2026-10-08', food_id: expect.any(String) }),
-        expect.objectContaining({ name: 'Bhindi sabzi (1 katori (150 g))', qty: 1, kcal: 163, protein_g: 3.8, meal: 'Breakfast', food_id: null }),
+        expect.objectContaining({ name: 'Bhindi sabzi', qty: 1, kcal: 163, protein_g: 3.8, meal: 'Breakfast', food_id: null }),
       ]),
     );
     expect(screen.queryByLabelText('Your meal photo')).toBeNull();
@@ -561,6 +562,56 @@ describe('failures fall back and say so', () => {
     await fireEvent.press(await screen.findByLabelText('Choose a photo'));
     expect(screen.queryByLabelText('Your meal photo')).toBeNull();
     expect(screen.queryByLabelText('Analyse photo')).toBeNull();
+  });
+});
+
+describe('late results and closing (#997 nits)', () => {
+  it('closing the sheet (Done) during Analyse, then a late reply, changes nothing on reopening', async () => {
+    const { api, POST } = fakeApi();
+    let done!: (v: unknown) => void;
+    POST.mockReturnValue(new Promise((r) => (done = r)));
+    const db = await food(optedIn(), api);
+    await snap();
+    await analyse();
+    await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+    await fireEvent.press(screen.getByLabelText('Done'));
+    await act(async () => done(ok([ROTI])));
+    await snap();
+    expect(screen.queryByLabelText('Item 1 name')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(logs(db)).toEqual([]);
+  });
+
+  it('a request token is stale once its component unmounts', async () => {
+    const probe: { g: ReturnType<typeof useRequest> | null } = { g: null };
+    function P() {
+      probe.g = useRequest();
+      return null;
+    }
+    const view = await render(<P />);
+    const t = probe.g!.begin();
+    expect(probe.g!.pending()).toBe(true);
+    await view.unmount();
+    expect(probe.g!.settle(t)).toBe(false);
+    expect(probe.g!.pending()).toBe(false);
+  });
+
+  it('a picker result that arrives after a newer pick is dropped', async () => {
+    const { api, POST } = fakeApi();
+    POST.mockResolvedValue(ok([ROTI]));
+    await food(optedIn(), api);
+    await snap();
+    let slow!: (v: unknown) => void;
+    mockPicker.result = new Promise((r) => (slow = r));
+    mockSaved.base64 = ['QkI=', 'QUE='];
+    await fireEvent.press(await screen.findByLabelText('Choose a photo')); // A, still open
+    mockPicker.result = picked(`${CACHE}ImagePicker/b.jpg`);
+    await fireEvent.press(screen.getByLabelText('Choose a photo')); // B, answers first
+    await screen.findByLabelText('Your meal photo');
+    await act(async () => slow(picked(`${CACHE}ImagePicker/a.jpg`)));
+    await fireEvent.press(screen.getByLabelText('Analyse photo'));
+    await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+    expect(POST.mock.calls[0][1].body.image.data).toBe('QkI=');
   });
 });
 
