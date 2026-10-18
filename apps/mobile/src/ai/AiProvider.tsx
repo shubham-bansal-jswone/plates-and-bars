@@ -5,7 +5,7 @@ import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { getKv, getUserId, setKv } from '../sync/store';
 import type { TokenStore } from '../sync/tokens';
-import { askWhy, describeMeal, getAiStatus, importRecipe, mealPhoto, suggestTags, weeklySummary, type AiDeps, type AiFeature, type AiImage, type AiQuota, type AiResult, type AiStatus } from './client';
+import { askWhy, describeMeal, formCheck, getAiStatus, importRecipe, mealPhoto, suggestTags, weeklySummary, type AiDeps, type AiFeature, type AiFrame, type AiImage, type AiQuota, type AiResult, type AiStatus } from './client';
 
 /** Device-only. Holds the id of the user who opted in, so another account on this device starts off, and a wipe (`sync.%`) clears it. */
 export const KEY_AI_CONSENT = 'sync.ai_consent';
@@ -29,6 +29,8 @@ export interface AiApi {
   mealPhoto(image: AiImage, hint?: string): Promise<AiResult<Schemas['MealPhotoResponse']>>;
   /** Sends the pasted text and/or the one photo, only while the server reports Import recipe on. */
   importRecipe(body: Schemas['ImportRecipeRequest']): Promise<AiResult<Schemas['ImportRecipeResponse']>>;
+  /** Sends 2 to 4 still frames of a catalogue exercise, only while the server reports Form check on. */
+  formCheck(exercise: string, frames: AiFrame[]): Promise<AiResult<Schemas['FormCheckResponse']>>;
 }
 
 const OFF: AiApi = {
@@ -44,6 +46,7 @@ const OFF: AiApi = {
   suggestTags: async () => ({ kind: 'disabled' }),
   mealPhoto: async () => ({ kind: 'disabled' }),
   importRecipe: async () => ({ kind: 'disabled' }),
+  formCheck: async () => ({ kind: 'disabled' }),
 };
 
 const AiContext = createContext<AiApi>(OFF);
@@ -164,6 +167,7 @@ export function AiProvider({ db, api, tokens, signedIn, syncStamp, now = () => n
       suggestTags: (name) => guard('suggest_tags', (d) => suggestTags(d, name)),
       mealPhoto: (image, hint) => guard('meal_photo', (d) => mealPhoto(d, image, hint), true),
       importRecipe: (body) => guard('import_recipe', (d) => importRecipe(d, body), true),
+      formCheck: (exercise, frames) => guard('form_check', (d) => formCheck(d, exercise, frames), true),
     };
   }, [live, consent, status, setConsent, api, db, tokens, refresh, now, keep]);
 

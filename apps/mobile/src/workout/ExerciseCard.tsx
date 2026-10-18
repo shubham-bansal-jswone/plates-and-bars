@@ -13,6 +13,7 @@ import type { ExState, Row } from './model';
 import { ExerciseSettings } from './ExerciseSettingsSheet';
 import { Chip } from './parts';
 import { TrackSet } from '../pose/TrackSet';
+import { FormCheckButton } from '../ai/FormCheck';
 import { ExerciseFigure } from './ExerciseFigure';
 
 const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
@@ -217,6 +218,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <View style={styles.wrap}>
         <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
         <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
+        <FormCheckButton name={ex.name} />
         <TrackSet name={ex.name} sets={ex.sets} onApply={(j, n) => act.edit('work', j, 'r', String(n))} />
       </View>
       {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}

@@ -29,14 +29,17 @@ export async function pickPhotoForAi(source: 'camera' | 'library'): Promise<AiIm
 }
 
 /** Re-encodes one picked asset as an in-memory JPEG; deletes the working copies in the app cache. */
-export async function shrinkForAi(asset: { uri: string; width: number; height: number }, maxPx = AI_PHOTO_MAX_PX, maxBase64 = AI_PHOTO_MAX_BASE64): Promise<AiImage> {
+export async function shrinkForAi(
+  asset: { uri: string; width: number; height: number },
+  { maxPx = AI_PHOTO_MAX_PX, maxBase64 = AI_PHOTO_MAX_BASE64, qualities = QUALITIES }: { maxPx?: number; maxBase64?: number; qualities?: readonly number[] } = {},
+): Promise<AiImage> {
   const used: string[] = [asset.uri];
   try {
     const image = ImageManipulator.manipulate(asset.uri);
     const size = fitWithin(asset.width, asset.height, maxPx);
     if (size) image.resize(size);
     const rendered = await image.renderAsync();
-    for (const compress of QUALITIES) {
+    for (const compress of qualities) {
       const saved = await rendered.saveAsync({ compress, format: SaveFormat.JPEG, base64: true });
       used.push(saved.uri);
       if (saved.base64 && saved.base64.length <= maxBase64) return { media_type: 'image/jpeg', data: saved.base64 };
