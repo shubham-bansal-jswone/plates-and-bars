@@ -3,8 +3,6 @@ package app.plateandbar.pose
 import android.content.Context
 import java.io.File
 import java.io.InputStream
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 /**
@@ -62,7 +60,8 @@ object ModelFile {
         target.delete()
         throw Mismatch(actual)
       }
-      Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+      // File.renameTo is a rename(2) on Android: it replaces the target in one step. (the NIO Files API needs API 26; minSdk is 24.)
+      if (!tmp.renameTo(target)) throw IllegalStateException("model_copy_failed")
     } finally {
       tmp.delete()
     }

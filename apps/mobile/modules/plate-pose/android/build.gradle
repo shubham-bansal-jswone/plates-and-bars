@@ -12,6 +12,11 @@ android {
     versionCode 1
     versionName '0.1.0'
   }
+  // A NewApi error (a call above minSdk 24, such as java.nio.file) must fail the build: it crashes older phones on first use. Lint reported
+  // exactly that for java.nio.file.Files in ModelFile.kt, but without this line the report was written and the task still passed.
+  lint {
+    abortOnError true
+  }
 }
 
 // Open-source only (#947): CameraX (Apache-2.0, Google Maven, the same artifacts as the barcode module) and the bundled LiteRT

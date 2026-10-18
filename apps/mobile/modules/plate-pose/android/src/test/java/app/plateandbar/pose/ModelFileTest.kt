@@ -61,12 +61,13 @@ class ModelFileTest {
     val dir = tmp.newFolder()
     val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
     val gate = java.util.concurrent.CountDownLatch(1)
+    val opens = java.util.concurrent.atomic.AtomicInteger()
     try {
       val jobs = (1..2).map {
         pool.submit<ModelFile.Verified> {
           gate.await()
           // a slow copy, so the two calls overlap if nothing serialises them
-          ModelFile.ensure(dir, goodHash) { object : java.io.InputStream() {
+          ModelFile.ensure(dir, goodHash) { opens.incrementAndGet(); object : java.io.InputStream() {
             private val inner = ByteArrayInputStream(good)
             override fun read(): Int { Thread.sleep(5); return inner.read() }
           } }
@@ -76,6 +77,8 @@ class ModelFileTest {
       val results = jobs.map { it.get(20, java.util.concurrent.TimeUnit.SECONDS) }
       results.forEach { assertEquals(goodHash, ModelFile.sha256(it.file)) }
       assertEquals(listOf(ModelFile.ASSET), dir.listFiles()!!.map { it.name })
+      // the lock makes the second call find the first one's file: the asset is copied once, not twice
+      assertEquals(1, opens.get())
     } finally {
       pool.shutdownNow()
     }

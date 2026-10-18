@@ -86,7 +86,7 @@ class PlatePoseView(context: Context, appContext: AppContext) : ExpoView(context
       try {
         val model = ModelFile.ensure(context)
         r.interpreter = Interpreter(model.file, Interpreter.Options().apply { setNumThreads(2) })
-      } catch (e: Exception) {
+      } catch (e: Throwable) {
         fail(r, if (e is ModelFile.Mismatch) "model_hash_mismatch" else "model_failed")
       }
     }
@@ -119,7 +119,7 @@ class PlatePoseView(context: Context, appContext: AppContext) : ExpoView(context
               val t = SystemClock.elapsedRealtime().toDouble()
               post { if (r.live) onPose(mapOf("t" to t, "width" to box.frameWidth, "height" to box.frameHeight, "keypoints" to keypoints)) }
             }
-          } catch (e: Exception) {
+          } catch (e: Throwable) {
             fail(r, "inference_failed")
           } finally {
             image.close()
@@ -137,7 +137,7 @@ class PlatePoseView(context: Context, appContext: AppContext) : ExpoView(context
         cameraProvider.unbindAll()
         cameraProvider.bindToLifecycle(owner, selector, previewUseCase, analysis)
         onReady(mapOf("front" to (selector == CameraSelector.DEFAULT_FRONT_CAMERA)))
-      } catch (e: Exception) {
+      } catch (e: Throwable) {
         onError(mapOf("message" to (e.message ?: "camera_failed")))
       }
     }, ContextCompat.getMainExecutor(context))

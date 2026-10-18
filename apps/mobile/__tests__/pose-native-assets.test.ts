@@ -105,3 +105,21 @@ describe('the Gradle dependencies', () => {
     expect(gradle.replace(/\/\/.*$/gm, '')).not.toMatch(/play-services|gms|mlkit|mediapipe|firebase|litert-gpu|vision-camera|tensorflow-lite/i);
   });
 });
+
+describe('API level of the native sources', () => {
+  // minSdk is 24 and there is no core library desugaring: java.nio.file and java.time need API 26, and lint's NewApi did not flag
+  // java.nio.file.Files in ModelFile.kt (see the PR comment), so on Android 7.x it was a NoClassDefFoundError at first use.
+  const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(join(d, n)).isDirectory() ? (n === 'build' ? [] : walk(join(d, n))) : /\.(kt|java)$/.test(n) ? [join(d, n)] : []));
+
+  it('no Kotlin or Java source under modules/*/android/src/main imports java.nio.file or java.time', () => {
+    const modules = join(__dirname, '../modules');
+    const files = readdirSync(modules).flatMap((m) => (statSync(join(modules, m)).isDirectory() ? walk(join(modules, m, 'android/src/main')).filter(Boolean) : []));
+    expect(files.length).toBeGreaterThan(5);
+    for (const f of files) expect({ f, hit: /java\.nio\.file|java\.time/.exec(read(f))?.[0] }).toEqual({ f, hit: undefined });
+  });
+
+  it('the model setup catches Throwable, so a missing class or other Error reports model_failed instead of crashing', () => {
+    const view = read(join(kt, 'PlatePoseView.kt'));
+    expect(view).toMatch(/catch \(e: Throwable\) \{\s*fail\(r, if \(e is ModelFile\.Mismatch\)/);
+  });
+});
