@@ -20,4 +20,44 @@ export const BARCODE_COPY = {
   torchOn: 'Turn the torch on',
   torchOff: 'Turn the torch off',
   close: 'Close',
+
+  // Lookup and review (spec D6). No message holds a barcode.
+  scanButton: 'Scan barcode',
+  scanButtonA11y: 'Scan a barcode to add a packaged food',
+  looking: 'Looking up this barcode',
+  lookupNote: 'The barcode number goes to our server, which asks Open Food Facts. Your name and account are not sent.',
+  banner: 'From Open Food Facts, a community database. Check the numbers against the pack.',
+  missing: 'Not in the database. Enter it from the pack.',
+  looksOff: 'These numbers look off. Check the pack.',
+  incomplete: 'Open Food Facts marks this entry as incomplete. Check the numbers against the pack.',
+  qualityErrors: 'Open Food Facts lists problems with this entry. Check the numbers against the pack.',
+  carbsFibre: 'Carbohydrate is as printed on the pack. Check it includes fibre.',
+  liquid: 'This is measured in ml, so the grams box does not work for it. Use servings.',
+  savedNote: 'You saved this food from a scan before. No lookup was needed.',
+  notFound: 'Open Food Facts does not have this product yet. Enter it yourself.',
+  byHand: 'Enter by hand',
+  offline: 'No connection. Try again when you are online, or enter it by hand.',
+  lookupDown: 'Open Food Facts did not answer. Try again in a minute, or enter it by hand.',
+  tryAgain: 'Try again',
+  attribution: 'Open Food Facts (ODbL)',
+  attributionA11y: 'Open Food Facts (ODbL), opens the product page',
+  customCode: 'Barcode saved with this food:',
+  save: 'Save to my foods for next time',
+  name: 'Food',
+  serving: 'Serving size',
+  calories: 'Calories (kcal)',
+  protein: 'Protein (g)',
+  carbs: 'Carbs (g)',
+  fat: 'Fat (g)',
 };
+
+/** "a minute", "30 seconds", "3 minutes": how long to wait, from a Retry-After in seconds (null when the server gave none). */
+export function waitText(sec: number | null): string {
+  if (sec === null || sec <= 0) return 'a minute';
+  if (sec < 60) return sec === 1 ? '1 second' : `${sec} seconds`;
+  const m = Math.ceil(sec / 60);
+  return m === 1 ? 'a minute' : `${m} minutes`;
+}
+
+export const busyText = (sec: number | null): string => `Open Food Facts is busy. Try again in ${waitText(sec)}.`;
+export const limitedText = (sec: number | null): string => `Too many lookups just now. Try again in ${waitText(sec)}, or enter it by hand.`;

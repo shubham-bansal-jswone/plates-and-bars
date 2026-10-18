@@ -13,7 +13,8 @@ test('a 0-day user picks an exercise from the start screen and logs a set, offli
   await expect(sheet).toBeVisible();
   const name = 'Barbell Bench Press';
   const chip = label(page, `Add ${name}`);
-  await saved(page, () => chip.click());
+  await chip.click(); // a pick is only a preview (#1005): nothing is stored until Start
+  await saved(page, () => label(page, 'Start this exercise').click());
   await expect(page.getByText('Session', { exact: true })).toBeVisible();
   await label(page, `${name} set 1 kg`).fill('40');
   await label(page, `${name} set 1 reps`).fill('8');

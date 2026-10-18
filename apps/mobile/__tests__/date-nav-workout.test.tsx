@@ -313,6 +313,7 @@ describe('Workout date navigation', () => {
     const db = await setup();
     await back();
     await screen.findByText('Yesterday');
+    await fireEvent.press(screen.getByLabelText('Choose Push B'));
     await fireEvent.press(screen.getByLabelText('Start Push B'));
     await screen.findAllByLabelText(/^Mark .* set 1 done$/);
     const template = 'Push B';
