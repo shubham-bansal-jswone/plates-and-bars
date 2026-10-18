@@ -4,7 +4,7 @@ import { answerSetup, expect, label, saved, tab, test } from '../support/app.mjs
 test('a 0-day user picks an exercise from the start screen and logs a set, offline', async ({ page }) => {
   await answerSetup(page, { days: 'None yet' });
   await label(page, 'Use these targets').click();
-  await expect(label(page, 'Redo setup')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Food', exact: true })).toBeVisible(); // setup ends on Food
   await tab(page, 'Workout');
   await expect(page.getByText('Rest day', { exact: true })).toBeVisible();
   await page.context().setOffline(true);
