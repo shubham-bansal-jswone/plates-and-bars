@@ -130,3 +130,17 @@ describe('the camera permission', () => {
     await expect(openNativeCamera(async () => answer)).rejects.toMatchObject({ name });
   });
 });
+
+describe('the web build', () => {
+  // react-native-web has no PermissionsAndroid, and the pose chunk imports this file on every platform (the adapter is chosen when the
+  // user taps Start camera): reading the permission constant while loading broke the sheet on the web ("Start camera" never showed).
+  it('can load the adapter and the session where react-native has no PermissionsAndroid', () => {
+    jest.isolateModules(() => {
+      const rn = jest.requireActual<Record<string, unknown>>('react-native');
+      jest.doMock('react-native', () => new Proxy(rn, { get: (t, k) => (k === 'PermissionsAndroid' ? undefined : t[k as string]) }));
+      expect(() => require('../src/pose/pose-native')).not.toThrow();
+      expect(() => require('../src/pose/pose-session')).not.toThrow();
+    });
+    jest.dontMock('react-native');
+  });
+});
