@@ -6,9 +6,10 @@
 #   ./ledger-lifecycle.sh check   exits non-zero unless the rule exists, is enabled, covers erasure-ledger/ and says 47 days
 # Uses the S3 API call PutBucketLifecycleConfiguration / GetBucketLifecycleConfiguration, which R2 supports (checked
 # 2026-10-18, developers.cloudflare.com/r2/api/s3/api and /r2/buckets/object-lifecycles). rclone has no lifecycle
-# command, so this is curl (--aws-sigv4, curl 7.75 or newer) and openssl, nothing proprietary. PutBucketLifecycleConfiguration
-# REPLACES the bucket's whole configuration: the script refuses to apply when the bucket has a rule it did not write
-# (R2's own "Default Multipart Abort Rule" is left to R2), so it never deletes a rule it does not know.
+# command, so this is curl (--aws-sigv4; tested with curl 8.7.1) and openssl, nothing proprietary.
+# PutBucketLifecycleConfiguration REPLACES the bucket's whole configuration, so apply reads the existing one and writes
+# it back with every other rule kept verbatim (R2's "Default Multipart Abort Rule" included), replacing only the rule
+# with our ID.
 # Credentials: bucket configuration is not covered by the Object Read and Write token of BACKUP_S3_* (R2 needs an Admin
 # token for it). Pass LIFECYCLE_S3_ACCESS_KEY_ID and LIFECYCLE_S3_SECRET_ACCESS_KEY in the shell for the run (an Admin
 # token, deleted afterwards; never in .env); without them BACKUP_S3_* is tried. The secret goes to curl on stdin, never on a
@@ -46,7 +47,8 @@ fetch() {
   http="$(s3 GET)" || fail "cannot reach $BACKUP_S3_ENDPOINT"
   case "$http" in
     200) tr -d '\r\n' < "$work/resp" | sed 's/>[[:space:]]*</></g' > "$work/config"; echo present ;;
-    404) : > "$work/config"; echo none ;;
+    404) [ "$(error_code)" = NoSuchLifecycleConfiguration ] || fail "reading the lifecycle configuration answered HTTP 404 $(error_code) (wrong bucket name or endpoint?)"
+      : > "$work/config"; echo none ;;
     *) fail "reading the lifecycle configuration answered HTTP $http $(error_code) (the token needs R2 Admin Read, see RUNBOOK.md section 3a)" ;;
   esac
 }
@@ -60,9 +62,9 @@ rule_ok() {
     && printf '%s' "$r" | grep -Fq "<Prefix>$rule_prefix</Prefix>" \
     && printf '%s' "$r" | grep -Fq "<Expiration><Days>$rule_days</Days></Expiration>"
 }
-# the rule ids in the configuration that are neither ours nor R2's default
-foreign_rules() {
-  grep -o '<ID>[^<]*</ID>' "$work/config" | sed 's/<[^>]*>//g' | grep -vFx -e "$rule_id" -e "Default Multipart Abort Rule" || true
+# every rule that is not ours, verbatim, one per line (rules without an <ID> are kept too)
+other_rules() {
+  sed 's/<\/Rule>/&\n/g' "$work/config" | sed -n 's/^.*\(<Rule>.*<\/Rule>\)$/\1/p' | grep -vF "<ID>$rule_id</ID>" || true
 }
 
 check() {
@@ -78,13 +80,12 @@ case "${1:-}" in
     check ;;
   apply) [ "$#" -eq 1 ] || fail "usage: ledger-lifecycle.sh apply | check"
     state="$(fetch)"
-    if [ "$state" = present ] && rule_ok && [ -z "$(foreign_rules)" ]; then
+    if [ "$state" = present ] && rule_ok; then
       echo "lifecycle rule already applied: nothing to do"
       exit 0
     fi
-    others="$(foreign_rules)"
-    [ -z "$others" ] || fail "the bucket has other lifecycle rule(s) ($(printf '%s' "$others" | paste -sd, -)); applying would replace them. Add the rule in the R2 dashboard or merge it by hand (RUNBOOK.md section 3a)"
-    printf '%s' "<LifecycleConfiguration><Rule><ID>$rule_id</ID><Filter><Prefix>$rule_prefix</Prefix></Filter><Status>Enabled</Status><Expiration><Days>$rule_days</Days></Expiration></Rule></LifecycleConfiguration>" > "$work/rule.xml"
+    # the whole configuration is replaced by the PUT: every other rule goes back as it was, ours is replaced by ID
+    printf '%s%s%s' "<LifecycleConfiguration>" "$(other_rules | tr -d '\n')" "<Rule><ID>$rule_id</ID><Filter><Prefix>$rule_prefix</Prefix></Filter><Status>Enabled</Status><Expiration><Days>$rule_days</Days></Expiration></Rule></LifecycleConfiguration>" > "$work/rule.xml"
     http="$(s3 PUT "$work/rule.xml")" || fail "cannot reach $BACKUP_S3_ENDPOINT"
     [ "$http" = 200 ] || fail "putting the lifecycle rule answered HTTP $http $(error_code)"
     echo "lifecycle rule put: $rule_prefix expires after $rule_days days"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs ledger-lifecycle.sh (#911) against a stub `curl` that keeps the bucket's lifecycle configuration in a file:
 # apply puts one enabled rule, "expire erasure-ledger/ after 47 days"; a second apply puts nothing; a wrong or disabled
-# rule of ours is replaced; a rule that is not ours is never overwritten; check fails unless the rule exists, is enabled,
+# rule of ours is replaced; every other rule survives the PUT (R2's default rule included, also one without an ID); check fails unless the rule exists, is enabled,
 # covers erasure-ledger/ and says 47 days; the secret is on stdin, never on a command line; a denied token or a failed
 # put fails with the HTTP status and no response body. No network or bucket needed.
 # Run from anywhere: infra/staging/test-ledger-lifecycle.sh
@@ -35,7 +35,7 @@ if [ "$method" = PUT ]; then
   if [ -n "${STUB_PUT_HTTP:-}" ]; then echo '<Error><Code>InternalError</Code><Message>secret-row-content</Message></Error>' > "$out"; echo "$STUB_PUT_HTTP"; exit 0; fi
   cp "$body" "$STUB_CONFIG"; cp "$body" "$STUB_BODY"; : > "$out"; echo 200; exit 0
 fi
-if [ -n "${STUB_GET_HTTP:-}" ]; then echo '<Error><Code>AccessDenied</Code><Message>secret-row-content</Message></Error>' > "$out"; echo "$STUB_GET_HTTP"; exit 0; fi
+if [ -n "${STUB_GET_HTTP:-}" ]; then echo "<Error><Code>${STUB_GET_CODE:-AccessDenied}</Code><Message>secret-row-content</Message></Error>" > "$out"; echo "$STUB_GET_HTTP"; exit 0; fi
 if [ -e "$STUB_CONFIG" ]; then cp "$STUB_CONFIG" "$out"; echo 200; else echo '<Error><Code>NoSuchLifecycleConfiguration</Code></Error>' > "$out"; echo 404; fi
 STUB
 chmod +x "$tmp/bin/curl"
@@ -93,19 +93,43 @@ for variant in "Enabled erasure-ledger/ 30" "Disabled erasure-ledger/ 47" "Enabl
   life check || fail "[$variant] was not fixed"
 done
 
-echo "apply: a rule that is not ours is never overwritten; R2's default rule is not in the way"
+echo "apply: every other rule survives (R2's default rule, a foreign rule, a rule without an ID), only our rule is replaced"
+default_rule='<Rule><ID>Default Multipart Abort Rule</ID><Status>Enabled</Status><AbortIncompleteMultipartUpload><DaysAfterInitiation>7</DaysAfterInitiation></AbortIncompleteMultipartUpload></Rule>'
+foreign_rule='<Rule><ID>keep-me</ID><Status>Enabled</Status><Filter><Prefix>other/</Prefix></Filter><Expiration><Days>1</Days></Expiration></Rule>'
+noid_rule='<Rule><Status>Enabled</Status><Filter><Prefix>no-id/</Prefix></Filter><Expiration><Days>9</Days></Expiration></Rule>'
+survivors() {
+  for r in "$default_rule" "$foreign_rule" "$noid_rule"; do
+    grep -qF "$r" "$STUB_BODY" || fail "a rule was lost in the PUT: $r"
+  done
+  [ "$(grep -o '<ID>plateandbar-erasure-ledger-expiry</ID>' "$STUB_BODY" | wc -l | tr -d ' ')" = 1 ] || fail "our rule is not in the PUT exactly once"
+  grep -qF '<Expiration><Days>47</Days></Expiration>' "$STUB_BODY" || fail "our rule is not 47 days in the PUT"
+}
+# no rule of ours yet
 reset
-config Enabled erasure-ledger/ 47
-sed -i.bak 's#</LifecycleConfiguration>#<Rule><ID>keep-me</ID><Status>Enabled</Status><Expiration><Days>1</Days></Expiration></Rule></LifecycleConfiguration>#' "$STUB_CONFIG"
-if life apply; then fail "apply over a foreign rule exited 0"; fi
-grep -q 'keep-me' "$tmp/out" || fail "the foreign rule was not named"
-[ "$(puts)" = 0 ] || fail "a foreign rule was overwritten"
+printf '<LifecycleConfiguration>%s%s%s</LifecycleConfiguration>' "$default_rule" "$foreign_rule" "$noid_rule" > "$STUB_CONFIG"
+life apply || fail "apply next to other rules failed"
+[ "$(puts)" = 1 ] || fail "expected one PUT next to other rules"
+survivors
+life check || fail "check after the merge failed"
+# a wrong rule of ours, in the middle of the others (indented, as R2 might return it)
 reset
-cat > "$STUB_CONFIG" <<'XML'
-<LifecycleConfiguration><Rule><ID>Default Multipart Abort Rule</ID><Status>Enabled</Status><AbortIncompleteMultipartUpload><DaysAfterInitiation>7</DaysAfterInitiation></AbortIncompleteMultipartUpload></Rule></LifecycleConfiguration>
-XML
-life apply || fail "apply with only R2's default rule failed"
-[ "$(puts)" = 1 ] || fail "the rule was not added next to the default rule"
+config Enabled erasure-ledger/ 30
+sed -i.bak "s#<LifecycleConfiguration>#<LifecycleConfiguration>$default_rule#; s#</LifecycleConfiguration>#$foreign_rule$noid_rule</LifecycleConfiguration>#" "$STUB_CONFIG"
+life apply || fail "apply over a wrong rule of ours next to other rules failed"
+[ "$(puts)" = 1 ] || fail "the wrong rule was not replaced"
+survivors
+life check || fail "check after the replace failed"
+: > "$STUB_LOG"
+life apply || fail "second apply failed"
+[ "$(puts)" = 0 ] || fail "second apply put again next to other rules"
+
+echo "a 404 that is not NoSuchLifecycleConfiguration (a wrong bucket) fails and puts nothing"
+reset
+if STUB_GET_HTTP=404 STUB_GET_CODE=NoSuchBucket life apply; then fail "apply on a missing bucket exited 0"; fi
+grep -q 'HTTP 404 NoSuchBucket' "$tmp/out" || fail "a missing bucket was not reported"
+[ "$(puts)" = 0 ] || fail "apply put on a missing bucket"
+if STUB_GET_HTTP=404 STUB_GET_CODE=NoSuchBucket life check; then fail "check on a missing bucket exited 0"; fi
+grep -q 'no lifecycle configuration' "$tmp/out" && fail "a missing bucket was reported as no configuration"
 
 echo "check: passes on the rule, fails on anything else"
 reset; config Enabled erasure-ledger/ 47

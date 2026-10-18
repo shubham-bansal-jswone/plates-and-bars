@@ -70,6 +70,12 @@ case "$1" in
     case "$cmd" in
       lsf)
         [ -z "${STUB_LSF_FAIL:-}" ] || { echo "rclone: access denied" >&2; exit "$STUB_LSF_FAIL"; }
+        if [ "${rest[0]}" = -R ]; then
+          [ -z "${STUB_LSF_R_FAIL:-}" ] || exit 1 # lsf -R --files-only <root>: every file below, relative
+          d="$(bucket_path "${rest[2]}")"
+          [ -d "$d" ] && (cd "$d" && find . -type f | sed 's#^\./##')
+          exit 0
+        fi
         d="$(bucket_path "${rest[1]}")"
         [ -d "$d" ] || exit 0 # rclone v1.74.0: an empty prefix lists nothing, exit 0
         ls -1 "$d" ;;
@@ -170,7 +176,7 @@ up || fail "first upload exited non-zero"
 for o in "$dir"/*; do only_its_day "$o" || fail "$o holds another day's entry"; done
 [ -z "$(find "$dir" -name '*partial*')" ] || fail ".partial left behind"
 grep -Eq ' rcat bk:plateandbar-backups/erasure-ledger/staging/erasures-[0-9]{4}-[0-9]{2}-[0-9]{2}\.log\.partial\.[0-9]+$' "$STUB_LOG" || fail "the .partial name has no per-run suffix"
-grep -q ' delete --min-age 45d bk:plateandbar-backups/erasure-ledger/staging$' "$STUB_LOG" || fail "no 45-day delete"
+grep -q ' delete --min-age 45d bk:plateandbar-backups/erasure-ledger$' "$STUB_LOG" || fail "no 45-day delete"
 ! grep -q 'change-me' "$STUB_LOG" || fail "a secret appears on a docker command line"
 for v in TYPE PROVIDER NO_CHECK_BUCKET ENDPOINT ACCESS_KEY_ID SECRET_ACCESS_KEY; do
   grep -q " -e RCLONE_CONFIG_BK_$v " "$STUB_LOG" || fail "rclone is not given RCLONE_CONFIG_BK_$v"
@@ -230,6 +236,24 @@ up || fail "upload exited non-zero"
 [ ! -e "$dir/erasures-$(day 1).log.partial.42" ] || fail "a stale .partial was kept"
 [ ! -e "$(bobj 3)" ] || fail "an object last written more than 45 days ago was kept"
 grep -q " deletefile bk:plateandbar-backups/erasure-ledger/staging/erasures-$(day 46).log$" "$STUB_LOG" || fail "the day object past retention was not deleted by name"
+
+echo "upload: day objects past retention are pruned under every prefix, not only the VM's own (#911)"
+reset; mkdir -p "$dir"
+other="$tmp/bucket/erasure-ledger/production"; mkdir -p "$other" "$tmp/bucket/erasure-ledger/retired"
+for n in 44 45 46 47; do printf '%s\t%s\n' "$B" "$(ago "$n")" > "$other/erasures-$(day "$n").log"; done
+printf '%s\t%s\n' "$C" "$(ago 60)" > "$tmp/bucket/erasure-ledger/retired/erasures-$(day 60).log"
+printf '%s\t%s\n' "$C" "$(ago 3)" > "$tmp/bucket/erasure-ledger/retired/erasures-$(day 3).log"
+printf '%s\t%s\n' "$C" "$(ago 3)" > "$tmp/bucket/erasure-ledger/retired/unrelated.txt"
+up || fail "upload exited non-zero"
+[ -e "$other/erasures-$(day 44).log" ] && [ -e "$other/erasures-$(day 45).log" ] || fail "another prefix's object within retention was deleted"
+[ ! -e "$other/erasures-$(day 46).log" ] || fail "another prefix's object 46 days back was kept"
+[ ! -e "$other/erasures-$(day 47).log" ] || fail "another prefix's object 47 days back was kept"
+[ ! -e "$tmp/bucket/erasure-ledger/retired/erasures-$(day 60).log" ] || fail "a retired prefix's old object was kept"
+[ -e "$tmp/bucket/erasure-ledger/retired/erasures-$(day 3).log" ] || fail "a retired prefix's recent object was deleted"
+[ -e "$tmp/bucket/erasure-ledger/retired/unrelated.txt" ] || fail "a file that is no day object was deleted"
+grep -q " deletefile bk:plateandbar-backups/erasure-ledger/production/erasures-$(day 46).log$" "$STUB_LOG" || fail "not deleted by name under its own prefix"
+if STUB_LSF_R_FAIL=1 up; then fail "a failed listing of the whole ledger root: exited 0"; fi
+grep -q 'cannot list bk:plateandbar-backups/erasure-ledger' "$tmp/out" || fail "a failed root listing was not reported"
 
 echo "upload: the old 45-day snapshot objects are split into day objects, then deleted"
 reset; mkdir -p "$dir"
