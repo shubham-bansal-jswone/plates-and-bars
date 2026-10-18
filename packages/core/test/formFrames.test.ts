@@ -1,5 +1,5 @@
 /** Golden numbers from prototype `videoFrames` (plate-and-bar.html lines 3181, 3183), worked by hand. */
-import { FRAME_DEFAULT_DURATION_MS, frameDuration, framePositions, frameTimesMs } from './formFrames';
+import { FRAME_DEFAULT_DURATION_MS, frameDuration, framePositions, frameTimesMs } from '../src/formFrames';
 
 const close = (a: number[], b: number[]) => {
   expect(a).toHaveLength(b.length);
@@ -25,7 +25,7 @@ describe('framePositions (prototype videoFrames `at`)', () => {
   it('0, NaN, null, undefined and non-finite durations use the 5000 ms default', () => {
     const d = framePositions(FRAME_DEFAULT_DURATION_MS);
     for (const v of [0, NaN, null, undefined, Infinity, -Infinity]) expect(framePositions(v)).toEqual(d);
-    close(d, [600, 1866.6666667, 3133.3333333, 4400]);
+    close(d, [600, 1866.66666666667, 3133.33333333333, 4400]);
   });
   it('pins prototype: a negative finite duration is kept (truthy in the prototype)', () => {
     expect(frameDuration(-10)).toBe(-10);
@@ -38,6 +38,6 @@ describe('frameTimesMs', () => {
   it('rounds to whole ms', () => {
     expect(frameTimesMs(10000)).toEqual([1200, 3733, 6267, 8800]);
     expect(frameTimesMs(undefined)).toEqual([600, 1867, 3133, 4400]);
-    expect(frameTimesMs(1)).toEqual([120, 373, 627, 880]);
+    expect(frameTimesMs(1)).toEqual([0, 0, 1, 1]);
   });
 });
