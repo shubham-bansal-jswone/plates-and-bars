@@ -15,8 +15,8 @@
 #    tell "no erasures" from "no ledger". The oldest kept day is no longer uploaded: its object may already have aged
 #    out below and must not come back for another 45 days.
 # 4. Splits the 45-day snapshot objects ledger-YYYYMMDD.log written before #887 into the day objects, then deletes them.
-# 5. Deletes the day objects past retention, and every object older than 45 days (rclone --min-age, which also
-#    removes stale .partial uploads).
+# 5. Deletes the day objects past retention, under every prefix of the bucket (not only its own, #911), and every
+#    object older than 45 days (rclone --min-age, which also removes stale .partial uploads).
 # A line that does not match the format is skipped and counted (a cut line comes only from a request that answered 500
 # and deleted nothing). The ledger holds opaque ids and times only.
 # Optional LEDGER_HEARTBEAT_URL (Uptime Kuma push, heartbeat interval about 2 hours): requested after a fully successful
@@ -49,6 +49,12 @@ read_volume() {
   on_volume :ro 'cd /ledger && set -- erasures*.log* && if [ -e "$1" ]; then tar -cf - "$@"; fi' < /dev/null > "$work/vol.tar" \
     || fail "cannot read the ledger from the volume"
   if [ -s "$work/vol.tar" ]; then tar -xf "$work/vol.tar" -C "$work/vol" || fail "cannot read the ledger from the volume"; fi
+}
+# rclone deletefile exits 4 when the object is already gone (another VM's run pruned it first): that is the goal, not an error
+delete_object() {
+  local rc=0
+  rclone deletefile "$1" < /dev/null || rc=$?
+  [ "$rc" -eq 0 ] || [ "$rc" -eq 4 ]
 }
 valid_lines() { grep -E -x "$ledger_line" "$@" || true; }
 day_of() { [[ "$1" =~ ^erasures-([0-9]{4}-[0-9]{2}-[0-9]{2})\.log$ ]] && printf '%s' "${BASH_REMATCH[1]}"; }
@@ -144,7 +150,7 @@ echo "ledger unchanged: $unchanged day object(s)"
 
 # 4. the 45-day snapshots of the first ledger version: their entries are in the day objects now
 if [ "${#old_objects[@]}" -gt 0 ]; then
-  for o in "${old_objects[@]}"; do rclone deletefile "$ledger_dest/$o" < /dev/null; done
+  for o in "${old_objects[@]}"; do delete_object "$ledger_dest/$o"; done
   echo "split ${#old_objects[@]} snapshot object(s) into day objects and deleted them"
 fi
 
@@ -152,11 +158,23 @@ fi
 while IFS= read -r o; do
   d="$(day_of "$o")" || continue
   if [[ "$d" < "$keep_from" ]]; then
-    rclone deletefile "$ledger_dest/$o" < /dev/null
+    delete_object "$ledger_dest/$o"
     echo "deleted day object $o (more than $ledger_retention_days days old)"
   fi
 done <<< "$listing"
-rclone delete --min-age "${ledger_retention_days}d" "$ledger_dest"
+# ...and the same under every other prefix (#911): "at most 46 days" must hold whichever VM runs, also when another
+# prefix's VM is retired. (The 47-day R2 lifecycle rule, ledger-lifecycle.sh, is the backstop.)
+all_objects="$(rclone lsf -R --files-only "$ledger_root")" || fail "cannot list $ledger_root"
+while IFS= read -r o; do
+  [[ "$o" == */* ]] || continue
+  [ "${o%/*}" != "$prefix" ] || continue # our own prefix is done above
+  d="$(day_of "${o##*/}")" || continue
+  if [[ "$d" < "$keep_from" ]]; then
+    delete_object "$ledger_root/$o"
+    echo "deleted day object $o (more than $ledger_retention_days days old)"
+  fi
+done <<< "$all_objects"
+rclone delete --min-age "${ledger_retention_days}d" "$ledger_root"
 
 if [ -n "${LEDGER_HEARTBEAT_URL:-}" ]; then
   printf 'url = "%s"\n' "$LEDGER_HEARTBEAT_URL" | curl -fsS -m 10 --retry 3 -o /dev/null -K - \
