@@ -18,6 +18,10 @@ test("the cycle log is covered by the device download and by delete", () => {
   assert.match(flat, /"Delete everything" and "Turn off and delete" in the log itself remove it/);
 });
 
+test("the cycle log is also removed when another account signs in and on Discard and sign out", () => {
+  assert.match(flat, /removed from the device when another account signs in on it and on "Discard and sign out"/);
+});
+
 test("the server list does not mention the cycle log as stored", () => {
   const stored = flat.slice(flat.indexOf("What we store on our server"), flat.indexOf("Who else handles your data"));
   assert.doesNotMatch(stored, /cycle/i);
