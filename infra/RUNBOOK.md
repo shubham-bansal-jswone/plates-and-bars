@@ -7,7 +7,7 @@ Suspected personal data breach (leaked data, keys or backups, one user seeing an
 ## Free-tier limits (checked 2026-10-12)
 
 - Cloudflare R2: free tier of 10 GB-month of Standard storage, 1 million Class A and 10 million Class B requests per month (developers.cloudflare.com/r2/pricing, fetched 2026-10-12). One dump a day kept 30 days stays far below that unless the compressed dump grows past roughly 300 MB.
-- Oracle Cloud Always Free: the page (oracle.com/cloud/free) lists "Arm-based Ampere A1 Compute" and Block Volume, but the quota numbers load dynamically and were NOT confirmed on 2026-10-12. The commonly quoted figures (4 A1 OCPUs, 24 GB RAM and 200 GB block storage in total; idle instances can be reclaimed; A1 capacity in a region is sometimes unavailable) must be checked by **Owner** before creating the VM. This stack needs about 2 GB RAM.
+- Oracle Cloud Always Free: the page (oracle.com/cloud/free) lists "Arm-based Ampere A1 Compute" and Block Volume, but the quota numbers load dynamically and were NOT confirmed on 2026-10-12. The commonly quoted figures (4 A1 OCPUs, 24 GB RAM and 200 GB block storage in total; idle instances can be reclaimed; A1 capacity in a region is sometimes unavailable) must be checked by **Owner** before creating the VM. This stack needs about 2 GB RAM. The optional monitoring stacks (section 5) add GlitchTip about 1.6 GB (memory limits 1 GB, 512 MB, 64 MB) and Uptime Kuma about 0.6 GB on its own host, so staging plus GlitchTip on one VM is about 3.6 GB.
 
 Any S3-compatible bucket works: `backup.sh` only needs `BACKUP_S3_*` variables, so MinIO or another provider can replace R2 (the decided retention is 30 days either way).
 
@@ -108,6 +108,35 @@ Free tiers: nothing here adds a paid service; it reuses the bucket and VM limits
 ## 5. Monitoring
 
 Add an Uptime Kuma (MIT, self-hosted; the host is an **Owner** decision) HTTP(s) monitor on `https://<API_HOST>/api/v1/health` with an e-mail alert. `/health` answers 503 when the database is unreachable, so one monitor covers API and database. Check that the cron backup ran: the newest object in the bucket should be less than 25 hours old; the log is `~/plateandbar-backup.log` of the user whose crontab runs it. Better, let the job report in: add an Uptime Kuma **Push** monitor with a heartbeat interval of 25 hours and put its push URL in `.env` as `BACKUP_HEARTBEAT_URL`, **in single quotes** because the URL holds `&` (`BACKUP_HEARTBEAT_URL='https://<kuma-host>/api/push/<token>?status=up&msg=OK&ping='`; `.env` is sourced by the shell, unquoted `&` would run the line in the background and cut the URL). `backup.sh` requests it after each successful run (dump, upload and retention), also for the backup taken before a production release, and sends nothing when a run fails, so the monitor alerts on the missing ping. Empty or unset = off. A failing monitor never fails the backup. The URL is a secret: it goes to curl on stdin, never on a command line. The monthly restore rehearsal has its own push monitor (about 32 days, `RESTORE_HEARTBEAT_URL`, section 4).
+
+### 5a. Install Uptime Kuma (#828)
+
+Inert until you do this: nothing deploys `infra/monitoring/`, and no workflow starts it. Kuma must run on a different host from the one it watches.
+
+1. **Owner:** pick the host (a second small Oracle ARM VM, or a machine you own that stays on), open 80, 443 and UDP 443, install Docker (section 1, steps 1 and 3), and point a DNS record for `KUMA_HOST` at it.
+2. `git clone` the repository to `/opt/plateandbar`, then `cd /opt/plateandbar/infra/monitoring/uptime-kuma && cp .env.example .env && chmod 600 .env` and set `KUMA_HOST`.
+3. `sudo /opt/plateandbar/infra/journald/install.sh` (as in section 1, step 6), then `docker compose up -d`. Memory is capped at 512 MB for Kuma and 64 MB for Caddy.
+4. **Owner:** open `https://<KUMA_HOST>/` at once (the first visitor creates the admin account) and create the admin user, with a long password. Choose SQLite as the database when asked. Turn on two-factor authentication in Settings > Security.
+5. **Owner:** add the notifier: Settings > Notifications > Setup Notification > Email (SMTP) with an SMTP account you already have (or a self-hosted ntfy; not the public ntfy.sh), tick "Default enabled" and "Apply on all existing monitors".
+6. **Owner:** add every monitor in `infra/monitoring/MONITORS.md`, then put the push URLs in `infra/staging/.env` (`BACKUP_HEARTBEAT_URL`, `RESTORE_HEARTBEAT_URL`, `LEDGER_HEARTBEAT_URL`).
+7. Test the alert once: pause the API monitor's target or point a temporary monitor at a closed port, and check the e-mail arrives.
+
+### 5b. Install GlitchTip (#828)
+
+Inert until you do this. It can run on its own host (recommended) or on the staging VM, see `infra/OBSERVABILITY.md` ("Where it runs") for memory and the port-80/443 catch.
+
+1. **Owner:** host, ports and DNS for `GLITCHTIP_HOST` as in 5a steps 1 and 3. Set up SMTP (an account you already have).
+2. `cd /opt/plateandbar/infra/monitoring/glitchtip && cp .env.example .env && chmod 600 .env`, then fill every value. Generate `SECRET_KEY` with `openssl rand -hex 32` and `POSTGRES_PASSWORD` with `openssl rand -hex 24` (hex only: the password sits inside a URL).
+3. `sudo /opt/plateandbar/infra/journald/install.sh`, then start **only the database and GlitchTip**, not Caddy: `docker compose up -d postgres glitchtip`. `SERVER_ROLE=all_in_one` makes the first start run the migrations; wait for `docker compose logs glitchtip` to go quiet. Caddy stays down on purpose: GlitchTip keeps sign-up open until the first user exists, so a public start would let a stranger register first.
+4. **Owner:** create your user from the command line: `docker compose exec glitchtip ./manage.py createsuperuser`. Then start Caddy, `docker compose up -d caddy`, open `https://<GLITCHTIP_HOST>/`, sign in, create one organisation (superusers can, although `ENABLE_ORGANIZATION_CREATION=false`), then two projects named `api` and `mobile`.
+5. **Owner:** confirm registration is closed: in a private window open `https://<GLITCHTIP_HOST>/register`; it must not let a stranger create an account (`ENABLE_USER_REGISTRATION=false` closes it once a user exists). If it is open, stop Caddy (`docker compose stop caddy`) and report it; there is no UI switch for it.
+6. **Owner, privacy checklist** (settings that live in the UI, not in the compose file): in each project's settings turn IP address scrubbing on if the option is offered (Caddy already strips `X-Forwarded-For`, so events carry only Caddy's own address); keep the project's "scrub data" options on. Send one worst-case test event from the app and the API and read it in GlitchTip: no IP address, no e-mail, no food or weight, no tokens (`infra/OBSERVABILITY.md`, "Error tracking rules"). Retention is 30 days, set in the compose file (`GLITCHTIP_RETENTION_DAYS`).
+7. **Owner:** set the DSNs, never in the repository: the `api` project's DSN as `SENTRY_DSN` in `infra/staging/.env` on the API VM (then `docker compose up -d api`), the `mobile` project's DSN as the GitHub variable `EXPO_PUBLIC_SENTRY_DSN`, and `WEB_SENTRY_ORIGIN` in the same `.env` after `infra/scripts/check-sentry-origin.sh "$WEB_SENTRY_ORIGIN" "$EXPO_PUBLIC_SENTRY_DSN"` passes. Do this only after the privacy page and the Play data-safety answers are published (#748, #827).
+8. Add the GlitchTip monitor from `infra/monitoring/MONITORS.md`.
+
+Backup of the monitoring hosts: Kuma's monitors are re-creatable from the table, GlitchTip's data is 30 days of errors. Neither is backed up; losing them costs only history. Back up the two `.env` files with the rest of your secrets.
+
+Update: change the pinned tag and digest in the compose file (`docker buildx imagetools inspect <image>:<tag>` prints the index digest and shows the `linux/arm64` entry; `infra/monitoring/test-config.sh` and the workflow check the pins), then `docker compose pull && docker compose up -d`. Rollback: put the previous tag and digest back. GlitchTip's migrations run forward-only on start, so keep the old image only until the new one has run cleanly.
 
 ## 6. Turning on the per-account record cap (#349, #667)
 
