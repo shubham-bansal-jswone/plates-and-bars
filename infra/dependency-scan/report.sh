@@ -18,7 +18,7 @@ while IFS="$tab" read -r id scope issue recheck reason extra; do
   [ -z "${extra:-}" ] || { echo "waiver $id: too many fields" >&2; exit 2; }
   [[ "$issue" =~ ^#[0-9]+$ ]] || { echo "waiver $id: issue must look like #79" >&2; exit 2; }
   [[ "$recheck" =~ $re_date ]] || { echo "waiver $id: recheck must be YYYY-MM-DD" >&2; exit 2; }
-  [ -n "$scope" ] && [ -n "${reason:-}" ] || { echo "waiver $id: scope and reason are required" >&2; exit 2; }
+  if [ -z "$scope" ] || [ -z "${reason:-}" ]; then echo "waiver $id: scope and reason are required" >&2; exit 2; fi
   wid+=("$id"); wscope+=("$scope"); wissue+=("$issue"); wdate+=("$recheck"); wused+=(0)
 done < "$waivers"
 

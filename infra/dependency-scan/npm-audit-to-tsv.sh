@@ -5,7 +5,7 @@
 # Usage: npm audit --package-lock-only --json | infra/dependency-scan/npm-audit-to-tsv.sh apps/mobile
 set -euo pipefail
 scope="${1:?usage: npm-audit-to-tsv.sh <scope>}"
-jq -r --arg scope "$scope" '
+jq -rn --arg scope "$scope" ' input |
   if (.vulnerabilities | type) != "object" then error("not an npm audit report") else . end
   | [ .vulnerabilities[].via[] | select(type == "object") | select(.severity == "high" or .severity == "critical")
       | [$scope, ((.url // "") | split("/") | last | if . == "" then (.source | tostring) else . end), .name, .severity] ]

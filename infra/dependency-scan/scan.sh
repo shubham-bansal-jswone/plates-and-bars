@@ -14,12 +14,13 @@ OUT="${OUT:-dependency-scan-out}"; OSV_SCANNER="${OSV_SCANNER:-osv-scanner}"; TO
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
 findings="$OUT/findings.tsv"; : > "$findings"
 
-audit() { # <dir> <npm flags...>
+audit() ( # <dir> <npm flags...>
   local dir="$1"; shift
   # npm audit exits 1 when it finds anything; the report on stdout is what counts
-  (cd "$root/$dir" && npm audit --package-lock-only --audit-level=high "$@" --json > "$OUT/audit.json" || true)
+  cd "$root/$dir" || return 1
+  npm audit --package-lock-only --audit-level=high "$@" --json > "$OUT/audit.json" || true
   "$here/npm-audit-to-tsv.sh" "$dir" < "$OUT/audit.json" >> "$findings"
-}
+)
 audit packages/api --omit=dev
 audit packages/core --omit=dev
 audit apps/mobile --omit=dev

@@ -5,7 +5,7 @@
 # Usage: osv-scanner scan source --lockfile gradle.lockfile --format json | infra/dependency-scan/osv-to-tsv.sh backend
 set -euo pipefail
 scope="${1:?usage: osv-to-tsv.sh <scope>}"
-jq -r --arg scope "$scope" '
+jq -rn --arg scope "$scope" ' input |
   if (.results | type) != "array" then error("not an osv-scanner report") else . end
   | [ .results[].packages[] | .package as $p | .groups[]
       | (.max_severity // "") as $s

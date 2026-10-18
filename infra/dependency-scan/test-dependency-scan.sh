@@ -20,6 +20,7 @@ JSON
 eq "npm parse" "$got" "apps/mobile${tab}GHSA-aaaa-bbbb-cccc${tab}x${tab}critical
 apps/mobile${tab}GHSA-vfj7-8cjw-p6xm${tab}braces${tab}high"
 "$here/npm-audit-to-tsv.sh" tools <<<'{"vulnerabilities":{}}' > "$tmp/empty"; [ ! -s "$tmp/empty" ] || fail "clean report printed lines"
+if "$here/npm-audit-to-tsv.sh" tools < /dev/null > /dev/null 2>&1; then fail "empty npm output accepted as clean"; fi
 if "$here/npm-audit-to-tsv.sh" tools <<<'{"error":{"code":"ENOLOCK"}}' > /dev/null 2>&1; then fail "npm error report accepted as clean"; fi
 
 # OSV: groups scored 7+, 9+ and unscored are kept with their aliases; 5.x is dropped
@@ -35,6 +36,7 @@ eq "osv parse" "$got" "backend${tab}CVE-1,GHSA-1${tab}g:a@1.0${tab}critical
 backend${tab}GHSA-2${tab}g:a@1.0${tab}high
 backend${tab}GHSA-4${tab}g:a@1.0${tab}unknown"
 "$here/osv-to-tsv.sh" backend <<<'{"results":[]}' > "$tmp/empty"; [ ! -s "$tmp/empty" ] || fail "clean osv printed lines"
+if "$here/osv-to-tsv.sh" backend < /dev/null > /dev/null 2>&1; then fail "empty osv output accepted as clean"; fi
 if "$here/osv-to-tsv.sh" backend <<<'{"error":"x"}' > /dev/null 2>&1; then fail "osv error accepted as clean"; fi
 
 # report.sh
