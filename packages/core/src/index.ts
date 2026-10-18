@@ -622,3 +622,27 @@ export type { PrepEntry, AddPrepInput } from './prep';
 
 /** `checkinBannerDue` mirrors prototype `checkinBanner()`: Food's "weekly check-in is ready" banner (Sunday or Monday, today, not yet seen this week). */
 export { checkinBannerDue } from './progress';
+
+/**
+ * Live pose tracking (#947 slice 1; new in v1.1, no prototype function): `analyseSquat` runs `squatSignal` (hip height above
+ * the knee in shin lengths, from MoveNet's 17 keypoints) through the smoothed rep state machine (`initRepCounter`,
+ * `stepRepCounter`, `repInProgress`) and returns rep count, depth against about parallel, tempo and card cue keys (`DEPTH_CUES`).
+ */
+export {
+  analyseSquat,
+  squatSignal,
+  initRepCounter,
+  stepRepCounter,
+  repInProgress,
+  DEPTH_CUES,
+  MOVENET,
+  MIN_SCORE,
+  MIN_SHIN,
+  SMOOTH_TAU_MS,
+  TOP_H,
+  DOWN_H,
+  PARALLEL_H,
+  BOTTOM_BAND,
+  MAX_GAP_MS,
+} from './pose';
+export type { PoseKeypoint, PoseFrame, PoseCue, PoseExercise, SquatRep, SquatReport, RepCounterState } from './pose';
