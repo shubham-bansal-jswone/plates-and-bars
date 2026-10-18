@@ -4,3 +4,10 @@ dist/
 web-build/
 expo-env.d.ts
 *.log
+
+# `expo prebuild` output (#980): generated from app.json and the config plugins, built in CI by
+# .github/workflows/android-release.yml, never committed. The leading slash keeps these rules off
+# the native modules' own android/ folders. A PR that commits either folder fails in the `changes`
+# job (infra/scripts/check-prebuild-output.sh).
+/android/
+/ios/

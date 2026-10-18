@@ -38,6 +38,18 @@ Rollback = previous image tag: `docker image ls plateandbar-api`, set `API_TAG=<
 
 Automatic staging deploy (#411): `.github/workflows/staging-deploy.yml` does the update above on every merge to `main` that touches the backend, content, `packages/api/openapi.yaml` or staging files, using `infra/staging/deploy.sh`. The script tags the image with the 12-character commit sha, polls `/api/v1/health` for up to 5 minutes and, if it fails, sets `API_TAG` back to the previous tag and recreates the API (rollback by hand is the same; not to an image built before #887, see section 3a). The checkout stays on `main` (the workflow uses `git merge --ff-only`), so keep the VM checkout clean and do not commit on it. **Owner:** to switch it on, create the VM and the deploy-only SSH user, then set the repository variable `STAGING_DEPLOY_ENABLED=true` and the `staging` environment values listed in `infra/README.md` (Staging deploy). The health poll goes through the local Caddy (`curl --resolve <API_HOST>:443:127.0.0.1`), so a VM that cannot reach its own public address still deploys. Re-running an old workflow run is intended to deploy the current checkout HEAD (the fast-forward to the old sha is a no-op), not the old sha; to run an older build use the manual rollback above. Tagged production releases are section 4a.
 
+## 2a. API memory (#990)
+
+The `api` service has `mem_limit: 1152m` (no swap) and `JAVA_TOOL_OPTIONS=-Xmx768m -XX:+ExitOnOutOfMemoryError` in `infra/staging/docker-compose.yml`. The sizing is the API's cap of **2 concurrent image decodes** per instance (`AiImages.PERMITS`; a third waits up to 2 s, then answers 503 `unavailable` with `Retry-After: 2`, `backend/README.md`), each sized for the worst case the checks allow: about **200 MiB** per decode (a 16-bit RGBA PNG of 4000 x 4000 is a 4000 x 4000 x 8 B raster, 122 MiB, plus the resize copy). 2 x 200 MiB = 400 MiB, plus about 64 MiB of bodies and copies in flight, plus about 256 MiB of normal working set, plus 48 MiB of slack = 768 MiB of heap (400 + 64 + 256 + 48). The other 384 MiB of the limit is metaspace, code cache, thread stacks and native buffers. **Estimated, not measured:** the 200 MiB comes from the raster arithmetic and the 256 MiB working set is an estimate; neither was measured under load. Refusing 16-bit PNGs, which would bring the per-decode figure down, is #1010. `infra/staging/test-compose-memory.sh` (run by `staging-config.yml`) fails if the limit, `-Xmx` or `ExitOnOutOfMemoryError` is missing, the swap is not off, the heap (the last `-Xmx` wins) is under that sum, the limit leaves under 384 MiB above the heap or is over 1.5 GiB.
+
+An explicit `-Xmx` wins over the Dockerfile's `-XX:MaxRAMPercentage=75`. If you raise the cap in the code, raise the heap by about 200 MiB per permit and the limit with it.
+
+Two different out-of-memory cases, both ending in a restart by the restart policy (do not remove the limit; raise limit and heap together, staging VM budget in the free-tier section above):
+- **Java heap exhausted.** `ExitOnOutOfMemoryError` ends the JVM at once, so the container exits (exit code 3) and restarts clean. `docker compose logs api` shows `Terminating due to java.lang.OutOfMemoryError: Java heap space`, and `docker inspect plateandbar-staging-api-1 --format '{{.State.OOMKilled}}'` stays **false**, because the kernel did not kill it. No Java code runs after the failed allocation, so GlitchTip does **not** get this error: the log line, the exit code and the restart are the only trace.
+- **Container limit hit (kernel kill).** The JVM dies with no Java error in the logs (exit code 137) and `OOMKilled` is **true**. Heap plus non-heap went over 1152 MiB: raise the limit.
+
+Section 10 step 2 (the image flags) needs this limit deployed first; its check is `docker inspect --format '{{.HostConfig.Memory}}' plateandbar-staging-api-1` printing `1207959552`.
+
 ## 3. Nightly backup
 
 `backup.sh` streams `mysqldump --single-transaction` through gzip to the bucket as `<prefix>/plateandbar-<UTC timestamp>.sql.gz` (uploaded as `.partial`, renamed only if the dump succeeded) and then deletes objects older than 30 days. rclone runs from the pinned `rclone/rclone` image with the remote defined from environment variables, so no credentials are written to disk besides `.env`.
@@ -222,3 +234,26 @@ What a content-only fix cannot do:
 - Reach a phone that has never been online since install, or that has not opened the app.
 
 After a content-only release, check the first three journeys of the checklist on a phone with the previous app version.
+
+## 9. Turning on the barcode lookup (#944, #987)
+
+Off by default (`OFF_ENABLED=false`): `GET /api/v1/foods/barcode/{code}` answers 503 `upstream_unavailable` and calls nothing. The same compose file serves staging and production; set the values in each VM's own `.env`. **Owner** steps, in order:
+
+1. Fill in Open Food Facts' API usage form (the one that registers an app that calls their API; find the current link on the OFF API documentation, <https://openfoodfacts.github.io/openfoodfacts-server/api/>) and read their terms for the data (ODbL, ADR 009).
+2. Choose the contact email that goes into the User-Agent (`PlateAndBar/<version> (<email>)`, at most 100 printable ASCII characters). It is sent to OFF with every lookup, so use a role address you are happy to publish, not a personal one.
+3. In the VM's `.env` set `OFF_CONTACT_EMAIL=<email>` and `OFF_ENABLED=true`. **The API refuses to start with `OFF_ENABLED=true` and an empty address**; if it restarts in a loop after this change, read `docker compose logs --tail 50 api` and check that line. Leave `OFF_BASE_URL` unset.
+4. The Caddy access log must redact the barcode before this is on (infra PR #976, merged): check that the VM's Caddy is up to date (`docker compose restart caddy` after a `git pull`, since the Caddyfile is a bind mount) and that `infra/scripts/check-caddy-access-log.sh` passes.
+5. `docker compose up -d api` (no rebuild; the flags are read at start), then `curl -s https://$API_HOST/api/v1/foods/barcode/737628064502`: expect 200 or 404 `not_found`, not 503 `upstream_unavailable`.
+
+To switch it off set `OFF_ENABLED=false` (or empty it) and run `docker compose up -d api`; nothing needs undoing.
+
+## 10. Turning on the AI image features (#946, #985)
+
+Three flags, all off by default: `AI_MEAL_PHOTO_ENABLED`, `AI_IMPORT_RECIPE_ENABLED`, `AI_FORM_CHECK_ENABLED`. A feature is on only while its flag is true, `AI_MONTHLY_BUDGET_TOKENS` is positive and a real provider is wired in; while only the stub exists every AI feature stays off whatever the flags say (`backend/README.md`, AI). **Owner** steps, in order:
+
+1. Choose a provider and a monthly budget (#926: the Claude `AiProvider` is not built yet; AI stays off until you pick provider and budget). Record the key as a VM environment variable only, never in the repository. The compose file passes no provider key yet: when #926 adds a provider, its key variable needs the same passthrough in `docker-compose.yml` (and an entry in `.env.example`) before it reaches the API.
+2. Confirm #990 (decode concurrency cap and heap decision) is merged and its infra PR, which sets the API container's memory limit, is deployed on that VM: `docker inspect --format '{{.HostConfig.Memory}}' plateandbar-staging-api-1` must not print 0. Image calls decode photos in memory; do not enable them without this.
+3. In the VM's `.env` set the wanted flags to `true` and `AI_MONTHLY_BUDGET_TOKENS` to a positive token count (0, the default, keeps everything off), then `docker compose up -d api`. Enable one feature at a time, staging first.
+4. Check `curl -s -H "Authorization: Bearer <token>" https://$API_HOST/api/v1/ai/status`: the feature reads `true`, the others `false`.
+
+To switch a feature off set its flag to `false` (or the budget to `0` for all of them) and run `docker compose up -d api`.

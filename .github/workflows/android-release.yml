@@ -52,6 +52,11 @@ on:
       - 'apps/mobile/scripts/licence-texts/**'
       # our own Kotlin module (#943): built here, and its JVM unit tests run below
       - 'apps/mobile/modules/**'
+      # the native project is generated from app.json and the local config plugins (#980): a change
+      # to either can change the release classpath, the licence list or the native libraries, and
+      # the guards below must run on it
+      - 'apps/mobile/app.json'
+      - 'apps/mobile/plugins/**'
   workflow_dispatch:
 
 permissions:

@@ -174,6 +174,11 @@ keyword is registered with the schema library as a non-validation keyword so it 
     `not_food` when nothing is left); Import recipe matches `content/raw-ingredients.json` names (any capitalisation) and moves
     unmatched or unusable-weight ingredients to `unmatched`; Form check sends the card's `key_cues` and `common_mistakes` and
     keeps only checks whose `cue` is a key cue verbatim. A `type_mismatch` or other fault never counts against the quota.
+    At most 2 images are decoded and re-encoded at once per API instance (`AiImages.PERMITS`, a fair semaphore; 4096 x 4096 x 4 B
+    is about 64 MB of pixels each). A request waits at most 2 s for a permit, then is 503 `unavailable` with `Retry-After: 2`
+    (`ImageBusyException`). That happens before the quota unit is reserved, so it costs nothing, and the permit is released in
+    a `finally` whatever the decode throws. The 2 s wait is per image, so a four-frame form check can wait up to 8 s in all.
+    The container's heap is sized for this in `infra/staging/docker-compose.yml` (`infra/RUNBOOK.md`, "API memory").
     Known gap: a PNG with very many tiny compressed text chunks costs CPU (each is inflated up to 65,537 bytes) but never memory.
   - While `StubAiProvider` is the active provider (`AiProvider.isStub()`), every feature is off whatever the flags say:
     `/ai/status` reports false and the endpoints answer 503 `feature_disabled`, so canned text never reaches users.
@@ -194,6 +199,7 @@ keyword is registered with the schema library as a non-validation keyword so it 
   - Content: Gradle copies every `content/*.json` into the jar under `/content` (`processResources`; the Dockerfile
     copies them too, and the build fails if `cards.json`, `exercises.json`, `foods.json` or `raw-ingredients.json` is missing). Ask why sends every
     card with conditional blocks `{?x}..{/x}` dropped (else branch kept) and bare `{x}` replaced by a neutral phrase.
+    A card with `hidden: true` in `cards.json` (held back, #212) is skipped when the file is read: it is not in the prompt, `hasCard` is false for it, so a request naming it is 400 `card_id` and a reply naming it gets `card_id` null.
   - Cache (the four text calls only): per user, in memory, Caffeine, 12 hours, keyed by user id and a hash of the normalised request. A cached
     answer still counts against the quota; failures are never cached.
   - Logs: one line per call with user id, feature, status and duration. Bodies, prompts and replies are never logged.
