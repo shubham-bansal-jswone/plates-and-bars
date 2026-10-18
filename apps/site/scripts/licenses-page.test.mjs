@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 const page = readFileSync(new URL("../src/pages/licenses.astro", import.meta.url), "utf8");
 
 test("points to the About screen's list of npm packages, Java/Kotlin libraries and native code", () => {
-  assert.match(page, /About screen, under Open-source licences, lists every npm package, every Java\/Kotlin library on the release build's classpath and the third-party native code linked into the app/);
+  assert.match(page, /About screen, under Open-source licences, lists the app's production npm packages, every Java\/Kotlin library on the release build's classpath and the third-party native code linked into the app/);
   assert.doesNotMatch(page, /does not cover the Android/);
 });
 
