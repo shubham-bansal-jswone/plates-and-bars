@@ -113,7 +113,7 @@ describe('Workout tab: preview and Start', () => {
     await setup({ now: SUNDAY });
     expect(await screen.findByText('Rest day')).toBeTruthy();
     expect(screen.queryByLabelText('Exercise 1: Barbell Bench Press')).toBeNull();
-    expect(screen.getByLabelText('Start Pull A')).toBeTruthy();
+    expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
   });
 
   it('Start stores the Workout and its sets in the contract shapes', async () => {
@@ -239,11 +239,12 @@ describe('Workout tab: preview and Start', () => {
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises.length).toBe(first);
   });
 
-  it('the other-template chips start with the where override', async () => {
+  it('the other-template chips preview, and Start then starts with the where override', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
     await press('Training away from your gym?');
     await press('Dumbbells only');
+    await press('Choose Pull A');
     await press('Start Pull A');
     await screen.findByText('Pull A (dumbbells only)');
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ where: 'dumbbells', base: 'Pull A' });
@@ -1017,6 +1018,7 @@ describe('Workout tab: write ordering and guards', () => {
     await screen.findByText('Push B day');
     await press('Sleep last night: Poor');
     await press('Lighter session');
+    await press('Choose Pull B');
     await press('Start Pull B');
     await waitFor(() => expect(db.rows.get(`workouts:${DATE}`)).toBeDefined());
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ base: 'Pull B', ci_choice: 'light', mods: { light: true } });

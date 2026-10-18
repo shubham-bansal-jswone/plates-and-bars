@@ -21,6 +21,7 @@ import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseFlow } from '../workout/AddExerciseFlow';
 import { BodyMap } from '../workout/BodyMap';
 import { musclesOf } from '../workout/muscles';
+import { workoutLists } from '../workout/workoutLists';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
@@ -145,12 +146,15 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
   const [override, setOverride] = useState<Workout['where']>(null);
   const [away, setAway] = useState(false);
   const [picking, setPicking] = useState(false);
+  // Choosing a workout only previews it (#1005): nothing is stored until Start. `previewT` is the workout being previewed, `picked` the hand-picked exercises (from any workout) waiting for Start.
+  const [previewT, setPreviewT] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
   const where = override ?? profile.where;
   const weekPlan = settings.adjustments.weekPlan as WeekPlan | undefined;
   const plan = planned(date, { profile, sessions: day.sessions, weekPlan, mode: settings.adjustments.mode as string | undefined });
   const nextT = plan ? nextInList(plan, profile) : null;
   const flags = checkinFlags(ci, nextT);
-  const startT = choice === 'swap' && nextT ? nextT : plan;
+  const startT = previewT ?? (choice === 'swap' && nextT ? nextT : plan);
   const pick = <K extends keyof Checkin>(k: K, v: NonNullable<Checkin[K]>) => {
     const next: Checkin = { ...ci, [k]: ci[k] === v ? undefined : v };
     setCi(next);
@@ -163,7 +167,18 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
   const { primary: prim, secondary: sec } = musclesOf(names);
   const eachSets = built && built.exercises.length && built.exercises.every((e) => e.sets === built.exercises[0]?.sets) ? built.exercises[0]?.sets : null;
   // This week's hand-picked plan replaces the usual list while it is the current week (prototype chipList).
-  const others = (coverageTemplates(date, profile, weekPlan) as readonly string[]).filter((k) => k !== plan);
+  const weekTemplates = coverageTemplates(date, profile, weekPlan) as readonly string[];
+  const others = weekTemplates.filter((k) => k !== plan);
+  const lists = workoutLists(weekTemplates, where);
+  const back = () => {
+    setPreviewT(null);
+    setPicked([]);
+  };
+  const preview = (k: string) => {
+    if (choice === 'swap') setChoice(null);
+    setPreviewT(k);
+  };
+  const { primary: pickedPrim, secondary: pickedSec } = musclesOf(picked);
 
   const awayLabel =
     where === profile.where
@@ -176,15 +191,32 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
       <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
       <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} now={now} />
-      <H1>{plan ? `${plan} day` : 'Rest day'}</H1>
+      <H1>{picked.length ? 'Your exercises' : previewT ? `${previewT} day` : plan ? `${plan} day` : 'Rest day'}</H1>
       <Hint>
-        {plan
+        {picked.length
+          ? 'Nothing is saved until you start. Add exercises from any workout.'
+          : previewT
+          ? 'Nothing is saved until you start. Go back to choose another workout.'
+          : plan
           ? weekPlan && weekPlan.start === mondayOf(date)
             ? `This week’s ${weekPlan.list.length}-day plan.`
             : 'Start with the planned exercises, then swap or add anything you like.'
           : 'Rest and recovery today. A walk and enough protein count. You can still log a session.'}
       </Hint>
-      {plan && built && startT ? (
+      {picked.length ? (
+        <Card>
+          <BodyMap primary={pickedPrim} secondary={pickedSec} />
+          {picked.map((n, i) => (
+            <Text key={n} accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15 }}>
+              {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
+              <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
+            </Text>
+          ))}
+          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice)} />
+          <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
+          <Button label="Back to workouts" kind="link" onPress={back} />
+        </Card>
+      ) : built && startT ? (
         <Card>
           <BodyMap primary={prim} secondary={sec} />
           <Text style={{ color: c.ink, fontSize: 15 }}>
@@ -232,7 +264,7 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
                 <WhyLink id={flags.reasons.includes('sore') ? 'soreness' : 'sleep'} />
                 <View style={styles.wrap}>
                   <Chip label="Lighter session" pressed={choice === 'light'} onPress={() => setChoice('light')} />
-                  {flags.swapTo ? <Chip label={`Swap with ${flags.swapTo}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}
+                  {flags.swapTo && !previewT ? <Chip label={`Swap with ${flags.swapTo}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}
                   <Chip label="Keep original" pressed={choice === 'orig'} onPress={() => setChoice('orig')} />
                 </View>
               </View>
@@ -242,16 +274,21 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
             {built?.mods.short ? <Hint>{ci.time} minutes: the main {built.exercises.length} exercises only.</Hint> : null}
           </View>
           <Button label={`Start ${startT}`} onPress={() => void w.start(startT, ci, choice, override)} />
+          {previewT ? <Button label="Pick exercises" kind="ghost" onPress={() => setPicking(true)} /> : null}
+          {previewT ? <Button label="Back to workouts" kind="link" onPress={back} /> : null}
         </Card>
       ) : null}
-      <View style={styles.wrap}>
-        {others.map((k) => (
-          <Chip key={k} label={`Start ${k}`} text={k} onPress={() => void w.start(k, ci, choice, override)} />
-        ))}
-        <Chip label="Pick exercises" onPress={() => setPicking(true)} />
-      </View>
-      <AddExerciseFlow open={picking} onClose={() => setPicking(false)} inSession={[]} quiet add={(n) => {
-          void w.startPicked(n, override, choice);
+      {previewT || picked.length ? null : (
+        <View style={styles.wrap}>
+          {others.map((k) => (
+            <Chip key={k} label={`Choose ${k}`} text={k} onPress={() => preview(k)} />
+          ))}
+          <Chip label="Pick exercises" onPress={() => setPicking(true)} />
+        </View>
+      )}
+      <AddExerciseFlow open={picking} onClose={() => setPicking(false)} inSession={picked} workouts={lists} quiet add={(n) => {
+          setPicked((p) => (p.includes(n) ? p : [...p, n]));
+          setPreviewT(null);
           return true;
         }} notify={notify} />
       <WeekTools date={date} notify={notify} />
@@ -282,6 +319,7 @@ function StartView({ v, now, w, profile, focus, rules, notify, tune }: { v: View
 function SessionView({ v, now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { v: ViewedDate; now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
+  const { settings } = useSettings();
   const [open, setOpen] = useState(false);
   // The muscle map is open until the first set is ticked (prototype sessionMapHtml); once the user taps it, their choice stays.
   const [mapOpen, setMapOpen] = useState<boolean | null>(null);
@@ -350,7 +388,7 @@ function SessionView({ v, now, db, reloadKey, w, profile, focus, rules, notify, 
         );
       })}
       <Button label="Add exercise" kind="ghost" onPress={() => setAdding(true)} />
-      <AddExerciseFlow open={adding} onClose={() => setAdding(false)} inSession={day.exs.map((e) => e.name)} add={w.addExercise} notify={notify} />
+      <AddExerciseFlow open={adding} onClose={() => setAdding(false)} inSession={day.exs.map((e) => e.name)} workouts={workoutLists(coverageTemplates(date, profile, settings.adjustments.weekPlan as WeekPlan | undefined) as readonly string[], wk.where ?? profile.where)} add={w.addExercise} notify={notify} />
       <Hint>Tap the tick with a field empty to use the suggested number. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
       {choices ? (
         <Card>
