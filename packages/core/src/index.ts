@@ -632,3 +632,11 @@ export { checkinBannerDue } from './progress';
  */
 export { offToUserFood, validateBarcode, expandUpcE } from './off';
 export type { OffProduct, OffNutriments, OffNumber, OffMapResult, OffUserFoodDraft, OffMissingField, OffWarning, BarcodeCheck, BarcodeFormat, ScannerFormat } from './off';
+
+/**
+ * Cycle log (device only, never synced; #625). `cycInfo` mirrors prototype `cycInfo(date)` (stored data passed in);
+ * `waterRetentionPhase` its `luteal || period` test, `sameDayLastCycle` the "Same day last cycle" date, `addCycleStart` /
+ * `removeLastCycleStart` the `cyc-log` / `cyc-undo` actions, `emptyCycle` the `cyc-off` value.
+ */
+export { cycInfo, waterRetentionPhase, sameDayLastCycle, addCycleStart, removeLastCycleStart, emptyCycle } from './cycle';
+export type { CycleData, CycleInfo, CyclePhase } from './cycle';
