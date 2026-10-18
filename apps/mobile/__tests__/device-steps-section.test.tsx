@@ -5,14 +5,18 @@ import { DeviceStepsProvider, useStepsVersion } from '../src/steps/DeviceStepsPr
 import { DeviceStepsSection } from '../src/steps/DeviceStepsSection';
 import { STEPS_COPY } from '../src/steps/copy';
 import { loadStepsOn, saveStepsOn } from '../src/steps/store';
+import { wipeLocalStore } from '../src/sync/guard';
 import { openDb } from './sync-helpers';
 
+jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 const mockSensor = {
   supported: true,
   present: true,
   granted: true,
   reading: { counter: 1000, elapsedMs: 1_000_000 } as { counter: number; elapsedMs: number } | null,
   asked: jest.fn(),
+  /** When set, a reading waits for it (a read still in flight). */
+  gate: null as Promise<void> | null,
 };
 jest.mock('../src/steps/sensor', () => ({
   deviceStepsSupported: () => mockSensor.supported,
@@ -22,7 +26,10 @@ jest.mock('../src/steps/sensor', () => ({
     mockSensor.asked(r);
     return mockSensor.granted;
   },
-  readStepCounter: async () => mockSensor.reading,
+  readStepCounter: async () => {
+    await mockSensor.gate;
+    return mockSensor.reading;
+  },
 }));
 
 let clock = new Date(2026, 9, 8, 10, 0, 0);
@@ -58,6 +65,7 @@ let appState: (s: string) => void = () => undefined;
 beforeEach(() => {
   Object.assign(mockSensor, { supported: true, present: true, granted: true, reading: { counter: 1000, elapsedMs: 1_000_000 } });
   mockSensor.asked.mockReset();
+  mockSensor.gate = null;
   clock = new Date(2026, 9, 8, 10, 0, 0);
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_t, h) => {
     appState = h as (s: string) => void;
@@ -162,5 +170,35 @@ describe('Phone step counter setting (#300)', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  /** On with a baseline stored, then a reading that is still in flight; returns the db and a way to finish the read. */
+  async function inFlight() {
+    const db = await setup({ on: true });
+    await waitFor(async () => expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'steps.device.baseline'")).not.toBeNull());
+    let release = () => {};
+    mockSensor.gate = new Promise<void>((r) => (release = r));
+    mockSensor.reading = { counter: 5000, elapsedMs: 3_000_000 };
+    await act(async () => appState('active'));
+    return { db, finish: () => act(async () => void release()) };
+  }
+
+  it('drops a reading that is still in flight when the toggle is turned off', async () => {
+    const { db, finish } = await inFlight();
+    await act(async () => void (await fireEvent(screen.getByLabelText(LABEL), 'valueChange', false)));
+    await finish();
+    await act(async () => void (await Promise.resolve()));
+    expect(await loadDayNote(db, DATE)).toBeNull();
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'steps.device.baseline'")).toBeNull();
+  });
+
+  it('drops a reading that is still in flight when the local store is wiped (sign-out, delete everything)', async () => {
+    const { db, finish } = await inFlight();
+    await wipeLocalStore(db, { force: true });
+    await finish();
+    await act(async () => void (await Promise.resolve()));
+    expect(await loadDayNote(db, DATE)).toBeNull();
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'steps.device.baseline'")).toBeNull();
+    expect(await loadStepsOn(db)).toBe(false);
   });
 });

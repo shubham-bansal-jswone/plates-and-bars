@@ -17,6 +17,7 @@ import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { TrendChart } from '../progress/TrendChart';
 import { useProgress } from '../progress/useProgress';
+import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -68,7 +69,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <WeightSection p={p} />
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
-            <StepsSleepSection key={`${p.today?.steps}:${p.today?.sleep}`} p={p} />
+            <StepsSleepSection key={p.date} p={p} />
             <WeekCard date={p.date} days={ci.days} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
           </>
         ) : (
@@ -171,8 +172,8 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
 
 function StepsSleepSection({ p }: { p: Progress }) {
   const c = useTheme();
-  const [steps, setSteps] = useState(p.today?.steps != null ? String(p.today.steps) : ''); // 0 is a real count (#303)
-  const [sleep, setSleep] = useState(p.today?.sleep != null ? String(p.today.sleep) : ''); // 0 h is valid (contract 0-24)
+  const [steps, setSteps] = useStoredText(p.today?.steps != null ? String(p.today.steps) : ''); // 0 is a real count (#303)
+  const [sleep, setSleep] = useStoredText(p.today?.sleep != null ? String(p.today.sleep) : ''); // 0 h is valid (contract 0-24)
   return (
     <View style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Heading>

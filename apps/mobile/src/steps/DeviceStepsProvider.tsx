@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { localDate } from '../setup/logic';
+import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
+import { storeEpoch } from '../db/storeEpoch';
 import { STEPS_COPY } from './copy';
 import { deviceStepsSupported, readStepCounter, requestStepPermission, stepPermissionGranted, stepSensorPresent } from './sensor';
 import { loadStepsOn, saveStepsOn, syncDeviceSteps } from './store';
@@ -33,7 +35,7 @@ const DAY_CHECK_MS = 60_000;
 const realNow = (): Date => new Date();
 
 interface Props {
-  db: StoreDb;
+  db: StoreDb & PullDb;
   children: ReactNode;
   /** Clock, injectable for tests (keep it the same function between renders). */
   now?: () => Date;
@@ -53,6 +55,8 @@ export function DeviceStepsProvider({ db, children, now = realNow }: Props) {
   const chain = useRef<Promise<unknown>>(Promise.resolve());
   // Writes of this provider run one after another, and a turn-off drops any reading still waiting.
   const gen = useRef(0);
+  // A wipe remounts this provider (it sits under the stores keyed by the sync epoch); a reading still in flight then drops its write.
+  useEffect(() => () => void gen.current++, []);
 
   const read = useCallback(() => {
     const mine = gen.current;
@@ -62,11 +66,18 @@ export function DeviceStepsProvider({ db, children, now = realNow }: Props) {
         if (!(await stepPermissionGranted())) return void setPermissionLost(true);
         setPermissionLost(false);
         const d = now();
-        const changed = await syncDeviceSteps(db, async () => {
-          const r = await readStepCounter();
-          return mine === gen.current ? r : null; // turned off while reading: write nothing
-        }, localDate(d), d.toISOString().replace(/\.\d{3}Z$/, 'Z'));
-        if (changed && mine === gen.current) setVersion((n) => n + 1);
+        const epoch = storeEpoch();
+        const stale = () => mine !== gen.current || storeEpoch() !== epoch; // turned off, unmounted or the store wiped since this reading started
+        const changed = await syncDeviceSteps(
+          db,
+          async () => {
+            const r = await readStepCounter();
+            return stale() ? null : r;
+          },
+          { today: localDate(d), msSinceMidnight: d.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(), stamp: d.toISOString().replace(/\.\d{3}Z$/, 'Z') },
+          stale,
+        );
+        if (changed && !stale()) setVersion((n) => n + 1);
       })
       .catch(() => undefined);
     return chain.current;
