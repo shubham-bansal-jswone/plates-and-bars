@@ -7,7 +7,7 @@ Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm
 - `foods-import/` regenerates `content/foods.json` from `docs/spec/golden/foods.json` (`npm run import:foods`).
 - `cards-import/` regenerates `content/cards.json` (KB and LEARN), `content/measures.json` (MEASURES) and `content/labels.json` (MUSCLE, JOINT, replacement-reason phrases) from the prototype (`npm run import:cards`); `validate/cards-cli.mjs` checks them (`npm run validate:cards`) and rejects a card without a source. See "Cards, measures and labels" below.
 - `golden-gen/` regenerates `docs/spec/golden/*.json` from the prototype's own code (`npm run golden`; `npm run check:golden` compares without writing). See "Golden fixtures" below.
-- `check-no-ifct/` exits non-zero if "IFCT" or "INDB" (any case) appears in a file name or file under `content/` (`npm run check:sources`). CI wiring lives in `.github/workflows/` (infra).
+- `check-no-ifct/` exits non-zero if "IFCT" or "INDB" (IFCT in any case, INDB as `INDB` or `indb`/`Indb` not glued to a letter before it, so `findByText` passes) appears in a file name or file under `content/`, `apps/mobile/src/content/`, `apps/mobile/src/about/licences.json`, `apps/site/src/`, `tests/e2e/store/` or the backend's `src/main/resources/` and `src/test/resources/` (`npm run check:sources`; `SCAN_ROOTS` in `check.mjs`). Policy docs, agent prompts and its own fixtures are not scanned. CI runs it in the `tools` job, which the path filter in `infra/scripts/detect-changes.sh` starts for changes under those folders.
 
 ## Golden fixtures
 
