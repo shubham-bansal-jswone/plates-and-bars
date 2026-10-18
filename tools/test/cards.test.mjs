@@ -184,3 +184,24 @@ test('importer fails loudly when the prototype loses a replacement phrase or a b
   assert.throws(() => importLabels(html.replace("'same movement'", "'similar'")), /same_movement/);
   assert.throws(() => importCards(html.replace('const KB = {', 'const KBX = {')), /KB not found/);
 });
+
+test('#969: exactly ramp, ladder and formfirst are held back, each with a reason; the rest carry no flag', () => {
+  const cards = load('cards.json').cards;
+  assert.deepEqual(cards.filter((c) => c.hidden).map((c) => c.id), ['ramp', 'ladder', 'formfirst']);
+  for (const c of cards) {
+    if (c.hidden) assert.ok(c.hidden === true && c.hidden_reason.includes('#212'), c.id);
+    else assert.ok(!('hidden' in c) && !('hidden_reason' in c), c.id);
+  }
+});
+
+test('#969: the hidden flag is validated (true only, with a reason; a reason alone is rejected)', () => {
+  const ok = load('cards.json');
+  const withCard = (patch) => ({ ...ok, cards: ok.cards.map((c) => (c.id === 'ramp' ? { ...c, ...patch } : c)) });
+  const without = (k) => ({ ...ok, cards: ok.cards.map((c) => { const { [k]: _gone, ...rest } = c; return c.id === 'ramp' ? rest : c; }) });
+  assert.deepEqual(validateCards(ok), []);
+  assert.match(validateCards(withCard({ hidden: false }))[0], /hidden must be true/);
+  assert.match(validateCards(withCard({ hidden: 'true' }))[0], /hidden must be true/);
+  assert.match(validateCards(withCard({ hidden_reason: ' ' }))[0], /hidden_reason missing/);
+  assert.match(validateCards(without('hidden_reason'))[0], /hidden_reason missing/);
+  assert.match(validateCards(without('hidden'))[0], /hidden_reason without hidden/);
+});

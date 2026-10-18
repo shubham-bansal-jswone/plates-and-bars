@@ -254,6 +254,12 @@ export const MIGRATIONS: readonly string[] = [
      updated_at TEXT NOT NULL,
      body TEXT NOT NULL
    );`,
+  // v8: the cycle log (#625), one JSON row under the key 'me'. Device only, by design: not in SYNC_TABLES, no outbox trigger
+  // and no backfill, so it can never be queued, pushed or pulled. A store wipe and the device export cover it (see guard.ts, exportLocal.ts).
+  `CREATE TABLE IF NOT EXISTS cycle_log (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );`,
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {

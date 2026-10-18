@@ -25,6 +25,8 @@ class ContractCoverageTest {
     /** Operations with no schema-checked test, and why. Nothing else may be listed. */
     static final Map<String, String> ALLOWLIST = Map.of(
             "GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)",
+            // TODO(#944): remove when the backend proxy lands
+            "GET /foods/barcode/{code}", "contract first; the Open Food Facts proxy is built in a later #944 PR",
             // TODO(#946): remove when the backend endpoints land
             "POST /ai/meal-photo", "contract first, backend follows (#946)",
             // TODO(#946): remove when the backend endpoints land
@@ -79,10 +81,11 @@ class ContractCoverageTest {
             String[] p = k.split(" ");
             assertThat(paths.path(p[1]).path(p[0].toLowerCase()).isMissingNode()).as(k).isFalse();
         });
-        // Pinned exactly: adding an operation here needs a reviewed change to this list. The three TODO(#946)
-        // entries go when the backend endpoints land (the test below fails until they do).
+        // Pinned exactly: adding an operation here needs a reviewed change to this list. The TODO(#944) and
+        // TODO(#946) entries go when the backend endpoints land (the test below fails until they do).
         assertThat(ALLOWLIST.keySet()).containsExactlyInAnyOrder(
-                "GET /foods", "POST /ai/meal-photo", "POST /ai/import-recipe", "POST /ai/form-check");
+                "GET /foods", "GET /foods/barcode/{code}",
+                "POST /ai/meal-photo", "POST /ai/import-recipe", "POST /ai/form-check");
     }
 
     @Test
