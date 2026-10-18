@@ -17,6 +17,13 @@ mutate() {
   ! cmp -s "$src" "$tmp/c" || fail "$kind: mutation '$label' changed nothing"
   if "$here/check-caddy-access-log.sh" "$kind=$tmp/c" > "$tmp/out" 2>&1; then fail "$kind passed with: $label"; fi
 }
+for kind in api stack; do
+  mutate "$kind" "barcode redaction removed" '/foods\/barcode/d'
+  mutate "$kind" "barcode redaction not case-insensitive" 's/(?i)//'
+  mutate "$kind" "barcode redaction replacement changed" 's/{code}/x/'
+  mutate "$kind" "barcode redaction back to digits only" 's/(?:\/|%2f).+\$/\/[0-9]+\/*$/'
+  mutate "$kind" "barcode redaction without the encoded slash" 's/|%2f//'
+done
 for kind in api web stack; do
   mutate "$kind" "ipv4 32" 's/ipv4 24/ipv4 32/'
   mutate "$kind" "ipv6 128" 's/ipv6 48/ipv6 128/'
@@ -39,5 +46,86 @@ for kind in api web; do
   mutate "$kind" "roll_size removed" '/roll_size/d'
   mutate "$kind" "file output removed" 's/output file .*{/output stderr {/'
 done
+# The global `log default` block (access lines for a Host missing from Caddy's per-host log map): gone, or missing one
+# filter inside the block only (the same filter elsewhere in the file must not satisfy it)
+for kind in stack site; do
+  mutate "$kind" "log default block removed" '/^\tlog default {/,/^\t}$/d'
+  mutate "$kind" "log default without stderr output" '/^\tlog default {/,/^\t}$/{/output stderr/d;}'
+  mutate "$kind" "log default without remote_ip mask" '/^\tlog default {/,/^\t}$/{/request>remote_ip ip_mask/,/^\t\t\t}$/d;}'
+  mutate "$kind" "log default without client_ip mask" '/^\tlog default {/,/^\t}$/{/request>client_ip ip_mask/,/^\t\t\t}$/d;}'
+  mutate "$kind" "log default without query cut" '/^\tlog default {/,/^\t}$/{/request>uri regexp/d;}'
+  mutate "$kind" "log default keeps request headers" '/^\tlog default {/,/^\t}$/{/request>headers delete/d;}'
+  mutate "$kind" "log default keeps response headers" '/^\tlog default {/,/^\t}$/{/resp_headers delete/d;}'
+done
+# the `log errors` block on its own (the default block repeats every filter)
+mutate stack "log errors with ipv4 32" '/^\tlog errors {/,/^\t}$/s/ipv4 24/ipv4 32/'
+mutate stack "log errors without the barcode rule" '/^\tlog errors {/,/^\t}$/{/foods\/barcode/d;}'
+mutate stack "log errors without client_ip mask" '/^\tlog errors {/,/^\t}$/{/request>client_ip ip_mask/,/^\t\t\t}$/d;}'
+mutate stack "log errors keeps request headers" '/^\tlog errors {/,/^\t}$/{/request>headers delete/d;}'
+mutate stack "log default without the barcode rule" '/^\tlog default {/,/^\t}$/{/foods\/barcode/d;}'
+mutate glitchtip "log default block removed" '/^\tlog default {/,/^\t}$/d'
+mutate glitchtip "log default keeps request headers" '/^\tlog default {/,/^\t}$/{/request>headers delete/d;}'
 mutate stack "error log not included" '/include http.log.error/d'
+mutate stack "reverse_proxy logger not included" 's/ http.handlers.reverse_proxy//'
+mutate stack "reverse_proxy logger included alone" 's/include http.log.error http.handlers.reverse_proxy/include http.handlers.reverse_proxy/'
+# glitchtip=<file>: same generic pins plus the error-log include; no barcode pin (the real file has no barcode rule)
+"$here/check-caddy-access-log.sh" "glitchtip=$root/infra/caddy/Caddyfile.glitchtip" > "$tmp/out" 2>&1 || fail "glitchtip file does not pass: $(cat "$tmp/out")"
+for script in 's/ http.handlers.reverse_proxy//' '/request>client_ip ip_mask/,/^[[:space:]]*}/d' 's/336h/87600h/'; do
+  sed "$script" "$root/infra/caddy/Caddyfile.glitchtip" > "$tmp/c"
+  if "$here/check-caddy-access-log.sh" "glitchtip=$tmp/c" > "$tmp/out" 2>&1; then fail "glitchtip passed with: $script"; fi
+done
+
+# The barcode regexp, read from the real Caddyfiles (Go RE2; Python's re reads this pattern the same way), on sample URIs,
+# with the two URI rules applied in BOTH orders: the rule must not depend on running after the query cut.
+for kind in api stack; do
+  python3 -I - "$root/infra/caddy/Caddyfile.$kind" <<'PY' || fail "$kind: barcode regexp samples"
+import re, sys
+text = open(sys.argv[1]).read()
+cut = re.search(r'request>uri regexp "(\\\?\.\*\$)" ""', text)
+m = re.search(r'request>uri regexp "(\(\?i\)\(/foods/barcode\)[^"]*)" "\$\{1\}/\{code\}"', text)
+if not (cut and m):
+    sys.exit("filters not found")
+c, p = re.compile(cut.group(1)), re.compile(m.group(1))
+R = "/api/v1/foods/barcode/{code}"
+want = {
+    "/api/v1/foods/barcode/5449000000996": R,
+    "/api/v1/foods/barcode/5449000000996/": R,
+    "/api/v1/foods/barcode/5449000000996///": R,
+    "/api/v1/foods/barcode/5449000000996?a=1": R,
+    "/api/v1/foods/barcode/5449000000996/?a=1": R,
+    "/API/V1/FOODS/BARCODE/5449000000996": "/API/V1/FOODS/BARCODE/{code}",
+    "/api/v1/Foods/Barcode/04252614": "/api/v1/Foods/Barcode/{code}",
+    "/foods/barcode/012345678905": "/foods/barcode/{code}",
+    "/v2/api/v1/foods/barcode/012345678905": "/v2/api/v1/foods/barcode/{code}",
+    "https://h/api/v1/foods/barcode/012345678905": "https://h/api/v1/foods/barcode/{code}",
+    # typed junk, encoded and extra parts all go
+    "/api/v1/foods/barcode/1234abc": R,
+    "/api/v1/foods/barcode/5449000000996%20": R,
+    "/api/v1/foods/barcode/%35449000000996": R,
+    "/api/v1/foods/barcode/5449000000996;jsessionid=x": R,
+    "/api/v1/foods/barcode/5449000000996/extra": R,
+    "/api/v1/foods/barcode/5449%2F000000996": R,
+    "/api/v1/foods/barcode%2F5449000000996": R,
+    "/api/v1/foods/barcode%2f5449000000996": R,
+    "/api/v1/foods/barcode/5449000000996?email=a@b.c": R,
+    # left alone
+    "/api/v1/foods/barcode/": "/api/v1/foods/barcode/",
+    "/api/v1/foods/barcode": "/api/v1/foods/barcode",
+    "/api/v1/foods": "/api/v1/foods",
+    "/foods": "/foods",
+    "/api/v1/foods?q=5449000000996": "/api/v1/foods",
+    "/api/v1/health": "/api/v1/health",
+}
+orders = {"cut then barcode": lambda u: p.sub(r"\1/{code}", c.sub("", u)),
+          "barcode then cut": lambda u: c.sub("", p.sub(r"\1/{code}", u))}
+bad = []
+for name, run in orders.items():
+    for uri, exp in want.items():
+        got = run(uri)
+        if got != exp or re.search(r"[0-9]{4}", got.replace("/api/v1", "")):
+            bad.append("%s: %s -> %s, want %s" % (name, uri, got, exp))
+if bad:
+    sys.exit("\n".join(bad))
+PY
+done
 echo "check-caddy-access-log tests passed"
