@@ -63,3 +63,7 @@ jobs:
         run: |
           shellcheck ../journald/install.sh ../journald/test-install.sh
           ../journald/test-install.sh
+      - name: erasure ledger upload and replay (shellcheck, then against a stub docker)
+        run: |
+          shellcheck -x ledger-lib.sh ledger-upload.sh ledger-replay.sh test-ledger.sh
+          ./test-ledger.sh
