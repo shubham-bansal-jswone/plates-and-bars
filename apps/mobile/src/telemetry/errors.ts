@@ -5,10 +5,9 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { randomUUID } from 'expo-crypto';
 import { errorRelease } from '../appVersion';
+import { INSTALL_ID_KEY } from '../secure/tokens';
+import { getInstallId, onInstallIdForgotten, setInstallId } from './installId';
 import { scrubBreadcrumb, scrubEvent } from './scrub';
-
-const INSTALL_ID_KEY = 'pb.install_id';
-let installId: string | null = null;
 
 /** A random id created once per install and kept in the keystore. It is not tied to an account, email or device. */
 async function loadInstallId(): Promise<string> {
@@ -42,11 +41,12 @@ export function initErrorTracking(
     // The default breadcrumbs integration records console and network calls; the scrubber drops those too, as a second guard.
     integrations: (defaults) => defaults.filter((i) => i.name !== 'Breadcrumbs'),
     beforeBreadcrumb: scrubBreadcrumb,
-    beforeSend: (event) => scrubEvent(event, installId),
+    beforeSend: (event) => scrubEvent(event, getInstallId()),
   });
+  onInstallIdForgotten(() => Sentry.setUser(null));
   loadInstallId()
     .then((id) => {
-      installId = id;
+      setInstallId(id);
       Sentry.setUser({ id });
     })
     .catch(() => undefined); // events then carry no user id at all
