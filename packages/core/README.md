@@ -97,7 +97,7 @@ profile's (#272). A pick stays in the replaced exercise's part (first or second 
 The food rules take foods in content/foods.json's `Food` shape and logs in the contract's `FoodLog`
 shape (logs with `deleted_at` set are left out). Fibre, added sugar and fruit and veg are looked up by
 the log's exact name, as the prototype does (`food_id` is not read): pass the shared foods, then the
-user's foods as `FoodFacts`. Totals come back unrounded; show energy, fibre and sugar with `Math.round`
+eat-out dishes, then the user's foods as `FoodFacts`. Totals come back unrounded; show energy, fibre and sugar with `Math.round`
 and fruit and veg to 0.1, as the prototype does. `dayComplete` takes the settings calorie target, not the
 flexed one, and applies its fallback (3 or more logs, 75% of target) only to days before `today`; today
 is complete only by the user's tick (#150).
