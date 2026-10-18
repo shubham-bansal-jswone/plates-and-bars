@@ -36,7 +36,7 @@ describe('generated licences.json', () => {
     expect(by('org.jetbrains.kotlin:kotlin-stdlib').version).toMatch(/^\d/);
     for (const a of d.android) {
       expect(a.url).toMatch(/^https:\/\//);
-      if (!a.licence.includes('CDDL')) expect(d.texts[a.text!]).toBeTruthy();
+      expect(d.texts[a.text!]).toBeTruthy();
     }
     expect(d.android.filter((a) => !a.version)).toEqual([]);
   });
