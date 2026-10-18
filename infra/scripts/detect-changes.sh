@@ -55,3 +55,5 @@ if has_npm apps/site && want apps/site/; then emit site true; else emit site fal
 if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/; then emit e2e true; else emit e2e false; fi
 # the sync tests also run the real API (tests/e2e/stack builds backend/), so a backend change must run them
 if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/ backend/; then emit e2e_sync true; else emit e2e_sync false; fi
+# the Play listing text must stay within Google's limits and carry the setup disclaimer word for word (needs only node, no install)
+if [ -f docs/check-play-listing.mjs ] && want docs/PLAY-STORE-LISTING.md docs/check-play-listing.mjs apps/mobile/src/setup/copy.ts; then emit play_listing true; else emit play_listing false; fi

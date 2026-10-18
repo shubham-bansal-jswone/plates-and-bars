@@ -28,6 +28,24 @@ const TEXT_MAX = 1000;
  */
 export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (n: NewLog) => void; onClose: () => void }) {
   const c = useTheme();
+  return (
+    <SheetModal title={AI_COPY.describeTitle(meal)} onClose={onClose}>
+      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
+        <View style={styles.body}>
+          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.describeTitle(meal)}</Heading>
+          <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} />
+          <Button kind="ghost" label="Close" onPress={onClose} />
+        </View>
+      </ScrollView>
+    </SheetModal>
+  );
+}
+
+/**
+ * The Describe flow without a sheet around it, so the meal-card sheet and the add sheet's Describe it mode share one flow
+ * (consent, quota and error handling included). `onClose` runs after the items are logged.
+ */
+export function DescribeBody({ meal, onAdd, onClose }: { meal: string; onAdd: (n: NewLog) => void; onClose: () => void }) {
   const ai = useAi();
   const [text, setText] = useState('');
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -67,10 +85,7 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
   };
 
   return (
-    <SheetModal title={AI_COPY.describeTitle(meal)} onClose={onClose}>
-      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
-        <View style={styles.body}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{AI_COPY.describeTitle(meal)}</Heading>
+    <View style={styles.inner}>
           {rows ? (
             <>
               <View accessibilityLiveRegion="polite"><Hint>{AI_COPY.reviewHint}</Hint></View>
@@ -104,16 +119,14 @@ export function DescribeSheet({ meal, onAdd, onClose }: { meal: string; onAdd: (
               {exhausted ? null : <Button label={busy ? 'Estimating…' : 'Estimate'} a11yLabel="Estimate" busy={busy} onPress={() => void estimate()} />}
             </>
           )}
-          <Button kind="ghost" label="Close" onPress={onClose} />
-        </View>
-      </ScrollView>
-    </SheetModal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   body: { width: '100%', maxWidth: 560, gap: 10 },
+  inner: { gap: 10 },
   gap: { gap: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

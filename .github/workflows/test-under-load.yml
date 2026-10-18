@@ -1,0 +1,46 @@
+name: test-under-load
+
+# Nightly and manual run of the mobile jest suite under CPU load (npm run test:load,
+# apps/mobile/scripts/test-under-load.mjs), to catch tests that depend on wall-clock
+# time on a noisy runner (#660). Never runs on pull requests. Inputs reach the shell
+# only through env: and are quoted, never interpolated into run:.
+on:
+  schedule:
+    - cron: '17 3 * * *' # nightly, 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      stall_ms:
+        description: 'Block the event loop for this many ms on every turn (0 = off; slow, use with a file pattern)'
+        default: '0'
+      pattern:
+        description: 'Jest test path pattern (empty = whole suite)'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - name: Run the suite under load
+        env:
+          STALL_MS: ${{ inputs.stall_ms }}
+          PATTERN: ${{ inputs.pattern }}
+        run: |
+          if [ -n "$PATTERN" ]; then
+            npm run test:load -- --stall-ms "${STALL_MS:-0}" "$PATTERN"
+          else
+            npm run test:load -- --stall-ms "${STALL_MS:-0}"
+          fi

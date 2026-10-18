@@ -8,14 +8,17 @@ import { fmt } from '../format';
 import { a11yState, Heading, Button, ErrorText, Field, Hint, Label, Switch, Press } from '../components/ui';
 import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { AI_COPY } from '../ai/copy';
+import { DescribeBody } from '../ai/DescribeSheet';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
-import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
+import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, noMatch, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
 
 import type { UserFood } from './types';
 
-type Mode = 'list' | 'out' | 'custom';
+type Mode = 'list' | 'out' | 'custom' | 'describe';
 const MODES: [Mode, string][] = [['list', 'Food list'], ['out', 'Eating out'], ['custom', 'Custom']];
+const DESCRIBE_MODE: [Mode, string] = ['describe', AI_COPY.describeButton];
 
 interface Props {
   meal: string;
@@ -24,12 +27,17 @@ interface Props {
   onAdd: (n: NewLog) => void;
   onSaveMine: (f: Extract<CustomFoodResult, { kind: 'ok' }>['food']) => UserFood;
   onClose: () => void;
+  /** True when the describe-meal feature is available (consent, server, signed in): shows the Describe it tab. */
+  canDescribe?: boolean;
 }
 
-/** The add-food sheet: food list (search, servings or grams), eating out, custom food. */
-export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: Props) {
+/** The add-food sheet: food list (search, servings or grams), eating out, custom food, and Describe it (AI) when it is on. */
+export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false }: Props) {
   const c = useTheme();
   const [mode, setMode] = useState<Mode>('list');
+  // Describe keeps its text, estimate and pending request while another tab is shown, as the prototype's FS does: it mounts on
+  // the first visit and is then only hidden. It stays reachable while selected even if AI is switched off, so its message shows.
+  const [seenDescribe, setSeenDescribe] = useState(false);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   const say = (text: string, error = false) => setStatus({ text, error });
   return (
@@ -38,16 +46,21 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose }: 
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
-            {MODES.map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); }}
+            {(canDescribe || mode === 'describe' ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k === 'describe') setSeenDescribe(true); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
             ))}
           </View>
-          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} /> : null}
+          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} /> : null}
+          {seenDescribe ? (
+            <View style={mode === 'describe' ? undefined : styles.hidden} accessibilityElementsHidden={mode !== 'describe'} importantForAccessibility={mode === 'describe' ? 'auto' : 'no-hide-descendants'}>
+              <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} />
+            </View>
+          ) : null}
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
@@ -78,7 +91,7 @@ function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress:
   );
 }
 
-function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
+function ListTab({ mine, mineFacts, onAdd, say, canDescribe }: { canDescribe: boolean; mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
   const c = useTheme();
   const [q, setQ] = useState('');
   const [serv, setServ] = useState(1);
@@ -106,7 +119,7 @@ function ListTab({ mine, mineFacts, onAdd, say }: { mine: readonly UserFood[]; m
       <Hint>{GRAMS_HINT}</Hint>
       <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={styles.search} />
       {list.length ? <Hint>{SOURCE_HINT}</Hint> : null}
-      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>No match. Use Custom to enter it yourself.</Hint>}
+      {list.length ? list.map((f) => <Row key={`${f.id}:${f.name}`} food={f} sub={`${f.serving.label}, ${f.per_serving.protein_g} g protein`} onPress={() => pick(f)} />) : <Hint>{noMatch(canDescribe)}</Hint>}
     </View>
   );
 }
@@ -172,6 +185,7 @@ const styles = StyleSheet.create({
   body: { width: '100%', maxWidth: 560, gap: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   gap: { gap: 8 },
+  hidden: { display: 'none' },
   tab: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },

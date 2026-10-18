@@ -252,7 +252,7 @@ Still open (#155): after M0, the planned count may move to the built session's r
 - `unitGrams` reads whole numbers only: a decimal loses its whole part ("1.5 g" reads 5). No content label has a decimal gram weight.
 - The added-sugar line checks the unrounded total, so 9.6 g is hidden although it would show as 10 g.
 - "≥3 meals" for a complete day counts logged items, not meal slots: three items in one meal count as three.
-- Cola's added sugar (35 g for "Cola (330 ml)") is only in the eat-out table, which is not in M0 content, so a logged cola counts no added sugar until that table ships.
+- Cola's added sugar (35 g for "Cola (330 ml)") is in the eat-out table only. The eat-out dishes carry fibre and added sugar from the prototype's `FIB` (#858), and the Food totals count them by logged name, as the prototype's `fibOf` does (#866), so a logged Cola counts 35 g.
 
 ---
 

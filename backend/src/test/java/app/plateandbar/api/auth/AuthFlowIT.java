@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import app.plateandbar.api.common.ApiException;
+import app.plateandbar.api.sync.ContractSchemas;
 import app.plateandbar.api.support.MutableClock;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -145,6 +146,7 @@ class AuthFlowIT {
         assertThat(start(email).getStatusCode().value()).isEqualTo(202);
         ResponseEntity<Map> res = verify(email, mail.lastCode);
         assertThat(res.getStatusCode().value()).isEqualTo(200);
+        ContractSchemas.assertResponse("POST /auth/email/verify", 200, res.getBody());
         return res.getBody();
     }
 
@@ -371,6 +373,7 @@ class AuthFlowIT {
         ResponseEntity<Map> res = refresh(pair.get("refresh_token"));
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         Map next = res.getBody();
+        ContractSchemas.assertResponse("POST /auth/refresh", 200, next);
         assertThat(next.get("refresh_token")).isNotEqualTo(pair.get("refresh_token"));
         assertThat(next.get("new_user")).isEqualTo(false);
         assertThat(user(next).get("id")).isEqualTo(user(pair).get("id"));
