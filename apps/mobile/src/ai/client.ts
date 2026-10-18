@@ -124,3 +124,6 @@ export const mealPhoto = (d: AiDeps, image: AiImage, hint?: string) =>
 
 /** `POST /ai/import-recipe`: sends the pasted text and/or the one re-encoded photo (at least one). Nothing is kept here. */
 export const importRecipe = (d: AiDeps, body: Schemas['ImportRecipeRequest']) => run<Schemas['ImportRecipeResponse']>(d, (signal) => d.api.POST('/ai/import-recipe', { body, signal }));
+
+/** `POST /ai/form-check`: sends the catalogue exercise's name and 2 to 4 re-encoded frames. The video never gets here. */
+export const formCheck = (d: AiDeps, exercise: string, frames: AiFrame[]) => run<Schemas['FormCheckResponse']>(d, (signal) => d.api.POST('/ai/form-check', { body: { exercise, frames }, signal }));

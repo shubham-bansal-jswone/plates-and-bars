@@ -36,13 +36,34 @@ export const IMAGE_ISSUE_MESSAGE: Record<ImageIssue, string> = {
 export const imageFailureMessage = (f: AiFailure, fallback: string, invalid = 'That photo wasn’t accepted. Try another one.'): string =>
   failureMessage(f, fallback, f.kind === 'invalid' && f.issue && (!f.field || /^(image|frames)\b/.test(f.field)) ? IMAGE_ISSUE_MESSAGE[f.issue] : invalid);
 
+/** What each 400 `issue` says about a form-check frame (`frames[n].data`); the frame is named when the server says which. */
+export const FRAME_ISSUE_MESSAGE: Record<ImageIssue, string> = {
+  too_large: 'That frame is too big. Try a shorter clip or different photos.',
+  invalid_base64: 'That frame couldn’t be read. Try a different clip or photos.',
+  unreadable_image: 'That frame couldn’t be read. Try a different clip or photos.',
+  unsupported_type: 'Only JPEG and PNG frames work. Try a different clip or photos.',
+  type_mismatch: 'That file isn’t the kind of image it says it is. Choose different photos.',
+  dimensions: 'That frame is too large to send. Try a different clip or photos.',
+};
+
+/** A form check's failure: `exercise` the check is not offered for, a named frame fault (with its number), or the generic 400. */
+export function formCheckFailureMessage(f: AiFailure, fallback: string): string {
+  if (f.kind !== 'invalid') return failureMessage(f, fallback);
+  if (f.field === 'exercise') return AI_COPY.formNotCatalogue;
+  if (f.issue) {
+    const n = /^frames\[(\d+)\]/.exec(f.field ?? '');
+    return `${n ? `Frame ${Number(n[1]) + 1}: ` : ''}${FRAME_ISSUE_MESSAGE[f.issue]}`;
+  }
+  return AI_COPY.formInvalid;
+}
+
 export const quotaMessage = (q: AiQuota, fallback: string): string => failureMessage({ kind: 'quota', quota: q }, fallback);
 
 export const AI_COPY = {
   consentTitle: 'AI features',
   consentLabel: 'Use AI features',
   consentOff: 'Off by default. Everything in the app works without it.',
-  consentSent: 'When you use one, the app sends only this to our server, which passes it to an AI service. Describe a meal: the text you type. Ask why: the card name and the question you type. Suggest muscles: when you add your own exercise, the name you typed for it, so the AI can suggest its muscles and other tags. Weekly summary: this week’s sessions, days logged, average calories and protein, average weight this and last week, the names of lifts that improved or stalled, your calorie and protein targets, your goal and your estimated burn. Meal photo: the one photo you take or pick, shrunk and re-saved without its location or other details, and the note you type. Import recipe: the recipe text you paste and, if you add one, one photo of the recipe. A photo is used for that one answer; the app does not keep it and our server does not save it. Never your name, email, progress photos, cycle or lab data. Our server does not save or log what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours so a repeat question is quick. The AI service gets only the request, never who you are, and is set not to keep it or learn from it where it offers that.',
+  consentSent: 'When you use one, the app sends only this to our server, which passes it to an AI service. Describe a meal: the text you type. Ask why: the card name and the question you type. Suggest muscles: when you add your own exercise, the name you typed for it, so the AI can suggest its muscles and other tags. Weekly summary: this week’s sessions, days logged, average calories and protein, average weight this and last week, the names of lifts that improved or stalled, your calorie and protein targets, your goal and your estimated burn. Meal photo: the one photo you take or pick, shrunk and re-saved without its location or other details, and the note you type. Import recipe: the recipe text you paste and, if you add one, one photo of the recipe. Form check: the exercise name and 2 to 4 still frames cut on your phone from your own video or photos; the video itself never leaves your phone. A photo or frame is used for that one answer; the app does not keep it and our server does not save it. Never your name, email, progress photos, cycle or lab data. Our server does not save or log what you send or get back; it may keep an answer in memory, for you only, for up to 24 hours so a repeat question is quick. The AI service gets only the request, never who you are, and is set not to keep it or learn from it where it offers that.',
   consentNone: 'None of the AI features are switched on yet. They will show up here when they are.',
   consentOn: (names: string[]) => `Available now: ${names.join(', ')}.`,
   consentLeft: (q: AiQuota) => `${q.remaining} of ${q.limit} AI answers left today.`,
@@ -92,6 +113,33 @@ export const AI_COPY = {
   importInvalid: 'That recipe wasn’t accepted. Shorten the text and try again.',
   importPhotoInvalid: 'That photo wasn’t accepted. Try another one.',
   importUnmatched: (names: readonly string[]) => `Not matched, so left out: ${names.join(', ')}. Add them by hand if they matter.`,
+  formOpen: 'Check my form',
+  formTitle: (ex: string) => `Check my form: ${ex}`,
+  formHowWeb: 'Prop your phone about 2–3 metres away, side view, whole body in frame, and take 2 to 4 photos of one set in the order they happened. Only those few still frames are sent for analysis, and only if you have turned on AI features.',
+  formHow: 'Prop your phone on the floor about 2–3 metres away, side view, whole body in frame. Record one set with your camera app, then choose the video here. The video stays on your phone; only a few still frames are sent for analysis, and only if you have turned on AI features.',
+  formVideo: 'Choose a video',
+  formVideoAnother: 'Use a different video',
+  formPhotos: 'Choose 2 to 4 photos',
+  formTake: 'Take a photo',
+  formFrame: (n: number) => `Frame ${n} from your set`,
+  formClear: 'Clear frames',
+  formFrames: (n: number) => `${n} frame${n === 1 ? '' : 's'} ready. Only these are sent.`,
+  formNeedTwo: 'Choose a video, or 2 to 4 photos in the order they happened.',
+  formRun: 'Get a second opinion',
+  formBusy: 'Looking at your set…',
+  formCutting: 'Cutting frames…',
+  formVideoFailed: 'Couldn’t read frames from that video. Try a shorter clip (under a minute) in MP4.',
+  formOneFrame: 'One frame is ready. Add at least one more, up to 4: take another photo, or choose a video or photos.',
+  formMax: 'That’s 4 frames, the most that can be sent. Clear frames to start over.',
+  formCancel: 'Cancel',
+  formCues: 'Check yourself against the cues',
+  formSecond: 'Second opinion',
+  formNotVisible: 'Your body wasn’t clearly in view. Try a side view with your whole body in frame.',
+  formStatus: { good: 'Looks good', watch: 'Watch this', unclear: 'Can’t tell' } as Record<string, string>,
+  formDisclaimer: 'Second opinion, not a coach. It can spot obvious things like depth or a rounded back from a few frames, and will miss subtle ones. Anything painful: stop and see a physio.',
+  formFallback: 'The cue checklist still works.',
+  formNotCatalogue: 'Form check isn’t available for this exercise. The cue checklist still works.',
+  formInvalid: 'That wasn’t accepted. Try a different clip or photos.',
   reviewHint: 'Estimates for the whole amount. Fix anything that looks off; nothing is logged until you add.',
   askButton: 'Ask why',
   askTitle: 'Ask why',
