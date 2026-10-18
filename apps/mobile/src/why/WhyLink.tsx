@@ -35,7 +35,7 @@ export function WhySheet({ id, values, onClose, now = () => new Date() }: { id: 
   if (!card) return null;
   return (
     <SheetModal title={card.title} onClose={onClose}>
-      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled" onAccessibilityEscape={onClose}>
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{card.title}</Heading>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{card.summary}</Text>

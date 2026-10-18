@@ -12,7 +12,7 @@ import { memoryTokenStore } from '../src/sync/tokens';
 import { KEY_USER } from '../src/sync/store';
 import { withSyncPaused } from '../src/sync/guard';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { WhyLink } from '../src/why/WhyLink';
+import { WhyLink, WhySheet } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
 
@@ -652,6 +652,13 @@ describe('Why sheet follow-up', () => {
     expect(at('"Ask a follow-up"')).toBeGreaterThan(at('Source: '));
     expect(at('"Close"')).toBeGreaterThan(at('"Ask a follow-up"'));
     expect(screen.getAllByLabelText('Close')).toHaveLength(1);
+  });
+
+  it('closes on the screen-reader escape gesture, since Close is at the bottom (#1006)', async () => {
+    const onClose = jest.fn();
+    await render(<WhySheet id="protein" onClose={onClose} />);
+    await fireEvent(screen.getByLabelText('Close'), 'accessibilityEscape');
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('shows its label as visible text that stays once the user types', async () => {
