@@ -10,6 +10,7 @@ libgesturehandler.so
 libgifimage.so
 libhermestooling.so
 libhermesvm.so
+libimage_processing_util_jni.so
 libimagepipeline.so
 libjsi.so
 libnative-filters.so
@@ -25,5 +26,7 @@ libsentry-android.so
 libsentry-tm-perf-logger.so
 libsentry.so
 libstatic-webp.so
+libsurface_util_jni.so
 libworklets.so
 libzstd-kmp.so
+libzxingcpp_android.so

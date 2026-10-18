@@ -1,0 +1,23 @@
+/** Copy for the barcode scanner (#944, spec D6). No message holds a barcode. */
+export const BARCODE_COPY = {
+  title: 'Scan barcode',
+  viewfinder: 'Point the camera at the barcode on the pack.',
+  rationale: 'Plate & Bar uses the camera to read barcodes. Nothing from the camera is saved or sent.',
+  rationaleTitle: 'Camera for barcodes',
+  allow: 'Allow camera',
+  allowA11y: 'Allow the camera to read barcodes',
+  cancel: 'Not now',
+  denied: 'Camera is off for Plate & Bar. Type the barcode instead.',
+  openSettings: 'Open settings',
+  unavailable: 'Scanning is not available on this device. Type the barcode instead.',
+  cameraFailed: 'The camera did not start. Type the barcode instead.',
+  typeInstead: 'Type the barcode instead',
+  fieldLabel: 'Barcode number',
+  fieldHint: 'The digits under the bars, 8, 12 or 13 of them',
+  use: 'Use this number',
+  invalid: 'That number does not look right. Check the digits on the pack.',
+  scanAgain: 'Scan again',
+  torchOn: 'Turn the torch on',
+  torchOff: 'Turn the torch off',
+  close: 'Close',
+};
