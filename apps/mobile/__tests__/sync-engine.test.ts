@@ -8,7 +8,7 @@ import { naturalId, uuidv5 } from '../src/sync/ids';
 import { getCursor, setKv, KEY_USER, getLiftVersion } from '../src/sync/store';
 import { saveLift, deleteLift } from '../src/db/workouts';
 import { deleteKitchenPhoto } from '../src/photos/vault';
-import { openDb, fakeServer, memoryTokens, seedConsent } from './sync-helpers';
+import { openDb, fakeServer, memoryTokens, seedConsent, turns } from './sync-helpers';
 // No @types/node in this app: describe the few node:crypto calls used.
 interface Hash { update(d: unknown): Hash; digest(): { subarray(a: number, b: number): { [i: number]: number; toString(enc: string): string } } }
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -63,8 +63,13 @@ describe('write lock', () => {
   it('runs tasks one at a time in order, even when an earlier one fails', async () => {
     const lock = new WriteLock();
     const log: string[] = [];
-    const slow = lock.run(async () => { log.push('a start'); await new Promise((r) => setTimeout(r, 20)); log.push('a end'); throw new Error('x'); });
+    let finishA!: () => void;
+    const held = new Promise<void>((r) => (finishA = r));
+    const slow = lock.run(async () => { log.push('a start'); await held; log.push('a end'); throw new Error('x'); });
     const fast = lock.run(async () => void log.push('b'));
+    await turns();
+    expect(log).toEqual(['a start']); // b waits while a is held
+    finishA();
     await expect(slow).rejects.toThrow();
     await fast;
     expect(log).toEqual(['a start', 'a end', 'b']);

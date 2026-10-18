@@ -5,7 +5,7 @@ import { makeApi, verifyEmailCode } from '../src/sync/auth';
 import { acceptTokenPair, signOut, withPhotosSettled } from '../src/sync/guard';
 import { getUserId, setKv, KEY_USER } from '../src/sync/store';
 import { saveWeightDoc } from './sync-fixtures';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { fakeServer, memoryTokens, openDb, seedConsent, turns } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -164,9 +164,9 @@ describe('sign-out and account switch guard (#31)', () => {
       await new Promise<void>((r) => (finish = r));
       events.push('write done');
     });
-    await new Promise((r) => setTimeout(r, 0));
+    await turns();
     const other = acceptTokenPair(db, tokens, pair(USER_A)).then(() => events.push('account operation'));
-    await new Promise((r) => setTimeout(r, 0));
+    await turns();
     expect(events).toEqual(['write started']); // the account operation (and any wipe in it) waits
     finish();
     await Promise.all([write, other]);
