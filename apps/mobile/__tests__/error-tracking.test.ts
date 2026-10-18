@@ -1,6 +1,7 @@
 import type { Breadcrumb, ErrorEvent } from '@sentry/react-native';
 import { initErrorTracking } from '../src/telemetry/errors';
 import { scrubBreadcrumb, scrubEvent } from '../src/telemetry/scrub';
+import { until } from './sync-helpers';
 
 const mockInit = jest.fn();
 const mockSetUser = jest.fn();
@@ -138,7 +139,7 @@ describe('initErrorTracking', () => {
     expect(o.beforeSendTransaction({ type: 'transaction' })).toBeNull();
     expect(o.integrations([{ name: 'Breadcrumbs' }, { name: 'Other' }])).toEqual([{ name: 'Other' }]);
     expect(o.beforeBreadcrumb({ category: 'console' })).toBeNull();
-    await new Promise((r) => setTimeout(r, 0));
+    await until('the install id to be set', () => mockSetUser.mock.calls.length > 0);
     expect(mockSetUser).toHaveBeenCalledWith({ id: 'install-1' });
     expect(o.beforeSend({ message: FOOD, user: { email: 'a@b.c' } })).toEqual({ user: { id: 'install-1' }, contexts: {}, breadcrumbs: [] });
   });

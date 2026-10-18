@@ -5,7 +5,7 @@ import { dayQueue } from '../src/workout/dayQueue';
 import type { Workout } from '../src/workout/types';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { failInTxn, openDb } from './sync-helpers';
+import { failInTxn, openDb, turns } from './sync-helpers';
 
 jest.mock('expo-router', () => ({ useFocusEffect: () => {} }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
@@ -345,7 +345,7 @@ describe('a workout row changed elsewhere after the screen loaded (#410)', () =>
     await saveSet(db, DATE, { ...first, weight_kg: 77 }); // would show on screen only if the screen reloaded
     await act(async () => result.current.setForm(0, 'yes'));
     await act(async () => void (await dayQueue.current)); // the queued writes finish
-    await act(async () => void (await new Promise((r) => setTimeout(r, 50))));
+    await turns(); // a reload, if one were wrongly triggered, would land within these turns
     expect(result.current.day.exs.flatMap((e) => e.sets).find((r) => r.id === first.id)?.w).toBe('');
     expect((await loadWorkout(db, DATE))!.version).toBe(9);
   });
