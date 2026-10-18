@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { DEPTH_CUES } from '@plate-and-bar/core';
 import { hasCamera, poseAvailable, poseExercise } from '../src/pose/flag';
 
@@ -8,11 +9,23 @@ describe('live pose tracking flag', () => {
     expect(poseAvailable('0', 'web', true)).toBe(false);
     expect(poseAvailable('true', 'web', true)).toBe(false);
   });
-  it('needs the flag, the web, and a camera', () => {
+  it('needs the flag, the web or Android, and a camera', () => {
     expect(poseAvailable('1', 'web', true)).toBe(true);
     expect(poseAvailable('1', 'web', false)).toBe(false);
-    expect(poseAvailable('1', 'android', true)).toBe(false);
+    expect(poseAvailable('1', 'android', true)).toBe(true);
+    expect(poseAvailable('1', 'android', false)).toBe(false);
     expect(poseAvailable('1', 'ios', true)).toBe(false);
+    expect(poseAvailable(undefined, 'android', true)).toBe(false);
+    expect(poseAvailable('0', 'android', true)).toBe(false);
+  });
+  it('counts an Android phone as having a camera (the system asks when the user starts), and the browser by getUserMedia', () => {
+    const os = Platform.OS;
+    try {
+      Platform.OS = 'android';
+      expect(hasCamera()).toBe(true);
+    } finally {
+      Platform.OS = os;
+    }
   });
   it('reads the build env and the platform when not told (jest runs as ios, so it is off)', () => {
     expect(poseAvailable()).toBe(false);

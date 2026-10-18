@@ -7,6 +7,7 @@ import {
   mondayOf,
   planned,
   planList,
+  HAND_PICKED,
   splitFor,
   SPLITS,
   TEMPLATES,
@@ -14,6 +15,7 @@ import {
   type PlanState,
   type SessionLog,
 } from '../src/index';
+import { sessionDates } from '../src/plan';
 import { loadGolden } from './helpers';
 import { loadProto, rng } from './prototype-plan';
 
@@ -104,6 +106,38 @@ describe('plan: edge cases', () => {
     expect(planned('2026-10-11', s)).toBeNull();
   });
 
+  // #1019: deviates from the prototype, which restarts the sequence after a hand-picked session.
+  it('sequence mode: a hand-picked day in the middle neither advances nor resets the sequence', () => {
+    const sessions = {
+      '2026-10-05': { t: 'Upper A', n: 12 },
+      '2026-10-06': { t: 'Lower A', n: 10 },
+      '2026-10-07': { t: 'Session', n: 6 },
+    };
+    const s: PlanState = { ...state({ days: 4 }, sessions), mode: 'sequence' };
+    expect(planned('2026-10-08', s)).toBe('Upper B');
+    expect(planned('2026-10-07', s)).toBe('Upper B');
+    expect(planned('2026-10-08', { ...s, sessions: { ...sessions, '2026-10-07': { n: 6 } } })).toBe('Upper B');
+  });
+
+  it('sequence mode: only hand-picked days start at the first entry', () => {
+    const sessions = { '2026-10-05': { t: 'Session', n: 6 }, '2026-10-06': { n: 4 } };
+    const s: PlanState = { ...state({ days: 4 }, sessions), mode: 'sequence' };
+    expect(planned('2026-10-07', s)).toBe('Upper A');
+  });
+
+  it('sequence mode: after a split change the last real template is not in the plan, so it starts at the first entry', () => {
+    const sessions = {
+      '2026-09-20': { t: 'Full body B', n: 12 },
+      '2026-10-05': { t: 'Upper A', n: 12 },
+      '2026-10-06': { t: 'Lower A', n: 10 },
+      '2026-10-07': { t: 'Session', n: 6 },
+    };
+    // 3-day plan (Full body A, B, C): Lower A is not in it; do not walk back to Full body B.
+    const s: PlanState = { ...state({ days: 3 }, sessions), mode: 'sequence' };
+    expect(planned('2026-10-08', s)).toBe('Full body A');
+    expect(planned('2026-10-08', { ...s, sessions: { ...sessions, '2026-10-06': { t: 'Full body A', n: 10 } } })).toBe('Full body B');
+  });
+
   it('a week plan for this week wins, even on Sunday, and ends when its list runs out', () => {
     const weekPlan = { start: '2026-10-05', list: ['Legs A', 'Push A'] };
     const s: PlanState = { ...state({ days: 3 }, { '2026-10-05': { t: 'Legs A', n: 10 }, '2026-10-04': { t: 'Pull A', n: 9 } }), weekPlan };
@@ -133,14 +167,20 @@ describe('planned: differential against the prototype source', () => {
   const start = '2026-09-28';
   const dates = Array.from({ length: 21 }, (_, i) => new Date(Date.UTC(2026, 8, 28 + i)).toISOString().slice(0, 10));
   const tpls = [...Object.keys(TEMPLATES), 'Gone'];
+  // Session templates also include the hand-picked cases: 'Session' and a missing template.
+  const sessionTpls: (string | undefined)[] = [...tpls, 'Session', undefined];
 
   it('matches on 3,000 random states', () => {
     const mismatches: unknown[] = [];
+    let skipped = 0;
     for (let k = 0; k < 3000; k++) {
       const d = pick(days);
       const profile: PlanProfile | null = d === undefined && r() < 0.5 ? null : d === undefined ? {} : { days: d };
       const sessions: Record<string, { t?: string; n?: number }> = {};
-      for (const date of dates) if (r() < 0.3) sessions[date] = { t: pick(tpls), n: pick([0, 3, 12]) };
+      for (const date of dates) if (r() < 0.3) {
+        const t = pick(sessionTpls);
+        sessions[date] = t === undefined ? { n: pick([0, 3, 12]) } : { t, n: pick([0, 3, 12]) };
+      }
       const s: PlanState = { profile, sessions };
       if (r() < 0.3) s.mode = 'sequence';
       if (r() < 0.3) s.weekPlan = { start: pick([start, '2026-10-05', '2026-10-12']), list: [pick(tpls), pick(tpls), pick(tpls)] };
@@ -148,10 +188,23 @@ describe('planned: differential against the prototype source', () => {
       for (const date of dates) {
         const ours = planned(date, s);
         const theirs = proto.planned(date);
+        // Known deviation (#1019): the prototype restarts the sequence after a hand-picked session.
+        // Skip only a date in the sequence branch where the last day with logged sets was hand-picked
+        // (no template, or 'Session') and the prototype restarted.
+        const inSequenceBranch = s.mode === 'sequence' && !(s.weekPlan && s.weekPlan.start === mondayOf(date)) && new Date(`${date}T00:00:00Z`).getUTCDay() !== 0;
+        if (inSequenceBranch && ours !== theirs && theirs === planList(profile)[0]) {
+          const ds = sessionDates(sessions, date);
+          const lastT = ds.length ? sessions[ds[ds.length - 1] as string]?.t : undefined;
+          if (!lastT || lastT === HAND_PICKED) {
+            skipped++;
+            continue;
+          }
+        }
         if (ours !== theirs) mismatches.push({ date, s, ours, theirs });
       }
     }
     expect(mismatches).toEqual([]);
+    expect(skipped).toBeGreaterThan(0);
   });
 });
 

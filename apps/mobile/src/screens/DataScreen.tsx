@@ -39,6 +39,8 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     };
   }, [db, s.signedIn, s.last, s.dataVersion]);
 
+  const pendingConsent = s.signedIn && consented === null;
+
   const run = async (f: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -138,10 +140,10 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
     <Page>
       <H1>{t.title}</H1>
       <Hint>{t.intro}</Hint>
-      {/* A signed-in user's consent is read async; show no storage line until it is known rather than a wrong one. */}
-      {s.signedIn && consented === null ? null : (
-        <Hint>{`${s.signedIn && consented ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
-      )}
+      {/* The consent is read async. Until it is known the slot holds a blank, screen-reader-hidden line (aria-hidden, as Caption does: react-native-web ignores the older props), so the text arriving never moves the controls (#1035) and never flashes a wrong one. */}
+      <View aria-hidden={pendingConsent}>
+        <Hint>{pendingConsent ? '\u00a0' : `${s.signedIn && consented ? t.storageAccount : Platform.OS === 'web' ? t.storageBrowser : t.storageDevice}${s.pending > 0 ? t.storageWaiting : ''}`}</Hint>
+      </View>
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
       {message ? <Note>{message}</Note> : null}
