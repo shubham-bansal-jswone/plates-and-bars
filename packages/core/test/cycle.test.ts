@@ -27,6 +27,10 @@ const CASES: Record<string, CycleData> = {
   'only unusable gaps use the stored length': on(['2026-01-01', '2026-01-05'], 30),
   'unsorted starts': on(['2026-03-26', '2026-01-01', '2026-02-26', '2026-01-29']),
   'duplicate starts': on(['2026-02-01', '2026-02-01', '2026-03-01']),
+  'gaps of exactly 18 and 45 count': on(['2026-01-01', '2026-01-19', '2026-03-05'], 30),
+  'a gap of 17 does not count': on(['2026-01-01', '2026-01-18'], 30),
+  'a gap of 46 does not count': on(['2026-01-01', '2026-02-16'], 30),
+  'unsorted starts whose sorted mean differs from the stored length': on(['2026-03-05', '2026-01-01', '2026-01-19'], 28),
   'turned off': { on: false, starts: ['2026-03-01'], len: 28 },
   'no starts': on([]),
 };
@@ -52,6 +56,19 @@ describe('cycInfo vs the prototype', () => {
     }
     expect([...seen].sort()).toEqual(['around ovulation', 'follicular', 'luteal (before your period)', 'period']);
     expect(late).toBe(true);
+  });
+});
+
+describe('cycInfo length boundaries', () => {
+  it('uses gaps of exactly 18 and 45 (mean 31.5 rounds to 32), not the stored 28', () => {
+    expect(cycInfo(on(['2026-01-01', '2026-01-19', '2026-03-05'], 28), '2026-03-10')?.len).toBe(32);
+  });
+  it('ignores gaps of 17 and 46', () => {
+    expect(cycInfo(on(['2026-01-01', '2026-01-18'], 30), '2026-01-20')?.len).toBe(30);
+    expect(cycInfo(on(['2026-01-01', '2026-02-16'], 30), '2026-02-20')?.len).toBe(30);
+  });
+  it('sorts the starts before taking gaps: unsorted input gives the same length as sorted (mean 32, not stored 28)', () => {
+    expect(cycInfo(on(['2026-03-05', '2026-01-01', '2026-01-19'], 28), '2026-03-10')?.len).toBe(32);
   });
 });
 
