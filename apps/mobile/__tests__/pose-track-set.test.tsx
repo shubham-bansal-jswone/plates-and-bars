@@ -79,13 +79,10 @@ describe('"Track this set" on the exercise card', () => {
     await waitFor(() => expect(screen.queryByText('stub session')).toBeNull());
   });
 
-  it('with every set done, goes to the last one', async () => {
-    const { edit, ui } = card('Bodyweight Squat', [true, true]);
-    await render(ui);
-    await fireEvent.press(screen.getByRole('button', { name: 'Track this set of Bodyweight Squat' }));
-    await screen.findByText('stub session');
-    await fireEvent.press(screen.getByRole('button', { name: 'Stub count 8' }));
-    expect(edit).toHaveBeenCalledWith('work', 1, 'r', '8');
+  it('with every set ticked, offers no tracking, so a finished set\'s reps cannot be overwritten', async () => {
+    await render(card('Bodyweight Squat', [true, true]).ui);
+    expect(screen.queryByText('Track this set')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Track this set/ })).toBeNull();
   });
 
   it('can be closed without applying', async () => {

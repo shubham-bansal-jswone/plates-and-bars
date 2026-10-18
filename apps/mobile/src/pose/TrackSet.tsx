@@ -15,16 +15,15 @@ type Session = ComponentType<PoseSessionProps>;
 
 /**
  * "Track this set" on a Bodyweight or Goblet Squat card (#947): opens the camera sheet. Nothing shows unless the flag is on, the
- * device has a camera and the exercise is one of the two. The camera view and the model load only when the sheet opens
+ * device has a camera, the exercise is one of the two and a set is not ticked yet. The camera view and the model load only when the sheet opens
  * (`import()`), so the main bundle does not carry them. Applying a count only fills the set's reps field; the user still ticks the set.
  */
 export function TrackSet({ name, sets, onApply, available = poseAvailable() }: { name: string; sets: readonly { done: boolean }[]; onApply: (set: number, count: number) => void; available?: boolean }) {
   const [open, setOpen] = useState(false);
   const exercise = poseExercise(name);
-  if (!available || !exercise || sets.length === 0) return null;
-  // The first set not done yet, or the last one when all are.
-  const j = Math.max(0, sets.findIndex((s) => !s.done));
-  const set = sets.every((s) => s.done) ? sets.length - 1 : j;
+  // With every set ticked there is no set left to fill, and "Use N reps" would overwrite a finished set's reps.
+  const set = sets.findIndex((s) => !s.done);
+  if (!available || !exercise || set < 0) return null;
   return (
     <>
       <Button label={t.open} a11yLabel={`${t.open} of ${name}`} kind="link" expanded={open} onPress={() => setOpen(true)} />
