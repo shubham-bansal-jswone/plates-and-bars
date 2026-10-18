@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkSvgFrame } from '../validate/svg-allowlist.mjs';
+import { checkSvgFrame, svgByteLength } from '../validate/svg-allowlist.mjs';
 import {
   validateExerciseImages, SOURCES, LICENCES, MAX_FRAME_BYTES, MAX_ALT, MAX_DIMENSION, FILE_PATTERN,
 } from '../validate/exercise-images.mjs';
@@ -151,6 +151,50 @@ test('the allowlist refuses other markup and accepts what the generator emits', 
   ];
   for (const g of ok) assert.deepEqual(errs(g), [], g);
   assert.ok(errs(frame('', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 241">')).some((e) => /viewBox must be/.test(e)));
+});
+
+const NS = 'xmlns="http://www.w3.org/2000/svg"';
+const wrap = (inner, attrs = `${NS} viewBox="0 0 320 240"`) => `<svg ${attrs}>${inner}</svg>`;
+const bad = (svg) => checkSvgFrame(svg, 320, 240).length > 0;
+const good2 = (svg) => assert.deepEqual(checkSvgFrame(svg, 320, 240), [], svg);
+
+test('content model: title is text only, shapes are empty, only svg and g contain elements', () => {
+  for (const x of ['<title><circle r="1"/></title>', '<title><title>x</title></title>', '<line x1="1"><g><circle r="1"/></g></line>',
+    '<circle r="1"><circle r="2"/></circle>', '<path d="M0 0"><title>x</title></path>', '<circle r="1">text</circle>']) assert.ok(bad(wrap(x)), x);
+  for (const x of ['<g><g><circle r="1"/></g></g>', '<title>t</title>', '<circle r="1"></circle>', '<circle r="1"/>', '<g><title>t</title></g>']) good2(wrap(x));
+});
+
+test('viewBox is read from the parsed attribute: any whitespace may precede it', () => {
+  good2(`<svg ${NS}\nviewBox="0 0 320 240"></svg>`);
+  good2(`<svg\tviewBox="0 0 320 240"\n${NS}></svg>`);
+  assert.ok(bad(`<svg ${NS}\n viewBox="0 0 320 241"></svg>`));
+  assert.ok(bad(wrap('', NS)));
+});
+
+test('xmlns is required on the root', () => {
+  assert.ok(bad('<svg viewBox="0 0 320 240"></svg>'));
+  assert.ok(bad(wrap('', 'viewBox="0 0 320 240"')));
+});
+
+test('value shapes: no negative size, opacity 0 to 1, bounded numbers, strict path data and transforms', () => {
+  for (const x of ['<circle r="-5"/>', '<rect width="-1" height="1"/>', '<rect width="1" height="-1"/>', '<ellipse rx="-1" ry="1"/>', '<line stroke-width="-2"/>',
+    '<g opacity="1000"/>', '<g opacity="-0.1"/>', '<g fill-opacity="1.5"/>', `<circle r="${'9'.repeat(400)}"/>`, '<circle cx="1234567"/>', '<circle cx="1.1234567"/>',
+    '<circle cx="1e3"/>', '<circle cx="Infinity"/>', '<path d="MLZ eE"/>', '<path d="1 2 3"/>', '<path d="M0 0 L1"/>', '<path d="Z1"/>', '<path d="M 0 0 X 1 1"/>',
+    '<path d=""/>', '<path d="M0 0 url(#a)"/>', '<g transform="rotate()"/>', '<g transform="rotate(1 2)"/>', '<g transform="translate(1 2 3)"/>', '<g transform="matrix(1 2 3)"/>',
+    '<g transform=""/>', '<g transform="scale(a)"/>']) assert.ok(bad(wrap(x)), x);
+  for (const x of ['<circle r="0"/>', '<circle cx="-12.5" cy="0" r="3"/>', '<g opacity="0"/>', '<g opacity="1"/>', '<g opacity="0.25"/>', '<g opacity="1.0"/>',
+    '<path d="M0 0 L10 10 H5 V3 C1 2 3 4 5 6 Q1 1 2 2 A1 1 0 0 1 5 5 Z"/>', '<path d="M0,0L10,10z"/>', '<g transform="rotate(45) translate(1,2) scale(2)"/>',
+    '<g transform="rotate(45 10 10)"/>']) good2(wrap(x));
+});
+
+test('byte size helper counts UTF-8 bytes without Buffer', () => {
+  assert.equal(svgByteLength('abc'), 3);
+  assert.equal(svgByteLength('é'), 2);
+  assert.equal(svgByteLength('€'), 3);
+  assert.equal(svgByteLength('😀'), 4);
+  assert.equal(svgByteLength(''), 0);
+  assert.equal(svgByteLength(SVG), Buffer.byteLength(SVG));
+  assert.doesNotMatch(readFileSync(`${repo}/tools/validate/svg-allowlist.mjs`, 'utf8').replace(/\/\/.*|\/\*\*.*\*\//g, ''), /Buffer|node:/);
 });
 
 test('viewBox is read from the parsed root only', () => {

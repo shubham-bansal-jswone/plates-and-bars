@@ -4,7 +4,7 @@
 // (test/exercise-images.test.mjs compares the lists below with the schema).
 import { createHash } from 'node:crypto';
 import { nonEmpty } from './text.mjs';
-import { checkSvgFrame, COLOUR_TOKENS } from './svg-allowlist.mjs';
+import { checkSvgFrame, COLOUR_TOKENS, MAX_SVG_BYTES, svgByteLength } from './svg-allowlist.mjs';
 
 // Own drawings only. A third-party source (wger, Wikimedia Commons) needs an ADR first (issue #653, section 5), and
 // this list and the schema enum change together then.
@@ -14,7 +14,7 @@ export const LICENCES = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
 };
-export const MAX_FRAME_BYTES = 8192;
+export const MAX_FRAME_BYTES = MAX_SVG_BYTES;
 export const MAX_FRAMES = 2;
 export const MAX_DIMENSION = 1024;
 export const MAX_ALT = 140;
@@ -29,7 +29,7 @@ const nullOrString = (v) => v === null || nonEmpty(v);
 
 function checkSvg(svg, w, h, err) {
   if (typeof svg !== 'string') return err('svg must be a string');
-  const bytes = Buffer.byteLength(svg, 'utf8');
+  const bytes = svgByteLength(svg);
   if (bytes > MAX_FRAME_BYTES) err(`svg is ${bytes} bytes, the limit is ${MAX_FRAME_BYTES}`);
   for (const e of checkSvgFrame(svg, w, h)) err(e);
 }
