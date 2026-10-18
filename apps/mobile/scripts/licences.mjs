@@ -326,6 +326,8 @@ const assets = [
   { name: 'Ionicons (icons)', version: null, licence: 'MIT', url: 'https://github.com/ionic-team/ionicons', text: textId(MIT_IONIC) },
   // Live pose tracking on the web (#947): the model weights and the WebAssembly runtime are files we serve from public/pose.
   { name: 'MoveNet Lightning (pose model weights)', version: '4', licence: 'Apache-2.0', url: 'https://www.kaggle.com/models/google/movenet/TfJs/singlepose-lightning', text: textId(read(join(root, 'public/pose/movenet-lightning/LICENSE.txt'))) },
+  // Web barcode scanner (#944): the reader we serve from public/zxing, built from the ZXing-C++ commit zxing-wasm 3.1.3 pins (a17fd9dc).
+  { name: 'ZXing-C++ WebAssembly reader (web barcode scanner)', version: '3.1.3 (zxing-wasm)', licence: 'Apache-2.0 AND BSD-3-Clause AND MIT', url: 'https://github.com/Sec-ant/zxing-wasm', text: textId(read(join(root, 'public/zxing/LICENSE.txt'))) },
   { name: 'TensorFlow.js WebAssembly runtime (pose tracking)', version: '4.22.0', licence: 'Apache-2.0 (contains XNNPACK, BSD-3-Clause, and Emscripten, MIT)', url: 'https://github.com/tensorflow/tfjs', text: textId(read(join(root, 'public/pose/wasm/LICENSE.txt'))) },
 ];
 

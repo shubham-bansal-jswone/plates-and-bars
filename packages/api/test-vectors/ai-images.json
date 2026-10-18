@@ -213,6 +213,19 @@
       "issue": "dimensions"
     },
     {
+      "name": "png 4000 x 4000 at 16 bits a channel is within the limits but refused before decoding",
+      "kind": "photo",
+      "media_type": "image/png",
+      "build": {
+        "png_dims": [
+          4000,
+          4000
+        ],
+        "png_bit_depth": 16
+      },
+      "issue": "unreadable_image"
+    },
+    {
       "name": "png whose zTXt chunk inflates to 50 MB",
       "kind": "photo",
       "media_type": "image/png",
@@ -297,6 +310,6 @@
       "issue": "unreadable_image"
     }
   ],
-  "build_notes": "`build.pad_to_bytes`: the 8x8 PNG of the first case followed by zero bytes up to that many decoded bytes (trailing bytes after the last PNG chunk, which a decoder ignores). `build.png_dims`: a PNG signature and IHDR claiming [width, height] with no pixel data, which is refused on the header alone, before any decode. `build.png_text_chunk`: the 8x8 PNG with a `zTXt`, `iTXt` (compression flag 1) or `iCCP` chunk, before IDAT, that is valid zlib and inflates to that many zero bytes (a few KB on the wire). Always refused as `unreadable_image` when it inflates to more than `max_metadata_inflated_bytes`, even if the decoder would skip the chunk; the check is an inflate that stops at max + 1 bytes. `exif_gps`: the JPEG has an EXIF APP1 whose IFD0 points (tag 0x8825) to a GPS IFD with a latitude and longitude; after the server re-encodes, the output must hold no APP1/Exif segment and no 0x8825 tag. `jpeg_dims`: the JPEG's SOF0 claims [width, height] and is refused on the header. Orientation: only a JPEG's EXIF orientation is applied; a PNG `eXIf` chunk is ignored (the app sends JPEG, #989), so no case turns a PNG.",
+  "build_notes": "`build.pad_to_bytes`: the 8x8 PNG of the first case followed by zero bytes up to that many decoded bytes (trailing bytes after the last PNG chunk, which a decoder ignores). `build.png_dims`: a PNG signature and IHDR claiming [width, height] with no pixel data, which is refused on the header alone, before any decode; `build.png_bit_depth` (default 8) sets the IHDR bit depth, and a depth above 8 is refused as `unreadable_image` on the header alone, after the dimensions check. `build.png_text_chunk`: the 8x8 PNG with a `zTXt`, `iTXt` (compression flag 1) or `iCCP` chunk, before IDAT, that is valid zlib and inflates to that many zero bytes (a few KB on the wire). Always refused as `unreadable_image` when it inflates to more than `max_metadata_inflated_bytes`, even if the decoder would skip the chunk; the check is an inflate that stops at max + 1 bytes. `exif_gps`: the JPEG has an EXIF APP1 whose IFD0 points (tag 0x8825) to a GPS IFD with a latitude and longitude; after the server re-encodes, the output must hold no APP1/Exif segment and no 0x8825 tag. `jpeg_dims`: the JPEG's SOF0 claims [width, height] and is refused on the header. Orientation: only a JPEG's EXIF orientation is applied; a PNG `eXIf` chunk is ignored (the app sends JPEG, #989), so no case turns a PNG.",
   "max_metadata_inflated_bytes": 65536
 }
