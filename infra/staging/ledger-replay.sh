@@ -3,7 +3,8 @@
 # that dump was taken are deleted again before the API serves. Run it after EVERY dump load:
 #   ./ledger-replay.sh live              the stack's MySQL (RUNBOOK.md section 4); refuses while the API container runs
 #   ./ledger-replay.sh container NAME    a throwaway container (restore-check.sh)
-# It fetches every object under bk:<bucket>/erasure-ledger/<prefix>/ (see ledger-upload.sh), merges them, and runs
+# It fetches every ledger object under bk:<bucket>/erasure-ledger/<prefix>/ (see ledger-upload.sh): the day objects
+# erasures-<UTC day>.log (#887) and any ledger-<date>.log snapshot of the first version not split yet. It merges them and runs
 # the same per-user deletion as DELETE /me for every distinct user id: the rows of email_sign_in_codes and
 # email_verify_failures keyed by the user's e-mail (they have no foreign key to users, so they do not cascade; found
 # through users and auth_identities, so they go first), then DELETE FROM users, from which the other per-user tables
