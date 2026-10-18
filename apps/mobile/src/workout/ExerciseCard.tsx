@@ -8,7 +8,7 @@ import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgL
 import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
-import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName } from './copy';
+import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName, rampEasyNote } from './copy';
 import type { ExState, Row } from './model';
 import { ExerciseSettings } from './ExerciseSettingsSheet';
 import { Chip } from './parts';
@@ -182,6 +182,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
     const f = rampTickFill(ex.ramp, j, info);
     return { w: f.w || 'kg', r: f.r };
   };
+  const easyNote = rampEasyNote(ex.ramp, info);
   const est = showRamp && ex.ramp.length === 0 && lifts ? estimateFor(ex.name, lifts, info) : null;
   const ladder = ladderOf(ex.name, getCatalog().ladders);
   const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, info).r;
@@ -244,7 +245,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
                   Working weight found: <Text style={{ fontWeight: '700' }}>{kgLabel(ex.found, info)}</Text>. Your working sets below start there.
                 </Text>
               ) : (
-                <Button label={`Add ramp set for ${ex.name}`} kind="ghost" onPress={act.rampAdd} />
+                <>
+                  {easyNote ? <Note>{easyNote}</Note> : null}
+                  <Button label={`Add ramp set for ${ex.name}`} kind="ghost" onPress={act.rampAdd} />
+                </>
               )}
             </>
           )}

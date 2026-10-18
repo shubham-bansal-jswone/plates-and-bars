@@ -2,7 +2,7 @@ import labels from '../../../../content/labels.json';
 import type { Schemas } from '@plate-and-bar/api';
 import { has, isProtoName, ownOr } from '../content/own';
 import { contentReader, isObj, isText } from '../content/reader';
-import type { ModsNotePart, Checkin, CheckinReason, ExType, Rate } from '@plate-and-bar/core';
+import { harder, kgLabel, num, repWord, type ModsNotePart, type Checkin, type CheckinReason, type ExInfo, type ExType, type Rate } from '@plate-and-bar/core';
 import { isBlank } from '../text/blank';
 
 // Display text from the prototype's workout screen (TYPE_LABEL, MUSCLE, RATES, CI_Q).
@@ -115,4 +115,14 @@ export function modsNoteText(p: ModsNotePart): string {
     case 'where':
       return p.where === 'dumbbells' ? 'dumbbells-only version' : 'bodyweight version';
   }
+}
+
+/**
+ * The note under the ramp sets after the last rated one was "Easy" (prototype `rampMsg`): add a step and do another ramp set.
+ * Null when nothing is rated yet or the last rating was not Easy. The step and the weight wording come from core (`harder`, `kgLabel`).
+ */
+export function rampEasyNote(ramp: readonly { w: string; done: boolean; rate: Rate | null }[], info: ExInfo): string | null {
+  const last = [...ramp].reverse().find((s) => s.done && s.rate);
+  if (last?.rate !== 'easy') return null;
+  return `Easy, so add a step (about ${kgLabel(harder(num(last.w), info), info)}) and do another ramp set of ${info.lo} ${repWord(info.type)}.`;
 }
