@@ -1,5 +1,5 @@
 import { addDays } from './dates';
-import { num } from './num';
+import { num, parseNum } from './num';
 import { toTargetsProfile, type SetupProfile } from './setup';
 import { calcTargets } from './targets';
 
@@ -496,14 +496,124 @@ export function customFood(input: CustomFoodInput): CustomFoodResult {
  */
 export const MY_FOODS_MAX = 60;
 
+/** A food that may carry the barcode it was scanned from (contract `UserFood.barcode`). */
+export interface BarcodedFood {
+  name: string;
+  barcode?: string | null | undefined;
+}
+
+/**
+ * The comparison key of a barcode: a 12-digit UPC-A and the 13-digit EAN-13 with a leading 0 are one product,
+ * so a 12-digit code gets a leading 0. Other codes are returned as given.
+ *
+ * A new rule from the #944 review (no prototype function).
+ */
+export function normaliseBarcode(code: string): string {
+  return code.length === 12 ? `0${code}` : code;
+}
+
+/** True when both codes are the same product (`normaliseBarcode` equal). Empty or missing codes never match. */
+export function sameBarcode(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && normaliseBarcode(a) === normaliseBarcode(b);
+}
+
+const hasBarcode = (f: { barcode?: string | null | undefined }): boolean => !!f.barcode;
+
 /**
  * "My foods" after saving `food`: it goes first, any food of the same name is dropped, and only the
  * first 60 are kept. Pass the list newest first; foods missing from the result are to be deleted.
  *
+ * Two additions from the #944 review: a saved food that has a barcode is never dropped by name (a plain save
+ * must not replace a scanned food), and a `food` that itself has a barcode is saved with `saveScannedFood`.
+ * For foods without barcodes this is the prototype's rule unchanged.
+ *
  * Mirrors the save step of prototype `case 'addcustom'`.
  */
 export function saveMyFood<T extends { name: string }>(myFoods: readonly T[], food: T): T[] {
-  return [food, ...myFoods.filter((x) => x.name !== food.name)].slice(0, MY_FOODS_MAX);
+  if (hasBarcode(food as BarcodedFood)) return saveScannedFood(myFoods as readonly (T & BarcodedFood)[], food as T & BarcodedFood);
+  return [food, ...myFoods.filter((x) => !replaces(food as BarcodedFood, x as BarcodedFood))].slice(0, MY_FOODS_MAX);
+}
+
+/**
+ * "My foods" after saving a food with a barcode: it goes first and only a food with the same product
+ * (`sameBarcode`, so UPC-A and its leading-0 EAN-13 are one) is replaced. Never a food with another barcode or
+ * none, even when the names match. Capped at 60 like `saveMyFood`. A `food` without a barcode is saved as
+ * `saveMyFood` does. Foods missing from the result are to be deleted.
+ *
+ * A new rule from the #944 review (no prototype function).
+ */
+export function saveScannedFood<T extends BarcodedFood>(myFoods: readonly T[], food: T): T[] {
+  if (!hasBarcode(food)) return saveMyFood(myFoods, food);
+  return [food, ...myFoods.filter((x) => !replaces(food, x))].slice(0, MY_FOODS_MAX);
+}
+
+/** A value as the review form holds it: a number, the typed text, or nothing. */
+export type ScannedNumber = string | number | null | undefined;
+
+/** What `scannedFood` reads: `customFood`'s form, but a calorie or macro value may be missing. */
+export interface ScannedFoodInput {
+  name: string;
+  kcal: ScannedNumber;
+  protein: ScannedNumber;
+  carbs: ScannedNumber;
+  fat: ScannedNumber;
+  qty: string | number;
+  unit: string;
+}
+
+/** The fields `scannedFood` can report missing, named as `OffMissingField` names them. */
+export type ScannedMissingField = 'kcal' | 'protein_g' | 'carbs_g' | 'fat_g';
+
+/** Result of `scannedFood`: `customFood`'s kinds, except a missing field gives `missing` (not `no-kcal`) so the app can flag each field. */
+export type ScannedFoodResult =
+  | Exclude<CustomFoodResult, { kind: 'no-kcal' }>
+  /** One or more of calories, protein, carbs, fat not entered (a typed 0 is entered): show "Not in the database. Enter it from the pack." on each field in `fields`. */
+  | { kind: 'missing'; fields: ScannedMissingField[] };
+
+/**
+ * The scanned-food review form (#944, #944 D4 item 6 "A genuine 0 must be typed"). Like `customFood`, but all four
+ * of calories, protein, carbs and fat must be present and a 0 is a real value: a product with every one at 0
+ * (water, diet soda) is valid, and a typed 0 kcal stays 0 and is never swapped for a macro estimate.
+ * A missing value gives `missing`, listing the fields (never `no-kcal`, whose "Enter calories or at least one macro." wording is for the Custom tab). Checks run in `customFood`'s order (name, name length, negatives and
+ * quantity, then missing). The result has `customFood`'s shape; the caller adds the barcode.
+ *
+ * A new rule from the #944 review (no prototype function; `customFood` keeps the prototype's rule for the Custom tab).
+ */
+export function scannedFood(input: ScannedFoodInput): ScannedFoodResult {
+  const name = input.name.trim();
+  if (!name) return { kind: 'no-name' };
+  if (name.length > FOOD_NAME_MAX) return { kind: 'name-too-long' };
+  const k = num(input.kcal), p = num(input.protein), c = num(input.carbs), f = num(input.fat);
+  const qty = num(input.qty) || 1;
+  if (k < 0 || p < 0 || c < 0 || f < 0 || qty <= 0) return { kind: 'invalid' };
+  const fields: ScannedMissingField[] = [];
+  if (parseNum(input.kcal) === null) fields.push('kcal');
+  if (parseNum(input.protein) === null) fields.push('protein_g');
+  if (parseNum(input.carbs) === null) fields.push('carbs_g');
+  if (parseNum(input.fat) === null) fields.push('fat_g');
+  if (fields.length) return { kind: 'missing', fields };
+  return {
+    kind: 'ok',
+    log: { name, qty, kcal: k, protein_g: p, carbs_g: c, fat_g: f },
+    food: { name, unit: input.unit.trim() || '1 serving', kcal: k, protein_g: p, carbs_g: c, fat_g: f, fibre_g: null, added_sugar_g: null, fruit_veg_servings: null, origin: 'custom' },
+  };
+}
+
+/**
+ * The saved food a save of `food` replaces, or undefined. The same rule as `saveMyFood` and `saveScannedFood`
+ * (they share it): a food with a barcode matches by `sameBarcode`; a food without one matches by name, only among
+ * saved foods that have no barcode, so a plain save named like a scanned food replaces nothing. The app reuses
+ * the returned record's id and version. If several match (a list that already has duplicates), the first.
+ *
+ * A new rule from the #944 review (no prototype function).
+ */
+export function myFoodReplaced<T extends BarcodedFood>(myFoods: readonly T[], food: T): T | undefined {
+  return myFoods.find((x) => replaces(food, x));
+}
+
+/** True when saving `food` replaces the saved food `x`. */
+function replaces(food: BarcodedFood, x: BarcodedFood): boolean {
+  return hasBarcode(food) ? sameBarcode(x.barcode, food.barcode) : x.name === food.name && !hasBarcode(x);
 }
 
 /** A user food in the shape every food-maths function reads (see `userFoodFacts`). */
