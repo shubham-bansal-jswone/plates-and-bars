@@ -161,7 +161,7 @@ describe('Cardio on a day with no started session (#619)', () => {
     await saveProfile(db, p);
     const row: Workout = { id: null, version: 0, updated_at: '2026-10-11T08:00:00Z', deleted_at: null, date: SUN, template: null, base: null, where: null, cardio_min: 30, mods: {}, exercises: [], ci_choice: null };
     db.rows.set(`workouts:${SUN}`, JSON.stringify(row));
-    await render(withProfile(db, <BurnCard db={db} date={SUN} profile={p} steps={0} kcalEaten={0} />));
+    await render(withProfile(db, <BurnCard db={db} date={SUN} profile={p} steps={0} sleep={null} onSaveStepsSleep={() => true} kcalEaten={0} />));
     await fireEvent.press(await screen.findByLabelText('Show burn details'));
     expect(screen.getByLabelText('Training, 0 sets, 30 min cardio, rough, 165 kilocalories')).toBeTruthy();
   });

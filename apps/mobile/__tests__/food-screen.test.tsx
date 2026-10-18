@@ -9,6 +9,7 @@ import { getCuisines } from '../src/food/catalog';
 import { toastMs } from '../src/food/copy';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
+import { postToast, resetPendingToast } from '../src/state/pendingToast';
 
 // Pressable folds aria-expanded into accessibilityState before the host view, so record what the card hands to it.
 const mockPressed: Record<string, unknown>[] = [];
@@ -16,15 +17,6 @@ jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
   const React = jest.requireActual('react');
   const Actual = jest.requireActual('react-native/Libraries/Components/Pressable/Pressable').default;
   return { __esModule: true, default: (p: Record<string, unknown>) => { mockPressed.push(p); return React.createElement(Actual, p); } };
-});
-
-// Fixture until the drinks content (#858) gives the eat-out Cola its fibre (0 g) and added sugar (35 g), as the prototype's FIB does.
-jest.mock('../src/food/catalog', () => {
-  const actual = jest.requireActual('../src/food/catalog');
-  return {
-    ...actual,
-    getCuisines: () => actual.getCuisines().map((c: { dishes: { name: string; per_serving: object }[] }) => ({ ...c, dishes: c.dishes.map((d) => (d.name === 'Cola (330 ml)' ? { ...d, per_serving: { ...d.per_serving, fibre_g: 0, added_sugar_g: 35 } } : d)) })),
-  };
 });
 
 const mockFocus = { n: 0 };
@@ -66,7 +58,10 @@ const open = async (meal = 'breakfast') => {
 
 // Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
 // fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
-beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
+beforeEach(() => {
+  resetPendingToast();
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+});
 // Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
 afterEach(() => {
   jest.runOnlyPendingTimers();
@@ -886,5 +881,16 @@ describe('Low on protein add-on', () => {
     await setup({ db });
     await screen.findByText('Almonds');
     expect(screen.queryByText(/^Low on protein/)).toBeNull();
+  });
+});
+
+describe('toast posted by setup', () => {
+  it('shows a message posted before the tab mounted, once', async () => {
+    postToast('Targets updated');
+    await setup();
+    expect(await screen.findByText('Targets updated')).toBeTruthy();
+    await screen.unmount();
+    await setup();
+    expect(screen.queryByText('Targets updated')).toBeNull();
   });
 });
