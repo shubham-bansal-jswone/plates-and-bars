@@ -65,7 +65,7 @@ describe('Cardio on a day with no started session (#619)', () => {
     await waitFor(() => expect(workoutOn(db, SUN)).toMatchObject({ date: SUN, template: null, base: null, where: null, cardio_min: 30, mods: {}, exercises: [], ci_choice: null, deleted_at: null }));
     expect(db.sets.size).toBe(0);
     expect(screen.getByText('Rest day')).toBeTruthy();
-    expect(screen.getByLabelText('Start Pull A')).toBeTruthy();
+    expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
     expect(field().props.value).toBe('30');
     expect(screen.queryByText(/kcal burned/)).toBeNull();
 
