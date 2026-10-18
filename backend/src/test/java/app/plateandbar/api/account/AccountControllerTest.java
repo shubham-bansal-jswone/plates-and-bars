@@ -176,6 +176,14 @@ class AccountControllerTest {
     }
 
     @Test
+    void deleteIs500InTheErrorSchemaWhenTheLedgerCannotBeWritten() throws Exception {
+        doThrow(new ErasureLedgerException("erasure ledger not writable", null)).when(service).delete(USER);
+        mvc.perform(delete("/api/v1/me").header("Authorization", bearer(USER)))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("internal"));
+    }
+
+    @Test
     void deleteIs204AndNeedsAToken() throws Exception {
         mvc.perform(delete("/api/v1/me").header("Authorization", bearer(USER))).andExpect(status().isNoContent());
         verify(service).delete(USER);

@@ -11,8 +11,11 @@ timeout="${HEALTH_TIMEOUT_SECONDS:-300}"
 
 # .env is read with sed, not sourced: an exported API_TAG would override the line this script rewrites
 env_get() { sed -n "s/^$1=//p" .env | tail -n 1; }
+# API_RELEASE is the tag without a leading v (plateandbar-api@1.2.3, lining up with the app's plate-and-bar@1.2.3); compose
+# cannot strip the v, so it is written next to API_TAG
 set_tag() { # rewrite in place (no sed -i: differs between GNU and BSD) and keep .env's mode
-  sed "s/^API_TAG=.*/API_TAG=$1/" .env > .env.new
+  sed -e "s/^API_TAG=.*/API_TAG=$1/" -e "s/^API_RELEASE=.*/API_RELEASE=${1#v}/" .env > .env.new
+  grep -q '^API_RELEASE=' .env.new || printf 'API_RELEASE=%s\n' "${1#v}" >> .env.new
   cat .env.new > .env
   rm -f .env.new
 }
