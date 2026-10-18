@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
-import { ScrollView, StyleSheet, Vibration, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Vibration, View } from 'react-native';
 import { stepMinutes } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Hint } from '../components/ui';
@@ -28,7 +28,8 @@ export function CookMode({ name, steps, onClose, onDone }: { name: string; steps
       if (s <= 0) {
         setEnd(null);
         setToast('Timer done');
-        Vibration.vibrate([300, 150, 300]);
+        // Two pulses. On Android the first entry is a delay and even positions are pauses, so it needs a leading 0 (#873); iOS and web take [on, off, on].
+        Vibration.vibrate(Platform.OS === 'android' ? [0, 300, 150, 300] : [300, 150, 300]);
       }
     }, 1000);
     return () => clearInterval(id);
