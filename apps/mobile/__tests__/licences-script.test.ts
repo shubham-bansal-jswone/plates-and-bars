@@ -2,10 +2,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { spawnSync } = require('child_process') as { spawnSync(cmd: string, args: string[], o: { cwd: string; encoding: 'utf8' }): { status: number | null; stderr: string; stdout: string } };
 const { join } = require('path') as { join(...p: string[]): string };
-const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('fs') as {
+const { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } = require('fs') as {
   mkdtempSync(prefix: string): string;
   readFileSync(p: string, enc: 'utf8'): string;
   rmSync(p: string, o: { recursive: boolean; force: boolean }): void;
+  unlinkSync(p: string): void;
   writeFileSync(p: string, data: string): void;
 };
 const { tmpdir } = require('os') as { tmpdir(): string };
@@ -48,12 +49,19 @@ describe('scripts/licences.mjs --classpath', () => {
     expect(r.stderr).toContain('no licence in scripts/licences.mjs (ANDROID_LICENCES) for com.example:mystery:1.0, org.example:other:2.1');
   });
 
-  it('fails on a version the committed list does not have, showing the difference', () => {
+  it('fails on a version no licence row was checked at, until the row is re-checked', () => {
     const r = withClasspath(committed.replace('androidx.core:core:1.18.0\n', 'androidx.core:core:9.9.9\n'));
     expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no licence in scripts/licences.mjs (ANDROID_LICENCES) for androidx.core:core:9.9.9 (row checked at 1.18.0)');
+    expect(r.stderr).toContain("for a new version, check that version's POM, LICENSE and any NOTICE, then update the row's version");
+  });
+
+  it('fails on a NOTICE the build no longer finds, showing the difference', () => {
+    const r = withClasspath(committed.replace('commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e', 'commons-io:commons-io:1.4'));
+    expect(r.status).toBe(1);
     expect(r.stderr).toContain('differs from scripts/android-classpath.txt');
-    expect(r.stderr).toContain('+ androidx.core:core:9.9.9');
-    expect(r.stderr).toContain('- androidx.core:core:1.18.0');
+    expect(r.stderr).toContain('+ commons-io:commons-io:1.4\n');
+    expect(r.stderr).toContain('- commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e');
   });
 
   it('fails on a library the build no longer resolves', () => {
@@ -66,6 +74,18 @@ describe('scripts/licences.mjs --classpath', () => {
     const r = withClasspath(committed.replace('commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e', 'commons-io:commons-io:1.4 META-INF/NOTICE.txt@0000000000000000'));
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('NOTICE not copied to scripts/licence-texts/notice-<hash>.txt: commons-io:commons-io:1.4 META-INF/NOTICE.txt');
+  });
+
+  it('fails on a NOTICE copy whose content does not match its hash', () => {
+    const copy = join(app, 'scripts/licence-texts/notice-ffffffffffffffff.txt');
+    writeFileSync(copy, 'edited by hand\n');
+    try {
+      const r = withClasspath(committed.replace('commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e', 'commons-io:commons-io:1.4 META-INF/NOTICE.txt@ffffffffffffffff'));
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('scripts/licence-texts/notice-ffffffffffffffff.txt does not match its hash (commons-io:commons-io:1.4 META-INF/NOTICE.txt)');
+    } finally {
+      unlinkSync(copy);
+    }
   });
 
   it('fails on a line that is not group:name:version with path@hash notices', () => {
@@ -109,7 +129,7 @@ describe('Android section of licences.json', () => {
     expect(by('com.facebook.react:react-android').licence).toBe('MIT');
     expect(data.texts[by('com.facebook.react:react-android').text]).toContain('Meta Platforms, Inc. and affiliates');
     expect(data.texts[by('io.sentry:sentry-native-ndk').text]).toContain('Copyright (c) 2019 Sentry (https://sentry.io)');
-    expect(by('com.parse.bolts:bolts-tasks').licence).toBe('BSD-3-Clause');
+    expect(by('com.parse.bolts:bolts-tasks')).toMatchObject({ licence: 'BSD-3-Clause with Facebook Additional Grant of Patent Rights v2', url: 'https://opensource.org/license/bsd-3-clause' });
     expect(data.texts[by('com.parse.bolts:bolts-tasks').text]).toContain('Additional Grant of Patent Rights Version 2');
     expect(by('com.github.bumptech.glide:glide').licence).toBe('BSD-2-Clause AND MIT AND Apache-2.0');
   });
@@ -120,5 +140,6 @@ describe('Android section of licences.json', () => {
     expect(by('com.squareup.okhttp3:okhttp').licence).toBe('Apache-2.0 AND MPL-2.0');
     expect(data.texts[by('com.squareup.okhttp3:okhttp').text]).toContain('Mozilla Public License, v. 2.0');
     expect(data.texts[by('com.squareup.okhttp3:okhttp-urlconnection').text]).not.toContain('publicsuffix');
+    expect(data.texts[by('io.sentry:sentry').text]).toContain('NOTICE (META-INF/SENTRY_THIRD_PARTY_NOTICES.md)\n\n# Third-Party Software Notices and Information');
   });
 });

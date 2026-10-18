@@ -8,7 +8,8 @@
 // Listed: every module component of :app's releaseRuntimeClasspath, after conflict resolution and substitution.
 // Left out: Gradle subprojects (React Native libraries and Expo modules built from node_modules, listed as npm packages)
 // and platforms (BOMs), which put no code in the APK.
-// NOTICE files: Apache-2.0 section 4(d) asks for them to be passed on, and the APK packaging drops META-INF/NOTICE*, so each one
+// NOTICE files (NOTICE, NOTICES, NOTICE.txt, NOTICE.md, THIRD-PARTY-NOTICES.txt and the like, in any case): Apache-2.0
+// section 4(d) asks for them to be passed on, and the APK packaging drops META-INF/NOTICE*, so each one
 // found in an artifact (or in a jar inside it, such as an AAR's classes.jar) is recorded by hash for licences.mjs to match.
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
@@ -35,7 +36,7 @@ allprojects {
         for (def e = zip.nextEntry; e != null; e = zip.nextEntry) {
           if (e.directory) continue
           def bytes = zip.readAllBytes()
-          if (e.name ==~ /(?i)(.*\/)?NOTICE(\.[a-z]+)?/) {
+          if (e.name ==~ /(?i)(.*\/)?([^\/]*[-_.])?NOTICES?([-_.][^\/]*)?/ && !e.name.endsWith('.class')) {
             def sha = MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString().take(16)
             found << "${prefix}${e.name}@${sha}".toString()
           } else if (e.name.endsWith('.jar')) {
