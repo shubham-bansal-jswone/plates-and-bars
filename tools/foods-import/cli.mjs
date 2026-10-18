@@ -13,4 +13,4 @@ mkdirSync(dirname(dst), { recursive: true });
 writeFileSync(dst, serialize(out));
 const counts = {};
 for (const f of out.foods) counts[f.source.code] = (counts[f.source.code] ?? 0) + 1;
-console.log(`wrote ${dst}: ${out.foods.length} foods ${JSON.stringify(counts)}; held back (source unknown): ${HELD_BACK.join(', ')}`);
+console.log(`wrote ${dst}: ${out.foods.length} foods ${JSON.stringify(counts)}; held back (source unknown): ${HELD_BACK.join(', ') || 'none'}`);
