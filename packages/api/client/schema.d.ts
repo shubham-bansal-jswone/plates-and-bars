@@ -2339,6 +2339,22 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description As `AiUnavailable`, plus one more `unavailable` case for the image calls: the server is
+         *     busy decoding other images (it decodes a few at a time and waits a moment for a turn).
+         *     It happens before the quota unit is reserved, so it costs nothing, and `Retry-After`
+         *     says how long to wait. `Retry-After` is set only in that busy case.
+         */
+        AiImageUnavailable: {
+            headers: {
+                /** @description How long to wait, in seconds, before retrying because the server is busy decoding images. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         /**
@@ -2994,7 +3010,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["AiLimited"];
             500: components["responses"]["Internal"];
-            503: components["responses"]["AiUnavailable"];
+            503: components["responses"]["AiImageUnavailable"];
         };
     };
     importRecipe: {
@@ -3024,7 +3040,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["AiLimited"];
             500: components["responses"]["Internal"];
-            503: components["responses"]["AiUnavailable"];
+            503: components["responses"]["AiImageUnavailable"];
         };
     };
     formCheck: {
@@ -3054,7 +3070,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["AiLimited"];
             500: components["responses"]["Internal"];
-            503: components["responses"]["AiUnavailable"];
+            503: components["responses"]["AiImageUnavailable"];
         };
     };
     getContentManifest: {

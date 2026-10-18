@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.23
+  version: 0.1.24
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -1992,7 +1992,7 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
         '503':
-          $ref: '#/components/responses/AiUnavailable'
+          $ref: '#/components/responses/AiImageUnavailable'
 
   /ai/import-recipe:
     post:
@@ -2073,7 +2073,7 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
         '503':
-          $ref: '#/components/responses/AiUnavailable'
+          $ref: '#/components/responses/AiImageUnavailable'
 
   /ai/form-check:
     post:
@@ -2161,7 +2161,7 @@ paths:
         '500':
           $ref: '#/components/responses/Internal'
         '503':
-          $ref: '#/components/responses/AiUnavailable'
+          $ref: '#/components/responses/AiImageUnavailable'
 
   /content/manifest:
     get:
@@ -2627,6 +2627,38 @@ components:
                 The provider answered (and billed the call) but the reply did not parse or
                 failed the output checks. Same body as a provider failure; the call still
                 counts against the daily quota, so `GET /ai/status` shows one fewer remaining.
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
+    AiImageUnavailable:
+      description: |
+        As `AiUnavailable`, plus one more `unavailable` case for the image calls: the server is
+        busy decoding other images (it decodes a few at a time and waits a moment for a turn).
+        It happens before the quota unit is reserved, so it costs nothing, and `Retry-After`
+        says how long to wait. `Retry-After` is set only in that busy case.
+      headers:
+        Retry-After:
+          description: How long to wait, in seconds, before retrying because the server is busy decoding images.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            feature_disabled:
+              value:
+                code: feature_disabled
+                message: This feature isn't available right now. You can enter it yourself instead.
+            unavailable:
+              summary: Provider failed or timed out, or the billed reply was unusable
+              value:
+                code: unavailable
+                message: Couldn't get an answer just now. Try again.
+            unavailable_busy:
+              summary: Server busy decoding images; nothing counted; Retry-After is set
               value:
                 code: unavailable
                 message: Couldn't get an answer just now. Try again.
