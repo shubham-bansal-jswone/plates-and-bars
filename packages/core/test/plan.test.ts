@@ -7,6 +7,7 @@ import {
   mondayOf,
   planned,
   planList,
+  HAND_PICKED,
   splitFor,
   SPLITS,
   TEMPLATES,
@@ -14,6 +15,7 @@ import {
   type PlanState,
   type SessionLog,
 } from '../src/index';
+import { sessionDates } from '../src/plan';
 import { loadGolden } from './helpers';
 import { loadProto, rng } from './prototype-plan';
 
@@ -165,14 +167,20 @@ describe('planned: differential against the prototype source', () => {
   const start = '2026-09-28';
   const dates = Array.from({ length: 21 }, (_, i) => new Date(Date.UTC(2026, 8, 28 + i)).toISOString().slice(0, 10));
   const tpls = [...Object.keys(TEMPLATES), 'Gone'];
+  // Session templates also include the hand-picked cases: 'Session' and a missing template.
+  const sessionTpls: (string | undefined)[] = [...tpls, 'Session', undefined];
 
   it('matches on 3,000 random states', () => {
     const mismatches: unknown[] = [];
+    let skipped = 0;
     for (let k = 0; k < 3000; k++) {
       const d = pick(days);
       const profile: PlanProfile | null = d === undefined && r() < 0.5 ? null : d === undefined ? {} : { days: d };
       const sessions: Record<string, { t?: string; n?: number }> = {};
-      for (const date of dates) if (r() < 0.3) sessions[date] = { t: pick(tpls), n: pick([0, 3, 12]) };
+      for (const date of dates) if (r() < 0.3) {
+        const t = pick(sessionTpls);
+        sessions[date] = t === undefined ? { n: pick([0, 3, 12]) } : { t, n: pick([0, 3, 12]) };
+      }
       const s: PlanState = { profile, sessions };
       if (r() < 0.3) s.mode = 'sequence';
       if (r() < 0.3) s.weekPlan = { start: pick([start, '2026-10-05', '2026-10-12']), list: [pick(tpls), pick(tpls), pick(tpls)] };
@@ -181,13 +189,22 @@ describe('planned: differential against the prototype source', () => {
         const ours = planned(date, s);
         const theirs = proto.planned(date);
         // Known deviation (#1019): the prototype restarts the sequence after a hand-picked session.
-        // Skip only a date that is in the sequence branch and where the prototype restarted.
+        // Skip only a date in the sequence branch where the last day with logged sets was hand-picked
+        // (no template, or 'Session') and the prototype restarted.
         const inSequenceBranch = s.mode === 'sequence' && !(s.weekPlan && s.weekPlan.start === mondayOf(date)) && new Date(`${date}T00:00:00Z`).getUTCDay() !== 0;
-        if (inSequenceBranch && ours !== theirs && theirs === planList(profile)[0]) continue;
+        if (inSequenceBranch && ours !== theirs && theirs === planList(profile)[0]) {
+          const ds = sessionDates(sessions, date);
+          const lastT = ds.length ? sessions[ds[ds.length - 1] as string]?.t : undefined;
+          if (!lastT || lastT === HAND_PICKED) {
+            skipped++;
+            continue;
+          }
+        }
         if (ours !== theirs) mismatches.push({ date, s, ours, theirs });
       }
     }
     expect(mismatches).toEqual([]);
+    expect(skipped).toBeGreaterThan(0);
   });
 });
 

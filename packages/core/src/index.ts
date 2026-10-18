@@ -72,7 +72,7 @@ export type { HealthProfile, ScreenAnswer, ScreenAnswers } from './health';
  * - `TEMPLATES`, `ORDER`, `SPLITS` mirror the prototype tables of the same name.
  * - `mondayOf`, `daysBetween` mirror the prototype date helpers; `weekdayOf` mirrors `parseYmd(date).getDay()`.
  */
-export { planned, missed, CONDENSED, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS } from './plan';
+export { planned, missed, CONDENSED, splitFor, planList, dayTemplate, exerciseCap, beginnerRamp, older, TEMPLATES, ORDER, SPLITS, HAND_PICKED } from './plan';
 export type { PlanProfile, PlanState, SessionEntry, SessionLog, Split, WeekPlan, Where, Experience } from './plan';
 export { mondayOf, daysBetween, weekdayOf } from './dates';
 

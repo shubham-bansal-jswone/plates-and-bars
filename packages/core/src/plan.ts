@@ -102,7 +102,7 @@ export function splitFor(profile: PlanProfile | null | undefined): Split {
 }
 
 /** The app's label for a session with no plan template (`base: null`). */
-const HAND_PICKED = 'Session';
+export const HAND_PICKED = 'Session';
 
 /** Mirrors prototype `planList()`. */
 export function planList(profile: PlanProfile | null | undefined): readonly string[] {
