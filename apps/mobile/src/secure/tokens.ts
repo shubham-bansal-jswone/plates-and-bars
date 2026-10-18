@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { secureOptions } from './keys';
 
 // expo-secure-store has no web implementation (its calls throw). On web these helpers are
 // deliberate no-ops: nothing is stored and loadTokens returns null, so the web build never throws.
@@ -21,8 +22,8 @@ export interface Tokens {
 
 export async function saveTokens(t: Tokens): Promise<void> {
   if (!supported) return;
-  await SecureStore.setItemAsync(ACCESS, t.access);
-  await SecureStore.setItemAsync(REFRESH, t.refresh);
+  await SecureStore.setItemAsync(ACCESS, t.access, secureOptions());
+  await SecureStore.setItemAsync(REFRESH, t.refresh, secureOptions());
 }
 
 export async function loadTokens(): Promise<Tokens | null> {

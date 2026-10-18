@@ -4,7 +4,7 @@ import { BUNDLED } from '../src/content/bundled';
 import { loadContent } from '../src/content/loader';
 import { putStored, type ContentDb } from '../src/content/store';
 import { cardTitle } from '../src/ai/cards';
-import { chosenCards, HIDDEN_CARDS, renderBody, whyCard } from '../src/why/cards';
+import { chosenCards, hiddenCards, renderBody, whyCard } from '../src/why/cards';
 import { WhyLink } from '../src/why/WhyLink';
 import { openDb } from './sync-helpers';
 
@@ -23,14 +23,31 @@ describe('Why cards through the content store', () => {
     await launch();
     expect(chosenCards()).toBe(cards);
     expect(whyCard('targets')?.title).toBe('Why these calorie and macro targets?');
-    expect(HIDDEN_CARDS).toEqual(['ramp', 'ladder', 'formfirst']);
-    for (const id of HIDDEN_CARDS) { expect(cards.cards.some((c) => c.id === id)).toBe(true); expect(whyCard(id)).toBeNull(); }
+    expect(hiddenCards()).toEqual(['ramp', 'ladder', 'formfirst']); // the `hidden` flag in content/cards.json (#969)
+    for (const id of hiddenCards()) { expect(cards.cards.some((c) => c.id === id)).toBe(true); expect(whyCard(id)).toBeNull(); }
     expect(whyCard('constructor')).toBeNull();
   });
 
   it('uses a valid newer copy at load', async () => {
     await launch(edit((b) => { b.cards[0].title = 'Edited title'; }));
     expect(whyCard('targets')?.title).toBe('Edited title');
+  });
+
+  it('reads the flag from the accepted copy: a server copy can hold back another card or release one (#969)', async () => {
+    await launch(edit((b) => { b.cards.find((c: Obj) => c.id === 'sleep').hidden = true; b.cards.find((c: Obj) => c.id === 'sleep').hidden_reason = 'Under review'; }));
+    expect(hiddenCards().sort()).toEqual(['formfirst', 'ladder', 'ramp', 'sleep']);
+    expect(whyCard('sleep')).toBeNull();
+    await launch(edit((b) => { const r = b.cards.find((c: Obj) => c.id === 'ramp'); delete r.hidden; delete r.hidden_reason; }));
+    expect(hiddenCards()).toEqual(['ladder', 'formfirst']);
+    expect(whyCard('ramp')?.id).toBe('ramp');
+  });
+
+  it('a newer server copy from before the field (no hidden anywhere) is still valid and defaults to shown', async () => {
+    const old = edit((b) => { for (const c of b.cards) { delete c.hidden; delete c.hidden_reason; } });
+    await launch(old);
+    expect(chosenCards()).toEqual(old);
+    expect(hiddenCards()).toEqual([]);
+    expect(whyCard('ramp')?.id).toBe('ramp');
   });
 
   const bad: [string, (b: Obj) => void][] = [
@@ -54,6 +71,11 @@ describe('Why cards through the content store', () => {
     ['learn_order not an integer', (b) => { b.cards[1].learn_order = 1.5; }],
     ['duplicate learn_order', (b) => { b.cards[1].learn_order = b.cards.find((c: Obj) => c.learn_order === 1).learn_order; }],
     ['learn_insert_at not an integer', (b) => { b.cards[1].learn_insert_at = 'x'; }],
+    ['hidden false', (b) => { b.cards[0].hidden = false; }],
+    ['hidden as text', (b) => { b.cards[0].hidden = 'true'; }],
+    ['hidden without a reason', (b) => { delete b.cards.find((c: Obj) => c.id === 'ramp').hidden_reason; }],
+    ['a blank hidden reason', (b) => { b.cards.find((c: Obj) => c.id === 'ramp').hidden_reason = '  '; }],
+    ['a reason without hidden', (b) => { b.cards[0].hidden_reason = 'Why'; }],
     ['review_status unknown', (b) => { b.cards[0].review_status = 'maybe'; }],
   ];
   it.each(bad)('rejects the whole copy: %s', async (_n, mutate) => {

@@ -6,13 +6,18 @@ const mockFiles = new Map<string, Uint8Array>();
 const mockSecure = new Map<string, string>();
 const mockFail = { dirDelete: false, dirGone: false, secureGet: false };
 const mockWrites: string[] = [];
+const mockKeyOptions = new Map<string, unknown>();
 
 jest.mock('expo-secure-store', () => ({
+  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 6,
   getItemAsync: async (k: string) => {
     if (mockFail.secureGet) throw new Error('keystore');
     return mockSecure.get(k) ?? null;
   },
-  setItemAsync: async (k: string, v: string) => void mockSecure.set(k, v),
+  setItemAsync: async (k: string, v: string, o?: unknown) => {
+    mockSecure.set(k, v);
+    mockKeyOptions.set(k, o);
+  },
   deleteItemAsync: async (k: string) => void mockSecure.delete(k),
 }));
 
@@ -145,6 +150,30 @@ beforeEach(() => {
   mockFail.dirGone = false;
   mockFail.secureGet = false;
   mockWrites.length = 0;
+  mockKeyOptions.clear();
+});
+
+describe('photo key accessibility (#948)', () => {
+  /** `load` cannot tell iOS from Android (the vault sees one react-native mock), so these two modules get their own platform. */
+  function loadOn(os: 'ios' | 'android'): Vault {
+    let v: Vault | undefined;
+    jest.isolateModules(() => {
+      jest.doMock('react-native', () => ({ Platform: { OS: os } }));
+      v = jest.requireActual('../src/photos/vault');
+    });
+    jest.dontMock('react-native');
+    return v as Vault;
+  }
+
+  it('iOS: the key is written readable only while unlocked and only on this device', async () => {
+    await loadOn('ios').putPhoto('2026-10-01', 'front', JPEG);
+    expect(mockKeyOptions.get('pb.photo_key')).toEqual({ keychainAccessible: 6 });
+  });
+
+  it('Android: no options are passed', async () => {
+    await loadOn('android').putPhoto('2026-10-01', 'front', JPEG);
+    expect(mockKeyOptions.get('pb.photo_key')).toEqual({});
+  });
 });
 
 describe('photo vault on Android', () => {

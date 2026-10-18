@@ -26,7 +26,26 @@
 			request>headers delete
 			resp_headers delete
 		}
-		include http.log.error
+		include http.log.error http.handlers.reverse_proxy
+	}
+	# Default log: every request-bearing line not claimed by a named log above, for example an access line whose Host is not in
+	# Caddy's per-host log map (upper case, trailing dot, unknown host), gets the same filters instead of going out raw.
+	log default {
+		output stderr
+		format filter {
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>uri regexp "(?i)(/api/push/)[^?]*|\?.*$" "$1"
+			request>headers delete
+			resp_headers delete
+		}
 	}
 }
 
