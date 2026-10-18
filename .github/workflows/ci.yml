@@ -231,6 +231,12 @@ jobs:
         working-directory: .
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm run a11y
+      # The landing page's "Open the web app" button and the deletion page's "Delete on the web" section only
+      # render when PUBLIC_WEB_APP_URL is set (#859), so check them too. a11y rebuilds dist/ with this env.
+      - name: a11y with PUBLIC_WEB_APP_URL set
+        env:
+          PUBLIC_WEB_APP_URL: https://app.example.test
+        run: npm run a11y
 
   e2e:
     name: e2e (web, Playwright)
