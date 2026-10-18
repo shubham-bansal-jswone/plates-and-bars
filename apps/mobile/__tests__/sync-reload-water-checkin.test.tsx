@@ -9,7 +9,7 @@ import { useWater } from '../src/food/useWater';
 import { dayQueue } from '../src/workout/dayQueue';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
-import { openDb } from './sync-helpers';
+import { openDb, turns } from './sync-helpers';
 
 // Never a focus event: every update below has to come from the sync reload (dataVersion) alone.
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: () => {} }));
@@ -67,25 +67,31 @@ describe('water reloads after a sync pull, without a focus event (#293)', () => 
     await act(async () => result.current.add(250));
     g.release();
     await waitFor(() => expect(result.current.ml).toBe(750));
-    await act(async () => void (await new Promise((r) => setTimeout(r, 50))));
+    await act(async () => turns()); // the held read lands
     expect(result.current.ml).toBe(750);
     expect(await real.getAllAsync('SELECT key FROM water_logs')).toHaveLength(2);
   });
 
   it('a drink undone on the device is not brought back by the reload that waits for its write', async () => {
     const real = await openDb();
+    // Writes wait for `open` once it is armed, so the undo is still unwritten when the reload starts reading.
+    let hold: Promise<void> | null = null;
+    let open!: () => void;
     const slow = Object.assign(Object.create(real) as Db, {
       runAsync: async (...a: Parameters<Db['runAsync']>) => {
-        await new Promise((r) => setTimeout(r, 60));
+        await hold;
         return real.runAsync(...a);
       },
     });
     await saveWaterLog(real, drink('d1', 250, '2026-10-08T07:00:00Z'));
     const { result, rerender } = await renderHook(({ k }: { k: number }) => useWater({ db: slow, date: DATE, now: NOW, profile, notify, reloadKey: k }), { initialProps: { k: 0 } });
     await waitFor(() => expect(result.current.ml).toBe(250));
+    hold = new Promise<void>((r) => (open = r));
     await act(async () => result.current.undo());
-    await rerender({ k: 1 });
-    await act(async () => void (await new Promise((r) => setTimeout(r, 250))));
+    await rerender({ k: 1 }); // the reload starts and waits for the queued write
+    await act(async () => open());
+    await waitFor(async () => expect(await real.getAllAsync('SELECT key FROM water_logs WHERE data LIKE \'%"deleted_at":"%\'')).toHaveLength(1));
+    await act(async () => turns()); // the reload reads now
     expect(result.current.ml).toBe(0);
   });
 
@@ -131,7 +137,7 @@ describe('check-in and coverage reload after a sync pull, without a focus event 
     );
     await saveWorkout(db, { ...wk });
     await view.rerender(ui(1));
-    await act(async () => void (await new Promise((r) => setTimeout(r, 30))));
+    await act(async () => turns()); // the reload is waiting on the queue
     await saveSet(db, DATE, done('s1')); // lands "while the queued write runs"
     release();
     expect(await screen.findByLabelText(/^1 \/ \d+ sessions$/)).toBeTruthy();
