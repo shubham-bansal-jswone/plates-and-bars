@@ -4,16 +4,18 @@ import { addPrep, fitSuggestions, isPrepEntry, OIL_LEVEL, RECIPE_LOG_STEP, recip
 import { localDate } from '../setup/logic';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { Button, Caption, ErrorText, Field, Hint, H1, Label, Page, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, Hint, H1, Label, Note, Page, Press } from '../components/ui';
 import { fmt } from '../format';
 import { newId } from '../db/records';
 import { useSettings } from '../state/SettingsProvider';
 import type { WorkoutDb } from '../db/workouts';
 import { MEALS, type Meal } from '../food/types';
-import { getKatoriG, getLibrary, getPresets, getRawIngredients, unknownIngredients } from '../recipes/content';
+import { getKatoriG, getLibrary, getPresets, getRawIngredients, getRawNames, unknownIngredients } from '../recipes/content';
+import { ImportRecipe } from '../ai/ImportRecipe';
+import { AI_COPY } from '../ai/copy';
 import { CookMode } from '../recipes/CookMode';
 import { FIT_LABEL, fitLine, LOAD_FAILED, NO_YIELD_HINT, OIL_HINT, OIL_LABELS, PREP_NOT_SAVED, prepSet, problem, RB_INTRO, UNITS_HINT, unknownBlock } from '../recipes/copy';
-import { blankDraft, fromLibrary, fromPreset, fromRecipe, withFit, type Draft } from '../recipes/draft';
+import { blankDraft, fromImport, fromLibrary, fromPreset, fromRecipe, withFit, type Draft } from '../recipes/draft';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { useRecipes } from '../recipes/useRecipes';
 import { useTheme } from '../theme/useTheme';
@@ -90,7 +92,7 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
     notify(prepSet(Math.round(t.katoris), d.meal));
     leave(onBack);
   };
-  const steps = d.lib?.steps ?? [];
+  const steps = d.lib?.steps ?? d.importedSteps;
 
   return (
     <View style={styles.fill}>
@@ -123,6 +125,8 @@ export function RecipesScreen({ db, onBack, onKitchen, meal = 'Lunch', now = () 
             <Hint>{OIL_HINT}</Hint>
           </View>
         ) : null}
+        <ImportRecipe known={new Set(getRawNames())} onDraft={(r) => { setD((cur) => fromImport(cur, r)); notify(AI_COPY.importDone); }} />
+        {d.importedUnmatched.length ? <View accessibilityLiveRegion="polite"><Note>{AI_COPY.importUnmatched(d.importedUnmatched)}</Note></View> : null}
         <View style={styles.gap}>
           <Caption>Recipe name</Caption>
           <Field label="Recipe name" placeholder="e.g. Mom’s dal" value={d.name} onChangeText={(name) => setD({ ...d, name })} />

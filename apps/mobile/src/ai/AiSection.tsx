@@ -8,7 +8,7 @@ import { useAi } from './AiProvider';
 import { AI_COPY } from './copy';
 import type { AiFeature } from './client';
 
-const FEATURES: AiFeature[] = ['describe_meal', 'ask_why', 'weekly_summary', 'suggest_tags', 'meal_photo'];
+const FEATURES: AiFeature[] = ['describe_meal', 'ask_why', 'weekly_summary', 'suggest_tags', 'meal_photo', 'import_recipe'];
 
 /** Targets tab: the AI consent toggle (off by default, says what is sent) and, once on and available, Ask why. Hidden when signed out or the build has no server. */
 export function AiSection() {
