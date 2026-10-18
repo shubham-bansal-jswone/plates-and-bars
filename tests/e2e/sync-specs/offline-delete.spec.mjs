@@ -1,24 +1,16 @@
-import { completeSetup, openApp, saved, tab } from '../support/app.mjs';
-import { expect, label, signIn, test } from '../support/sync.mjs';
+import { completeSetup, saved, tab } from '../support/app.mjs';
+import { badge, expect, label, newEmail, openedOn, signIn, test } from '../support/sync.mjs';
 
 // Needs the backend stack (README.md, "Sync tests"). Part of #688. Waits are on the badge and on screen text, never fixed sleeps:
 // a store write shows "Not synced" at once (SyncProvider's onStoreWrite) and the browser's `online` event starts a sync.
-const newEmail = () => `e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
-const badge = (page, text) => page.locator(`[aria-label^=${JSON.stringify(`${text}.`)}]`);
+// One serving of Roti / chapati is 102 kcal (content/foods.json).
+const ROTI = 102;
 
 async function logRoti(page, meal) {
   await tab(page, 'Food');
   await label(page, `+ Add to ${meal}`).click();
   await saved(page, () => page.locator('[aria-label^="Roti / chapati"]').first().click());
   await label(page, 'Done').click();
-}
-
-async function openedOn(page, email) {
-  await openApp(page);
-  await signIn(page, email);
-  // Consent is kept per device, so the returning user is asked again (the profile came down with the sign-in).
-  await label(page, 'I understand and agree to my data being stored as described').click();
-  await label(page, 'Continue').click();
 }
 
 test('two meals logged offline are queued, then sync when the browser is back online', async ({ device }) => {
@@ -32,7 +24,7 @@ test('two meals logged offline are queued, then sync when the browser is back on
   await logRoti(a, 'breakfast');
   await expect(badge(a, 'Not synced')).toBeVisible();
   await logRoti(a, 'lunch');
-  await expect(label(a, '204 of 1,990 kcal eaten')).toBeVisible();
+  await expect(label(a, `${2 * ROTI} of 1,990 kcal eaten`)).toBeVisible();
   // Still queued: nothing reached the server while offline.
   await expect(badge(a, 'Not synced')).toBeVisible();
 
@@ -43,7 +35,7 @@ test('two meals logged offline are queued, then sync when the browser is back on
   const b = await device();
   await openedOn(b, email);
   await tab(b, 'Food');
-  await expect(label(b, '204 of 1,990 kcal eaten')).toBeVisible();
+  await expect(label(b, `${2 * ROTI} of 1,990 kcal eaten`)).toBeVisible();
 });
 
 test('deleting the account on one device signs the other device out', async ({ device }) => {
@@ -52,12 +44,17 @@ test('deleting the account on one device signs the other device out', async ({ d
   await completeSetup(a);
   await signIn(a, email);
   await logRoti(a, 'breakfast');
+  // A store write only queues the change; a push needs the 30 s tick, an online event or Sync now. Press Sync now.
+  await expect(badge(a, 'Not synced')).toBeVisible();
+  await badge(a, 'Not synced').click();
+  await label(a, 'Sync now').click();
+  await label(a, 'Done').click();
   await expect(badge(a, 'Synced')).toBeVisible();
 
   const b = await device();
   await openedOn(b, email);
   await tab(b, 'Food');
-  await expect(label(b, '102 of 1,990 kcal eaten')).toBeVisible();
+  await expect(label(b, `${ROTI} of 1,990 kcal eaten`)).toBeVisible();
 
   // Delete on A (online, so the server deletes too).
   await tab(a, 'Targets');
