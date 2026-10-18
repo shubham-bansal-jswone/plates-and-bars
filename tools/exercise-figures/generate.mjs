@@ -13,7 +13,12 @@ export const slug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').rep
 
 /** k = 0 is the start pose, k = 1 the end pose. */
 export function renderFrame(name, k) {
-  const body = AN.frame(name, k, COLOURS).replace(/(\d)\.0(?=["\s])/g, '$1'); // "12.0" -> "12": about 6% smaller
+  // The rig prints most coordinates to 1 decimal but a few props (seat posts) with full precision: round every number
+  // to 1 decimal, then "12.0" -> "12" (smaller, and within the validator's digit limit).
+  const body = AN.frame(name, k, COLOURS)
+    .replace(/-?\d+\.\d{2,}/g, (n) => Number(n).toFixed(1))
+    .replace(/-0\.0(?=["\s])/g, '0')
+    .replace(/(\d)\.0(?=["\s])/g, '$1');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW.w} ${VIEW.h}">${body}</svg>`;
 }
 

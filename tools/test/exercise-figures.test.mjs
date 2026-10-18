@@ -64,6 +64,13 @@ test('start and end frames differ, and each entry credits Plate & Bar under CC B
   }
 });
 
+test('every coordinate has at most one decimal (props the rig prints at full precision are rounded)', () => {
+  for (const [name, im] of Object.entries(JSON.parse(committed).images)) for (const f of im.frames) {
+    assert.doesNotMatch(f.svg, /\d\.\d{2,}/, name);
+    assert.doesNotMatch(f.svg, /-0(?=["\s])/, name);
+  }
+});
+
 test('slugs are unique and the frame is a viewBox-only svg', () => {
   assert.equal(new Set(AN.names.map(slug)).size, AN.names.length);
   assert.equal(slug('Plank (seconds)'), 'plank-seconds');

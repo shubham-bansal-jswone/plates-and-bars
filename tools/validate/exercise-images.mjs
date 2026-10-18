@@ -4,39 +4,34 @@
 // (test/exercise-images.test.mjs compares the lists below with the schema).
 import { createHash } from 'node:crypto';
 import { nonEmpty } from './text.mjs';
+import { checkSvgFrame, COLOUR_TOKENS, MAX_SVG_BYTES, svgByteLength } from './svg-allowlist.mjs';
 
-export const SOURCES = ['own_drawing', 'wger', 'wikimedia_commons'];
-// Allowlist: own work only. CC-BY-SA licences stay out until an ADR accepts them (issue #653, section 5).
+// Own drawings only. A third-party source (wger, Wikimedia Commons) needs an ADR first (issue #653, section 5), and
+// this list and the schema enum change together then.
+export const SOURCES = ['own_drawing'];
+// Allowlist of licences; CC-BY-SA stays out until an ADR accepts it.
 export const LICENCES = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
 };
-export const OWN_LICENCES = ['CC-BY-4.0', 'CC0-1.0'];
-export const MAX_FRAME_BYTES = 8192;
+export const MAX_FRAME_BYTES = MAX_SVG_BYTES;
 export const MAX_FRAMES = 2;
 export const MAX_DIMENSION = 1024;
 export const MAX_ALT = 140;
-// Colours come from the app's theme: currentColor or one of these tokens, never a literal colour.
-export const COLOUR_TOKENS = ['body', 'arm', 'hl', 'eq', 'bg'];
-const COLOUR_OK = new RegExp(`^(none|currentColor|var\\(--fig-(${COLOUR_TOKENS.join('|')})\\))$`);
+export { COLOUR_TOKENS };
 const FIELDS = ['frames', 'source', 'source_id', 'licence', 'licence_url', 'author', 'author_url', 'source_url', 'changes', 'alt', 'note'];
 const FRAME_FIELDS = ['file', 'w', 'h', 'svg'];
-const FILE = /^svg\/[a-z0-9]+(-[a-z0-9]+)*\.svg$/;
+export const FILE_PATTERN = '^svg/[a-z0-9]+(-[a-z0-9]+)*\\.svg$';
+const FILE = new RegExp(FILE_PATTERN);
 const isInt = (n) => Number.isInteger(n) && n > 0;
 const isHttps = (s) => typeof s === 'string' && /^https:\/\/[^\s]+$/.test(s);
 const nullOrString = (v) => v === null || nonEmpty(v);
 
 function checkSvg(svg, w, h, err) {
   if (typeof svg !== 'string') return err('svg must be a string');
-  const bytes = Buffer.byteLength(svg, 'utf8');
+  const bytes = svgByteLength(svg);
   if (bytes > MAX_FRAME_BYTES) err(`svg is ${bytes} bytes, the limit is ${MAX_FRAME_BYTES}`);
-  if (!/^<svg[\s>]/.test(svg) || !svg.endsWith('</svg>')) err('svg must start with <svg and end with </svg>');
-  if (isInt(w) && isInt(h) && !svg.includes(` viewBox="0 0 ${w} ${h}"`)) err(`svg viewBox must be "0 0 ${w} ${h}"`);
-  if (/<\s*(script|foreignObject|image|style|use|a|iframe|animate|set)\b/i.test(svg)) err('svg contains a forbidden element (script, foreignObject, image, style, use, a, animation)');
-  if (/\son[a-z]+\s*=|javascript:|href\s*=|<!ENTITY|<!DOCTYPE|\sstyle\s*=|\sclass\s*=/i.test(svg)) err('svg contains a forbidden attribute (event handler, href, style, class) or a DOCTYPE');
-  for (const m of svg.matchAll(/\s(fill|stroke|stop-color|color)="([^"]*)"/g)) {
-    if (!COLOUR_OK.test(m[2])) err(`svg bakes in a colour: ${m[1]}="${m[2]}" (use currentColor or var(--fig-${COLOUR_TOKENS.join('|')}))`);
-  }
+  for (const e of checkSvgFrame(svg, w, h)) err(e);
 }
 
 /**
@@ -82,22 +77,15 @@ export function validateExerciseImages(content, exerciseNames) {
       }
     });
 
-    if (!SOURCES.includes(im.source)) err(`source must be one of ${SOURCES.join(', ')}`);
+    if (!SOURCES.includes(im.source)) err(`source must be ${SOURCES.join(', ')} (third-party images need an ADR first)`);
     for (const f of ['source_id', 'licence', 'author']) if (!nonEmpty(im[f])) err(`${f} must be a non-empty string`);
     if (nonEmpty(im.licence)) {
-      if (!(im.licence in LICENCES)) err(`licence "${im.licence}" is not on the allowlist (${Object.keys(LICENCES).join(', ')})`);
+      if (!Object.hasOwn(LICENCES, im.licence)) err(`licence "${im.licence}" is not on the allowlist (${Object.keys(LICENCES).join(', ')})`);
       else if (im.licence_url !== LICENCES[im.licence]) err(`licence_url must be ${LICENCES[im.licence]}`);
     }
     if (nonEmpty(im.source_id)) {
       if (sourceIds.has(im.source_id)) err(`duplicate source_id ${im.source_id} (also ${sourceIds.get(im.source_id)})`);
       sourceIds.set(im.source_id, name);
-    }
-    if (im.source === 'own_drawing') {
-      if (im.licence in LICENCES && !OWN_LICENCES.includes(im.licence)) err(`own drawings must be ${OWN_LICENCES.join(' or ')}`);
-    } else if (SOURCES.includes(im.source)) {
-      if (!isHttps(im.source_url)) err('third-party images need an https source_url');
-      if (!isHttps(im.author_url)) err('third-party images need an https author_url');
-      if (!nonEmpty(im.changes) && im.changes !== null) err('changes must be a string or null');
     }
     for (const u of ['author_url', 'source_url']) if (im[u] !== null && im[u] !== undefined && !isHttps(im[u])) err(`${u} must be an https URL or null`);
     for (const f of ['changes', 'note']) if (f in im && !nullOrString(im[f])) err(`${f} must be a non-empty string or null`);
