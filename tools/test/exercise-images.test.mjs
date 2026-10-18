@@ -243,3 +243,11 @@ test('the JSON Schema agrees with the validator constants', () => {
   assert.deepEqual([...image.required].sort(), Object.keys(good().images['Barbell Bench Press']).sort());
   assert.deepEqual([...schema.$defs.frame.required], ['file', 'w', 'h', 'svg']);
 });
+
+// Shared corpus: apps/mobile's port of the allowlist (src/workout/svgAllowlist.ts) must give the same verdicts (its test reads this file too).
+const corpus = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../validate/fixtures/svg-corpus.json'), 'utf8')).frames;
+test('svg corpus: every entry gets its expected verdict', () => {
+  assert.ok(corpus.length >= 60);
+  assert.ok(corpus.some((f) => f.ok) && corpus.some((f) => !f.ok));
+  for (const f of corpus) assert.equal(checkSvgFrame(f.svg, f.w, f.h).length === 0, f.ok, f.name);
+});

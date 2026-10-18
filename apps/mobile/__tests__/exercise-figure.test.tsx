@@ -7,6 +7,8 @@ import { ExerciseFigure } from '../src/workout/ExerciseFigure';
 import { ALT_MAX, figureAlt, getFigureSources, isFigureBundle, themedSvg } from '../src/workout/figures';
 import { getCatalog } from '../src/workout/catalog';
 import { dark, light } from '../src/theme/tokens';
+import { passesAllowlist } from '../src/workout/svgAllowlist';
+import corpus from '../../../tools/validate/fixtures/svg-corpus.json';
 import { openDb } from './sync-helpers';
 
 const mockPush = jest.fn();
@@ -217,5 +219,17 @@ describe('About: Exercise drawings', () => {
     expect(screen.getByText('Plate & Bar authors: 2 exercise drawings')).toBeTruthy();
     expect(screen.getByText('Licence: CC BY 4.0')).toBeTruthy();
     expect(screen.getByText('https://creativecommons.org/licenses/by/4.0/')).toBeTruthy();
+  });
+});
+
+describe('SVG allowlist parity with tools/validate/svg-allowlist.mjs', () => {
+  // The same corpus is run by tools/test/exercise-images.test.mjs; both must give each entry's expected verdict.
+  const frames = corpus.frames as { name: string; w: number; h: number; ok: boolean; svg: string }[];
+  it('has both accepted and refused entries', () => {
+    expect(frames.length).toBeGreaterThanOrEqual(60);
+    expect(frames.some((f) => f.ok) && frames.some((f) => !f.ok)).toBe(true);
+  });
+  it.each(frames.map((f) => [f.name, f] as const))('%s', (_n, f) => {
+    expect(passesAllowlist(f.svg, f.w, f.h)).toBe(f.ok);
   });
 });

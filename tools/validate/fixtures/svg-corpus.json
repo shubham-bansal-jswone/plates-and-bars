@@ -1,0 +1,530 @@
+{
+ "_comment": "Shared by tools/test/exercise-images.test.mjs and apps/mobile/__tests__/exercise-figure.test.tsx: both validators must give the expected verdict for every entry (issue #653).",
+ "frames": [
+  {
+   "name": "plain valid frame",
+   "w": 160,
+   "h": 120,
+   "ok": true,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle cx=\"80\" cy=\"20\" r=\"10\" fill=\"var(--fig-body)\"/><path d=\"M80 30 L80 80\" stroke=\"currentColor\" stroke-width=\"4\" fill=\"none\"/><rect x=\"50\" y=\"90\" width=\"60\" height=\"6\" rx=\"2\" fill=\"var(--fig-eq)\"/></svg>"
+  },
+  {
+   "name": "group with transform, line, ellipse",
+   "w": 160,
+   "h": 120,
+   "ok": true,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><g transform=\"translate(5 5) rotate(10)\" opacity=\"0.5\"><line x1=\"0\" y1=\"0\" x2=\"10\" y2=\"10\" stroke=\"var(--fig-arm)\" stroke-linecap=\"round\"/><ellipse cx=\"5\" cy=\"5\" rx=\"2\" ry=\"3\" fill=\"var(--fig-hl)\"/></g></svg>"
+  },
+  {
+   "name": "title with text",
+   "w": 160,
+   "h": 120,
+   "ok": true,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><title>Bench</title><circle r=\"1\" fill=\"none\"/></svg>"
+  },
+  {
+   "name": "empty svg",
+   "w": 160,
+   "h": 120,
+   "ok": true,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"></svg>"
+  },
+  {
+   "name": "path with relative commands and Z",
+   "w": 160,
+   "h": 120,
+   "ok": true,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><path d=\"m0 0 l10 10 h5 v5 z\" fill=\"var(--fig-bg)\"/></svg>"
+  },
+  {
+   "name": "opacity 1 and 0",
+   "w": 160,
+   "h": 120,
+   "ok": true,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" opacity=\"1\" fill-opacity=\"0\"/></svg>"
+  },
+  {
+   "name": "negative coordinates",
+   "w": 160,
+   "h": 120,
+   "ok": true,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><line x1=\"-5\" y1=\"-5.5\" x2=\"10\" y2=\"10\"/></svg>"
+  },
+  {
+   "name": "slash before onclick",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle cx=\"1\"/onclick=\"alert(1)\"/></svg>"
+  },
+  {
+   "name": "img with slash onerror",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><img src=\"x\"/onerror=\"alert(1)\"></svg>"
+  },
+  {
+   "name": "external img",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><img src=\"https://evil.example/t.gif\"></svg>"
+  },
+  {
+   "name": "embed",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><embed src=\"https://evil.example/x\"></svg>"
+  },
+  {
+   "name": "meta refresh",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><meta http-equiv=\"refresh\" content=\"0;url=https://evil.example\"></svg>"
+  },
+  {
+   "name": "prefixed script",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><svg:script xmlns:svg=\"http://www.w3.org/2000/svg\">alert(1)</svg:script></svg>"
+  },
+  {
+   "name": "prefixed foreignObject",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><x:foreignObject xmlns:x=\"http://www.w3.org/2000/svg\"></x:foreignObject></svg>"
+  },
+  {
+   "name": "filter url external",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" filter=\"url(https://evil.example/f.svg#f)\"/></svg>"
+  },
+  {
+   "name": "mask url data",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" mask=\"url(data:image/svg+xml;base64,AAAA)\"/></svg>"
+  },
+  {
+   "name": "slash before style",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\"/style=\"fill:red\"/></svg>"
+  },
+  {
+   "name": "animateTransform",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><animateTransform attributeName=\"transform\" type=\"rotate\" from=\"0\" to=\"360\"/></svg>"
+  },
+  {
+   "name": "animateMotion",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><animateMotion path=\"M0 0\"/></svg>"
+  },
+  {
+   "name": "single-quoted colour",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" fill='#ff0000'/></svg>"
+  },
+  {
+   "name": "spaces around = in colour",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" fill = \"red\"/></svg>"
+  },
+  {
+   "name": "unquoted colour",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" fill=red/></svg>"
+  },
+  {
+   "name": "feFlood flood-color",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><feFlood flood-color=\"red\"/></svg>"
+  },
+  {
+   "name": "script element",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><script>alert(1)</script></svg>"
+  },
+  {
+   "name": "anchor with href",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><a href=\"https://x.test\"><circle r=\"4\"/></a></svg>"
+  },
+  {
+   "name": "image element",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><image width=\"4\" height=\"4\"/></svg>"
+  },
+  {
+   "name": "style attribute",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"4\" style=\"fill:red\"/></svg>"
+  },
+  {
+   "name": "style element",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><style>circle{fill:red}</style></svg>"
+  },
+  {
+   "name": "use element",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><use x=\"1\"/></svg>"
+  },
+  {
+   "name": "url() paint",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"4\" fill=\"url(#g)\"/></svg>"
+  },
+  {
+   "name": "baked-in colour",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"4\" fill=\"#ff0000\"/></svg>"
+  },
+  {
+   "name": "event handler attribute",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"4\" onload=\"x()\" fill=\"none\"/></svg>"
+  },
+  {
+   "name": "javascript: in transform",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"4\" transform=\"javascript:alert(1)\"/></svg>"
+  },
+  {
+   "name": "unknown attribute id",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"4\" id=\"a\"/></svg>"
+  },
+  {
+   "name": "duplicate attribute",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"4\" r=\"5\"/></svg>"
+  },
+  {
+   "name": "polygon not allowed",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><polygon points=\"0,0 1,1 2,0\"/></svg>"
+  },
+  {
+   "name": "text between tags",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><g>hello</g></svg>"
+  },
+  {
+   "name": "comment",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><!-- x --><circle r=\"4\"/></svg>"
+  },
+  {
+   "name": "DOCTYPE entity",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><!DOCTYPE svg [<!ENTITY x \"y\">]><circle r=\"4\"/></svg>"
+  },
+  {
+   "name": "CDATA",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><title><![CDATA[x]]></title></svg>"
+  },
+  {
+   "name": "processing instruction",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><?xml version=\"1.0\"?><circle r=\"1\"/></svg>"
+  },
+  {
+   "name": "unknown entity in title",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><title>&x;</title></svg>"
+  },
+  {
+   "name": "second root",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"></svg><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"></svg>"
+  },
+  {
+   "name": "unclosed g",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><g><circle r=\"1\"/></svg>"
+  },
+  {
+   "name": "mismatched close",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><g><circle r=\"1\"/></path></svg>"
+  },
+  {
+   "name": "nested svg",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><svg><circle r=\"1\"/></svg></svg>"
+  },
+  {
+   "name": "foreign xmlns",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://evil.example/\" viewBox=\"0 0 160 120\"></svg>"
+  },
+  {
+   "name": "viewBox only in a comment",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<!-- viewBox=\"0 0 160 120\" --><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1 1\"></svg>"
+  },
+  {
+   "name": "wrong viewBox",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 161 120\"></svg>"
+  },
+  {
+   "name": "viewBox attribute missing",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"
+  },
+  {
+   "name": "xmlns missing",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg viewBox=\"0 0 160 120\"></svg>"
+  },
+  {
+   "name": "circle containing a circle",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\"><circle r=\"1\"/></circle></svg>"
+  },
+  {
+   "name": "rect containing a title",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><rect width=\"1\" height=\"1\"><title>x</title></rect></svg>"
+  },
+  {
+   "name": "title containing an element",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><title><g/></title></svg>"
+  },
+  {
+   "name": "negative radius",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"-1\"/></svg>"
+  },
+  {
+   "name": "negative width",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><rect x=\"0\" y=\"0\" width=\"-5\" height=\"5\"/></svg>"
+  },
+  {
+   "name": "negative stroke-width",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-width=\"-2\"/></svg>"
+  },
+  {
+   "name": "opacity above 1",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" opacity=\"2\"/></svg>"
+  },
+  {
+   "name": "negative opacity",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1\" opacity=\"-0.5\"/></svg>"
+  },
+  {
+   "name": "exponent number",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1e3\"/></svg>"
+  },
+  {
+   "name": "seven-digit number",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1234567\"/></svg>"
+  },
+  {
+   "name": "400-digit number",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999\"/></svg>"
+  },
+  {
+   "name": "unit on a number",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><circle r=\"1em\"/></svg>"
+  },
+  {
+   "name": "path with letters only",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><path d=\"MLZ\"/></svg>"
+  },
+  {
+   "name": "path with wrong arity",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><path d=\"M1 2 3 L4 5\"/></svg>"
+  },
+  {
+   "name": "path starting with a number",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><path d=\"1 2 M3 4\"/></svg>"
+  },
+  {
+   "name": "path with an exponent",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><path d=\"M1e3 2\"/></svg>"
+  },
+  {
+   "name": "path that is empty",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><path d=\"\"/></svg>"
+  },
+  {
+   "name": "transform with a stray word",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><g transform=\"translate(1 2) foo\"/></svg>"
+  },
+  {
+   "name": "transform with wrong arg count",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><g transform=\"matrix(1 2 3)\"/></svg>"
+  },
+  {
+   "name": "empty transform",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><g transform=\"\"/></svg>"
+  },
+  {
+   "name": "bad linecap",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"><line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\" stroke-linecap=\"inherit\"/></svg>"
+  },
+  {
+   "name": "viewBox with an offset",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"5 5 160 120\"></svg>"
+  },
+  {
+   "name": "text after the root",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 120\"></svg>x"
+  },
+  {
+   "name": "empty string",
+   "w": 160,
+   "h": 120,
+   "ok": false,
+   "svg": ""
+  }
+ ]
+}
