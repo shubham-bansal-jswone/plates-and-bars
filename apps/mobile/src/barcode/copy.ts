@@ -33,7 +33,7 @@ export const BARCODE_COPY = {
   incomplete: 'Open Food Facts marks this entry as incomplete. Check the numbers against the pack.',
   qualityErrors: 'Open Food Facts lists problems with this entry. Check the numbers against the pack.',
   carbsFibre: 'Carbohydrate is as printed on the pack. Check it includes fibre.',
-  liquid: 'This one is measured in ml, so entering grams is off. Use servings.',
+  liquid: 'This is measured in ml, so the grams box does not work for it. Use servings.',
   savedNote: 'You saved this food from a scan before. No lookup was needed.',
   notFound: 'Open Food Facts does not have this product yet. Enter it yourself.',
   byHand: 'Enter by hand',
