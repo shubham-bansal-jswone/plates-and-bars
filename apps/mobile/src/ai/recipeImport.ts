@@ -12,6 +12,8 @@ export interface ImportedRecipe {
 }
 
 const r1 = (n: number): string => String(Math.round(n * 10) / 10);
+/** Imported grams are whole grams (prototype `String(Math.round(num(i.grams)))`). */
+const whole = (n: number): string => String(Math.round(n));
 
 /**
  * The server's draft in the builder's terms (prototype `importRecipe`). A matched ingredient the device's table does not
@@ -22,8 +24,8 @@ export function importedRecipe(r: Schemas['ImportRecipeResponse'], known: Readon
   const rows: DraftRow[] = [];
   const unmatched = [...r.unmatched];
   for (const i of r.ingredients) {
-    if (known.has(i.ingredient)) rows.push({ ingredient: i.ingredient, amount: r1(Number(i.amount)), unit: 'g' });
-    else unmatched.push(`${i.ingredient} (${r1(Number(i.amount))} g)`);
+    if (known.has(i.ingredient)) rows.push({ ingredient: i.ingredient, amount: whole(Number(i.amount)), unit: 'g' });
+    else unmatched.push(`${i.ingredient} (${whole(Number(i.amount))} g)`);
   }
   return { name: r.name, katoris: r1(r.katoris), rows, steps: r.steps, unmatched };
 }

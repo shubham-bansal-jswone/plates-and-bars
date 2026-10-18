@@ -25,7 +25,9 @@ export type AiFailure =
   | { kind: 'rate_limited'; retryAfterSec: number }
   /** A 400. `issue` is the contract's image fault when the server named one; `field` is the offending field (`exercise`, `image.data`, ...). */
   | { kind: 'invalid'; issue?: ImageIssue; field?: string }
-  | { kind: 'offline' | 'unavailable' | 'signed_out' };
+  /** `retryAfterSec` is set only when the server is busy decoding images (503 with `Retry-After`). */
+  | { kind: 'unavailable'; retryAfterSec?: number }
+  | { kind: 'offline' | 'signed_out' };
 export type AiResult<T> = { kind: 'ok'; data: T } | AiFailure;
 
 export interface AiDeps {
@@ -94,7 +96,8 @@ function answer<T>(r: Reply<T>): AiResult<T> {
   if (s === 429 && body.code === 'quota_exceeded') return { kind: 'quota', quota: body.quota ?? null };
   if (s === 429) return { kind: 'rate_limited', retryAfterSec: Number(r.response.headers.get('Retry-After')) || 60 };
   if (s === 503 && body.code === 'feature_disabled') return { kind: 'disabled' };
-  return { kind: 'unavailable' };
+  const wait = s === 503 ? Number(r.response.headers.get('Retry-After')) : 0;
+  return { kind: 'unavailable', ...(wait > 0 ? { retryAfterSec: Math.ceil(wait) } : null) };
 }
 
 /**

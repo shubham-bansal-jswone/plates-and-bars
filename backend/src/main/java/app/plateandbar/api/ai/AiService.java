@@ -177,7 +177,7 @@ public class AiService {
             status = "200";
             return out;
         } catch (ApiException e) {
-            status = Integer.toString(e.status().value());
+            status = e instanceof ImageBusyException ? "503 busy" : Integer.toString(e.status().value()); // the decode cap turning people away
             throw e;
         } finally {
             log.info("AI call: user {} feature {} status {} took {} ms", userId, feature.key(), status,

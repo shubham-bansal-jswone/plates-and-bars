@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT, useAi } from '../src/ai/AiProvider';
 import { IMAGE_ISSUES } from '../src/ai/client';
@@ -33,6 +33,7 @@ jest.mock('expo-image-manipulator', () => ({
       mockSaved.ops.push(`manipulate ${uri}`);
       const ctx = {
         resize: (s: object) => (mockSaved.ops.push(`resize ${JSON.stringify(s)}`), ctx),
+        release: () => undefined,
         renderAsync: async () => ({
           saveAsync: async (o: { compress: number; format: string; base64: boolean }) => {
             mockSaved.ops.push(`save ${o.compress} ${o.format} ${o.base64}`);
@@ -193,7 +194,7 @@ describe('the flow', () => {
     expect(screen.getByDisplayValue('10')).toBeTruthy();
     expect(screen.getByLabelText('Number of katoris').props.value).toBe('6');
     expect(screen.getByLabelText('Ingredient 1: Toor dal (dry). Tap to change')).toBeTruthy();
-    expect(screen.getByText('Not matched, add by hand if they matter: salt, jeera.')).toBeTruthy();
+    expect(screen.getByText('Not matched, so left out: salt, jeera. Add them by hand if they matter.')).toBeTruthy();
     expect(screen.getByText('1. Pressure cook the dal with turmeric for 15 min.')).toBeTruthy();
     expect(screen.getByText(/^Per katori \(about 150 g cooked\)/)).toBeTruthy();
     expect(screen.getByText('Recipe imported. Check the amounts before saving.')).toBeTruthy();
@@ -211,6 +212,8 @@ describe('the flow', () => {
     expect(POST.mock.calls[0][1].body).toEqual({ image: { media_type: 'image/jpeg', data: 'cmVzaXplZA==' } });
     expect(mockPicker.calls).toEqual(['library']);
     expect(mockSaved.ops).toContain('resize {"height":1600}');
+    // The picker's copy and the re-encoded copy are deleted from the cache.
+    expect(mockSaved.deleted).toEqual([`${CACHE}ImagePicker/a.jpg`, expect.stringContaining(`${CACHE}ImageManipulator/`)]);
     // Both.
     await open();
     await typeRecipe('1 cup dal');
@@ -238,7 +241,7 @@ describe('the flow', () => {
     await open();
     await typeRecipe();
     await importIt();
-    expect(await screen.findByText('Not matched, add by hand if they matter: salt, jeera, Dragon fruit powder (25 g).')).toBeTruthy();
+    expect(await screen.findByText('Not matched, so left out: salt, jeera, Dragon fruit powder (25 g). Add them by hand if they matter.')).toBeTruthy();
     expect(screen.queryByLabelText(/^Ingredient 3/)).toBeNull();
   });
 
@@ -294,13 +297,72 @@ describe('the flow', () => {
   });
 });
 
+describe('a reply nobody is waiting for is dropped', () => {
+  const pending = async () => {
+    const { api, POST } = fakeApi();
+    let done!: (v: unknown) => void;
+    POST.mockReturnValue(new Promise((r) => (done = r)));
+    await recipes(optedIn(), api);
+    await open();
+    await typeRecipe();
+    await importIt();
+    await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
+    return { resolve: done, POST };
+  };
+
+  it('Cancel, type a name of your own, then a late answer changes nothing', async () => {
+    const { resolve } = await pending();
+    await fireEvent.press(screen.getByLabelText('Cancel'));
+    await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'My own dal');
+    await act(async () => resolve(ok()));
+    expect(screen.getByLabelText('Recipe name').props.value).toBe('My own dal');
+    expect(screen.queryByDisplayValue('Dal tadka')).toBeNull();
+    expect(screen.queryByText('Recipe imported. Check the amounts before saving.')).toBeNull();
+    expect(screen.queryByText(/Not matched, so left out/)).toBeNull();
+  });
+
+  it('Cancel, then a late error leaves no message when the panel opens again', async () => {
+    const { resolve } = await pending();
+    await fireEvent.press(screen.getByLabelText('Cancel'));
+    await act(async () => resolve({ error: { code: 'unavailable', message: 'x' }, response: res(503) }));
+    await open();
+    expect(screen.queryByText(/Couldn’t get an answer/)).toBeNull();
+    expect(screen.getByLabelText('Import')).toBeTruthy();
+  });
+
+  it('a change made to the builder while it was reading is not rolled back by the answer', async () => {
+    const { resolve } = await pending();
+    await fireEvent.press(screen.getByLabelText('Dinner'));
+    await act(async () => resolve(ok()));
+    expect(await screen.findByDisplayValue('Dal tadka')).toBeTruthy();
+    expect(screen.getByLabelText('Save and add to dinner')).toBeTruthy();
+  });
+});
+
+describe('amounts', () => {
+  it('imported grams are whole grams like the prototype (236.588 g is 237) and katoris keep one decimal', async () => {
+    const { api, POST } = fakeApi();
+    POST.mockResolvedValue(ok({ katoris: 5.46, ingredients: [{ ingredient: 'Toor dal (dry)', amount: 236.588, unit: 'g' }] }));
+    await recipes(optedIn(), api);
+    await open();
+    await typeRecipe();
+    await importIt();
+    expect(await screen.findByDisplayValue('237')).toBeTruthy();
+    expect(screen.getByLabelText('Number of katoris').props.value).toBe('5.5');
+  });
+});
+
 describe('failures fall back and say so', () => {
-  const failWith = async (reply: unknown, quota = QUOTA) => {
+  const failWith = async (reply: unknown, quota = QUOTA, withPhoto = false) => {
     const { api, POST } = fakeApi({ import_recipe: true }, quota);
     POST.mockResolvedValue(reply);
     await recipes(optedIn(), api);
     await open();
     await typeRecipe();
+    if (withPhoto) {
+      await fireEvent.press(await screen.findByLabelText('Add a photo of the recipe from your gallery'));
+      await screen.findByLabelText('Your recipe photo');
+    }
     await importIt();
     return POST;
   };
@@ -346,13 +408,30 @@ describe('failures fall back and say so', () => {
   });
 
   it.each(IMAGE_ISSUES.map((i) => [i]))('400 on the photo with issue %s gets its friendly message', async (issue) => {
-    await failWith({ error: { code: 'invalid_request', message: 'x', details: [{ field: 'image.data', issue }] }, response: res(400) });
+    await failWith({ error: { code: 'invalid_request', message: 'x', details: [{ field: 'image.data', issue }] }, response: res(400) }, QUOTA, true);
     expect(await screen.findByText(IMAGE_ISSUE_MESSAGE[issue])).toBeTruthy();
     expect(screen.queryByText(/image\.data/)).toBeNull();
   });
 
+  it('a 400 on the photo with an issue the app does not know gets the generic photo message, never "shorten the text"', async () => {
+    const { api, POST } = fakeApi();
+    POST.mockResolvedValue({ error: { code: 'invalid_request', message: 'x', details: [{ field: 'image.data', issue: 'something_new' }] }, response: res(400) });
+    await recipes(optedIn(), api);
+    await open();
+    await fireEvent.press(await screen.findByLabelText('Add a photo of the recipe from your gallery'));
+    await screen.findByLabelText('Your recipe photo');
+    await importIt();
+    expect(await screen.findByText('That photo wasn’t accepted. Try another one.')).toBeTruthy();
+    expect(screen.queryByText(/Shorten the text/)).toBeNull();
+  });
+
+  it('a 400 on the text with only text sent says to shorten it, whatever the issue', async () => {
+    await failWith({ error: { code: 'invalid_request', message: 'x', details: [{ field: '', issue: 'too_large' }] }, response: res(400) });
+    expect(await screen.findByText('That recipe wasn’t accepted. Shorten the text and try again.')).toBeTruthy();
+  });
+
   it('a 400 on the text (too long) says to shorten it, not that the photo is too big', async () => {
-    await failWith({ error: { code: 'invalid_request', message: 'x', details: [{ field: 'text', issue: 'too_large' }] }, response: res(400) });
+    await failWith({ error: { code: 'invalid_request', message: 'x', details: [{ field: 'text', issue: 'too_large' }] }, response: res(400) }, QUOTA, true);
     expect(await screen.findByText('That recipe wasn’t accepted. Shorten the text and try again.')).toBeTruthy();
   });
 

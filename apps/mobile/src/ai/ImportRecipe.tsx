@@ -1,17 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Button, ErrorText, Field, Hint, Label } from '../components/ui';
 import { CameraDenied } from '../photos/capture';
 import { useTheme } from '../theme/useTheme';
 import { isBlank } from '../text/blank';
 import { useAi } from './AiProvider';
-import type { AiImage } from './client';
+import type { AiFailure, AiImage } from './client';
 import { AI_COPY, failureMessage, imageFailureMessage } from './copy';
+import { useRequest } from './useRequest';
 import { pickPhotoForAi } from './photo';
 import { importedRecipe, type ImportedRecipe } from './recipeImport';
 
 /** Prototype: the text is cut at 6,000 characters (the contract's `text` `maxLength`). */
 const TEXT_MAX = 6000;
+
+/**
+ * The message for a failed import. "Shorten the text" only for a 400 on the text (or one with no image sent, so the text is all
+ * there is to blame); a 400 on the photo gets the photo messages, and an unknown image fault the generic photo one.
+ */
+function failure(r: AiFailure, hasImage: boolean): string {
+  if (r.kind === 'invalid' && !hasImage) return failureMessage({ kind: 'invalid' }, AI_COPY.importFallback, AI_COPY.importInvalid);
+  return imageFailureMessage(r, AI_COPY.importFallback, r.kind === 'invalid' && r.field === 'text' ? AI_COPY.importInvalid : AI_COPY.importPhotoInvalid);
+}
 
 /**
  * Import a recipe (AI) from pasted text, a photo of a page, or both. Shows only while the feature is available. The draft
@@ -26,13 +36,14 @@ export function ImportRecipe({ known, onDraft }: { known: ReadonlySet<string>; o
   const [image, setImage] = useState<AiImage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const alive = useRef(true);
-  const inFlight = useRef(false);
-  useEffect(() => () => void (alive.current = false), []);
+  const req = useRequest();
 
   if (!open) return ai.available('import_recipe') ? <View style={styles.start}><Button kind="link" label={AI_COPY.importOpen} onPress={() => setOpen(true)} /></View> : null;
 
   const close = () => {
+    // A request still out is dropped: its answer or error must not reach the builder or the next time the panel opens.
+    req.cancel();
+    setBusy(false);
     setOpen(false);
     setText('');
     setImage(null);
@@ -40,26 +51,27 @@ export function ImportRecipe({ known, onDraft }: { known: ReadonlySet<string>; o
   };
   const pick = async (source: 'camera' | 'library') => {
     setError(null);
+    const t = req.begin();
     try {
       const got = await pickPhotoForAi(source);
-      if (alive.current && got) setImage(got);
+      if (req.settle(t) && got) setImage(got);
     } catch (e) {
-      if (alive.current) setError(e instanceof CameraDenied ? AI_COPY.photoCameraOff : AI_COPY.photoUnreadable);
+      if (req.settle(t)) setError(e instanceof CameraDenied ? AI_COPY.photoCameraOff : AI_COPY.photoUnreadable);
     }
   };
   const exhausted = ai.quotaUsed();
   const go = async () => {
-    if (inFlight.current || ai.quotaUsed()) return;
+    if (req.pending() || ai.quotaUsed()) return;
     const body = { ...(isBlank(text) ? null : { text: text.slice(0, TEXT_MAX) }), ...(image ? { image } : null) };
     if (!body.text && !body.image) return setError(AI_COPY.importEmpty);
-    inFlight.current = true;
+    const t = req.begin();
     setBusy(true);
     setError(null);
     const r = await ai.importRecipe(body);
-    inFlight.current = false;
-    if (!alive.current) return;
+    // Cancelled or closed while it was out: nothing is applied and no message is kept.
+    if (!req.settle(t)) return;
     setBusy(false);
-    if (r.kind !== 'ok') return setError(imageFailureMessage(r, AI_COPY.importFallback, AI_COPY.importInvalid));
+    if (r.kind !== 'ok') return setError(failure(r, !!body.image));
     const draft = importedRecipe(r.data, known);
     if (!draft.rows.length) return setError(AI_COPY.importNone);
     onDraft(draft);

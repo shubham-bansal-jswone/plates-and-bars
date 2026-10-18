@@ -10,6 +10,15 @@ const QUALITIES = [0.85, 0.7, 0.5] as const;
 /** `AiImage.data` `maxLength`: 1,200,000 decoded bytes as base64. */
 export const AI_PHOTO_MAX_BASE64 = 1_600_000;
 
+/** Frees a manipulator object's native bitmap now rather than at garbage collection; never throws. */
+export function releaseNative(o: { release?: () => void }): void {
+  try {
+    o.release?.();
+  } catch {
+    // already released
+  }
+}
+
 /** Thrown when no quality brings the photo under the limit. */
 export class PhotoTooBig extends Error {}
 
@@ -34,11 +43,14 @@ export async function shrinkForAi(
   { maxPx = AI_PHOTO_MAX_PX, maxBase64 = AI_PHOTO_MAX_BASE64, qualities = QUALITIES }: { maxPx?: number; maxBase64?: number; qualities?: readonly number[] } = {},
 ): Promise<AiImage> {
   const used: string[] = [asset.uri];
+  const held: { release?: () => void }[] = [];
   try {
     const image = ImageManipulator.manipulate(asset.uri);
+    held.push(image);
     const size = fitWithin(asset.width, asset.height, maxPx);
     if (size) image.resize(size);
     const rendered = await image.renderAsync();
+    held.push(rendered);
     for (const compress of qualities) {
       const saved = await rendered.saveAsync({ compress, format: SaveFormat.JPEG, base64: true });
       used.push(saved.uri);
@@ -46,6 +58,8 @@ export async function shrinkForAi(
     }
     throw new PhotoTooBig();
   } finally {
+    // The context and the rendered image hold the decoded bitmap in native memory until released.
+    for (const o of held.reverse()) releaseNative(o);
     for (const uri of used) discard(uri);
   }
 }
