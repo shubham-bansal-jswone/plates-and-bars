@@ -728,6 +728,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/meal-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate a meal's macros from a photo
+         * @description Looks at one photo of a meal and estimates each food or drink visible, assuming
+         *     typical home-style cooking in India. Mirrors the prototype's `analysePhoto()`. The
+         *     optional `hint` is the prototype's "Anything the photo can't show?" note (hidden
+         *     oil or ghee, a count the photo hides).
+         *
+         *     **Grounding.** As in the prototype, the server sends the model the built-in food
+         *     list (`content/foods.json`: name, serving, macros per serving; content, not account
+         *     data) and never the user's own foods. For each item the model sets `match` to the
+         *     exact name of a built-in food that fits, with `servings` of that food's serving
+         *     shown, or null with its own estimate. The app uses the food table's macros times
+         *     `servings` for a matched item, and the item's own numbers otherwise (`src` db or
+         *     est in the prototype), and offers a swap to any food on the device.
+         *
+         *     Items have the `MealEstimateItem` shape (numbers are for the whole portion shown,
+         *     carbohydrate includes fibre) plus `confidence`, `match` and `servings`. `not_food` is true, with `items` empty,
+         *     when the photo shows no food (prototype: "Couldn't spot food in this photo."). The
+         *     app shows the items for the user to confirm before logging (suggest and confirm);
+         *     nothing is logged or stored by this call.
+         *
+         *     Image rules (type, size, EXIF, privacy) are in the `ai` tag, Images. Non-AI
+         *     fallback: Describe it, the food list and Custom entry.
+         */
+        post: operations["mealPhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/import-recipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn recipe text or a photo of a recipe into a draft recipe
+         * @description Reads pasted recipe text, a photo of a cookbook page, or both (send at least one),
+         *     and returns a draft in the recipe builder's terms. Mirrors the prototype's
+         *     `importRecipe()`. Each ingredient is matched to a name in
+         *     `content/raw-ingredients.json` (the version the server deploys) and given a raw
+         *     weight in grams, converting cups, spoons and pieces. The yield is estimated in
+         *     katoris (about 150 g cooked, `Recipe.yield_mode` = `katori`).
+         *
+         *     An ingredient that is not in the raw table, or whose weight is unusable (not
+         *     finite, zero or less, or over 10,000 g), is not returned in `ingredients`; its
+         *     text as written goes in `unmatched` so the app can show what to add by hand.
+         *     `ingredients` is empty when nothing matched; the app then shows "Couldn't read
+         *     that recipe. Try pasting the ingredient list." The draft is not a saved `Recipe`
+         *     (no id, version or timestamps): the app opens it in the recipe builder for the
+         *     user to check the amounts and save (suggest and confirm); nothing is stored by
+         *     this call.
+         *
+         *     Image rules are in the `ai` tag, Images. Non-AI fallback: the recipe builder.
+         */
+        post: operations["importRecipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/form-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Second opinion on exercise form from a few still frames
+         * @description Judges 2 to 4 still frames, in order, from the user's own video of one set of a
+         *     catalogue exercise. Mirrors the prototype's film-and-check form review
+         *     (`onFormVideo()`). The video never leaves the phone: the app cuts the frames on the
+         *     device and sends only those, only when the user has turned AI features on.
+         *
+         *     **Grounding.** The server looks up the exercise in `content/exercises.json`
+         *     `cards` (the version it deploys) and sends the model that card's `key_cues` and
+         *     `common_mistakes` and the frames. For each key cue the model judges only what is
+         *     clearly visible, answers `unclear` when the angle or quality does not show it, and
+         *     is told to be specific and kind and never to diagnose an injury. A request
+         *     `exercise` that is not a key of `cards` (a custom exercise has no cues) is 400
+         *     `invalid_request` with `details[].field` = `exercise`; the app does not offer the
+         *     check for it.
+         *
+         *     `visible` is false when the user's body was not clearly in frame; the app then asks
+         *     for a side view with the whole body in frame. Each `checks[].cue` is one of the
+         *     card's `key_cues` verbatim (the server drops any other). The app always shows
+         *     the "second opinion, not a coach" note; nothing is stored by this call.
+         *
+         *     Image rules are in the `ai` tag, Images. Non-AI fallback: the cue checklist on the
+         *     exercise card.
+         */
+        post: operations["formCheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/content/manifest": {
         parameters: {
             query?: never;
@@ -1317,6 +1433,12 @@ export interface components {
                 weekly_summary: boolean;
                 /** @description Custom exercise tag suggestion. Optional, so a server that does not send it has the feature off. */
                 suggest_tags?: boolean;
+                /** @description Meal photo (`POST /ai/meal-photo`). Optional, so a server that does not send it has the feature off. */
+                meal_photo?: boolean;
+                /** @description Recipe import (`POST /ai/import-recipe`). Optional, so a server that does not send it has the feature off. */
+                import_recipe?: boolean;
+                /** @description Form check (`POST /ai/form-check`). Optional, so a server that does not send it has the feature off. */
+                form_check?: boolean;
             };
             quota: components["schemas"]["AiQuota"];
         };
@@ -1439,6 +1561,125 @@ export interface components {
         WeeklySummaryResponse: {
             /** @description Three plain sentences; no headings, lists or emojis. */
             text: string;
+            quota: components["schemas"]["AiQuota"];
+        };
+        /**
+         * @description One photo sent to an AI image call, base64 in the JSON body (see the `ai` tag,
+         *     Images, for why and for the type, size and metadata rules). Up to 1,200,000 decoded
+         *     bytes and 4,096 px a side. The app sends the re-encoded, resized copy it shows the
+         *     user, never the original file.
+         */
+        AiImage: {
+            /** @enum {string} */
+            media_type: "image/jpeg" | "image/png";
+            /**
+             * @description The image bytes, standard base64 with padding (a multiple of 4 characters), no line
+             *     breaks, no `data:` prefix.
+             *     1,600,000 characters is 1,200,000 bytes.
+             */
+            data: string;
+        };
+        /**
+         * @description One still frame of a form check: the same shape as `AiImage` but at most 350,000
+         *     decoded bytes and 640 px a side (so four frames fit under the 2 MB body limit and
+         *     in memory; the server decodes one at a time). The prototype cuts frames at 640 px,
+         *     JPEG quality 0.75.
+         */
+        AiFrame: {
+            /** @enum {string} */
+            media_type: "image/jpeg" | "image/png";
+            /** @description Standard base64 with padding, a multiple of 4 characters. 466,668 characters is 350,000 bytes. */
+            data: string;
+        };
+        MealPhotoRequest: {
+            image: components["schemas"]["AiImage"];
+            /**
+             * @description What the photo cannot show (hidden oil or ghee, a count). Optional; when sent it
+             *     must not be blank (see the wire conventions), so the app leaves it out when empty.
+             *     Prototype: `#phHint`.
+             */
+            hint?: string;
+        };
+        MealPhotoResponse: {
+            /** @description True when the photo shows no food; `items` is then empty. Prototype: `notFood`. */
+            not_food: boolean;
+            /** @description One entry per distinct food or drink visible; empty when none. */
+            items: components["schemas"]["MealPhotoItem"][];
+            quota: components["schemas"]["AiQuota"];
+        };
+        /**
+         * @description A `MealEstimateItem` (`qty` is the portion judged from the plate), how sure the model is, and
+         *     the built-in food it matched, if any.
+         */
+        MealPhotoItem: components["schemas"]["MealEstimateItem"] & {
+            /**
+             * @description Prototype: `confidence`. The app marks `low` as unsure.
+             * @enum {string}
+             */
+            confidence: "high" | "medium" | "low";
+            /**
+             * @description The exact `name` of a built-in food in `content/foods.json` that this item is,
+             *     or null when none fits (the server checks it and sends null otherwise). Optional,
+             *     so a server that does not send it means null. Prototype: `match`.
+             */
+            match?: string | null;
+            /**
+             * @description How many of the matched food's serving size are shown; 1 when `match` is null.
+             *     Optional, read as 1 when absent. Prototype: `servings`, clamped to 0.25 to 6.
+             */
+            servings?: number;
+        };
+        /** @description Send `text`, `image` or both; a body with neither is 400 `invalid_request`. */
+        ImportRecipeRequest: {
+            /** @description The recipe as pasted. Must not be blank (see the wire conventions). Prototype: `#impTxt`, cut at 6,000 characters. */
+            text?: string;
+            image?: components["schemas"]["AiImage"];
+        };
+        /**
+         * @description A draft for the recipe builder, not a saved `Recipe`: the fields the builder needs,
+         *     in the same units, with no id, version or timestamps.
+         */
+        ImportRecipeResponse: {
+            /** @description The recipe's title; the server uses "Imported recipe" when the model gives none. */
+            name: string;
+            /** @description Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`; the server uses 4 when the model gives none (as the prototype does). */
+            katoris: number;
+            /** @description Matched ingredients, in grams (`unit` is always `g`); empty when none matched. */
+            ingredients: (components["schemas"]["Ingredient"] & {
+                /** @constant */
+                unit?: "g";
+            })[];
+            steps: string[];
+            /** @description Ingredients as written that could not be matched, for the user to add by hand. */
+            unmatched: string[];
+            quota: components["schemas"]["AiQuota"];
+        };
+        FormCheckRequest: {
+            /**
+             * @description A key of `content/exercises.json` `cards` (for example `Goblet Squat`); anything
+             *     else is 400 with `details[].field` = `exercise`. A custom exercise has no cues, so
+             *     the app does not offer the check for it.
+             */
+            exercise: string;
+            /** @description Still frames in the order they occur in the set. The video itself never leaves the phone. */
+            frames: components["schemas"]["AiFrame"][];
+        };
+        FormCheckResponse: {
+            /** @description False when the user's body was not clearly in frame; `checks` is then empty. */
+            visible: boolean;
+            checks: {
+                /** @description One of the exercise card's `key_cues`, verbatim. */
+                cue: string;
+                /**
+                 * @description `unclear` when the angle or quality does not let the model tell.
+                 * @enum {string}
+                 */
+                status: "good" | "watch" | "unclear";
+                /** @description A specific, kind remark; may be empty. */
+                note: string;
+            }[];
+            /** @description One short overall remark; may be empty. Never a diagnosis. */
+            summary: string;
             quota: components["schemas"]["AiQuota"];
         };
         /**
@@ -2717,6 +2958,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WeeklySummaryResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    mealPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MealPhotoRequest"];
+            };
+        };
+        responses: {
+            /** @description The estimated items and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MealPhotoResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    importRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRecipeRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft recipe and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRecipeResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["AiLimited"];
+            500: components["responses"]["Internal"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    formCheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description The cue checks and the user's remaining quota. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormCheckResponse"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

@@ -26,7 +26,13 @@ class ContractCoverageTest {
     static final Map<String, String> ALLOWLIST = Map.of(
             "GET /foods", "in the contract but deliberately not built for v1 (#200, decision 2)",
             // TODO(#944): remove when the backend proxy lands
-            "GET /foods/barcode/{code}", "contract first; the Open Food Facts proxy is built in a later #944 PR");
+            "GET /foods/barcode/{code}", "contract first; the Open Food Facts proxy is built in a later #944 PR",
+            // TODO(#946): remove when the backend endpoints land
+            "POST /ai/meal-photo", "contract first, backend follows (#946)",
+            // TODO(#946): remove when the backend endpoints land
+            "POST /ai/import-recipe", "contract first, backend follows (#946)",
+            // TODO(#946): remove when the backend endpoints land
+            "POST /ai/form-check", "contract first, backend follows (#946)");
 
     private static void requireUnfilteredRun() {
         if (Boolean.getBoolean("contract.coverage.enforce")) {
@@ -75,19 +81,21 @@ class ContractCoverageTest {
             String[] p = k.split(" ");
             assertThat(paths.path(p[1]).path(p[0].toLowerCase()).isMissingNode()).as(k).isFalse();
         });
-        assertThat(ALLOWLIST.keySet())
-                .as("the allowlist is pinned: add or remove entries here on purpose")
-                .containsExactlyInAnyOrder("GET /foods", "GET /foods/barcode/{code}");
+        // Pinned exactly: adding an operation here needs a reviewed change to this list. The TODO(#944) and
+        // TODO(#946) entries go when the backend endpoints land (the test below fails until they do).
+        assertThat(ALLOWLIST.keySet()).containsExactlyInAnyOrder(
+                "GET /foods", "GET /foods/barcode/{code}",
+                "POST /ai/meal-photo", "POST /ai/import-recipe", "POST /ai/form-check");
     }
 
     @Test
-    void noAllowlistedOperationHasASchemaCheckedTest() {
+    void noAllowlistedOperationHasASchemaCheckedTestYet() {
         requireUnfilteredRun();
         Set<String> recorded = ContractSchemas.recorded();
         Set<String> stale = new TreeSet<>();
-        ALLOWLIST.keySet().forEach(k -> {
-            if (recorded.stream().anyMatch(c -> c.startsWith(k + " "))) {
-                stale.add(k);
+        ALLOWLIST.keySet().forEach(name -> {
+            if (recorded.stream().anyMatch(c -> c.startsWith(name + " "))) {
+                stale.add(name);
             }
         });
         assertThat(stale).as("allowlisted operations that now have a schema-checked test: remove them from ALLOWLIST").isEmpty();

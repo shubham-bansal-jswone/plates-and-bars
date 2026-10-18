@@ -2,6 +2,7 @@
 // and test-vectors/content-hash.json against node:crypto's SHA-256.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { deflateSync, inflateSync } from "node:zlib";
 import { load } from "js-yaml";
 
 const vectors = JSON.parse(readFileSync(new URL("./sync-ids.json", import.meta.url), "utf8"));
@@ -503,6 +504,189 @@ for (const [name, mutate] of offMutants) {
 for (const [name, ex] of Object.entries(barcodeOp.responses["200"].content["application/json"].examples)) {
   if (ex.value.code !== ex.value.source.reference) failures.push(`barcode example ${name}: code must equal source.reference`);
 }
+// ai-images.json (#946, ADR 008): the image rules of POST /ai/meal-photo, /ai/import-recipe and /ai/form-check. The
+// limits equal the schemas' (base64 maxLength = 4 * ceil(bytes / 3)), four frames and the longest recipe text fit the
+// 2 MB body limit, every case gets the issue its first fault names from a small reference checker, and every image in
+// an example of the three operations passes the checker.
+const imgv = JSON.parse(readFileSync(new URL("./ai-images.json", import.meta.url), "utf8"));
+const b64len = (bytes) => 4 * Math.ceil(bytes / 3);
+const aiImageOps = ["/ai/meal-photo", "/ai/import-recipe", "/ai/form-check"];
+for (const p of aiImageOps) if (!parsed.paths[p]?.post) failures.push(`openapi.yaml: no POST ${p}`);
+const schemasAi = parsed.components.schemas;
+for (const [name, kind] of [["AiImage", "photo"], ["AiFrame", "frame"]]) {
+  const s = schemasAi[name];
+  if (s.properties.data.maxLength !== b64len(imgv.max_decoded_bytes[kind])) failures.push(`${name}.data.maxLength must be ${b64len(imgv.max_decoded_bytes[kind])} (${imgv.max_decoded_bytes[kind]} bytes as base64)`);
+  if (JSON.stringify(s.properties.media_type.enum) !== JSON.stringify(imgv.media_types)) failures.push(`${name}.media_type must be ${imgv.media_types.join(", ")}`);
+}
+const fcFrames = schemasAi.FormCheckRequest.properties.frames;
+if (fcFrames.minItems !== imgv.frames.min || fcFrames.maxItems !== imgv.frames.max) failures.push("FormCheckRequest.frames bounds differ from ai-images.json");
+if (imgv.max_side_px.frame !== 640) failures.push("frame side limit must be the prototype's 640 px");
+if (imgv.frames.max * (b64len(imgv.max_decoded_bytes.frame) + 100) > imgv.body_limit_bytes) failures.push("four form-check frames do not fit the body limit");
+const recipeTextBytes = schemasAi.ImportRecipeRequest.properties.text.maxLength * 12; // worst case: every character a \uXXXX escape
+if (b64len(imgv.max_decoded_bytes.photo) + recipeTextBytes + 200 > imgv.body_limit_bytes) failures.push("a recipe photo plus the longest text does not fit the body limit");
+// The figures in the ai tag and ADR 008 come from the vectors, so prose cannot drift from the limits.
+const fmt = (n) => n.toLocaleString("en-US");
+const aiTag = parsed.tags.find((t) => t.name === "ai").description;
+const adr008 = readFileSync(new URL("../../../docs/adr/008-ai-image-calls-and-privacy.md", import.meta.url), "utf8");
+for (const [where, text] of [["ai tag", aiTag], ["ADR 008", adr008]]) {
+  for (const [what, figure] of [
+    ["photo decoded bytes", fmt(imgv.max_decoded_bytes.photo)],
+    ["frame decoded bytes", fmt(imgv.max_decoded_bytes.frame)],
+    ["photo side px", fmt(imgv.max_side_px.photo)],
+    ["frame side px", String(imgv.max_side_px.frame)],
+    ["re-encode side px", fmt(imgv.reencode.max_long_side_px)],
+    ["metadata inflation bytes", fmt(imgv.max_metadata_inflated_bytes)],
+  ]) if (!text.includes(figure)) failures.push(`${where} does not state the ${what} (${figure}) from ai-images.json`);
+  if (!new RegExp(`${imgv.max_megapixels} megapixels`).test(text)) failures.push(`${where} does not state ${imgv.max_megapixels} megapixels`);
+  if (/\b(\d[\d,]*) megapixels/.test(text) && [...text.matchAll(/(\d[\d,]*) megapixels/g)].some((m) => m[1] !== String(imgv.max_megapixels))) failures.push(`${where} states a megapixel figure other than ${imgv.max_megapixels}`);
+  if (/(\d[\d,]*) decoded bytes/.test(text) && [...text.matchAll(/(\d[\d,]*) decoded bytes/g)].some((m) => ![fmt(imgv.max_decoded_bytes.photo), fmt(imgv.max_decoded_bytes.frame)].includes(m[1]))) failures.push(`${where} states a decoded-byte figure that is not in ai-images.json`);
+}
+// Request shapes: closed, and what must be sent.
+const reqSchemas = { MealPhotoRequest: ["image"], FormCheckRequest: ["exercise", "frames"], ImportRecipeRequest: undefined };
+for (const [n, req] of Object.entries(reqSchemas)) {
+  const s = parsed.components.schemas[n];
+  if (s.additionalProperties !== false) failures.push(`${n} must be closed (additionalProperties: false)`);
+  if (req && JSON.stringify(s.required) !== JSON.stringify(req)) failures.push(`${n}.required must be ${JSON.stringify(req)}`);
+}
+// ImportRecipeRequest: at least one of text and image, written as minProperties (a generated client reads anyOf of
+// bare `required` branches as `unknown`, #953), with only those two properties allowed.
+const imp = parsed.components.schemas.ImportRecipeRequest;
+if (imp.minProperties !== 1 || imp.anyOf || imp.required) failures.push("ImportRecipeRequest must use minProperties: 1, with no anyOf or required");
+if (JSON.stringify(Object.keys(imp.properties)) !== '["text","image"]') failures.push("ImportRecipeRequest must have exactly text and image");
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = (b) => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+const pngChunk = (type, data) => { const b = Buffer.alloc(12 + data.length); b.writeUInt32BE(data.length, 0); b.write(type, 4); data.copy(b, 8); b.writeUInt32BE(crc32(b.subarray(4, 8 + data.length)), 8 + data.length); return b; };
+const pngBytes = (w, h) => {
+  const b = Buffer.alloc(8 + 25 + 12);
+  PNG_SIG.copy(b);
+  b.writeUInt32BE(13, 8); b.write("IHDR", 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
+  b.writeUInt32BE(0, 33); b.write("IEND", 37);
+  return b;
+};
+// The first case's 8x8 PNG with a zTXt, iTXt or iCCP chunk (keyword "k", valid zlib) that inflates to n zero bytes, before IDAT.
+const withText = (png, type, n) => {
+  const body = deflateSync(Buffer.alloc(n));
+  const head = { zTXt: "k\0\0", iCCP: "k\0\0", iTXt: "k\0\x01\0\0\0" }[type]; // iTXt: keyword, flag 1, method 0, language, translated keyword
+  const z = pngChunk(type, Buffer.concat([Buffer.from(head, "latin1"), body]));
+  const at = png.indexOf("IDAT") - 4;
+  return Buffer.concat([png.subarray(0, at), z, png.subarray(at)]);
+};
+// Walk PNG chunks; a zTXt, compressed iTXt or iCCP chunk that inflates past max_metadata_inflated_bytes is refused,
+// found by an inflate that stops at max + 1 bytes (whether or not the decoder would skip the chunk).
+function pngMetadataBomb(buf) {
+  let i = 8;
+  while (i + 12 <= buf.length) {
+    const len = buf.readUInt32BE(i), type = buf.toString("latin1", i + 4, i + 8);
+    if (type === "zTXt" || type === "iCCP" || type === "iTXt") {
+      const d = buf.subarray(i + 8, i + 8 + len);
+      let z = d.indexOf(0) + 2; // after the keyword, its NUL and the compression method (zTXt, iCCP)
+      if (type === "iTXt") {
+        if (d[d.indexOf(0) + 1] !== 1) { i += 12 + len; continue; } // uncompressed text: bounded by the 2 MB body
+        z = d.indexOf(0, d.indexOf(0, d.indexOf(0) + 3) + 1) + 1; // skip language and translated keyword
+      }
+      try {
+        if (inflateSync(d.subarray(z), { maxOutputLength: imgv.max_metadata_inflated_bytes + 1 }).length > imgv.max_metadata_inflated_bytes) return true;
+      } catch { return true; }
+    }
+    i += 12 + len;
+  }
+  return false;
+}
+function jpegSof(buf) {
+  let i = 2;
+  while (i + 4 <= buf.length) {
+    if (buf[i] !== 0xff) return null;
+    const m = buf[i + 1];
+    if (m >= 0xc0 && m <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(m)) return [buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5)];
+    if (m === 0xda) return null;
+    i += 2 + buf.readUInt16BE(i + 2);
+  }
+  return null;
+}
+const b64pattern = new RegExp(schemasAi.AiImage.properties.data.pattern);
+function imageFault(media_type, data, kind) {
+  if (!imgv.media_types.includes(media_type)) return "unsupported_type";
+  if (!b64pattern.test(data) || data.length < schemasAi.AiImage.properties.data.minLength) return "invalid_base64";
+  const buf = Buffer.from(data, "base64");
+  if (buf.length > imgv.max_decoded_bytes[kind]) return "too_large";
+  const isPng = buf.length > 24 && buf.subarray(0, 8).equals(PNG_SIG);
+  const isJpeg = buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  if ((media_type === "image/png" && !isPng) || (media_type === "image/jpeg" && !isJpeg)) return "type_mismatch";
+  const dims = isPng ? [buf.readUInt32BE(16), buf.readUInt32BE(20)] : jpegSof(buf);
+  if (dims === null) return "unreadable_image";
+  const [w, h] = dims;
+  if (w > imgv.max_side_px[kind] || h > imgv.max_side_px[kind] || w * h > imgv.max_megapixels * 1e6) return "dimensions";
+  if (isPng) {
+    if (!buf.includes("IEND") || pngMetadataBomb(buf)) return "unreadable_image";
+  } else if (buf.at(-2) !== 0xff || buf.at(-1) !== 0xd9) return "unreadable_image";
+  return null;
+}
+// A JPEG's EXIF APP1: does IFD0 point to a GPS IFD (tag 0x8825)?
+function jpegHasGps(buf) {
+  let i = 2;
+  while (i + 4 <= buf.length && buf[i] === 0xff && buf[i + 1] !== 0xda) {
+    const len = buf.readUInt16BE(i + 2);
+    if (buf[i + 1] === 0xe1 && buf.toString("latin1", i + 4, i + 8) === "Exif") {
+      const t = i + 10, le = buf.toString("latin1", t, t + 2) === "II";
+      const u16 = (o) => (le ? buf.readUInt16LE(o) : buf.readUInt16BE(o)), u32 = (o) => (le ? buf.readUInt32LE(o) : buf.readUInt32BE(o));
+      const ifd = t + u32(t + 4);
+      for (let e = 0; e < u16(ifd); e++) if (u16(ifd + 2 + 12 * e) === 0x8825) return true;
+    }
+    i += 2 + len;
+  }
+  return false;
+}
+for (const c of imgv.cases) {
+  let data = c.data;
+  if (c.build?.pad_to_bytes) data = Buffer.concat([Buffer.from(imgv.cases[0].data, "base64"), Buffer.alloc(c.build.pad_to_bytes)]).subarray(0, c.build.pad_to_bytes).toString("base64");
+  if (c.build?.png_dims) data = pngBytes(...c.build.png_dims).toString("base64");
+  if (c.build?.png_text_chunk) data = withText(Buffer.from(imgv.cases[0].data, "base64"), c.build.png_text_chunk.type, c.build.png_text_chunk.inflated_bytes).toString("base64");
+  const got = imageFault(c.media_type, data, c.kind);
+  if (got !== c.issue) failures.push(`ai-images.json "${c.name}": checker says ${got}, vector says ${c.issue}`);
+  if (c.issue !== null && !imgv.order.includes(c.issue)) failures.push(`ai-images.json "${c.name}": issue ${c.issue} is not in order`);
+  if (c.exif_marker && !Buffer.from(c.data, "base64").includes(c.exif_marker)) failures.push(`ai-images.json "${c.name}": no ${c.exif_marker} marker to strip`);
+  if (c.exif_gps && !jpegHasGps(Buffer.from(c.data, "base64"))) failures.push(`ai-images.json "${c.name}": no GPS IFD (tag 0x8825) to strip`);
+  if (c.jpeg_dims && JSON.stringify(jpegSof(Buffer.from(c.data, "base64"))) !== JSON.stringify(c.jpeg_dims)) failures.push(`ai-images.json "${c.name}": SOF does not say ${c.jpeg_dims}`);
+}
+for (const issue of imgv.order) if (!imgv.cases.some((c) => c.issue === issue)) failures.push(`ai-images.json: no case for ${issue}`);
+if (!imgv.cases.some((c) => c.exif_gps) || !imgv.cases.some((c) => c.jpeg_dims) || !["zTXt", "iTXt", "iCCP"].every((t) => imgv.cases.some((c) => c.build?.png_text_chunk?.type === t && c.build.png_text_chunk.inflated_bytes > imgv.max_metadata_inflated_bytes))) failures.push("ai-images.json: needs a GPS EXIF, a JPEG dimensions and a zTXt, iTXt and iCCP bomb vector");
+if (!imgv.cases.some((c) => c.exif_marker)) failures.push("ai-images.json: no case with EXIF to strip");
+for (const issue of imgv.order) if (!JSON.stringify(parsed.components.responses.InvalidRequest).includes(issue) && !parsed.tags.find((t) => t.name === "ai").description.includes(`\`${issue}\``)) failures.push(`ai tag does not name the image issue ${issue}`);
+let imageExamples = 0;
+for (const p of aiImageOps) {
+  for (const [name, ex] of Object.entries(parsed.paths[p].post.requestBody.content["application/json"].examples ?? {})) {
+    for (const [img, kind] of [[ex.value.image, "photo"], ...(ex.value.frames ?? []).map((f) => [f, "frame"])]) {
+      if (!img) continue;
+      imageExamples++;
+      const got = imageFault(img.media_type, img.data, kind);
+      if (got !== null) failures.push(`${p} example ${name}: image fails the image rules (${got})`);
+    }
+  }
+  const ex200 = Object.values(parsed.paths[p].post.responses["200"].content["application/json"].examples ?? {});
+  if (ex200.length === 0) failures.push(`${p}: no 200 example`);
+  for (const code of ["400", "401", "429", "500", "503"]) if (!parsed.paths[p].post.responses[code]) failures.push(`${p}: no ${code}`);
+}
+if (imageExamples === 0) failures.push("no image request examples found");
+// Meal photo (#946): every `match` in an example is a built-in food name in content/foods.json (the server turns any
+// other into null), `servings` stays within the prototype's clamp of 0.25 to 6, and an example's `servings` is inside it.
+const foodNames = new Set(JSON.parse(readFileSync(new URL("../../../content/foods.json", import.meta.url), "utf8")).foods.map((f) => f.name));
+const servingsSchema = parsed.components.schemas.MealPhotoItem.allOf[1].properties.servings;
+if (servingsSchema.minimum !== 0.25 || servingsSchema.maximum !== 6) failures.push(`MealPhotoItem.servings must be 0.25 to 6 (the prototype's clamp), found ${servingsSchema.minimum} to ${servingsSchema.maximum}`);
+if (!aiTag.includes("0.25 to 6") || !servingsSchema.description.includes("0.25 to 6")) failures.push("ai tag and servings description must state 0.25 to 6");
+let matchExamples = 0;
+for (const ex of Object.values(parsed.paths["/ai/meal-photo"].post.responses["200"].content["application/json"].examples)) {
+  for (const it of ex.value.items) {
+    if (it.match !== undefined && it.match !== null) { matchExamples++; if (!foodNames.has(it.match)) failures.push(`/ai/meal-photo example: match ${JSON.stringify(it.match)} is not a name in content/foods.json`); }
+    if (it.servings !== undefined && !(it.servings >= servingsSchema.minimum && it.servings <= servingsSchema.maximum)) failures.push(`/ai/meal-photo example: servings ${it.servings} out of range`);
+  }
+}
+if (matchExamples === 0) failures.push("/ai/meal-photo: no example with a matched food");
+// Must-fail vectors for the checker: a wrong expectation must be noticed.
+if (imageFault("image/png", Buffer.from("x").toString("base64"), "photo") === null) failures.push("image checker accepts a one-byte png");
+if (imageFault("image/png", Buffer.from("QUJD", "base64").toString("base64").slice(0, 3), "photo") !== "invalid_base64") failures.push("image checker accepts a base64 length that is not a multiple of 4");
+for (const f of ["meal_photo", "import_recipe", "form_check"]) if (schemasAi.AiStatus.properties.features.properties[f]?.type !== "boolean") failures.push(`AiStatus.features.${f} must be a boolean`);
+if (schemasAi.AiStatus.properties.features.required.some((f) => ["meal_photo", "import_recipe", "form_check"].includes(f))) failures.push("AiStatus.features: the image flags must stay optional (older servers never send them)");
 
 if (failures.length) {
   console.error(failures.join("\n"));
@@ -516,6 +700,7 @@ console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and 
 console.log(`openapi.yaml: ${mutants} bounds in ${aiRequests.size} AI request schemas (${[...aiRequests].join(", ")}), each one caught when removed`);
 console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, each one caught when opened; open core-owned objects carry x-max-json-bytes`);
 console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
+console.log(`ai-images.json: ${imgv.cases.length} cases, limits equal the schemas, ${imageExamples} example images pass the rules`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);
 console.log(`barcode-gs1.json: ${barcode.valid.length} valid and ${barcode.invalid.length} invalid codes, ${barcode.upc_e_expansion.length} UPC-E expansions, /foods/barcode examples and error codes verified`);
 console.log(`openapi.yaml: OffProduct and OffNutriments closed, ${OFF_NUTRIMENT_KEYS.length} nutriment keys pinned, strings and arrays bounded, ${offMutants.length} mutations caught`);
