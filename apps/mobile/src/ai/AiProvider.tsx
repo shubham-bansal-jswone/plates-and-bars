@@ -5,7 +5,7 @@ import type { PullDb } from '../db/outbox';
 import type { StoreDb } from '../db/records';
 import { getKv, getUserId, setKv } from '../sync/store';
 import type { TokenStore } from '../sync/tokens';
-import { askWhy, describeMeal, getAiStatus, suggestTags, weeklySummary, type AiDeps, type AiFeature, type AiQuota, type AiResult, type AiStatus } from './client';
+import { askWhy, describeMeal, getAiStatus, mealPhoto, suggestTags, weeklySummary, type AiDeps, type AiFeature, type AiImage, type AiQuota, type AiResult, type AiStatus } from './client';
 
 /** Device-only. Holds the id of the user who opted in, so another account on this device starts off, and a wipe (`sync.%`) clears it. */
 export const KEY_AI_CONSENT = 'sync.ai_consent';
@@ -25,6 +25,8 @@ export interface AiApi {
   askWhy(cardId: string, question: string): Promise<AiResult<Schemas['AskWhyResponse']>>;
   weeklySummary(body: Schemas['WeeklySummaryRequest']): Promise<AiResult<Schemas['WeeklySummaryResponse']>>;
   suggestTags(name: string): Promise<AiResult<Schemas['SuggestTagsResponse']>>;
+  /** Sends the one photo, only while the server reports Meal photo on (an image is never sent otherwise). */
+  mealPhoto(image: AiImage, hint?: string): Promise<AiResult<Schemas['MealPhotoResponse']>>;
 }
 
 const OFF: AiApi = {
@@ -38,6 +40,7 @@ const OFF: AiApi = {
   askWhy: async () => ({ kind: 'disabled' }),
   weeklySummary: async () => ({ kind: 'disabled' }),
   suggestTags: async () => ({ kind: 'disabled' }),
+  mealPhoto: async () => ({ kind: 'disabled' }),
 };
 
 const AiContext = createContext<AiApi>(OFF);
@@ -126,9 +129,10 @@ export function AiProvider({ db, api, tokens, signedIn, syncStamp, now = () => n
     const available = (f: AiFeature) => live && consent && status?.features[f] === true;
     const usedUp = (s: AiStatus | null) => !!s && s.quota.remaining <= 0 && now().getTime() < new Date(s.quota.resets_at).getTime();
     const quotaUsed = () => usedUp(statusRef.current);
-    const guard = async <T extends { quota: AiQuota }>(f: AiFeature, call: (d: AiDeps) => Promise<AiResult<T>>): Promise<AiResult<T>> => {
-      // Consent off, switched off or no server: nothing is sent.
+    const guard = async <T extends { quota: AiQuota }>(f: AiFeature, call: (d: AiDeps) => Promise<AiResult<T>>, needsOn = false): Promise<AiResult<T>> => {
+      // Consent off, switched off or no server: nothing is sent. An image call also needs the server to have said the feature is on.
       if (!api || !live || !consentRef.current) return { kind: 'disabled' };
+      if (needsOn && statusRef.current?.features[f] !== true) return { kind: 'disabled' };
       // The known quota is used up: no request until it resets.
       if (usedUp(statusRef.current)) return { kind: 'quota', quota: statusRef.current!.quota };
       const r = await call({ db, api, tokens });
@@ -155,6 +159,7 @@ export function AiProvider({ db, api, tokens, signedIn, syncStamp, now = () => n
       askWhy: (cardId, question) => guard('ask_why', (d) => askWhy(d, cardId, question)),
       weeklySummary: (body) => guard('weekly_summary', (d) => weeklySummary(d, body)),
       suggestTags: (name) => guard('suggest_tags', (d) => suggestTags(d, name)),
+      mealPhoto: (image, hint) => guard('meal_photo', (d) => mealPhoto(d, image, hint), true),
     };
   }, [live, consent, status, setConsent, api, db, tokens, refresh, now, keep]);
 

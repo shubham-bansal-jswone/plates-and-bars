@@ -14,15 +14,17 @@ import { barcodeScanEnabled } from '../barcode/flag';
 import { OffCredit } from '../barcode/OffCredit';
 import { ScanFlow } from '../barcode/ScanFlow';
 import { DescribeBody } from '../ai/DescribeSheet';
+import { PhotoBody } from '../ai/PhotoBody';
 import { getFoodCatalog, getCuisines, type CatalogFood } from './catalog';
 import { CUSTOM_MESSAGE, EATOUT_HINT, GRAMS_HINT, noMatch, notInGrams, SOURCE_HINT, TOO_SMALL, UNIT_TOO_LONG } from './copy';
 import { logOf, type NewLog } from './useFoodDay';
 
 import type { UserFood } from './types';
 
-type Mode = 'list' | 'out' | 'custom' | 'describe';
+export type Mode = 'list' | 'out' | 'custom' | 'describe' | 'photo';
 const MODES: [Mode, string][] = [['list', 'Food list'], ['out', 'Eating out'], ['custom', 'Custom']];
 const DESCRIBE_MODE: [Mode, string] = ['describe', AI_COPY.describeButton];
+const PHOTO_MODE: [Mode, string] = ['photo', AI_COPY.photoTab];
 
 interface Props {
   meal: string;
@@ -34,15 +36,23 @@ interface Props {
   onClose: () => void;
   /** True when the describe-meal feature is available (consent, server, signed in): shows the Describe it tab. */
   canDescribe?: boolean;
+  /** True when the meal-photo feature is available: shows the Photo tab. */
+  canPhoto?: boolean;
+  /** The tab to open on (the Food tab's Snap a meal opens Photo). */
+  initialMode?: Mode;
+  /** Shows a short message after the sheet closes (the Food tab's toast). */
+  onToast?: (msg: string) => void;
 }
 
 /** The add-food sheet: food list (search, servings or grams), eating out, custom food, and Describe it (AI) when it is on. */
-export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false }: Props) {
+export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, canDescribe = false, canPhoto = false, initialMode = 'list', onToast }: Props) {
   const c = useTheme();
-  const [mode, setMode] = useState<Mode>('list');
+  const [mode, setMode] = useState<Mode>(initialMode);
   // Describe keeps its text, estimate and pending request while another tab is shown, as the prototype's FS does: it mounts on
   // the first visit and is then only hidden. It stays reachable while selected even if AI is switched off, so its message shows.
-  const [seenDescribe, setSeenDescribe] = useState(false);
+  const [seenDescribe, setSeenDescribe] = useState(initialMode === 'describe');
+  const [seenPhoto, setSeenPhoto] = useState(initialMode === 'photo');
+  const own: CatalogFood[] = mineFacts.map((f, i) => ({ ...f, id: mine[i]?.id ?? null }));
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   const say = (text: string, error = false) => setStatus({ text, error });
   // Scan barcode (#944, behind EXPO_PUBLIC_BARCODE_SCAN): the scanner flow is a full-screen modal over this sheet. "Enter by hand"
@@ -55,8 +65,8 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
         <View style={styles.body}>
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
-            {(canDescribe || mode === 'describe' ? [...MODES, DESCRIBE_MODE] : MODES).map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k !== 'custom') setCustomCode(null); if (k === 'describe') setSeenDescribe(true); }}
+            {[...MODES, ...(canDescribe || mode === 'describe' ? [DESCRIBE_MODE] : []), ...(canPhoto || mode === 'photo' ? [PHOTO_MODE] : [])].map(([k, l]) => (
+              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k !== 'custom') setCustomCode(null); if (k === 'describe') setSeenDescribe(true); if (k === 'photo') setSeenPhoto(true); }}
                 style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
                 <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
               </Press>
@@ -68,6 +78,11 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
           {seenDescribe ? (
             <View style={mode === 'describe' ? undefined : styles.hidden} accessibilityElementsHidden={mode !== 'describe'} importantForAccessibility={mode === 'describe' ? 'auto' : 'no-hide-descendants'}>
               <DescribeBody meal={meal} onAdd={onAdd} onClose={onClose} />
+            </View>
+          ) : null}
+          {seenPhoto ? (
+            <View style={mode === 'photo' ? undefined : styles.hidden} accessibilityElementsHidden={mode !== 'photo'} importantForAccessibility={mode === 'photo' ? 'auto' : 'no-hide-descendants'}>
+              <PhotoBody meal={meal} foods={[...own, ...getFoodCatalog()]} onAdd={onAdd} onSaveMine={onSaveMine} onAdded={(n) => onToast?.(AI_COPY.photoAdded(n))} onClose={onClose} />
             </View>
           ) : null}
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
