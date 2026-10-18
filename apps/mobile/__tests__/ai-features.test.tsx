@@ -12,7 +12,7 @@ import { memoryTokenStore } from '../src/sync/tokens';
 import { KEY_USER } from '../src/sync/store';
 import { withSyncPaused } from '../src/sync/guard';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { WhyLink } from '../src/why/WhyLink';
+import { WhyLink, WhySheet } from '../src/why/WhyLink';
 import { memoryDb, withProfile } from './helpers';
 import type { WeeklyCheckin } from '@plate-and-bar/core';
 
@@ -639,6 +639,26 @@ describe('Why sheet follow-up', () => {
     await fireEvent.press(await screen.findByLabelText(/^Why\? /));
     expect(screen.getByText(/Source: /)).toBeTruthy();
     expect(screen.queryByLabelText('Ask a follow-up')).toBeNull();
+  });
+
+  it('puts Close after the source line and the follow-up, so the reading order ends on it (#1006)', async () => {
+    const { api } = on();
+    await ai(optedIn(), api, <WhyLink id="protein" />);
+    await open();
+    await screen.findByText('Ask a follow-up', { includeHiddenElements: true });
+    const tree = JSON.stringify(screen.toJSON());
+    const at = (needle: string) => tree.indexOf(needle);
+    expect(at('Source: ')).toBeGreaterThan(-1);
+    expect(at('"Ask a follow-up"')).toBeGreaterThan(at('Source: '));
+    expect(at('"Close"')).toBeGreaterThan(at('"Ask a follow-up"'));
+    expect(screen.getAllByLabelText('Close')).toHaveLength(1);
+  });
+
+  it('closes on the screen-reader escape gesture, since Close is at the bottom (#1006)', async () => {
+    const onClose = jest.fn();
+    await render(<WhySheet id="protein" onClose={onClose} />);
+    await fireEvent(screen.getByLabelText('Close'), 'accessibilityEscape');
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('shows its label as visible text that stays once the user types', async () => {
