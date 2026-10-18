@@ -77,7 +77,9 @@
       "evidence": "Moderate",
       "source": "Common coaching practice; no single study",
       "learn_order": 1,
-      "review_status": "draft"
+      "review_status": "draft",
+      "hidden": true,
+      "hidden_reason": "Source is generic (\"Common coaching practice; no single study\"); held back until #212 is decided."
     },
     {
       "id": "overload",
@@ -127,7 +129,9 @@
       "evidence": "Moderate",
       "source": "Common coaching practice",
       "learn_order": null,
-      "review_status": "draft"
+      "review_status": "draft",
+      "hidden": true,
+      "hidden_reason": "Source is generic (\"Common coaching practice\"); held back until #212 is decided."
     },
     {
       "id": "scale",
@@ -177,7 +181,9 @@
       "evidence": "Moderate",
       "source": "General motor-learning and strength research",
       "learn_order": 0,
-      "review_status": "draft"
+      "review_status": "draft",
+      "hidden": true,
+      "hidden_reason": "Source is generic (\"General motor-learning and strength research\"); held back until #212 is decided."
     },
     {
       "id": "bulky",
