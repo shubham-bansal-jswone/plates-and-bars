@@ -301,6 +301,16 @@ jobs:
       - name: Playwright tests
         working-directory: tests/e2e
         run: npx playwright test
+      # Live pose tracking (#947) is off in the build above. Its own build has the flag on; the spec runs it with a fake camera.
+      - name: Build the web app with live pose tracking on
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: 1
+          EXPO_PUBLIC_POSE_TRACKING: 1
+        run: npx expo export --platform web --output-dir ../../tests/e2e/.pose-dist
+      - name: Pose tracking tests
+        working-directory: tests/e2e
+        run: npm run test:pose
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

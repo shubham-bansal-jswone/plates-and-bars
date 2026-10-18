@@ -10,6 +10,10 @@
 
 const PREFIX = 'pb-shell-';
 const HASHED = /^\/(?:assets|_expo\/static)\//;
+// Live pose tracking (#947) loads its camera view and TensorFlow.js model code (chunks named pose-*) only when a user opens
+// it. They are never precached (the app shell must stay small); the model weights and .wasm files under /pose/ are not hashed
+// paths, so this worker never touches them either.
+const ON_DEMAND = /\/pose-[^/]*\.js$/;
 
 /** Same-origin files this worker may cache or serve from the cache: GET, not an API or auth path. */
 function cacheable(url, origin) {
@@ -17,13 +21,13 @@ function cacheable(url, origin) {
   return u.origin === origin && !/^\/(?:api|auth)\//.test(u.pathname);
 }
 
-/** Hashed asset paths mentioned in index.html or in a bundle: quoted "/assets/..." or "/_expo/static/..." strings (double, single or backtick quotes) and src/href. */
+/** Hashed asset paths mentioned in index.html or in a bundle: quoted "/assets/..." or "/_expo/static/..." strings (double, single or backtick quotes) and src/href. On-demand chunks (see ON_DEMAND) are left out. */
 function assetPaths(text) {
   const found = new Set();
   const re = /["'(`](\/(?:assets|_expo\/static)\/[^"'()`\s\\]+)/g;
   let m;
   while ((m = re.exec(text))) found.add(m[1]);
-  return [...found];
+  return [...found].filter((p) => !ON_DEMAND.test(p));
 }
 
 /** Cache name for an index.html: the entry bundle path carries its content hash. */

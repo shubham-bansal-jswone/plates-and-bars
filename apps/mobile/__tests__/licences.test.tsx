@@ -19,9 +19,9 @@ describe('generated licences.json', () => {
     expect(d.packages.find((p) => p.name === '@sentry/cli')).toMatchObject({ version: '0.0.0-stub', licence: 'MIT' });
     expect(d.android.length).toBeGreaterThan(10);
   });
-  it('gives every entry a licence, and lists the fonts and Ionicons', () => {
+  it('gives every entry a licence, and lists the fonts, Ionicons and the pose model files', () => {
     for (const e of [...d.packages, ...d.android, ...d.assets]) expect(e.licence).toBeTruthy();
-    expect(d.assets.map((a) => a.name)).toEqual(['Inter (font)', 'Roboto (font)', 'Ionicons (icons)']);
+    expect(d.assets.map((a) => a.name)).toEqual(['Inter (font)', 'Roboto (font)', 'Ionicons (icons)', 'MoveNet Lightning (pose model weights)', 'TensorFlow.js WebAssembly runtime (pose tracking)']);
     for (const e of d.assets) expect(d.texts[e.text!]).toBeTruthy();
   });
   it('only references texts that exist', () => {
@@ -61,7 +61,7 @@ describe('About screen licences section', () => {
     await render(<AboutScreen onBack={() => {}} />);
     await fireEvent.press(screen.getByLabelText('View open-source licences'));
     await waitFor(() => expect(screen.queryByText('Loading licences')).toBeNull());
-    expect(screen.getByRole('header', { name: 'Fonts and icons' })).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Fonts, icons and model files' })).toBeTruthy();
     const row = screen.getByLabelText('Inter (font), Licence: OFL-1.1');
     expect(row.props.accessibilityState).toMatchObject({ expanded: false });
     await fireEvent.press(row);
@@ -80,7 +80,7 @@ describe('licence list loading', () => {
     await waitFor(() => expect(screen.getByText(/could not be loaded/)).toBeTruthy());
     expect(screen.queryByText('Loading licences')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Try again'));
-    await waitFor(() => expect(screen.getByRole('header', { name: 'Fonts and icons' })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('header', { name: 'Fonts, icons and model files' })).toBeTruthy());
     expect(screen.queryByText(/could not be loaded/)).toBeNull();
   });
 

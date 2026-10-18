@@ -16,6 +16,8 @@ Specs (one concern each, every test starts with an empty browser profile):
 - `sheet-focus.spec.mjs`: a sheet opens with focus on its title and gives focus back to the opener on Escape (#661).
 - `a11y.spec.mjs`: axe-core on the main screens and with each sheet open (food add, exercise settings, can't do, how to, add exercise, custom exercise, photo check-in, exercise to avoid; #661), light and dark. Known failures are listed by rule and element with their issue number (`support/axe.mjs`, tested in `axe-known.spec.mjs`); a new violation fails, a fixed one goes stale and fails.
 
+- `pose-specs/pose.spec.mjs` (own config, `playwright.pose.config.mjs`): live pose tracking (#947) on a build with `EXPO_PUBLIC_POSE_TRACKING=1`, a fake camera and the real CSP. Run with `npm run test:pose` (see "Pose tracking test").
+
 Rules: only `127.0.0.1` is reachable (every other request is aborted and every test fails at teardown if there was one); no sign-in and no server, so sync and AI are off; selectors are `aria-label`s; there are no fixed sleeps (`saved()` waits for the app's SQLite worker to answer its writes).
 
 ## Run locally
@@ -40,6 +42,17 @@ The web server port is resolved once, in `support/port.mjs`, and the Playwright 
 - Sync tests: `E2E_SYNC_PORT` is always 4174 (0 or unset gives 4174), the origin `stack/docker-compose.yml` names in `CORS_ALLOWED_ORIGINS` and `AUTH_COOKIE_ORIGINS`. It never picks a free port. To use another port, set `E2E_SYNC_PORT=<n>` and add `http://127.0.0.1:<n>` to both lists.
 
 `npm run test:port` checks this (taken port fails fast, `E2E_REUSE=1` reuses, `0` picks a free port); CI runs it before the browser tests.
+
+## Pose tracking test
+
+The feature flag is compiled into the build, so this suite has its own export and config (the fast suite's build has the flag off):
+
+```
+cd apps/mobile && EXPO_PUBLIC_POSE_TRACKING=1 npx expo export --platform web --output-dir ../../tests/e2e/.pose-dist
+cd ../../tests/e2e && npm run test:pose
+```
+
+Chromium starts with `--use-fake-device-for-media-stream` (a synthetic video, no person in it), so the model runs on real frames and finds nobody. The spec checks the browser side: the screen loads under the shipped CSP with no violation, every request goes to our own origin (the weights and `.wasm` files under `/pose/` included), nothing but GET is sent, nothing of it is in the service worker cache, and with WebGL refused it falls back to single-thread WASM without a `blob:` worker. Counting with a person in view is covered by jest with a scripted model.
 
 ## Play Store graphics (on demand, not CI)
 
