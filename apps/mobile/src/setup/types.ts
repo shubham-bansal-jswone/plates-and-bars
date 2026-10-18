@@ -12,8 +12,8 @@ export interface SyncMeta {
 export interface Profile extends Omit<SyncMeta, 'id'>, SetupProfile {
   /**
    * Null locally. Profile is a natural-key table (one per user): its contract id is the UUIDv5 of
-   * `profiles:me`, computed once the store is bound to a signed-in user (#31) or at push time.
-   * TODO(#31): fill in `id` then; no device namespace is invented here (see /sync "Record ids").
+   * `profiles:me`, computed at push time for the signed-in user (sync/records.ts buildRecord); no device namespace is invented
+   * here (see /sync "Record ids").
    */
   id: null;
 }
