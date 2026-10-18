@@ -125,3 +125,21 @@ test('a refused camera says so and the typed number path works, with a bad check
   expect(chunks(seen)).toEqual([]);
   expectOwnOriginOnly(seen, page);
 });
+
+test('from the Add sheet: the Scan barcode button reads the code, and with no server the lookup says offline and offers Enter by hand (no request leaves the page)', async ({ page }) => {
+  await page.addInitScript(() => {
+    delete window.BarcodeDetector;
+  });
+  const seen = record(page);
+  await answerSetup(page, { days: 'None yet' });
+  await label(page, 'Use these targets').click();
+  await expect(page.getByRole('heading', { name: 'Food', exact: true })).toBeVisible();
+  await label(page, '+ Add to breakfast').click();
+  await label(page, 'Scan a barcode to add a packaged food').click();
+  // this build has no server (no sign-in, no API address): the lookup is not even tried, and the way out is the Custom form with the code
+  await expect(page.getByText('No connection. Try again when you are online, or enter it by hand.')).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Enter by hand' }).click();
+  await expect(page.getByText(`Barcode saved with this food: ${BARCODE}`)).toBeVisible();
+  expect(seen.filter((r) => r.url.pathname.includes('/foods/barcode/'))).toEqual([]);
+  expectOwnOriginOnly(seen, page);
+});
