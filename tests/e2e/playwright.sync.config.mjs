@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { getInstalledBrowsers } from '@puppeteer/browsers';
 import { defineConfig } from '@playwright/test';
 import { API } from './support/sync.mjs';
+import { reuseRequested, resolvePort } from './support/port.mjs';
 
 // The sync tests: a real backend (tests/e2e/stack, docker compose) and a web build with its URL compiled in. Separate from
 // playwright.config.mjs so the fast web suite never needs Docker. Run with `npm run test:sync` (README.md, "Sync tests").
@@ -15,7 +16,8 @@ async function findChromium() {
 const chrome = await findChromium();
 
 // Not 4173: the API's CORS allow-list in stack/docker-compose.yml names this origin.
-const port = Number(process.env.E2E_SYNC_PORT ?? 4174);
+// Another port needs E2E_SYNC_PORT=<n> and that origin added to CORS_ALLOWED_ORIGINS and AUTH_COOKIE_ORIGINS in the compose file.
+const port = await resolvePort({ name: 'E2E_SYNC_PORT', fallback: 4174 });
 
 export default defineConfig({
   testDir: './sync-specs',
@@ -27,7 +29,7 @@ export default defineConfig({
   webServer: {
     command: 'node support/server.mjs',
     url: `http://127.0.0.1:${port}/`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: reuseRequested(),
     // E2E_API_URL lets the static server allow this build's API origin in the CSP connect-src (the export is compiled
     // against it; apps/mobile/public/_headers names the production host instead).
     env: { E2E_PORT: String(port), E2E_DIST: '.sync-dist', E2E_API_URL: API },

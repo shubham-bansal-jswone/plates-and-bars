@@ -188,7 +188,10 @@ public class SyncService {
                     repo.update(table, userId, next);
                     repo.logConflict(userId, table, "server", next.version(), stored, now);
                     logged = true;
-                    conflicts.add(conflict(table, in, next, "client_won"));
+                    ObjectNode won = conflict(table, in, next, "client_won");
+                    // The copy just replaced, exactly as the conflict log keeps it.
+                    won.set("replaced_record", record(stored));
+                    conflicts.add(won);
                 } else {
                     repo.logConflict(userId, table, "client", stored.version(), incoming, now);
                     logged = true;

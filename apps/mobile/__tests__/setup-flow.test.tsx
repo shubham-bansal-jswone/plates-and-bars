@@ -102,6 +102,11 @@ describe('setup flow', () => {
     expect(screen.getByLabelText(`${g.output.fat} g fat`)).toBeTruthy();
     expect(await loadProfile(db)).toBeNull();
 
+    expect(g.output.tdee).toBe(2493);
+    const levelOne = screen.getAllByRole('header').filter((h) => h.props['aria-level'] === 1);
+    expect(levelOne).toHaveLength(1);
+    expect(levelOne[0]!.props.children).toBe('You burn about 2,493 kcal a day');
+
     await press('Use these targets');
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/targets'));
     const p = await loadProfile(db);

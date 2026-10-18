@@ -226,6 +226,8 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   `user_id, id, version, updated_at, deleted_at, seq, data JSON`, primary key `(user_id, id)`. `data` holds the
   record's other fields, so the engine is generic over tables. Foreign key to `users` with `ON DELETE CASCADE`.
   `sync_state` holds one row per user with the change counter `seq`; `sync_conflicts` is the conflict log.
+  A `client_won` conflict in the `POST /sync` response also carries `replaced_record` (contract 0.1.20): the stored copy
+  the edit replaced, at `server_version - 1`, identical to the entry logged with `loser: server`. Never on `server_won`.
   The conflict log is bounded per user (`SYNC_CONFLICT_LOG_MAX_PER_USER`, default 1000; `SYNC_CONFLICT_LOG_RETENTION_DAYS`,
   default 90; both must be at least 1 or the app refuses to start). Pruning happens only when a later sync logs a
   conflict: then entries older than the retention and all but the newest ones are deleted. An account that stops
@@ -331,6 +333,7 @@ cd backend
 | `DB_USER` | `plateandbar` | Database user |
 | `DB_PASSWORD` | empty | Database password |
 | `CONTENT_UPDATED_AT` | none, required | `name=timestamp,...` for every `content/*.json`; set it to `"$(backend/scripts/content-updated-at.sh)"`. The app refuses to start without it. Deploys compute it on a full-history checkout of `main` (HEAD of that checkout) and pass it as the Docker build arg |
+| `ERASURE_LEDGER_PATH` | none, required outside the dev profile | File that `DELETE /me` appends `<user id><TAB><UTC time>` to before it deletes (erasure ledger, #850). The app refuses to start without it, as with `SMTP_HOST`; with the `dev` profile it may be empty (ledger off, one WARN at startup). The image has `/var/lib/plateandbar/erasure` (mode 0700, owner `app`) declared as a `VOLUME`; the staging compose file sets the path and mounts the named volume `erasure_ledger` there. A ledger write failure makes `DELETE /me` fail (500) with nothing deleted. See Erasure ledger below |
 | `PORT` | `8080` | HTTP port |
 | `JWT_SIGNING_KEY` | none, required | HS256 key for access tokens and code digests, at least 32 bytes. The app refuses to start without it |
 | `SYNC_MAX_BODY_BYTES` | `2097152` | Largest accepted request body on any `/api` endpoint, including `/auth/*` (a guard filter, 400 `invalid_request` detail `too_large`; a chunked body is cut off once it passes the limit), and the `POST /sync` cap. The guard runs before security, CORS and rate limiting, so a body declared over the limit gets 400 `too_large` even before a 401 or 429. Multipart is disabled (no endpoint takes it). `/ai/*` bodies are read up to 16,384 bytes (bytes, not characters); a longer one is 400 `invalid_request` with issue `too_large`, field empty, in the validation step (after the feature switch) |
@@ -402,3 +405,33 @@ token, email, password, secret, cookie or auth; masks UUID path segments; and di
 Data protection (DPDP): the error-tracking service (self-hosted GlitchTip, or Sentry if a hosted DSN is used) is a data
 processor for these events. They hold exception types, stack traces, the method and path (UUIDs masked) and one hashed
 opaque account id, never health or food data. Record it in the privacy notice's processor list when a DSN is set in production.
+
+## Erasure ledger (#850)
+
+A backup restore brings back every account deleted after the dump was taken. To keep erased accounts erased (DPDP),
+`DELETE /me` first appends one line to the file at `ERASURE_LEDGER_PATH`: the opaque user id, a tab and the UTC time
+cut to whole seconds (`ErasureLedger`). Nothing else is ever written (no email, no content); an id that is not a
+lower-case UUID is refused, and the replay (#853) must use the same pattern, `ErasureLedger.ID`. The file is
+append-only (`O_APPEND`), mode 0600 in a 0700 directory, and forced to disk (and the directory, when the file is
+created) before the delete runs. Outside the `dev` profile an empty path refuses to start; in dev it logs a WARN and
+the ledger is off. `O_APPEND` keeps lines whole only on a local filesystem, not NFS: use a local named volume on one host.
+A repeat `DELETE /me` (the access token outlives the account by up to 15 minutes) appends nothing once the account row is gone.
+
+- Order: ledger first, then the database delete, in the same request. If the ledger cannot be written, nothing is
+  deleted and the answer is 500 `internal` (the contract's failure answer for this endpoint). The other order could
+  remove the rows and then lose the record a restore needs, with the user told it worked. The opposite failure
+  (ledger written, delete rolled back, for example a deadlock or the database down) is accepted: the app does not
+  retry by itself, the user decides. A user who gets that 500 and keeps the account will lose it if a later restore
+  replays the ledger. That is rare, and the ledger entry records a deletion they asked for. A retry appends a second
+  line for the same id only when the row still exists; replay is by id.
+- A write that fails half way (ENOSPC, EIO) can leave a line cut short. The next entry starts on a new line (the writer
+  checks the last byte), so it is never glued to the cut-off one. The replay must skip a line that does not match
+  `<uuid><TAB><time>` rather than fail the restore. Repair: if the retry of `DELETE /me` (the
+  ledger write failed, so nothing was deleted and the user can retry) lands on the next line, nothing is lost; the cut
+  line only holds a request that answered 500. A disk-full event is also an ERROR in Sentry (`ErasureLedgerException`).
+- The fsync is real (`FileChannel.force(true)`) but no test can observe it; a mutation that removes it survives.
+- The file lives on a dedicated volume, not in MySQL. The Dockerfile declares the directory a `VOLUME`, so a compose
+  file that forgets the mount still gets an anonymous volume that survives recreating the container. Getting the
+  file off the VM (upload to the backup bucket under a prefix that retention never prunes) and replaying it after a
+  restore are infra work, see #853. Until it lands, every non-dev stack needs the path set (staging does, in `infra/staging/docker-compose.yml`).
+- Tests: `ErasureLedgerTest`, `AccountServiceDeleteTest` (ordering, fail closed, no repeat append), `ErasureLedgerIT` (real file and MySQL).
