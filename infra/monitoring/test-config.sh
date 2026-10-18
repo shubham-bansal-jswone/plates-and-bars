@@ -148,6 +148,6 @@ if problems:
     print("\n".join(problems), file=sys.stderr)
     sys.exit(1)
 PY
-"$root/infra/scripts/check-caddy-access-log.sh" "api=$cglitch" "stack=$cglitch" >/dev/null \
+CADDY_LOG_NO_BARCODE=1 "$root/infra/scripts/check-caddy-access-log.sh" "api=$cglitch" "stack=$cglitch" >/dev/null \
   || fail "Caddyfile.glitchtip lost a log filter"
 echo "monitoring config checks passed"

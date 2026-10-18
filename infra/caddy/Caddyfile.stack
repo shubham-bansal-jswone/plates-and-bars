@@ -18,6 +18,7 @@
 				ipv6 48
 			}
 			request>uri regexp "\?.*$" ""
+			request>uri regexp "(?i)(/foods/barcode/)[0-9]+/*$" "${1}{code}"
 			request>headers delete
 			resp_headers delete
 		}
