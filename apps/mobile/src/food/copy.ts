@@ -13,7 +13,11 @@ export const UNIT_TOO_LONG = 'That serving size is too long. Shorten it.';
 export const GRAMS_HINT = 'Grams are the weight in the brackets on the serving (the dry or ingredient weight, such as “50 g raw”), not the cooked weight.';
 export const TOO_SMALL = 'That amount is too small to log. Enter more grams or use servings.';
 export const notInGrams = (name: string, unit: string): string => `${name} is measured in ${unit}, not grams. Use servings.`;
-export const EATOUT_HINT = 'Rough restaurant estimates; portions and oil vary a lot.';
+export const EATOUT_HINT = 'Rough restaurant estimates; portions and oil vary a lot. A big night out? Use “Plan a bigger day” in meal ideas to balance it over the next few days.';
+/** The food list's empty search; with the describe-meal AI feature available it also points to Describe (prototype `foodListHtml`). */
+export const noMatch = (canDescribe: boolean): string => `No match. Use Custom to enter it yourself${canDescribe ? ', or Describe to have AI estimate it' : ''}.`;
+/** Food without a profile (prototype `energyHtml`). */
+export const SETUP_BANNER = 'Get calorie and macro targets worked out for you.';
 export const SOURCE_HINT = 'Values are calculated from USDA public-domain ingredient data using standard home recipes (carbs include fibre, as on food labels); paneer, curd and milk follow FSSAI composition standards. Packaged foods (whey, Greek yogurt, makhana) use typical label values; check your pack.';
 
 const andList = (names: readonly string[]): string => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
