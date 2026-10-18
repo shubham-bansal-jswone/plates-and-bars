@@ -29,6 +29,7 @@ describe('Workout start: Pick exercises', () => {
     expect(await screen.findByText('Rest day')).toBeTruthy();
     await press('Pick exercises');
     await press('Add Barbell Bench Press');
+    await press('Start this exercise');
     await screen.findByText('Session');
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ id: null, template: 'Session', base: null, where: null, date: DATE });
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Barbell Bench Press']);
@@ -47,6 +48,7 @@ describe('Workout start: Pick exercises', () => {
     await press('Dumbbells only');
     await press('Pick exercises');
     await press('Add Dumbbell Curl');
+    await press('Start this exercise');
     await screen.findByText('Session');
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ where: 'dumbbells', template: 'Session', base: null });
   });
@@ -55,9 +57,10 @@ describe('Workout start: Pick exercises', () => {
     const db = await setup(6);
     expect(await screen.findByText('Push B day')).toBeTruthy();
     expect(screen.getByLabelText('Start Push B')).toBeTruthy();
-    expect(screen.getByLabelText('Start Pull A')).toBeTruthy();
+    expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
     await press('Pick exercises');
     await press('Add Barbell Bench Press');
+    await press('Start this exercise');
     await screen.findByText('Session');
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises).toHaveLength(1);
   });
@@ -75,6 +78,7 @@ describe('Workout start: Pick exercises', () => {
     await screen.findByText('Rest day');
     await press('Pick exercises');
     await press('Add Barbell Bench Press');
+    await press('Start this exercise');
     await screen.findByText('Session');
     expect(screen.queryByText(/added/)).toBeNull();
   });
@@ -85,6 +89,7 @@ describe('Workout start: Pick exercises', () => {
     await press('Pick exercises');
     await fireEvent.changeText(screen.getByLabelText('Your own exercise'), 'barbell bench press');
     await press('Add the exercise you typed');
+    await press('Start this exercise');
     await screen.findByText('Session');
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Barbell Bench Press']);
     expect(screen.queryByText(/added/)).toBeNull();
@@ -101,6 +106,7 @@ describe('Start-screen pick of a new name', () => {
     await screen.findByLabelText('Main muscle: biceps');
     await press('Main muscle: biceps');
     await press('Add Zottman Curl with these muscles');
+    await press('Start this exercise');
     await screen.findByText('Session');
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Zottman Curl']);
     expect(screen.queryByText(/added/)).toBeNull();
@@ -115,6 +121,7 @@ describe('Pick exercises keeps what the day already holds', () => {
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).cardio_min).toBe(25));
     await press('Pick exercises');
     await press('Add Barbell Bench Press');
+    await press('Start this exercise');
     await screen.findByText('Session');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Session', cardio_min: 25 }));
   });
@@ -126,6 +133,7 @@ describe('Pick exercises keeps what the day already holds', () => {
     await press('Lighter session');
     await press('Pick exercises');
     await press('Add Barbell Bench Press');
+    await press('Start this exercise');
     await screen.findByText('Session');
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ template: 'Session', ci_choice: 'light' });
   });

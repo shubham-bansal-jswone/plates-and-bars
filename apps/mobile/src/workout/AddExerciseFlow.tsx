@@ -5,6 +5,7 @@ import { isBlank } from '../text/blank';
 import { exerciseNamed } from './catalog';
 import { AddExerciseSheet } from './AddExerciseSheet';
 import { CustomTagsSheet } from './CustomTagsSheet';
+import type { WorkoutList } from './workoutLists';
 
 /**
  * The exercise picker with its custom-name path (prototype `exPick` / `exCustom`): a library pick or a typed name the library
@@ -12,7 +13,7 @@ import { CustomTagsSheet } from './CustomTagsSheet';
  * `add` returns false when the exercise is already in the session. `quiet` (the Start screen, as the prototype) skips the "added" toast:
  * the sheet closes and the session shows.
  */
-export function AddExerciseFlow({ open, onClose, inSession, add, notify, quiet = false }: { open: boolean; onClose: () => void; inSession: readonly string[]; add: (name: string) => boolean; notify: (msg: string) => void; quiet?: boolean }) {
+export function AddExerciseFlow({ open, onClose, inSession, workouts, add, notify, quiet = false }: { open: boolean; onClose: () => void; inSession: readonly string[]; workouts?: readonly WorkoutList[]; add: (name: string) => boolean; notify: (msg: string) => void; quiet?: boolean }) {
   const [tagging, setTagging] = useState<string | null>(null);
   const { addCustomTags } = useSettings();
   const added = (name: string) => {
@@ -35,6 +36,7 @@ export function AddExerciseFlow({ open, onClose, inSession, add, notify, quiet =
       {open ? (
         <AddExerciseSheet
           inSession={inSession}
+          {...(workouts ? { workouts } : {})}
           onClose={onClose}
           onPick={(n) => {
             onClose();

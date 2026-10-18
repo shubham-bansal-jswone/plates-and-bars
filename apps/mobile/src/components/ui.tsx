@@ -136,9 +136,12 @@ export function Button({
   expanded,
   busy,
   surface,
+  disabled,
 }: {
   label: string;
   onPress: () => void;
+  /** Not pressable and drawn faded; announced as disabled. */
+  disabled?: boolean;
   kind?: 'primary' | 'ghost' | 'link';
   /** Spoken label when it needs more than the visible text. */
   a11yLabel?: string;
@@ -162,8 +165,10 @@ export function Button({
       accessibilityLabel={a11yLabel ?? label}
       {...a11yState({ expanded, busy: busy || undefined })}
       onPress={onPress}
+      disabled={disabled}
       style={({ pressed }) => [
         kind === 'link' ? styles.link : styles.btn,
+        disabled && { opacity: 0.45 },
         kind !== 'link' && { backgroundColor: pressed ? palette.pressed : palette.bg, borderColor: palette.border, borderWidth: 1 },
         pressed && kind !== 'link' && { shadowColor: c.shadow, ...pressedShadow },
       ]}
