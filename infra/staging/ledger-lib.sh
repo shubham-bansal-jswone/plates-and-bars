@@ -21,7 +21,8 @@ rclone() {
 }
 
 # Outside $prefix on purpose: backup.sh's 30-day retention deletes everything under bk:<bucket>/$prefix.
-ledger_dest="bk:$BACKUP_S3_BUCKET/erasure-ledger/$prefix"
+ledger_root="bk:$BACKUP_S3_BUCKET/erasure-ledger" # every VM prefix lives under it
+ledger_dest="$ledger_root/$prefix"
 # shellcheck disable=SC2034 # used by the scripts that source this file
 ledger_retention_days=45 # 30-day backups plus margin (decided in #853); kept per UTC day, see ledger-upload.sh (#887)
 # One valid line: ErasureLedger.ID, a tab, an ISO UTC time with optional fractional seconds. Keep in step with
