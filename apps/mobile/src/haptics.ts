@@ -8,6 +8,7 @@ import { Platform, Vibration } from 'react-native';
 export function buzz(pattern: number | number[]): void {
   try {
     // iOS: React Native plays a fixed ~400 ms buzz per pattern entry and ignores the durations (#885), so a pattern becomes one system "success" haptic (two taps).
+    // Known limit: with "System Haptics" off in iOS Settings this is silent (the PB buzz of 60 still vibrates). iOS offers no alternative cue; the on-screen/audio rest cue still shows.
     if (Platform.OS === 'ios' && typeof pattern !== 'number') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       return;

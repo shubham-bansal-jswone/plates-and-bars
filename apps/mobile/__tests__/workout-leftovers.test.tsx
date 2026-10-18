@@ -9,6 +9,12 @@ import { rampEasyNote } from '../src/workout/copy';
 import { HowToSheet, RestBar } from '../src/workout/parts';
 import { getCatalog } from '../src/workout/catalog';
 
+// babel-jest hoists this above the imports; it applies to the whole file.
+jest.mock('expo-haptics', () => ({
+  notificationAsync: jest.fn(() => Promise.resolve()),
+  NotificationFeedbackType: { Success: 'success' },
+}));
+
 const row = (w: string, rate: 'easy' | 'right' | 'hard' | 'fail' | null, done = true) => ({ w, done, rate });
 const info = (type: ExInfo['type'], lo: number, step: number): ExInfo => ({ type, lo, hi: lo + 4, step });
 
@@ -76,14 +82,10 @@ describe('How-to sheet (#823)', () => {
   });
 });
 
-jest.mock('expo-haptics', () => ({
-  notificationAsync: jest.fn(() => Promise.resolve()),
-  NotificationFeedbackType: { Success: 'success' },
-}));
-
 describe('Vibration (#823)', () => {
   let vibrate: jest.SpyInstance;
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.replaceProperty(Platform, 'OS', 'android'); // jest-expo defaults to iOS, which uses a system haptic (#885)
     vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);

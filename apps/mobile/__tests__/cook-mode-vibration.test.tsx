@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Platform, Vibration } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { CookMode } from '../src/recipes/CookMode';
+
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(() => Promise.resolve()),
   NotificationFeedbackType: { Success: 'success' },
 }));
-import * as Haptics from 'expo-haptics';
-import { CookMode } from '../src/recipes/CookMode';
 
 const os = (name: string) => jest.replaceProperty(Platform, 'OS', name as 'android');
 
