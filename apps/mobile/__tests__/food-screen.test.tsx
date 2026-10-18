@@ -9,6 +9,7 @@ import { getCuisines } from '../src/food/catalog';
 import { toastMs } from '../src/food/copy';
 import { trackWrite } from '../src/db/pendingWrites';
 import { memoryDb, withProfile } from './helpers';
+import { postToast, resetPendingToast } from '../src/state/pendingToast';
 
 // Pressable folds aria-expanded into accessibilityState before the host view, so record what the card hands to it.
 const mockPressed: Record<string, unknown>[] = [];
@@ -66,7 +67,10 @@ const open = async (meal = 'breakfast') => {
 
 // Toasts clear on a timer. Under heavy load a real one could fire before a test looked for its toast, so the clock is
 // fake: a toast stays until a test advances time. Microtasks and setImmediate stay real, so awaited work still runs.
-beforeEach(() => jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }));
+beforeEach(() => {
+  resetPendingToast();
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+});
 // Run what is still pending first, so an error thrown from a timer (e.g. SettingsProvider's rethrow) fails the test instead of being dropped.
 afterEach(() => {
   jest.runOnlyPendingTimers();
@@ -886,5 +890,16 @@ describe('Low on protein add-on', () => {
     await setup({ db });
     await screen.findByText('Almonds');
     expect(screen.queryByText(/^Low on protein/)).toBeNull();
+  });
+});
+
+describe('toast posted by setup', () => {
+  it('shows a message posted before the tab mounted, once', async () => {
+    postToast('Targets updated');
+    await setup();
+    expect(await screen.findByText('Targets updated')).toBeTruthy();
+    await screen.unmount();
+    await setup();
+    expect(screen.queryByText('Targets updated')).toBeNull();
   });
 });
