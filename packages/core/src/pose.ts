@@ -60,6 +60,10 @@ export const MAX_GAP_MS = 1500;
  * frames span 100 ms, at 30 fps 33 ms; a real change is accepted after about 120 ms, 3 frames at 10 fps).
  * A median of 3 would not survive two bad frames in a row at 30 fps, and a dwell on the threshold crossings alone would
  * still let the outlier pull the smoothed depth, so the dwell sits in front of the smoothing.
+ * Limits: a wrong reading shorter than about 130 ms (up to two frames at 10 fps, four at 30 fps) never changes the count;
+ * a longer mis-track can, because it looks like a real move. The device accuracy gate tunes these three constants.
+ * The jump is measured against the lagging smoothed value, not the raw one, so at 10 fps the margin for very fast reps
+ * is thin: a 350 ms lowering moves the raw signal about 0.5 per frame, against a limit of 0.6.
  */
 export const JUMP_H = 0.4;
 export const MAX_SPEED_H_PER_S = 2;
@@ -202,7 +206,6 @@ export function squatSignal(frame: PoseFrame): number | null {
   if (!kp || kp.length < 17) return null;
   // x in frame-height units, so x and y share one scale (a tilted shin in a portrait frame keeps its true length)
   const w = frame.width && frame.height && frame.width > 0 && frame.height > 0 ? frame.width / frame.height : 1;
-  const ht = 1;
   let sum = 0;
   let weight = 0;
   for (const [hi, ki, ai] of [
@@ -214,9 +217,9 @@ export function squatSignal(frame: PoseFrame): number | null {
     const ankle = kp[ai]!;
     const score = Math.min(hip.score, knee.score, ankle.score);
     if (!(score >= MIN_SCORE)) continue;
-    const shin = Math.hypot((knee.x - ankle.x) * w, (knee.y - ankle.y) * ht);
+    const shin = Math.hypot((knee.x - ankle.x) * w, (knee.y - ankle.y));
     if (!(shin >= MIN_SHIN)) continue;
-    sum += score * (((knee.y - hip.y) * ht) / shin);
+    sum += score * ((knee.y - hip.y) / shin);
     weight += score;
   }
   return weight > 0 ? sum / weight : null;

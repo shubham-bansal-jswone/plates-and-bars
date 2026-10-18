@@ -350,3 +350,29 @@ describe('frame-rate independence and leg weighting', () => {
     expect(s.reps[0]!.pauseMs).toBeGreaterThan(300);
   });
 });
+
+describe('speed allowance and the outlier length limit', () => {
+  it.each([10, 15, 30])('counts fast reps (350/350 and 400/400 ms) at %i fps', (fps) => {
+    for (const ms of [350, 400]) {
+      const r = analyseSquat(makeFrames(repeat(4, { down: ms, bottom: -0.2, up: ms, rest: 500 }), { fps }));
+      expect(r.count).toBe(4);
+      expect(r.parallelCount).toBe(4);
+    }
+  });
+  it.each([10, 15, 30])('ignores a wrong reading shorter than 130 ms at %i fps, standing and at the bottom', (fps) => {
+    const frames = Math.floor(129 / (1000 / fps)) + 1; // frames spanning under 130 ms (first to last)
+    expect((frames - 1) * (1000 / fps)).toBeLessThan(130);
+    const base = analyseSquat(makeFrames(repeat(3, rep(-0.2)), { fps }));
+    for (const o of [
+      { atMs: 500, count: frames, h: -0.8 },
+      { atMs: 2500, count: frames, h: 1.5 },
+    ]) {
+      const r = analyseSquat(makeFrames(repeat(3, rep(-0.2)), { fps, outliers: [o] }));
+      expect(r.count).toBe(base.count);
+    }
+  });
+  it('a wrong reading of 200 ms or more is taken as real (documented limit)', () => {
+    const r = analyseSquat(makeFrames([], { fps: 30, outliers: [{ atMs: 500, count: 6, h: -0.8 }] }));
+    expect(r.count).toBe(1); // a long enough mis-track is indistinguishable from a rep; the device gate tunes the dwell
+  });
+});
