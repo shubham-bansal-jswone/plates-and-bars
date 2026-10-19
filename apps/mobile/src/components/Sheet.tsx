@@ -1,7 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Modal, Platform, View } from 'react-native';
-import { useTheme } from '../theme/useTheme';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Modal, Platform } from 'react-native';
+import { PaddedWindow } from './bottomInset';
 
 /** The element that has focus now (what opened a sheet), where there is a DOM. */
 const activeElement = (): HTMLElement | null => (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -60,12 +59,10 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   };
   // `aria-label` reaches the web dialog (react-native-web passes extra props on). Native starts on the title already (and a
   // modal labelled like the button that opened it would only be a second match for that label).
-  const c = useTheme();
-  const bottom = useSafeAreaInsets().bottom; // not useBottomInset: a sheet is its own window, over the tab bar too
   const named = (Platform.OS === 'web' ? { 'aria-label': title } : {}) as object;
   return (
     <Modal visible animationType="slide" onRequestClose={onClose} onShow={onShow} {...named}>
-      <View style={{ flex: 1, backgroundColor: c.bg, paddingBottom: bottom }}>{children}</View>
+      <PaddedWindow>{children}</PaddedWindow>
     </Modal>
   );
 }
