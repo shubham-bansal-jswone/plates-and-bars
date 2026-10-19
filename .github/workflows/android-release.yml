@@ -161,12 +161,16 @@ jobs:
       # The size cap lives in the cache dir's ccache.conf (so every step that prints stats or trims sees 400M, not the 5 GiB
       # default), and the counters are zeroed because the restored dir carries the cumulative counters of earlier runs.
       # Sloppiness is ccache's documented setting for precompiled headers (manual 4.9, "Precompiled headers"); it is stored in the
-      # same ccache.conf. Clang additionally needs -fno-pch-timestamp, which we cannot add without changing compiler flags.
+      # same ccache.conf. Clang also needs -fno-pch-timestamp and -include-pch; Reanimated, worklets and expo-modules-core already
+      # set them in their CMake, so PCH compiles are expected to hit from the second main run after this lands (the first run
+      # saves them; pull requests never save).
       - name: Set the ccache size cap and sloppiness, and zero its counters
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
           ccache -M 400M -z
+          # time_macros applies to every compile: a future dependency using __DATE__ or __TIME__ keeps the value from its first
+          # cached build.
           ccache --set-config sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime
       - name: Local modules unit tests and lint (NewApi against minSdk)
         working-directory: apps/mobile/android
