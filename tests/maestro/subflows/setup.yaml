@@ -31,8 +31,14 @@ appId: app.plateandbar.mobile
 - tapOn: "6"
 - tapOn: "At a gym.*"
 - tapOn: "Some experience.*"
+- scrollUntilVisible:
+    element: "60 min"
 - tapOn: "60 min"
+- scrollUntilVisible:
+    element: "Continue"
 - tapOn: "Continue"
+- scrollUntilVisible:
+    element: "Lose fat.*"
 - tapOn: "Lose fat.*"
 - extendedWaitUntil:
     visible: "Quick health check"
