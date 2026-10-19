@@ -36,6 +36,7 @@ appId: app.plateandbar.mobile
 - tapOn: "60 min"
 - scrollUntilVisible:
     element: "Continue"
+- scroll # Continue can sit under the system navigation bar until the list is scrolled to its end
 - tapOn: "Continue"
 - scrollUntilVisible:
     element: "Lose fat.*"
