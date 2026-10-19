@@ -15,6 +15,7 @@ jest.mock('expo-router', () => ({
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+const TOP = { x: 0, y: 0, animated: false };
 const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo');
 beforeEach(() => scrollTo.mockClear());
 
@@ -34,9 +35,10 @@ describe('a changed step or preview starts at the top (#1060)', () => {
     await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '82');
     await press('Continue');
     expect(scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollTo).toHaveBeenLastCalledWith({ x: 0, y: 0, animated: false });
+    expect(scrollTo).toHaveBeenLastCalledWith(TOP);
     await press('‹ Back');
     expect(scrollTo).toHaveBeenCalledTimes(2);
+    expect(scrollTo).toHaveBeenLastCalledWith(TOP);
   });
 
   it('the workout tab scrolls to the top when a preview opens and closes', async () => {
@@ -49,7 +51,24 @@ describe('a changed step or preview starts at the top (#1060)', () => {
     await press('Choose Pull A');
     await screen.findByText('Pull A day');
     expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith(TOP);
     await press('Back to workouts');
     expect(scrollTo).toHaveBeenCalledTimes(2);
+    expect(scrollTo).toHaveBeenLastCalledWith(TOP);
+  });
+
+  it('pressing Start on a preview opens the session at the top', async () => {
+    const db = memoryDb();
+    await saveProfile(db, buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1)));
+    await saveSettings(db, defaultSettings('2026-10-08T00:00:00Z'));
+    await render(withProfile(db, <WorkoutScreen db={db} now={() => new Date(2026, 9, 8, 10, 0, 0)} />));
+    await screen.findByText('Push B day');
+    await press('Choose Pull A');
+    await screen.findByText('Pull A day');
+    scrollTo.mockClear();
+    await press('Start Pull A');
+    await screen.findByText('Pull A');
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith(TOP);
   });
 });

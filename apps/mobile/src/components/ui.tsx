@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -17,7 +17,7 @@ export function Page({ children, resetKey }: { children: ReactNode; resetKey?: u
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
   const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
   const first = useRef(true);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (first.current) first.current = false;
     else toTop();
   }, [resetKey, toTop]);
@@ -34,7 +34,7 @@ export function Page({ children, resetKey }: { children: ReactNode; resetKey?: u
 export function useScrollToTopOn(key: unknown) {
   const toTop = useContext(ScrollTop);
   const first = useRef(true);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (first.current) first.current = false;
     else toTop();
   }, [key, toTop]);

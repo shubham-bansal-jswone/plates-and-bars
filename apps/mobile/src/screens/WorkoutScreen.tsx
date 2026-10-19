@@ -124,7 +124,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page>
+      <Page resetKey={day.exs.length > 0}>
         <DateBar v={v} />
         {content}
       </Page>
