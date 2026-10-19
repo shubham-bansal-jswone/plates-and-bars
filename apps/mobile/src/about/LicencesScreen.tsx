@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { Text } from '../components/Text';
+import { useBottomInset } from '../components/bottomInset';
 import { Button, ErrorText, Heading, Hint, H1, Press, a11yState } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -35,6 +36,7 @@ function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | nu
 /** Every open-source package, Android library, native component and bundled asset with its licence, from the build-time `licences.json`. Virtualised: there are hundreds of rows. */
 export function LicencesScreen({ onBack }: { onBack: () => void }) {
   const c = useTheme();
+  const bottom = useBottomInset();
   const [data, setData] = useState<LicenceData | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -74,7 +76,7 @@ export function LicencesScreen({ onBack }: { onBack: () => void }) {
         initialNumToRender={12}
         windowSize={5}
         maxToRenderPerBatch={10}
-        contentContainerStyle={{ padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 16 + bottom, maxWidth: 720, width: '100%', alignSelf: 'center' }}
         ListHeaderComponent={
           <View>
             <Button label="Back" kind="link" onPress={onBack} />
