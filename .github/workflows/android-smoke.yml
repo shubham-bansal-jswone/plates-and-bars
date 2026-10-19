@@ -5,7 +5,6 @@ name: Android smoke (Maestro)
 # Open-source tools only: Maestro CLI (Apache-2.0, version-pinned, checksum-checked) and android-emulator-runner (Apache-2.0).
 # The APK is cached on a hash of the app sources, so a run that changes only the flows skips the Gradle build.
 on:
-  push: { branches: [qa/maestro-smoke-688] } # TEMP: remove before merge
   workflow_dispatch:
   schedule:
     - cron: '17 21 * * *'
