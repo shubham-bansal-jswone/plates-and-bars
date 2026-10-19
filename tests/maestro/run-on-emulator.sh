@@ -5,7 +5,5 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 out="${RUNNER_TEMP:-/tmp}/maestro-out"
 mkdir -p "$out"
-# Gesture navigation: with the 3-button bar the app's last button (Continue) sits under it and cannot be tapped (filed as an app bug).
-adb shell cmd overlay enable com.android.internal.systemui.navbar.gestural || true
 adb install -r "$APK_PATH"
-maestro test --format junit --output "$out/report.xml" --debug-output "$out/debug" --flatten-debug-output "$here"
+timeout 25m maestro test --format junit --output "$out/report.xml" --debug-output "$out/debug" --flatten-debug-output "$here"

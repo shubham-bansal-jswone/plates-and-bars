@@ -36,8 +36,11 @@ appId: app.plateandbar.mobile
 - tapOn: "60 min"
 - scrollUntilVisible:
     element: "Continue"
-- scroll # Continue can sit under the system navigation bar until the list is scrolled to its end
-- tapOn: "Continue"
+# On the training step the Continue button ends up partly under the 3-button navigation bar even at the end of the list
+# (app bug, filed), so its centre cannot be tapped: tap the visible top strip of the button instead (pixel_6 emulator).
+- scroll
+- tapOn:
+    point: "50%,93.7%"
 - scrollUntilVisible:
     element: "Lose fat.*"
 - tapOn: "Lose fat.*"
