@@ -2,14 +2,16 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
 import { Text } from './Text';
 
 /** Scrolling page with a centred column: full width on a phone, a readable column on desktop. */
 export function Page({ children }: { children: ReactNode }) {
   const c = useTheme();
+  const bottom = useBottomInset();
   return (
-    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
       <View role="main" style={styles.column}>{children}</View>
     </ScrollView>
   );
