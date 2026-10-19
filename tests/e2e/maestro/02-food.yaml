@@ -12,7 +12,6 @@ appId: app.plateandbar.mobile
 - tapOn: "\\+ Add to breakfast"
 - tapOn: "Roti / chapati.*"
 # The Done button sits at the very end of the long food list; the system back button closes the sheet the same way.
-- back
 # Closing the sheet leaves Food: the sheet's own tabs are gone, the day's summary counts the roti (102 kcal) and the breakfast card lists it.
 - assertNotVisible: "Eating out"
 - scrollUntilVisible:
