@@ -4050,8 +4050,10 @@ components:
           const: g
         original:
           type: string
+          minLength: 1
           maxLength: 200
-          description: the ingredient line as written in the source recipe
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
+          description: the ingredient line as written in the source recipe; omitted when the source line is blank
           examples: ['1 cup toor dal']
 
     FormCheckRequest:
