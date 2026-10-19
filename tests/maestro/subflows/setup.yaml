@@ -11,7 +11,9 @@ appId: app.plateandbar.mobile
 - tapOn: "Use cm"
 - tapOn: "Height in cm"
 - inputText: "165"
-- tapOn: "Weight in kg"
+- hideKeyboard
+# The weight field's content description did not take focus on Android; its placeholder does.
+- tapOn: "kg"
 - inputText: "82"
 - hideKeyboard
 - tapOn: "Continue"
