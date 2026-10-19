@@ -76,6 +76,33 @@ describe('ExerciseFigure', () => {
     expect(colours().length).toBeGreaterThan(0);
   });
 
+  it('reads a one-frame figure as a held position and shows it once, with no toggle between frames', async () => {
+    jest.useFakeTimers();
+    try {
+      const b = fixture();
+      b.images[BENCH].frames = b.images[BENCH].frames.slice(0, 1);
+      await launch(b);
+      await render(<ExerciseFigure name={BENCH} />);
+      const label = () => screen.getByRole('image').props.accessibilityLabel as string;
+      expect(label()).toBe(`${BENCH}: held position. ${getCatalog().cards[BENCH]!.setup[0]}`);
+      expect(label()).not.toContain('starting position');
+      const before = JSON.stringify(screen.toJSON());
+      await jest.advanceTimersByTimeAsync(10_000);
+      expect(JSON.stringify(screen.toJSON())).toBe(before);
+      expect(screen.getAllByRole('link')).toHaveLength(1);
+      expect(screen.queryAllByRole('button')).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps start and end wording for a two-frame figure', async () => {
+    await launch(fixture());
+    await render(<ExerciseFigure name={BENCH} />);
+    expect(screen.getByRole('image').props.accessibilityLabel).toContain('start and end positions.');
+    expect(screen.getByRole('image').props.accessibilityLabel).not.toContain('held position');
+  });
+
   it('renders nothing for an exercise with no figure', async () => {
     await launch(fixture());
     await render(<ExerciseFigure name={NONE} />);
@@ -135,7 +162,7 @@ describe('figureAlt', () => {
   });
   it('drops the step when even its first sentence is too long, and handles a missing step and one frame', () => {
     expect(figureAlt('X', e(2), `${'long '.repeat(40)}.`)).toBe('X: start and end positions.');
-    expect(figureAlt('X', e(1), undefined)).toBe('X: starting position.');
+    expect(figureAlt('X', e(1), undefined)).toBe('X: held position.');
   });
   it('every shipped card gives a non-empty alt under the limit', () => {
     for (const [n, c] of Object.entries(getCatalog().cards)) {
