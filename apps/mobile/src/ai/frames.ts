@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { getThumbnailAsync } from 'expo-video-thumbnails';
+import { FRAME_COUNT, frameTimesMs } from '@plate-and-bar/core';
 import { CameraDenied, discard } from '../photos/capture';
 import type { AiFrame } from './client';
 import { shrinkForAi } from './photo';
@@ -10,19 +11,8 @@ export const FRAME_MAX_BASE64 = 466_668;
 /** JPEG quality of a frame (prototype 0.75), lowered in turn if a frame is over the limit. */
 const FRAME_QUALITIES = [0.75, 0.6, 0.45] as const;
 export const FRAMES_MIN = 2;
-export const FRAMES_MAX = 4;
-/** Used when the clip does not say how long it is (prototype: 5 s). */
-const DEFAULT_DURATION_MS = 5000;
-
-/**
- * Where in a clip of `durationMs` the `n` frames are taken, in ms: from 12% to 88% of it, evenly (prototype `videoFrames`:
- * `dur * (0.12 + 0.76 * k / max(1, n - 1))`).
- */
-export function frameTimes(durationMs: number, n: number): number[] {
-  const dur = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DEFAULT_DURATION_MS;
-  return Array.from({ length: n }, (_, k) => Math.round(dur * (0.12 + (0.76 * k) / Math.max(1, n - 1))));
-}
-
+/** Most frames a form check takes (and cuts from a clip): core's `FRAME_COUNT`. */
+export const FRAMES_MAX = FRAME_COUNT;
 const frame = (asset: { uri: string; width: number; height: number }): Promise<AiFrame> => shrinkForAi(asset, { maxPx: FRAME_MAX_PX, maxBase64: FRAME_MAX_BASE64, qualities: FRAME_QUALITIES });
 
 /** Thrown when frames could not be cut from the chosen video. */
@@ -39,7 +29,7 @@ export async function framesFromVideo(): Promise<AiFrame[] | null> {
   if (!video) return null;
   try {
     const out: AiFrame[] = [];
-    for (const time of frameTimes(video.duration ?? DEFAULT_DURATION_MS, FRAMES_MAX)) {
+    for (const time of frameTimesMs(video.duration, FRAMES_MAX)) {
       const cut = await getThumbnailAsync(video.uri, { time, quality: 1 });
       out.push(await frame(cut));
     }
