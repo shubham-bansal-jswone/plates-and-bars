@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, FlatList, View } from 'react-native';
 import { Text } from '../components/Text';
+import { useBottomInset } from '../components/bottomInset';
 import { Button, Choice, Field, H1, Hint, Label, layout, Press } from '../components/ui';
 import { space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -35,6 +36,7 @@ function Row({ e, onOpen }: { e: LibraryExercise; onOpen: () => void }) {
 /** Browse the exercise content: search by name, filter by equipment, main muscle and type, open one for its notes. Works offline; no photos. */
 export function ExerciseLibraryScreen({ onBack, list = getLibrary() }: { onBack: () => void; list?: readonly LibraryExercise[] }) {
   const c = useTheme();
+  const bottom = useBottomInset();
   const [f, setF] = useState<LibraryFilter>(NO_FILTER);
   const [open, setOpen] = useState<string | null>(null);
   const shown = useMemo(() => filterLibrary(list, f), [list, f]);
@@ -53,7 +55,7 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary() }: { onBack:
     <FlatList
       role="main"
       style={{ backgroundColor: c.bg }}
-      contentContainerStyle={{ padding: space.lg, width: '100%', maxWidth: 560, alignSelf: 'center', gap: 4 }}
+      contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + bottom, width: '100%', maxWidth: 560, alignSelf: 'center', gap: 4 }}
       data={shown}
       keyExtractor={(e) => e.name}
       initialNumToRender={15}
