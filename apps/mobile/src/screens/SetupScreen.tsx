@@ -281,7 +281,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
     if (!e) setStep(step + 1);
   };
   return (
-    <Page>
+    <Page resetKey={step}>
       <View style={[layout.row, { justifyContent: 'space-between' }]}>
         {step > 0 ? (
           <Button

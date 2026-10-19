@@ -1,18 +1,43 @@
-import { useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Input } from './Input';
 import { Text } from './Text';
 
-/** Scrolling page with a centred column: full width on a phone, a readable column on desktop. */
-export function Page({ children }: { children: ReactNode }) {
+const ScrollTop = createContext<() => void>(() => {});
+
+/**
+ * Scrolling page with a centred column: full width on a phone, a readable column on desktop.
+ * The ScrollView is reused when the content under it changes, so the offset carries over (#1060); a child that swaps its
+ * content in place passes `resetKey` (the page itself) or calls `useScrollToTopOn` (a child) to start the new content at the top.
+ */
+export function Page({ children, resetKey }: { children: ReactNode; resetKey?: unknown }) {
   const c = useTheme();
+  const ref = useRef<ComponentRef<typeof ScrollView>>(null);
+  const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    if (first.current) first.current = false;
+    else toTop();
+  }, [resetKey, toTop]);
   return (
-    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <View role="main" style={styles.column}>{children}</View>
+    <ScrollView ref={ref} style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <ScrollTop.Provider value={toTop}>
+        <View role="main" style={styles.column}>{children}</View>
+      </ScrollTop.Provider>
     </ScrollView>
   );
+}
+
+/** Scrolls the enclosing `Page` back to the top whenever `key` changes (not on first render). */
+export function useScrollToTopOn(key: unknown) {
+  const toTop = useContext(ScrollTop);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    if (first.current) first.current = false;
+    else toTop();
+  }, [key, toTop]);
 }
 
 /** Heading levels: the screen title is 1, section and card titles are 2, titles inside a section are 3. */
