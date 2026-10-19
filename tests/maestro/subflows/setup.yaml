@@ -41,9 +41,12 @@ appId: app.plateandbar.mobile
 - scroll
 - tapOn:
     point: "50%,94%"
+# The last step opens scrolled to the bottom (the scroll position carries over from the training step), so scroll back up.
 - scrollUntilVisible:
-    element: "Lose fat.*"
-- tapOn: "Lose fat.*"
+    element: "Lose fat\\..*"
+    direction: UP
+    centerElement: true
+- tapOn: "Lose fat\\..*"
 - extendedWaitUntil:
     visible: "Quick health check"
     timeout: 20000
