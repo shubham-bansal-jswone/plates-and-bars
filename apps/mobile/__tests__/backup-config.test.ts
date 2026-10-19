@@ -157,3 +157,33 @@ class AppDelegate: ExpoAppDelegate {
     expect((appJson.expo.ios as Record<string, unknown>).infoPlist).toBeUndefined();
   });
 });
+
+describe('android permissions and photo permission copy', () => {
+  const android = appJson.expo.android as { blockedPermissions?: string[] };
+  const picker = appJson.expo.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-image-picker') as [string, Record<string, unknown>];
+
+  // SYSTEM_ALERT_WINDOW comes from the Expo prebuild template; USE_BIOMETRIC and USE_FINGERPRINT from androidx.biometric
+  // (pulled in by expo-secure-store). The app has no overlay and no biometric lock, so none is needed.
+  it('blocks permissions the app does not use', () => {
+    expect(android.blockedPermissions).toEqual(
+      expect.arrayContaining([
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+      ]),
+    );
+  });
+
+  it('does not block VIBRATE, which haptics uses', () => {
+    expect(android.blockedPermissions).not.toContain('android.permission.VIBRATE');
+  });
+
+  it('image picker strings do not claim chosen photos never leave the device', () => {
+    for (const key of ['photosPermission', 'cameraPermission']) {
+      expect(picker[1][key]).toMatch(/AI meal estimate or form check is sent only when you ask/);
+      expect(picker[1][key]).not.toMatch(/^[^.]*They stay on this device\.$/);
+    }
+  });
+});
