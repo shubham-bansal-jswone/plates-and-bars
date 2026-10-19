@@ -22,10 +22,14 @@ export function renderFrame(name, k) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW.w} ${VIEW.h}">${body}</svg>`;
 }
 
+/** Timed holds (catalogue type "time"): one static frame, used as both start and end (#653). tests check each entry against the catalogue. */
+export const ISOMETRIC = ['Plank (seconds)', 'Wall Sit (seconds)'];
+
 export function buildEntry(name) {
   const id = slug(name);
+  const poses = ISOMETRIC.includes(name) ? [['a', 0]] : [['a', 0], ['b', 1]];
   return {
-    frames: [['a', 0], ['b', 1]].map(([suffix, k]) => ({ file: `svg/${id}-${suffix}.svg`, w: VIEW.w, h: VIEW.h, svg: renderFrame(name, k) })),
+    frames: poses.map(([suffix, k]) => ({ file: `svg/${id}-${suffix}.svg`, w: VIEW.w, h: VIEW.h, svg: renderFrame(name, k) })),
     source: 'own_drawing',
     source_id: `${RIG_VERSION}/${id}`,
     licence: 'CC-BY-4.0',

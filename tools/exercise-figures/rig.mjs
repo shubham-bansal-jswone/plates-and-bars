@@ -137,7 +137,17 @@ export const AN = (() => {
   // Rear legs drawn in props: ik from the hip to a fixed rear foot, so they keep thigh and shin length (joints() exposes them to the test).
   const splitRear = (J, P) => { const ra = [P.rx, 205]; return [J.hip, ik(J.hip, ra, SEG.th, SEG.sh, -1), ra]; };
   const bulgarianRear = (J) => { const rf = [78, 170]; return [J.hip, ik(J.hip, rf, SEG.th, SEG.sh, -1), rf]; };
+  // Rear or free legs drawn in props (ik or a fixed angle from the hip, so thigh and shin keep their length; joints() exposes them to the test).
+  // Walking lunge: the rear toe stays put, the heel lifts (heel 180 = foot flat, behind the front leg at the start; both legs coincide there).
+  const lungeRear = (J, P) => { const T = [107,212], a = pt(T, P.heel, SEG.foot); return [J.hip, ik(J.hip, a, SEG.th, SEG.sh, -1), a, T]; };
+  const bridgeFree = (J) => { const k = pt(J.hip, -30, SEG.th); return [J.hip, k, pt(k, -30, SEG.sh)]; };
+  const calfFree = (J) => { const k = pt(J.hip, 100, SEG.th); return [J.hip, k, pt(k, 175, SEG.sh)]; };
+  const freeLegs = (leg, J, C, g, foot) => { const [h, k, a] = leg(J);
+    return g.ln(h,k,13,C.body) + g.ln(k,a,9,C.body) + g.ln(a,g.pt(a,foot,11),7,C.body); };
   const STAND = { ankle:[150,212] };
+  // Isometric holds: one pose, used for both start and end (the plank's body line is straight, elbows under the shoulders).
+  const PLANK = { foot:-60, shin:-9.25, thigh:-9.25, torso:-9.25, neck:6, ua:90, fa:0 };
+  const WALL_SIT = { thigh:0, shinD:90, torso:-90, footA:0, ua:75, fa:75 };
   const D = {
     'Machine Chest Press': { hip:[130,168], eb:-1, hl:['chest','triceps'],
       a:{ ankle:[178,214], torso:-95, wrist:[136,108], uaS:.75 }, b:{ ankle:[178,214], torso:-95, wrist:[188,104] },
@@ -315,6 +325,47 @@ export const AN = (() => {
     'Decline Push-ups': { root:'toe', toe:[58,140], eb:1, hl:['chest','triceps'],
       a:{ foot:-60, shin:10.4, thigh:10.4, torso:10.4, wrist:[236,224] }, b:{ foot:-60, shin:18, thigh:18, torso:18, wrist:[236,224] },
       props:(J,P,C,g) => floor(C,30,280) + g.ln([36,148],[88,148],9,C.eq) + g.ln([44,148],[44,226],4,C.eq) + g.ln([80,148],[80,226],4,C.eq) },
+    // Batch 4 (#653): isometrics hold one static pose (the same pose for start and end), then the last exercises.
+    'Cable Crossover': { front:true, hl:['chest'],
+      a:{ ua:20, fa:8 }, b:{ ua:98, fa:112 },
+      props:(J,P,C,g) => floor(C,20,300) + g.ln([272,6],[272,226],4,C.eq) + g.ln([48,6],[48,226],4,C.eq),
+      hand:(A,P,C,g) => cable(A.wr,[A.m > 0 ? 264 : 56, 12],C,g) + grip(A.wr,C,g) },
+    'Close-Grip Bench Press': { hip:[190,165], eb:1, kb:-1, hl:['triceps','chest'],
+      a:{ ankle:[232,222], torso:180, wrist:[150,140] }, b:{ ankle:[232,222], torso:180, wrist:[128,98] },
+      props:(J,P,C,g) => floor(C,40,290) + g.ln([92,180],[210,180],9,C.eq) + g.ln([150,180],[150,226],4,C.eq) + g.ln([108,226],[108,92],4,C.eq) + g.ln([108,92],[118,92],4,C.eq),
+      hand:(J,P,C,g) => g.circ(J.wr, 6, C.eq) },
+    'Assisted Dips': { eb:1, hl:['triceps','chest'],
+      a:{ hip:[124,121], torso:-82, wrist:[130,119], thigh:90, shinD:182, footA:180 }, b:{ hip:[144,155], torso:-72, wrist:[130,119], thigh:90, shinD:182, footA:180 },
+      props:(J,P,C,g) => g.ln([J.wr[0]-16,J.wr[1]+6],[J.wr[0]+16,J.wr[1]+6],6,C.eq) + g.ln([J.wr[0]-8,J.wr[1]+6],[J.wr[0]-8,226],4,C.eq)
+        + g.ln([40,J.knee[1]+11],[J.knee[0]-34,J.knee[1]+11],3,C.eq) + g.ln([J.knee[0]-34,J.knee[1]+11],[J.knee[0]+10,J.knee[1]+11],8,C.eq) + floor(C,20,300), hand:(J,P,C,g) => g.circ(J.wr, 4, C.eq) },
+    'Weighted Pull-up': { hl:['back','biceps'], eb:1,
+      a:{ hip:[150,170], torso:-95, wrist:[156,34], thigh:80, shinD:200, footA:180 }, b:{ hip:[150,118], torso:-95, wrist:[156,34], thigh:80, shinD:200, footA:180 },
+      props:(J,P,C,g) => g.ln([100,30],[240,30],5,C.eq) + g.ln([100,30],[100,240],4,C.eq) + g.ln([240,30],[240,240],4,C.eq),
+      hand:(J,P,C,g) => g.ln([J.hip[0]+4,J.hip[1]+6],[J.hip[0]+20,J.hip[1]+26],2,C.eq) + g.circ([J.hip[0]+22,J.hip[1]+36],10,C.eq) + g.circ([J.hip[0]+22,J.hip[1]+36],3,C.bg) },
+    'Walking Lunge': { kb:-1, eb:1, hl:['quads','glutes'],
+      a:{ hip:[96,116], ankle:[92,212], torso:-90, ua:93, fa:90, heel:180 }, b:{ hip:[136,166], ankle:[182,213], torso:-90, ua:93, fa:90, heel:225 },
+      rear:lungeRear,
+      props:(J,P,C,g) => { const [, rk, ra, rt] = lungeRear(J,P);
+        return floor(C) + g.ln(J.hip,rk,13,C.body) + g.ln(rk,ra,9,C.body) + g.ln(ra,rt,7,C.body); }, hand:(J,P,C,g) => db(J.wr,C,g,true) },
+    'Overhead Dumbbell Extension': { hip:[130,165], hl:['triceps'],
+      a:{ torso:-90, thigh:0, shinD:95, ua:-86, fa:-92 }, b:{ torso:-90, thigh:0, shinD:95, ua:-86, fa:140 },
+      props:(J,P,C,g) => floor(C) + seat(C,98,170,176) + backPad(J,C,g), hand:(J,P,C,g) => db(J.wr,C,g,true) },
+    'Single-Leg Glute Bridge': { kb:-1, hl:['glutes','hams'],
+      a:{ hip:[150,200], ankle:[205,214], torso:172, neck:0, ua:0, fa:0 }, b:{ hip:[150,166], ankle:[205,214], torso:145, neck:35, ua:12, fa:12 },
+      rear:bridgeFree,
+      props:(J,P,C,g) => floor(C,30,280) + freeLegs(bridgeFree,J,C,g,-110) },
+    'Single-Leg Calf Raise': { root:'toe', toe:[190,214], eb:1, hl:['calves'],
+      a:{ foot:170, shin:-90, thigh:-90, torso:-90, wrist:[240,60] }, b:{ foot:200, shin:-90, thigh:-90, torso:-90, wrist:[240,60] },
+      rear:calfFree,
+      props:(J,P,C,g) => floor(C) + `<rect x="184" y="218" width="50" height="8" fill="${C.eq}"/>` + g.ln([246,12],[246,226],4,C.eq) + freeLegs(calfFree,J,C,g,130), hand:(J,P,C,g) => g.circ(J.wr, 5, C.eq) },
+    'Backpack Row': { hip:[126,124], kb:-1, eb:1, hl:['back','biceps'],
+      a:{ ankle:[150,212], torso:-22, wrist:[190,165] }, b:{ ankle:[150,212], torso:-22, wrist:[162,124] },
+      props:(J,P,C) => floor(C,60,260),
+      hand:(J,P,C,g) => g.ln([J.wr[0]-5,J.wr[1]+3],[J.wr[0]+5,J.wr[1]+3],3,C.eq) + `<rect x="${(J.wr[0]-10).toFixed(1)}" y="${(J.wr[1]+3).toFixed(1)}" width="20" height="26" rx="6" fill="${C.eq}"/>` },
+    'Plank (seconds)': { root:'toe', toe:[50,224], hl:['abs'],
+      a:PLANK, b:PLANK, props:(J,P,C) => floor(C,20,300) },
+    'Wall Sit (seconds)': { hip:[140,164], hl:['quads'],
+      a:WALL_SIT, b:WALL_SIT, props:(J,P,C,g) => floor(C,30,280) + g.ln([J.hip[0]-14,16],[J.hip[0]-14,226],5,C.eq) },
   };
 
   function frame(name, k, C){
