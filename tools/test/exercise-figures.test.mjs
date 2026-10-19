@@ -14,8 +14,8 @@ const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.jso
 const committed = readFileSync(`${repo}/content/exercise-images.json`, 'utf8');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 
-test('the rig has the 31 prototype poses plus batch 2 (12 poses) and every one is an exercise in the app', () => {
-  assert.equal(AN.names.length, 43);
+test('the rig has the 31 prototype poses plus batches 2 and 3 (12 poses each) and every one is an exercise in the app', () => {
+  assert.equal(AN.names.length, 55);
   for (const n of AN.names) assert.ok(names.includes(n), `${n} is not in exercises.json`);
   assert.deepEqual(Object.keys(buildBundle(names).images).sort(), [...AN.names].sort());
 });
@@ -42,7 +42,7 @@ test('the bundle passes the validator and every frame is well inside the size li
   const bundle = JSON.parse(committed);
   assert.deepEqual(validateExerciseImages(bundle, names), []);
   const sizes = Object.values(bundle.images).flatMap((i) => i.frames.map((f) => Buffer.byteLength(f.svg)));
-  assert.equal(sizes.length, 86);
+  assert.equal(sizes.length, 110);
   assert.ok(Math.max(...sizes) <= 4096, `largest frame ${Math.max(...sizes)} bytes`);
   assert.ok(Math.max(...sizes) < MAX_FRAME_BYTES);
   assert.ok(Math.min(...sizes) > 500, 'a frame this small is probably empty');
@@ -89,5 +89,23 @@ test('new poses keep every drawn segment at the rig length in both frames (no st
     const got = { ua: d(J.sh, J.el), fa: d(J.el, J.wr), th: d(J.hip, J.knee), sh: d(J.knee, J.ankle), torso: d(J.hip, J.sh) };
     const want = { ...LEN, ua: LEN.ua * uaS };
     for (const s of Object.keys(LEN)) assert.ok(Math.abs(got[s] - want[s]) <= TOL, `${n} k=${k}: ${s} is ${got[s].toFixed(1)}, rig length ${want[s]}`);
+  }
+});
+
+test('rear legs drawn in props are reachable, keep rig length and stay planted (split squats)', () => {
+  const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const names = AN.names.filter((n) => /split squat/i.test(n));
+  assert.equal(names.length, 3);
+  for (const n of names) {
+    const feet = [0, 1].map((k) => {
+      const j = AN.joints(n, k);
+      assert.ok(j && j.rear, `${n}: rear leg must come from joints() (ik), not hand-placed points`);
+      const [hip, knee, foot] = j.rear;
+      assert.ok(d(hip, foot) <= 98, `${n} k=${k}: rear foot out of reach (${d(hip, foot).toFixed(1)})`);
+      assert.ok(Math.abs(d(hip, knee) - 50) <= 1, `${n} k=${k}: rear thigh is ${d(hip, knee).toFixed(1)}`);
+      assert.ok(Math.abs(d(knee, foot) - 48) <= 1, `${n} k=${k}: rear shin is ${d(knee, foot).toFixed(1)}`);
+      return foot;
+    });
+    assert.deepEqual(feet[0], feet[1], `${n}: rear foot slides between frames`);
   }
 });
