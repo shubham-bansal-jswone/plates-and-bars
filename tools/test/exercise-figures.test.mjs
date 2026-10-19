@@ -14,8 +14,8 @@ const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.jso
 const committed = readFileSync(`${repo}/content/exercise-images.json`, 'utf8');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 
-test('the rig has the 31 prototype poses plus batch 2 (12 poses) and every one is an exercise in the app', () => {
-  assert.equal(AN.names.length, 43);
+test('the rig has the 31 prototype poses plus batches 2 and 3 (12 poses each) and every one is an exercise in the app', () => {
+  assert.equal(AN.names.length, 55);
   for (const n of AN.names) assert.ok(names.includes(n), `${n} is not in exercises.json`);
   assert.deepEqual(Object.keys(buildBundle(names).images).sort(), [...AN.names].sort());
 });
@@ -42,7 +42,7 @@ test('the bundle passes the validator and every frame is well inside the size li
   const bundle = JSON.parse(committed);
   assert.deepEqual(validateExerciseImages(bundle, names), []);
   const sizes = Object.values(bundle.images).flatMap((i) => i.frames.map((f) => Buffer.byteLength(f.svg)));
-  assert.equal(sizes.length, 86);
+  assert.equal(sizes.length, 110);
   assert.ok(Math.max(...sizes) <= 4096, `largest frame ${Math.max(...sizes)} bytes`);
   assert.ok(Math.max(...sizes) < MAX_FRAME_BYTES);
   assert.ok(Math.min(...sizes) > 500, 'a frame this small is probably empty');
