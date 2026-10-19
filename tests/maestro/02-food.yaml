@@ -11,11 +11,11 @@ appId: app.plateandbar.mobile
     centerElement: true
 - tapOn: "\\+ Add to breakfast"
 - tapOn: "Roti / chapati.*"
-- scrollUntilVisible:
-    element: "Done"
-    centerElement: true
-- tapOn: "Done"
+# The Done button sits at the very end of the long food list; the system back button closes the sheet the same way.
+- back
 - extendedWaitUntil:
     visible: ".* of .* kcal eaten"
     timeout: 15000
-- assertVisible: "Roti / chapati.*"
+- scrollUntilVisible:
+    element: "Roti / chapati.*"
+    centerElement: true
