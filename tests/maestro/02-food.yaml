@@ -13,9 +13,8 @@ appId: app.plateandbar.mobile
 - tapOn: "Roti / chapati.*"
 # The Done button sits at the very end of the long food list; the system back button closes the sheet the same way.
 - back
+# Back on Food (scrolled to the Breakfast card): the logged food is listed there.
 - extendedWaitUntil:
-    visible: ".* of .* kcal eaten"
+    visible: "Roti / chapati.*"
     timeout: 15000
-- scrollUntilVisible:
-    element: "Roti / chapati.*"
-    centerElement: true
+- assertVisible: "102 kcal"
