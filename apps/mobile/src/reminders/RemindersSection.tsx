@@ -103,6 +103,9 @@ export function RemindersSection({ db, profile }: { db: StoreDb; profile: PlanPr
           ))}
         </View>
       </Row>
+      <Row label={LABELS.rest} on={prefs.rest.on} onChange={(on) => change({ ...prefs, rest: { on } })}>
+        <Hint>{SECTION.restHint}</Hint>
+      </Row>
       <View style={{ gap: 8 }}>
         <Label>Quiet hours</Label>
         <View style={{ flexDirection: 'row', gap: 12 }}>
