@@ -11,7 +11,8 @@ appId: app.plateandbar.mobile
     element: "Choose .*"
     centerElement: true
 - tapOn: "Choose .*"
-# The page keeps its scroll position: go back to the top to see the preview hint.
+# The page keeps its scroll position (#1060, fix in progress on app/scroll-reset-1060, remove this workaround when it lands): go
+# back to the top to see the preview hint.
 - scrollUntilVisible:
     element: "Nothing is saved until you start.*"
     direction: UP

@@ -13,8 +13,15 @@ appId: app.plateandbar.mobile
 - tapOn: "Roti / chapati.*"
 # The Done button sits at the very end of the long food list; the system back button closes the sheet the same way.
 - back
-# Back on Food (scrolled to the Breakfast card): the logged food is listed there.
-- extendedWaitUntil:
-    visible: "Roti / chapati.*"
-    timeout: 15000
-- assertVisible: "102 kcal"
+# Closing the sheet leaves Food: the sheet's own tabs are gone, the day's summary counts the roti (102 kcal) and the breakfast card lists it.
+- assertNotVisible: "Eating out"
+- scrollUntilVisible:
+    element: "102 of .* kcal eaten"
+    direction: UP
+- assertVisible: "102 of .* kcal eaten"
+- scrollUntilVisible:
+    element: "Roti / chapati.*"
+    centerElement: true
+- assertVisible:
+    text: "Roti / chapati.*"
+    below: "Breakfast"

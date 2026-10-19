@@ -1,8 +1,8 @@
 name: Android smoke (Maestro)
 
 # Builds the release APK for x86_64, debug-signed (no secrets, no environment), installs it on an API 34 emulator and runs the
-# Maestro flows in tests/maestro/. Nightly and on demand only: an emulator job is slow, so it is not run on every pull request.
-# Open-source tools only: Maestro CLI (Apache-2.0, version-pinned, checksum-checked) and android-emulator-runner (MIT).
+# Maestro flows in tests/e2e/maestro/. Nightly and on demand only: an emulator job is slow, so it is not run on every pull request.
+# Open-source tools only: Maestro CLI (Apache-2.0, version-pinned, checksum-checked) and android-emulator-runner (Apache-2.0).
 # The APK is cached on a hash of the app sources, so a run that changes only the flows skips the Gradle build.
 on:
   workflow_dispatch:
@@ -23,6 +23,8 @@ env:
 jobs:
   smoke:
     name: maestro flows on an emulator
+    # the nightly schedule would otherwise also run in any fork that enables Actions
+    if: github.repository == 'shubham-bansal-jswone/plates-and-bars' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -68,6 +70,9 @@ jobs:
           ndk=$(sed -n 's/^ndkVersion *= *"\([0-9.]*\)".*/\1/p' node_modules/react-native/gradle/libs.versions.toml)
           [ -n "$ndk" ] || { echo "::error::cannot read the NDK version from react-native's libs.versions.toml"; exit 1; }
           echo "prefix=ccache-${RUNNER_OS}-ndk${ndk}" >> "$GITHUB_OUTPUT"
+      # RESTORE ONLY, NEVER SAVE a ccache entry in this workflow. It shares android-release's `ccache-<os>-ndk<version>-` prefix so a cold
+      # build can start from main's objects; android-release's ccache prune and quota rules (#1058) count only entries it saves, and a
+      # save here would make the two workflows evict each other's entries. The cap below is 2G, the same as android-release.
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: steps.apk-cache.outputs.cache-hit != 'true'
         with:
@@ -82,7 +87,7 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
-          ccache -M 400M -z
+          ccache -M 2G -z
           ccache --set-config sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime
       - name: Build the x86_64 release APK (debug-signed, no secrets)
         if: steps.apk-cache.outputs.cache-hit != 'true'
@@ -94,7 +99,7 @@ jobs:
           CCACHE_BASEDIR: ${{ github.workspace }}
           CCACHE_NOHASHDIR: 'true'
           CCACHE_COMPILERCHECK: content
-          CCACHE_MAXSIZE: 400M
+          CCACHE_MAXSIZE: 2G
         run: ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
       - name: Keep the APK
         if: steps.apk-cache.outputs.cache-hit != 'true'
@@ -129,7 +134,7 @@ jobs:
           profile: pixel_6
           ram-size: 3072M
           disable-animations: true
-          script: bash tests/maestro/run-on-emulator.sh
+          script: bash tests/e2e/maestro/run-on-emulator.sh
       - name: Upload Maestro debug output and screenshots
         if: failure()
         uses: actions/upload-artifact@v7

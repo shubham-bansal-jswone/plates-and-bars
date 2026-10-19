@@ -13,13 +13,14 @@ appId: app.plateandbar.mobile
     visible: "I understand and agree to my data being stored as described"
     timeout: 25000
     optional: true
-# After a previous flow the new process is sometimes killed while Android removes the old task and the app never leaves the
-# splash screen: start it once more.
+# After a previous flow the app sometimes stays on the splash screen (logcat: the new process is killed while Android removes the
+# previous flow's task; #1064): start it once more. The relaunch is labelled so run-on-emulator.sh can warn when it fired.
 - runFlow:
     when:
       notVisible: "I understand and agree to my data being stored as described"
     commands:
       - launchApp:
+          label: "SPLASH-RELAUNCH (#1064)"
           clearState: true
 - extendedWaitUntil:
     visible: "I understand and agree to my data being stored as described"
@@ -49,11 +50,12 @@ appId: app.plateandbar.mobile
 - scrollUntilVisible:
     element: "Continue"
 # On the training step the Continue button ends up partly under the 3-button navigation bar even at the end of the list
-# (app bug, filed), so its centre cannot be tapped: tap the visible top strip of the button instead (pixel_6 emulator).
+# (app bug #1059, fix in progress on app/nav-bar-inset-1059; remove this workaround when it lands), so its centre cannot be tapped: tap the visible top strip of the button instead (pixel_6 emulator).
 - scroll
 - tapOn:
     point: "50%,94%"
-# The last step opens scrolled to the bottom (the scroll position carries over from the training step), so scroll back up.
+# The last step opens scrolled to the bottom (the scroll position carries over from the training step; #1060, fix in progress on
+# app/scroll-reset-1060, remove this workaround when it lands), so scroll back up.
 - scrollUntilVisible:
     element: "Lose fat\\..*"
     direction: UP
@@ -102,7 +104,7 @@ appId: app.plateandbar.mobile
 - scrollUntilVisible:
     element: "See my targets"
 - scroll
-# Same overlap as Continue above: tap the visible top strip of the button.
+# Same overlap as Continue above (#1059, remove with it): tap the visible top strip of the button.
 - tapOn:
     point: "50%,94%"
 - scrollUntilVisible:
