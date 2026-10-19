@@ -1,0 +1,36 @@
+# Choose a workout (a preview, nothing saved, #1016), Start it, tick set 1 and see it ticked.
+appId: app.plateandbar.mobile
+---
+- runFlow: subflows/setup.yaml
+- extendedWaitUntil:
+    visible: "Workout"
+    timeout: 15000
+- tapOn: "Workout"
+# Today's planned session is shown first; the other workouts are chips below it.
+- scrollUntilVisible:
+    element: "Choose .*"
+    centerElement: true
+- tapOn: "Choose .*"
+- assertVisible: "Nothing is saved until you start.*"
+- scrollUntilVisible:
+    element: "Start (?!a rest).*"
+    centerElement: true
+- tapOn: "Start (?!a rest).*"
+- scrollUntilVisible:
+    element: "Mark .* set 1 done"
+    centerElement: true
+# A set needs a weight and reps before it can be ticked (the empty fields show "–" and the planned reps as placeholders).
+- tapOn:
+    text: "–"
+    index: 0
+- inputText: "40"
+- hideKeyboard
+- tapOn:
+    text: "8"
+    index: 0
+- inputText: "9"
+- hideKeyboard
+- tapOn: "Mark .* set 1 done"
+- assertVisible:
+    text: "Mark .* set 1 done"
+    checked: true

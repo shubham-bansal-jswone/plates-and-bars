@@ -1,0 +1,11 @@
+# Fresh install: consent, the setup steps, the health check and the targets, then the app's tabs.
+appId: app.plateandbar.mobile
+---
+- runFlow: subflows/setup.yaml
+# Setup ends on Food with a toast, as the prototype does; Targets is one tap away.
+- extendedWaitUntil:
+    visible: "Targets updated"
+    timeout: 15000
+- tapOn: "Targets"
+- scrollUntilVisible:
+    element: "Redo setup"
