@@ -33,6 +33,12 @@ name: Android release build
 # manual runs build all four ABIs with assembleRelease bundleRelease, so a break in another ABI or in the AAB shows on main.
 # Every run compiles the NDK code through ccache. Only pushes to main and manual runs on main save the cache; pull requests
 # only restore it (a PR-scoped cache is invisible to other PRs and would only evict the npm and Gradle caches).
+# The ccache cap is 2G: a 4-ABI build with precompiled headers overflowed 400M (run 39226041548: 98.5 % of 1376 calls cacheable,
+# cache full at 0.4 GB, 555 cleanups, 24.7 % hits), so ccache evicted its own objects mid-build. Each main run saves a new
+# entry (run-id key); the `ccache-prune` job then deletes every older `ccache-*` entry, keeping only the newest (the next run
+# restores the newest, so a second entry protects nothing). The repo cache is already over its 10 GB quota (about 10.7 GB in
+# 46 entries on 2026-10-19, about 4.4 GB of it npm), so GitHub's least-recently-used eviction is already running; a 2G entry
+# stays alive as long as android runs keep restoring it.
 # The native-libs guard compares .so file names with the ABI directory stripped, so it holds for one ABI or four.
 #
 # Secrets are withheld on pull_request runs (always debug-signed) and are only
@@ -50,6 +56,7 @@ on:
       - 'infra/scripts/test-android-release-config.sh'
       - 'infra/scripts/check-api-url.sh'
       - 'infra/scripts/test-release-env.sh'
+      - 'infra/scripts/test-android-ccache.sh'
       - 'infra/scripts/check-site-url.sh'
       - 'infra/scripts/test-check-site-url.sh'
       # the Android licence list (#835): a dependency change can change the release classpath
@@ -74,6 +81,7 @@ on:
       - 'infra/scripts/test-android-release-config.sh'
       - 'infra/scripts/check-api-url.sh'
       - 'infra/scripts/test-release-env.sh'
+      - 'infra/scripts/test-android-ccache.sh'
       - 'infra/scripts/check-site-url.sh'
       - 'infra/scripts/test-check-site-url.sh'
       # the Android licence list (#835): a dependency change can change the release classpath
@@ -130,11 +138,12 @@ jobs:
         if: github.event_name == 'pull_request'
         working-directory: .
         run: |
-          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-site-url.sh infra/scripts/test-check-site-url.sh infra/scripts/test-release-env.sh
+          shellcheck infra/scripts/android-release-config.sh infra/scripts/test-android-release-config.sh infra/scripts/check-api-url.sh infra/scripts/test-check-api-url.sh infra/scripts/check-site-url.sh infra/scripts/test-check-site-url.sh infra/scripts/test-release-env.sh infra/scripts/test-android-ccache.sh
           infra/scripts/test-check-api-url.sh
           infra/scripts/test-android-release-config.sh
           infra/scripts/test-check-site-url.sh
           infra/scripts/test-release-env.sh
+          infra/scripts/test-android-ccache.sh
       - name: Set versionCode and check the API URL (CI checkout only, not committed)
         run: ../../infra/scripts/android-release-config.sh app.json
       - name: Release builds need the site URL (the privacy link Play requires)
@@ -160,7 +169,7 @@ jobs:
           restore-keys: ${{ steps.ccache-key.outputs.prefix }}-
       - name: Install ccache
         run: command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
-      # The size cap lives in the cache dir's ccache.conf (so every step that prints stats or trims sees 400M, not the 5 GiB
+      # The size cap lives in the cache dir's ccache.conf (so every step that prints stats or trims sees 2G, not the 5 GiB
       # default), and the counters are zeroed because the restored dir carries the cumulative counters of earlier runs.
       # Sloppiness is ccache's documented setting for precompiled headers (manual 4.9, "Precompiled headers"); it is stored in the
       # same ccache.conf. Clang also needs -fno-pch-timestamp and -include-pch; Reanimated, worklets and expo-modules-core already
@@ -170,7 +179,7 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
-          ccache -M 400M -z
+          ccache -M 2G -z
           # time_macros applies to every compile: a future dependency using __DATE__ or __TIME__ keeps the value from its first
           # cached build.
           ccache --set-config sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime
@@ -228,7 +237,7 @@ jobs:
           CCACHE_BASEDIR: ${{ github.workspace }}
           CCACHE_NOHASHDIR: 'true'
           CCACHE_COMPILERCHECK: content # the NDK is unpacked afresh on a runner, so its mtime would always miss
-          CCACHE_MAXSIZE: 400M
+          CCACHE_MAXSIZE: 2G
         # Pull requests: arm64-v8a APK only (the bulk of the 30 minutes is compiling the NDK code four times and the AAB).
         # Push to main, push of a tag and manual runs: everything, as before.
         run: |
@@ -242,6 +251,7 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
         run: ccache -s -v
+      # Saves only on main; pull requests restore the newest main entry and never save or delete (see ccache-prune below).
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.ccache-key.outputs.prefix != ''
         with:
@@ -280,3 +290,27 @@ jobs:
       - name: Delete decoded keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/upload.jks"
+
+  # Keeps the 10 GB cache quota from filling with one ~2 GB ccache entry per main run: after a green main build (which saved
+  # its entry) delete every `ccache-*` entry except the newest one. Never runs on pull requests. The only job with
+  # `actions: write`; it needs no checkout and no secrets.
+  ccache-prune:
+    name: prune old ccache entries
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Delete every ccache entry but the newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash # bash -eo pipefail: a failing `gh cache list` fails the step instead of passing silently
+        run: |
+          gh cache list --key ccache- --sort created_at --order desc --limit 100 --json id,key --jq '.[1:][] | "\(.id) \(.key)"' |
+            while read -r id key; do
+              echo "deleting $key"
+              gh cache delete "$id" || echo "::warning::could not delete cache $key (already gone?)"
+            done
