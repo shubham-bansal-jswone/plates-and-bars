@@ -1,7 +1,8 @@
 // Parametric figure rig ported from the prototype's AN (docs/prototype/plate-and-bar.html, "code-built exercise
 // animations"): same joint maths, same output for the same colours. The first 31 poses in D are the prototype's, ported
 // unchanged; later entries are our own additions (batch 2 onwards, #653). Changes from the prototype:
-// ES module, the colour map is a parameter of frame(), and it is exported without the browser globals.
+// ES module, the colour map is a parameter of frame(), and it is exported without the browser globals, and
+// it adds joints(name, k), the side-view joint positions, used by the segment-length test.
 // New poses are appended to D below; nothing else in the rig needs to change.
 export const AN = (() => {
   const SEG = { torso:70, head:11, neck:15, ua:36, fa:32, th:50, sh:48, foot:15 };
@@ -259,7 +260,7 @@ export const AN = (() => {
       a:{ hip:[150,200], ankle:[205,214], torso:172, neck:0, ua:0, fa:0 }, b:{ hip:[150,166], ankle:[205,214], torso:145, neck:35, ua:12, fa:12 },
       props:(J,P,C) => floor(C,30,280) },
     'Crunch': { kb:-1, hl:['abs'],
-      a:{ hip:[150,206], ankle:[205,214], torso:-182, neck:0, uaR:-150, faR:-60 }, b:{ hip:[150,206], ankle:[205,214], torso:-146, neck:8, uaR:-150, faR:-60 },
+      a:{ hip:[150,206], ankle:[205,214], torso:-182, neck:0, uaR:-160, faR:-60 }, b:{ hip:[150,206], ankle:[205,214], torso:-146, neck:8, uaR:-160, faR:-60 },
       props:(J,P,C) => floor(C,30,280) },
     'Dumbbell Romanian Deadlift': { kb:-1, eb:1, hl:['hams','glutes'],
       a:{ hip:[146,116], ankle:[150,212], torso:-90, wrist:[150,112] }, b:{ hip:[118,124], ankle:[150,212], torso:-20, wrist:[176,164] },
