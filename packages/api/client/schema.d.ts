@@ -1647,14 +1647,29 @@ export interface components {
             /** @description Katoris (150 g cooked each) the whole recipe makes, as `Recipe.katoris`; the server uses 4 when the model gives none (as the prototype does). */
             katoris: number;
             /** @description Matched ingredients, in grams (`unit` is always `g`); empty when none matched. */
-            ingredients: (components["schemas"]["Ingredient"] & {
-                /** @constant */
-                unit?: "g";
-            })[];
+            ingredients: components["schemas"]["ImportedIngredient"][];
             steps: string[];
             /** @description Ingredients as written that could not be matched, for the user to add by hand. */
             unmatched: string[];
             quota: components["schemas"]["AiQuota"];
+        };
+        /**
+         * @description An ingredient in an import-recipe draft. The fields of `Ingredient` with `unit`
+         *     fixed to `g`, plus `original`. It is a separate schema because `Ingredient` is
+         *     closed (`additionalProperties: false`), so extending it with `allOf` would reject
+         *     `original`; `Recipe` and sync keep using `Ingredient` unchanged, and the app drops
+         *     `original` when it saves the recipe.
+         */
+        ImportedIngredient: {
+            ingredient: components["schemas"]["Ingredient"]["ingredient"];
+            amount: components["schemas"]["Ingredient"]["amount"];
+            /** @constant */
+            unit: "g";
+            /**
+             * @description the ingredient line as written in the source recipe
+             * @example 1 cup toor dal
+             */
+            original?: string;
         };
         FormCheckRequest: {
             /**

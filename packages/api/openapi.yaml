@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.25
+  version: 0.1.26
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -2061,9 +2061,11 @@ paths:
                       - ingredient: Toor dal (dry)
                         amount: 200
                         unit: g
+                        original: 1 cup toor dal
                       - ingredient: Ghee
                         amount: 10
                         unit: g
+                        original: 2 tsp ghee
                     steps:
                       - Pressure cook the dal with turmeric for 15 min.
                       - Temper with ghee and jeera and pour over the dal.
@@ -4011,12 +4013,7 @@ components:
           maxItems: 100
           description: Matched ingredients, in grams (`unit` is always `g`); empty when none matched.
           items:
-            allOf:
-              - $ref: '#/components/schemas/Ingredient'
-              - type: object
-                properties:
-                  unit:
-                    const: g
+            $ref: '#/components/schemas/ImportedIngredient'
         steps:
           type: array
           maxItems: 20
@@ -4032,6 +4029,30 @@ components:
             maxLength: 200
         quota:
           $ref: '#/components/schemas/AiQuota'
+
+    ImportedIngredient:
+      type: object
+      description: |
+        An ingredient in an import-recipe draft. The fields of `Ingredient` with `unit`
+        fixed to `g`, plus `original`. It is a separate schema because `Ingredient` is
+        closed (`additionalProperties: false`), so extending it with `allOf` would reject
+        `original`; `Recipe` and sync keep using `Ingredient` unchanged, and the app drops
+        `original` when it saves the recipe.
+      required: [ingredient, amount, unit]
+      additionalProperties: false
+      properties:
+        ingredient:
+          $ref: '#/components/schemas/Ingredient/properties/ingredient'
+        amount:
+          $ref: '#/components/schemas/Ingredient/properties/amount'
+        unit:
+          type: string
+          const: g
+        original:
+          type: string
+          maxLength: 200
+          description: the ingredient line as written in the source recipe
+          examples: ['1 cup toor dal']
 
     FormCheckRequest:
       type: object
