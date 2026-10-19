@@ -13,3 +13,4 @@ Short records of decisions that shape the whole project, in Context / Decision /
 | [007](007-sync-conflict-replaced-record.md) | Sync conflicts return the replaced record on `client_won`, so the app can merge and re-push (adds to 001) | Accepted |
 | [008](008-ai-image-calls-and-privacy.md) | AI image calls (meal photo, recipe import, form check): base64 in JSON, JPEG or PNG, re-encoded on the server to strip EXIF, never stored or logged | Accepted |
 | [009](009-open-food-facts-barcode-lookup.md) | Open Food Facts for barcode lookups: per-barcode on-demand cache, no images, attribution per row (supersedes 005 on adding a source only) | Accepted |
+| [010](010-label-scan-on-device-ocr.md) | Label scanning: on-device OCR with Tesseract 5, mandatory review, no server call, flag off until a bake-off passes | Accepted |
