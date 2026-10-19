@@ -58,7 +58,7 @@ class AiImageEndpointsIT extends AiITBase {
             + "{\"name\":\"Bhindi sabzi\",\"qty\":\"1 katori\",\"kcal\":130,\"protein_g\":3,\"carbs_g\":12,\"fat_g\":8,"
             + "\"confidence\":\"unsure\",\"match\":\"Not a built-in food\",\"servings\":9}]}";
     static final String RECIPE_REPLY = "{\"name\":\"Dal tadka\",\"katoris\":6,\"ingredients\":["
-            + "{\"ingredient\":\"toor dal (dry)\",\"as_written\":\"1 cup toor dal\",\"grams\":200},"
+            + "{\"ingredient\":\"toor dal (dry)\",\"as_written\":\"1 cup toor dal\",\"original\":\" 1 cup toor dal \",\"grams\":200},"
             + "{\"ingredient\":\"Unobtainium\",\"as_written\":\"1 pinch unobtainium\",\"grams\":5},"
             + "{\"ingredient\":\"Besan\",\"as_written\":\"2 tsp besan\",\"grams\":-3}],"
             + "\"steps\":[\"Pressure cook the dal.\"],\"unmatched\":[\"salt\"]}";
@@ -140,6 +140,7 @@ class AiImageEndpointsIT extends AiITBase {
         assertThat(b.path("ingredients")).hasSize(1);
         assertThat(b.path("ingredients").get(0).path("ingredient").asString()).isEqualTo("Toor dal (dry)");
         assertThat(b.path("ingredients").get(0).path("unit").asString()).isEqualTo("g");
+        assertThat(b.path("ingredients").get(0).path("original").asString()).isEqualTo("1 cup toor dal");
         assertThat(b.path("unmatched")).extracting(JsonNode::asString)
                 .containsExactly("1 pinch unobtainium", "2 tsp besan", "salt");
         assertThat(sentImages(AiFeature.IMPORT_RECIPE)).isEmpty(); // text only
