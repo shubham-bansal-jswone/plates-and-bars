@@ -11,7 +11,19 @@ appId: app.plateandbar.mobile
       - tapOn: "Wait"
 - extendedWaitUntil:
     visible: "I understand and agree to my data being stored as described"
-    timeout: 90000
+    timeout: 25000
+    optional: true
+# After a previous flow the new process is sometimes killed while Android removes the old task and the app never leaves the
+# splash screen: start it once more.
+- runFlow:
+    when:
+      notVisible: "I understand and agree to my data being stored as described"
+    commands:
+      - launchApp:
+          clearState: true
+- extendedWaitUntil:
+    visible: "I understand and agree to my data being stored as described"
+    timeout: 60000
 - tapOn: "I understand and agree to my data being stored as described"
 - tapOn: "Continue"
 - tapOn: "Male"
