@@ -125,7 +125,7 @@ jobs:
           APK_PATH: ${{ runner.temp }}/smoke.apk
         with:
           api-level: 34
-          target: google_apis
+          target: default # AOSP image: no Pixel Launcher, whose ANR dialog covered the app on a slow runner
           arch: x86_64
           profile: pixel_6
           ram-size: 3072M

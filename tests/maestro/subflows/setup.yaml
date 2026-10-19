@@ -3,6 +3,15 @@ appId: app.plateandbar.mobile
 ---
 - launchApp:
     clearState: true
+# A system "isn't responding" dialog can cover the app on a slow runner; dismiss it by waiting.
+- runFlow:
+    when:
+      visible: ".*isn't responding"
+    commands:
+      - tapOn: "Wait"
+- extendedWaitUntil:
+    visible: "I understand and agree to my data being stored as described"
+    timeout: 30000
 - tapOn: "I understand and agree to my data being stored as described"
 - tapOn: "Continue"
 - tapOn: "Male"
