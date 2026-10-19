@@ -11,6 +11,9 @@ appId: app.plateandbar.mobile
     centerElement: true
 - tapOn: "\\+ Add to breakfast"
 - tapOn: "Roti / chapati.*"
+- scrollUntilVisible:
+    element: "Done"
+    centerElement: true
 - tapOn: "Done"
 - extendedWaitUntil:
     visible: ".* of .* kcal eaten"

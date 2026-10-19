@@ -22,6 +22,17 @@ appId: app.plateandbar.mobile
 - scrollUntilVisible:
     element: "Mark .* set 1 done"
     centerElement: true
+# A set needs a weight and reps before it can be ticked (the empty fields show "–" and the planned reps as placeholders).
+- tapOn:
+    text: "–"
+    index: 0
+- inputText: "40"
+- hideKeyboard
+- tapOn:
+    text: "8"
+    index: 0
+- inputText: "9"
+- hideKeyboard
 - tapOn: "Mark .* set 1 done"
 - assertVisible:
     text: "Mark .* set 1 done"
