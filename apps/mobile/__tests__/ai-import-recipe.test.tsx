@@ -246,6 +246,40 @@ describe('the flow', () => {
     expect(screen.queryByLabelText(/^Ingredient 3/)).toBeNull();
   });
 
+  it('a matched ingredient this device does not know shows its original line when the server sent it', async () => {
+    const { api, POST } = fakeApi();
+    POST.mockResolvedValue(ok({ ingredients: [...DAL.ingredients, { ingredient: 'Dragon fruit powder', amount: 25, unit: 'g', original: '2 tbsp dragon fruit powder' }] }));
+    await recipes(optedIn(), api);
+    await open();
+    await typeRecipe();
+    await importIt();
+    expect(await screen.findByText('Not matched, so left out: salt, jeera, 2 tbsp dragon fruit powder. Add them by hand if they matter.')).toBeTruthy();
+  });
+
+  it('without original (an older server) or with a blank one, it falls back to the name and grams', async () => {
+    const { api, POST } = fakeApi();
+    POST.mockResolvedValue(ok({ ingredients: [...DAL.ingredients, { ingredient: 'Dragon fruit powder', amount: 25, unit: 'g', original: '  ' }] }));
+    await recipes(optedIn(), api);
+    await open();
+    await typeRecipe();
+    await importIt();
+    expect(await screen.findByText('Not matched, so left out: salt, jeera, Dragon fruit powder (25 g). Add them by hand if they matter.')).toBeTruthy();
+  });
+
+  it('mixes both kinds in one note: the server unmatched first, then the unknown ones in ingredient order', async () => {
+    const { api, POST } = fakeApi();
+    POST.mockResolvedValue(ok({ ingredients: [
+      ...DAL.ingredients,
+      { ingredient: 'Dragon fruit powder', amount: 25, unit: 'g', original: '2 tbsp dragon fruit powder' },
+      { ingredient: 'Saffron', amount: 1, unit: 'g' },
+    ] }));
+    await recipes(optedIn(), api);
+    await open();
+    await typeRecipe();
+    await importIt();
+    expect(await screen.findByText('Not matched, so left out: salt, jeera, 2 tbsp dragon fruit powder, Saffron (1 g). Add them by hand if they matter.')).toBeTruthy();
+  });
+
   it('nothing matched says to paste the ingredient list and leaves the builder as it was', async () => {
     const { api, POST } = fakeApi();
     POST.mockResolvedValue(ok({ ingredients: [], unmatched: ['salt'] }));
