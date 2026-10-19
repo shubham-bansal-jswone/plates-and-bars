@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plateandbar.app/schemas/exercise-motion.schema.json",
+  "title": "content/exercise-motion.json",
+  "description": "Own joint keyframes per exercise, made from our own filmed clips (issue #1069). A frame is 45 numbers: x, y, z of the 15 joints in the order of `joints`. Units are body heights (the figure is 1.0 tall); x is the figure's left, y is up, z is forward; y = 0 is the floor and the ankle midpoint is pinned at x = z = 0. tools/validate/exercise-motion.mjs enforces this and the rules JSON Schema cannot state (every key is an exercise in exercises.json, bone lengths within x-bone-tolerance of the skeleton table, a loop closes, unique source and clip ids, entry size).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "skeleton", "joints", "motions"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "skeleton": { "const": "pb15-v1" },
+    "joints": {
+      "const": ["head", "neck", "l_shoulder", "r_shoulder", "l_elbow", "r_elbow", "l_wrist", "r_wrist", "spine_mid", "l_hip", "r_hip", "l_knee", "r_knee", "l_ankle", "r_ankle"],
+      "description": "The 15 joints, in the order a frame lists them."
+    },
+    "motions": {
+      "type": "object",
+      "description": "Keyed by exercise name as in exercises.json. Empty until clips have been filmed, reviewed and signed off.",
+      "additionalProperties": { "$ref": "#/$defs/motion" }
+    }
+  },
+  "$defs": {
+    "motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-max-entry-bytes": 8192,
+      "x-bone-tolerance": 0.03,
+      "required": ["fps", "loop", "frames", "source", "source_id", "clip_id", "release_id", "licence", "licence_url", "author", "author_url", "tools", "note"],
+      "properties": {
+        "fps": { "type": "integer", "minimum": 5, "maximum": 30, "description": "Playback rate; the player interpolates between keyframes." },
+        "loop": { "type": "boolean", "description": "True when the last frame leads back into the first without a jump." },
+        "frames": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 45,
+            "maxItems": 45,
+            "items": { "type": "number", "minimum": -2, "maximum": 2 }
+          }
+        },
+        "source": { "enum": ["own_filming"], "description": "Own filming only. The video is never shipped, only these joint numbers." },
+        "source_id": { "type": "string", "minLength": 1 },
+        "clip_id": { "type": "string", "minLength": 1, "description": "Id of the source clip in the owner's clip register (outside the repo)." },
+        "release_id": { "type": "string", "minLength": 1, "description": "Id of the signed model release for the person filmed." },
+        "licence": { "enum": ["CC-BY-4.0", "CC0-1.0"] },
+        "licence_url": { "type": "string", "format": "uri" },
+        "author": { "type": "string", "minLength": 1 },
+        "author_url": { "type": ["string", "null"], "format": "uri" },
+        "tools": { "type": "string", "minLength": 1, "description": "Pipeline version, pose model name and its sha256." },
+        "note": { "type": ["string", "null"], "minLength": 1 }
+      }
+    }
+  }
+}
