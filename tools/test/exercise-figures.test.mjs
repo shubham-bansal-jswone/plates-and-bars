@@ -14,8 +14,8 @@ const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.jso
 const committed = readFileSync(`${repo}/content/exercise-images.json`, 'utf8');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 
-test('the rig has the 31 prototype poses plus batches 2, 3 and 4 (12, 12 and 11 poses) and every one is an exercise in the app', () => {
-  assert.equal(AN.names.length, 66);
+test('the rig has the 31 prototype poses plus batches 2, 3 and 4 (12, 12 and 12 poses) and every one is an exercise in the app', () => {
+  assert.equal(AN.names.length, 67);
   for (const n of AN.names) assert.ok(names.includes(n), `${n} is not in exercises.json`);
   assert.deepEqual(Object.keys(buildBundle(names).images).sort(), [...AN.names].sort());
 });
@@ -42,7 +42,7 @@ test('the bundle passes the validator and every frame is well inside the size li
   const bundle = JSON.parse(committed);
   assert.deepEqual(validateExerciseImages(bundle, names), []);
   const sizes = Object.values(bundle.images).flatMap((i) => i.frames.map((f) => Buffer.byteLength(f.svg)));
-  assert.equal(sizes.length, 130); // 64 exercises with two frames, the two isometric holds with one
+  assert.equal(sizes.length, 131); // 64 exercises with two frames, the three isometric holds with one
   assert.ok(Math.max(...sizes) <= 4096, `largest frame ${Math.max(...sizes)} bytes`);
   assert.ok(Math.max(...sizes) < MAX_FRAME_BYTES);
   assert.ok(Math.min(...sizes) > 500, 'a frame this small is probably empty');
@@ -116,7 +116,7 @@ test('rear and free legs drawn in props are reachable and keep rig length; split
   const planted = AN.names.filter((n) => /split squat|walking lunge/i.test(n));
   assert.equal(planted.length, 4);
   for (const n of planted) assert.ok(withRear.includes(n), n);
-  for (const n of ['Single-Leg Glute Bridge', 'Single-Leg Calf Raise']) assert.ok(withRear.includes(n), n);
+  for (const n of ['Single-Leg Glute Bridge', 'Single-Leg Calf Raise', 'Single-Leg Balance (seconds)']) assert.ok(withRear.includes(n), n);
   for (const n of withRear) {
     const toes = [0, 1].map((k) => {
       const j = AN.joints(n, k);

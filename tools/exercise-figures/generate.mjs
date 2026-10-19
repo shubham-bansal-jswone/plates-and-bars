@@ -23,7 +23,7 @@ export function renderFrame(name, k) {
 }
 
 /** Timed holds (catalogue type "time"): one static frame, used as both start and end (#653). tests check each entry against the catalogue. */
-export const ISOMETRIC = ['Plank (seconds)', 'Wall Sit (seconds)'];
+export const ISOMETRIC = ['Plank (seconds)', 'Wall Sit (seconds)', 'Single-Leg Balance (seconds)'];
 
 export function buildEntry(name) {
   const id = slug(name);
