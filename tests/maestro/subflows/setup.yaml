@@ -86,5 +86,10 @@ appId: app.plateandbar.mobile
     below: "Has a doctor or other.*"
 - scrollUntilVisible:
     element: "See my targets"
-- tapOn: "See my targets"
+- scroll
+# Same overlap as Continue above: tap the visible top strip of the button.
+- tapOn:
+    point: "50%,94%"
+- scrollUntilVisible:
+    element: "Use these targets"
 - tapOn: "Use these targets"
