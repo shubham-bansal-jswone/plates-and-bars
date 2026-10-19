@@ -5,7 +5,7 @@ import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runPipeline, DEFAULTS, savitzkyGolay, PipelineError } from '../exercise-motion/pipeline.mjs';
+import { runPipeline, runPipelineFit, DEFAULTS, savitzkyGolay, PipelineError, PINNED_MODELS } from '../exercise-motion/pipeline.mjs';
 import { buildFixture, serializeFixture } from '../exercise-motion/make-fixture.mjs';
 import { validateExerciseMotion, JOINTS, BONES, BONE_TOLERANCE } from '../validate/exercise-motion.mjs';
 
@@ -17,7 +17,7 @@ const landmarks = () => JSON.parse(readFileSync(fx('squat-synthetic.landmarks.js
 const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.json`, 'utf8')).tags);
 const PROV = {
   source: 'synthetic_fixture', source_id: 'fixture/squat-synthetic', clip_id: 'fixture-squat-synthetic', release_id: 'none-synthetic',
-  licence: 'CC0-1.0', author: 'Plate & Bar authors', tools: 'exercise-motion 1', note: 'Synthetic fixture, not a person.',
+  licence: 'CC0-1.0', author: 'Plate & Bar authors', note: 'Synthetic fixture, not a person.',
 };
 const run = (input = landmarks(), options = {}) => runPipeline(input, { ...PROV, ...options });
 const J = (name) => JOINTS.indexOf(name) * 3;
@@ -29,7 +29,7 @@ test('the committed fixture is what the generator writes (so it can be regenerat
 
 test('output matches the schema validator', () => {
   const entry = run();
-  const bundle = { schema_version: 1, skeleton: 'pb15-v1', joints: [...JOINTS], motions: { 'Bodyweight Squat': entry } };
+  const bundle = { schema_version: 1, skeleton: 'pb19-v1', joints: [...JOINTS], motions: { 'Bodyweight Squat': entry } };
   assert.deepEqual(validateExerciseMotion(bundle, names, { allowFixture: true }), []);
   assert.equal(entry.loop, true);
   assert.equal(entry.fps, DEFAULTS.outputFps);
@@ -51,9 +51,14 @@ test('bone lengths are constant in every frame', () => {
 
 test('the figure is normalised: feet on the floor, ankles centred, body about one unit tall, left on +x', () => {
   const { frames } = run();
-  const minAnkle = Math.min(...frames.flatMap((f) => [f[J('l_ankle') + 1], f[J('r_ankle') + 1]]));
-  assert.ok(Math.abs(minAnkle) < 0.01, `lowest ankle y ${minAnkle}`);
-  assert.ok(Math.abs((frames[0][J('l_ankle')] + frames[0][J('r_ankle')]) / 2) < 0.02);
+  const lowest = Math.min(...frames.flatMap((f) => JOINTS.map((j) => f[J(j) + 1])));
+  assert.ok(Math.abs(lowest) < 0.01, `lowest joint y ${lowest}`);
+  for (const f of frames) {
+    const foot = Math.min(...['l_heel', 'r_heel', 'l_toe', 'r_toe'].map((j) => f[J(j) + 1]));
+    assert.ok(foot < 0.01, 'a foot point is on the floor in every frame');
+    assert.ok(Math.abs((f[J('l_ankle')] + f[J('r_ankle')]) / 2) < 0.01 && Math.abs((f[J('l_ankle') + 2] + f[J('r_ankle') + 2]) / 2) < 0.01);
+    assert.ok(f[J('l_toe') + 2] - f[J('l_heel') + 2] > 0.1, 'toes point forward of the heels');
+  }
   for (const f of frames) {
     assert.ok(f[J('head') + 1] < 1.1 && f[J('head') + 1] > 0.5);
     assert.ok(f[J('l_hip')] > f[J('r_hip')], 'left hip is on +x');
@@ -134,6 +139,33 @@ test('bad frames at the ends are trimmed, and a mostly invisible clip is rejecte
   assert.throws(() => run(dark), PipelineError);
 });
 
+test('an entry over the size cap steps the fps down and says which fps it chose', () => {
+  const long = buildFixture({ repSeconds: 3.4, seconds: 5.6 });
+  assert.ok(JSON.stringify(run(long).frames).length > 8192, 'a 3.4 s loop at 10 fps does not fit');
+  const { entry, requestedFps } = runPipelineFit(long, { ...PROV });
+  assert.equal(requestedFps, 10);
+  assert.ok(entry.fps < 10 && entry.fps >= 5, `chose ${entry.fps} fps`);
+  assert.ok(Buffer.byteLength(JSON.stringify(entry)) <= 8192);
+  assert.equal(runPipelineFit(landmarks(), { ...PROV }).entry.fps, 10, 'a loop that fits keeps the requested fps');
+});
+
+test('a loop that does not fit even at 5 fps fails and names the longest that does', () => {
+  assert.throws(() => runPipelineFit(buildFixture({ repSeconds: 8, seconds: 13 }), { ...PROV }),
+    (e) => e instanceof PipelineError && /even at 5 fps; the longest that fits is about \d+\.\d s/.test(e.message));
+});
+
+test('tools is built from the model block; no block or an unpinned model is refused unless the source is the fixture', () => {
+  const sha = Object.keys(PINNED_MODELS)[0];
+  const own = { ...PROV, source: 'own_filming', licence: 'CC-BY-4.0' };
+  const withModel = { ...landmarks(), model: { name: 'whatever the file says', sha256: sha, mediapipe: '1.1.1' } };
+  const entry = runPipeline(withModel, own);
+  assert.match(entry.tools, new RegExp(`pose_landmarker_full float16 sha256 ${sha}; mediapipe 1\\.1\\.1`));
+  assert.equal(entry.source, 'own_filming');
+  assert.throws(() => runPipeline(landmarks(), own), /no model block/);
+  assert.throws(() => runPipeline({ ...landmarks(), model: { name: 'x', sha256: 'ab'.repeat(32) } }, own), /not one we have checked the licence of/);
+  assert.match(run().tools, /synthetic fixture, no model/);
+});
+
 test('rejects input that is not a MediaPipe world-landmark file, or too short, or with no repetition', () => {
   assert.throws(() => run({ format: 'other' }), /format must be mediapipe-world-landmarks-v1/);
   const short = landmarks();
@@ -159,7 +191,7 @@ test('the command line writes a bundle the validator accepts and can merge into 
   const out = join(dir, 'out.json');
   const args = [`${tools}/exercise-motion/cli.mjs`, fx('squat-synthetic.landmarks.json'), '--exercise', 'Bodyweight Squat',
     '--source', 'synthetic_fixture', '--source-id', PROV.source_id, '--clip-id', PROV.clip_id, '--release-id', PROV.release_id,
-    '--licence', 'CC0-1.0', '--author', PROV.author, '--tools', PROV.tools, '--note', PROV.note, '--out', out];
+    '--licence', 'CC0-1.0', '--author', PROV.author, '--note', PROV.note, '--out', out];
   const r = spawnSync(process.execPath, args, { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   const golden = readFileSync(fx('squat-synthetic.motion.json'), 'utf8');
@@ -167,10 +199,17 @@ test('the command line writes a bundle the validator accepts and can merge into 
 
   const target = join(dir, 'exercise-motion.json');
   writeFileSync(target, readFileSync(`${repo}/content/exercise-motion.json`, 'utf8'));
-  const m = spawnSync(process.execPath, [...args.slice(0, -2), '--merge', target], { encoding: 'utf8' });
+  const filmed = join(dir, 'filmed.json');
+  writeFileSync(filmed, JSON.stringify({ ...landmarks(), model: { name: 'x', sha256: Object.keys(PINNED_MODELS)[0], mediapipe: '1.1.1' } }));
+  const real = ['--source', 'own_filming', '--source-id', 'clip/real-1', '--clip-id', 'real-1', '--release-id', 'rel-1', '--licence', 'CC-BY-4.0'];
+  const m = spawnSync(process.execPath, [`${tools}/exercise-motion/cli.mjs`, filmed, '--exercise', 'Bodyweight Squat', ...real,
+    '--author', PROV.author, '--merge', target], { encoding: 'utf8' });
   assert.equal(m.status, 0, m.stderr);
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(target, 'utf8')).motions), ['Bodyweight Squat']);
 
+  const into = spawnSync(process.execPath, [...args.slice(0, -2), '--merge', join(dir, 'never.json')], { encoding: 'utf8' });
+  assert.notEqual(into.status, 0);
+  assert.match(into.stderr, /synthetic_fixture is only for --out/);
   const bad = spawnSync(process.execPath, args.map((a) => (a === 'Bodyweight Squat' ? 'Nonsense Lift' : a)), { encoding: 'utf8' });
   assert.notEqual(bad.status, 0);
   assert.match(bad.stderr, /no such exercise/);

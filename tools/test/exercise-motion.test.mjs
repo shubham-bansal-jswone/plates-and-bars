@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  validateExerciseMotion, JOINTS, BONES, SKELETON_ID, SOURCES, LICENCES, MAX_ENTRY_BYTES, BONE_TOLERANCE, MIN_FPS, MAX_FPS,
+  validateExerciseMotion, JOINTS, BONES, SKELETON_ID, SOURCES, LICENCES, MAX_ENTRY_BYTES, BONE_TOLERANCE, FLOOR_TOLERANCE, MIN_FPS, MAX_FPS,
 } from '../validate/exercise-motion.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -15,14 +15,15 @@ const names = Object.keys(load('exercises.json').tags);
 
 // A rigid standing pose built from the bone table; the whole body bobs up and down so the loop closes.
 const OFFSET = {
-  spine_mid: [0, 0.65, 0], neck: [0, 0.80, 0], head: [0, 0.93, 0],
-  l_shoulder: [0.12, 0.80, 0], r_shoulder: [-0.12, 0.80, 0],
-  l_elbow: [0.12, 0.614, 0], r_elbow: [-0.12, 0.614, 0], l_wrist: [0.12, 0.468, 0], r_wrist: [-0.12, 0.468, 0],
-  l_hip: [0.09, 0.494, 0], r_hip: [-0.09, 0.494, 0],
-  l_knee: [0.09, 0.249, 0], r_knee: [-0.09, 0.249, 0], l_ankle: [0.09, 0.003, 0], r_ankle: [-0.09, 0.003, 0],
+  spine_mid: [0, 0.686, 0], neck: [0, 0.836, 0], head: [0, 0.966, 0],
+  l_shoulder: [0.12, 0.836, 0], r_shoulder: [-0.12, 0.836, 0],
+  l_elbow: [0.12, 0.65, 0], r_elbow: [-0.12, 0.65, 0], l_wrist: [0.12, 0.504, 0], r_wrist: [-0.12, 0.504, 0],
+  l_hip: [0.09, 0.53, 0], r_hip: [-0.09, 0.53, 0],
+  l_knee: [0.09, 0.285, 0], r_knee: [-0.09, 0.285, 0], l_ankle: [0.09, 0.039, 0], r_ankle: [-0.09, 0.039, 0],
+  l_heel: [0.09, 0, -0.032], r_heel: [-0.09, 0, -0.032], l_toe: [0.09, 0, 0.124], r_toe: [-0.09, 0, 0.124],
 };
 const frame = (k, n) => {
-  const dy = 0.04 * Math.sin((2 * Math.PI * k) / n);
+  const dy = 0.02 * (1 - Math.cos((2 * Math.PI * k) / n)); // bobs up from the floor, so the clip's lowest point stays at 0
   return JOINTS.flatMap((j) => [OFFSET[j][0], Math.round((OFFSET[j][1] + dy) * 1000) / 1000, OFFSET[j][2]]);
 };
 const goodEntry = () => ({
@@ -35,14 +36,14 @@ const good = () => ({ schema_version: 1, skeleton: SKELETON_ID, joints: [...JOIN
 const check = (fn, opts) => { const c = good(); fn(c.motions['Bodyweight Squat'], c); return validateExerciseMotion(c, names, opts); };
 const only = (errors, re) => { assert.equal(errors.length, 1, errors.join('\n')); assert.match(errors[0], re); };
 
-test('the skeleton has the 15 fixed joint names and a 14-bone tree over them', () => {
+test('the skeleton has the 19 fixed joint names (15 body joints and heels and toes) and an 18-bone tree over them', () => {
   assert.deepEqual(JOINTS, [
     'head', 'neck', 'l_shoulder', 'r_shoulder', 'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist',
-    'spine_mid', 'l_hip', 'r_hip', 'l_knee', 'r_knee', 'l_ankle', 'r_ankle',
+    'spine_mid', 'l_hip', 'r_hip', 'l_knee', 'r_knee', 'l_ankle', 'r_ankle', 'l_heel', 'r_heel', 'l_toe', 'r_toe',
   ]);
-  assert.equal(BONES.length, 14);
+  assert.equal(BONES.length, 18);
   for (const [p, c, len] of BONES) { assert.ok(JOINTS.includes(p) && JOINTS.includes(c)); assert.ok(len > 0 && len < 0.5); }
-  assert.equal(new Set(BONES.map((b) => b[1])).size, 14, 'every non-root joint has exactly one parent');
+  assert.equal(new Set(BONES.map((b) => b[1])).size, 18, 'every non-root joint has exactly one parent');
 });
 
 test('the committed bundle ships no entries and is valid; a complete example entry is valid', () => {
@@ -78,11 +79,12 @@ test('the JSON Schema agrees with the validator constants', () => {
   assert.deepEqual([...e.required].sort(), [...Object.keys(e.properties)].sort());
   assert.equal(e['x-max-entry-bytes'], MAX_ENTRY_BYTES);
   assert.equal(e['x-bone-tolerance'], BONE_TOLERANCE);
+  assert.equal(e['x-floor-tolerance'], FLOOR_TOLERANCE);
 });
 
 test('rejects a bad bundle header', () => {
   only(check((e, c) => { c.schema_version = 2; }), /schema_version must be 1/);
-  only(check((e, c) => { c.skeleton = 'smpl'; }), /skeleton must be pb15-v1/);
+  only(check((e, c) => { c.skeleton = 'pb15-v1'; }), /skeleton must be pb19-v1/);
   only(check((e, c) => { c.joints = [...c.joints].reverse(); }), /joints must be/);
   only(check((e, c) => { c.extra = 1; }), /unknown top-level field "extra"/);
   assert.deepEqual(validateExerciseMotion([], names), ['bundle must be an object']);
@@ -104,8 +106,8 @@ test('rejects bad fps, loop flag and frame shape', () => {
   only(check((e) => { e.fps = 12.5; }), /fps must be an integer/);
   only(check((e) => { e.loop = 'yes'; }), /loop must be true or false/);
   only(check((e) => { e.frames = [e.frames[0]]; }), /frames must be a list of at least 2/);
-  only(check((e) => { e.frames[3] = e.frames[3].slice(0, 44); }), /frame 4: must hold 45 numbers/);
-  only(check((e) => { e.frames[3][7] = null; }), /frame 4: must hold 45 numbers/);
+  only(check((e) => { e.frames[3] = e.frames[3].slice(0, 56); }), /frame 4: must hold 57 numbers/);
+  only(check((e) => { e.frames[3][7] = null; }), /frame 4: must hold 57 numbers/);
   only(check((e) => { e.frames[3][1] = 9; }), /frame 4: coordinate out of range/);
 });
 
@@ -117,6 +119,18 @@ test('rejects bone lengths that change, and an entry over the size cap', () => {
     e.frames = e.frames.map((f) => f.map((v, i) => Math.round((v + 0.0001 * ((i % 7) + 1)) * 1e6) / 1e6));
   });
   assert.ok(big.some((m) => /entry is \d+ bytes, the limit is 8192/.test(m)), big.join('\n'));
+});
+
+test('rejects a clip whose lowest point is not on the floor', () => {
+  const lift = (dy) => (e) => { e.frames = e.frames.map((f) => f.map((v, i) => (i % 3 === 1 ? Math.round((v + dy) * 1000) / 1000 : v))); };
+  assert.ok(check(lift(0.1)).some((m) => /lowest point of the clip is y = 0\.1\d\d, expected 0/.test(m)));
+  assert.ok(check(lift(-0.05)).some((m) => /lowest point of the clip is y = -0\.0/.test(m)));
+  assert.deepEqual(check(lift(0.005)), []);
+});
+
+test('rejects bone lengths that change in the new foot bones too', () => {
+  const errs = check((e) => { e.frames[2][JOINTS.indexOf('l_toe') * 3 + 2] += 0.1; });
+  assert.ok(errs.some((m) => /frame 3: bone l_ankle-l_toe is/.test(m)), errs.join('\n'));
 });
 
 test('rejects a loop that does not close, but accepts the same frames as a non-loop', () => {

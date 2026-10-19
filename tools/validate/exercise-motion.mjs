@@ -1,17 +1,18 @@
 // Validator for content/exercise-motion.json (issue #1069). Returns a list of error strings.
-// Shape: { schema_version: 1, skeleton: "pb15-v1", joints: [15 names], motions: { "<exercise name>": entry } }.
-// An entry holds fps, loop, frames (each frame is 45 numbers: x, y, z of the 15 joints in the order of `joints`),
+// Shape: { schema_version: 1, skeleton: "pb19-v1", joints: [19 names], motions: { "<exercise name>": entry } }.
+// An entry holds fps, loop, frames (each frame is 57 numbers: x, y, z of the 19 joints in the order of `joints`),
 // and provenance (source, ids, licence). Units are body heights (the figure is 1.0 tall), x is the figure's left,
-// y is up, z is forward, y = 0 is the floor and the ankle midpoint is pinned at x = z = 0.
+// y is up, z is forward, y = 0 is the lowest point of any joint over the whole clip (checked within FLOOR_TOLERANCE) and the ankle midpoint of each frame is at x = z = 0.
 // The JSON Schema in validate/schemas/exercise-motion.schema.json documents the shape; keep the two in step
 // (test/exercise-motion.test.mjs compares the constants below with the schema).
 import { nonEmpty } from './text.mjs';
 
-export const SKELETON_ID = 'pb15-v1';
+export const SKELETON_ID = 'pb19-v1';
 // Joint order is part of the format: a frame is the joints in this order, three numbers each.
 export const JOINTS = [
   'head', 'neck', 'l_shoulder', 'r_shoulder', 'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist',
   'spine_mid', 'l_hip', 'r_hip', 'l_knee', 'r_knee', 'l_ankle', 'r_ankle',
+  'l_heel', 'r_heel', 'l_toe', 'r_toe',
 ];
 // Our own mannequin: [parent, child, length in body heights], parents before children, root spine_mid.
 // Proportions are our own round numbers, not taken from a person or from any body model.
@@ -23,6 +24,8 @@ export const BONES = [
   ['spine_mid', 'l_hip', 0.18], ['spine_mid', 'r_hip', 0.18],
   ['l_hip', 'l_knee', 0.245], ['r_hip', 'r_knee', 0.245],
   ['l_knee', 'l_ankle', 0.246], ['r_knee', 'r_ankle', 0.246],
+  ['l_ankle', 'l_heel', 0.05], ['r_ankle', 'r_heel', 0.05],
+  ['l_ankle', 'l_toe', 0.13], ['r_ankle', 'r_toe', 0.13],
 ];
 // Own filming only; a synthetic fixture source exists for tests and is refused unless the caller passes allowFixture.
 export const SOURCES = ['own_filming'];
@@ -37,6 +40,7 @@ export const MIN_FRAMES = 2;
 export const MAX_COORD = 2;
 export const MAX_ENTRY_BYTES = 8192;
 export const BONE_TOLERANCE = 0.03;
+export const FLOOR_TOLERANCE = 0.01;
 const FIELDS = ['fps', 'loop', 'frames', 'source', 'source_id', 'clip_id', 'release_id', 'licence', 'licence_url', 'author', 'author_url', 'tools', 'note'];
 const isHttps = (s) => typeof s === 'string' && /^https:\/\/[^\s]+$/.test(s);
 const nullOrString = (v) => v === null || nonEmpty(v);
@@ -89,6 +93,9 @@ export function validateExerciseMotion(content, exerciseNames, options = {}) {
           if (Math.abs(d - len) / len > BONE_TOLERANCE) { err(`frame ${i + 1}: bone ${p}-${c} is ${d.toFixed(3)} long, expected ${len} (within ${BONE_TOLERANCE * 100}%)`); break; }
         }
       });
+      // Floor rule: y = 0 is the lowest point of any joint over the whole clip.
+      const minY = Math.min(...e.frames.flatMap((fr) => JOINTS.map((_, j) => fr[j * 3 + 1])));
+      if (Math.abs(minY) > FLOOR_TOLERANCE) err(`the lowest point of the clip is y = ${minY.toFixed(3)}, expected 0 (within ${FLOOR_TOLERANCE})`);
       // A loop closes when the jump from the last frame back to the first is no bigger than the biggest jump inside it.
       if (e.loop === true) {
         const inner = Math.max(...e.frames.slice(1).map((f, k) => step(e.frames[k], f)));
