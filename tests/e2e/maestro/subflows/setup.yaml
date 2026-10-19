@@ -13,8 +13,9 @@ appId: app.plateandbar.mobile
     visible: "I understand and agree to my data being stored as described"
     timeout: 25000
     optional: true
-# After a previous flow the app sometimes stays on the splash screen (logcat: the new process is killed while Android removes the
-# previous flow's task; #1064): start it once more. The relaunch is labelled so run-on-emulator.sh can warn when it fired.
+# Fallback only: run-on-emulator.sh stops the app and waits for Android to drop its task before each flow, which fixes the splash-screen
+# hang seen after a previous flow (a harness race, https://github.com/shubham-bansal-jswone/plates-and-bars/issues/1064#issuecomment-6266359373).
+# If the app still stays on the splash screen, start it once more; the relaunch is labelled so run-on-emulator.sh warns when it fired.
 - runFlow:
     when:
       notVisible: "I understand and agree to my data being stored as described"
