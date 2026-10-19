@@ -24,7 +24,8 @@ settle_app() {
     fi
     sleep 0.5
   done
-  echo "::warning::$pkg still has a process or task 30 s after force-stop"
+  echo "::warning::$pkg still has a process or task 30 s after force-stop (pid='$pid', matching task lines: $tasks)"
+  adb shell dumpsys activity activities | grep "A=[0-9]*:$pkg" | head -5 || true
 }
 
 rc=0
