@@ -27,6 +27,32 @@
       "alt": null,
       "note": null
     },
+    "Dumbbell Bench Press": {
+      "frames": [
+        {
+          "file": "svg/dumbbell-bench-press-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"40\" y1=\"226\" x2=\"290\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"92\" y1=\"180\" x2=\"210\" y2=\"180\" stroke=\"var(--fig-eq)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"180\" x2=\"150\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"247\" y2=\"222\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"239.1\" y2=\"174.5\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"239.1\" y1=\"174.5\" x2=\"190\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"190\" y1=\"165\" x2=\"120\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"143.8\" y1=\"159.3\" x2=\"127\" y2=\"159.3\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"94\" cy=\"165\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"120\" y1=\"165\" x2=\"130.7\" y2=\"181.7\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"130.7\" y1=\"181.7\" x2=\"126\" y2=\"150\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"120.1\" y1=\"169.6\" x2=\"126.5\" y2=\"179.6\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/><circle cx=\"126\" cy=\"150\" r=\"8\" fill=\"var(--fig-eq)\"/></svg>"
+        },
+        {
+          "file": "svg/dumbbell-bench-press-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"40\" y1=\"226\" x2=\"290\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"92\" y1=\"180\" x2=\"210\" y2=\"180\" stroke=\"var(--fig-eq)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"180\" x2=\"150\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"247\" y2=\"222\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"239.1\" y2=\"174.5\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"239.1\" y1=\"174.5\" x2=\"190\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"190\" y1=\"165\" x2=\"120\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"143.8\" y1=\"159.3\" x2=\"127\" y2=\"159.3\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"94\" cy=\"165\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"120\" y1=\"165\" x2=\"121.6\" y2=\"145.3\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"121.6\" y1=\"145.3\" x2=\"124\" y2=\"96\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"122.7\" y1=\"161.3\" x2=\"123.7\" y2=\"149.4\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/><circle cx=\"124\" cy=\"96\" r=\"8\" fill=\"var(--fig-eq)\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/dumbbell-bench-press",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
     "Incline Dumbbell Press": {
       "frames": [
         {
@@ -70,6 +96,32 @@
       ],
       "source": "own_drawing",
       "source_id": "rig-v1/machine-chest-press",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Push-ups": {
+      "frames": [
+        {
+          "file": "svg/push-ups-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"280\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"65.5\" y1=\"211\" x2=\"58\" y2=\"224\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"65.5\" y1=\"211\" x2=\"111.4\" y2=\"197\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"111.4\" y1=\"197\" x2=\"159.2\" y2=\"182.4\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"159.2\" y1=\"182.4\" x2=\"226.2\" y2=\"161.9\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"205.1\" y1=\"174.3\" x2=\"221.1\" y2=\"169.4\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"251\" cy=\"154.3\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"226.2\" y1=\"161.9\" x2=\"212.3\" y2=\"195.1\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"212.3\" y1=\"195.1\" x2=\"226\" y2=\"224\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"221.1\" y1=\"167.6\" x2=\"212.8\" y2=\"187.5\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/></svg>"
+        },
+        {
+          "file": "svg/push-ups-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"280\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"65.5\" y1=\"211\" x2=\"58\" y2=\"224\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"65.5\" y1=\"211\" x2=\"113\" y2=\"204.3\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"113\" y1=\"204.3\" x2=\"162.5\" y2=\"197.4\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"162.5\" y1=\"197.4\" x2=\"231.9\" y2=\"187.6\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"209.1\" y1=\"196.6\" x2=\"225.7\" y2=\"194.3\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"257.6\" cy=\"184\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"231.9\" y1=\"187.6\" x2=\"200.3\" y2=\"204.9\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"200.3\" y1=\"204.9\" x2=\"226\" y2=\"224\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"224.4\" y1=\"189\" x2=\"205.4\" y2=\"199.4\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/push-ups",
       "licence": "CC-BY-4.0",
       "licence_url": "https://creativecommons.org/licenses/by/4.0/",
       "author": "Plate & Bar authors",
@@ -148,6 +200,32 @@
       ],
       "source": "own_drawing",
       "source_id": "rig-v1/machine-shoulder-press",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Standing Barbell Press": {
+      "frames": [
+        {
+          "file": "svg/standing-barbell-press-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"90\" y1=\"226\" x2=\"230\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"96\" y1=\"66\" x2=\"224\" y2=\"66\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><circle cx=\"96\" cy=\"66\" r=\"8\" fill=\"var(--fig-eq)\"/><circle cx=\"224\" cy=\"66\" r=\"8\" fill=\"var(--fig-eq)\"/><line x1=\"148\" y1=\"150\" x2=\"146\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"14\" stroke-linecap=\"round\"/><line x1=\"172\" y1=\"150\" x2=\"174\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"14\" stroke-linecap=\"round\"/><line x1=\"160\" y1=\"88\" x2=\"160\" y2=\"146\" stroke=\"currentColor\" stroke-width=\"30\" stroke-linecap=\"round\"/><line x1=\"138\" y1=\"82\" x2=\"182\" y2=\"82\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"182\" y1=\"82\" x2=\"215.2\" y2=\"96\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\"/><line x1=\"215.2\" y1=\"96\" x2=\"204\" y2=\"66\" stroke=\"currentColor\" stroke-width=\"8\" stroke-linecap=\"round\"/><circle cx=\"182\" cy=\"82\" r=\"7.5\" fill=\"var(--fig-hl)\"/><circle cx=\"204\" cy=\"66\" r=\"5\" fill=\"var(--fig-eq)\"/><line x1=\"138\" y1=\"82\" x2=\"104.8\" y2=\"96\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\"/><line x1=\"104.8\" y1=\"96\" x2=\"116\" y2=\"66\" stroke=\"currentColor\" stroke-width=\"8\" stroke-linecap=\"round\"/><circle cx=\"138\" cy=\"82\" r=\"7.5\" fill=\"var(--fig-hl)\"/><circle cx=\"116\" cy=\"66\" r=\"5\" fill=\"var(--fig-eq)\"/><circle cx=\"160\" cy=\"54\" r=\"12\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/></svg>"
+        },
+        {
+          "file": "svg/standing-barbell-press-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"90\" y1=\"226\" x2=\"230\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"96\" y1=\"16\" x2=\"224\" y2=\"16\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><circle cx=\"96\" cy=\"16\" r=\"8\" fill=\"var(--fig-eq)\"/><circle cx=\"224\" cy=\"16\" r=\"8\" fill=\"var(--fig-eq)\"/><line x1=\"148\" y1=\"150\" x2=\"146\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"14\" stroke-linecap=\"round\"/><line x1=\"172\" y1=\"150\" x2=\"174\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"14\" stroke-linecap=\"round\"/><line x1=\"160\" y1=\"88\" x2=\"160\" y2=\"146\" stroke=\"currentColor\" stroke-width=\"30\" stroke-linecap=\"round\"/><line x1=\"138\" y1=\"82\" x2=\"182\" y2=\"82\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"182\" y1=\"82\" x2=\"189\" y2=\"46.7\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\"/><line x1=\"189\" y1=\"46.7\" x2=\"180\" y2=\"16\" stroke=\"currentColor\" stroke-width=\"8\" stroke-linecap=\"round\"/><circle cx=\"182\" cy=\"82\" r=\"7.5\" fill=\"var(--fig-hl)\"/><circle cx=\"180\" cy=\"16\" r=\"5\" fill=\"var(--fig-eq)\"/><line x1=\"138\" y1=\"82\" x2=\"131\" y2=\"46.7\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\"/><line x1=\"131\" y1=\"46.7\" x2=\"140\" y2=\"16\" stroke=\"currentColor\" stroke-width=\"8\" stroke-linecap=\"round\"/><circle cx=\"138\" cy=\"82\" r=\"7.5\" fill=\"var(--fig-hl)\"/><circle cx=\"140\" cy=\"16\" r=\"5\" fill=\"var(--fig-eq)\"/><circle cx=\"160\" cy=\"54\" r=\"12\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/standing-barbell-press",
       "licence": "CC-BY-4.0",
       "licence_url": "https://creativecommons.org/licenses/by/4.0/",
       "author": "Plate & Bar authors",
@@ -365,6 +443,32 @@
       "alt": null,
       "note": null
     },
+    "Bodyweight Pull-up": {
+      "frames": [
+        {
+          "file": "svg/bodyweight-pull-up-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"100\" y1=\"30\" x2=\"240\" y2=\"30\" stroke=\"var(--fig-eq)\" stroke-width=\"5\" stroke-linecap=\"round\"/><line x1=\"100\" y1=\"30\" x2=\"100\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"240\" y1=\"30\" x2=\"240\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"113.6\" y1=\"200.8\" x2=\"98.6\" y2=\"200.8\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"113.6\" y1=\"200.8\" x2=\"158.7\" y2=\"217.2\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"158.7\" y1=\"217.2\" x2=\"150\" y2=\"168\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"168\" x2=\"143.9\" y2=\"98.3\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"141.6\" y1=\"137.1\" x2=\"138.8\" y2=\"105.7\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"141.6\" cy=\"72.4\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"143.9\" y1=\"98.3\" x2=\"141.2\" y2=\"62.4\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"141.2\" y1=\"62.4\" x2=\"156\" y2=\"34\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"140.9\" y1=\"91.3\" x2=\"139.3\" y2=\"69.7\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/></svg>"
+        },
+        {
+          "file": "svg/bodyweight-pull-up-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"100\" y1=\"30\" x2=\"240\" y2=\"30\" stroke=\"var(--fig-eq)\" stroke-width=\"5\" stroke-linecap=\"round\"/><line x1=\"100\" y1=\"30\" x2=\"100\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"240\" y1=\"30\" x2=\"240\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"113.6\" y1=\"150.8\" x2=\"98.6\" y2=\"150.8\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"113.6\" y1=\"150.8\" x2=\"158.7\" y2=\"167.2\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"158.7\" y1=\"167.2\" x2=\"150\" y2=\"118\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"118\" x2=\"143.9\" y2=\"48.3\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"141.6\" y1=\"87.1\" x2=\"138.8\" y2=\"55.7\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"141.6\" cy=\"22.4\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"143.9\" y1=\"48.3\" x2=\"130.3\" y2=\"14.9\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"130.3\" y1=\"14.9\" x2=\"156\" y2=\"34\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"138.9\" y1=\"42.5\" x2=\"130.8\" y2=\"22.5\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/bodyweight-pull-up",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
     "Seated Cable Row": {
       "frames": [
         {
@@ -434,6 +538,32 @@
       ],
       "source": "own_drawing",
       "source_id": "rig-v1/one-arm-dumbbell-row",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Barbell Row": {
+      "frames": [
+        {
+          "file": "svg/barbell-row-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><circle cx=\"192\" cy=\"192\" r=\"12\" fill=\"none\" stroke=\"var(--fig-eq)\" stroke-width=\"4\"/><circle cx=\"192\" cy=\"192\" r=\"4\" fill=\"var(--fig-eq)\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"175.3\" y2=\"171.2\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"175.3\" y1=\"171.2\" x2=\"130\" y2=\"150\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"130\" y1=\"150\" x2=\"194.9\" y2=\"123.8\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"157.1\" y1=\"132.9\" x2=\"186.3\" y2=\"121.1\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"219\" cy=\"114\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"194.9\" y1=\"123.8\" x2=\"194\" y2=\"159.8\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"194\" y1=\"159.8\" x2=\"192\" y2=\"192\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"197.1\" y1=\"131\" x2=\"196.6\" y2=\"152.6\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/><circle cx=\"192\" cy=\"192\" r=\"5\" fill=\"var(--fig-eq)\"/></svg>"
+        },
+        {
+          "file": "svg/barbell-row-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><circle cx=\"166\" cy=\"150\" r=\"12\" fill=\"none\" stroke=\"var(--fig-eq)\" stroke-width=\"4\"/><circle cx=\"166\" cy=\"150\" r=\"4\" fill=\"var(--fig-eq)\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"175.3\" y2=\"171.2\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"175.3\" y1=\"171.2\" x2=\"130\" y2=\"150\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"130\" y1=\"150\" x2=\"194.9\" y2=\"123.8\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"157.1\" y1=\"132.9\" x2=\"186.3\" y2=\"121.1\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"219\" cy=\"114\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"194.9\" y1=\"123.8\" x2=\"196.5\" y2=\"159.7\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"196.5\" y1=\"159.7\" x2=\"166\" y2=\"150\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"197.6\" y1=\"130.9\" x2=\"198.6\" y2=\"152.4\" stroke=\"var(--fig-hl)\" stroke-width=\"5.5\" stroke-linecap=\"round\"/><circle cx=\"166\" cy=\"150\" r=\"5\" fill=\"var(--fig-eq)\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/barbell-row",
       "licence": "CC-BY-4.0",
       "licence_url": "https://creativecommons.org/licenses/by/4.0/",
       "author": "Plate & Bar authors",
@@ -599,6 +729,84 @@
       "alt": null,
       "note": null
     },
+    "Barbell Back Squat": {
+      "frames": [
+        {
+          "file": "svg/barbell-back-squat-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><circle cx=\"140\" cy=\"39\" r=\"14\" fill=\"none\" stroke=\"var(--fig-eq)\" stroke-width=\"4\"/><circle cx=\"140\" cy=\"39\" r=\"4\" fill=\"var(--fig-eq)\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"148.7\" y2=\"163.9\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"148.7\" y1=\"163.9\" x2=\"146\" y2=\"114\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"146\" y1=\"114\" x2=\"146\" y2=\"44\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"150.1\" y1=\"121.3\" x2=\"152.1\" y2=\"156.2\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"140.3\" y1=\"114\" x2=\"140.3\" y2=\"105.6\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"146\" cy=\"18\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"146\" y1=\"44\" x2=\"114.4\" y2=\"61.3\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"114.4\" y1=\"61.3\" x2=\"134\" y2=\"36\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><circle cx=\"134\" cy=\"36\" r=\"5\" fill=\"var(--fig-eq)\"/></svg>"
+        },
+        {
+          "file": "svg/barbell-back-squat-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><circle cx=\"138.9\" cy=\"101.2\" r=\"14\" fill=\"none\" stroke=\"var(--fig-eq)\" stroke-width=\"4\"/><circle cx=\"138.9\" cy=\"101.2\" r=\"4\" fill=\"var(--fig-eq)\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"161.9\" y2=\"165.5\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"161.9\" y1=\"165.5\" x2=\"112\" y2=\"168\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"112\" y1=\"168\" x2=\"144.9\" y2=\"106.2\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"119.3\" y1=\"163.9\" x2=\"154.3\" y2=\"162.1\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"106.9\" y1=\"165.3\" x2=\"110.9\" y2=\"157.9\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"157.1\" cy=\"83.2\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"144.9\" y1=\"106.2\" x2=\"113.3\" y2=\"123.5\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"113.3\" y1=\"123.5\" x2=\"132.9\" y2=\"98.2\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><circle cx=\"132.9\" cy=\"98.2\" r=\"5\" fill=\"var(--fig-eq)\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/barbell-back-squat",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Bodyweight Squat": {
+      "frames": [
+        {
+          "file": "svg/bodyweight-squat-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"148.7\" y2=\"163.9\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"148.7\" y1=\"163.9\" x2=\"146\" y2=\"114\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"146\" y1=\"114\" x2=\"146\" y2=\"44\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"150.1\" y1=\"121.3\" x2=\"152.1\" y2=\"156.2\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"140.3\" y1=\"114\" x2=\"140.3\" y2=\"105.6\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"146\" cy=\"18\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"146\" y1=\"44\" x2=\"182\" y2=\"44\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"182\" y1=\"44\" x2=\"214\" y2=\"44\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        },
+        {
+          "file": "svg/bodyweight-squat-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"168\" y2=\"167.5\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"168\" y1=\"167.5\" x2=\"118\" y2=\"168\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"118\" y1=\"168\" x2=\"146.5\" y2=\"104.1\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"125.5\" y1=\"164.2\" x2=\"160.5\" y2=\"163.8\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"112.8\" y1=\"165.7\" x2=\"116.2\" y2=\"158\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"157\" cy=\"80.3\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"146.5\" y1=\"104.1\" x2=\"182.5\" y2=\"104.1\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"182.5\" y1=\"104.1\" x2=\"214.5\" y2=\"104.1\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/bodyweight-squat",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Dumbbell Split Squat": {
+      "frames": [
+        {
+          "file": "svg/dumbbell-split-squat-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"158\" y1=\"118\" x2=\"136\" y2=\"190\" stroke=\"currentColor\" stroke-width=\"13\" stroke-linecap=\"round\"/><line x1=\"136\" y1=\"190\" x2=\"86\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"212\" x2=\"80\" y2=\"220\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"178\" y1=\"212\" x2=\"193\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"178\" y1=\"212\" x2=\"177.6\" y2=\"164\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"177.6\" y1=\"164\" x2=\"158\" y2=\"118\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"158\" y1=\"118\" x2=\"158\" y2=\"48\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"164.4\" y1=\"123.4\" x2=\"178.1\" y2=\"155.6\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"152.3\" y1=\"118\" x2=\"152.3\" y2=\"109.6\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"158\" cy=\"22\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"158\" y1=\"48\" x2=\"156.1\" y2=\"84\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"156.1\" y1=\"84\" x2=\"156.1\" y2=\"116\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><rect x=\"152.1\" y=\"107\" width=\"8\" height=\"18\" rx=\"2\" fill=\"var(--fig-eq)\"/></svg>"
+        },
+        {
+          "file": "svg/dumbbell-split-squat-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"150\" y1=\"172\" x2=\"128\" y2=\"203.5\" stroke=\"currentColor\" stroke-width=\"13\" stroke-linecap=\"round\"/><line x1=\"128\" y1=\"203.5\" x2=\"86\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"212\" x2=\"80\" y2=\"220\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"178\" y1=\"212\" x2=\"193\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"178\" y1=\"212\" x2=\"199.9\" y2=\"169.3\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"199.9\" y1=\"169.3\" x2=\"150\" y2=\"172\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"172\" x2=\"150\" y2=\"102\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"157.3\" y1=\"167.9\" x2=\"192.2\" y2=\"166\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"144.3\" y1=\"172\" x2=\"144.3\" y2=\"163.6\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"150\" cy=\"76\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"150\" y1=\"102\" x2=\"148.1\" y2=\"138\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"148.1\" y1=\"138\" x2=\"148.1\" y2=\"170\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><rect x=\"144.1\" y=\"161\" width=\"8\" height=\"18\" rx=\"2\" fill=\"var(--fig-eq)\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/dumbbell-split-squat",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
     "Leg Extension": {
       "frames": [
         {
@@ -703,6 +911,84 @@
       "alt": null,
       "note": null
     },
+    "Glute Bridge": {
+      "frames": [
+        {
+          "file": "svg/glute-bridge-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"280\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"205\" y1=\"214\" x2=\"220\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"205\" y1=\"214\" x2=\"189\" y2=\"168.7\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"189\" y1=\"168.7\" x2=\"150\" y2=\"200\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"200\" x2=\"80.7\" y2=\"209.7\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"158.2\" y1=\"198.2\" x2=\"185.5\" y2=\"176.3\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"150.8\" y1=\"205.7\" x2=\"142.5\" y2=\"206.8\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"54.9\" cy=\"213.4\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"80.7\" y1=\"209.7\" x2=\"116.7\" y2=\"209.7\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"116.7\" y1=\"209.7\" x2=\"148.7\" y2=\"209.7\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        },
+        {
+          "file": "svg/glute-bridge-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"280\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"205\" y1=\"214\" x2=\"220\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"205\" y1=\"214\" x2=\"200\" y2=\"166.3\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"200\" y1=\"166.3\" x2=\"150\" y2=\"166\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"166\" x2=\"92.7\" y2=\"206.2\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"157.5\" y1=\"169.8\" x2=\"192.5\" y2=\"170\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"153.3\" y1=\"170.7\" x2=\"146.4\" y2=\"175.5\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"71.4\" cy=\"221.1\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"92.7\" y1=\"206.2\" x2=\"128.7\" y2=\"206.2\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"128.7\" y1=\"206.2\" x2=\"160.7\" y2=\"206.2\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/glute-bridge",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Dumbbell Romanian Deadlift": {
+      "frames": [
+        {
+          "file": "svg/dumbbell-romanian-deadlift-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"157.7\" y2=\"164.6\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"157.7\" y1=\"164.6\" x2=\"146\" y2=\"116\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"146\" y1=\"116\" x2=\"146\" y2=\"46\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"144.1\" y1=\"124.2\" x2=\"152.3\" y2=\"158.2\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"140.3\" y1=\"116\" x2=\"140.3\" y2=\"107.6\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"146\" cy=\"20\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"146\" y1=\"46\" x2=\"146.8\" y2=\"82\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"146.8\" y1=\"82\" x2=\"150\" y2=\"150\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><rect x=\"141\" y=\"146\" width=\"18\" height=\"8\" rx=\"2\" fill=\"var(--fig-eq)\"/></svg>"
+        },
+        {
+          "file": "svg/dumbbell-romanian-deadlift-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"153.3\" y2=\"164.1\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"153.3\" y1=\"164.1\" x2=\"112\" y2=\"136\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"112\" y1=\"136\" x2=\"177.8\" y2=\"112.1\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"116.1\" y1=\"143.3\" x2=\"145\" y2=\"163\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"110\" y1=\"130.6\" x2=\"117.9\" y2=\"127.8\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"202.2\" cy=\"103.2\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"177.8\" y1=\"112.1\" x2=\"159\" y2=\"142.8\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"159\" y1=\"142.8\" x2=\"172\" y2=\"172\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><rect x=\"163\" y=\"168\" width=\"18\" height=\"8\" rx=\"2\" fill=\"var(--fig-eq)\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/dumbbell-romanian-deadlift",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Deadlift": {
+      "frames": [
+        {
+          "file": "svg/deadlift-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><circle cx=\"150\" cy=\"204\" r=\"14\" fill=\"none\" stroke=\"var(--fig-eq)\" stroke-width=\"4\"/><circle cx=\"150\" cy=\"204\" r=\"4\" fill=\"var(--fig-eq)\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"157.4\" y2=\"164.6\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"157.4\" y1=\"164.6\" x2=\"108\" y2=\"172\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"108\" y1=\"172\" x2=\"168.6\" y2=\"137\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"116\" y1=\"174.6\" x2=\"150.6\" y2=\"169.4\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"105.1\" y1=\"167\" x2=\"112.4\" y2=\"162.8\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><line x1=\"132.4\" y1=\"151.3\" x2=\"159.7\" y2=\"135.5\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"191.1\" cy=\"124\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"168.6\" y1=\"137\" x2=\"158.4\" y2=\"171.5\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"158.4\" y1=\"171.5\" x2=\"150\" y2=\"204\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><circle cx=\"150\" cy=\"204\" r=\"5\" fill=\"var(--fig-eq)\"/></svg>"
+        },
+        {
+          "file": "svg/deadlift-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"60\" y1=\"226\" x2=\"260\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><circle cx=\"150\" cy=\"110\" r=\"14\" fill=\"none\" stroke=\"var(--fig-eq)\" stroke-width=\"4\"/><circle cx=\"150\" cy=\"110\" r=\"4\" fill=\"var(--fig-eq)\"/><line x1=\"150\" y1=\"212\" x2=\"165\" y2=\"212\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"212\" x2=\"148.7\" y2=\"163.9\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"148.7\" y1=\"163.9\" x2=\"146\" y2=\"114\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"146\" y1=\"114\" x2=\"148.4\" y2=\"44\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"142.7\" y1=\"121.7\" x2=\"144.6\" y2=\"156.6\" stroke=\"var(--fig-hl)\" stroke-width=\"8.5\" stroke-linecap=\"round\"/><line x1=\"140.3\" y1=\"113.8\" x2=\"140.6\" y2=\"105.4\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><line x1=\"141.4\" y1=\"82.3\" x2=\"142.5\" y2=\"50.8\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"149.4\" cy=\"18.1\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"148.4\" y1=\"44\" x2=\"141.1\" y2=\"79.3\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"141.1\" y1=\"79.3\" x2=\"150\" y2=\"110\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><circle cx=\"150\" cy=\"110\" r=\"5\" fill=\"var(--fig-eq)\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/deadlift",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
     "Standing Calf Raise": {
       "frames": [
         {
@@ -772,6 +1058,32 @@
       ],
       "source": "own_drawing",
       "source_id": "rig-v1/cable-crunch",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Crunch": {
+      "frames": [
+        {
+          "file": "svg/crunch-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"280\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"205\" y1=\"214\" x2=\"220\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"205\" y1=\"214\" x2=\"185.1\" y2=\"170.3\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"185.1\" y1=\"170.3\" x2=\"150\" y2=\"206\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"206\" x2=\"80\" y2=\"208.4\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"135.8\" y1=\"200.8\" x2=\"111.3\" y2=\"201.6\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"54.1\" cy=\"209.4\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"80\" y1=\"208.4\" x2=\"111.8\" y2=\"225.3\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"111.8\" y1=\"225.3\" x2=\"139\" y2=\"208.4\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        },
+        {
+          "file": "svg/crunch-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"280\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"205\" y1=\"214\" x2=\"220\" y2=\"214\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"205\" y1=\"214\" x2=\"185.1\" y2=\"170.3\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"185.1\" y1=\"170.3\" x2=\"150\" y2=\"206\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"206\" x2=\"92\" y2=\"166.9\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"141.6\" y1=\"193.4\" x2=\"121.3\" y2=\"179.7\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"67.9\" cy=\"157.1\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"92\" y1=\"166.9\" x2=\"107.7\" y2=\"199.2\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"107.7\" y1=\"199.2\" x2=\"139.7\" y2=\"201.4\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/crunch",
       "licence": "CC-BY-4.0",
       "licence_url": "https://creativecommons.org/licenses/by/4.0/",
       "author": "Plate & Bar authors",
