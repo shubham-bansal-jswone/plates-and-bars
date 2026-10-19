@@ -63,6 +63,7 @@ class AiPromptsTest {
 
         AiPrompts.Prompt recipe = AiPrompts.importRecipe("1 cup dal", CONTENT.rawIngredientNames());
         assertThat(recipe.input()).contains("Toor dal (dry)", "1 cup dal");
+        assertThat(recipe.instructions()).contains("\"original\":string");
         assertThat(AiPrompts.importRecipe(null, CONTENT.rawIngredientNames()).input()).doesNotContain("RECIPE TEXT");
 
         AiContent.ExerciseCard card = CONTENT.exerciseCard("Goblet Squat").orElseThrow();
