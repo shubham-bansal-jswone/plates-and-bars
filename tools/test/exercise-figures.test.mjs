@@ -78,3 +78,16 @@ test('slugs are unique and the frame is a viewBox-only svg', () => {
   assert.match(renderFrame('Lat Pulldown', 0), /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 320 240">.*<\/svg>$/);
   assert.doesNotMatch(renderFrame('Lat Pulldown', 0), /\.0"/);
 });
+
+test('new poses keep every drawn segment at the rig length in both frames (no stretched limbs)', () => {
+  const LEN = { ua: 36, fa: 32, th: 50, sh: 48, torso: 70 }, TOL = 1;
+  const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  for (const n of AN.names.slice(31)) for (const k of [0, 1]) {
+    const j = AN.joints(n, k);
+    if (!j) continue; // front-view poses use fixed lengths
+    const { J, uaS } = j;
+    const got = { ua: d(J.sh, J.el), fa: d(J.el, J.wr), th: d(J.hip, J.knee), sh: d(J.knee, J.ankle), torso: d(J.hip, J.sh) };
+    const want = { ...LEN, ua: LEN.ua * uaS };
+    for (const s of Object.keys(LEN)) assert.ok(Math.abs(got[s] - want[s]) <= TOL, `${n} k=${k}: ${s} is ${got[s].toFixed(1)}, rig length ${want[s]}`);
+  }
+});
