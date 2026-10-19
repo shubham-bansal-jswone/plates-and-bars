@@ -7,6 +7,5 @@ appId: app.plateandbar.mobile
     visible: "Targets updated"
     timeout: 15000
 - tapOn: "Targets"
-- extendedWaitUntil:
-    visible: "Redo setup"
-    timeout: 15000
+- scrollUntilVisible:
+    element: "Redo setup"

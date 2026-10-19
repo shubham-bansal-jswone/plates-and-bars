@@ -6,7 +6,10 @@ appId: app.plateandbar.mobile
     visible: "Food"
     timeout: 15000
 - tapOn: "Food"
-- tapOn: "+ Add to breakfast"
+- scrollUntilVisible:
+    element: "\\+ Add to breakfast"
+    centerElement: true
+- tapOn: "\\+ Add to breakfast"
 - tapOn: "Roti / chapati.*"
 - tapOn: "Done"
 - extendedWaitUntil:
