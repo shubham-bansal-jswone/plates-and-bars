@@ -180,10 +180,32 @@ describe('android permissions and photo permission copy', () => {
     expect(android.blockedPermissions).not.toContain('android.permission.VIBRATE');
   });
 
-  it('image picker strings do not claim chosen photos never leave the device', () => {
-    for (const key of ['photosPermission', 'cameraPermission']) {
-      expect(picker[1][key]).toMatch(/AI meal estimate or form check is sent only when you ask/);
-      expect(picker[1][key]).not.toMatch(/^[^.]*They stay on this device\.$/);
+  it('image picker strings say what is sent and when', () => {
+    expect(picker[1].photosPermission).toBe(
+      'Progress photos stay on this device. A photo or clip you choose for an AI meal estimate or form check is sent only when you ask; for form check, only still frames are sent.',
+    );
+    expect(picker[1].cameraPermission).toMatch(/AI meal estimate or form check is sent only when you ask/);
+  });
+
+  // USE_BIOMETRIC is blocked in app.json, so a biometric secure-store option would fail at runtime on Android.
+  it('no screen or module asks secure-store for biometric authentication', () => {
+    const fsx = fs as unknown as {
+      readdirSync(p: string, o: { withFileTypes: true }): { name: string; isDirectory(): boolean }[];
+      readFileSync(p: string, e: string): string;
+    };
+    const names = ['requireAuthentication', 'canUseBiometricAuthentication'];
+    const walk = (dir: string): string[] =>
+      fsx.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const full = path.join(dir, e.name);
+        return e.isDirectory() ? walk(full) : /\.(tsx?|jsx?)$/.test(e.name) ? [full] : [];
+      });
+    const hits = ['src', 'app']
+      .flatMap((d) => walk(path.join(__dirname, '..', d)))
+      .filter((f) => names.some((n) => fsx.readFileSync(f, 'utf8').includes(n)));
+    if (hits.length > 0) {
+      throw new Error(
+        `Found requireAuthentication or canUseBiometricAuthentication in ${hits.join(', ')}. USE_BIOMETRIC is blocked in app.json (blockedPermissions), so biometric secure-store options would fail at runtime on Android. Unblock it there first.`,
+      );
     }
   });
 });
