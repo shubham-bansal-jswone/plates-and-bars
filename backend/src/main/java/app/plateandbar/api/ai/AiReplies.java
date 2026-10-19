@@ -165,8 +165,9 @@ class AiReplies {
 
     /**
      * Import recipe. An ingredient that is not in the raw table or whose weight is unusable (not finite, 0 or less, over
-     * 10,000 g) moves to {@code unmatched} as written. An ingredient's optional {@code original} line is trimmed, cut to 200 code points and omitted when blank. Defaults: name "Imported recipe", 4 katoris. Empty only when the
-     * reply does not parse.
+     * 10,000 g) moves to {@code unmatched} as written. An ingredient's optional {@code original} line is trimmed, cut to 200
+     * code points, trimmed again and omitted when blank. Defaults: name "Imported recipe", 4 katoris. Empty only when
+     * the reply does not parse.
      */
     Optional<ObjectNode> importRecipe(String raw) {
         Optional<ObjectNode> root = parse(raw);
@@ -192,9 +193,10 @@ class AiReplies {
             if (name.isPresent() && usable && ingredients.size() < 100) {
                 ObjectNode ing = ingredients.addObject();
                 ing.put("ingredient", name.get()).put("amount", g.asDouble()).put("unit", "g");
-                String original = str(i.path("original")).strip();
-                if (!AiPrompts.isBlank(original)) {
-                    ing.put("original", cut(original, 200)); // optional; omitted when missing or blank
+                // Cut, then trim again: a cut can leave only blank characters, which the contract rejects.
+                String original = AiPrompts.trimBlank(cut(AiPrompts.trimBlank(str(i.path("original"))), 200));
+                if (!original.isEmpty()) {
+                    ing.put("original", original); // optional; omitted when missing or blank
                 }
             } else if (!written.isBlank()) {
                 unmatched.add(written);

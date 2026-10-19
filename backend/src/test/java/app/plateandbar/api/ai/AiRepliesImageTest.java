@@ -114,6 +114,21 @@ class AiRepliesImageTest {
     }
 
     @Test
+    void importRecipeTrimsContractBlankCharactersNotOnlyJavaWhitespaceBeforeAndAfterTheCut() {
+        JsonNode out = recipe("{\"ingredients\":["
+                + "{\"ingredient\":\"Besan\",\"original\":\"" + "\\u00A0".repeat(250) + "text\",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":\"" + "\\u200B".repeat(210) + "x\",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":\"\\u00A0\\u2060 1 cup besan \\u00A0\\uFEFF\\u0085\",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":\"" + "a".repeat(150) + "\\u00A0".repeat(100) + "b\",\"grams\":100}]}");
+        JsonNode ing = out.path("ingredients");
+        assertThat(ing).hasSize(4);
+        assertThat(ing.get(0).path("original").asString()).isEqualTo("text");
+        assertThat(ing.get(1).path("original").asString()).isEqualTo("x");
+        assertThat(ing.get(2).path("original").asString()).isEqualTo("1 cup besan");
+        assertThat(ing.get(3).path("original").asString()).isEqualTo("a".repeat(150)); // cut leaves 50 NBSPs, trimmed again
+    }
+
+    @Test
     void importRecipeFallsBackToTheContractsDefaultsAndBoundsEveryList() {
         JsonNode out = recipe("{}");
         assertThat(out.path("name").asString()).isEqualTo("Imported recipe");
