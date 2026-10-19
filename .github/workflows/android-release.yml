@@ -35,8 +35,10 @@ name: Android release build
 # only restore it (a PR-scoped cache is invisible to other PRs and would only evict the npm and Gradle caches).
 # The ccache cap is 2G: a 4-ABI build with precompiled headers overflowed 400M (run 39226041548: 98.5 % of 1376 calls cacheable,
 # cache full at 0.4 GB, 555 cleanups, 24.7 % hits), so ccache evicted its own objects mid-build. Each main run saves a new
-# entry (run-id key); the `ccache-prune` job then deletes all but the newest two, so the 10 GB repo quota (shared with the
-# npm and Gradle caches) holds at most about 2 x 2 GB of ccache.
+# entry (run-id key); the `ccache-prune` job then deletes every older `ccache-*` entry, keeping only the newest (the next run
+# restores the newest, so a second entry protects nothing). The repo cache is already over its 10 GB quota (about 10.7 GB in
+# 46 entries on 2026-10-19, about 4.4 GB of it npm), so GitHub's least-recently-used eviction is already running; a 2G entry
+# stays alive as long as android runs keep restoring it.
 # The native-libs guard compares .so file names with the ABI directory stripped, so it holds for one ABI or four.
 #
 # Secrets are withheld on pull_request runs (always debug-signed) and are only
@@ -290,7 +292,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/upload.jks"
 
   # Keeps the 10 GB cache quota from filling with one ~2 GB ccache entry per main run: after a green main build (which saved
-  # its entry) delete every `ccache-*` entry except the newest two. Never runs on pull requests. The only job with
+  # its entry) delete every `ccache-*` entry except the newest one. Never runs on pull requests. The only job with
   # `actions: write`; it needs no checkout and no secrets.
   ccache-prune:
     name: prune old ccache entries
@@ -301,12 +303,13 @@ jobs:
     permissions:
       actions: write
     steps:
-      - name: Delete all but the newest two ccache entries
+      - name: Delete every ccache entry but the newest
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+        shell: bash # bash -eo pipefail: a failing `gh cache list` fails the step instead of passing silently
         run: |
-          gh cache list --key ccache- --sort created_at --order desc --limit 100 --json id,key --jq '.[2:][] | "\(.id) \(.key)"' |
+          gh cache list --key ccache- --sort created_at --order desc --limit 100 --json id,key --jq '.[1:][] | "\(.id) \(.key)"' |
             while read -r id key; do
               echo "deleting $key"
               gh cache delete "$id" || echo "::warning::could not delete cache $key (already gone?)"

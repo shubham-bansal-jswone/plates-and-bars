@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checks the ccache rules of android-release.yml: the size cap is 2G in both places that set it, the cache is saved only on
 # main and never on a pull request, and the job that deletes old ccache entries (the only one with `actions: write`) never
-# runs on a pull request, runs only on main after a green build, and keeps the newest two entries.
+# runs on a pull request, runs only on main after a green build, and keeps only the newest entry. The job's `if:` must equal the exact intended expression.
 # Run from anywhere: infra/scripts/test-android-ccache.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -44,14 +44,16 @@ for s in saves:
 
 if prune:
     cond = prune.get("if", "")
-    check("github.event_name != 'pull_request'" in cond, "ccache-prune must not run on pull requests")
-    check("github.ref == 'refs/heads/main'" in cond, "ccache-prune must run only on main")
-    check("needs.build.result == 'success'" in cond, "ccache-prune must run only after a green build")
+    norm = " ".join(str(cond).replace("${{", "").replace("}}", "").split())
+    want = "github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.result == 'success'"
+    check(norm == want, f"ccache-prune if: must be exactly: {want} (got: {norm})")
     check(prune.get("needs") == "build", "ccache-prune must need the build job")
     check(prune.get("permissions") == {"actions": "write"}, "ccache-prune permissions must be exactly actions: write")
     run = "\n".join(s.get("run", "") for s in prune["steps"])
-    check("--key ccache-" in run and "'.[2:][]" in run, "ccache-prune must skip the newest two and list only ccache- keys")
+    check("--key ccache-" in run and "'.[1:][]" in run, "ccache-prune must skip only the newest and list only ccache- keys")
     check("--sort created_at --order desc" in run, "ccache-prune must sort newest first")
+    check(all(st.get("shell") == "bash" for st in prune["steps"] if "gh cache list" in st.get("run", "")),
+          "the step running gh cache list must set shell: bash (pipefail)")
     check("gh cache delete" in run, "ccache-prune must delete with gh cache delete")
     check(not any(str(s.get("uses", "")).startswith("actions/checkout") for s in prune["steps"]),
           "ccache-prune needs no checkout")
