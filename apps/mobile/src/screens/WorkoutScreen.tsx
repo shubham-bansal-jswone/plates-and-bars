@@ -8,7 +8,7 @@ import { Text } from '../components/Text';
 import { HAND_PICKED, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
-import { Button, Card, H1, Hint, Note, Page, Press, a11yState } from '../components/ui';
+import { Button, Card, H1, Hint, Note, Page, Press, a11yState, useScrollToTopOn } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
 import { useProfile } from '../state/ProfileProvider';
@@ -154,6 +154,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
   // Choosing a workout only previews it (#1005): nothing is stored until Start. `previewT` is the workout being previewed, `picked` the hand-picked exercises (from any workout) waiting for Start.
   const [previewT, setPreviewT] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
+  useScrollToTopOn(previewT);
   // The previewed workout the picks were seeded from (#1020); null for picks made from scratch. Start passes it only while a seeded exercise is still picked. While it is set the where override is fixed (the list was built for it).
   const [seed, setSeed] = useState<PickSeed | null>(null);
   const where = override ?? profile.where;
