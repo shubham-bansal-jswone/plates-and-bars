@@ -30,7 +30,7 @@ class StubAiProvider implements AiProvider {
                             + "\"kcal\":240,\"protein_g\":7,\"carbs_g\":46,\"fat_g\":3,\"confidence\":\"high\","
                             + "\"match\":\"Roti / chapati\",\"servings\":2}]}";
                     case IMPORT_RECIPE -> "{\"name\":\"Dal tadka\",\"katoris\":6,\"ingredients\":[{\"ingredient\":"
-                            + "\"Toor dal (dry)\",\"as_written\":\"1 cup toor dal\",\"grams\":200}],"
+                            + "\"Toor dal (dry)\",\"as_written\":\"1 cup toor dal\",\"original\":\"1 cup toor dal\",\"grams\":200}],"
                             + "\"steps\":[\"Pressure cook the dal.\"],\"unmatched\":[\"salt\"]}";
                     case FORM_CHECK -> "{\"visible\":false,\"checks\":[],\"summary\":\"\"}";
                 };

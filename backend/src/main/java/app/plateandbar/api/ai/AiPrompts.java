@@ -49,6 +49,20 @@ final class AiPrompts {
         return !NOT_BLANK.matcher(text).find();
     }
 
+    /** Removes the contract's blank characters (not only Java whitespace) from both ends; empty when all blank. */
+    static String trimBlank(String text) {
+        java.util.regex.Matcher m = NOT_BLANK.matcher(text);
+        if (!m.find()) {
+            return "";
+        }
+        int start = m.start();
+        int end = m.end();
+        while (m.find()) {
+            end = m.end();
+        }
+        return text.substring(start, end);
+    }
+
     static String delimit(String userText, String marker) {
         return "<<<" + marker + "\n" + sanitize(userText) + "\n" + marker + ">>>";
     }
@@ -151,9 +165,9 @@ final class AiPrompts {
                 "You turn a recipe, given as text, as a photo of a page, or both, into a draft for a recipe builder. "
                         + dataRule(m) + IMAGE_RULE
                         + "Reply with JSON only, no other text, shaped {\"name\":string,\"katoris\":number,\"ingredients\":"
-                        + "[{\"ingredient\":string,\"as_written\":string,\"grams\":number}],\"steps\":[string],"
+                        + "[{\"ingredient\":string,\"as_written\":string,\"original\":string,\"grams\":number}],\"steps\":[string],"
                         + "\"unmatched\":[string]}. Each ingredient is the exact name from the raw ingredients list, as_written "
-                        + "is the line as it appears in the recipe, and grams is the raw weight in grams (convert cups, "
+                        + "and original are the line as it appears in the recipe, and grams is the raw weight in grams (convert cups, "
                         + "spoons and pieces). Put an ingredient that is not in the list, or whose weight you cannot "
                         + "judge, in unmatched as written. katoris is how many katoris (about 150 g cooked each) the whole "
                         + "recipe makes. steps are short plain sentences.",

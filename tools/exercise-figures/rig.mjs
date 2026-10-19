@@ -1,7 +1,9 @@
 // Parametric figure rig ported from the prototype's AN (docs/prototype/plate-and-bar.html, "code-built exercise
-// animations"): same joint maths, same 31 poses, same output for the same colours. Changes from the prototype:
-// ES module, the colour map is a parameter of frame(), and it is exported without the browser globals.
-// New poses are added to D below; nothing else in the rig needs to change.
+// animations"): same joint maths, same output for the same colours. The first 31 poses in D are the prototype's, ported
+// unchanged; later entries are our own additions (batch 2 onwards, #653). Changes from the prototype:
+// ES module, the colour map is a parameter of frame(), and it is exported without the browser globals, and
+// it adds joints(name, k), the side-view joint positions, used by the segment-length test.
+// New poses are appended to D below; nothing else in the rig needs to change.
 export const AN = (() => {
   const SEG = { torso:70, head:11, neck:15, ua:36, fa:32, th:50, sh:48, foot:15 };
   const W = { torso:26, th:17, sh:12, ua:11, fa:9, foot:7 };
@@ -229,6 +231,43 @@ export const AN = (() => {
     'Hanging Knee Raise': { hip:[150,140], hl:['abs'],
       a:{ torso:-90, ua:-90, fa:-90, thigh:90, shinD:90 }, b:{ torso:-84, ua:-94, fa:-90, thigh:-22, shinD:76 },
       props:(J,P,C,g) => g.ln([90,4],[230,4],5,C.eq) + g.ln([90,4],[90,240],4,C.eq) + g.ln([230,4],[230,240],4,C.eq) },
+    // Batch 2 (#653): same joints, props and highlight bands as above.
+    'Dumbbell Split Squat': { kb:-1, eb:1, hl:['quads','glutes'],
+      a:{ hip:[158,118], ankle:[178,212], torso:-90, ua:93, fa:90 }, b:{ hip:[150,172], ankle:[178,212], torso:-90, ua:93, fa:90 },
+      props:(J,P,C,g) => floor(C) + g.ln(J.hip,[J.hip[0] - 22, J.hip[1] + (214 - J.hip[1]) * .75],13,C.body) + g.ln([J.hip[0] - 22, J.hip[1] + (214 - J.hip[1]) * .75],[86,212],9,C.body) + g.ln([86,212],[80,220],7,C.body), hand:(J,P,C,g) => db(J.wr,C,g,true) },
+    'Dumbbell Bench Press': { hip:[190,165], eb:1, kb:-1, hl:['chest','triceps'],
+      a:{ ankle:[232,222], torso:180, wrist:[126,150], uaS:.55 }, b:{ ankle:[232,222], torso:180, wrist:[124,98], uaS:1 },
+      props:(J,P,C,g) => floor(C,40,290) + g.ln([92,180],[210,180],9,C.eq) + g.ln([150,180],[150,226],4,C.eq), hand:(J,P,C,g) => g.circ(J.wr, 8, C.eq) },
+    'Push-ups': { root:'toe', toe:[58,224], eb:1, hl:['chest','triceps'],
+      a:{ foot:-60, shin:-19, thigh:-19, torso:-19, wrist:[226,224] }, b:{ foot:-60, shin:-8, thigh:-8, torso:-8, wrist:[226,224] },
+      props:(J,P,C) => floor(C,30,280) },
+    'Barbell Back Squat': { kb:-1, eb:-1, hl:['quads','glutes'],
+      a:{ hip:[146,114], ankle:[150,212], torso:-90, wristR:[-12,-8] }, b:{ hip:[112,168], ankle:[150,212], torso:-62, wristR:[-12,-8] },
+      props:(J,P,C,g) => floor(C) + g.circ([J.sh[0] - 6, J.sh[1] - 5], 14, 'none', ` stroke="${C.eq}" stroke-width="4"`) + g.circ([J.sh[0] - 6, J.sh[1] - 5], 4, C.eq), hand:(J,P,C,g) => g.circ(J.wr, 5, C.eq) },
+    'Bodyweight Squat': { kb:-1, hl:['quads','glutes'],
+      a:{ hip:[146,114], ankle:[150,212], torso:-90, ua:0, fa:0 }, b:{ hip:[118,168], ankle:[150,212], torso:-66, ua:0, fa:0 },
+      props:(J,P,C) => floor(C) },
+    'Deadlift': { kb:-1, eb:1, hl:['glutes','hams','back'],
+      a:{ hip:[106,160], ankle:[150,212], torso:-14, wrist:[162,211] }, b:{ hip:[146,114], ankle:[150,212], torso:-88, wrist:[150,110] },
+      props:(J,P,C,g) => floor(C,60,260) + g.circ(J.wr, 14, 'none', ` stroke="${C.eq}" stroke-width="4"`) + g.circ(J.wr, 4, C.eq), hand:(J,P,C,g) => g.circ(J.wr, 5, C.eq) },
+    'Barbell Row': { hip:[126,124], kb:-1, eb:1, hl:['back','biceps'],
+      a:{ ankle:[150,212], torso:-22, wrist:[190,164] }, b:{ ankle:[150,212], torso:-22, wrist:[162,124] },
+      props:(J,P,C,g) => floor(C,60,260) + g.circ(J.wr, 12, 'none', ` stroke="${C.eq}" stroke-width="4"`) + g.circ(J.wr, 4, C.eq), hand:(J,P,C,g) => g.circ(J.wr, 5, C.eq) },
+    'Bodyweight Pull-up': { hl:['back','biceps'], eb:1,
+      a:{ hip:[150,168], torso:-95, wrist:[156,34], thigh:80, shinD:200, footA:180 }, b:{ hip:[150,118], torso:-95, wrist:[156,34], thigh:80, shinD:200, footA:180 },
+      props:(J,P,C,g) => g.ln([100,30],[240,30],5,C.eq) + g.ln([100,30],[100,240],4,C.eq) + g.ln([240,30],[240,240],4,C.eq) },
+    'Glute Bridge': { kb:-1, hl:['glutes','hams'],
+      a:{ hip:[150,200], ankle:[205,214], torso:172, neck:0, ua:0, fa:0 }, b:{ hip:[150,166], ankle:[205,214], torso:145, neck:35, ua:12, fa:12 },
+      props:(J,P,C) => floor(C,30,280) },
+    'Crunch': { kb:-1, hl:['abs'],
+      a:{ hip:[150,206], ankle:[205,214], torso:-182, neck:0, uaR:-160, faR:-60 }, b:{ hip:[150,206], ankle:[205,214], torso:-146, neck:8, uaR:-160, faR:-60 },
+      props:(J,P,C) => floor(C,30,280) },
+    'Dumbbell Romanian Deadlift': { kb:-1, eb:1, hl:['hams','glutes'],
+      a:{ hip:[146,116], ankle:[150,212], torso:-90, wrist:[150,112] }, b:{ hip:[118,124], ankle:[150,212], torso:-20, wrist:[176,164] },
+      props:(J,P,C) => floor(C), hand:(J,P,C,g) => db(J.wr,C,g,false) },
+    'Standing Barbell Press': { front:true, eb:1, hl:['shoulders','triceps'],
+      a:{ wrist:[204,66] }, b:{ wrist:[180,16] },
+      props:(J,P,C,g) => floor(C,90,230) + (P.wrist ? g.ln([96,P.wrist[1]],[224,P.wrist[1]],4,C.eq) + g.circ([96,P.wrist[1]],8,C.eq) + g.circ([224,P.wrist[1]],8,C.eq) : ''), hand:(A,P,C,g) => g.circ(A.wr, 5, C.eq) },
   };
 
   function frame(name, k, C){
@@ -237,5 +276,10 @@ export const AN = (() => {
     if(P.left && E.a.left) P.left = mix(E.a.left, E.b.left || E.a.left, k);
     return E.front ? drawFront(E, P, C) : drawSide(E, P, C);
   }
-  return { frame, has: n => !!D[n], names: Object.keys(D) };
+  // Joint positions of the side-view poses (null for front-view ones), for the segment-length test.
+  function joints(name, k){
+    const E = D[name]; if(!E || E.front) return null;
+    return { J: sideJoints(E, mix(E.a, E.b, k)), uaS: mix(E.a, E.b, k).uaS || 1 };
+  }
+  return { frame, joints, has: n => !!D[n], names: Object.keys(D) };
 })();
