@@ -1,0 +1,892 @@
+[
+ {
+  "id": "fssai-per100-basic",
+  "input": "NUTRITIONAL INFORMATION (approx.)\nPer 100 g\nEnergy (kcal) 520\nProtein (g) 7.5\nCarbohydrate (g) 60.2\nof which total sugars (g) 22.0\nof which added sugars (g) 20.5\nTotal Fat (g) 26.4\nSaturated Fat (g) 12.1\nTrans Fat (g) 0.1\nDietary Fibre (g) 3.2",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 520,
+    "protein_g": 7.5,
+    "carbs_g": 60.2,
+    "fat_g": 26.4,
+    "fibre_g": 3.2,
+    "added_sugar_g": 20.5,
+    "sugars_g": 22,
+    "saturated_fat_g": 12.1,
+    "trans_fat_g": 0.1
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "fssai-dual-column-pct",
+  "input": "Nutritional Information\nTypical values\nPer 100 g   Per serve (30 g)   % RDA per serve\nEnergy 450 kcal   135 kcal   7%\nProtein 10.0 g   3.0 g   6%\nCarbohydrate 70.0 g   21.0 g   8%\nof which sugars 5.0 g   1.5 g\nTotal Fat 15.0 g   4.5 g   7%",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 70,
+    "fat_g": 15,
+    "sugars_g": 5
+   },
+   "missing": [],
+   "alternate": {
+    "unit": "30 g",
+    "values": {
+     "kcal": 135,
+     "protein_g": 3,
+     "carbs_g": 21,
+     "fat_g": 4.5,
+     "sugars_g": 1.5
+    }
+   }
+  }
+ },
+ {
+  "id": "fssai-fibre-rows-mg",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 380 kcal\nProtein 12.5 g\nCarbohydrates 65.0 g\nTotal Fat 6.0 g\nDietary Fibre 8,5 g\nSodium 450 mg",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 380,
+    "protein_g": 12.5,
+    "carbs_g": 65,
+    "fat_g": 6,
+    "fibre_g": 8.5
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "fssai-per100ml",
+  "input": "Nutritional Information\nPer 100 ml\nEnergy 42 kcal\nProtein 0.0 g\nCarbohydrate 10.4 g\nTotal Fat 0.0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 ml",
+   "values": {
+    "kcal": 42,
+    "protein_g": 0,
+    "carbs_g": 10.4,
+    "fat_g": 0
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "fssai-nil-values",
+  "input": "Nutritional Information\nPer 100 g\nEnergy 28 kcal\nProtein 1.0 g\nCarbohydrate 6.0 g\nTotal Fat Nil\nTrans Fat Nil\nDietary Fibre Nil",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 28,
+    "protein_g": 1,
+    "carbs_g": 6,
+    "fat_g": 0,
+    "fibre_g": 0,
+    "trans_fat_g": 0
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "fssai-less-than-one",
+  "input": "NUTRITIONAL INFORMATION\nPer 100 g\nEnergy 350 kcal\nProtein 8 g\nCarbohydrate 72 g\nTotal Fat <1 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 350,
+    "protein_g": 8,
+    "carbs_g": 72,
+    "fat_g": 0
+   },
+   "missing": [],
+   "level": {
+    "fat_g": "medium"
+   }
+  }
+ },
+ {
+  "id": "fssai-kj-and-kcal-same-line",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 1046 kJ / 250 kcal\nProtein 5 g\nCarbohydrate 40 g\nTotal Fat 8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 250,
+    "protein_g": 5,
+    "carbs_g": 40,
+    "fat_g": 8
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "eu-kcal-in-brackets",
+  "input": "Nutrition Information\nTypical values per 100g\nEnergy 1046kJ (250kcal)\nFat 8.0g\nof which saturates 3.0g\nCarbohydrate 40.0g\nof which sugars 4.0g\nFibre 2.0g\nProtein 5.0g\nSalt 1.1g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 250,
+    "protein_g": 5,
+    "carbs_g": 40,
+    "fat_g": 8,
+    "fibre_g": 2,
+    "sugars_g": 4,
+    "saturated_fat_g": 3
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "kj-only",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 1046 kJ\nProtein 5 g\nCarbohydrate 40 g\nTotal Fat 8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 250,
+    "protein_g": 5,
+    "carbs_g": 40,
+    "fat_g": 8
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "kj-thousands-comma",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 1,046 kJ\nProtein 5 g\nCarbohydrate 40 g\nTotal Fat 8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 250,
+    "protein_g": 5,
+    "carbs_g": 40,
+    "fat_g": 8
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "decimal-comma",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 412 kcal\nProtein 9,5 g\nCarbohydrate 55,2 g\nTotal Fat 16,8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 412,
+    "protein_g": 9.5,
+    "carbs_g": 55.2,
+    "fat_g": 16.8
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "ocr-o-for-zero-l-for-one",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 3O2 kcal\nProtein l2.O g\nCarbohydrate 6O.5 g\nTotal Fat 2.l g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 302,
+    "protein_g": 12,
+    "carbs_g": 60.5,
+    "fat_g": 2.1
+   },
+   "missing": [],
+   "level": {
+    "kcal": "medium",
+    "fat_g": "medium"
+   }
+  }
+ },
+ {
+  "id": "ocr-stray-symbols",
+  "input": "| NUTRITIONAL INFORMATION |\n~ Per 100 g ~\n* Energy (kcal) | 480\n- Protein (g) | 6.5 |\n= Carbohydrate (g) | 68.0 |\n. Total Fat (g) | 19.0 ¦",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 480,
+    "protein_g": 6.5,
+    "carbs_g": 68,
+    "fat_g": 19
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "ocr-split-lines",
+  "input": "Nutrition Facts\nPer 100 g\nEnergy\n510 kcal\nProtein\n7.0 g\nCarbohydrate\n58.0 g\nTotal Fat\n27.0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 510,
+    "protein_g": 7,
+    "carbs_g": 58,
+    "fat_g": 27
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "ocr-label-typos",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nPr0tein 10 g\nCarb0hydrate 50 g\nTota1 Fat 15 g\nF1bre 4 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 15,
+    "fibre_g": 4
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "us-fda-basic",
+  "input": "Nutrition Facts\n8 servings per container\nServing size 2/3 cup (55g)\nAmount per serving\nCalories 230\n% Daily Value*\nTotal Fat 8g 10%\nSaturated Fat 1g 5%\nTrans Fat 0g\nCholesterol 0mg 0%\nSodium 160mg 7%\nTotal Carbohydrate 37g 13%\nDietary Fiber 4g 14%\nTotal Sugars 12g\nIncludes 10g Added Sugars 20%\nProtein 3g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "2/3 cup (55g)",
+   "values": {
+    "kcal": 230,
+    "protein_g": 3,
+    "carbs_g": 37,
+    "fat_g": 8,
+    "fibre_g": 4,
+    "added_sugar_g": 10,
+    "sugars_g": 12,
+    "saturated_fat_g": 1,
+    "trans_fat_g": 0
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "us-fda-split-calories",
+  "input": "Nutrition Facts\nServing size 1 cup (240 mL)\nAmount per serving\nCalories\n150\nTotal Fat 5g 6%\nTotal Carbohydrate 20g 7%\nProtein 8g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 cup (240 mL)",
+   "values": {
+    "kcal": 150,
+    "protein_g": 8,
+    "carbs_g": 20,
+    "fat_g": 5
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "us-fda-dual-container",
+  "input": "Nutrition Facts\n2 servings per container\nServing size 1 bar (40g)\nPer serving   Per container\nCalories 180   360\nTotal Fat 6g   12g\nTotal Carbohydrate 24g   48g\nProtein 8g   16g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 bar (40g)",
+   "values": {
+    "kcal": 180,
+    "protein_g": 8,
+    "carbs_g": 24,
+    "fat_g": 6
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "us-fda-calories-from-fat",
+  "input": "Nutrition Facts\nServing Size 1 cup (228g)\nAmount Per Serving\nCalories 250 Calories from Fat 110\nTotal Fat 12g 18%\nTotal Carbohydrate 31g 10%\nProtein 5g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 cup (228g)",
+   "values": {
+    "kcal": 250,
+    "protein_g": 5,
+    "carbs_g": 31,
+    "fat_g": 12
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "us-fda-no-grams",
+  "input": "Nutrition Facts\nServing size 1 cookie\nAmount per serving\nCalories 90\nTotal Fat 4g\nTotal Carbohydrate 12g\nProtein 1g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "",
+   "values": {
+    "kcal": 90,
+    "protein_g": 1,
+    "carbs_g": 12,
+    "fat_g": 4
+   },
+   "missing": [],
+   "warn": [
+    "serving_grams_missing"
+   ]
+  }
+ },
+ {
+  "id": "serving-only-fssai",
+  "input": "Nutritional Information\nServing size: 30 g\nPer serve (30 g)\nEnergy 150 kcal\nProtein 4 g\nCarbohydrate 20 g\nTotal Fat 6 g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "30 g",
+   "values": {
+    "kcal": 150,
+    "protein_g": 4,
+    "carbs_g": 20,
+    "fat_g": 6
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "serving-only-no-header-text",
+  "input": "Serving size 25 g\nCalories 110\nTotal Fat 3g\nTotal Carbohydrate 19g\nProtein 2g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "25 g",
+   "values": {
+    "kcal": 110,
+    "protein_g": 2,
+    "carbs_g": 19,
+    "fat_g": 3
+   },
+   "missing": [],
+   "warn": [
+    "no_header"
+   ]
+  }
+ },
+ {
+  "id": "partial-no-fat",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 380 kcal\nProtein 12 g\nCarbohydrate 60 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 380,
+    "protein_g": 12,
+    "carbs_g": 60
+   },
+   "missing": [
+    "fat_g"
+   ],
+   "reviewable": true
+  }
+ },
+ {
+  "id": "partial-one-field",
+  "input": "Nutrition Information\nPer 100 g\nProtein 12 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "protein_g": 12
+   },
+   "missing": [
+    "kcal",
+    "carbs_g",
+    "fat_g"
+   ],
+   "reviewable": false
+  }
+ },
+ {
+  "id": "unreadable-number",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 380 kcal\nProtein ??? g\nCarbohydrate 60 g\nTotal Fat 10 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 380,
+    "carbs_g": 60,
+    "fat_g": 10
+   },
+   "missing": [
+    "protein_g"
+   ]
+  }
+ },
+ {
+  "id": "impossible-over-100",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 380 kcal\nProtein 112 g\nCarbohydrate 60 g\nTotal Fat 10 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 380,
+    "carbs_g": 60,
+    "fat_g": 10
+   },
+   "missing": [
+    "protein_g"
+   ]
+  }
+ },
+ {
+  "id": "looks-off-medium",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 100 kcal\nProtein 20 g\nCarbohydrate 50 g\nTotal Fat 20 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 100,
+    "protein_g": 20,
+    "carbs_g": 50,
+    "fat_g": 20
+   },
+   "missing": [],
+   "warn": [
+    "looks_off"
+   ],
+   "level": {
+    "kcal": "medium"
+   }
+  }
+ },
+ {
+  "id": "fibre-exceeds-carbs",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 200 kcal\nProtein 10 g\nCarbohydrate 20 g\nTotal Fat 5 g\nDietary Fibre 30 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 200,
+    "protein_g": 10,
+    "carbs_g": 20,
+    "fat_g": 5,
+    "fibre_g": 30
+   },
+   "missing": [],
+   "warn": [
+    "fibre_exceeds_carbs"
+   ],
+   "level": {
+    "fibre_g": "medium"
+   }
+  }
+ },
+ {
+  "id": "junk-text",
+  "input": "BEST BEFORE 12/2027\nMfd by Sunrise Foods Pvt Ltd\nNet wt 200 g   MRP Rs 45.00\nStore in a cool dry place",
+  "expect": {
+   "basis": "unknown",
+   "unit": "",
+   "values": {},
+   "missing": [
+    "kcal",
+    "protein_g",
+    "carbs_g",
+    "fat_g"
+   ],
+   "reviewable": false
+  }
+ },
+ {
+  "id": "empty-text",
+  "input": "",
+  "expect": {
+   "basis": "unknown",
+   "unit": "",
+   "values": {},
+   "missing": [
+    "kcal",
+    "protein_g",
+    "carbs_g",
+    "fat_g"
+   ],
+   "reviewable": false
+  }
+ },
+ {
+  "id": "header-no-table",
+  "input": "Nutrition Facts\nPer 100 g\nsee side of pack",
+  "expect": {
+   "basis": "unknown",
+   "unit": "",
+   "values": {},
+   "missing": [
+    "kcal",
+    "protein_g",
+    "carbs_g",
+    "fat_g"
+   ],
+   "reviewable": false
+  }
+ },
+ {
+  "id": "marketing-text-above-header",
+  "input": "HIGH PROTEIN 20 g per pack\nFat 0 g added\nNutritional Information\nPer 100 g\nEnergy 360 kcal\nProtein 20 g\nCarbohydrate 50 g\nTotal Fat 8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 360,
+    "protein_g": 20,
+    "carbs_g": 50,
+    "fat_g": 8
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "dual-column-dropped-value",
+  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 450 kcal   135 kcal\nProtein 10.0 g\nCarbohydrate 70.0 g   21.0 g\nTotal Fat 15.0 g   4.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "carbs_g": 70,
+    "fat_g": 15
+   },
+   "missing": [
+    "protein_g"
+   ]
+  }
+ },
+ {
+  "id": "dual-column-mismatch",
+  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 450 kcal   135 kcal\nProtein 10.0 g   9.0 g\nCarbohydrate 70.0 g   21.0 g\nTotal Fat 15.0 g   4.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 70,
+    "fat_g": 15
+   },
+   "missing": [],
+   "warn": [
+    "serving_mismatch"
+   ],
+   "level": {
+    "protein_g": "medium"
+   }
+  }
+ },
+ {
+  "id": "dual-column-kj-kcal-pairs",
+  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 1883 kJ/450 kcal   565 kJ/135 kcal\nProtein 10 g   3 g\nCarbohydrate 70 g   21 g\nTotal Fat 15 g   4.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 70,
+    "fat_g": 15
+   },
+   "missing": [],
+   "alternate": {
+    "unit": "30 g",
+    "values": {
+     "kcal": 135,
+     "protein_g": 3,
+     "carbs_g": 21,
+     "fat_g": 4.5
+    }
+   }
+  }
+ },
+ {
+  "id": "per100-unreadable-serve-fills",
+  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 450 kcal   135 kcal\nProtein 1.0.5 g   3.0 g\nCarbohydrate 70 g   21 g\nTotal Fat 15 g   4.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 70,
+    "fat_g": 15
+   },
+   "missing": [],
+   "level": {
+    "protein_g": "medium"
+   },
+   "notes": {
+    "protein_g": "from_serving"
+   }
+  }
+ },
+ {
+  "id": "mcg-and-mg-units",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 300 kcal\nProtein 10 g\nCarbohydrate 50 g\nTotal Fat 5 g\nDietary Fibre 500 mg",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 300,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 5,
+    "fibre_g": 0.5
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "no-units-bare-numbers",
+  "input": "Nutritional Information\nPer 100 g\nEnergy (kcal) 300\nProtein 10\nCarbohydrate 50\nTotal Fat 5",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 300,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 5
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "og-for-zero",
+  "input": "Nutrition Facts\nServing size 1 can (355 mL)\nCalories 0\nTotal Fat Og\nTotal Carbohydrate Og\nProtein Og",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 can (355 mL)",
+   "values": {
+    "kcal": 0,
+    "protein_g": 0,
+    "carbs_g": 0,
+    "fat_g": 0
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "low-ocr-confidence-blanks",
+  "input": {
+   "lines": [
+    {
+     "words": [
+      {
+       "text": "Nutrition",
+       "confidence": 95
+      },
+      {
+       "text": "Information",
+       "confidence": 95
+      }
+     ]
+    },
+    {
+     "words": [
+      {
+       "text": "Per",
+       "confidence": 90
+      },
+      {
+       "text": "100",
+       "confidence": 90
+      },
+      {
+       "text": "g",
+       "confidence": 90
+      }
+     ]
+    },
+    {
+     "words": [
+      {
+       "text": "Energy",
+       "confidence": 92
+      },
+      {
+       "text": "400",
+       "confidence": 91
+      },
+      {
+       "text": "kcal",
+       "confidence": 90
+      }
+     ]
+    },
+    {
+     "words": [
+      {
+       "text": "Protein",
+       "confidence": 92
+      },
+      {
+       "text": "12",
+       "confidence": 30
+      },
+      {
+       "text": "g",
+       "confidence": 40
+      }
+     ]
+    },
+    {
+     "words": [
+      {
+       "text": "Carbohydrate",
+       "confidence": 92
+      },
+      {
+       "text": "60",
+       "confidence": 65
+      },
+      {
+       "text": "g",
+       "confidence": 90
+      }
+     ]
+    },
+    {
+     "words": [
+      {
+       "text": "Total",
+       "confidence": 92
+      },
+      {
+       "text": "Fat",
+       "confidence": 92
+      },
+      {
+       "text": "10",
+       "confidence": 93
+      },
+      {
+       "text": "g",
+       "confidence": 90
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "carbs_g": 60,
+    "fat_g": 10
+   },
+   "missing": [
+    "protein_g"
+   ],
+   "level": {
+    "kcal": "high",
+    "carbs_g": "medium",
+    "protein_g": "low"
+   }
+  }
+ },
+ {
+  "id": "line-confidence-used",
+  "input": {
+   "lines": [
+    {
+     "text": "Nutrition Information",
+     "confidence": 90
+    },
+    {
+     "text": "Per 100 g",
+     "confidence": 90
+    },
+    {
+     "text": "Energy 400 kcal",
+     "confidence": 88
+    },
+    {
+     "text": "Protein 12 g",
+     "confidence": 85
+    },
+    {
+     "text": "Carbohydrate 60 g",
+     "confidence": 40
+    },
+    {
+     "text": "Total Fat 10 g",
+     "confidence": 90
+    }
+   ]
+  },
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 12,
+    "fat_g": 10
+   },
+   "missing": [
+    "carbs_g"
+   ]
+  }
+ },
+ {
+  "id": "sodium-salt-not-mapped",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nProtein 12 g\nCarbohydrate 60 g\nTotal Fat 10 g\nSodium 800 mg\nSalt 2.0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 12,
+    "carbs_g": 60,
+    "fat_g": 10
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "fssai-hi-en-bilingual-header",
+  "input": "पोषण संबंधी जानकारी / NUTRITIONAL INFORMATION\nPer 100 g\nऊर्जा / Energy (kcal) 455\nProtein 9.0 g\nCarbohydrate 62.0 g\nTotal Fat 18.0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 455,
+    "protein_g": 9,
+    "carbs_g": 62,
+    "fat_g": 18
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "values-before-header-order-lines-array",
+  "input": {
+   "lines": [
+    "Nutrition Facts",
+    "Serving size 1 slice (28g)",
+    "Calories 70",
+    "Total Fat 1g",
+    "Total Carbohydrate 13g",
+    "Dietary Fiber 1g",
+    "Protein 3g"
+   ]
+  },
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 slice (28g)",
+   "values": {
+    "kcal": 70,
+    "protein_g": 3,
+    "carbs_g": 13,
+    "fat_g": 1,
+    "fibre_g": 1
+   },
+   "missing": []
+  }
+ }
+]

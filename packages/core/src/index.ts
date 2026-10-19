@@ -711,3 +711,11 @@ export { importedGrams } from './recipeImport';
  * (12% to 88% of the clip, 5 s when the length is unknown); `frameTimesMs` is the same rounded to whole ms.
  */
 export { FRAME_DEFAULT_DURATION_MS, FRAME_START, FRAME_SPAN, FRAME_COUNT, frameDuration, framePositions, frameTimesMs } from './formFrames';
+
+/**
+ * Nutrition-label parser (#1067, slice 1): new rules from the #1067 spike, not prototype ports (the prototype has no label scan).
+ * - `parseNutritionLabel` reads OCR text (plain, or lines with per-word confidence) into a `LabelDraft`: per 100 g or per serving, kcal (kJ / 4.184 rounded, as `offToUserFood`), protein, carbs, fat, fibre and added sugar, each with a confidence and an empty value below 0.5; plausibility reuses `looksOff` from off.ts.
+ * - `labelToScannedInput` and `labelFood` end a draft in `scannedFood` (the same validator and save path as the barcode review); `labelFood` adds fibre and added sugar.
+ */
+export { parseNutritionLabel, labelToScannedInput, labelFood } from './labelScan';
+export type { LabelOcrInput, LabelOcrLine, LabelOcrWord, LabelKey, LabelLevel, LabelNote, LabelField, LabelWarning, LabelAlternate, LabelValues, LabelDraft } from './labelScan';
