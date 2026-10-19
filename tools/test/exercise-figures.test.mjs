@@ -91,3 +91,21 @@ test('new poses keep every drawn segment at the rig length in both frames (no st
     for (const s of Object.keys(LEN)) assert.ok(Math.abs(got[s] - want[s]) <= TOL, `${n} k=${k}: ${s} is ${got[s].toFixed(1)}, rig length ${want[s]}`);
   }
 });
+
+test('rear legs drawn in props are reachable, keep rig length and stay planted (split squats)', () => {
+  const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const names = AN.names.filter((n) => /split squat/i.test(n));
+  assert.equal(names.length, 3);
+  for (const n of names) {
+    const feet = [0, 1].map((k) => {
+      const j = AN.joints(n, k);
+      assert.ok(j && j.rear, `${n}: rear leg must come from joints() (ik), not hand-placed points`);
+      const [hip, knee, foot] = j.rear;
+      assert.ok(d(hip, foot) <= 98, `${n} k=${k}: rear foot out of reach (${d(hip, foot).toFixed(1)})`);
+      assert.ok(Math.abs(d(hip, knee) - 50) <= 1, `${n} k=${k}: rear thigh is ${d(hip, knee).toFixed(1)}`);
+      assert.ok(Math.abs(d(knee, foot) - 48) <= 1, `${n} k=${k}: rear shin is ${d(knee, foot).toFixed(1)}`);
+      return foot;
+    });
+    assert.deepEqual(feet[0], feet[1], `${n}: rear foot slides between frames`);
+  }
+});

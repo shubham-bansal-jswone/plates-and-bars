@@ -134,6 +134,9 @@ export const AN = (() => {
   const grip = (w, C, g) => g.circ(w, 5, 'none', ` stroke="${C.eq}" stroke-width="3"`);
   const cable = (w, p, C, g) => g.ln(w, p, 1.5, C.eq) + g.circ(p, 5, C.eq);
 
+  // Rear legs drawn in props: ik from the hip to a fixed rear foot, so they keep thigh and shin length (joints() exposes them to the test).
+  const splitRear = (J, P) => { const ra = [P.rx, 205]; return [J.hip, ik(J.hip, ra, SEG.th, SEG.sh, -1), ra]; };
+  const bulgarianRear = (J) => { const rf = [78, 170]; return [J.hip, ik(J.hip, rf, SEG.th, SEG.sh, -1), rf]; };
   const STAND = { ankle:[150,212] };
   const D = {
     'Machine Chest Press': { hip:[130,168], eb:-1, hl:['chest','triceps'],
@@ -233,8 +236,10 @@ export const AN = (() => {
       props:(J,P,C,g) => g.ln([90,4],[230,4],5,C.eq) + g.ln([90,4],[90,240],4,C.eq) + g.ln([230,4],[230,240],4,C.eq) },
     // Batch 2 (#653): same joints, props and highlight bands as above.
     'Dumbbell Split Squat': { kb:-1, eb:1, hl:['quads','glutes'],
-      a:{ hip:[158,118], ankle:[178,212], torso:-90, ua:93, fa:90 }, b:{ hip:[150,172], ankle:[178,212], torso:-90, ua:93, fa:90 },
-      props:(J,P,C,g) => floor(C) + g.ln(J.hip,[J.hip[0] - 22, J.hip[1] + (214 - J.hip[1]) * .75],13,C.body) + g.ln([J.hip[0] - 22, J.hip[1] + (214 - J.hip[1]) * .75],[86,212],9,C.body) + g.ln([86,212],[80,220],7,C.body), hand:(J,P,C,g) => db(J.wr,C,g,true) },
+      a:{ hip:[140,126], ankle:[182,213], torso:-90, ua:93, fa:90, rx:92 }, b:{ hip:[136,166], ankle:[182,213], torso:-90, ua:93, fa:90, rx:92 },
+      rear:splitRear,
+      props:(J,P,C,g) => { const [, rk, ra] = splitRear(J,P);
+        return floor(C) + g.ln(J.hip,rk,13,C.body) + g.ln(rk,ra,9,C.body) + g.ln(ra,[ra[0] + 9,222],7,C.body); }, hand:(J,P,C,g) => db(J.wr,C,g,true) },
     'Dumbbell Bench Press': { hip:[190,165], eb:1, kb:-1, hl:['chest','triceps'],
       a:{ ankle:[232,222], torso:180, wrist:[126,150], uaS:.55 }, b:{ ankle:[232,222], torso:180, wrist:[124,98], uaS:1 },
       props:(J,P,C,g) => floor(C,40,290) + g.ln([92,180],[210,180],9,C.eq) + g.ln([150,180],[150,226],4,C.eq), hand:(J,P,C,g) => g.circ(J.wr, 8, C.eq) },
@@ -270,15 +275,17 @@ export const AN = (() => {
       props:(J,P,C,g) => floor(C,90,230) + (P.wrist ? g.ln([96,P.wrist[1]],[224,P.wrist[1]],4,C.eq) + g.circ([96,P.wrist[1]],8,C.eq) + g.circ([224,P.wrist[1]],8,C.eq) : ''), hand:(A,P,C,g) => g.circ(A.wr, 5, C.eq) },
     // Batch 3 (#653): same joints, props and highlight bands as above.
     'Barbell Romanian Deadlift': { kb:-1, eb:1, hl:['hams','glutes'],
-      a:{ hip:[146,116], ankle:[150,212], torso:-90, wrist:[150,112] }, b:{ hip:[118,124], ankle:[150,212], torso:-20, wrist:[176,164] },
+      a:{ hip:[146,116], ankle:[150,212], torso:-90, wrist:[148,112] }, b:{ hip:[100,130], ankle:[150,212], torso:-30, wrist:[160,162] },
       props:(J,P,C,g) => floor(C) + g.circ(J.wr, 12, 'none', ` stroke="${C.eq}" stroke-width="4"`) + g.circ(J.wr, 4, C.eq), hand:(J,P,C,g) => g.circ(J.wr, 5, C.eq) },
     'Split Squat': { kb:-1, eb:1, hl:['quads','glutes'],
-      a:{ hip:[158,122], ankle:[186,213], torso:-90, ua:93, fa:90, rx:110 }, b:{ hip:[140,166], ankle:[186,213], torso:-90, ua:93, fa:90, rx:72 },
-      props:(J,P,C,g) => { const ra = [P.rx,205], rk = ik(J.hip, ra, SEG.th, SEG.sh, -1);
+      a:{ hip:[140,126], ankle:[182,213], torso:-90, ua:93, fa:90, rx:92 }, b:{ hip:[136,166], ankle:[182,213], torso:-90, ua:93, fa:90, rx:92 },
+      rear:splitRear,
+      props:(J,P,C,g) => { const [, rk, ra] = splitRear(J,P);
         return floor(C) + g.ln(J.hip,rk,13,C.body) + g.ln(rk,ra,9,C.body) + g.ln(ra,[ra[0] + 9,222],7,C.body); } },
     'Bulgarian Split Squat': { kb:-1, eb:1, hl:['quads','glutes'],
       a:{ hip:[152,124], ankle:[190,213], torso:-90, ua:93, fa:90 }, b:{ hip:[140,166], ankle:[190,213], torso:-90, ua:93, fa:90 },
-      props:(J,P,C,g) => { const rf = [78,170], rk = ik(J.hip, rf, SEG.th, SEG.sh, -1);
+      rear:bulgarianRear,
+      props:(J,P,C,g) => { const [, rk, rf] = bulgarianRear(J);
         return floor(C) + g.ln([46,182],[100,182],9,C.eq) + g.ln([54,182],[54,226],4,C.eq) + g.ln([92,182],[92,226],4,C.eq) + g.ln(J.hip,rk,13,C.body) + g.ln(rk,rf,9,C.body) + g.ln(rf,[66,172],7,C.body); } },
     'Preacher Curl': { hip:[120,152], kb:-1, hl:['biceps'],
       a:{ ankle:[172,214], torso:-75, ua:62, fa:68 }, b:{ ankle:[172,214], torso:-75, ua:62, fa:-62 },
@@ -291,13 +298,13 @@ export const AN = (() => {
       a:{ torso:180, thigh:-10, shinD:-10, footA:-85, ua:6, fa:6 }, b:{ torso:180, thigh:-88, shinD:-85, footA:-180, ua:6, fa:6 },
       props:(J,P,C) => floor(C,30,300) },
     'Bench Dips': { kb:-1, eb:1, hl:['triceps','chest'],
-      a:{ hip:[124,172], ankle:[212,214], torso:-92, wrist:[102,164] }, b:{ hip:[126,194], ankle:[212,214], torso:-92, wrist:[102,164] },
+      a:{ hip:[124,170], ankle:[208,214], torso:-92, wrist:[102,164] }, b:{ hip:[126,194], ankle:[208,214], torso:-92, wrist:[102,164] },
       props:(J,P,C,g) => floor(C,30,280) + g.ln([40,172],[106,172],9,C.eq) + g.ln([48,172],[48,226],4,C.eq) + g.ln([98,172],[98,226],4,C.eq), hand:(J,P,C,g) => g.circ(J.wr, 4, C.eq) },
     'Incline Push-ups': { root:'toe', toe:[58,224], eb:1, hl:['chest','triceps'],
-      a:{ foot:-60, shin:-33, thigh:-33, torso:-33, wrist:[231,183] }, b:{ foot:-60, shin:-26, thigh:-26, torso:-26, wrist:[231,183] },
+      a:{ foot:-60, shin:-33.5, thigh:-33.5, torso:-33.5, wrist:[222,183] }, b:{ foot:-60, shin:-24, thigh:-24, torso:-24, wrist:[222,183] },
       props:(J,P,C,g) => floor(C,30,280) + g.ln([205,192],[262,192],9,C.eq) + g.ln([214,192],[214,226],4,C.eq) + g.ln([254,192],[254,226],4,C.eq) },
     'Pike Push-ups': { root:'toe', toe:[112,224], eb:1, hl:['shoulders','triceps'],
-      a:{ foot:-60, shin:-71, thigh:-71, torso:36, wrist:[196,224] }, b:{ foot:-60, shin:-68, thigh:-68, torso:58, wrist:[196,224] },
+      a:{ foot:-60, shin:-71, thigh:-71, torso:34.5, wrist:[196,224] }, b:{ foot:-60, shin:-68, thigh:-68, torso:58, wrist:[196,224] },
       props:(J,P,C) => floor(C,30,280) },
     'Dumbbell Floor Press': { hip:[190,212], eb:1, kb:-1, hl:['chest','triceps'],
       a:{ ankle:[250,214], torso:180, wrist:[128,188], uaS:.55 }, b:{ ankle:[250,214], torso:180, wrist:[124,146], uaS:1 },
@@ -305,9 +312,9 @@ export const AN = (() => {
     'Cable Pull-through': { kb:-1, eb:1, hl:['glutes','hams'],
       a:{ hip:[116,124], ankle:[150,212], torso:-35, wrist:[150,146] }, b:{ hip:[150,116], ankle:[150,212], torso:-92, wrist:[160,112] },
       props:(J,P,C,g) => floor(C,20,280) + g.ln([34,100],[34,226],4,C.eq) + cable(J.wr,[38,212],C,g), hand:(J,P,C,g) => grip(J.wr,C,g) },
-    'Decline Push-ups': { root:'toe', toe:[58,182], eb:1, hl:['chest','triceps'],
-      a:{ foot:-60, shin:-4, thigh:-4, torso:-4, wrist:[236,224] }, b:{ foot:-60, shin:4, thigh:4, torso:4, wrist:[236,224] },
-      props:(J,P,C,g) => floor(C,30,280) + g.ln([36,190],[88,190],9,C.eq) + g.ln([44,190],[44,226],4,C.eq) + g.ln([80,190],[80,226],4,C.eq) },
+    'Decline Push-ups': { root:'toe', toe:[58,140], eb:1, hl:['chest','triceps'],
+      a:{ foot:-60, shin:10.4, thigh:10.4, torso:10.4, wrist:[236,224] }, b:{ foot:-60, shin:18, thigh:18, torso:18, wrist:[236,224] },
+      props:(J,P,C,g) => floor(C,30,280) + g.ln([36,148],[88,148],9,C.eq) + g.ln([44,148],[44,226],4,C.eq) + g.ln([80,148],[80,226],4,C.eq) },
   };
 
   function frame(name, k, C){
@@ -319,7 +326,8 @@ export const AN = (() => {
   // Joint positions of the side-view poses (null for front-view ones), for the segment-length test.
   function joints(name, k){
     const E = D[name]; if(!E || E.front) return null;
-    return { J: sideJoints(E, mix(E.a, E.b, k)), uaS: mix(E.a, E.b, k).uaS || 1 };
+    const P = mix(E.a, E.b, k), J = sideJoints(E, P);
+    return { J, uaS: P.uaS || 1, rear: E.rear ? E.rear(J, P) : null };
   }
   return { frame, joints, has: n => !!D[n], names: Object.keys(D) };
 })();
