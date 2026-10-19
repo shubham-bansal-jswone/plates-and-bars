@@ -25,7 +25,7 @@ function Harness({ db, start, active = true }: { db: Awaited<ReturnType<typeof o
   useEffect(() => {
     current = rest;
   }, [rest]);
-  useRestNotification({ db, rest, setRest, sessionActive: active, reloadKey: 0 });
+  useRestNotification({ db, rest, setRest, sessionActive: active });
   return null;
 }
 
@@ -71,6 +71,18 @@ describe('rest timer notification', () => {
     await setup();
     await go('background');
     expect(JSON.stringify(mockNative.showRest.mock.calls[0]![0])).not.toMatch(/set 2/i);
+  });
+
+  it('clears a countdown left from before the process died, as soon as the screen mounts (a cold start sends no AppState change)', async () => {
+    await setup();
+    expect(mockNative.takeRest).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the setting when the app goes to the background, so a switch turned on a moment ago counts', async () => {
+    const { db } = await setup({ on: false });
+    await saveReminderPrefs(db, { ...DEFAULT_PREFS, rest: { on: true } });
+    await go('background');
+    expect(mockNative.showRest).toHaveBeenCalledTimes(1);
   });
 
   it('takes it down when the app comes back to the foreground', async () => {

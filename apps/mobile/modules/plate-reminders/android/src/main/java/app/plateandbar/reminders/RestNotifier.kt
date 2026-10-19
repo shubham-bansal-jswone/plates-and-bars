@@ -17,6 +17,8 @@ import android.os.Build
  * the alert is an inexact alarm like the reminders, so it can be a little late.
  */
 object RestNotifier {
+  // One lock for the kept copy: receivers run on the main thread and module functions on the module's queue, and a +30 s must not
+  // save and re-arm after `take` cleared it. Every public function below is @Synchronized on this object.
   private const val PREFS = "plate_rest"
   private const val KEY = "rest"
   private const val NOTE_ID = 0x7e57
@@ -46,31 +48,32 @@ object RestNotifier {
   private fun enabled(context: Context) = manager(context).areNotificationsEnabled()
 
   /** The app went to the background with a rest running. Does nothing when notifications are off. */
-  fun start(context: Context, state: RestState, nowMillis: Long = System.currentTimeMillis()) {
+  @Synchronized fun start(context: Context, state: RestState, nowMillis: Long = System.currentTimeMillis()) {
     cancelAlarm(context)
     if (!enabled(context) || state.end <= nowMillis) {
       save(context, null)
       manager(context).cancel(NOTE_ID)
       return
     }
-    save(context, state)
-    postLive(context, state)
-    armAlert(context, state.end)
+    val armed = state.copy(armedAt = nowMillis)
+    save(context, armed)
+    postLive(context, armed, nowMillis)
+    armAlert(context, armed.end)
   }
 
   /** "+30 s" from the notification. Ignored when there is no live rest (skipped, cancelled, or long over). */
-  fun extend(context: Context, nowMillis: Long = System.currentTimeMillis()) {
+  @Synchronized fun extend(context: Context, nowMillis: Long = System.currentTimeMillis()) {
     val s = load(context)
     if (s == null || !s.active || nowMillis - s.end > REST_ALERT_STALE_MS) return stop(context, s, skipped = false)
-    val next = s.copy(end = extendedEnd(s.end, s.extendMs, nowMillis))
+    val next = s.copy(end = extendedEnd(s.end, s.extendMs, nowMillis), armedAt = nowMillis)
     save(context, next)
     cancelAlarm(context)
-    if (enabled(context)) postLive(context, next)
+    if (enabled(context)) postLive(context, next, nowMillis)
     armAlert(context, next.end)
   }
 
   /** "Skip rest" from the notification. */
-  fun skip(context: Context) = stop(context, load(context), skipped = true)
+  @Synchronized fun skip(context: Context) = stop(context, load(context), skipped = true)
 
   private fun stop(context: Context, s: RestState?, skipped: Boolean) {
     cancelAlarm(context)
@@ -79,7 +82,7 @@ object RestNotifier {
   }
 
   /** The app is in the foreground (or the session ended): remove the notification and read what the actions did. Clears the copy. */
-  fun take(context: Context): RestState? {
+  @Synchronized fun take(context: Context): RestState? {
     val s = load(context)
     cancelAlarm(context)
     manager(context).cancel(NOTE_ID)
@@ -88,9 +91,14 @@ object RestNotifier {
   }
 
   /** The alarm for [firedEnd] went off. */
-  fun alert(context: Context, firedEnd: Long, nowMillis: Long = System.currentTimeMillis()) {
+  @Synchronized fun alert(context: Context, firedEnd: Long, nowMillis: Long = System.currentTimeMillis()) {
     val s = load(context)
-    if (s == null || !shouldAlert(s, firedEnd, nowMillis) || !enabled(context)) return
+    when (alertAction(s, firedEnd, nowMillis)) {
+      AlertAction.IGNORE -> return
+      AlertAction.DROP -> return stop(context, s, skipped = false) // too late to be useful: take the countdown down as well
+      AlertAction.SHOW -> if (!enabled(context)) return
+    }
+    if (s == null) return
     ensureChannels(context)
     val n = builder(context, CHANNEL_DONE)
       .setSmallIcon(R.drawable.ic_reminder)
@@ -101,10 +109,13 @@ object RestNotifier {
       .addAction(action(context, ACTION_EXTEND, s.extendLabel))
       .addAction(action(context, ACTION_SKIP, s.skipLabel))
       .build()
-    manager(context).notify(NOTE_ID, n) // replaces the countdown
+    // Replaces the countdown. Swiping the countdown away (possible on Android 14) leaves the kept copy active, so this still fires:
+    // dismissing the countdown is not skipping the rest, and there is deliberately no delete intent. Ongoing notifications are not
+    // bridged to a watch; this alert (not ongoing, with +30 s and Skip rest) is what the watch shows.
+    manager(context).notify(NOTE_ID, n)
   }
 
-  private fun postLive(context: Context, s: RestState) {
+  private fun postLive(context: Context, s: RestState, nowMillis: Long) {
     ensureChannels(context)
     val n = builder(context, CHANNEL_LIVE)
       .setSmallIcon(R.drawable.ic_reminder)
@@ -117,6 +128,12 @@ object RestNotifier {
       .setWhen(s.end)
       .setUsesChronometer(true)
       .setChronometerCountDown(true)
+      .also {
+        // Backstop: the countdown goes away by itself once the alert could no longer be shown, so it never runs far below zero.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          it.setTimeoutAfter(s.end - nowMillis + alertLateAllowance(s.end, s.armedAt))
+        }
+      }
       .addAction(action(context, ACTION_EXTEND, s.extendLabel))
       .addAction(action(context, ACTION_SKIP, s.skipLabel))
       .build()
@@ -172,7 +189,7 @@ object RestNotifier {
   }
 }
 
-/** The alarm for a rest's end. A stale or moved end shows nothing (see [shouldAlert]). */
+/** The alarm for a rest's end. A stale or moved end shows nothing (see [alertAction]). */
 class RestAlertReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     RestNotifier.alert(context, intent.getLongExtra(RestNotifier.EXTRA_END, -1L))

@@ -8,34 +8,19 @@ import { loadReminderPrefs } from './store';
  * The rest timer as a notification (#1068). While a rest runs and the app goes to the background, the Android module shows a
  * countdown to the rest's end and an alert at the end; its +30 s and Skip rest buttons change the rest through `setRest` when the
  * app is shown again. The notification goes away when the app returns, the rest or the session ends, or the screen closes.
- * Off unless "Rest timer notifications" is on; follows the notification permission. `reloadKey` re-reads the setting.
+ * Off unless "Rest timer notifications" is on (read each time the app goes to the background); follows the notification permission.
  */
-export function useRestNotification<T extends RestLike>({ db, rest, setRest, sessionActive, reloadKey }: {
+export function useRestNotification<T extends RestLike>({ db, rest, setRest, sessionActive }: {
   db: StoreDb;
   rest: T | null;
   setRest: (next: (r: T | null) => T | null) => void;
   sessionActive: boolean;
-  reloadKey: number;
 }) {
-  const enabled = useRef(false);
   const live = useRef<T | null>(null);
   const current = sessionActive ? rest : null;
   useEffect(() => {
     live.current = current;
   }, [current]);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadReminderPrefs(db).then(
-      (p) => {
-        if (!cancelled) enabled.current = p.rest.on;
-      },
-      () => undefined,
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [db, reloadKey]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -44,14 +29,21 @@ export function useRestNotification<T extends RestLike>({ db, rest, setRest, ses
         return;
       }
       const r = live.current;
-      if (!r || !enabled.current) return;
-      void showRestNotification(r, Date.now()).then((shown) => {
-        // Back in the foreground while it was being shown: take it down again.
-        if (shown && AppState.currentState === 'active') void takeRestNotification();
-      });
+      if (!r) return;
+      // The setting is read now, so a change made on another tab a moment ago counts. A failed read leaves it off.
+      void loadReminderPrefs(db)
+        .then((p) => p.rest.on && showRestNotification(r, Date.now()))
+        .then((shown) => {
+          // Back in the foreground while it was being shown: take it down again.
+          if (shown && AppState.currentState === 'active') void takeRestNotification();
+        }, () => undefined);
     });
     return () => sub.remove();
-  }, [setRest]);
+  }, [db, setRest]);
+
+  // A cold start finds nothing in `rest`, but a countdown and its alarm may be left from before the process died (AppState sends no
+  // change on start): clear them. The echo is dropped, as there is no rest for it to change.
+  useEffect(() => void takeRestNotification(), []);
 
   // The rest or the session ended (or the screen closed): nothing of it may stay in the shade.
   const had = useRef(false);
