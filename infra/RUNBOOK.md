@@ -235,6 +235,22 @@ What a content-only fix cannot do:
 
 After a content-only release, check the first three journeys of the checklist on a phone with the previous app version.
 
+### 8.4 Variables for a store build and the web build (#975)
+
+They are baked in at build time, so changing one needs a new build. PR runs never get the DSN or the flags (Android blanks them; the web deploy job does not run on pull requests). A flag is on only for exactly `1`; unset or any other value leaves the feature off.
+
+`android-release.yml`: set the first row as a repository variable (Settings > Secrets and variables > Actions > Variables), the rest in Settings > Environments > `android-release` > Variables.
+
+| Variable | Where it is read | Effect |
+| --- | --- | --- |
+| `ANDROID_API_URL` (repository variable) | job level, as `EXPO_PUBLIC_API_URL`, so the config script and the Gradle step both see it | API base URL (`https://<API_HOST>/api/v1`); required on `v*` tags |
+| `EXPO_PUBLIC_SITE_URL` | the site-URL check step and the Gradle step | website origin for the privacy, terms and deletion links; required on `v*` tags |
+| `EXPO_PUBLIC_SENTRY_DSN` | Gradle step only | crash reports; unset = the app sends nothing (section 5b) |
+| `EXPO_PUBLIC_BARCODE_SCAN` | Gradle step only | `1` shows the barcode scanner; pair with section 9 |
+| `EXPO_PUBLIC_POSE_TRACKING` | Gradle step only | `1` shows "Track this set" pose tracking (Android, needs a camera) |
+
+`web-deploy.yml`: set `EXPO_PUBLIC_BARCODE_SCAN` and `EXPO_PUBLIC_POSE_TRACKING` in the `staging` and `production` environments (each has its own); they are read only by the "Build the web export" step and mean the same as above. Unset = off.
+
 ## 9. Turning on the barcode lookup (#944, #987)
 
 Off by default (`OFF_ENABLED=false`): `GET /api/v1/foods/barcode/{code}` answers 503 `upstream_unavailable` and calls nothing. The same compose file serves staging and production; set the values in each VM's own `.env`. **Owner** steps, in order:
