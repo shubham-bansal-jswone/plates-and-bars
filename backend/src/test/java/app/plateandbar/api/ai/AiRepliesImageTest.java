@@ -92,6 +92,28 @@ class AiRepliesImageTest {
     }
 
     @Test
+    void importRecipeReturnsEachIngredientsOriginalLineTrimmedCutAndOmittedWhenBlank() {
+        String emoji = "\uD83C\uDF5B"; // one code point, two chars
+        String longLine = "a".repeat(199) + emoji + "tail"; // the emoji is code point 200, so it stays whole
+        JsonNode out = recipe("{\"ingredients\":["
+                + "{\"ingredient\":\"Besan\",\"original\":\"  1 cup besan \",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":\"" + longLine + "\",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":\"" + "b".repeat(300) + "\",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":\" \\t\\u00A0\\u200B\\uFEFF \",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":\"\",\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"original\":5,\"grams\":100},"
+                + "{\"ingredient\":\"Besan\",\"grams\":100}]}");
+        JsonNode ing = out.path("ingredients");
+        assertThat(ing).hasSize(7);
+        assertThat(ing.get(0).path("original").asString()).isEqualTo("1 cup besan");
+        assertThat(ing.get(1).path("original").asString()).isEqualTo("a".repeat(199) + emoji);
+        assertThat(ing.get(2).path("original").asString()).isEqualTo("b".repeat(200));
+        for (int n = 3; n < 7; n++) {
+            assertThat(ing.get(n).has("original")).as("ingredient " + n).isFalse();
+        }
+    }
+
+    @Test
     void importRecipeFallsBackToTheContractsDefaultsAndBoundsEveryList() {
         JsonNode out = recipe("{}");
         assertThat(out.path("name").asString()).isEqualTo("Imported recipe");
