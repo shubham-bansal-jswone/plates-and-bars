@@ -3,6 +3,7 @@ import { Modal, StyleSheet, View } from 'react-native';
 import { createClient, type ApiClient } from '@plate-and-bar/api';
 import { scannedFood, servingUnitTooLong, type OffMissingField, type ScannedMissingField, type OffUserFoodDraft, type UserFoodFields } from '@plate-and-bar/core';
 import { CUSTOM_MESSAGE, UNIT_TOO_LONG } from '../food/copy';
+import { PaddedWindow } from '../components/bottomInset';
 import { Button, Caption, ErrorText, Field, H1, Hint, Label, Note, Page, Switch } from '../components/ui';
 import { Text } from '../components/Text';
 import type { NewLog } from '../food/useFoodDay';
@@ -90,16 +91,18 @@ export function ScanFlow({ meal, mine, onAdd, onSaveMine, onCustom, onClose, onD
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      {step.k === 'scan' ? <BarcodeScanScreen key={step.round} onCode={onCode} onClose={onClose} /> : null}
-      {step.k === 'looking' ? (
-        <Page>
-          <H1>{t.title}</H1>
-          <Text accessibilityRole="alert" style={styles.line}>{t.looking}</Text>
-          <Button kind="ghost" label={t.close} onPress={() => { run.current++; onClose(); }} />
-        </Page>
-      ) : null}
-      {step.k === 'problem' ? <ProblemView step={step} onRetry={() => void start(step.code, true)} onCustom={() => onCustom(step.code)} onScan={again} onClose={onClose} /> : null}
-      {step.k === 'review' ? <Review step={step} meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onScan={again} onClose={onClose} onDone={onDone} /> : null}
+      <PaddedWindow>
+        {step.k === 'scan' ? <BarcodeScanScreen key={step.round} onCode={onCode} onClose={onClose} /> : null}
+        {step.k === 'looking' ? (
+          <Page>
+            <H1>{t.title}</H1>
+            <Text accessibilityRole="alert" style={styles.line}>{t.looking}</Text>
+            <Button kind="ghost" label={t.close} onPress={() => { run.current++; onClose(); }} />
+          </Page>
+        ) : null}
+        {step.k === 'problem' ? <ProblemView step={step} onRetry={() => void start(step.code, true)} onCustom={() => onCustom(step.code)} onScan={again} onClose={onClose} /> : null}
+        {step.k === 'review' ? <Review step={step} meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onScan={again} onClose={onClose} onDone={onDone} /> : null}
+      </PaddedWindow>
     </Modal>
   );
 }
