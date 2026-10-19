@@ -1,5 +1,5 @@
 import images from '../../../../content/exercise-images.json';
-import { contentReader, isArrOf, isObj, isStr, isText, isTrimmedText, perLoad } from '../content/reader';
+import { contentReader, isArrOf, isObj, isStr, isTrimmedText, perLoad } from '../content/reader';
 import { has, isProtoName } from '../content/own';
 import type { Palette } from '../theme/tokens';
 import { chosenExercises } from './catalog';
@@ -85,10 +85,10 @@ function sentencesWithin(text: string, max: number): string | null {
   return out || null;
 }
 
-/** Alt text: the entry's `alt` when set, else "<Name>: start and end positions. <setup[0]>" cut at a sentence boundary under ALT_MAX characters. */
+/** Alt text: the entry's `alt` when set, else "<Name>: start and end positions. <setup[0]>" ("held position" for a one-frame figure, an isometric hold) cut at a sentence boundary under ALT_MAX characters. */
 export function figureAlt(name: string, entry: Pick<FigureEntry, 'alt' | 'frames'>, setup0: string | undefined): string {
   if (entry.alt) return entry.alt;
-  const head = `${name}: ${entry.frames.length > 1 ? 'start and end positions.' : 'starting position.'}`;
+  const head = `${name}: ${entry.frames.length > 1 ? 'start and end positions.' : 'held position.'}`;
   const tail = setup0 ? sentencesWithin(setup0, ALT_MAX - head.length - 1) : null;
   return tail ? `${head} ${tail}` : head;
 }
