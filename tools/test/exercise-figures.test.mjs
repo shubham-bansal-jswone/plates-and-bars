@@ -14,8 +14,8 @@ const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.jso
 const committed = readFileSync(`${repo}/content/exercise-images.json`, 'utf8');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 
-test('the rig has the 31 prototype poses and every one is an exercise in the app', () => {
-  assert.equal(AN.names.length, 31);
+test('the rig has the 31 prototype poses plus batch 2 (12 poses) and every one is an exercise in the app', () => {
+  assert.equal(AN.names.length, 43);
   for (const n of AN.names) assert.ok(names.includes(n), `${n} is not in exercises.json`);
   assert.deepEqual(Object.keys(buildBundle(names).images).sort(), [...AN.names].sort());
 });
@@ -25,9 +25,10 @@ test('the ported rig draws exactly what the prototype rig draws, for every pose'
   const end = html.indexOf('\n})();', start) + '\n})();'.length;
   assert.ok(start > 0 && end > start);
   const proto = vm.runInNewContext(`${html.slice(start, end)}; AN`, {});
-  assert.deepEqual([...proto.names], AN.names);
+  assert.equal(proto.names.length, 31);
+  assert.deepEqual(AN.names.slice(0, 31), [...proto.names]); // batch 2 poses are appended after the prototype's
   const C = { body: 'B', arm: 'A', hl: 'H', eq: 'E', bg: 'G' };
-  for (const n of AN.names) for (const k of [0, 0.25, 0.5, 1]) assert.equal(AN.frame(n, k, C), proto.frame(n, k, C), `${n} at ${k}`);
+  for (const n of proto.names) for (const k of [0, 0.25, 0.5, 1]) assert.equal(AN.frame(n, k, C), proto.frame(n, k, C), `${n} at ${k}`);
 });
 
 test('output is deterministic: two builds and the committed bundle are byte-identical', () => {
@@ -41,7 +42,7 @@ test('the bundle passes the validator and every frame is well inside the size li
   const bundle = JSON.parse(committed);
   assert.deepEqual(validateExerciseImages(bundle, names), []);
   const sizes = Object.values(bundle.images).flatMap((i) => i.frames.map((f) => Buffer.byteLength(f.svg)));
-  assert.equal(sizes.length, 62);
+  assert.equal(sizes.length, 86);
   assert.ok(Math.max(...sizes) <= 4096, `largest frame ${Math.max(...sizes)} bytes`);
   assert.ok(Math.max(...sizes) < MAX_FRAME_BYTES);
   assert.ok(Math.min(...sizes) > 500, 'a frame this small is probably empty');
@@ -76,4 +77,17 @@ test('slugs are unique and the frame is a viewBox-only svg', () => {
   assert.equal(slug('Plank (seconds)'), 'plank-seconds');
   assert.match(renderFrame('Lat Pulldown', 0), /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 320 240">.*<\/svg>$/);
   assert.doesNotMatch(renderFrame('Lat Pulldown', 0), /\.0"/);
+});
+
+test('new poses keep every drawn segment at the rig length in both frames (no stretched limbs)', () => {
+  const LEN = { ua: 36, fa: 32, th: 50, sh: 48, torso: 70 }, TOL = 1;
+  const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  for (const n of AN.names.slice(31)) for (const k of [0, 1]) {
+    const j = AN.joints(n, k);
+    if (!j) continue; // front-view poses use fixed lengths
+    const { J, uaS } = j;
+    const got = { ua: d(J.sh, J.el), fa: d(J.el, J.wr), th: d(J.hip, J.knee), sh: d(J.knee, J.ankle), torso: d(J.hip, J.sh) };
+    const want = { ...LEN, ua: LEN.ua * uaS };
+    for (const s of Object.keys(LEN)) assert.ok(Math.abs(got[s] - want[s]) <= TOL, `${n} k=${k}: ${s} is ${got[s].toFixed(1)}, rig length ${want[s]}`);
+  }
 });
