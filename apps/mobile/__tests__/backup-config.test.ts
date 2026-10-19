@@ -157,3 +157,55 @@ class AppDelegate: ExpoAppDelegate {
     expect((appJson.expo.ios as Record<string, unknown>).infoPlist).toBeUndefined();
   });
 });
+
+describe('android permissions and photo permission copy', () => {
+  const android = appJson.expo.android as { blockedPermissions?: string[] };
+  const picker = appJson.expo.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-image-picker') as [string, Record<string, unknown>];
+
+  // SYSTEM_ALERT_WINDOW comes from the Expo prebuild template; USE_BIOMETRIC and USE_FINGERPRINT from androidx.biometric
+  // (pulled in by expo-secure-store). The app has no overlay and no biometric lock, so none is needed.
+  it('blocks permissions the app does not use', () => {
+    expect(android.blockedPermissions).toEqual(
+      expect.arrayContaining([
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+      ]),
+    );
+  });
+
+  it('does not block VIBRATE, which haptics uses', () => {
+    expect(android.blockedPermissions).not.toContain('android.permission.VIBRATE');
+  });
+
+  it('image picker strings say what is sent and when', () => {
+    expect(picker[1].photosPermission).toBe(
+      'Progress photos stay on this device. A photo or clip you choose for an AI meal estimate or form check is sent only when you ask; for form check, only still frames are sent.',
+    );
+    expect(picker[1].cameraPermission).toMatch(/AI meal estimate or form check is sent only when you ask/);
+  });
+
+  // USE_BIOMETRIC is blocked in app.json, so a biometric secure-store option would fail at runtime on Android.
+  it('no screen or module asks secure-store for biometric authentication', () => {
+    const fsx = fs as unknown as {
+      readdirSync(p: string, o: { withFileTypes: true }): { name: string; isDirectory(): boolean }[];
+      readFileSync(p: string, e: string): string;
+    };
+    const names = ['requireAuthentication', 'canUseBiometricAuthentication'];
+    const walk = (dir: string): string[] =>
+      fsx.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const full = path.join(dir, e.name);
+        return e.isDirectory() ? walk(full) : /\.(tsx?|jsx?)$/.test(e.name) ? [full] : [];
+      });
+    const hits = ['src', 'app']
+      .flatMap((d) => walk(path.join(__dirname, '..', d)))
+      .filter((f) => names.some((n) => fsx.readFileSync(f, 'utf8').includes(n)));
+    if (hits.length > 0) {
+      throw new Error(
+        `Found requireAuthentication or canUseBiometricAuthentication in ${hits.join(', ')}. USE_BIOMETRIC is blocked in app.json (blockedPermissions), so biometric secure-store options would fail at runtime on Android. Unblock it there first.`,
+      );
+    }
+  });
+});
