@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useLayoutEffect, useRef, useSta
 import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
 import { Text } from './Text';
 
@@ -14,6 +15,7 @@ const ScrollTop = createContext<() => void>(() => {});
  */
 export function Page({ children, resetKey }: { children: ReactNode; resetKey?: unknown }) {
   const c = useTheme();
+  const bottom = useBottomInset();
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
   const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
   const first = useRef(true);
@@ -22,7 +24,7 @@ export function Page({ children, resetKey }: { children: ReactNode; resetKey?: u
     else toTop();
   }, [resetKey, toTop]);
   return (
-    <ScrollView ref={ref} style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={ref} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
       <ScrollTop.Provider value={toTop}>
         <View role="main" style={styles.column}>{children}</View>
       </ScrollTop.Provider>

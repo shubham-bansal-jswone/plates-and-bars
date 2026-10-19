@@ -11,5 +11,6 @@ module.exports = {
   testTimeout: 20000,
   // openapi-fetch (used by the generated API client): jest-expo resolves its ES module build, so point it at the CommonJS one.
   moduleNameMapper: { '^openapi-fetch$': '<rootDir>/node_modules/openapi-fetch/dist/index.cjs' },
+  setupFiles: ['<rootDir>/jest/setup.js'],
   testMatch: ['<rootDir>/__tests__/**/*.test.ts?(x)'],
 };
