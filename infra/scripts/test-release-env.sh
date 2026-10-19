@@ -9,8 +9,8 @@
 #     never runs on pull requests;
 #   - a check step BEFORE the bundling step runs check-site-url.sh (release/production builds need the site URL) and, on
 #     web, check-sentry-origin.sh with both the origin and the DSN;
-#   - on Android the feature flags EXPO_PUBLIC_BARCODE_SCAN and _POSE_TRACKING come from `vars` on the same step and are
-#     blank on pull requests;
+#   - the feature flags EXPO_PUBLIC_BARCODE_SCAN and _POSE_TRACKING are held to the same rules (a duplicate on another step
+#     or at job or workflow level fails), come from `vars` on that step, and on Android are blank on pull requests;
 #   - web tag builds stamp the tag's version (without the v) into app.json before expo export.
 # Needs python3 with PyYAML (present on GitHub's Ubuntu runners). Run from anywhere: infra/scripts/test-release-env.sh
 set -euo pipefail
@@ -19,13 +19,16 @@ root="$(cd "$here/../.." && pwd)"
 python3 -I - "$root/.github/workflows/android-release.yml" "$root/.github/workflows/web-deploy.yml" <<'PY'
 import sys, yaml
 
-names = ["EXPO_PUBLIC_SENTRY_DSN", "EXPO_PUBLIC_SENTRY_ENVIRONMENT", "EXPO_PUBLIC_SITE_URL"]
+flags = ["EXPO_PUBLIC_BARCODE_SCAN", "EXPO_PUBLIC_POSE_TRACKING"]
+names = ["EXPO_PUBLIC_SENTRY_DSN", "EXPO_PUBLIC_SENTRY_ENVIRONMENT", "EXPO_PUBLIC_SITE_URL"] + flags
 bundlers = {"android-release.yml": "gradlew", "web-deploy.yml": "expo export"}
 TAG_ENV = "${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}"
 IS_TAG = "${{ startsWith(github.ref, 'refs/tags/v') }}"
 DSN = "${{ vars.EXPO_PUBLIC_SENTRY_DSN }}"
 DSN_ANDROID = "${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_SENTRY_DSN || '' }}"
 SITE = "${{ vars.EXPO_PUBLIC_SITE_URL }}"
+FLAG_ANDROID = "${{ github.event_name != 'pull_request' && vars.%s || '' }}"
+FLAG_WEB = "${{ vars.%s }}"
 bad = []
 
 
@@ -61,10 +64,9 @@ for path in sys.argv[1:]:
             want_dsn = DSN_ANDROID if base == "android-release.yml" else DSN
             check(env.get("EXPO_PUBLIC_SENTRY_DSN") == want_dsn, f"{base}: the DSN must be exactly {want_dsn}")
             check(env.get("EXPO_PUBLIC_SITE_URL") == SITE, f"{base}: the site URL must be exactly {SITE}")
-            if base == "android-release.yml":
-                for flag in ("EXPO_PUBLIC_BARCODE_SCAN", "EXPO_PUBLIC_POSE_TRACKING"):
-                    want = "${{ github.event_name != 'pull_request' && vars.%s || '' }}" % flag
-                    check(env.get(flag) == want, f"{base}: {flag} must be exactly {want}")
+            for flag in flags:
+                want = (FLAG_ANDROID % flag) if base == "android-release.yml" else (FLAG_WEB % flag)
+                check(env.get(flag) == want, f"{base}: {flag} must be exactly {want}")
             check(env.get("EXPO_PUBLIC_SENTRY_ENVIRONMENT") == TAG_ENV,
                   f"{base}: the environment must be exactly {TAG_ENV}")
         if base == "android-release.yml" and jname == "build":
