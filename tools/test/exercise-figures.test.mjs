@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { AN } from '../exercise-figures/rig.mjs';
-import { buildBundle, renderFrame, serialize, slug, COLOURS } from '../exercise-figures/generate.mjs';
+import { buildBundle, renderFrame, serialize, slug, COLOURS, ISOMETRIC } from '../exercise-figures/generate.mjs';
 import { validateExerciseImages, MAX_FRAME_BYTES } from '../validate/exercise-images.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -14,8 +14,8 @@ const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.jso
 const committed = readFileSync(`${repo}/content/exercise-images.json`, 'utf8');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 
-test('the rig has the 31 prototype poses plus batches 2 and 3 (12 poses each) and every one is an exercise in the app', () => {
-  assert.equal(AN.names.length, 55);
+test('the rig has the 31 prototype poses plus batches 2, 3 and 4 (12, 12 and 12 poses) and every one is an exercise in the app', () => {
+  assert.equal(AN.names.length, 67);
   for (const n of AN.names) assert.ok(names.includes(n), `${n} is not in exercises.json`);
   assert.deepEqual(Object.keys(buildBundle(names).images).sort(), [...AN.names].sort());
 });
@@ -42,7 +42,7 @@ test('the bundle passes the validator and every frame is well inside the size li
   const bundle = JSON.parse(committed);
   assert.deepEqual(validateExerciseImages(bundle, names), []);
   const sizes = Object.values(bundle.images).flatMap((i) => i.frames.map((f) => Buffer.byteLength(f.svg)));
-  assert.equal(sizes.length, 110);
+  assert.equal(sizes.length, 131); // 64 exercises with two frames, the three isometric holds with one
   assert.ok(Math.max(...sizes) <= 4096, `largest frame ${Math.max(...sizes)} bytes`);
   assert.ok(Math.max(...sizes) < MAX_FRAME_BYTES);
   assert.ok(Math.min(...sizes) > 500, 'a frame this small is probably empty');
@@ -56,10 +56,28 @@ test('no colour is baked in: only currentColor and var(--fig-*) tokens', () => {
   }
 });
 
-test('start and end frames differ, and each entry credits Plate & Bar under CC BY 4.0', () => {
+// Isometric holds have one static frame, used for both start and end (#653 decision). Every entry must be a timed
+// exercise in the catalogue (meta type "time"), so the list cannot drift to cover a moving exercise.
+const isometricProblems = (list, meta) => list.flatMap((n) => !meta[n] ? [`${n}: not in the catalogue`] : meta[n].type !== 'time' ? [`${n}: catalogue type is "${meta[n].type}", not "time"`] : []);
+const catalogueMeta = JSON.parse(readFileSync(`${repo}/content/exercises.json`, 'utf8')).meta;
+
+test('the isometric allowlist only holds timed exercises of the catalogue', () => {
+  assert.deepEqual(isometricProblems(ISOMETRIC, catalogueMeta), []);
+  assert.equal(new Set(ISOMETRIC).size, ISOMETRIC.length);
+  // the check bites: a moving exercise, or a name the catalogue does not have, is reported
+  assert.equal(isometricProblems([...ISOMETRIC, 'Barbell Bench Press'], catalogueMeta).length, 1);
+  assert.equal(isometricProblems(['Not An Exercise'], catalogueMeta).length, 1);
+});
+
+test('start and end frames differ (except the isometric allowlist, which has one static frame), and each entry credits Plate & Bar under CC BY 4.0', () => {
   for (const [name, im] of Object.entries(JSON.parse(committed).images)) {
-    assert.equal(im.frames.length, 2, name);
-    assert.notEqual(im.frames[0].svg, im.frames[1].svg, `${name}: start equals end`);
+    if (ISOMETRIC.includes(name)) {
+      assert.equal(im.frames.length, 1, `${name}: an isometric hold has one static frame`);
+      assert.equal(renderFrame(name, 0), renderFrame(name, 1), `${name}: the pose must not change between start and end`);
+    } else {
+      assert.equal(im.frames.length, 2, name);
+      assert.notEqual(im.frames[0].svg, im.frames[1].svg, `${name}: start equals end (add it to ISOMETRIC only if it is a timed hold)`);
+    }
     assert.deepEqual([im.source, im.licence, im.author], ['own_drawing', 'CC-BY-4.0', 'Plate & Bar authors']);
     assert.equal(im.source_id, `rig-v1/${slug(name)}`);
   }
@@ -92,20 +110,23 @@ test('new poses keep every drawn segment at the rig length in both frames (no st
   }
 });
 
-test('rear legs drawn in props are reachable, keep rig length and stay planted (split squats)', () => {
+test('rear and free legs drawn in props are reachable and keep rig length; split squats and lunges stay planted', () => {
   const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
-  const names = AN.names.filter((n) => /split squat/i.test(n));
-  assert.equal(names.length, 3);
-  for (const n of names) {
-    const feet = [0, 1].map((k) => {
+  const withRear = AN.names.filter((n) => AN.joints(n, 0)?.rear);
+  const planted = AN.names.filter((n) => /split squat|walking lunge/i.test(n));
+  assert.equal(planted.length, 4);
+  for (const n of planted) assert.ok(withRear.includes(n), n);
+  for (const n of ['Single-Leg Glute Bridge', 'Single-Leg Calf Raise', 'Single-Leg Balance (seconds)']) assert.ok(withRear.includes(n), n);
+  for (const n of withRear) {
+    const toes = [0, 1].map((k) => {
       const j = AN.joints(n, k);
-      assert.ok(j && j.rear, `${n}: rear leg must come from joints() (ik), not hand-placed points`);
-      const [hip, knee, foot] = j.rear;
-      assert.ok(d(hip, foot) <= 98, `${n} k=${k}: rear foot out of reach (${d(hip, foot).toFixed(1)})`);
+      assert.ok(j && j.rear, `${n}: rear leg must come from joints() (ik or a fixed angle), not hand-placed points`);
+      const [hip, knee, foot, toe] = j.rear;
+      assert.ok(d(hip, foot) <= 98.01, `${n} k=${k}: rear foot out of reach (${d(hip, foot).toFixed(1)})`);
       assert.ok(Math.abs(d(hip, knee) - 50) <= 1, `${n} k=${k}: rear thigh is ${d(hip, knee).toFixed(1)}`);
       assert.ok(Math.abs(d(knee, foot) - 48) <= 1, `${n} k=${k}: rear shin is ${d(knee, foot).toFixed(1)}`);
-      return foot;
+      return toe || foot; // the walking lunge keeps its rear toe down and lifts the heel
     });
-    assert.deepEqual(feet[0], feet[1], `${n}: rear foot slides between frames`);
+    if (planted.includes(n)) assert.deepEqual(toes[0], toes[1], `${n}: rear foot slides between frames`);
   }
 });
