@@ -1,3 +1,4 @@
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { BUNDLED } from '../src/content/bundled';
 import { loadContent } from '../src/content/loader';
@@ -94,6 +95,30 @@ describe('ExerciseFigure', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('draws a one-frame figure at the width of one frame of a pair, centred', async () => {
+    const ROW = 360;
+    const GAP = 8;
+    const widthOf = () => {
+      const row = StyleSheet.flatten(screen.getByTestId('figure-row').props.style) ?? {};
+      const pad = typeof row.paddingHorizontal === 'string' ? (parseFloat(row.paddingHorizontal) / 100) * ROW : (row.paddingHorizontal as number | undefined) ?? 0;
+      const frames = screen.getAllByTestId('figure-frame', { hidden: true });
+      const f = StyleSheet.flatten(frames[0]!.props.style) ?? {};
+      const margin = (f.marginHorizontal as number | undefined) ?? 0;
+      return (ROW - 2 * pad - (frames.length - 1) * GAP) / frames.length - 2 * margin;
+    };
+    await launch(fixture());
+    const pair = await render(<ExerciseFigure name={BENCH} />);
+    const perFrame = widthOf();
+    expect(StyleSheet.flatten(screen.getByTestId('figure-row').props.style).gap).toBe(GAP);
+    pair.unmount();
+    const b = fixture();
+    b.images[BENCH].frames = b.images[BENCH].frames.slice(0, 1);
+    await launch(b);
+    await render(<ExerciseFigure name={BENCH} />);
+    expect(widthOf()).toBe(perFrame);
+    expect(StyleSheet.flatten(screen.getByTestId('figure-row').props.style).flexDirection).toBe('row');
   });
 
   it('keeps start and end wording for a two-frame figure', async () => {

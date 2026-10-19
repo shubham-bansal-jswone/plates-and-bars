@@ -11,7 +11,7 @@ import { figureAlt, getFigure, licenceLabel, themedSvg } from './figures';
 
 /**
  * The start and end drawings of an exercise (content/exercise-images.json), side by side, with a small credit link to About.
- * Renders nothing when the exercise has no figure (the bundle is empty until the drawings land). One image element for the
+ * A single frame is drawn at the size of one frame of a pair, centred. Renders nothing when the exercise has no figure (the bundle is empty until the drawings land). One image element for the
  * pair carries the alt text; the frames are hidden from screen readers.
  */
 export function ExerciseFigure({ name }: { name: string }) {
@@ -25,14 +25,15 @@ export function ExerciseFigure({ name }: { name: string }) {
   const credit = `Drawing: ${entry.author} (${licenceLabel(entry.licence)})`;
   return (
     <View style={{ gap: 4 }}>
-      <View accessible accessibilityRole="image" accessibilityLabel={alt} style={styles.row}>
+      <View accessible accessibilityRole="image" accessibilityLabel={alt} testID="figure-row" style={[styles.row, entry.frames.length === 1 && styles.rowLone]}>
         {entry.frames.map((f, i) => (
           <View
             key={f.file}
+            testID="figure-frame"
             aria-hidden
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            style={[styles.frame, { aspectRatio: f.w / f.h, backgroundColor: c.tint, borderColor: c.line }]}
+            style={[styles.frame, entry.frames.length === 1 && styles.frameLone, { aspectRatio: f.w / f.h, backgroundColor: c.tint, borderColor: c.line }]}
           >
             <SvgXml xml={xml[i]!} width="100%" height="100%" />
           </View>
@@ -53,6 +54,9 @@ export function ExerciseFigure({ name }: { name: string }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8 },
+  // A lone frame (an isometric hold) is the width of one frame of a pair, centred: half the row less half the gap, so the 50% side padding and 2 dp margins leave (W - 8) / 2.
+  rowLone: { paddingHorizontal: '25%' },
+  frameLone: { marginHorizontal: 2 },
   frame: { flex: 1, borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
   credit: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
 });

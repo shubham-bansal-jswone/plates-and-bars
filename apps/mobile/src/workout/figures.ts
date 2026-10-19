@@ -1,5 +1,5 @@
 import images from '../../../../content/exercise-images.json';
-import { contentReader, isArrOf, isObj, isStr, isText, isTrimmedText, perLoad } from '../content/reader';
+import { contentReader, isArrOf, isObj, isStr, isTrimmedText, perLoad } from '../content/reader';
 import { has, isProtoName } from '../content/own';
 import type { Palette } from '../theme/tokens';
 import { chosenExercises } from './catalog';
