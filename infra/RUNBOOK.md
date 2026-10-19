@@ -235,6 +235,20 @@ What a content-only fix cannot do:
 
 After a content-only release, check the first three journeys of the checklist on a phone with the previous app version.
 
+### 8.4 Variables of the `android-release` environment for a store build (#975)
+
+Set in GitHub: Settings > Environments > `android-release` > Variables. They are baked in at build time, so changing one needs a new build; only the Gradle step that bundles the JS sees them. PR runs have no environment and never get the DSN or the flags.
+
+| Variable | Effect |
+| --- | --- |
+| `ANDROID_API_URL` | API base URL (`https://<API_HOST>/api/v1`); required on `v*` tags |
+| `EXPO_PUBLIC_SITE_URL` | website origin for the privacy, terms and deletion links; required on `v*` tags |
+| `EXPO_PUBLIC_SENTRY_DSN` | crash reports; unset = the app sends nothing (section 5b) |
+| `EXPO_PUBLIC_BARCODE_SCAN` | `1` shows the barcode scanner; unset = off. Turn it on only with the API side of section 9 |
+| `EXPO_PUBLIC_POSE_TRACKING` | `1` shows "Track this set" pose tracking (Android, needs a camera); unset = off |
+
+The app enables a flag only on exactly `1`; any other value or none leaves it off.
+
 ## 9. Turning on the barcode lookup (#944, #987)
 
 Off by default (`OFF_ENABLED=false`): `GET /api/v1/foods/barcode/{code}` answers 503 `upstream_unavailable` and calls nothing. The same compose file serves staging and production; set the values in each VM's own `.env`. **Owner** steps, in order:

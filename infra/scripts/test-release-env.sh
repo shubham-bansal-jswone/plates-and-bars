@@ -9,6 +9,8 @@
 #     never runs on pull requests;
 #   - a check step BEFORE the bundling step runs check-site-url.sh (release/production builds need the site URL) and, on
 #     web, check-sentry-origin.sh with both the origin and the DSN;
+#   - on Android the feature flags EXPO_PUBLIC_BARCODE_SCAN and _POSE_TRACKING come from `vars` on the same step and are
+#     blank on pull requests;
 #   - web tag builds stamp the tag's version (without the v) into app.json before expo export.
 # Needs python3 with PyYAML (present on GitHub's Ubuntu runners). Run from anywhere: infra/scripts/test-release-env.sh
 set -euo pipefail
@@ -59,6 +61,10 @@ for path in sys.argv[1:]:
             want_dsn = DSN_ANDROID if base == "android-release.yml" else DSN
             check(env.get("EXPO_PUBLIC_SENTRY_DSN") == want_dsn, f"{base}: the DSN must be exactly {want_dsn}")
             check(env.get("EXPO_PUBLIC_SITE_URL") == SITE, f"{base}: the site URL must be exactly {SITE}")
+            if base == "android-release.yml":
+                for flag in ("EXPO_PUBLIC_BARCODE_SCAN", "EXPO_PUBLIC_POSE_TRACKING"):
+                    want = "${{ github.event_name != 'pull_request' && vars.%s || '' }}" % flag
+                    check(env.get(flag) == want, f"{base}: {flag} must be exactly {want}")
             check(env.get("EXPO_PUBLIC_SENTRY_ENVIRONMENT") == TAG_ENV,
                   f"{base}: the environment must be exactly {TAG_ENV}")
         if base == "android-release.yml" and jname == "build":
