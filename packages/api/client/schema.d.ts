@@ -1666,7 +1666,7 @@ export interface components {
             /** @constant */
             unit: "g";
             /**
-             * @description the ingredient line as written in the source recipe
+             * @description the ingredient line as written in the source recipe; omitted when the source line is blank
              * @example 1 cup toor dal
              */
             original?: string;
