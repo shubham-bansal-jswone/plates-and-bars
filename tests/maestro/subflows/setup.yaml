@@ -47,14 +47,44 @@ appId: app.plateandbar.mobile
 - extendedWaitUntil:
     visible: "Quick health check"
     timeout: 20000
-# Every health answer is No (the radio groups sit below the fold on a phone).
-- repeat:
-    while:
-      visible: "No"
-    commands:
-      - tapOn:
-          text: "No"
-          index: 0
-      - scroll
+# Every health answer is No: find each question, then the No right below it (an answered No stays on screen, so "the first No" would loop).
+- scrollUntilVisible:
+    element: "Have you ever been diagnosed.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Have you ever been diagnosed.*"
+- scrollUntilVisible:
+    element: "Does your chest hurt.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Does your chest hurt.*"
+- scrollUntilVisible:
+    element: "In the last year, have you fainted.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "In the last year, have you fainted.*"
+- scrollUntilVisible:
+    element: "Do you live with a long-term.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Do you live with a long-term.*"
+- scrollUntilVisible:
+    element: "Do you have a back, knee.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Do you have a back, knee.*"
+- scrollUntilVisible:
+    element: "Has a doctor or other.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Has a doctor or other.*"
+- scrollUntilVisible:
+    element: "See my targets"
 - tapOn: "See my targets"
 - tapOn: "Use these targets"
