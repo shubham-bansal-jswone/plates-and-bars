@@ -17,15 +17,16 @@ settle_app() {
   local pid tasks
   for _ in $(seq 1 60); do
     pid="$(adb shell pidof "$pkg" | tr -d '\r' || true)"
-    # a task shows as "Task{... A=<uid>:<package>}"; grep -c reads all of dumpsys, so adb never dies of SIGPIPE under pipefail
-    tasks="$(adb shell dumpsys activity activities | grep -c "A=[0-9]*:$pkg" || true)"
+    # a task shows as "Task{... A=<uid>:<package>}"; mLastFocusedRootTask is only a stale pointer to the last one and stays after
+    # the task is gone. grep -c reads all of dumpsys, so adb never dies of SIGPIPE under pipefail
+    tasks="$(adb shell dumpsys activity activities | grep -v mLastFocusedRootTask | grep -c "A=[0-9]*:$pkg" || true)"
     if [ -z "$pid" ] && [ "$tasks" = 0 ]; then
       return 0
     fi
     sleep 0.5
   done
   echo "::warning::$pkg still has a process or task 30 s after force-stop (pid='$pid', matching task lines: $tasks)"
-  adb shell dumpsys activity activities | grep "A=[0-9]*:$pkg" | head -5 || true
+  adb shell dumpsys activity activities | grep -v mLastFocusedRootTask | grep "A=[0-9]*:$pkg" | head -5 || true
 }
 
 rc=0
