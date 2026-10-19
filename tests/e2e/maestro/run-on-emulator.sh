@@ -13,26 +13,41 @@ adb install -r "$APK_PATH"
 # is still being removed gets the new process killed ("remove task") before it attaches, and the app then sits on its splash
 # screen (#1064, analysis in https://github.com/shubham-bansal-jswone/plates-and-bars/issues/1064#issuecomment-6266359373).
 settle_app() {
-  adb shell am force-stop "$pkg"
-  local pid tasks
+  adb shell am force-stop "$pkg" || { echo "::error::adb force-stop failed"; exit 1; }
+  local pid pid_rc dump tasks
   for _ in $(seq 1 60); do
-    pid="$(adb shell pidof "$pkg" | tr -d '\r' || true)"
+    # pidof exits 1 when there is no process; any other status (adb prints "error:" and exits 255) means adb failed: stop the script
+    pid_rc=0
+    pid="$(adb shell pidof "$pkg")" || pid_rc=$?
+    if [ "$pid_rc" -gt 1 ]; then
+      echo "::error::adb shell pidof failed with status $pid_rc"
+      exit 1
+    fi
+    pid="${pid//$'\r'/}"
+    # if adb itself fails the script stops here, it is never read as "no task left" (explicit, because set -e is off while this
+    # function runs as the condition of an `if`)
+    dump="$(adb shell dumpsys activity activities)" || { echo "::error::adb shell dumpsys failed"; exit 1; }
     # a task shows as "Task{... A=<uid>:<package>}"; mLastFocusedRootTask is only a stale pointer to the last one and stays after
-    # the task is gone. grep -c reads all of dumpsys, so adb never dies of SIGPIPE under pipefail
-    tasks="$(adb shell dumpsys activity activities | grep -v mLastFocusedRootTask | grep -c "A=[0-9]*:$pkg" || true)"
+    # the task is gone
+    tasks="$(grep -v mLastFocusedRootTask <<<"$dump" | grep -c "A=[0-9]*:$pkg" || true)"
     if [ -z "$pid" ] && [ "$tasks" = 0 ]; then
       return 0
     fi
     sleep 0.5
   done
-  echo "::warning::$pkg still has a process or task 30 s after force-stop (pid='$pid', matching task lines: $tasks)"
-  adb shell dumpsys activity activities | grep -v mLastFocusedRootTask | grep "A=[0-9]*:$pkg" | head -5 || true
+  echo "::error::$pkg still has a process or task 30 s after force-stop (pid='$pid', matching task lines: $tasks); this flow is failed"
+  grep -v mLastFocusedRootTask <<<"$dump" | grep "A=[0-9]*:$pkg" | head -5 || true
+  return 1
 }
 
 rc=0
 for flow in "$here"/[0-9]*.yaml; do
   name="$(basename "$flow" .yaml)"
-  settle_app
+  # a flow that cannot start from a settled app counts as failed (the run must not go green on a warning), the others still run
+  if ! settle_app; then
+    rc=1
+    continue
+  fi
   timeout 10m maestro test --format junit --output "$out/report-$name.xml" --debug-output "$out/debug/$name" --flatten-debug-output "$flow" || rc=$?
 done
 
