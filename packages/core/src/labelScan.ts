@@ -68,6 +68,8 @@ export type LabelWarning =
   | 'basis_unknown'
   /** Per serving, but the serving weight could not be read: unit left blank. */
   | 'serving_grams_missing'
+  /** Per serving, and the serving weight has a decimal ("32.5 g"): used for the checks, but `unit` is blank because `unitGrams` reads whole grams only. */
+  | 'serving_grams_fractional'
   /** Macros do not add up to the energy (`looksOff` in off.ts). */
   | 'looks_off'
   | 'serving_mismatch'
@@ -76,7 +78,11 @@ export type LabelWarning =
 /** The per-serving alternative offered next to a per-100 draft ("Use per serve instead"). */
 export interface LabelAlternate {
   unit: string;
+  /** The same shape and checks as the main read: ranges, the per 100 g cross-check, `looksOff`, fibre against carbs. */
+  fields: Record<LabelKey, LabelField>;
+  /** The trusted values only. */
   values: LabelValues;
+  warnings: LabelWarning[];
 }
 
 /** The values a draft carries, undefined when empty. */
@@ -94,6 +100,8 @@ export interface LabelDraft {
   /** False when fewer than two of kcal, protein, carbs, fat were read: skip the review and offer "Try again" or "Type it in". */
   reviewable: boolean;
   warnings: LabelWarning[];
+  /** The serving weight in grams when it was read (may have a decimal), else null. */
+  servingGrams: number | null;
   /** The per-serving read, when the label has both a per 100 g and a per serving column. */
   alternate?: LabelAlternate;
 }
@@ -104,6 +112,14 @@ const KCAL_PER_KJ = 4.184;
 const HIGH = 0.8;
 const MEDIUM = 0.5;
 const MAX_UNIT = 100;
+const KJ_MIN = 10;
+/** Per 100 g against the serving, scaled by its weight: within this ratio the rows agree (rounding), and above it the columns are swapped or misread. */
+const MISMATCH_TOLERANCE = 0.1;
+/**
+ * A mismatch past this ratio is a column swap: swapped columns differ by (100 / serving g) squared, about 11x
+ * at 30 g, while rounding stays within 10 percent. Between the two, the value is medium; past it, empty.
+ */
+const SWAP_RATIO = 2;
 
 type Unit = 'kcal' | 'kj' | 'g' | 'mg' | 'mcg' | 'ml' | '%' | undefined;
 
@@ -189,6 +205,8 @@ function labelOf(text: string): Label | null {
   const lead = text.search(/[A-Za-z0-9]/);
   if (lead < 0) return null;
   const lower = text.toLowerCase();
+  // "Calories from fat" and the old "Fat Cal." are not the energy or fat row.
+  if (/^\W*(?:(?:calories|energy)\s+from|fat\s+cal)/.test(lower)) return null;
   const added = /added\s*sug[a-z]*/.exec(lower);
   if (added) return { key: 'added_sugar_g', start: added.index, end: added.index + added[0].length, fixed: false, wide: true };
   const s = lower.slice(lead);
@@ -217,13 +235,18 @@ function unitOf(u: string | undefined): Unit {
 }
 
 /** A number as OCR wrote it, with letter slips repaired; NaN when it is not a number. */
-function readNumber(raw: string): { v: number; repaired: boolean } {
+function readNumber(raw: string, kj = false): { v: number; repaired: boolean } {
   const fixed = raw.replace(/[Oo]/g, '0').replace(/[Il]/g, '1');
-  const repaired = fixed !== raw;
+  // A leading-zero integer ("05") has probably lost its decimal point, so it is a repair too.
+  const repaired = fixed !== raw || /^0\d+$/.test(fixed);
   let s = fixed;
-  if (/^[1-9]\d{0,2},\d{3}$/.test(s)) s = s.replace(',', '');
+  // kJ: a dot can be the thousands separator too ("1.046 kJ" is 1046 kJ).
+  if (/^[1-9]\d{0,2},\d{3}$/.test(s) || (kj && /^[1-9]\d{0,2}\.\d{3}$/.test(s))) s = s.replace(/[,.]/, '');
   else s = s.replace(',', '.');
-  return /^\d+(?:\.\d+)?$/.test(s) ? { v: Number(s), repaired } : { v: NaN, repaired };
+  if (!/^\d+(?:\.\d+)?$/.test(s)) return { v: NaN, repaired };
+  const v = Number(s);
+  // A kJ value between 0 and 10 is a lost thousands separator or a lost digit: unreadable, never 0 kcal.
+  return { v: kj && v > 0 && v < KJ_MIN ? NaN : v, repaired };
 }
 
 function tokens(l: Line, from: number, text: string): Tok[] {
@@ -246,25 +269,61 @@ function tokens(l: Line, from: number, text: string): Tok[] {
     if (u === '%') continue;
     // A mantissa with no real digit is a number only as "O g" style zero.
     if (!/[0-9]/.test(mant) && !(withUnit !== undefined && /^[Oo]+$/.test(mant))) continue;
-    const r = readNumber(mant);
+    const r = readNumber(mant, u === 'kj');
     out.push({ value: isLt ? 0 : r.v, unit: u, lt: isLt, dash: false, conf, repaired: r.repaired });
   }
   return out;
 }
 
-/** Join a label-only line with the numbers-only line after it (a row that OCR split in two). */
+/** Letters that are not a unit, kcal/kJ, nil or trace: any left after removing the numbers means the line is not numbers only. */
+function numbersOnly(text: string): boolean {
+  const left = text.replace(TOKEN, ' ');
+  return left !== text && !/[A-Za-z]/.test(left);
+}
+
+/** A row label with no number after it ("Protein"). */
+const labelOnly = (l: Line): boolean => {
+  const lab = labelOf(l.text);
+  return lab !== null && (rowOf(l)?.toks.length ?? 0) === 0;
+};
+
+/**
+ * Join a label-only line with the numbers-only line after it (a row that OCR split in two). The next line must
+ * hold nothing but numbers, units, kcal/kJ, % and nil/trace: a label followed by an unmapped nutrient
+ * ("Protein" then "Vitamin D 2mcg") is never joined, so that label stays empty. Stacked labels
+ * ("Carbohydrate", "Fat", "30", "5") are never paired either: a label whose previous line is also label-only is not joined.
+ */
 function joinSplit(lines: Line[]): Line[] {
   const out: Line[] = [];
   for (let i = 0; i < lines.length; i++) {
     const cur = lines[i] as Line;
     const next = lines[i + 1];
-    const lab = labelOf(cur.text);
-    if (next && lab && !lab.wide && tokens(cur, lab.end, cur.text).length === 0 && !labelOf(next.text) && tokens(next, 0, next.text).length > 0) {
+    const prev = lines[i - 1];
+    if (next && labelOnly(cur) && !(prev && labelOnly(prev)) && !labelOf(next.text) && numbersOnly(next.text)) {
       out.push({ text: `${cur.text} ${next.text}`, spans: [...cur.spans, ...next.spans.map((w) => ({ ...w, s: w.s + cur.text.length + 1, e: w.e + cur.text.length + 1 }))] });
       i++;
     } else out.push(cur);
   }
   return out;
+}
+
+const sliceLine = (l: Line, a: number, b: number): Line => ({
+  text: l.text.slice(a, b),
+  spans: l.spans.filter((w) => w.s < b && w.e > a).map((w) => ({ s: Math.max(w.s, a) - a, e: Math.min(w.e, b) - a, conf: w.conf })),
+});
+
+const SECOND_LABEL = /(?:^|[\s,;|])(?:protein|carbohydrates?|carbs|total\s+fat|fat|energy|calories|calorie|dietary\s+fib(?:re|er)|fib(?:re|er)|saturated|trans|sugars|total\s+sugars)\b/gi;
+
+/** Split a line that holds two rows ("Protein 8 g Fat 24 g") where a label follows a number. */
+function splitMulti(l: Line): Line[] {
+  const cuts: number[] = [];
+  for (const m of l.text.matchAll(SECOND_LABEL)) {
+    const at = (m.index ?? 0) + (m[0].length - m[0].trimStart().length);
+    if (at > 0 && /(?:[0-9]|\bg|\bmg|%|kcal|kj|nil)\s*[,;|]?\s*$/i.test(l.text.slice(0, at))) cuts.push(at);
+  }
+  if (cuts.length === 0) return [l];
+  const bounds = [0, ...cuts, l.text.length];
+  return bounds.slice(0, -1).map((a, i) => sliceLine(l, a, bounds[i + 1] as number));
 }
 
 const HEADER = /nutrition(?:al)?\s+(?:facts|information|info)|typical\s+values|amount\s+per\s+serv|per\s*100\s*(?:g|ml)|per\s+serv/i;
@@ -277,7 +336,11 @@ function rowOf(l: Line): Row | null {
   text = text.replace(/less\s+than/gi, (m) => `<${' '.repeat(m.length - 1)}`);
   let from = lab.end;
   if (lab.wide) {
-    text = text.slice(0, lab.start) + ' '.repeat(lab.end - lab.start) + text.slice(lab.end);
+    // Only the number attached to the "Added Sugars" phrase: "Includes 10g Added Sugars" has it just before,
+    // "Added Sugars 10 g" just after. Another number on the line (total sugars) is never read; none found is empty.
+    const before = /(?:includes?|incl\.?)\s*([0-9OoIl][0-9OoIl.,]*\s*(?:mg|g)?)\s*$/i.exec(text.slice(0, lab.start));
+    const keep = before ? [before.index + before[0].indexOf(before[1] as string), before.index + before[0].indexOf(before[1] as string) + (before[1] as string).length] : [lab.end, text.length];
+    text = text.split('').map((c, i) => (i >= (keep[0] as number) && i < (keep[1] as number) ? c : ' ')).join('');
     from = 0;
   }
   text = mask(text, /per\s*100\s*(?:g|gm|ml)\b|per\s*serv\w*(?:\s*\(?\s*\d+(?:[.,]\d+)?\s*g\)?)?/gi);
@@ -321,7 +384,7 @@ function servingOf(lines: Line[]): Serving | null {
     const g = /(\d{1,3}(?:,\d{3})+|\d+(?:[.,]\d+)?)\s*(g|gm|gms|grams?|ml)\b/i.exec(s);
     const n = g ? Number(/^\d{1,3}(?:,\d{3})+$/.test(g[1] as string) ? (g[1] as string).replace(/,/g, '') : (g[1] as string).replace(',', '.')) : NaN;
     const isMl = g ? g[2]?.toLowerCase() === 'ml' : false;
-    return { text: s.trim(), grams: g && !isMl && Number.isInteger(n) && n >= 1 ? n : null, ml: g && isMl && n > 0 ? n : null };
+    return { text: s.trim(), grams: g && !isMl && n > 0 ? n : null, ml: g && isMl && n > 0 ? n : null };
   };
   for (const l of lines) {
     const m = /(?:serving|serve|portion)\s*size\s*[:\-]?\s*(.*)$/i.exec(l.text);
@@ -335,7 +398,8 @@ function servingOf(lines: Line[]): Serving | null {
 }
 
 function servingUnitText(s: Serving): string {
-  if (s.grams !== null) {
+  // A decimal weight cannot be carried by `unitGrams` (it reads whole grams), so the unit stays blank.
+  if (s.grams !== null && Number.isInteger(s.grams)) {
     const t = s.text.slice(0, MAX_UNIT).trim();
     return unitGrams(t) === s.grams ? t : `${s.grams} g`;
   }
@@ -421,7 +485,7 @@ const level = (c: number): LabelLevel => (c >= HIGH ? 'high' : c >= MEDIUM ? 'me
  * A new rule from the #1067 spike (no prototype function).
  */
 export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
-  const all = toLines(input);
+  const all = toLines(input).flatMap(splitMulti);
   const serving = servingOf(all);
   const lines = joinSplit(all);
   let headerAt = lines.findIndex((l) => HEADER.test(l.text));
@@ -458,82 +522,95 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
     if (k === 'kcal') return perHundred ? 950 : servG ? 9.5 * servG : 5000;
     return perHundred ? 100 : servG ?? 1000;
   };
-
-  const warnings: LabelWarning[] = [];
   const pick = (k: LabelKey, col: number): Cand | undefined => {
     const s = slots[k]?.[col];
     return s && typeof s === 'object' ? s : undefined;
   };
+  const known = (k: LabelKey): boolean => rowFound[k] === true;
 
-  // Primary read per key, with the serving fallback and the range check.
-  const prim = {} as Record<LabelKey, { cand?: Cand; notes: LabelNote[]; extra: number; slot: Slot }>;
-  for (const k of KEYS) {
-    const slot = slots[k]?.[primary];
-    let cand = pick(k, primary);
-    const notes: LabelNote[] = [];
-    let mismatch = false;
-    if (basis === 'per100' && serve >= 0 && servG !== null) {
-      const sv = pick(k, serve);
-      if (!cand && sv) {
-        const raw = (sv.value * 100) / servG;
-        cand = { value: k === 'kcal' ? Math.round(raw) : round1(raw), cert: sv.cert * 0.75, conf: sv.conf, notes: [...sv.notes, 'from_serving'] };
-      } else if (cand && sv) {
-        const exp = (sv.value * 100) / servG;
-        const diff = Math.abs(exp - cand.value);
-        if (diff > 0.1 * Math.max(cand.value, exp) && diff > (k === 'kcal' ? 10 : 0.6)) mismatch = true;
+  /** How far a per 100 g value and a per serving value (scaled by the serving weight) are apart. */
+  const mismatch = (k: LabelKey, p100: number, sv: number): 'none' | 'soft' | 'swap' => {
+    if (servG === null) return 'none';
+    const exp = (sv * 100) / servG;
+    const diff = Math.abs(exp - p100);
+    if (!(diff > MISMATCH_TOLERANCE * Math.max(p100, exp) && diff > (k === 'kcal' ? 10 : 0.6))) return 'none';
+    return Math.max(p100, exp) > SWAP_RATIO * Math.max(Math.min(p100, exp), 1e-9) ? 'swap' : 'soft';
+  };
+
+  /**
+   * One column read to fields, through the checks: serving fallback (per 100 g only), range, the per 100 g against
+   * serving cross-check (`other` is the other column), `looksOff`, and fibre against carbs.
+   */
+  const assemble = (col: number, perHundred: boolean, other: number, warnings: LabelWarning[]): { fields: Record<LabelKey, LabelField>; values: LabelValues } => {
+    const prim = {} as Record<LabelKey, { cand?: Cand; notes: LabelNote[]; extra: number; slot: Slot }>;
+    for (const k of KEYS) {
+      let cand = pick(k, col);
+      const notes: LabelNote[] = [];
+      let extra = 1;
+      const ov = other >= 0 ? pick(k, other) : undefined;
+      if (perHundred && other >= 0 && servG !== null && !cand && ov) {
+        const raw = (ov.value * 100) / servG;
+        cand = { value: k === 'kcal' ? Math.round(raw) : round1(raw), cert: ov.cert * 0.75, conf: ov.conf, notes: [...ov.notes, 'from_serving'] };
+      } else if (cand && ov) {
+        const m = perHundred ? mismatch(k, cand.value, ov.value) : mismatch(k, ov.value, cand.value);
+        if (m !== 'none') {
+          extra *= m === 'swap' ? 0 : 0.7;
+          notes.push('serving_mismatch');
+          if (!warnings.includes('serving_mismatch')) warnings.push('serving_mismatch');
+        }
+      }
+      if (cand && cand.value > limit(k, perHundred)) { notes.push('out_of_range'); extra = 0; }
+      prim[k] = { ...(cand ? { cand } : {}), notes, extra, slot: slots[k]?.[col] };
+    }
+    const live = (k: LabelKey): number | undefined => (prim[k].cand && prim[k].extra > 0 ? prim[k].cand?.value : undefined);
+    // Plausibility on per 100 g equivalents (see `looksOff`).
+    const [kc, pr, ca, ft] = [live('kcal'), live('protein_g'), live('carbs_g'), live('fat_g')];
+    if (kc !== undefined || pr !== undefined || ca !== undefined || ft !== undefined) {
+      // Per 100 g as is; per serving scaled by the serving weight; with no weight, scaled down so the 100 g total rule cannot fire.
+      const factor = perHundred ? 1 : servG ? 100 / servG : 0.9999 / Math.max(1, ((pr ?? 0) + (ca ?? 0) + (ft ?? 0)) / 100); // 0.9999 keeps rounding from tipping the total over 100
+      const sc = (v: number | undefined): number | null => (v === undefined ? null : v * factor);
+      if (looksOff(sc(kc), sc(pr), sc(ca), sc(ft))) {
+        warnings.push('looks_off');
+        for (const k of REQUIRED) prim[k].extra *= 0.7;
       }
     }
-    let extra = 1;
-    if (cand && cand.value > limit(k, basis === 'per100')) { notes.push('out_of_range'); extra = 0; }
-    if (mismatch) { extra *= 0.7; notes.push('serving_mismatch'); if (!warnings.includes('serving_mismatch')) warnings.push('serving_mismatch'); }
-    prim[k] = { ...(cand ? { cand } : {}), notes, extra, slot };
-  }
+    const [fb, cb] = [live('fibre_g'), live('carbs_g')];
+    if (fb !== undefined && cb !== undefined && fb > cb) {
+      warnings.push('fibre_exceeds_carbs');
+      prim.fibre_g.extra *= 0.7;
+      prim.carbs_g.extra *= 0.7;
+    }
+    if (basis === 'unknown') for (const k of KEYS) prim[k].extra *= 0.7;
+    if (noHeader) for (const k of KEYS) prim[k].extra *= 0.85;
 
+    const fields = {} as Record<LabelKey, LabelField>;
+    const values: LabelValues = {};
+    for (const k of KEYS) {
+      const p = prim[k];
+      if (!known(k)) {
+        fields[k] = { value: undefined, level: 'missing', confidence: 0, notes: [] };
+      } else if (!p.cand) {
+        fields[k] = { value: undefined, level: 'low', confidence: 0, notes: [p.slot === 'ambiguous' ? 'ambiguous_column' : 'unreadable'] };
+      } else {
+        // The level comes from the unrounded confidence: 0.495 is below 0.5 and stays empty.
+        const raw = p.cand.conf * p.cand.cert * p.extra;
+        const conf = Math.round(raw * 100) / 100;
+        const lv = level(raw);
+        const notes = [...p.cand.notes, ...p.notes];
+        if (lv === 'low') fields[k] = { value: undefined, level: 'low', confidence: conf, notes };
+        else {
+          fields[k] = { value: p.cand.value, level: lv, confidence: conf, notes };
+          values[k] = p.cand.value;
+        }
+      }
+    }
+    return { fields, values };
+  };
+
+  const warnings: LabelWarning[] = [];
+  const { fields, values } = assemble(primary, basis === 'per100', basis === 'per100' ? serve : -1, warnings);
   if (noHeader && rows.length > 0) warnings.push('no_header');
   if (basis === 'unknown' && rows.length > 0) warnings.push('basis_unknown');
-
-  const live = (k: LabelKey): number | undefined => (prim[k].cand && prim[k].extra > 0 ? prim[k].cand?.value : undefined);
-  // Plausibility on per 100 g equivalents. Per serving with no weight: scale so the 100 g total rule cannot fire.
-  const [kc, pr, ca, ft] = [live('kcal'), live('protein_g'), live('carbs_g'), live('fat_g')];
-  if (kc !== undefined || pr !== undefined || ca !== undefined || ft !== undefined) {
-    // Per 100 g as is; per serving scaled by the serving weight; with no weight, scaled down so the 100 g total rule cannot fire.
-    const factor = basis === 'per100' ? 1 : servG ? 100 / servG : 0.9999 / Math.max(1, ((pr ?? 0) + (ca ?? 0) + (ft ?? 0)) / 100); // 0.9999 keeps rounding from tipping the total over 100
-    const sc = (v: number | undefined): number | null => (v === undefined ? null : v * factor);
-    if (looksOff(sc(kc), sc(pr), sc(ca), sc(ft))) {
-      warnings.push('looks_off');
-      for (const k of REQUIRED) prim[k].extra *= 0.7;
-    }
-  }
-  const [fb, cb] = [live('fibre_g'), live('carbs_g')];
-  if (fb !== undefined && cb !== undefined && fb > cb) {
-    warnings.push('fibre_exceeds_carbs');
-    prim.fibre_g.extra *= 0.7;
-    prim.carbs_g.extra *= 0.7;
-  }
-  if (basis === 'unknown') for (const k of KEYS) prim[k].extra *= 0.7;
-  if (noHeader) for (const k of KEYS) prim[k].extra *= 0.85;
-
-  const fields = {} as Record<LabelKey, LabelField>;
-  const values: LabelValues = {};
-  for (const k of KEYS) {
-    const p = prim[k];
-    if (!rowFound[k]) {
-      fields[k] = { value: undefined, level: 'missing', confidence: 0, notes: [] };
-      continue;
-    }
-    if (!p.cand) {
-      fields[k] = { value: undefined, level: 'low', confidence: 0, notes: [p.slot === 'ambiguous' ? 'ambiguous_column' : 'unreadable'] };
-      continue;
-    }
-    const conf = Math.round(p.cand.conf * p.cand.cert * p.extra * 100) / 100;
-    const lv = level(conf);
-    const notes = [...p.cand.notes, ...p.notes];
-    if (lv === 'low') fields[k] = { value: undefined, level: 'low', confidence: conf, notes };
-    else {
-      fields[k] = { value: p.cand.value, level: lv, confidence: conf, notes };
-      values[k] = p.cand.value;
-    }
-  }
 
   const missing = REQUIRED.filter((k) => fields[k].value === undefined);
   const readCount = REQUIRED.length - missing.length;
@@ -543,16 +620,15 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
   else {
     unit = serving ? servingUnitText(serving) : '';
     if (basis === 'per_serving' && servG === null && !(serving?.ml)) warnings.push('serving_grams_missing');
+    if (basis === 'per_serving' && servG !== null && !Number.isInteger(servG)) warnings.push('serving_grams_fractional');
   }
 
-  const draft: LabelDraft = { basis, unit, fields, values, missing, reviewable: readCount >= 2, warnings };
+  const draft: LabelDraft = { basis, unit, fields, values, missing, reviewable: readCount >= 2, warnings, servingGrams: servG };
   if (basis === 'per100' && serve >= 0 && serving) {
-    const alt: LabelValues = {};
-    for (const k of KEYS) {
-      const c = pick(k, serve);
-      if (c && c.value <= limit(k, false) && c.conf * c.cert >= MEDIUM) alt[k] = c.value;
-    }
-    if (Object.keys(alt).length) draft.alternate = { unit: servingUnitText(serving), values: alt };
+    // A main-read warning like `serving_mismatch` also shows on the alternate, which runs the same checks against the per 100 g column.
+    const altWarnings: LabelWarning[] = [];
+    const alt = assemble(serve, false, per100, altWarnings);
+    if (Object.keys(alt.values).length) draft.alternate = { unit: servingUnitText(serving), fields: alt.fields, values: alt.values, warnings: altWarnings };
   }
   return draft;
 }
@@ -579,11 +655,19 @@ export function labelToScannedInput(draft: LabelDraft, name: string): Parameters
 /**
  * Validate a reviewed label draft through `scannedFood`, then add the label's fibre and added sugar (which
  * `scannedFood` leaves null). Values the user edited on the review screen should be put in `draft.values` first.
+ * A negative, non-finite or out-of-range (above 100 g per 100 g, or the serving weight) fibre or added sugar, or
+ * fibre above carbs, gives `invalid`: it is never saved.
  *
  * A new rule from the #1067 spike (no prototype function).
  */
 export function labelFood(draft: LabelDraft, name: string): ScannedFoodResult {
   const r = scannedFood(labelToScannedInput(draft, name));
   if (r.kind !== 'ok') return r;
-  return { ...r, food: { ...r.food, fibre_g: draft.values.fibre_g ?? null, added_sugar_g: draft.values.added_sugar_g ?? null } };
+  const fibre = draft.values.fibre_g;
+  const added = draft.values.added_sugar_g;
+  const max = draft.basis === 'per100' ? 100 : draft.servingGrams ?? 1000;
+  // Fibre and added sugar get the same checks as the four macros: finite, not negative, within range, and fibre not above carbs.
+  const bad = (v: number | undefined): boolean => v !== undefined && (!Number.isFinite(v) || v < 0 || v > max);
+  if (bad(fibre) || bad(added) || (fibre !== undefined && fibre > r.food.carbs_g)) return { kind: 'invalid' };
+  return { ...r, food: { ...r.food, fibre_g: fibre ?? null, added_sugar_g: added ?? null } };
 }

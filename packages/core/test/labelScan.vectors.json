@@ -560,7 +560,7 @@
  },
  {
   "id": "dual-column-mismatch",
-  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 450 kcal   135 kcal\nProtein 10.0 g   9.0 g\nCarbohydrate 70.0 g   21.0 g\nTotal Fat 15.0 g   4.5 g",
+  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 450 kcal   135 kcal\nProtein 10.0 g   3.6 g\nCarbohydrate 70.0 g   21.0 g\nTotal Fat 15.0 g   4.5 g",
   "expect": {
    "basis": "per100",
    "unit": "100 g",
@@ -887,6 +887,275 @@
     "fibre_g": 1
    },
    "missing": []
+  }
+ },
+ {
+  "id": "review1-fda-protein-then-vitamin-d",
+  "input": "Nutrition Facts\nServing size 1 cup (55g)\nAmount per serving\nCalories 230\nTotal Fat 8g 10%\nTotal Carbohydrate 37g 13%\nProtein\nVitamin D 2mcg 10%",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 cup (55g)",
+   "values": {
+    "kcal": 230,
+    "fat_g": 8,
+    "carbs_g": 37
+   },
+   "missing": [
+    "protein_g"
+   ]
+  }
+ },
+ {
+  "id": "review1-fssai-fat-then-sodium",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nProtein 10 g\nCarbohydrate 50 g\nTotal Fat\nSodium 400 mg",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 10,
+    "carbs_g": 50
+   },
+   "missing": [
+    "fat_g"
+   ]
+  }
+ },
+ {
+  "id": "review1-fssai-protein-then-sodium",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nProtein\nSodium 350 mg\nCarbohydrate 50 g\nTotal Fat 8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "carbs_g": 50,
+    "fat_g": 8
+   },
+   "missing": [
+    "protein_g"
+   ]
+  }
+ },
+ {
+  "id": "review2-partly-vertical-stacked-labels",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 250 kcal\nProtein 10 g\nCarbohydrate\nFat\n30\n5",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 250,
+    "protein_g": 10
+   },
+   "missing": [
+    "carbs_g",
+    "fat_g"
+   ]
+  }
+ },
+ {
+  "id": "review3-total-and-added-includes",
+  "input": "Nutrition Facts\nServing size 1 cup (55g)\nTotal Sugars 12g Includes 10g Added Sugars 20%\nCalories 230\nTotal Fat 8g\nTotal Carbohydrate 37g\nProtein 3g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 cup (55g)",
+   "values": {
+    "kcal": 230,
+    "protein_g": 3,
+    "carbs_g": 37,
+    "fat_g": 8,
+    "added_sugar_g": 10
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "review3-total-and-added-parenthesis",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nProtein 10 g\nCarbohydrate 50 g\nTotal Fat 8 g\nTotal Sugars 25 g (of which Added Sugars 10 g)",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 8,
+    "added_sugar_g": 10
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "review3-total-and-added-comma",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nProtein 10 g\nCarbohydrate 50 g\nTotal Fat 8 g\nSugars 25 g, Added Sugars 10 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 8,
+    "added_sugar_g": 10
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "review3-added-sugars-no-number",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nProtein 10 g\nCarbohydrate 50 g\nTotal Fat 8 g\nTotal Sugars 25 g Added Sugars",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 8
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "review5-swapped-columns",
+  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 135 kcal   450 kcal\nProtein 3.0 g   10.0 g\nCarbohydrate 21.0 g   70.0 g\nTotal Fat 4.5 g   15.0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {},
+   "missing": [
+    "kcal",
+    "protein_g",
+    "carbs_g",
+    "fat_g"
+   ],
+   "warn": [
+    "serving_mismatch"
+   ],
+   "alternateEmpty": true
+  }
+ },
+ {
+  "id": "review5-two-labels-one-line",
+  "input": "Nutritional Information\nPer 100 g   Per serve (30 g)\nEnergy 450 kcal   135 kcal\nProtein 8 g Fat 24 g\nCarbohydrate 70 g   21 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "carbs_g": 70
+   },
+   "missing": [
+    "protein_g",
+    "fat_g"
+   ],
+   "alternate": {
+    "unit": "30 g",
+    "values": {
+     "kcal": 135,
+     "carbs_g": 21
+    }
+   }
+  }
+ },
+ {
+  "id": "review5-one-line-two-rows-one-column",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 300 kcal\nProtein 8 g Fat 24 g\nCarbohydrate 10 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 300,
+    "protein_g": 8,
+    "carbs_g": 10,
+    "fat_g": 24
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "review7-kj-dot-thousands",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 1.046 kJ\nProtein 5 g\nCarbohydrate 40 g\nTotal Fat 8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 250,
+    "protein_g": 5,
+    "carbs_g": 40,
+    "fat_g": 8
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "review7-kj-too-small-unreadable",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 1.04 kJ\nProtein 5 g\nCarbohydrate 40 g\nTotal Fat 8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "protein_g": 5,
+    "carbs_g": 40,
+    "fat_g": 8
+   },
+   "missing": [
+    "kcal"
+   ]
+  }
+ },
+ {
+  "id": "review9-fat-cal-line",
+  "input": "Nutrition Facts\nServing size 1 cup (55g)\nAmount per serving\nCalories 230\nFat Cal. 20\nTotal Fat 2g 3%\nTotal Carbohydrate 37g\nProtein 3g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "1 cup (55g)",
+   "values": {
+    "kcal": 230,
+    "protein_g": 3,
+    "carbs_g": 37,
+    "fat_g": 2
+   },
+   "missing": [],
+   "level": {
+    "fat_g": "high"
+   }
+  }
+ },
+ {
+  "id": "review10-leading-zero-integer",
+  "input": "Nutrition Information\nPer 100 g\nEnergy 400 kcal\nProtein 10 g\nCarbohydrate 50 g\nFat 05 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 5
+   },
+   "missing": [],
+   "level": {
+    "fat_g": "medium"
+   }
+  }
+ },
+ {
+  "id": "review11-decimal-serving-weight",
+  "input": "Nutrition Facts\nServing size 1 scoop (32.5 g)\nCalories 130\nTotal Fat 2g\nTotal Carbohydrate 5g\nProtein 25g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "",
+   "values": {
+    "kcal": 130,
+    "protein_g": 25,
+    "carbs_g": 5,
+    "fat_g": 2
+   },
+   "missing": [],
+   "warn": [
+    "serving_grams_fractional"
+   ]
   }
  }
 ]
