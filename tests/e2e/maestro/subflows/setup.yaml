@@ -49,17 +49,7 @@ appId: app.plateandbar.mobile
 - tapOn: "60 min"
 - scrollUntilVisible:
     element: "Continue"
-# On the training step the Continue button ends up partly under the 3-button navigation bar even at the end of the list
-# (app bug #1059, fix in progress on app/nav-bar-inset-1059; remove this workaround when it lands), so its centre cannot be tapped: tap the visible top strip of the button instead (pixel_6 emulator).
-- scroll
-- tapOn:
-    point: "50%,94%"
-# The last step opens scrolled to the bottom (the scroll position carries over from the training step; #1060, fix in progress on
-# app/scroll-reset-1060, remove this workaround when it lands), so scroll back up.
-- scrollUntilVisible:
-    element: "Lose fat\\..*"
-    direction: UP
-    centerElement: true
+- tapOn: "Continue"
 - tapOn: "Lose fat\\..*"
 - extendedWaitUntil:
     visible: "Quick health check"
@@ -103,10 +93,7 @@ appId: app.plateandbar.mobile
     below: "Has a doctor or other.*"
 - scrollUntilVisible:
     element: "See my targets"
-- scroll
-# Same overlap as Continue above (#1059, remove with it): tap the visible top strip of the button.
-- tapOn:
-    point: "50%,94%"
+- tapOn: "See my targets"
 - scrollUntilVisible:
     element: "Use these targets"
 - tapOn: "Use these targets"
