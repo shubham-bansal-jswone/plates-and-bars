@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { searchFoods } from '@plate-and-bar/core';
+import { PHOTO_ADJ_MAX, PHOTO_ADJ_MIN, photoMacros, searchFoods, stepPhotoAdj } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { a11yState, Button, Card, ErrorText, Field, Hint, Label, Press } from '../components/ui';
 import type { CatalogFood } from '../food/catalog';
@@ -13,7 +13,7 @@ import type { NewLog } from '../food/useFoodDay';
 import { useAi } from './AiProvider';
 import type { AiImage } from './client';
 import { AI_COPY, failureMessage, imageFailureMessage } from './copy';
-import { foodToSave, logFromRow, PHOTO_ADJ_MAX, PHOTO_ADJ_MIN, rowMacros, rowsFromItems, stepAdj, swapFood, type PhotoRow } from './mealPhoto';
+import { foodToSave, logFromRow, rowsFromItems, swapFood, type PhotoRow } from './mealPhoto';
 import { pickPhotoForAi } from './photo';
 import { useRequest } from './useRequest';
 import type { UserFood } from '../food/types';
@@ -124,16 +124,16 @@ export function PhotoBody({ meal, foods, onAdd, onSaveMine, onAdded, onClose }: 
           <Label>{AI_COPY.photoReview}</Label>
           <View accessibilityLiveRegion="polite"><Hint>{AI_COPY.photoReviewHint}</Hint></View>
           {rows.map((r, n) => {
-            const m = rowMacros(r);
+            const m = photoMacros(r.base, r.mult, r.adj);
             const who = `Item ${n + 1} ${r.name || 'unnamed'}`;
             return (
               <Card key={r.key} style={styles.gap}>
                 <Field label={`Item ${n + 1} name`} value={r.name} onChangeText={(v) => update(r.key, (x) => ({ ...x, name: v, renamed: true }))} />
                 <Text style={{ color: c.muted, fontSize: 14 }}>{r.portion}{r.food ? '' : ' · estimate'}{r.unsure ? ' · unsure' : ''}</Text>
                 <View style={styles.row}>
-                  <Press accessibilityRole="button" accessibilityLabel={`Smaller portion for ${who}`} onPress={() => update(r.key, (x) => ({ ...x, adj: stepAdj(x.adj, -1) }))} disabled={r.adj <= PHOTO_ADJ_MIN} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>−</Text></Press>
+                  <Press accessibilityRole="button" accessibilityLabel={`Smaller portion for ${who}`} onPress={() => update(r.key, (x) => ({ ...x, adj: stepPhotoAdj(x.adj, -1) }))} disabled={r.adj <= PHOTO_ADJ_MIN} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>−</Text></Press>
                   <Text accessibilityLabel={`Portion ${r.adj} times for ${who}`} style={{ color: c.ink, fontWeight: '700', fontSize: 18 }}>{`${r.adj}×`}</Text>
-                  <Press accessibilityRole="button" accessibilityLabel={`Bigger portion for ${who}`} onPress={() => update(r.key, (x) => ({ ...x, adj: stepAdj(x.adj, 1) }))} disabled={r.adj >= PHOTO_ADJ_MAX} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>+</Text></Press>
+                  <Press accessibilityRole="button" accessibilityLabel={`Bigger portion for ${who}`} onPress={() => update(r.key, (x) => ({ ...x, adj: stepPhotoAdj(x.adj, 1) }))} disabled={r.adj >= PHOTO_ADJ_MAX} style={[styles.step, { borderColor: c.line }]}><Text style={{ color: c.ink, fontSize: 20 }}>+</Text></Press>
                 </View>
                 <Text style={{ color: c.ink }}>{`${fmt(m.kcal)} kcal, ${fmt(m.protein_g)} g protein, ${fmt(m.carbs_g)} g carbs, ${fmt(m.fat_g)} g fat`}</Text>
                 <View style={styles.row}>

@@ -336,6 +336,35 @@ describe('review fixes (#997)', () => {
     expect(logs(db)[0].qty).toBe(1.1);
   });
 
+  it('clamps the servings of a matched item to 0.25 to 6, and a missing or zero count to 1', async () => {
+    const { db } = await ready([{ ...ROTI, servings: 10 }, { ...ROTI, servings: 0.1 }, { ...ROTI, servings: 0 }]);
+    await fireEvent.press(screen.getByLabelText('Add 3 items to breakfast'));
+    await waitFor(() => expect(logs(db)).toHaveLength(3));
+    expect(logs(db).map((l) => l.qty).sort((a, b) => a - b)).toEqual([0.3, 1, 6]);
+  });
+
+  it('keeps at most 12 items from one answer', async () => {
+    await ready(Array.from({ length: 15 }, (_, i) => ({ ...SABZI, name: `Item ${i}` })));
+    expect(screen.getByLabelText('Item 12 name')).toBeTruthy();
+    expect(screen.queryByLabelText('Item 13 name')).toBeNull();
+  });
+
+  it('turns the portion buttons off at the ends: smaller at 0.5x, bigger at 2x', async () => {
+    await ready([SABZI]);
+    const smaller = () => screen.getByLabelText('Smaller portion for Item 1 Bhindi sabzi');
+    const bigger = () => screen.getByLabelText('Bigger portion for Item 1 Bhindi sabzi');
+    expect(smaller().props.accessibilityState?.disabled ?? false).toBe(false);
+    expect(bigger().props.accessibilityState?.disabled ?? false).toBe(false);
+    for (let i = 0; i < 4; i++) await fireEvent.press(smaller());
+    expect(screen.getByLabelText('Portion 0.5 times for Item 1 Bhindi sabzi')).toBeTruthy();
+    expect(smaller().props.accessibilityState?.disabled).toBe(true);
+    expect(bigger().props.accessibilityState?.disabled ?? false).toBe(false);
+    for (let i = 0; i < 6; i++) await fireEvent.press(bigger());
+    expect(screen.getByLabelText('Portion 2 times for Item 1 Bhindi sabzi')).toBeTruthy();
+    expect(bigger().props.accessibilityState?.disabled).toBe(true);
+    expect(smaller().props.accessibilityState?.disabled ?? false).toBe(false);
+  });
+
   it('after a swap the portion is the swapped food’s serving label', async () => {
     await ready([SABZI]);
     expect(screen.getByText('1 katori (150 g) · estimate · unsure')).toBeTruthy();
