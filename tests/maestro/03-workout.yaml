@@ -1,0 +1,21 @@
+# Choose a workout (a preview, nothing saved, #1016), Start it, tick set 1 and see it ticked.
+appId: app.plateandbar.mobile
+---
+- runFlow: subflows/setup.yaml
+- extendedWaitUntil:
+    visible: "Workout"
+    timeout: 15000
+- tapOn: "Workout"
+- extendedWaitUntil:
+    visible: "Choose .*"
+    timeout: 15000
+- tapOn: "Choose .*"
+- assertVisible: "Nothing is saved until you start.*"
+- tapOn: "Start (?!a rest).*"
+- extendedWaitUntil:
+    visible: "Mark .* set 1 done"
+    timeout: 15000
+- tapOn: "Mark .* set 1 done"
+- assertVisible:
+    text: "Mark .* set 1 done"
+    checked: true

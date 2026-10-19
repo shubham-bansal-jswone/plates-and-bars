@@ -1,0 +1,142 @@
+name: Android smoke (Maestro)
+
+# Builds the release APK for x86_64, debug-signed (no secrets, no environment), installs it on an API 34 emulator and runs the
+# Maestro flows in tests/maestro/. Nightly and on demand only: an emulator job is slow, so it is not run on every pull request.
+# Open-source tools only: Maestro CLI (Apache-2.0, version-pinned, checksum-checked) and android-emulator-runner (MIT).
+# The APK is cached on a hash of the app sources, so a run that changes only the flows skips the Gradle build.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 21 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAESTRO_VERSION: 2.11.0
+  MAESTRO_SHA256: 5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a # maestro.zip of cli-2.11.0
+
+jobs:
+  smoke:
+    name: maestro flows on an emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: APK cache key
+        id: apk-key
+        run: echo "key=android-smoke-apk-${{ hashFiles('apps/mobile/package-lock.json', 'apps/mobile/app.json', 'apps/mobile/app/**', 'apps/mobile/src/**', 'apps/mobile/assets/**', 'apps/mobile/modules/**', 'apps/mobile/plugins/**', 'apps/mobile/scripts/**', 'packages/core/src/**', 'content/**') }}" >> "$GITHUB_OUTPUT"
+      - name: Restore the APK
+        id: apk-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/smoke.apk
+          key: ${{ steps.apk-key.outputs.key }}
+
+      # Build (skipped on a cache hit). Same approach as android-release.yml: expo prebuild + Gradle, one ABI, ccache.
+      - uses: actions/setup-node@v7
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        with:
+          cache-provider: basic # MIT-only path; the default 'enhanced' loads proprietary gradle-actions-caching
+      - name: npm ci
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Generate the native project
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --no-install
+      - name: ccache key (NDK version)
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        id: ccache-key
+        working-directory: apps/mobile
+        run: |
+          ndk=$(sed -n 's/^ndkVersion *= *"\([0-9.]*\)".*/\1/p' node_modules/react-native/gradle/libs.versions.toml)
+          [ -n "$ndk" ] || { echo "::error::cannot read the NDK version from react-native's libs.versions.toml"; exit 1; }
+          echo "prefix=ccache-${RUNNER_OS}-ndk${ndk}" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ${{ steps.ccache-key.outputs.prefix }}-${{ github.run_id }}
+          restore-keys: ${{ steps.ccache-key.outputs.prefix }}-
+      - name: Install ccache
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        run: command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
+      - name: Set the ccache size cap and sloppiness, and zero its counters
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        env:
+          CCACHE_DIR: ${{ runner.temp }}/ccache
+        run: |
+          ccache -M 400M -z
+          ccache --set-config sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime
+      - name: Build the x86_64 release APK (debug-signed, no secrets)
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        working-directory: apps/mobile/android
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          CCACHE_DIR: ${{ runner.temp }}/ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_NOHASHDIR: 'true'
+          CCACHE_COMPILERCHECK: content
+          CCACHE_MAXSIZE: 400M
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
+      - name: Keep the APK
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        run: cp apps/mobile/android/app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/smoke.apk"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/smoke.apk
+          key: ${{ steps.apk-key.outputs.key }}
+
+      # Maestro: pinned release asset, checked against the pinned SHA-256 (GitHub publishes it as the asset digest).
+      - name: Install Maestro
+        run: |
+          dir="$RUNNER_TEMP/maestro-dl"; mkdir -p "$dir"
+          curl -fsSL -o "$dir/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          echo "${MAESTRO_SHA256}  $dir/maestro.zip" | sha256sum -c -
+          unzip -q "$dir/maestro.zip" -d "$dir"
+          echo "$dir/maestro/bin" >> "$GITHUB_PATH"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the flows on an emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          APK_PATH: ${{ runner.temp }}/smoke.apk
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 3072M
+          disable-animations: true
+          script: bash tests/maestro/run-on-emulator.sh
+      - name: Upload Maestro debug output and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: maestro-debug
+          path: |
+            ${{ runner.temp }}/maestro-out
+            ~/.maestro/tests
+          if-no-files-found: warn
+          retention-days: 14

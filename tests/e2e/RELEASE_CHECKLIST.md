@@ -1,6 +1,6 @@
 # Manual release checklist
 
-Run before each release, on the release candidate build. Automated coverage: the web journeys in `specs/` and the sync journey in `sync-specs/` (offline then sync, second device, delete account, against a real backend) run in CI; the Maestro smoke flow `maestro/smoke.yaml` (setup, a meal, a set) is written but has not run on a device yet, so the Android column is manual. Record the build, device and date; file a GitHub issue (labels `bug` plus the owning lane) for each failure.
+Run before each release, on the release candidate build. Automated coverage: the web journeys in `specs/` and the sync journey in `sync-specs/` (offline then sync, second device, delete account, against a real backend) run in CI; the Maestro flows in `tests/maestro/` (setup, a meal, a set) run nightly on an x86_64 emulator in the `Android smoke (Maestro)` workflow; a real low-end phone is still manual. Record the build, device and date; file a GitHub issue (labels `bug` plus the owning lane) for each failure.
 
 ## Journeys (every device below)
 

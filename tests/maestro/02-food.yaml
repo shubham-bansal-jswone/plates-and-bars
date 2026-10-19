@@ -1,0 +1,15 @@
+# Log a food from the list: the Food screen shows it counted.
+appId: app.plateandbar.mobile
+---
+- runFlow: subflows/setup.yaml
+- extendedWaitUntil:
+    visible: "Food"
+    timeout: 15000
+- tapOn: "Food"
+- tapOn: "+ Add to breakfast"
+- tapOn: "Roti / chapati.*"
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible: ".* of .* kcal eaten"
+    timeout: 15000
+- assertVisible: "Roti / chapati.*"

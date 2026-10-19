@@ -88,6 +88,6 @@ The web build needs the API URL compiled in, so it is a second export into `.syn
 
 ## Android (Maestro)
 
-`maestro/smoke.yaml` covers setup, one meal and one set on Android. Maestro (Apache-2.0) needs an emulator or phone with the release-candidate APK installed: `maestro test maestro/smoke.yaml`. It has not been run on a device yet (none was available when it was written), so expect to adjust selectors on the first run; until it is green the Android column of `RELEASE_CHECKLIST.md` stays manual. It is not in CI (no emulator on the hosted runners).
+The Maestro flows live in `tests/maestro/`: `01-setup.yaml` (consent, setup, health check, targets), `02-food.yaml` (log a food from the list) and `03-workout.yaml` (choose a workout, see the preview, Start, tick a set). `subflows/setup.yaml` is the shared setup. The `Android smoke (Maestro)` workflow (`.github/workflows/android-smoke.yml`) builds a debug-signed x86_64 release APK and runs them on an API 34 emulator, nightly and on manual dispatch (not on pull requests). Failures upload `maestro-debug` (Maestro debug output and screenshots). Locally, with an emulator or phone running: `APK_PATH=app.apk tests/maestro/run-on-emulator.sh`. Maestro (Apache-2.0) is pinned to a release and checksum-checked in the workflow.
 
 Licences: `@playwright/test` Apache-2.0, `@puppeteer/browsers` Apache-2.0, Chromium BSD-3-Clause, axe-core MPL-2.0. Playwright's own browser download (`npx playwright install`) is not used; it fetches builds from Microsoft's CDN. Any local Chromium or Chrome works through `CHROME_PATH`.
