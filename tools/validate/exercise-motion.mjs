@@ -27,15 +27,13 @@ export const BONES = [
   ['l_ankle', 'l_heel', 0.05], ['r_ankle', 'r_heel', 0.05],
   ['l_ankle', 'l_toe', 0.13], ['r_ankle', 'r_toe', 0.13],
 ];
-// Own filming, or a clip under a Creative Commons licence that allows reuse and adaptation (no NC, no ND). A synthetic fixture
+// Own filming, or a clip under CC0 or CC BY (no NC, no ND, no share-alike: content stays CC BY 4.0, see CONTENT-LICENSE). A synthetic fixture
 // source exists for tests and is refused unless the caller passes allowFixture.
 export const SOURCES = ['own_filming', 'cc_licensed'];
 export const FIXTURE_SOURCE = 'synthetic_fixture';
 export const LICENCES = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
-  // Share-alike: keyframes made from such a clip are likely a derivative that must carry the same licence (THIRD_PARTY.md).
-  'CC-BY-SA-4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
 };
 // YouTube's terms forbid downloading, even for CC-BY videos, so it is never a source.
 const BANNED_HOSTS = /^https:\/\/([^/]+\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)(\/|$)/i;

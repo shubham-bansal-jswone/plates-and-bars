@@ -5,7 +5,7 @@ import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runPipeline, runPipelineFit, DEFAULTS, savitzkyGolay, PipelineError, PINNED_MODELS } from '../exercise-motion/pipeline.mjs';
+import { runPipeline, runPipelineFit, USED, DEFAULTS, savitzkyGolay, PipelineError, PINNED_MODELS } from '../exercise-motion/pipeline.mjs';
 import { buildFixture, serializeFixture } from '../exercise-motion/make-fixture.mjs';
 import { validateExerciseMotion, JOINTS, BONES, BONE_TOLERANCE } from '../validate/exercise-motion.mjs';
 
@@ -169,23 +169,45 @@ test('tools is built from the model block; no block or an unpinned model is refu
 test('a cc_licensed clip goes through with its source details and no release id (the CLI insists on them)', () => {
   const sha = Object.keys(PINNED_MODELS)[0];
   const input = { ...landmarks(), model: { name: 'x', sha256: sha, mediapipe: '1.1.1' } };
-  const entry = runPipeline(input, { ...PROV, source: 'cc_licensed', release_id: null, licence: 'CC-BY-SA-4.0', source_url: 'https://commons.wikimedia.org/wiki/File:X.webm', retrieved: '2026-10-20' });
+  const entry = runPipeline(input, { ...PROV, source: 'cc_licensed', release_id: null, licence: 'CC-BY-4.0', source_url: 'https://commons.wikimedia.org/wiki/File:X.webm', retrieved: '2026-10-20' });
   assert.equal(entry.release_id, null);
-  assert.equal(entry.licence_url, 'https://creativecommons.org/licenses/by-sa/4.0/');
+  assert.equal(entry.licence_url, 'https://creativecommons.org/licenses/by/4.0/');
   const bundle = { schema_version: 1, skeleton: 'pb19-v1', joints: [...JOINTS], motions: { 'Bodyweight Squat': entry } };
   assert.deepEqual(validateExerciseMotion(bundle, names), []);
   const dir = mkdtempSync(join(tmpdir(), 'motion-cc-'));
   const file = join(dir, 'in.json');
   writeFileSync(file, JSON.stringify(input));
-  const base = [`${tools}/exercise-motion/cli.mjs`, file, '--exercise', 'Bodyweight Squat', '--source', 'cc_licensed', '--clip-id', 'X.webm', '--author', 'Jane, CC BY-SA 4.0', '--out', join(dir, 'o.json')];
+  const base = [`${tools}/exercise-motion/cli.mjs`, file, '--exercise', 'Bodyweight Squat', '--source', 'cc_licensed', '--clip-id', 'X.webm', '--author', 'Jane, CC BY 4.0', '--out', join(dir, 'o.json')];
   const missing = spawnSync(process.execPath, base, { encoding: 'utf8' });
   assert.notEqual(missing.status, 0);
   assert.match(missing.stderr, /--source-url is required for cc_licensed/);
-  const ok = spawnSync(process.execPath, [...base, '--source-url', 'https://commons.wikimedia.org/wiki/File:X.webm', '--retrieved', '2026-10-20', '--licence', 'CC-BY-SA-4.0'], { encoding: 'utf8' });
+  const ok = spawnSync(process.execPath, [...base, '--source-url', 'https://commons.wikimedia.org/wiki/File:X.webm', '--retrieved', '2026-10-20', '--licence', 'CC-BY-4.0'], { encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stderr);
   const nc = spawnSync(process.execPath, [...base, '--source-url', 'https://commons.wikimedia.org/wiki/File:X.webm', '--retrieved', '2026-10-20', '--licence', 'CC-BY-NC-4.0'], { encoding: 'utf8' });
   assert.notEqual(nc.status, 0);
   assert.match(nc.stderr, /not on the allowlist/);
+});
+
+test('the floor is the lowest of all joints in each frame: a lying pose rests on the head, not below the floor', () => {
+  const L = (x, y, z) => [x, y, z];
+  const frames = Array.from({ length: 20 }, (_, k) => {
+    const th = 1.2 * 0.5 * (1 - Math.cos((2 * Math.PI * k) / 20)); // arms lift from the sides to vertical
+    const arm = (x) => { const sh = L(x, 0.1, -0.3); const el = L(x, 0.1 + 0.186 * Math.sin(th), -0.3 + 0.186 * Math.cos(th)); return [sh, el, L(x, el[1] + 0.146 * Math.sin(th), el[2] + 0.146 * Math.cos(th))]; };
+    const [ls, le, lw] = arm(0.12); const [rs, re, rw] = arm(-0.12);
+    // Supine, head towards -z and resting lower than the feet, which lie at the hips' height.
+    const P = { 7: L(0.04, 0.06, -0.47), 8: L(-0.04, 0.06, -0.47), 11: ls, 12: rs, 13: le, 14: re, 15: lw, 16: rw,
+      23: L(0.09, 0.1, 0), 24: L(-0.09, 0.1, 0), 25: L(0.09, 0.1, 0.245), 26: L(-0.09, 0.1, 0.245), 27: L(0.09, 0.1, 0.49), 28: L(-0.09, 0.1, 0.49),
+      29: L(0.09, 0.1, 0.458), 30: L(-0.09, 0.1, 0.458), 31: L(0.09, 0.1, 0.614), 32: L(-0.09, 0.1, 0.614) };
+    return USED.map((i) => [P[i][0], -P[i][1], -P[i][2], 0.9]);
+  });
+  const entry = runPipeline({ format: 'mediapipe-world-landmarks-v1', fps: 15, indices: USED, frames }, { ...PROV, loop: false });
+  const feet = ['l_ankle', 'r_ankle', 'l_heel', 'r_heel', 'l_toe', 'r_toe'];
+  for (const f of entry.frames) {
+    const ys = JOINTS.map((j) => f[J(j) + 1]);
+    assert.ok(Math.abs(Math.min(...ys)) < 0.002, `lowest joint y ${Math.min(...ys)}`);
+    assert.equal(JOINTS[ys.indexOf(Math.min(...ys))], 'head', 'the head is what rests on the floor');
+    assert.ok(feet.every((j) => f[J(j) + 1] > 0.01), 'the feet are above the floor, not forced onto it');
+  }
 });
 
 test('rejects input that is not a MediaPipe world-landmark file, or too short, or with no repetition', () => {

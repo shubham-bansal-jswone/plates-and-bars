@@ -150,13 +150,13 @@ test('rejects duplicate clip and source ids', () => {
 
 const cc = (e) => Object.assign(e, {
   source: 'cc_licensed', source_id: 'commons/File_Bodyweight_squat.webm', source_url: 'https://commons.wikimedia.org/wiki/File:Bodyweight_squat.webm',
-  retrieved: '2026-10-20', clip_id: 'File_Bodyweight_squat.webm', release_id: null, licence: 'CC-BY-SA-4.0', licence_url: LICENCES['CC-BY-SA-4.0'],
-  author: 'Jane Example, CC BY-SA 4.0, via Wikimedia Commons',
+  retrieved: '2026-10-20', clip_id: 'File_Bodyweight_squat.webm', release_id: null, licence: 'CC-BY-4.0', licence_url: LICENCES['CC-BY-4.0'],
+  author: 'Jane Example, CC BY 4.0, via Wikimedia Commons',
 });
 
 test('a cc_licensed entry needs source_url, retrieval date and attribution, and takes no release id', () => {
   assert.deepEqual(check(cc), []);
-  for (const l of ['CC0-1.0', 'CC-BY-4.0']) assert.deepEqual(check((e) => { cc(e); e.licence = l; e.licence_url = LICENCES[l]; }), []);
+  for (const l of ['CC0-1.0']) assert.deepEqual(check((e) => { cc(e); e.licence = l; e.licence_url = LICENCES[l]; }), []);
   assert.ok(check((e) => { cc(e); delete e.source_url; }).some((m) => /field "source_url" missing/.test(m)));
   only(check((e) => { cc(e); e.source_url = null; }), /source_url must be an https URL for a cc_licensed clip/);
   only(check((e) => { cc(e); e.retrieved = null; }), /retrieved must be the retrieval date/);
@@ -166,7 +166,7 @@ test('a cc_licensed entry needs source_url, retrieval date and attribution, and 
 });
 
 test('NC and ND licences are rejected, and so is YouTube', () => {
-  for (const l of ['CC-BY-NC-4.0', 'CC-BY-ND-4.0', 'CC-BY-NC-SA-4.0', 'CC-BY-NC-ND-4.0']) {
+  for (const l of ['CC-BY-NC-4.0', 'CC-BY-ND-4.0', 'CC-BY-NC-SA-4.0', 'CC-BY-NC-ND-4.0', 'CC-BY-SA-4.0', 'CC-BY-SA-3.0']) {
     only(check((e) => { cc(e); e.licence = l; e.licence_url = `https://creativecommons.org/licenses/${l.toLowerCase()}/`; }), /not on the allowlist/);
   }
   for (const u of ['https://www.youtube.com/watch?v=abc', 'https://youtu.be/abc', 'https://m.youtube.com/watch?v=abc']) {

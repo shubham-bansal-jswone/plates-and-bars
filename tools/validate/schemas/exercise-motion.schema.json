@@ -40,13 +40,13 @@
             "items": { "type": "number", "minimum": -2, "maximum": 2 }
           }
         },
-        "source": { "enum": ["own_filming", "cc_licensed"], "description": "Own filming, or a Creative Commons clip (no NC, no ND; never YouTube). The video is never shipped, only these joint numbers." },
+        "source": { "enum": ["own_filming", "cc_licensed"], "description": "Own filming, or a Creative Commons clip (CC0 or CC BY only; never YouTube). The video is never shipped, only these joint numbers." },
         "source_url": { "type": ["string", "null"], "format": "uri", "description": "Required (https) for cc_licensed: the page the clip came from, Wikimedia Commons preferred. Null for own_filming." },
         "retrieved": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Retrieval date, required for cc_licensed. Null for own_filming." },
         "source_id": { "type": "string", "minLength": 1 },
         "clip_id": { "type": "string", "minLength": 1, "description": "Id of the source clip in the owner's clip register (outside the repo)." },
         "release_id": { "type": ["string", "null"], "minLength": 1, "description": "Id of the signed model release for the person filmed. Required for own_filming, null for cc_licensed." },
-        "licence": { "enum": ["CC-BY-4.0", "CC0-1.0", "CC-BY-SA-4.0"] },
+        "licence": { "enum": ["CC-BY-4.0", "CC0-1.0"] },
         "licence_url": { "type": "string", "format": "uri" },
         "author": { "type": "string", "minLength": 1 },
         "author_url": { "type": ["string", "null"], "format": "uri" },

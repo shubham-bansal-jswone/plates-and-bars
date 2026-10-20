@@ -16,7 +16,7 @@
 //      with the fixed length from the skeleton table, keeping its measured direction (this is also what normalises body height:
 //      only directions are used, so the figure is 1.0 tall whoever was filmed)
 //   8. place the figure: MediaPipe's origin is the hip centre of every frame, so the body's place in the world is recovered from
-//      the feet. In each frame the lowest joint (heel, toe or ankle) is put on y = 0 and the ankle midpoint on x = z = 0; round to
+//      the feet. In each frame the lowest of all 19 joints is put on y = 0 and the ankle midpoint on x = z = 0; round to
 //      3 decimals. A heel raise keeps its height because the toe stays down; a jump does not (no flight phase can be recovered)
 import { JOINTS, BONES, MIN_FPS, MAX_FPS, MAX_ENTRY_BYTES, FIXTURE_SOURCE, LICENCES } from '../validate/exercise-motion.mjs';
 
