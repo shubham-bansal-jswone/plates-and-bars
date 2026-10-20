@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
 import { DATA_COPY } from '../account/copy';
-import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
+import { Button, Card, H1, Heading, Hint, Label, Page, Press } from '../components/ui';
 import { versionLine } from '../appVersion';
 import { getMotionCredits, type MotionEntry } from '../motion/data';
 import { LegalLinks } from '../legal/LegalLinks';
@@ -86,7 +86,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       ) : null}
       {motion.length > 0 ? (
         <>
-          <Text accessibilityRole="header" style={[type.bodyStrong, { color: c.ink }]}>{t.motion}</Text>
+          <Heading level={2} style={[type.bodyStrong, { color: c.ink }]}>{t.motion}</Heading>
           <View style={{ gap: 8 }}>{motion.map((m) => <MotionCredit key={m.name} name={m.name} e={m.entry} />)}</View>
         </>
       ) : null}
