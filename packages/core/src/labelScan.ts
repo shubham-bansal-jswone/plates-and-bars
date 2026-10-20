@@ -335,7 +335,9 @@ function splitMulti(l: Line): Line[] {
   const cuts: number[] = [];
   for (const m of l.text.matchAll(SECOND_LABEL)) {
     const at = (m.index ?? 0) + (m[0].length - m[0].trimStart().length);
-    if (at > 0 && /(?:[0-9]|\bg|\bmg|%|kcal|kj|nil)\s*[,;|]?\s*$/i.test(l.text.slice(0, at))) cuts.push(at);
+    const before = l.text.slice(0, at);
+    // "Per 100 calories" is a column header, not an energy row after a number.
+    if (at > 0 && /(?:[0-9]|\bg|\bmg|%|kcal|kj|nil)\s*[,;|]?\s*$/i.test(before) && !/\bper\s*\d*\s*$/i.test(before)) cuts.push(at);
   }
   if (cuts.length === 0) return [l];
   const bounds = [0, ...cuts, l.text.length];
@@ -384,22 +386,23 @@ function columnsOf(pre: string, servingMl: boolean): Cols {
     .replace(/serv(?:ing|e)\s*size\s*[:\-]?\s*(?:(?!per\b)[^\n])*?\d+(?:[.,]\d+)?\s*(?:g|gm|gms|grams?|ml)\b\)?/gi, ' ')
     .replace(/(per\s*(?:serve|serving|portion)\w*)(?:\s+of\s+|\s*\((?:(?!per\b)[^)\n])*?)\s*\d+(?:[.,]\d+)?\s*(?:g|gm|gms|ml)\b\)?/gi, '$1'); // needs "of" or "(": a bare "Per serving   100g" is a column header
   const kinds: { kind: ColKind | 'pct'; idx: number }[] = [];
-  let unitless = false;
-  let explicit = false;
-  const re = /(%\s*(?:rda|dv|nrv|ri|rni|daily\s*values?)(?:\s*per\s*(?:serve|serving|100\s*(?:g|ml)))?|\brda\b|\bnrv\b)|((?:per\s*|\/\s*)?\b100\s*(?:g|gm|gms|grams?|ml)\b|per\s*100\b(?!\s*[\d.,%]))|(amount\s+per\s+serving|per\s*(?:serve|serving|portion|piece|slice|bar|sachet|biscuit)\b)|(per\s*(?:container|pack|package|bottle|bag)\b)/gi;
+  let first: 'g' | 'ml' | 'none' | null = null;
+  // Group 5, "Per 100 kcal", "Per 100 kJ", "Per 100 calories" or "Per 100 servings", is a column of another basis (`other`), never per 100 g.
+  const re = /(%\s*(?:rda|dv|nrv|ri|rni|daily\s*values?)(?:\s*per\s*(?:serve|serving|100\s*(?:g|ml)))?|\brda\b|\bnrv\b)|(per\s*100\s*(?:k?cal|kj|calor|serv)\w*)|((?:per\s*|\/\s*)?\b100\s*(?:g|gm|gms|grams?|ml)\b|per\s*100\b(?!\s*(?:[\d.,%]|k?cal|kj|calories|serv)))|(amount\s+per\s+serving|per\s*(?:serve|serving|portion|piece|slice|bar|sachet|biscuit)\b)|(per\s*(?:container|pack|package|bottle|bag)\b)/gi;
   for (const m of pre.matchAll(re)) {
     const idx = m.index ?? 0;
     // "8 servings per container" is not a column.
-    if (m[4] && /servings?\s*$/i.test(pre.slice(Math.max(0, idx - 12), idx))) continue;
-    if (m[2] && !/\d\s*(?:g|gm|gms|grams?|ml)/i.test(m[2])) unitless = true;
-    else if (m[2]) explicit = true;
-    kinds.push({ kind: m[1] ? 'pct' : m[2] ? 'per100' : m[3] ? 'serve' : 'other', idx });
+    if (m[5] && /servings?\s*$/i.test(pre.slice(Math.max(0, idx - 12), idx))) continue;
+    // The unit comes from the first column that is taken as per 100 (not from any "100 ml" elsewhere in the header).
+    if (m[3] && first === null) first = /\d\s*(?:g|gm|gms|grams?|ml)/i.test(m[3]) ? (/ml/i.test(m[3]) ? 'ml' : 'g') : 'none';
+    kinds.push({ kind: m[1] ? 'pct' : m[3] ? 'per100' : m[4] ? 'serve' : 'other', idx });
   }
   const vals = kinds.filter((k) => k.kind !== 'pct').map((k) => k.kind as ColKind);
   const out: ColKind[] = [];
-  for (const k of vals) if (out.length === 0 || !(out[out.length - 1] === k)) out.push(k);
-  const inferred = unitless && !explicit;
-  return { kinds: out, inferred, liquid: /100\s*ml/i.test(pre) || (inferred && (servingMl || /\bml\b/i.test(header))) };
+  // A column named twice in a row is one column, except `other` ("Per 100 kJ   Per 100 kcal" are two).
+  for (const k of vals) if (out.length === 0 || k === 'other' || out[out.length - 1] !== k) out.push(k);
+  const inferred = first === 'none';
+  return { kinds: out, inferred, liquid: first === 'ml' || (inferred && (servingMl || /\bml\b/i.test(header))) };
 }
 
 interface Serving {

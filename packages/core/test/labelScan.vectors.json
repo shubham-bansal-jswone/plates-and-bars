@@ -2062,5 +2062,81 @@
     }
    }
   }
+ },
+ {
+  "id": "round5-per-100-kcal-column-then-per-100-g",
+  "input": "Nutritional Information\nPer 100 kcal   Per 100 g\nEnergy 100 kcal   450 kcal\nProtein 2.2 g   10 g\nCarbohydrate 11.4 g   51 g\nTotal Fat 5 g   22.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 51,
+    "fat_g": 22.5
+   },
+   "missing": [],
+   "level": {
+    "kcal": "high"
+   },
+   "noWarn": [
+    "basis_unit_inferred"
+   ]
+  }
+ },
+ {
+  "id": "round5-per-100g-kcal-and-ml-columns-keep-g",
+  "input": "Nutritional Information\nPer 100 g   Per 100 kcal   Per 100 ml\nEnergy 500 kcal   100 kcal   450 kcal\nProtein 11 g   2.2 g   9.9 g\nCarbohydrate 57 g   11.4 g   51 g\nTotal Fat 25 g   5 g   22.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 500,
+    "protein_g": 11,
+    "carbs_g": 57,
+    "fat_g": 25
+   },
+   "missing": [],
+   "level": {
+    "kcal": "high"
+   }
+  }
+ },
+ {
+  "id": "round5-serve-then-per-100-kcal",
+  "input": "Nutrition Information\nServing size 30 g\nPer serve   Per 100 kcal\nEnergy 150 kcal   100 kcal\nProtein 3.3 g   2.2 g\nCarbohydrate 17 g   11.4 g\nTotal Fat 7.5 g   5 g",
+  "expect": {
+   "basis": "per_serving",
+   "unit": "30 g",
+   "values": {
+    "kcal": 150,
+    "protein_g": 3.3,
+    "carbs_g": 17,
+    "fat_g": 7.5
+   },
+   "missing": [],
+   "level": {
+    "kcal": "high",
+    "protein_g": "high"
+   }
+  }
+ },
+ {
+  "id": "round5-per-100-kj-and-calories-columns-are-not-per-100",
+  "input": "Nutritional Information\nPer 100 kJ   Per 100 calories   Per 100 g\nEnergy 100 kcal   100 kcal   450 kcal\nProtein 2.2 g   2.2 g   10 g\nCarbohydrate 11.4 g   11.4 g   51 g\nTotal Fat 5 g   5 g   22.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 51,
+    "fat_g": 22.5
+   },
+   "missing": [],
+   "noWarn": [
+    "basis_unit_inferred"
+   ]
+  }
  }
 ]
