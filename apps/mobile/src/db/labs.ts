@@ -56,9 +56,9 @@ export async function saveHold(db: StoreDb, h: LabHold): Promise<void> {
   await db.runAsync('INSERT OR REPLACE INTO lab_store (key, data) VALUES (?, ?)', HOLD_KEY, JSON.stringify(h));
 }
 
-/** "Delete all reports": the report rows go. The hold stays: only "I've seen my doctor" clears it (prototype `lab-del`). */
-export async function deleteReports(db: LabDb): Promise<void> {
-  for (const r of await loadReports(db)) await db.runAsync('DELETE FROM lab_store WHERE key = ?', `${PREFIX}${r.date}|${r.id}`);
+/** "Delete all reports": every `lab|` row goes, readable or not. The hold stays: only "I've seen my doctor" clears it (prototype `lab-del`). */
+export async function deleteReports(db: StoreDb): Promise<void> {
+  await db.runAsync("DELETE FROM lab_store WHERE key LIKE 'lab|%'");
 }
 
 // A change signal, so every screen that reads the hold (Food, Workout, Targets, Progress) reads it again at once. Same idea as storeEpoch.

@@ -104,7 +104,7 @@ function Results({ reports, shown, onPick }: { reports: readonly LabReport[]; sh
       <Heading level={3} style={[typeScale.label, { color: c.ink }]}>{LABS_LATEST(shortDate(shown.date))}</Heading>
       {flagged.length ? (
         flagged.map(({ t, r }, i) => (
-          <Card key={i} accessible accessibilityLabel={`${t.name}: ${t.value} ${t.unit}. ${FLAG_WORD[r.flag]}.`} style={r.flag === 'red' ? { borderWidth: 2, borderColor: c.danger } : undefined}>
+          <Card key={i} style={r.flag === 'red' ? { borderWidth: 2, borderColor: c.danger } : undefined}>
             <Text style={{ color: c.ink, fontWeight: '700' }}>{`${t.name}: ${t.value} ${t.unit}`}</Text>
             <Text style={{ color: r.flag === 'red' ? c.danger : c.ink, fontWeight: '700' }}>{FLAG_WORD[r.flag]}</Text>
             <Hint>{LABS_RANGE(t.low, t.high, r.flag)}</Hint>
@@ -129,7 +129,7 @@ function AllResults({ rows, trend }: { rows: { t: LabTest; r: ReturnType<typeof 
       <Button label={LABS_ALL(rows.length)} kind="link" expanded={open} onPress={() => setOpen(!open)} />
       {open
         ? rows.map(({ t, r }, i) => (
-            <View key={i} style={styles.row} accessible accessibilityLabel={`${t.name}: ${t.value} ${t.unit}. ${FLAG_WORD[r.flag]}.${r.unitStatus === 'unrecognised' ? ` ${labs.unit_unrecognised}` : ''}`}>
+            <View key={i} style={styles.row}>
               <Text style={{ color: c.ink, flex: 1 }}>{t.name}</Text>
               <Text style={{ color: c.ink, fontWeight: '700' }}>{`${t.value} ${t.unit} · ${FLAG_WORD[r.flag]}`}</Text>
               {r.unitStatus === 'unrecognised' ? <Hint>{labs.unit_unrecognised}</Hint> : null}

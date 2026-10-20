@@ -18,6 +18,7 @@ export const LABS_DELETED = 'Reports deleted';
 export const LABS_DELETE = 'Delete all reports';
 /** Second tap of the delete: it cannot be undone. */
 export const LABS_DELETE_AGAIN = 'Tap again to delete all reports';
+export const LABS_LOAD_FAILED = 'Couldn’t read your lab reports. Try again.';
 export const LABS_SAVE_FAILED = 'Couldn’t save the lab report. Try again.';
 export const LABS_ALL = (n: number): string => `All results (${n})`;
 export const LABS_COUNT = (n: number): string => `${n} report${n > 1 ? 's' : ''} saved on this device.`;
