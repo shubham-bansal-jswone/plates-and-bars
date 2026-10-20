@@ -1,0 +1,5 @@
+# Optional step only (run-model.py). CI never installs these. Exact versions, checked with `pip install --dry-run` on 2026-10-19.
+# Licences are listed in README.md.
+mediapipe==1.1.1
+opencv-contrib-python==5.0.0.93
+numpy==2.5.4
