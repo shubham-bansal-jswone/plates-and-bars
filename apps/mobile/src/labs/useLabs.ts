@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { clearHold, holdAfterSave, labHoldOn, reportIsRed, type LabHold, type LabReport } from '@plate-and-bar/core';
-import { exclusive } from '../cycle/useCycle';
+import { exclusive } from '../db/exclusive';
 import { deleteReports, labsVersion, loadHold, loadReports, notifyLabsChanged, saveHold, saveReport, subscribeLabs, type LabDb } from '../db/labs';
 import { newId } from '../db/records';
-import { LABS_CLEARED, LABS_DELETED, LABS_SAVED, LABS_SAVED_RED, LABS_SAVE_FAILED } from './copy';
+import { LABS_CLEARED, LABS_DELETED, LABS_LOAD_FAILED, LABS_SAVED, LABS_SAVED_RED, LABS_SAVE_FAILED } from './copy';
 import { labReportsEnabled } from './flag';
 
 /**
@@ -30,7 +30,7 @@ export function useLabs({ db, today, notify, reloadKey = 0 }: { db: LabDb; today
         setReports(r);
         setHold(h);
       })
-      .catch(() => live && notify(LABS_SAVE_FAILED));
+      .catch(() => live && notify(LABS_LOAD_FAILED));
     return () => {
       live = false;
     };

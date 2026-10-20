@@ -111,23 +111,28 @@ describe('Lab reports section (flag on)', () => {
         test('Albumin', '4', 'g/dL'), // none
       ])),
     );
-    expect(await screen.findByLabelText('Fasting glucose: 250 mg/dL. Needs a doctor’s review.')).toBeTruthy();
+    expect(await screen.findByText('Fasting glucose: 250 mg/dL')).toBeTruthy();
+    expect(screen.getByText('Needs a doctor’s review')).toBeTruthy();
     expect(screen.getAllByText(labs.red_notice)).toHaveLength(1);
     expect(screen.getByText('Lab range 70 to 100, far outside')).toBeTruthy();
-    expect(screen.getByLabelText('LDL cholesterol: 150 mg/dL. High.')).toBeTruthy();
+    expect(screen.getByText('LDL cholesterol: 150 mg/dL')).toBeTruthy();
+    expect(screen.getAllByText('High')).toHaveLength(2); // LDL and sodium
     expect(screen.getByText(labs.markers.ldl!.high!)).toBeTruthy();
-    expect(screen.getByLabelText('Vitamin D: 10 ng/mL. Low.')).toBeTruthy();
+    expect(screen.getByText('Vitamin D: 10 ng/mL')).toBeTruthy();
+    expect(screen.getByText('Low')).toBeTruthy();
     expect(screen.getByText(labs.markers.vitamin_d!.low!)).toBeTruthy();
-    expect(screen.getByLabelText('Sodium: 150 mmol/L. High.')).toBeTruthy();
+    expect(screen.getByText('Sodium: 150 mmol/L')).toBeTruthy();
     expect(screen.getByText(labs.generic_notice)).toBeTruthy();
-    expect(screen.queryByLabelText(/Albumin/)).toBeNull(); // not flagged: only in All results
+    expect(screen.queryByText(/Albumin/)).toBeNull(); // not flagged: only in All results
     await fireEvent.press(screen.getByRole('button', { name: 'All results (5)' }));
-    expect(screen.getByLabelText('Albumin: 4 g/dL. No range printed.')).toBeTruthy();
+    expect(screen.getByText('Albumin')).toBeTruthy();
+    expect(screen.getByText('4 g/dL · No range printed')).toBeTruthy();
   });
 
   it('says "unit not recognised" for a matched marker in an unknown unit, and never marks it red', async () => {
     await setup(async (d) => saveReport(d, rep('r1', '2026-10-01', [test('Fasting glucose', '250', 'bananas', '70', '100')])));
-    expect(await screen.findByLabelText('Fasting glucose: 250 bananas. High.')).toBeTruthy();
+    expect(await screen.findByText('Fasting glucose: 250 bananas')).toBeTruthy();
+    expect(screen.getByText('High')).toBeTruthy();
     expect(screen.getByText(labs.unit_unrecognised)).toBeTruthy();
     expect(screen.queryByText(labs.red_notice)).toBeNull();
   });
@@ -144,7 +149,7 @@ describe('Lab reports section (flag on)', () => {
     });
     expect(await screen.findByText('Trend: 1 Aug: 160, 1 Oct: 150')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Show the report from 2026-08-01' }));
-    expect(await screen.findByLabelText('LDL cholesterol: 160 mg/dL. High.')).toBeTruthy();
+    expect(await screen.findByText('LDL cholesterol: 160 mg/dL')).toBeTruthy();
   });
 
   it('a red result sets the hold on saving, with today as the since date; the doctor button clears it', async () => {
@@ -191,5 +196,43 @@ describe('Lab reports section (flag on)', () => {
     await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Tap again to delete all reports' })));
     await waitFor(() => expect(keys(db)).toEqual(['lab_store:hold']));
     expect(screen.getByText(labs.hold_title)).toBeTruthy();
+  });
+
+  it('a failed read says it could not read the reports, not that a save failed', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const orig = db.getAllAsync.bind(db);
+    db.getAllAsync = ((sql: string, ...p: (string | number)[]) => (sql.includes('lab_store') ? Promise.reject(new Error('disk')) : orig(sql, ...p))) as typeof db.getAllAsync;
+    await render(withProfile(db, <ProgressScreen db={db} now={NOW} />));
+    expect(await screen.findByText('Couldn’t read your lab reports. Try again.')).toBeTruthy();
+    expect(screen.queryByText(/Couldn’t save the lab report/)).toBeNull();
+  });
+});
+
+type TreeNode = { props?: Record<string, unknown>; children?: unknown[] | null };
+/** True when the text is inside an element that groups its children into one accessible element: a screen reader then reads that element's own label only. */
+function hiddenByGrouping(node: unknown, text: string, grouped = false): boolean | null {
+  if (typeof node === 'string') return node.includes(text) ? grouped : null;
+  if (!node || typeof node !== 'object') return null;
+  const n = node as TreeNode;
+  const g = grouped || n.props?.accessible === true;
+  for (const c of n.children ?? []) {
+    const r = hiddenByGrouping(c, text, g);
+    if (r !== null) return r;
+  }
+  return null;
+}
+
+describe('results are read by a screen reader (the accessibility tree, not getByText)', () => {
+  it('the red notice, tip, range, unit note and trend are not inside an accessible grouping', async () => {
+    await setup(async (d) => {
+      await saveReport(d, rep('r0', '2026-08-01', [test('Fasting glucose', '240', 'mg/dL', '70', '100'), test('LDL cholesterol', '160', 'mg/dL', '0', '100')]));
+      await saveReport(d, rep('r1', '2026-10-01', [test('Fasting glucose', '250', 'mg/dL', '70', '100'), test('LDL cholesterol', '150', 'mg/dL', '0', '100'), test('Vitamin D', '10', 'bananas', '30', '100')]));
+    });
+    await screen.findByText('Fasting glucose: 250 mg/dL');
+    const tree = screen.toJSON();
+    for (const t of [labs.red_notice, labs.markers.ldl!.high!, 'Lab range 70 to 100, far outside', labs.unit_unrecognised, 'Trend: 1 Aug: 240, 1 Oct: 250']) expect([t, hiddenByGrouping(tree, t)]).toEqual([t, false]);
+    await fireEvent.press(screen.getByRole('button', { name: 'All results (3)' }));
+    expect(hiddenByGrouping(screen.toJSON(), 'Trend: 1 Aug: 160, 1 Oct: 150')).toBe(false);
   });
 });

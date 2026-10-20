@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { H1, Heading } from '../src/components/ui';
 import { saveProfile } from '../src/db/records';
+import { saveReport } from '../src/db/labs';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 import { sourcesMatching } from './source-files';
@@ -68,6 +69,25 @@ describe('screen outlines', () => {
     await render(withProfile(db, <ProgressScreen db={db} now={NOW} />));
     await screen.findByRole('header', { name: 'Progress' });
     expectOutline(levels());
+  });
+
+  it('Progress with lab reports on has a sound outline, with a saved report and the add sheet open', async () => {
+    process.env.EXPO_PUBLIC_LAB_REPORTS = '1';
+    try {
+      const db = memoryDb();
+      await saveProfile(db, profile());
+      await saveReport(db, { id: 'r1', date: '2026-10-01', tests: [{ name: 'LDL cholesterol', value: '150', unit: 'mg/dL', low: '0', high: '100' }] });
+      await render(withProfile(db, <ProgressScreen db={db} now={NOW} />));
+      await screen.findByRole('header', { name: 'Lab reports' });
+      await screen.findByText('LDL cholesterol: 150 mg/dL');
+      expectOutline(levels());
+      expect(levels()).toContain(3); // "Report: ..."
+      await fireEvent.press(screen.getByRole('button', { name: 'Add a report' }));
+      await screen.findByRole('header', { name: 'Add a lab report' });
+      expectOutline(levels());
+    } finally {
+      delete process.env.EXPO_PUBLIC_LAB_REPORTS;
+    }
   });
 
   it('Targets has one level-one heading: Your setup, which states the burn once', async () => {

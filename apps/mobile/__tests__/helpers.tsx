@@ -48,6 +48,11 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
       if (db.failWrites) throw new Error('disk full');
       const held = db.hold?.(sql);
       if (held) await held; // no extra microtask turn for the many tests that never set `hold`
+      const like = /^DELETE FROM (\w+) WHERE key LIKE '([^%]*)%'/.exec(sql);
+      if (like) {
+        for (const k of [...rows.keys()]) if (k.startsWith(`${like[1]}:${like[2]}`)) rows.delete(k);
+        return;
+      }
       const del = /^DELETE FROM (\w+) WHERE key/.exec(sql);
       if (del) {
         rows.delete(`${del[1]}:${p[0]}`);

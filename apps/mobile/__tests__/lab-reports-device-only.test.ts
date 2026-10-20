@@ -101,6 +101,17 @@ describe('lab reports and the lab hold are device only (#1070)', () => {
     expect(await rows(db)).toBe(0);
   });
 
+  it('delete all reports removes every lab row, damaged or with a key date that does not match, and keeps the hold', async () => {
+    const db = await openDb();
+    await saveReport(db, report);
+    await saveHold(db, { on: true, since: '2026-10-01' });
+    await db.runAsync("INSERT INTO lab_store (key, data) VALUES ('lab|2026-10-02|bad', 'not json')");
+    await db.runAsync("INSERT INTO lab_store (key, data) VALUES ('lab|2026-10-03|mismatch', ?)", JSON.stringify({ date: '2026-09-09', tests: report.tests }));
+    expect((await loadReports(db)).map((r) => r.id)).toEqual(['r1', 'mismatch']);
+    await deleteReports(db);
+    expect(await db.getAllAsync('SELECT key FROM lab_store')).toEqual([{ key: 'hold' }]);
+  });
+
   it('reads damaged rows as nothing', async () => {
     const db = await openDb();
     await db.runAsync("INSERT INTO lab_store (key, data) VALUES ('hold', 'not json')");
