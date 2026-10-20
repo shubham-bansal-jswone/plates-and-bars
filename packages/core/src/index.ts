@@ -729,3 +729,11 @@ export {
   reportIsRed, holdAfterSave, clearHold, labHoldOn, labHistory, validateLabReport,
 } from './labs';
 export type { Marker, MarkerKey, TipSide, TipKind, LabFlag, UnitStatus, LabResult, LabTest, LabReport, LabHold, LabReportError } from './labs';
+
+/**
+ * Nutrition-label parser (#1067, slice 1): new rules from the #1067 spike, not prototype ports (the prototype has no label scan).
+ * - `parseNutritionLabel` reads OCR text (plain, or lines with per-word confidence) into a `LabelDraft`: per 100 g or per serving, kcal (kJ / 4.184 rounded, as `offToUserFood`), protein, carbs, fat, fibre and added sugar, each with a confidence and an empty value below 0.5; plausibility reuses `looksOff` from off.ts.
+ * - `labelToScannedInput` and `labelFood` end a draft in `scannedFood` (the same validator and save path as the barcode review); `labelFood` adds fibre and added sugar.
+ */
+export { parseNutritionLabel, labelToScannedInput, labelFood } from './labelScan';
+export type { LabelOcrInput, LabelOcrLine, LabelOcrWord, LabelKey, LabelLevel, LabelNote, LabelField, LabelWarning, LabelAlternate, LabelValues, LabelDraft } from './labelScan';

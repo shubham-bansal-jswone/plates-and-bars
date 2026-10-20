@@ -5,6 +5,9 @@
 
   <application>
     <receiver android:name="app.plateandbar.reminders.ReminderReceiver" android:exported="false" />
+    <!-- Rest-timer notification (#1068): the end alarm and the +30 s / Skip rest buttons. Both are our own PendingIntents. -->
+    <receiver android:name="app.plateandbar.reminders.RestAlertReceiver" android:exported="false" />
+    <receiver android:name="app.plateandbar.reminders.RestActionReceiver" android:exported="false" />
     <!-- System broadcasts only (delivered to a non-exported receiver; any other action is ignored): re-arm after a reboot, an app update, or a clock or time zone change. -->
     <receiver android:name="app.plateandbar.reminders.RearmReceiver" android:exported="false">
       <intent-filter>

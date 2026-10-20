@@ -12,6 +12,26 @@ export interface NativeRule {
   route: string;
 }
 
+/** The rest timer the Android module shows while the app is in the background (#1068). Times are epoch milliseconds. */
+export interface NativeRest {
+  id: number;
+  end: number;
+  extendMs: number;
+  title: string;
+  body: string;
+  doneTitle: string;
+  doneBody: string;
+  extendLabel: string;
+  skipLabel: string;
+}
+
+/** What the notification's buttons did to the rest while the app was away. */
+export interface RestEcho {
+  id: number;
+  end: number;
+  skipped: boolean;
+}
+
 export type PermissionStatus = 'granted' | 'denied';
 
 interface PlateRemindersModule {
@@ -19,6 +39,9 @@ interface PlateRemindersModule {
   requestPermission(): Promise<PermissionStatus>;
   setRules(rules: NativeRule[]): Promise<void>;
   cancelAll(): Promise<void>;
+  showRest(rest: NativeRest): Promise<void>;
+  /** Removes the rest notification and returns what its buttons did, or null when there was nothing. */
+  takeRest(): Promise<RestEcho | null>;
 }
 
 /**

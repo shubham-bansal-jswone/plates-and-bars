@@ -15,6 +15,8 @@ export interface ReminderPrefs {
   lunch: { on: boolean; time: ClockTime };
   dinner: { on: boolean; time: ClockTime };
   water: { on: boolean; every_h: WaterEvery };
+  /** The rest timer as a notification while the app is in the background (#1068). Not a schedule: the workout screen drives it. */
+  rest: { on: boolean };
   /** No reminder fires from `from` (inclusive) until `to` (exclusive); may cross midnight. */
   quiet: { from: ClockTime; to: ClockTime };
 }
@@ -26,6 +28,7 @@ export const DEFAULT_PREFS: ReminderPrefs = {
   lunch: { on: false, time: '13:30' },
   dinner: { on: false, time: '20:30' },
   water: { on: false, every_h: 3 },
+  rest: { on: false },
   quiet: { from: '22:00', to: '07:00' },
 };
 
@@ -92,6 +95,7 @@ export function parsePrefs(raw: string | null): ReminderPrefs {
     lunch: fixed('lunch'),
     dinner: fixed('dinner'),
     water: { on: o.water?.on === true, every_h: every },
+    rest: { on: o.rest?.on === true },
     quiet: { from: time(o.quiet?.from, DEFAULT_PREFS.quiet.from), to: time(o.quiet?.to, DEFAULT_PREFS.quiet.to) },
   };
 }

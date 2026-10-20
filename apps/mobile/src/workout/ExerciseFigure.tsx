@@ -6,6 +6,9 @@ import { Text } from '../components/Text';
 import { Press } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { exerciseMotionEnabled } from '../motion/flag';
+import { getMotion } from '../motion/data';
+import { MotionFigure } from '../motion/MotionFigure';
 import { getCatalog } from './catalog';
 import { figureAlt, getFigure, licenceLabel, themedSvg } from './figures';
 
@@ -19,6 +22,9 @@ export function ExerciseFigure({ name }: { name: string }) {
   const router = useRouter();
   const entry = getFigure(name);
   const xml = useMemo(() => entry?.frames.map((f) => themedSvg(f.svg, c)) ?? [], [entry, c]);
+  // Behind EXPO_PUBLIC_EXERCISE_MOTION (#1069): a motion entry replaces the pair; no entry, or the flag off, keeps the v1.1 frames.
+  const motion = exerciseMotionEnabled() ? getMotion(name) : undefined;
+  if (motion) return <MotionFigure name={name} entry={motion} />;
   if (!entry) return null;
   const alt = figureAlt(name, entry, getCatalog().cards[name]?.setup[0]);
   // The visible text starts the accessible name, so axe's label-content-name-mismatch rule holds.
