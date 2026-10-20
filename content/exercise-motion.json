@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "skeleton": "pb19-v1",
+  "joints": [
+    "head",
+    "neck",
+    "l_shoulder",
+    "r_shoulder",
+    "l_elbow",
+    "r_elbow",
+    "l_wrist",
+    "r_wrist",
+    "spine_mid",
+    "l_hip",
+    "r_hip",
+    "l_knee",
+    "r_knee",
+    "l_ankle",
+    "r_ankle",
+    "l_heel",
+    "r_heel",
+    "l_toe",
+    "r_toe"
+  ],
+  "motions": {}
+}
