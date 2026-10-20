@@ -11,7 +11,7 @@ const OWN = MOTION_ENTRY_NAME;
 const CC = 'Barbell Bench Press';
 const SOURCE_URL = 'https://commons.wikimedia.org/wiki/File:Bench.webm';
 
-/** A fixture bundle: the squat as own filming and a push-up as a Commons clip (test data only; the shipped bundle stays empty). */
+/** A fixture bundle: the squat as own filming and a barbell bench press as a Commons clip (test data only; the shipped bundle stays empty). */
 function bundle(): unknown {
   const b = motionFixtureBundle() as { motions: Record<string, Record<string, unknown>> };
   const base = b.motions[OWN]!;
