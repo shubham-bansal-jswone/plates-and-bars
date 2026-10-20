@@ -169,7 +169,7 @@ const cc = (e) => Object.assign(e, {
 
 test('a cc_licensed entry needs source_url, retrieval date and attribution, and takes no release id', () => {
   assert.deepEqual(check(cc), []);
-  for (const l of ['CC0-1.0']) assert.deepEqual(check((e) => { cc(e); e.licence = l; e.licence_url = LICENCES[l]; }), []);
+  for (const l of ['CC0-1.0', 'CC-BY-3.0']) assert.deepEqual(check((e) => { cc(e); e.licence = l; e.licence_url = LICENCES[l]; }), []);
   assert.ok(check((e) => { cc(e); delete e.source_url; }).some((m) => /field "source_url" missing/.test(m)));
   only(check((e) => { cc(e); e.source_url = null; }), /source_url must be an https URL on Wikimedia Commons/);
   only(check((e) => { cc(e); e.retrieved = null; }), /retrieved must be the retrieval date/);

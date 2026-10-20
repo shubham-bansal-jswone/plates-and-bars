@@ -32,6 +32,7 @@ export const SOURCES = ['own_filming', 'cc_licensed'];
 export const LICENCES: Readonly<Record<string, string>> = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+  'CC-BY-3.0': 'https://creativecommons.org/licenses/by/3.0/',
 };
 /** A cc_licensed clip must come from Wikimedia Commons (tools/validate/exercise-motion.mjs SOURCE_HOSTS). */
 export const SOURCE_HOSTS = ['commons.wikimedia.org', 'upload.wikimedia.org'];
