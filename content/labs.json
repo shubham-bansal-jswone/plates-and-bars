@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "origin": "docs/prototype/plate-and-bar.html (MARKERS tips, renderLabs, labsShellHtml, labSheet; lab reports, #1070). Hand entry only: no AI, no upload. Informational, not diagnostic.",
+  "not_medical_advice": "This is general information, not medical advice and not a diagnosis. Only a doctor can tell you what a result means for you. Please see a doctor about your results.",
+  "intro": "Enter the results from a blood report to track them and get general lifestyle tips. A doctor should interpret your results. Saved only on this device.",
+  "check_values": "Check every value against your report before saving. A misread decimal point matters here.",
+  "red_notice": "This result is well outside the lab’s range. Please have a doctor review it soon. The app won’t give lifestyle tips for it.",
+  "generic_notice": "Outside the lab’s range. Please discuss with your doctor.",
+  "unit_unrecognised": "Unit not recognised, so this result is compared with the lab’s own range only and is never marked as needing urgent review. Check the unit against your report.",
+  "all_within_range": "Everything with a printed range is within it.",
+  "hold_title": "A result needs a doctor’s review",
+  "hold_body": "Calorie deficit and hard training are paused until you’ve seen a doctor about it.",
+  "workout_note": "Hard training is paused until a doctor has reviewed a recent lab result: lighter sessions with no weight increases. Update this on the Progress tab.",
+  "markers": {
+    "vitamin_d": {
+      "low": "Low vitamin D is common in India. Sunlight on arms and face for 15–20 minutes most days, and foods like eggs, fortified milk and fish help. Discuss whether to supplement, and how much, with your doctor."
+    },
+    "vitamin_b12": {
+      "low": "Low B12 is common in vegetarians. Dairy, eggs and fortified foods help. Discuss supplementing with your doctor."
+    },
+    "iron_ferritin": {
+      "low": "Iron-rich foods (dal, rajma, chana, spinach, eggs, meat) with vitamin C (lemon, amla) improve absorption; tea and coffee with meals reduce it. Low iron can make training feel harder. Your doctor can check why it’s low."
+    },
+    "haemoglobin": {
+      "low": "Low haemoglobin can cause tiredness and poorer training. Your doctor should look at the cause before any change."
+    },
+    "ldl": {
+      "high": "More fibre (oats, dal, vegetables), fewer fried foods and less saturated fat (ghee, butter, cream) help, as does regular exercise and fat loss. Your doctor will judge the overall risk."
+    },
+    "hdl": {
+      "low": "Regular exercise, fat loss and not smoking tend to raise HDL."
+    },
+    "triglycerides": {
+      "high": "Cutting sugar, sweet drinks, refined carbs and alcohol, plus fat loss and exercise, usually bring triglycerides down."
+    },
+    "hba1c": {
+      "high": "Higher-fibre carbs, fewer sweets and sugary drinks, regular training and fat loss help blood sugar. Please see your doctor about this result."
+    },
+    "glucose": {
+      "high": "Higher-fibre carbs, fewer sweets and sugary drinks, regular training and fat loss help blood sugar. Please see your doctor about this result."
+    },
+    "tsh": {
+      "high": "Thyroid levels can slow weight loss and affect energy. Please see your doctor.",
+      "low": "Please see your doctor about this thyroid result."
+    },
+    "creatinine": {
+      "high": "Creatine supplements and hard training can raise creatinine a little. Tell your doctor if you take creatine, and let them interpret it."
+    },
+    "alt": {
+      "high": "Fat loss, less alcohol and fewer sugary foods often help liver enzymes. Hard training the day before a test can raise them too. Please discuss with your doctor."
+    },
+    "ast": {
+      "high": "Hard training in the days before a test can raise AST. Please discuss with your doctor."
+    },
+    "uric_acid": {
+      "high": "Fewer sugary drinks and less alcohol and red meat can help. Please discuss with your doctor."
+    }
+  }
+}

@@ -47,9 +47,10 @@ describe('sync tables migration (v6)', () => {
     expect(await pendingCount(db)).toBe(0);
   });
 
-  it('is append-only and only adds objects (v7 adds the content store after it, v8 the device-only cycle log)', () => {
-    expect(MIGRATIONS).toHaveLength(8);
+  it('is append-only and only adds objects (v7 adds the content store after it, v8 the device-only cycle log, v9 the device-only lab store)', () => {
+    expect(MIGRATIONS).toHaveLength(9);
     expect(MIGRATIONS[7]).not.toMatch(/DROP|DELETE|ALTER|sync_outbox|TRIGGER/i);
+    expect(MIGRATIONS[8]).not.toMatch(/DROP|DELETE|ALTER|sync_outbox|TRIGGER/i);
     expect(MIGRATIONS[5]).not.toMatch(/DROP|DELETE|ALTER/i);
     expect(MIGRATIONS[6]).not.toMatch(/DROP|DELETE|ALTER|sync_outbox/i);
   });

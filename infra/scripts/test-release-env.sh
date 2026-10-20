@@ -9,7 +9,7 @@
 #     never runs on pull requests;
 #   - a check step BEFORE the bundling step runs check-site-url.sh (release/production builds need the site URL) and, on
 #     web, check-sentry-origin.sh with both the origin and the DSN;
-#   - the feature flags EXPO_PUBLIC_BARCODE_SCAN, _POSE_TRACKING and _EXERCISE_MOTION are held to the same rules (a duplicate on another step
+#   - the feature flags EXPO_PUBLIC_BARCODE_SCAN, _POSE_TRACKING, _EXERCISE_MOTION and _LAB_REPORTS are held to the same rules (a duplicate on another step
 #     or at job or workflow level fails), come from `vars` on that step, and on Android are blank on pull requests;
 #   - web tag builds stamp the tag's version (without the v) into app.json before expo export.
 # Needs python3 with PyYAML (present on GitHub's Ubuntu runners). Run from anywhere: infra/scripts/test-release-env.sh
@@ -19,7 +19,7 @@ root="$(cd "$here/../.." && pwd)"
 python3 -I - "$root/.github/workflows/android-release.yml" "$root/.github/workflows/web-deploy.yml" <<'PY'
 import sys, yaml
 
-flags = ["EXPO_PUBLIC_BARCODE_SCAN", "EXPO_PUBLIC_POSE_TRACKING", "EXPO_PUBLIC_EXERCISE_MOTION"]
+flags = ["EXPO_PUBLIC_BARCODE_SCAN", "EXPO_PUBLIC_POSE_TRACKING", "EXPO_PUBLIC_EXERCISE_MOTION", "EXPO_PUBLIC_LAB_REPORTS"]
 names = ["EXPO_PUBLIC_SENTRY_DSN", "EXPO_PUBLIC_SENTRY_ENVIRONMENT", "EXPO_PUBLIC_SITE_URL"] + flags
 bundlers = {"android-release.yml": "gradlew", "web-deploy.yml": "expo export"}
 TAG_ENV = "${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}"
