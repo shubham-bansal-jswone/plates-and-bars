@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.plateandbar.labelscan.LineBuilderTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-19T12:42:05.354Z" hostname="JSWs-MacBook-Pro" time="0.002">
+  <properties/>
+  <testcase name="a last line that was not closed is still returned" classname="app.plateandbar.labelscan.LineBuilderTest" time="0.002"/>
+  <testcase name="blank words are dropped and a line of only blanks is not reported" classname="app.plateandbar.labelscan.LineBuilderTest" time="0.0"/>
+  <testcase name="words up to the end of a line become one line with mean confidence and a union box" classname="app.plateandbar.labelscan.LineBuilderTest" time="0.0"/>
+  <testcase name="no words give no lines" classname="app.plateandbar.labelscan.LineBuilderTest" time="0.0"/>
+  <testcase name="confidence is held to 0 to 100" classname="app.plateandbar.labelscan.LineBuilderTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

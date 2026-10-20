@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 9.2.1" type="incidents">
+
+    <incident
+        id="GradleDependency"
+        severity="warning"
+        message="A newer version of androidx.exifinterface:exifinterface than 1.4.1 is available: 1.4.2">
+        <fix-replace
+            description="Change to 1.4.2"
+            family="Update versions"
+            oldString="1.4.1"
+            replacement="1.4.2"
+            priority="0"/>
+        <location
+            file="${:plate-label-scanner*projectDir}/build.gradle"
+            line="38"
+            column="18"
+            startOffset="1442"
+            endLine="38"
+            endColumn="62"
+            endOffset="1486"/>
+    </incident>
+
+    <incident
+        id="UseKtx"
+        severity="warning"
+        message="Use the KTX extension function `String.toUri` instead?">
+        <fix-replace
+            description="Replace with the toUri extension function"
+            family="Replace with the toUri extension function"
+            robot="true"
+            independent="true"
+            oldString="Uri.parse(uriText)"
+            replacement="uriText.toUri()"
+            reformat="value"
+            imports="androidx.core.net.toUri"
+            priority="0">
+            <range
+                file="${:plate-label-scanner*debug*MAIN*sourceProvider*0*javaDir*0}/app/plateandbar/labelscan/ImageLoader.kt"
+                startOffset="1096"
+                endOffset="1114"/>
+        </fix-replace>
+        <location
+            file="${:plate-label-scanner*debug*MAIN*sourceProvider*0*javaDir*0}/app/plateandbar/labelscan/ImageLoader.kt"
+            line="25"
+            column="15"
+            startOffset="1096"
+            endLine="25"
+            endColumn="33"
+            endOffset="1114"/>
+    </incident>
+
+</incidents>

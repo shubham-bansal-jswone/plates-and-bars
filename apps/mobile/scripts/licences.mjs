@@ -155,6 +155,10 @@ const ANDROID_LICENCES = [
   ['com.facebook.yoga', 'MIT', 'yoga.txt', 'proguard-annotations@1.19.0'],
   // The POM names BSD and Apache-2.0; Glide's LICENSE is BSD-2-Clause with MIT and Apache parts for bundled third-party code.
   ['com.github.bumptech.glide', 'BSD-2-Clause AND MIT AND Apache-2.0', 'glide.txt', 'annotations@5.0.5 disklrucache@5.0.5 gifdecoder@5.0.5 glide@5.0.5'],
+  // Tesseract4Android for label scanning (#1067, ADR 010): from JitPack only (not on Maven Central or Google Maven), built from the 4.9.0 tag of
+  // https://github.com/adaptech-cz/Tesseract4Android. The POM names no licence; the repository's LICENSE is Apache-2.0 (checked 2026-10-19), and the
+  // AAR (sha256 bce5d641...2b2a) carries libtesseract.so, libleptonica.so, libjpeg.so and libpngx.so (see NATIVE below). No NOTICE file.
+  ['com.github.adaptech-cz.Tesseract4Android', 'Apache-2.0', null, 'tesseract4android@4.9.0'],
   // LiteRT (TensorFlow Lite) runtime for live pose tracking on Android (#947): bundled, runs on the CPU, no Play services. Both POMs and the
   // AAR's LICENSE are Apache-2.0 (checked 2026-10-19); the AAR carries libtensorflowlite_jni.so (see NATIVE below) and ships no NOTICE file.
   ['com.google.ai.edge.litert', 'Apache-2.0', null, 'litert@1.4.0 litert-api@1.4.0'],
@@ -279,6 +283,13 @@ const NATIVE = [
   ['eigen-threadpool', 'Eigen thread pool (EigenForTFLite, in TensorFlow Lite)', 'bundled in litert 1.4.0', 'MPL-2.0', 'https://gitlab.com/libeigen/eigen', ['eigen-mpl2.txt']],
   ['fft2d', 'FFT package by Takuya Ooura (in TensorFlow Lite)', 'bundled in litert 1.4.0', 'Ooura permissive notice', 'https://github.com/tensorflow/tensorflow/tree/master/third_party/fft2d', ['fft2d.txt']],
   ['neon-2-sse', 'ARM NEON to x86 SSE shim (in TensorFlow Lite, x86 builds)', 'bundled in litert 1.4.0', 'BSD-3-Clause-like (Intel licence agreement)', 'https://github.com/intel/ARM_NEON_2_x86_SSE', ['neon-2-sse.txt']],
+  // Tesseract4Android 4.9.0 (label scanning, #1067). Versions are the ones its README names for the 4.9.0 tag (checked 2026-10-19); the AAR's
+  // libtesseract.so reports Tesseract 5.5.1, and each library of the AAR carries one of these (NEEDED entries: libtesseract needs libleptonica,
+  // libjpeg and libpngx; libleptonica needs libjpeg and libpngx). libtesseract.so has no libc++_shared.so entry, so the C++ runtime is static (libcxx).
+  ['tesseract', 'Tesseract OCR', '5.5.1 (in Tesseract4Android 4.9.0)', 'Apache-2.0', 'https://github.com/tesseract-ocr/tesseract', ['apache-2.0.txt']],
+  ['leptonica', 'Leptonica', '1.85.0 (in Tesseract4Android 4.9.0)', 'BSD-2-Clause', 'https://github.com/DanBloomberg/leptonica', ['leptonica.txt']],
+  ['libjpeg-ijg', 'libjpeg (Independent JPEG Group)', '9f (in Tesseract4Android 4.9.0)', 'IJG', 'https://www.ijg.org', ['libjpeg-ijg.txt']],
+  ['libpng', 'libpng', '1.6.48 (in Tesseract4Android 4.9.0)', 'libpng-2.0', 'https://www.libpng.org/pub/png/libpng.html', ['libpng.txt']],
   ['sqlite', 'SQLite', '3.53.3', 'Public domain', 'https://sqlite.org', ['sqlite.txt']],
   ['libunwindstack', 'libunwindstack-ndk (Android Open Source Project)', '284202fb1e42', 'Apache-2.0', 'https://github.com/getsentry/libunwindstack-ndk', ['libunwindstack.txt']],
   ['mpack', 'MPack', '1.0', 'MIT', 'https://github.com/ludocode/mpack', ['mpack.txt']],
@@ -313,6 +324,10 @@ const NATIVE_SO = {
   'libimage_processing_util_jni.so': ['libyuv'],
   'libsurface_util_jni.so': [],
   'libtensorflowlite_jni.so': ['xnnpack', 'kleidiai', 'ruy', 'gemmlowp', 'flatbuffers', 'cpuinfo', 'pthreadpool', 'fp16', 'fxdiv', 'eigen-threadpool', 'fft2d', 'neon-2-sse', 'farmhash', 'abseil', 'libcxx'],
+  'libtesseract.so': ['tesseract', 'libcxx'],
+  'libleptonica.so': ['leptonica'],
+  'libjpeg.so': ['libjpeg-ijg'],
+  'libpngx.so': ['libpng'],
   'libworklets.so': ['worklets-queue'],
   'libreanimated.so': [],
   'libgesturehandler.so': [],
@@ -356,6 +371,9 @@ const assets = [
   { name: 'MoveNet Lightning (pose model weights, Android, TensorFlow Lite float16)', version: '1', licence: 'Apache-2.0', url: 'https://www.kaggle.com/models/google/movenet/tfLite/singlepose-lightning-tflite-float16', text: textId(read(join(root, 'modules/plate-pose/MODEL-LICENSE.txt'))) },
   // Web barcode scanner (#944): the reader we serve from public/zxing, built from the ZXing-C++ commit zxing-wasm 3.1.3 pins (a17fd9dc).
   { name: 'ZXing-C++ WebAssembly reader (web barcode scanner)', version: '3.1.3 (zxing-wasm)', licence: 'Apache-2.0 AND BSD-3-Clause AND MIT', url: 'https://github.com/Sec-ant/zxing-wasm', text: textId(read(join(root, 'public/zxing/LICENSE.txt'))) },
+  // Label scanning (#1067, ADR 010). Web: the worker, the WebAssembly core and the language data we serve from public/tesseract. Android: the same language data, bundled as an asset.
+  { name: 'Tesseract OCR engine for the web (tesseract.js worker and WebAssembly core, label scanner)', version: 'tesseract.js 7.0.0, tesseract.js-core 7.0.0', licence: 'Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND IJG AND libpng-2.0 AND MIT AND Zlib AND libtiff', url: 'https://github.com/naptha/tesseract.js', text: textId(read(join(root, 'public/tesseract/LICENSE.txt'))) },
+  { name: 'tessdata_fast English language data (label scanner, web and Android)', version: '4.1.0', licence: 'Apache-2.0', url: 'https://github.com/tesseract-ocr/tessdata_fast', text: textId(read(join(root, 'modules/plate-label-scanner/DATA-LICENSE.txt'))) },
   { name: 'TensorFlow.js WebAssembly runtime (pose tracking)', version: '4.22.0', licence: 'Apache-2.0 (contains XNNPACK, BSD-3-Clause, and Emscripten, MIT)', url: 'https://github.com/tensorflow/tfjs', text: textId(read(join(root, 'public/pose/wasm/LICENSE.txt'))) },
 ];
 

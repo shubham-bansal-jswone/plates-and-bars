@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.plateandbar.labelscan.GeometryTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-19T12:42:05.335Z" hostname="JSWs-MacBook-Pro" time="0.018">
+  <properties/>
+  <testcase name="a crop on an upright image is in raw pixels directly" classname="app.plateandbar.labelscan.GeometryTest" time="0.002"/>
+  <testcase name="no crop is the whole raw image" classname="app.plateandbar.labelscan.GeometryTest" time="0.0"/>
+  <testcase name="sample size is the power of two that fits the long side" classname="app.plateandbar.labelscan.GeometryTest" time="0.0"/>
+  <testcase name="a box that runs past the edge is clipped, and a sliver is refused" classname="app.plateandbar.labelscan.GeometryTest" time="0.0"/>
+  <testcase name="a phone photo stored sideways (orientation 6) maps the upright crop back to the raw frame" classname="app.plateandbar.labelscan.GeometryTest" time="0.0"/>
+  <testcase name="orientation 3 flips both ways and 8 turns the other way" classname="app.plateandbar.labelscan.GeometryTest" time="0.0"/>
+  <testcase name="refuses boxes that are not finite, empty or outside the image" classname="app.plateandbar.labelscan.GeometryTest" time="0.012"/>
+  <testcase name="the whole upright image is the whole raw image for every orientation" classname="app.plateandbar.labelscan.GeometryTest" time="0.002"/>
+  <testcase name="a crop keeps its area for every orientation" classname="app.plateandbar.labelscan.GeometryTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
