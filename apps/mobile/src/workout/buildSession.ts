@@ -37,6 +37,8 @@ export interface BuildInput {
   swaps: readonly Swap[];
   /** Contract `Settings.adjustments`: holds the recovery week and re-entry period. */
   adjustments: Readonly<Record<string, unknown>>;
+  /** The lab hold is on (#1070): the session is lighter (one set fewer, no weight increases). Off when not given. */
+  labHold?: boolean;
 }
 
 export interface BuiltSession {
@@ -64,7 +66,7 @@ export function buildSession(i: BuildInput): BuiltSession {
   let items = applyFocus(trimSession(all, i.template, state), i.template, i.where, { profile: i.profile, lifts: i.lifts, focus: i.focus }, getCatalog());
   items = shortSession(items, i.checkin.time);
   const { deload, reentry } = rangesOf(i.adjustments);
-  const { setsLight, mods } = sessionMods({ date: i.date, ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile, deload, reentry });
+  const { setsLight, mods } = sessionMods({ date: i.date, ciChoice: i.ciChoice, time: i.checkin.time, where: i.where, profile: i.profile, deload, reentry, labHold: i.labHold });
   const sets = sessionSets(items, {
     profile: i.profile,
     date: i.date,

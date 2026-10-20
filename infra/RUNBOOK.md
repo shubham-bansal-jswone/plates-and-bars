@@ -250,8 +250,9 @@ They are baked in at build time, so changing one needs a new build. PR runs neve
 | `EXPO_PUBLIC_POSE_TRACKING` | Gradle step only | `1` shows "Track this set" pose tracking (Android, needs a camera) |
 | `EXPO_PUBLIC_EXERCISE_MOTION` | Gradle step only | `1` plays exercise motion loops for exercises that have a clip in `content/exercise-motion.json` (#1069); the bundle ships empty, so it shows nothing until the coach signs off clips |
 | `EXPO_PUBLIC_LABEL_SCAN` | Gradle step only | `1` switches on label scanning (on-device OCR, ADR 010); keep it off until the bake-off on #1067 has passed |
+| `EXPO_PUBLIC_LAB_REPORTS` | Gradle step only | `1` shows Lab reports (hand entry, device only) on the Progress tab and lets a red result start the lab hold (#1070). Blank on pull requests |
 
-`web-deploy.yml`: set `EXPO_PUBLIC_BARCODE_SCAN`, `EXPO_PUBLIC_POSE_TRACKING`, `EXPO_PUBLIC_EXERCISE_MOTION` and `EXPO_PUBLIC_LABEL_SCAN` in the `staging` and `production` environments (each has its own); they are read only by the "Build the web export" step and mean the same as above. Unset = off.
+`web-deploy.yml`: set `EXPO_PUBLIC_BARCODE_SCAN`, `EXPO_PUBLIC_POSE_TRACKING`, `EXPO_PUBLIC_EXERCISE_MOTION`, `EXPO_PUBLIC_LABEL_SCAN` and `EXPO_PUBLIC_LAB_REPORTS` in the `staging` and `production` environments (each has its own); they are read only by the "Build the web export" step and mean the same as above. Unset = off.
 
 ## 9. Turning on the barcode lookup (#944, #987)
 

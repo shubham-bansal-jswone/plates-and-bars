@@ -32,6 +32,8 @@ import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/
 import { useRestNotification } from '../reminders/useRestNotification';
 import { useRules } from '../workout/useRules';
 import { useWorkoutDay, type PickSeed } from '../workout/useWorkoutDay';
+import { useLabHold } from '../labs/useLabHold';
+import { labs } from '../labs/content';
 import type { Workout } from '../workout/types';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
@@ -73,7 +75,8 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const { rules, addRule } = rulesApi;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
   const v = useViewedDate(now);
-  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
+  const labHold = useLabHold(db); // the lab hold (#1070): new sessions are lighter
+  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, labHold: labHold === true, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   // The rest as a notification while the app is in the background (#1068); its +30 s and Skip come back through setRest.
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
@@ -86,7 +89,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   // The date bar is in the one Page for every state, so it is not remounted when a day finishes loading (a tap that spans the remount is lost, #1032).
   let content: ReactNode;
   let sheets: ReactNode = null;
-  if (status !== 'ready' || !ready || !day.ready || !rules.ready) content = <Hint>Loading…</Hint>;
+  if (status !== 'ready' || !ready || !day.ready || !rules.ready || labHold === null) content = <Hint>Loading…</Hint>;
   else if (!profile)
     content = (
       <>
@@ -97,7 +100,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   else {
     const body =
       day.exs.length === 0 ? (
-        <StartView key={w.date} now={now} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+        <StartView key={w.date} now={now} w={w} labHold={labHold === true} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
       ) : (
         <SessionView key={w.date} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
       );
@@ -143,7 +146,7 @@ const WHERE_CHOICES: [NonNullable<Workout['where']>, string][] = [['gym', 'Norma
 type W = ReturnType<typeof useWorkoutDay>;
 type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 
-function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () => Date; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
+function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { now: () => Date; w: W; labHold: boolean; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
@@ -172,7 +175,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
     if (!checkinFlags(next, nextT).flagged) setChoice(null);
   };
   const built = startT
-    ? buildSession({ template: startT, date, profile, where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, adjustments: settings.adjustments })
+    ? buildSession({ template: startT, date, profile, where, sessions: day.sessions, lifts: progressionContext(date, day.lifts, profile, null, tune).lifts, ciChoice: choice, checkin: ci, focus, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, adjustments: settings.adjustments, labHold })
     : null;
   const names = built ? built.exercises.map((e) => e.name) : [];
   const { primary: prim, secondary: sec } = musclesOf(names);
@@ -209,6 +212,7 @@ function StartView({ now, w, profile, focus, rules, notify, tune }: { now: () =>
     <>
       <Text testID="start-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{Platform.OS === 'ios' ? '' : said}</Text>
       <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
+      {labHold ? <Note>{labs.workout_note}</Note> : null}
       <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
       <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} now={now} />
       <H1>{picked.length ? 'Your exercises' : previewT ? `${previewT} day` : plan ? `${plan} day` : 'Rest day'}</H1>
