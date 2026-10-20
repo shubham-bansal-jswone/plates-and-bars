@@ -21,6 +21,7 @@ name: Android release build
 #                              REQUIRED on v* tags (the job fails without it: Play needs the privacy link).
 #   EXPO_PUBLIC_BARCODE_SCAN   set to 1 to show the barcode scanner (#944); unset = off.
 #   EXPO_PUBLIC_POSE_TRACKING  set to 1 to show "Track this set" pose tracking (Android camera); unset = off.
+#   EXPO_PUBLIC_LABEL_SCAN     set to 1 to switch on label scanning (on-device OCR, #1067); unset = off.
 #   EXPO_PUBLIC_EXERCISE_MOTION  set to 1 to play exercise motion loops where a clip exists (#1069); unset = off.
 #   EXPO_PUBLIC_LAB_REPORTS    set to 1 to show Lab reports on the Progress tab and apply the lab hold (#1070); unset = off.
 # PR runs never get the DSN or the four flags (no environment, and the workflow blanks them).
@@ -187,7 +188,7 @@ jobs:
           ccache --set-config sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime
       - name: Local modules unit tests and lint (NewApi against minSdk)
         working-directory: apps/mobile/android
-        run: ./gradlew --no-daemon -q :plate-reminders:testDebugUnitTest :plate-reminders:lintDebug :plate-pose:testDebugUnitTest :plate-pose:lintDebug :plate-barcode-scanner:lintDebug :device-steps:lintDebug
+        run: ./gradlew --no-daemon -q :plate-reminders:testDebugUnitTest :plate-reminders:lintDebug :plate-pose:testDebugUnitTest :plate-pose:lintDebug :plate-barcode-scanner:lintDebug :plate-label-scanner:testDebugUnitTest :plate-label-scanner:lintDebug :device-steps:lintDebug
       # About lists the Android libraries from the committed apps/mobile/scripts/android-classpath.txt (#835). Resolve the
       # real releaseRuntimeClasspath with a plain-Gradle init script (no plugin) and fail if an artifact has no licence row
       # in scripts/licences.mjs or the list differs from the committed one. No secrets reach this step.
@@ -230,6 +231,7 @@ jobs:
           # feature flags: the app enables each only on exactly "1"; unset or any other value = off. Blank on PR runs.
           EXPO_PUBLIC_BARCODE_SCAN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_BARCODE_SCAN || '' }}
           EXPO_PUBLIC_POSE_TRACKING: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_POSE_TRACKING || '' }}
+          EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}
           EXPO_PUBLIC_EXERCISE_MOTION: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_EXERCISE_MOTION || '' }}
           EXPO_PUBLIC_LAB_REPORTS: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_LAB_REPORTS || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}

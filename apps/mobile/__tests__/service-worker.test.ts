@@ -112,6 +112,16 @@ describe('precache and fetch', () => {
     expect(sw.assetPaths(`a("${ZX}") c("${WORKER}")`)).toEqual([WORKER]);
   });
 
+  it('never precaches the label OCR chunk or its worker, core and language data (on demand only, #1067)', async () => {
+    const TE = '/_expo/static/js/web/tesseract-engine-dd44.js';
+    const withTe = { ...files, [ENTRY]: `x("${WORKER}");import("${TE}");w("/tesseract/js-7.0.0/worker.min.js");c("/tesseract/core-7.0.0/tesseract-core-lstm.wasm.js")` };
+    const { stores, fetched } = install(withTe);
+    await sw.precache();
+    expect([...stores.get(`pb-shell-${ENTRY}`)!.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());
+    expect(fetched.filter((p) => p.includes('tesseract'))).toEqual([]);
+    expect(sw.assetPaths(`a("${TE}") c("${WORKER}")`)).toEqual([WORKER]);
+  });
+
   it('a pose chunk is fetched from the network when asked for, and not stored', async () => {
     const POSE = '/_expo/static/js/web/pose-session-aa11.js';
     const { stores } = install({ ...files, [POSE]: 'chunk' });

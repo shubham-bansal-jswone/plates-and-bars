@@ -1,0 +1,3 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- No permission: the engine reads an image the camera or the system photo picker already handed to the app (ADR 010). -->
+</manifest>
