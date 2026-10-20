@@ -1,8 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import fixtureBundle from '../../../tools/exercise-motion/fixtures/squat-synthetic.motion.json';
 import { exerciseMotionEnabled } from '../src/motion/flag';
-import { LICENCES, MAX_COORD, MAX_FPS, MIN_FPS, MIN_FRAMES, SKELETON_ID, SOURCES, isMotionBundle, motionAlt, type MotionEntry } from '../src/motion/data';
+import { LICENCES, SOURCE_HOSTS, isCalendarDate, isSourceUrl, MAX_COORD, MAX_FPS, MIN_FPS, MIN_FRAMES, SKELETON_ID, SOURCES, isMotionBundle, motionAlt, type MotionEntry } from '../src/motion/data';
 import { MOTION_ENTRY_NAME, motionFixtureBundle } from './motion-helpers';
 import { ALT_MAX } from '../src/workout/figures';
 import {
@@ -230,6 +231,58 @@ describe('motion bundle validation', () => {
       expect(isMotionBundle(b)).toBe(false);
     }
   });
+  const cc = (b: Record<string, any>, f: Record<string, unknown> = {}) => {
+    b.motions[MOTION_ENTRY_NAME] = { ...b.motions[MOTION_ENTRY_NAME], source: 'cc_licensed', source_url: 'https://commons.wikimedia.org/wiki/File:Squat.webm', retrieved: '2026-03-04', ...f };
+    return b;
+  };
+  const fresh = () => JSON.parse(JSON.stringify(motionFixtureBundle())) as Record<string, any>;
+  it('accepts a cc_licensed entry with a Commons source_url and a retrieved date', () => {
+    expect(isMotionBundle(cc(fresh()))).toBe(true);
+    expect(isMotionBundle(cc(fresh(), { source_url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Squat.webm' }))).toBe(true);
+  });
+  it('refuses a cc_licensed entry without a valid source_url or retrieved date, and an own_filming entry that carries them', () => {
+    const bad: Record<string, unknown>[] = [
+      { source_url: null }, { source_url: 'http://commons.wikimedia.org/wiki/File:A.webm' }, { source_url: 'https://www.youtube.com/watch?v=x' },
+      { source_url: 'https://commons.wikimedia.org.evil.example/wiki/A' }, { source_url: 'https://commons.wikimedia.org' },
+      { retrieved: null }, { retrieved: '2026-02-30' }, { retrieved: '04/03/2026' },
+    ];
+    for (const f of bad) expect(isMotionBundle(cc(fresh(), f))).toBe(false);
+    const own = fresh();
+    own.motions[MOTION_ENTRY_NAME].source_url = 'https://commons.wikimedia.org/wiki/File:A.webm';
+    expect(isMotionBundle(own)).toBe(false);
+    const own2 = fresh();
+    own2.motions[MOTION_ENTRY_NAME].retrieved = '2026-03-04';
+    expect(isMotionBundle(own2)).toBe(false);
+  });
+  it('isSourceUrl agrees with checkSourceUrl in tools/validate/exercise-motion.mjs', () => {
+    const urls = [
+      'https://commons.wikimedia.org/wiki/File:Squat.webm', 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Squat.webm',
+      "https://commons.wikimedia.org/wiki/File:Alice's_squat.webm", 'https://commons.wikimedia.org/w/index.php?title=File:A.webm&x=1#top',
+      "https://commons.wikimedia.org/w/index.php?title=File:A's.webm", 'https://commons.wikimedia.org/wiki/File:A%20B.webm',
+      'http://commons.wikimedia.org/wiki/A', 'https://commons.wikimedia.org', 'https://COMMONS.wikimedia.org/wiki/A', 'https://commons.wikimedia.org:443/wiki/A',
+      'https://commons.wikimedia.org:8443/wiki/A', 'https://user@commons.wikimedia.org/wiki/A', 'https://commons.wikimedia.org@evil.example/wiki/A',
+      'https://commons.wikimedia.org/wiki/../A', 'https://commons.wikimedia.org/wiki/%2e%2e/A', 'https://commons.wikimedia.org/wiki/./A',
+      'https://commons.wikimedia.org\\wiki/A', 'https://commons.wikimedia.org/wiki/A B', 'https://commons.wikimedia.org/wiki/{A}', 'https://commons.wikimedia.org/wiki/é',
+      'https://en.wikipedia.org/wiki/A', 'https://www.youtube.com/watch?v=x', 'https://commons.wikimedia.org./wiki/A', 'ftp://commons.wikimedia.org/a', '', 'https://',
+      'https://commons.wikimedia.org/wiki/A|B', 'https://commons.wikimedia.org/wiki/A[1]', 'https://commons.wikimedia.org/w/i.php?t=A|B[1]', 'https://commons.wikimedia.org/wiki/A"', 'https://commons.wikimedia.org/wiki/A#a b',
+    ];
+    // The validator is an ES module that jest does not load, so a child node process runs it.
+    const tool = path.join(__dirname, '../../../tools/validate/exercise-motion.mjs');
+    const script = `import { checkSourceUrl } from ${JSON.stringify(tool)}; process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).map((u) => checkSourceUrl(u) === null)));`;
+    const accepted = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script, JSON.stringify(urls)], { encoding: 'utf8' })) as boolean[];
+    urls.forEach((u, i) => expect([u, isSourceUrl(u)]).toEqual([u, accepted[i]]));
+    expect(accepted.filter(Boolean).length).toBeGreaterThan(4);
+    expect(isSourceUrl(42)).toBe(false);
+  });
+  it('isCalendarDate takes a real date, and does not look at the device clock', () => {
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    expect(isCalendarDate(tomorrow)).toBe(true);
+    expect(isMotionBundle(cc(fresh(), { retrieved: tomorrow }))).toBe(true);
+    expect(isCalendarDate('2026-03-04')).toBe(true);
+    expect(isCalendarDate('2026-02-29')).toBe(false);
+    expect(isCalendarDate('2026-3-4')).toBe(false);
+    expect(isCalendarDate(null)).toBe(false);
+  });
   it('the shipped content/exercise-motion.json passes the app validator', () => {
     const shipped = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../content/exercise-motion.json'), 'utf8'));
     expect(isMotionBundle(shipped)).toBe(true);
@@ -243,6 +296,7 @@ describe('motion bundle validation', () => {
     expect(SOURCES).toEqual(/export const SOURCES = \[([^\]]*)\]/.exec(src)![1]!.split(',').map((x) => x.trim().replace(/'/g, '')));
     const lic = /export const LICENCES = \{([^}]*)\}/.exec(src)![1]!;
     expect(LICENCES).toEqual(Object.fromEntries([...lic.matchAll(/'([^']+)': '([^']+)'/g)].map((m) => [m[1], m[2]])));
+    expect(SOURCE_HOSTS).toEqual(/export const SOURCE_HOSTS = \[([^\]]*)\]/.exec(src)![1]!.split(',').map((x) => x.trim().replace(/'/g, '')));
     const joints = /export const JOINTS = \[([^\]]*)\]/.exec(src)![1]!;
     expect([...joints.matchAll(/'([^']+)'/g)].map((m) => m[1])).toEqual([...JOINT_NAMES]);
   });

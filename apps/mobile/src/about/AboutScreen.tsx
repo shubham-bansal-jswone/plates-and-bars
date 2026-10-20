@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
 import { DATA_COPY } from '../account/copy';
-import { Button, Card, H1, Hint, Label, Page, Press } from '../components/ui';
+import { Button, Card, H1, Heading, Hint, Label, Page, Press } from '../components/ui';
 import { versionLine } from '../appVersion';
+import { getMotionCredits, type MotionEntry } from '../motion/data';
 import { LegalLinks } from '../legal/LegalLinks';
 import { LicencesScreen } from './LicencesScreen';
 import { LICENCES_COPY as lc, REPO_FILES } from './licences';
@@ -11,6 +12,30 @@ import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getFigureSources, licenceLabel } from '../workout/figures';
 import { ABOUT_COPY as t, BODY_MAP_LICENCE, BODY_MAP_SOURCE, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
+
+function MotionCredit({ name, e }: { name: string; e: MotionEntry }) {
+  const c = useTheme();
+  const link = (label: string, text: string, url: string) => (
+    <Press accessibilityRole="link" accessibilityLabel={label} onPress={() => void Linking.openURL(url)} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}>
+      <Text style={[type.caption, { color: c.link }]}>{text}</Text>
+    </Press>
+  );
+  const licence = licenceLabel(e.licence);
+  return (
+    <Card>
+      <Text style={[type.bodyStrong, { color: c.ink }]}>{name}</Text>
+      <Text style={[type.caption, { color: c.body }]}>{e.author}</Text>
+      {e.licence_url ? link(`${licence}. Opens the licence`, licence, e.licence_url) : <Text style={[type.caption, { color: c.body }]}>{licence}</Text>}
+      {e.source === 'cc_licensed' && e.source_url ? (
+        <>
+          {link(`${t.sourceLink} for ${name}. Opens the clip's page`, t.sourceLink, e.source_url)}
+          {e.retrieved ? <Text style={[type.caption, { color: c.body }]}>{t.retrieved(e.retrieved)}</Text> : null}
+        </>
+      ) : null}
+      {e.source === 'own_filming' ? <Text style={[type.caption, { color: c.body }]}>{t.filmed}</Text> : null}
+    </Card>
+  );
+}
 
 function Source({ s }: { s: SourceInfo }) {
   const c = useTheme();
@@ -33,6 +58,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
   const c = useTheme();
   const version = versionLine();
   const drawings = getFigureSources();
+  const motion = getMotionCredits();
   const [showLicences, setShowLicences] = useState(false);
   if (showLicences) return <LicencesScreen onBack={() => setShowLicences(false)} />;
   return (
@@ -56,6 +82,12 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
               <Source key={`${d.source}|${d.licence}|${d.author}`} s={{ code: d.source, name: `${d.author}: ${d.count} exercise ${d.count === 1 ? 'drawing' : 'drawings'}`, licence: licenceLabel(d.licence), url: d.licence_url }} />
             ))}
           </View>
+        </>
+      ) : null}
+      {motion.length > 0 ? (
+        <>
+          <Heading level={2} style={[type.bodyStrong, { color: c.ink }]}>{t.motion}</Heading>
+          <View style={{ gap: 8 }}>{motion.map((m) => <MotionCredit key={m.name} name={m.name} e={m.entry} />)}</View>
         </>
       ) : null}
       <Label>{t.fonts}</Label>
