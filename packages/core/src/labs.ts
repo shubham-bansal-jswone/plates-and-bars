@@ -1,4 +1,4 @@
-import { num } from './num';
+import { num, parseNum } from './num';
 
 /**
  * Lab reports (#1070): device-only, entered by hand. Pure rules; the app owns storage. No copy lives here:
@@ -77,11 +77,40 @@ const DEFS: readonly MarkerDef[] = [
 export const MARKERS: readonly Marker[] = DEFS;
 
 /**
- * The first marker whose pattern matches the printed test name, or null.
+ * Word-bounded name patterns, used by `markerOf` (decided in #1075). Same markers and order as the prototype's
+ * patterns, but a marker word must stand on its own: "Breast" is not AST, "VLDL" is not LDL, "Salt" is not ALT.
+ * "Glucose PP" still matches glucose. Glycated haemoglobin goes to HbA1c, not haemoglobin (the prototype's
+ * order sends it to haemoglobin).
+ */
+const WORD: Readonly<Record<MarkerKey, RegExp>> = {
+  vitamin_d: /\bvit(amin)?\s*d\d?\b|\b25.?oh/i,
+  vitamin_b12: /\bb\s*-?12\b|\bcobalamin/i,
+  iron_ferritin: /\bferritin|\bserum iron\b|^iron\b/i,
+  haemoglobin: /^(?!.*(glycat|a1c)).*\bha?emoglobin\b|^hb\b/i,
+  ldl: /\bldl\b/i,
+  hdl: /\bhdl\b/i,
+  triglycerides: /\btriglycer/i,
+  hba1c: /\bhba1c|\bglycated/i,
+  glucose: /\bglucose\b|\bfbs\b|\bblood sugar\b/i,
+  tsh: /\btsh\b/i,
+  creatinine: /\bcreatinine\b/i,
+  alt: /\bsgpt\b|\balt\b|\balanine/i,
+  ast: /\bsgot\b|\bast\b|\baspartate/i,
+  uric_acid: /\buric\b/i,
+};
+
+/**
+ * The first marker whose word-bounded pattern matches the printed test name, or null. Tighter than the prototype
+ * (it matched inside words: "Breast" was AST, "VLDL" was LDL); see #1075. `markerOfPrototype` is the exact prototype.
  *
- * Mirrors prototype `markerOf(name)` (tips are content; `tips` lists the sides that have one).
+ * Deviates from prototype `markerOf(name)` (tips are content; `tips` lists the sides that have one).
  */
 export function markerOf(name: string): Marker | null {
+  return DEFS.find((d) => WORD[d.key].test(name)) ?? null;
+}
+
+/** The prototype's `markerOf(name)` exactly, with its loose patterns. Used by `labFlagRaw`; kept so tests can compare with the prototype. */
+export function markerOfPrototype(name: string): Marker | null {
   return DEFS.find((d) => d.pattern.test(name)) ?? null;
 }
 
@@ -136,7 +165,11 @@ export interface LabHold {
   since?: string;
 }
 
+/** The prototype's bound read: '' or null is no range, anything else goes through `num` (junk reads as 0). */
 const bound = (s: string | null | undefined): number | null => (s === '' || s == null ? null : num(s));
+
+/** The strict read used by `labResult`: a blank or non-numeric bound is no range (#1075). */
+const strictBound = (s: string | null | undefined): number | null => parseNum(s);
 
 /** Flag for a value against a lab range, by the prototype's rules. `rule` is the marker's red rule, if any. */
 function flagOf(v: number, lo: number | null, hi: number | null, rule: Rule | undefined, allowRed: boolean): LabFlag {
@@ -149,13 +182,14 @@ function flagOf(v: number, lo: number | null, hi: number | null, rule: Rule | un
 
 /**
  * The prototype's flag, with no unit handling: the raw numbers are compared as typed, whatever the unit.
- * Pins its quirks: a blank or junk value reads as 0 (`num`), so a blank glucose is `red`; a junk bound
- * reads as 0, not as "no range". `validateLabReport` keeps such tests out of saved reports.
+ * Pins its quirks (the prototype's, kept here exactly; `labFlag` and `labResult` deviate, see #1075): a blank or
+ * junk value reads as 0 (`num`), so a blank glucose is `red`; a junk bound reads as 0, not as "no range". It also
+ * uses the prototype's loose name patterns (`markerOfPrototype`).
  *
  * Mirrors prototype `labFlag(t)`.
  */
 export function labFlagRaw(t: Pick<LabTest, 'name' | 'value' | 'low' | 'high'>): LabFlag {
-  const m = markerOf(t.name);
+  const m = markerOfPrototype(t.name);
   return flagOf(num(t.value), bound(t.low), bound(t.high), m ? RED[m.key] : undefined, true);
 }
 
@@ -173,7 +207,8 @@ export interface LabResult {
   marker: MarkerKey | null;
   unitStatus: UnitStatus;
   /** Value and range in the marker's canonical unit when the unit is known (rounded to 4 decimals if converted); else as typed. */
-  value: number;
+  /** Null when the value was blank or not a number (the flag is then `none`). */
+  value: number | null;
   low: number | null;
   high: number | null;
   /** The unit `value` is in: the canonical one when known, else what was typed. */
@@ -186,16 +221,18 @@ export interface LabResult {
  *   the prototype's rules run on the converted numbers (`unitStatus` `canonical` or `converted`);
  * - any other unit, or none, is `unrecognised`: the flag is never `red`, only `high`, `low`, `ok` or `none` by the lab's own range.
  * A test matching no marker has no canonical unit; the unit-free generic rule applies as in the prototype (`unitStatus` `none`).
- * Value and bounds are read as the prototype's `num` does.
  *
- * Extends prototype `labFlag(t)`.
+ * Deviates from prototype `labFlag(t)` in two ways (#1075): a blank or non-numeric value is flag `none` (the
+ * prototype reads it as 0, so a blank glucose went red and started the hold), and a blank or junk bound is no range
+ * (the prototype reads junk as 0). Marker names are matched with `markerOf` (word-bounded).
  */
 export function labResult(t: LabTest): LabResult {
   const m = markerOf(t.name);
-  const v = num(t.value);
-  const lo = bound(t.low);
-  const hi = bound(t.high);
+  const v = parseNum(t.value);
+  const lo = strictBound(t.low);
+  const hi = strictBound(t.high);
   const typed = t.unit.trim();
+  if (v === null) return { flag: 'none', marker: m?.key ?? null, unitStatus: 'none', value: null, low: lo, high: hi, unit: typed };
   if (!m) return { flag: flagOf(v, lo, hi, undefined, true), marker: null, unitStatus: 'none', value: v, low: lo, high: hi, unit: typed };
   const def = DEFS.find((d) => d.key === m.key) as MarkerDef;
   const u = normaliseUnit(typed);

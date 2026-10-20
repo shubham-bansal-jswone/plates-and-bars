@@ -1,7 +1,7 @@
 import content from '../../../content/exercises.json';
 import {
   applyMods, calcTargets, clearHold, holdAfterSave, isFlagged, kcalTarget, LAB_TESTS_MAX, labFlag, labFlagRaw, labHistory,
-  labHoldOn, labResult, markerOf, MARKERS, normaliseUnit, planFlex, reportIsRed, sessionMods, sessionSets, suggestBase, tipFor,
+  labHoldOn, labResult, markerOf, markerOfPrototype, MARKERS, normaliseUnit, planFlex, reportIsRed, sessionMods, sessionSets, suggestBase, tipFor,
   toTargetsProfile, undoFlex, validateLabReport,
   type ExerciseCatalog, type FlexEntry, type LabFlag, type KcalTargetProfile, type LabReport, type LabTest, type ModsContext, type SessionItem,
 } from '../src/index';
@@ -31,16 +31,28 @@ describe('markerOf', () => {
     expect(markerOf('Calcium')).toBeNull();
     expect(markerOf('Total Iron')).toBeNull(); // ^iron anchors to the start
   });
-  it('pins the prototype gaps: first match wins and loose patterns match', () => {
-    expect(markerOf('VLDL')?.key).toBe('ldl');
-    expect(markerOf('Non-HDL LDL')?.key).toBe('ldl'); // LDL before HDL
-    expect(markerOf('Breast')?.key).toBe('ast'); // `ast\b` matches inside a word
-    expect(markerOf('Post-prandial glucose')?.key).toBe('glucose'); // not a fasting value
-    expect(markerOf('Hb HbA1c')?.key).toBe('haemoglobin'); // Hb before HbA1c in order
+  it('pins the prototype gaps in markerOfPrototype: it matches inside words', () => {
+    const key = (n: string) => markerOfPrototype(n)?.key;
+    expect(key('VLDL')).toBe('ldl');
+    expect(key('Non-HDL LDL')).toBe('ldl'); // LDL before HDL
+    expect(key('Breast')).toBe('ast');
+    expect(key('Salt')).toBe('alt');
+    expect(key('Post-prandial glucose')).toBe('glucose');
+    expect(key('Glycated Haemoglobin')).toBe('haemoglobin'); // Hb before HbA1c in order
   });
-  it('matches the prototype over many names', () => {
-    const names = [...cases.map((c) => c[0]), 'Calcium', 'VLDL', 'Breast', 'Last', 'Total Iron', 'IRON', 'hemoglobin A1c', 'Vit.D', 'b 12', 'alt', 'ALT/SGPT', 'Salt', 'Cast', 'Glucose PP', 'Urine glucose', ''];
-    for (const n of names) expect(markerOf(n)?.key ?? null).toBe(proto.markerOf(n) ? (MARKERS.find((m) => m.label === proto.markerOf(n)?.key)?.key ?? 'MISSING') : null);
+  it('markerOf uses word boundaries (#1075): inside a word is no match', () => {
+    for (const n of ['Breast', 'VLDL', 'Salt', 'Cast', 'Last', 'Total Iron', 'Urinary glucosuria', 'HDLC2x']) expect(markerOf(n)).toBeNull();
+    expect(markerOf('Glycated Haemoglobin')?.key).toBe('hba1c');
+    expect(markerOf('Post-prandial glucose')?.key).toBe('glucose'); // still glucose
+  });
+  it.each([
+    ['LDL Cholesterol', 'ldl'], ['LDL-C', 'ldl'], ['HDL Cholesterol', 'hdl'], ['Glucose PP', 'glucose'], ['SGOT (AST)', 'ast'],
+    ['SGPT (ALT)', 'alt'], ['AST (SGOT)', 'ast'], ['ALT', 'alt'], ['Vitamin D3', 'vitamin_d'], ['Vit D, 25 Hydroxy', 'vitamin_d'],
+    ['Haemoglobin (Hb)', 'haemoglobin'], ['HbA1c (Glycated)', 'hba1c'], ['Creatinine, Serum', 'creatinine'], ['Serum Ferritin', 'iron_ferritin'],
+    ['Vitamin B12', 'vitamin_b12'], ['TSH Ultrasensitive', 'tsh'], ['Uric Acid', 'uric_acid'], ['Triglycerides', 'triglycerides'],
+  ])('markerOf %s is %s', (name, key) => expect(markerOf(name)?.key).toBe(key));
+  it('agrees with the prototype on names without in-word matches', () => {
+    for (const [n] of cases) expect(markerOf(n)?.key).toBe(markerOfPrototype(n)?.key);
   });
   it('lists the tip sides', () => {
     expect(MARKERS.find((m) => m.key === 'tsh')?.tips).toEqual(['high', 'low']);
@@ -125,6 +137,23 @@ describe('prototype quirks, pinned (see the spec-question issue)', () => {
   it('a blank value reads as 0, so a blank glucose is red in the prototype and in labFlagRaw', () => {
     expect(proto.labFlag({ name: 'Glucose', value: '', low: '70', high: '100' })).toBe('red');
     expect(labFlagRaw(t('Glucose', '', '', '70', '100'))).toBe('red');
+  });
+  it('labFlag and labResult deviate (#1075): a blank or junk value is none, a junk bound is no range', () => {
+    expect(flagOf('Glucose', '', 'mg/dL', '70', '100')).toBe('none');
+    expect(flagOf('Haemoglobin', ' ', 'g/dL')).toBe('none');
+    expect(flagOf('HbA1c', 'abc', '%')).toBe('none');
+    expect(flagOf('Calcium', '', '', '8', '10')).toBe('none');
+    expect(labResult(t('Glucose', '', 'mg/dL')).value).toBeNull();
+    expect(flagOf('Calcium', 5, '', 'abc', '')).toBe('none'); // junk low: no range at all
+    expect(flagOf('Calcium', 21, '', 'abc', '10')).toBe('red'); // junk low ignored, high 10 kept
+    expect(flagOf('Haemoglobin', 9, 'g/dL', 'x', 'y')).toBe('none');
+    expect(flagOf('Haemoglobin', 7.9, 'g/dL', 'x', 'y')).toBe('red'); // fixed rule needs no range
+  });
+  it('a blank value never starts the hold', () => {
+    const blank: LabReport = { id: 'z', date: '2026-10-01', tests: [t('Glucose', '', 'mg/dL', '70', '100'), t('Haemoglobin', '', 'g/dL'), t('TSH', 'n/a', 'mIU/L')] };
+    expect(reportIsRed(blank)).toBe(false);
+    expect(holdAfterSave(null, blank, '2026-10-03')).toBeNull();
+    expect(reportIsRed({ tests: [t('Glucose', '', '', '70', '100')] })).toBe(false);
   });
   it('a junk bound reads as 0, not as no range', () => {
     expect(proto.labFlag({ name: 'Calcium', value: '5', low: 'abc', high: '' })).toBe(labFlagRaw(t('Calcium', 5, '', 'abc', '')));
