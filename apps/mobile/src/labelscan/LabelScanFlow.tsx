@@ -50,23 +50,25 @@ export function LabelScanFlow({ meal, onAdd, onSaveMine, onCustom, onClose, onDo
     releasePhoto(photo.current);
     photo.current = undefined;
   }, []);
+  /** Ends any scan in progress (its answer is ignored) and drops the photo. */
+  const stop = useCallback(() => {
+    run.current++;
+    release();
+  }, [release]);
   useEffect(() => {
     live.current = true;
     return () => {
       live.current = false;
-      run.current++;
-      release();
+      stop();
     };
-  }, [release]);
+  }, [stop]);
 
   const again = () => {
-    run.current++;
-    release();
+    stop();
     setStep({ k: 'capture' });
   };
   const close = () => {
-    run.current++;
-    release();
+    stop();
     onClose();
   };
 
