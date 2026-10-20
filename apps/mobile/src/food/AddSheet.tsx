@@ -12,6 +12,9 @@ import { AI_COPY } from '../ai/copy';
 import { BARCODE_COPY } from '../barcode/copy';
 import { barcodeScanEnabled } from '../barcode/flag';
 import { OffCredit } from '../barcode/OffCredit';
+import { LABEL_COPY } from '../labelscan/copy';
+import { labelScanEnabled } from '../labelscan/flag';
+import { LabelScanFlow } from '../labelscan/LabelScanFlow';
 import { ScanFlow } from '../barcode/ScanFlow';
 import { DescribeBody } from '../ai/DescribeSheet';
 import { PhotoBody } from '../ai/PhotoBody';
@@ -59,6 +62,8 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
   // closes it and opens Custom with the code, which is saved with the food.
   const [scanning, setScanning] = useState(false);
   const [customCode, setCustomCode] = useState<string | null>(null);
+  // Scan a nutrition label (#1067, behind EXPO_PUBLIC_LABEL_SCAN): a full-screen flow over this sheet; "Type it in" closes it and opens Custom.
+  const [scanningLabel, setScanningLabel] = useState(false);
   return (
     <SheetModal title={`Add to ${meal.toLowerCase()}`} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
@@ -72,7 +77,7 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
               </Press>
             ))}
           </View>
-          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} onScan={barcodeScanEnabled() ? () => setScanning(true) : undefined} /> : null}
+          {mode === 'list' ? <ListTab mine={mine} mineFacts={mineFacts} onAdd={onAdd} say={say} canDescribe={canDescribe} onScan={barcodeScanEnabled() ? () => setScanning(true) : undefined} onScanLabel={labelScanEnabled() ? () => setScanningLabel(true) : undefined} /> : null}
           {mode === 'out' ? <EatOutTab onAdd={onAdd} say={say} /> : null}
           {mode === 'custom' ? <CustomTab meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={onClose} say={say} barcode={customCode} /> : null}
           {seenDescribe ? (
@@ -92,6 +97,10 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
       {scanning ? (
         <ScanFlow meal={meal} mine={mine} onAdd={onAdd} onSaveMine={onSaveMine} onClose={() => setScanning(false)} onDone={() => { setScanning(false); onClose(); }}
           onCustom={(code) => { setScanning(false); setCustomCode(code); setMode('custom'); setStatus(null); }} />
+      ) : null}
+      {scanningLabel ? (
+        <LabelScanFlow meal={meal} onAdd={onAdd} onSaveMine={onSaveMine} onClose={() => setScanningLabel(false)} onDone={() => { setScanningLabel(false); onClose(); }}
+          onCustom={() => { setScanningLabel(false); setCustomCode(null); setMode('custom'); setStatus(null); }} />
       ) : null}
     </SheetModal>
   );
@@ -119,7 +128,7 @@ function Row({ food, onPress, sub, badge = true }: { food: CatalogFood; onPress:
   );
 }
 
-function ListTab({ mine, mineFacts, onAdd, say, canDescribe, onScan }: { canDescribe: boolean; onScan?: () => void; mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
+function ListTab({ mine, mineFacts, onAdd, say, canDescribe, onScan, onScanLabel }: { canDescribe: boolean; onScan?: () => void; onScanLabel?: () => void; mine: readonly UserFood[]; mineFacts: readonly UserFoodFacts[]; onAdd: (n: NewLog) => void; say: Say }) {
   const c = useTheme();
   const [q, setQ] = useState('');
   const [serv, setServ] = useState(1);
@@ -150,6 +159,7 @@ function ListTab({ mine, mineFacts, onAdd, say, canDescribe, onScan }: { canDesc
       <View style={styles.row}>
         <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={[styles.search, styles.fill]} />
         {onScan ? <Button kind="ghost" label={BARCODE_COPY.scanButton} a11yLabel={BARCODE_COPY.scanButtonA11y} onPress={onScan} /> : null}
+        {onScanLabel ? <Button kind="ghost" label={LABEL_COPY.entry} a11yLabel={LABEL_COPY.entryA11y} onPress={onScanLabel} /> : null}
       </View>
       {list.length ? <Hint>{SOURCE_HINT}</Hint> : null}
       {list.length ? list.map((f) => (
