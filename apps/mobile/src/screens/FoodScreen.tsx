@@ -22,6 +22,7 @@ import { DIET_CHIPS } from '../meals/copy';
 import { getMealPlanning } from '../meals/content';
 import { IdeasCard } from '../meals/IdeasCard';
 import { useWater } from '../food/useWater';
+import { useLabHold } from '../labs/useLabHold';
 import { BurnCard } from '../food/BurnCard';
 import { WaterCard } from '../food/WaterCard';
 import { useProfile } from '../state/ProfileProvider';
@@ -65,12 +66,12 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const v = useViewedDate(now);
   const f = useFoodDay({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const water = useWater({ db, date: f.date, now, profile, adjustments: settings.adjustments, notify, reloadKey: dataVersion });
+  const labHold = useLabHold(db); // the lab hold (#1070): the target is held at maintenance at least, and flex is ignored
 
   if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
-  if (status !== 'ready' || !settingsReady || !f.ready) return <View style={styles.fill}><DateAnnouncer v={v} /><Page>{/* the same key as the loaded tree's bar, so it is not remounted when the day loads */}<DateBar key="date-bar" v={v} /><Hint>Loading…</Hint></Page></View>;
+  if (status !== 'ready' || !settingsReady || !f.ready || labHold === null) return <View style={styles.fill}><DateAnnouncer v={v} /><Page>{/* the same key as the loaded tree's bar, so it is not remounted when the day loads */}<DateBar key="date-bar" v={v} /><Hint>Loading…</Hint></Page></View>;
 
-  // TODO(#219): the lab hold is not stored yet, so it is off for the target and for planning a flex.
-  const target = kcalTarget(f.date, { flex: settings.flex }, profile);
+  const target = kcalTarget(f.date, { flex: settings.flex, labHold }, profile);
   // Shared foods, then eat-out dishes, then the user's foods: the first of a name with fibre data wins (prototype `FIB` before `myFoods`, #151).
   const facts: FoodFacts[] = [...getFoodCatalog(), ...getCuisines().flatMap((c) => c.dishes), ...f.mineFacts];
   const t = logTotals(f.logs, facts);
@@ -85,13 +86,12 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   };
   const plan = (extra: number) => {
     if (blocked()) return;
-    const r = planFlex({ extra, date: f.date, today: v.today, id: newId(), flex: settings.flex }, profile);
+    const r = planFlex({ extra, date: f.date, today: v.today, id: newId(), flex: settings.flex, labHold }, profile);
     setFlex(r.flex);
     notify(flexToast(extra, r));
   };
   const undo = (id: string) => {
-    // TODO(#219): labHold is off until the lab hold is stored.
-    if (!blocked()) setFlex(undoFlex(settings.flex, id, { profile }));
+    if (!blocked()) setFlex(undoFlex(settings.flex, id, { profile, labHold }));
   };
 
   /** A plan item's food by name: My foods first, as the prototype's foodByName does; undefined when it is gone. */
