@@ -70,7 +70,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
           <>
             <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
             <RapidLossCard c={ci} />
-            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex }) : undefined} now={now} />
+            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
             <MeasureSection p={p} isToday={v.isToday} />

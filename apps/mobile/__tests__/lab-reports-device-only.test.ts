@@ -112,12 +112,22 @@ describe('lab reports and the lab hold are device only (#1070)', () => {
     expect(await db.getAllAsync('SELECT key FROM lab_store')).toEqual([{ key: 'hold' }]);
   });
 
-  it('reads damaged rows as nothing', async () => {
+  it('a hold row that cannot be read counts as the hold ON; only a missing row is off', async () => {
+    const db = await openDb();
+    expect(await loadHold(db)).toBeNull();
+    await db.runAsync("INSERT INTO lab_store (key, data) VALUES ('hold', 'not json')");
+    expect(await loadHold(db)).toEqual({ on: true });
+    await db.runAsync("INSERT OR REPLACE INTO lab_store (key, data) VALUES ('hold', ?)", JSON.stringify({ on: 'yes' }));
+    expect(await loadHold(db)).toEqual({ on: true });
+    await saveHold(db, { on: false }); // "I've seen my doctor" writes a good row
+    expect(await loadHold(db)).toEqual({ on: false });
+  });
+
+  it('reads damaged report rows as nothing', async () => {
     const db = await openDb();
     await db.runAsync("INSERT INTO lab_store (key, data) VALUES ('hold', 'not json')");
     await db.runAsync("INSERT INTO lab_store (key, data) VALUES ('lab|2026-10-01|a', 'not json')");
     await db.runAsync("INSERT INTO lab_store (key, data) VALUES ('lab|2026-10-02|b', ?)", JSON.stringify({ date: '2026-10-02', tests: [{ name: 1 }] }));
-    expect(await loadHold(db)).toBeNull();
     expect(await loadReports(db)).toEqual([]);
   });
 });
