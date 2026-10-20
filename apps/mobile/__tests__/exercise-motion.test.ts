@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import fixtureBundle from '../../../tools/exercise-motion/fixtures/squat-synthetic.motion.json';
 import { exerciseMotionEnabled } from '../src/motion/flag';
-import { isMotionBundle, motionAlt, type MotionEntry } from '../src/motion/data';
+import { LICENCES, MAX_COORD, MAX_FPS, MIN_FPS, MIN_FRAMES, SKELETON_ID, SOURCES, isMotionBundle, motionAlt, type MotionEntry } from '../src/motion/data';
 import { MOTION_ENTRY_NAME, motionFixtureBundle } from './motion-helpers';
 import { ALT_MAX } from '../src/workout/figures';
 import {
-  RIG_SEG, jointAt, jointIndex, keyFrameIndex, motionDuration, projectSide, rigJoints, sampleFrame, type Frame,
+  END_ON_RATIO, JOINT_NAMES, RIG_SEG, jointAt, jointIndex, keyFrameIndex, motionDuration, projectSide, rigJoints, rigPose, sampleFrame, type Frame,
 } from '../src/motion/project';
 
 const dist = (a: readonly number[], b: readonly number[]) => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!);
@@ -107,6 +107,39 @@ describe('rescaling to the rig', () => {
   });
 });
 
+describe('a segment that turns end-on to the camera', () => {
+  /** STANDING with the right wrist moved `x` sideways and `z` forward of the elbow (forearm 0.146 long in 3D). */
+  const wristAt = (x: number, z: number) => {
+    const f = STANDING.slice();
+    f.splice(jointIndex('r_wrist') * 3, 3, -0.12 + x, 0.65, z);
+    return f;
+  };
+  it('holds the previous frame direction instead of flipping on noise', () => {
+    const bent = wristAt(0, 0.146); // forearm pointing forward, side on
+    const before = rigPose(bent);
+    expect(before.dirs.wr[0]).toBeCloseTo(1, 6);
+    let prev = before.dirs;
+    for (const z of [0.002, -0.003, 0.004, -0.001]) { // nearly pointing at the camera, the tiny z flips sign
+      const next = rigPose(wristAt(0.146, z), prev);
+      expect(next.dirs.wr).toEqual(before.dirs.wr);
+      expect(dist(next.joints.el, next.joints.wr)).toBeCloseTo(RIG_SEG.fa, 6);
+      prev = next.dirs;
+    }
+  });
+  it('uses the new direction again once the projection is longer than the end-on share of the bone', () => {
+    const ok = rigPose(wristAt(0.146 * Math.sqrt(1 - 0.35 ** 2), 0.146 * 0.35), rigPose(wristAt(0, 0.146)).dirs);
+    expect(ok.dirs.wr[0]).toBeCloseTo(1, 6);
+    expect(END_ON_RATIO).toBeLessThan(0.35);
+    const back = rigPose(wristAt(0.146 * Math.sqrt(1 - 0.35 ** 2), -0.146 * 0.35), rigPose(wristAt(0, 0.146)).dirs);
+    expect(back.dirs.wr[0]).toBeCloseTo(-1, 6);
+  });
+  it('without a previous frame uses the default direction (arm down)', () => {
+    const J = rigPose(wristAt(0.146, 0.001)).joints;
+    expect(J.wr[0]).toBeCloseTo(J.el[0], 6);
+    expect(J.wr[1]).toBeCloseTo(J.el[1] + RIG_SEG.fa, 6);
+  });
+});
+
 describe('interpolation', () => {
   const a = frame({ r_knee: [0, 0.2, 0] });
   const b = frame({ r_knee: [0, 0.4, 0.2] });
@@ -196,6 +229,22 @@ describe('motion bundle validation', () => {
       f(b);
       expect(isMotionBundle(b)).toBe(false);
     }
+  });
+  it('the shipped content/exercise-motion.json passes the app validator', () => {
+    const shipped = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../content/exercise-motion.json'), 'utf8'));
+    expect(isMotionBundle(shipped)).toBe(true);
+  });
+  it('the app limits are those of tools/validate/exercise-motion.mjs', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../tools/validate/exercise-motion.mjs'), 'utf8');
+    const num = (n: string) => Number(new RegExp(`export const ${n} = (\\d+);`).exec(src)![1]);
+    const str = (n: string) => new RegExp(`export const ${n} = '([^']+)';`).exec(src)![1];
+    expect({ MIN_FPS: MIN_FPS, MAX_FPS: MAX_FPS, MIN_FRAMES: MIN_FRAMES, MAX_COORD: MAX_COORD }).toEqual({ MIN_FPS: num('MIN_FPS'), MAX_FPS: num('MAX_FPS'), MIN_FRAMES: num('MIN_FRAMES'), MAX_COORD: num('MAX_COORD') });
+    expect(SKELETON_ID).toBe(str('SKELETON_ID'));
+    expect(SOURCES).toEqual(/export const SOURCES = \[([^\]]*)\]/.exec(src)![1]!.split(',').map((x) => x.trim().replace(/'/g, '')));
+    const lic = /export const LICENCES = \{([^}]*)\}/.exec(src)![1]!;
+    expect(LICENCES).toEqual(Object.fromEntries([...lic.matchAll(/'([^']+)': '([^']+)'/g)].map((m) => [m[1], m[2]])));
+    const joints = /export const JOINTS = \[([^\]]*)\]/.exec(src)![1]!;
+    expect([...joints.matchAll(/'([^']+)'/g)].map((m) => m[1])).toEqual([...JOINT_NAMES]);
   });
   it('the shipped content/exercise-motion.json holds no fixture entry', () => {
     const shipped = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../content/exercise-motion.json'), 'utf8')) as { motions: Record<string, { source: string }> };

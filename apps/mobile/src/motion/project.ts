@@ -13,11 +13,12 @@
  *   hip     r_knee -> midpoint of l_hip and r_hip, length RIG_SEG.th
  *   sh      midpoint of the hips -> neck, length RIG_SEG.torso (the rig's shoulder joint is the top of its torso line)
  *   head    neck -> head, length RIG_SEG.neck + RIG_SEG.head (the rig's head centre)
- *   el      neck -> r_elbow ... r_shoulder -> r_elbow direction, from the rig's shoulder, length RIG_SEG.ua
+ *   el      r_shoulder -> r_elbow direction, from the rig's shoulder, length RIG_SEG.ua
  *   wr      r_elbow -> r_wrist direction, length RIG_SEG.fa
  *   toe     r_heel -> r_toe direction (the sole), length RIG_SEG.foot, from the ankle
- * A segment that is end-on to the camera (zero length after projection) keeps its previous direction in the chain, or a default one
- * (leg down, torso and head up, arm down, foot forward) when there is none, so a frame never produces NaN.
+ * A segment that is nearly end-on to the camera (its projection is under END_ON_RATIO of its 3D length, or it has no length) is drawn in
+ * the direction it had in the previous frame (`prev` of rigPose; a default one when there is none: leg down, torso and head up, arm
+ * down, foot forward), so a limb pointing at the camera holds still instead of flipping on noise, and no frame produces NaN.
  */
 
 /** The 19 joints of a pb19-v1 frame, in the order of the format. A frame is 57 numbers: x, y, z of each. */
@@ -85,31 +86,50 @@ export function keyFrameIndex(m: MotionClip): number {
 /** Joint positions in the rig's 320 x 240 drawing space (px, y down), named as in `joints()` of the rig. */
 export interface RigJoints { ankle: Vec2; knee: Vec2; hip: Vec2; sh: Vec2; head: Vec2; el: Vec2; wr: Vec2; toe: Vec2 }
 
-/** Unit vector (px space, y down) from projected `a` to projected `b`, or `fallback` when they coincide. */
+/** A segment is end-on when its side-view length is under this share of its 3D length. */
+export const END_ON_RATIO = 0.3;
+/** The unit direction (px space, y down) of each drawn rig segment: what the next frame holds when a segment is end-on. */
+export interface RigDirs { knee: Vec2; hip: Vec2; sh: Vec2; head: Vec2; el: Vec2; wr: Vec2; toe: Vec2 }
+const DEFAULT_DIRS: RigDirs = { knee: [0, -1], hip: [0, -1], sh: [0, -1], head: [0, -1], el: [0, 1], wr: [0, 1], toe: [1, 0] };
+
+/** Unit vector (px space, y down) from projected `a` to projected `b`, or `fallback` when the segment is end-on. */
 function dir(a: Vec3, b: Vec3, fallback: Vec2): Vec2 {
   const pa = projectSide(a);
   const pb = projectSide(b);
   const dx = pb[0] - pa[0];
   const dy = -(pb[1] - pa[1]);
   const len = Math.hypot(dx, dy);
-  return len < 1e-6 ? fallback : [dx / len, dy / len];
+  const full = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  return full < 1e-6 || len < full * END_ON_RATIO ? fallback : [dx / len, dy / len];
 }
 const along = (p: Vec2, d: Vec2, len: number): Vec2 => [p[0] + d[0] * len, p[1] + d[1] * len];
 const mid = (a: Vec3, b: Vec3): Vec3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
 
-/** The rig joints for one pb19 frame (see the mapping at the top of this file). */
-export function rigJoints(frame: Frame): RigJoints {
+/** The rig joints for one pb19 frame, and the segment directions used (pass them as `prev` for the next frame; see the end-on rule at the top). */
+export function rigPose(frame: Frame, prev: RigDirs = DEFAULT_DIRS): { joints: RigJoints; dirs: RigDirs } {
   const J = (n: string) => jointAt(frame, n);
   const hips = mid(J('l_hip'), J('r_hip'));
   const ankleP = projectSide(J('r_ankle'));
   const lift = Math.max(0, Math.min(J('r_heel')[1], J('r_toe')[1]));
   const ankle: Vec2 = [RIG_ANKLE[0] + ankleP[0] * PX_PER_UNIT, RIG_ANKLE[1] - lift * PX_PER_UNIT];
-  const knee = along(ankle, dir(J('r_ankle'), J('r_knee'), [0, -1]), RIG_SEG.sh);
-  const hip = along(knee, dir(J('r_knee'), hips, [0, -1]), RIG_SEG.th);
-  const sh = along(hip, dir(hips, J('neck'), [0, -1]), RIG_SEG.torso);
-  const head = along(sh, dir(J('neck'), J('head'), [0, -1]), RIG_SEG.neck + RIG_SEG.head);
-  const el = along(sh, dir(J('r_shoulder'), J('r_elbow'), [0, 1]), RIG_SEG.ua);
-  const wr = along(el, dir(J('r_elbow'), J('r_wrist'), [0, 1]), RIG_SEG.fa);
-  const toe = along(ankle, dir(J('r_heel'), J('r_toe'), [1, 0]), RIG_SEG.foot);
-  return { ankle, knee, hip, sh, head, el, wr, toe };
+  const dirs: RigDirs = {
+    knee: dir(J('r_ankle'), J('r_knee'), prev.knee),
+    hip: dir(J('r_knee'), hips, prev.hip),
+    sh: dir(hips, J('neck'), prev.sh),
+    head: dir(J('neck'), J('head'), prev.head),
+    el: dir(J('r_shoulder'), J('r_elbow'), prev.el),
+    wr: dir(J('r_elbow'), J('r_wrist'), prev.wr),
+    toe: dir(J('r_heel'), J('r_toe'), prev.toe),
+  };
+  const knee = along(ankle, dirs.knee, RIG_SEG.sh);
+  const hip = along(knee, dirs.hip, RIG_SEG.th);
+  const sh = along(hip, dirs.sh, RIG_SEG.torso);
+  const head = along(sh, dirs.head, RIG_SEG.neck + RIG_SEG.head);
+  const el = along(sh, dirs.el, RIG_SEG.ua);
+  const wr = along(el, dirs.wr, RIG_SEG.fa);
+  const toe = along(ankle, dirs.toe, RIG_SEG.foot);
+  return { joints: { ankle, knee, hip, sh, head, el, wr, toe }, dirs };
 }
+
+/** The rig joints for one pb19 frame with no previous frame. */
+export const rigJoints = (frame: Frame): RigJoints => rigPose(frame).joints;

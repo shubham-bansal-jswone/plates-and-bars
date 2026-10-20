@@ -101,4 +101,4 @@ Projection (`project.ts`): a fixed orthographic side camera on the figure's righ
 | elbow, wrist | `r_shoulder` to `r_elbow` (36 px), `r_elbow` to `r_wrist` (32 px), from the rig's shoulder |
 | toe | `r_heel` to `r_toe` direction (the sole), 15 px from the ankle |
 
-A segment end-on to the camera keeps a default direction instead of producing NaN. Not drawn: equipment props, highlight bands, the left limbs, front or top views.
+A segment nearly end-on to the camera (side-view length under 30 % of its 3D length) keeps the direction it had in the previous drawn frame, or a default one (leg down, torso and head up, arm down, foot forward) when there is none, so it holds still instead of flipping on noise and never produces NaN. The player pauses when the screen loses focus, in the background and from a Pause button (no Step control in slice 1, on purpose); cards scrolled out of view inside a focused screen keep playing. Not drawn: equipment props, highlight bands, the left limbs, front or top views.

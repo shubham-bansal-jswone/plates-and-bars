@@ -9,7 +9,17 @@ import { motionAlt } from '../src/motion/data';
 import { MOTION_ENTRY_NAME, motionFixtureBundle } from './motion-helpers';
 import { openDb } from './sync-helpers';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+// useFocusEffect runs its callback on mount; `focus()` and `blur()` stand in for the navigator showing or covering the screen.
+const mockFocus: { cb: (() => (() => void) | void) | null; cleanup: (() => void) | void } = { cb: null, cleanup: undefined };
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: jest.fn() }),
+    useFocusEffect: (cb: () => (() => void) | void) => { useEffect(() => { mockFocus.cb = cb; mockFocus.cleanup = cb(); return () => mockFocus.cleanup?.(); }, [cb]); },
+  };
+});
+const blur = () => { mockFocus.cleanup?.(); mockFocus.cleanup = undefined; };
+const focus = () => { mockFocus.cleanup = mockFocus.cb?.(); };
 
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120"><circle cx="80" cy="20" r="10" fill="var(--fig-body)"/></svg>';
 const images = () => ({
@@ -135,5 +145,29 @@ describe('ExerciseFigure with the exercise-motion flag', () => {
     expect(playerTimers()).toBe(1);
     await screen.unmount();
     expect(playerTimers()).toBe(0);
+  });
+  it('stops its timer when the screen loses focus and starts it again on focus', async () => {
+    await show();
+    expect(playerTimers()).toBe(1);
+    await act(async () => { jest.advanceTimersByTime(300); });
+    await act(async () => blur());
+    expect(playerTimers()).toBe(0);
+    const held = lines().join('|');
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(lines().join('|')).toBe(held);
+    await act(async () => focus());
+    expect(playerTimers()).toBe(1);
+    await act(async () => { jest.advanceTimersByTime(300); });
+    expect(lines().join('|')).not.toBe(held);
+  });
+  it('before the system answers about reduced motion: frame 0, the moving alt text, no timer and no Pause button', async () => {
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockReturnValue(new Promise(() => {}));
+    await render(<ExerciseFigure name={MOTION_ENTRY_NAME} />);
+    expect(playerTimers()).toBe(0);
+    expect(screen.queryByLabelText('Pause animation')).toBeNull();
+    expect(screen.getByTestId('motion-figure').props.accessibilityLabel).toBe(motionAlt(MOTION_ENTRY_NAME, false, setup0()));
+    const first = lines().join('|');
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(lines().join('|')).toBe(first);
   });
 });
