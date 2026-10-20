@@ -1,4 +1,5 @@
 import { AccessibilityInfo } from 'react-native';
+import { parseNutritionLabel } from '@plate-and-bar/core';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { UserFoodFields } from '@plate-and-bar/core';
 import { OcrError, recognize } from '../modules/plate-label-scanner';
@@ -6,7 +7,8 @@ import type { OcrErrorCode } from '../modules/plate-label-scanner';
 import { LABEL_COPY as t, OCR_PROBLEM, WARNING_COPY } from '../src/labelscan/copy';
 import { LabelScanFlow } from '../src/labelscan/LabelScanFlow';
 import { releasePhoto, takeLabelPhoto } from '../src/labelscan/capture';
-import { FULL, LOOKS_OFF, NOISE, ok, PARTIAL } from './label-fixtures';
+import { formOf } from '../src/labelscan/review';
+import { FULL, LOOKS_OFF, MEDIUM_ALT, NOISE, ok, PARTIAL, UNKNOWN_BASIS } from './label-fixtures';
 
 // The test renderer has no native tags: give every node one so the focus call can be seen.
 jest.mock('react-native/Libraries/ReactNative/RendererProxy', () => ({ ...jest.requireActual('react-native/Libraries/ReactNative/RendererProxy'), findNodeHandle: () => 7 }));
@@ -225,6 +227,90 @@ describe('review', () => {
     await fireEvent.press(addBtn());
     expect(await screen.findByText(t.invalid)).toBeTruthy();
     expect(h.onAdd).not.toHaveBeenCalled();
+  });
+});
+
+describe('review nits (#1090)', () => {
+  it('formOf leaves low and missing fields empty even when they carry a value', () => {
+    const d = parseNutritionLabel(FULL);
+    const field = (level: 'low' | 'missing' | 'medium' | 'high') => ({ value: 5, level, confidence: 0.3, notes: [] });
+    const read = { ...d, fields: { ...d.fields, kcal: field('low'), protein_g: field('missing'), carbs_g: field('medium'), fat_g: field('high') } };
+    const f = formOf(read);
+    expect([f.kcal, f.protein_g, f.carbs_g, f.fat_g]).toEqual(['', '', '5', '5']);
+  });
+
+  it('the Check this marker follows the per-serving read', async () => {
+    await toReview(MEDIUM_ALT);
+    expect(screen.queryByText(t.check)).toBeNull();
+    await fireEvent(screen.getByLabelText(t.perServing), 'valueChange', true);
+    expect(screen.getAllByText(t.check)).toHaveLength(1);
+    await fireEvent(screen.getByLabelText(t.perServing), 'valueChange', false);
+    expect(screen.queryByText(t.check)).toBeNull();
+  });
+
+  it('a typed 12,5 is 12.5', async () => {
+    const h = await toReview();
+    await fireEvent.changeText(field(t.name), 'Granola');
+    await fireEvent.changeText(field(t.fat), '12,5');
+    await fireEvent.press(addBtn());
+    expect(h.onAdd).toHaveBeenCalledWith(expect.objectContaining({ fat_g: 12.5 }));
+  });
+
+  it('a typed 1,234 is refused with an inline error and Add stays off', async () => {
+    const h = await toReview();
+    await fireEvent.changeText(field(t.name), 'Granola');
+    await fireEvent.changeText(field(t.calories), '1,234');
+    expect(screen.getByText(t.commaAmbiguous)).toBeTruthy();
+    expect(addBtn().props.accessibilityState?.disabled).toBeTruthy();
+    await fireEvent.press(addBtn());
+    expect(h.onAdd).not.toHaveBeenCalled();
+    await fireEvent.changeText(field(t.calories), '1234');
+    expect(screen.queryByText(t.commaAmbiguous)).toBeNull();
+    expect(addBtn().props.accessibilityState?.disabled).toBeFalsy();
+  });
+
+  it('the Not read and Check this markers are plain text, not alerts', async () => {
+    await toReview(PARTIAL);
+    for (const text of [t.check, t.notRead]) expect(screen.getByText(text).props.accessibilityRole).not.toBe('alert');
+  });
+
+  it('with an unknown basis, Add also needs a serving size in g or ml', async () => {
+    const h = await toReview(UNKNOWN_BASIS);
+    await fireEvent.changeText(field(t.name), 'Granola');
+    expect(screen.getByText(t.servingNeeded)).toBeTruthy();
+    expect(addBtn().props.accessibilityState?.disabled).toBeTruthy();
+    await fireEvent.changeText(field(t.serving), '1 bar');
+    expect(addBtn().props.accessibilityState?.disabled).toBeTruthy(); // no weight
+    await fireEvent.changeText(field(t.serving), '1 bar (40 g)');
+    expect(addBtn().props.accessibilityState?.disabled).toBeFalsy();
+    await fireEvent.press(addBtn());
+    expect(h.onSaveMine).toHaveBeenCalledWith(expect.objectContaining({ unit: '1 bar (40 g)' }));
+  });
+
+  it('the problem screen takes focus on its heading', async () => {
+    const spy = jest.spyOn(AccessibilityInfo, 'setAccessibilityFocus').mockImplementation(() => undefined);
+    recognizeMock.mockRejectedValue(new OcrError('failed'));
+    await toRead(handlers());
+    await screen.findByText(OCR_PROBLEM.failed);
+    spy.mockClear();
+    // focus moves when the problem view mounts: remount it through Try again then fail again
+    await fireEvent.press(screen.getByRole('button', { name: t.tryAgain }));
+    await fireEvent.press(await screen.findByRole('button', { name: t.take }));
+    await fireEvent.press(await screen.findByRole('button', { name: t.read }));
+    await screen.findByText(OCR_PROBLEM.failed);
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(7));
+    spy.mockRestore();
+  });
+
+  it('a photo picked after the flow closed is released', async () => {
+    let pick!: (v: typeof PHOTO) => void;
+    take.mockReturnValue(new Promise((r) => (pick = r)));
+    const view = await render(<LabelScanFlow meal="Breakfast" {...handlers()} />);
+    await fireEvent.press(screen.getByRole('button', { name: t.take }));
+    await view.unmount();
+    release.mockClear();
+    pick(PHOTO);
+    await waitFor(() => expect(release).toHaveBeenCalledWith(PHOTO.uri));
   });
 });
 

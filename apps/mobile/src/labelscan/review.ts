@@ -36,10 +36,20 @@ export function formOf(read: LabelDraft, name = ''): Form {
   return f;
 }
 
+/** "1,234": a comma and exactly three digits could be a thousands separator or a decimal, so it is refused rather than guessed. "12,5" is 12.5. */
+export const ambiguousComma = (text: string): boolean => /^\s*\d+,\d{3}\s*$/.test(text);
+
+/** A serving size a food can be saved with when the label did not say what its numbers are per: a number of g or ml. */
+export const hasWeight = (unit: string): boolean => /\d\s*(g|ml)\b/i.test(unit);
+
+/** True when Add must wait for a serving size: the basis is unknown, so "1 serving" with no weight would be saved. */
+export const needsServing = (read: LabelDraft, f: Form): boolean => read.basis === 'unknown' && !hasWeight(f.unit);
+
 /** The typed form put back into the read, then through core's `labelFood` (the same validator as the barcode review). */
 export function foodOf(read: LabelDraft, f: Form): ScannedFoodResult {
   const values: LabelValues = {};
   for (const { key } of REVIEW_FIELDS) {
+    if (ambiguousComma(f[key])) continue; // shown as an error on the field; the value stays missing
     const t = f[key].trim().replace(',', '.');
     const v = t === '' ? NaN : Number(t);
     if (Number.isFinite(v)) values[key] = v; // empty or not a number: missing, so Add stays off

@@ -8,7 +8,7 @@ import type { NewLog } from '../food/useFoodDay';
 import { useTheme } from '../theme/useTheme';
 import { LABEL_COPY as t, WARNING_COPY } from './copy';
 import { useFocusOnMount } from './focus';
-import { flagOf, foodOf, formOf, readOf, REVIEW_FIELDS, type Form, type ReviewKey } from './review';
+import { ambiguousComma, flagOf, foodOf, formOf, needsServing, readOf, REVIEW_FIELDS, type Form, type ReviewKey } from './review';
 import type { UserFood } from '../food/types';
 
 interface Props {
@@ -46,9 +46,10 @@ export function LabelReview({ meal, draft, onAdd, onSaveMine, onScanAgain, onClo
   };
 
   const r = foodOf(read, f);
-  const blocked = r.kind === 'missing' || r.kind === 'no-name';
+  const noServing = needsServing(read, f);
+  const blocked = r.kind === 'missing' || r.kind === 'no-name' || noServing;
   const submit = () => {
-    if (r.kind === 'missing') return;
+    if (blocked) return;
     if (r.kind === 'invalid') return setError(t.invalid);
     if (r.kind !== 'ok') return setError(CUSTOM_MESSAGE[r.kind]);
     if (save && servingUnitTooLong(r.food.unit)) return setError(UNIT_TOO_LONG);
@@ -60,8 +61,10 @@ export function LabelReview({ meal, draft, onAdd, onSaveMine, onScanAgain, onClo
   const flag = (k: ReviewKey): ReactNode => {
     const level = read.fields[k].level;
     const fl = flagOf(level);
-    if (fl === 'check') return <Text style={[styles.check, { color: c.ink, borderColor: c.line, backgroundColor: c.tint }]}>{t.check}</Text>;
-    if (fl === 'empty' && !f[k]) return <ErrorText>{REVIEW_FIELDS.find((x) => x.key === k)?.required ? t.notRead : `${t.notRead} ${t.optional}`}</ErrorText>;
+    if (fl === 'check' && !ambiguousComma(f[k])) return <Text style={[styles.check, { color: c.ink, borderColor: c.line, backgroundColor: c.tint }]}>{t.check}</Text>;
+    // Plain text, not an alert: up to six of these show as the screen opens. Real errors keep the alert role.
+    if (ambiguousComma(f[k])) return <ErrorText>{t.commaAmbiguous}</ErrorText>;
+    if (fl === 'empty' && !f[k]) return <Text style={[styles.note, { color: c.ink }]}>{REVIEW_FIELDS.find((x) => x.key === k)?.required ? t.notRead : `${t.notRead} ${t.optional}`}</Text>;
     return null;
   };
 
@@ -82,6 +85,7 @@ export function LabelReview({ meal, draft, onAdd, onSaveMine, onScanAgain, onClo
       {f.name.trim() === '' ? <Hint>{t.nameHint}</Hint> : null}
       <Caption>{t.serving}</Caption>
       <Field label={t.serving} value={f.unit} onChangeText={set('unit')} />
+      {noServing ? <Text style={[styles.note, { color: c.ink }]}>{t.servingNeeded}</Text> : null}
       <View style={styles.grid}>
         {REVIEW_FIELDS.map(({ key, label }) => (
           <View key={key} style={styles.captioned}>
@@ -107,5 +111,6 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   captioned: { gap: 4, minWidth: 140, flexGrow: 1 },
+  note: { fontSize: 14 },
   check: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 14, fontWeight: '600' },
 });

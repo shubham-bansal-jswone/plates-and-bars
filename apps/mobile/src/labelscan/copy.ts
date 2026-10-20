@@ -48,10 +48,9 @@ export const LABEL_COPY = {
   optional: 'Optional.',
   save: 'Save to my foods for next time',
   invalid: 'Check the numbers: none can be negative or more than the serving, and fibre cannot be more than carbs.',
-  rationaleTitle: 'Camera for labels',
-  rationale: 'Plate & Bar uses the camera to take one photo of a nutrition label. The photo is read on the phone and is never saved or sent.',
-  allow: 'Allow camera',
-  notNow: 'Not now',
+  openSettings: 'Open settings',
+  commaAmbiguous: 'Use a dot for decimals, or type the number without a comma.',
+  servingNeeded: 'Enter the serving size these numbers are for, in g or ml, for example 30 g.',
 };
 
 /** One plain message for each way `recognize` can fail. */
