@@ -260,6 +260,13 @@ export const MIGRATIONS: readonly string[] = [
      key TEXT PRIMARY KEY NOT NULL,
      data TEXT NOT NULL
    );`,
+  // v9: lab reports and the lab hold (#1070), JSON rows: `lab|<date>|<id>` per report and 'hold'. Device only, by design (the same
+  // as cycle_log): not in SYNC_TABLES, no outbox trigger and no backfill, so it can never be queued, pushed or pulled. A store wipe and
+  // the device export cover it (see guard.ts, exportLocal.ts).
+  `CREATE TABLE IF NOT EXISTS lab_store (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );`,
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {

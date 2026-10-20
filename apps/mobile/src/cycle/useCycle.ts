@@ -2,14 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { addCycleStart, cycInfo, emptyCycle, removeLastCycleStart, type CycleData, type CycleInfo } from '@plate-and-bar/core';
 import { deleteCycle, loadCycle, saveCycle } from '../db/cycle';
-import { inTransaction, type PullDb } from '../db/outbox';
+import { exclusive } from '../db/exclusive';
 import type { StoreDb } from '../db/records';
-import { writeLock } from '../db/writeLock';
 import { CYCLE_DELETED, CYCLE_LOGGED, CYCLE_SAVE_FAILED } from './copy';
-
-/** One read-then-write under the write lock the store wipe takes, in a transaction where the database has them (it always does outside tests). */
-const exclusive = (db: StoreDb, task: (d: StoreDb) => Promise<void>): Promise<void> =>
-  typeof (db as Partial<PullDb>).withExclusiveTransactionAsync === 'function' ? inTransaction(db as StoreDb & PullDb, task) : writeLock.run(() => task(db));
 
 /**
  * The device-only cycle log for the Progress tab: read from its own local table, never queued for sync. `data` is null until read.

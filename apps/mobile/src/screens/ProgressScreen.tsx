@@ -26,6 +26,8 @@ import { SummaryCard } from '../ai/SummaryCard';
 import { PhotosSection } from '../photos/PhotosSection';
 import { CycleSection } from '../cycle/CycleSection';
 import { useCycle } from '../cycle/useCycle';
+import { LabsSection } from '../labs/LabsSection';
+import { useLabs } from '../labs/useLabs';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
 
@@ -54,6 +56,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const v = useViewedDate(now);
   const p = useProgress({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const cycle = useCycle({ db, date: v.date, notify, reloadKey: dataVersion });
+  const labs = useLabs({ db, today: v.today, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
   const ready = status === 'ready' && p.ready;
@@ -73,6 +76,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
             <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
+            <LabsSection labs={labs} today={v.today} />
             <StepsSleepSection key={`steps-${p.date}`} p={p} />
             <WeekCard date={p.date} days={ci.days} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
           </>
