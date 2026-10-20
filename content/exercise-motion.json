@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "skeleton": "pb15-v1",
+  "skeleton": "pb19-v1",
   "joints": [
     "head",
     "neck",
@@ -16,7 +16,11 @@
     "l_knee",
     "r_knee",
     "l_ankle",
-    "r_ankle"
+    "r_ankle",
+    "l_heel",
+    "r_heel",
+    "l_toe",
+    "r_toe"
   ],
   "motions": {}
 }

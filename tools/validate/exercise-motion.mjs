@@ -1,17 +1,18 @@
 // Validator for content/exercise-motion.json (issue #1069). Returns a list of error strings.
-// Shape: { schema_version: 1, skeleton: "pb15-v1", joints: [15 names], motions: { "<exercise name>": entry } }.
-// An entry holds fps, loop, frames (each frame is 45 numbers: x, y, z of the 15 joints in the order of `joints`),
+// Shape: { schema_version: 1, skeleton: "pb19-v1", joints: [19 names], motions: { "<exercise name>": entry } }.
+// An entry holds fps, loop, frames (each frame is 57 numbers: x, y, z of the 19 joints in the order of `joints`),
 // and provenance (source, ids, licence). Units are body heights (the figure is 1.0 tall), x is the figure's left,
-// y is up, z is forward, y = 0 is the floor and the ankle midpoint is pinned at x = z = 0.
+// y is up, z is forward, y = 0 is the lowest point of any joint over the whole clip (checked within FLOOR_TOLERANCE) and the ankle midpoint of each frame is at x = z = 0.
 // The JSON Schema in validate/schemas/exercise-motion.schema.json documents the shape; keep the two in step
 // (test/exercise-motion.test.mjs compares the constants below with the schema).
 import { nonEmpty } from './text.mjs';
 
-export const SKELETON_ID = 'pb15-v1';
+export const SKELETON_ID = 'pb19-v1';
 // Joint order is part of the format: a frame is the joints in this order, three numbers each.
 export const JOINTS = [
   'head', 'neck', 'l_shoulder', 'r_shoulder', 'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist',
   'spine_mid', 'l_hip', 'r_hip', 'l_knee', 'r_knee', 'l_ankle', 'r_ankle',
+  'l_heel', 'r_heel', 'l_toe', 'r_toe',
 ];
 // Our own mannequin: [parent, child, length in body heights], parents before children, root spine_mid.
 // Proportions are our own round numbers, not taken from a person or from any body model.
@@ -23,21 +24,29 @@ export const BONES = [
   ['spine_mid', 'l_hip', 0.18], ['spine_mid', 'r_hip', 0.18],
   ['l_hip', 'l_knee', 0.245], ['r_hip', 'r_knee', 0.245],
   ['l_knee', 'l_ankle', 0.246], ['r_knee', 'r_ankle', 0.246],
+  ['l_ankle', 'l_heel', 0.05], ['r_ankle', 'r_heel', 0.05],
+  ['l_ankle', 'l_toe', 0.13], ['r_ankle', 'r_toe', 0.13],
 ];
-// Own filming only; a synthetic fixture source exists for tests and is refused unless the caller passes allowFixture.
-export const SOURCES = ['own_filming'];
+// Own filming, or a clip under a Creative Commons licence that allows reuse and adaptation (no NC, no ND). A synthetic fixture
+// source exists for tests and is refused unless the caller passes allowFixture.
+export const SOURCES = ['own_filming', 'cc_licensed'];
 export const FIXTURE_SOURCE = 'synthetic_fixture';
 export const LICENCES = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+  // Share-alike: keyframes made from such a clip are likely a derivative that must carry the same licence (THIRD_PARTY.md).
+  'CC-BY-SA-4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
 };
+// YouTube's terms forbid downloading, even for CC-BY videos, so it is never a source.
+const BANNED_HOSTS = /^https:\/\/([^/]+\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)(\/|$)/i;
 export const MIN_FPS = 5;
 export const MAX_FPS = 30;
 export const MIN_FRAMES = 2;
 export const MAX_COORD = 2;
 export const MAX_ENTRY_BYTES = 8192;
 export const BONE_TOLERANCE = 0.03;
-const FIELDS = ['fps', 'loop', 'frames', 'source', 'source_id', 'clip_id', 'release_id', 'licence', 'licence_url', 'author', 'author_url', 'tools', 'note'];
+export const FLOOR_TOLERANCE = 0.01;
+const FIELDS = ['fps', 'loop', 'frames', 'source', 'source_id', 'source_url', 'retrieved', 'clip_id', 'release_id', 'licence', 'licence_url', 'author', 'author_url', 'tools', 'note'];
 const isHttps = (s) => typeof s === 'string' && /^https:\/\/[^\s]+$/.test(s);
 const nullOrString = (v) => v === null || nonEmpty(v);
 const at = (frame, name) => JOINTS.indexOf(name) * 3;
@@ -89,6 +98,9 @@ export function validateExerciseMotion(content, exerciseNames, options = {}) {
           if (Math.abs(d - len) / len > BONE_TOLERANCE) { err(`frame ${i + 1}: bone ${p}-${c} is ${d.toFixed(3)} long, expected ${len} (within ${BONE_TOLERANCE * 100}%)`); break; }
         }
       });
+      // Floor rule: y = 0 is the lowest point of any joint over the whole clip.
+      const minY = Math.min(...e.frames.flatMap((fr) => JOINTS.map((_, j) => fr[j * 3 + 1])));
+      if (Math.abs(minY) > FLOOR_TOLERANCE) err(`the lowest point of the clip is y = ${minY.toFixed(3)}, expected 0 (within ${FLOOR_TOLERANCE})`);
       // A loop closes when the jump from the last frame back to the first is no bigger than the biggest jump inside it.
       if (e.loop === true) {
         const inner = Math.max(...e.frames.slice(1).map((f, k) => step(e.frames[k], f)));
@@ -96,8 +108,17 @@ export function validateExerciseMotion(content, exerciseNames, options = {}) {
       }
     }
 
-    if (!sources.includes(e.source)) err(`source must be ${SOURCES.join(', ')} (third-party video is not accepted)`);
-    for (const f of ['source_id', 'clip_id', 'release_id', 'licence', 'author', 'tools']) if (f in e && !nonEmpty(e[f])) err(`${f} must be a non-empty string`);
+    if (!sources.includes(e.source)) err(`source must be ${SOURCES.join(', ')} (other third-party video is not accepted)`);
+    for (const f of ['source_id', 'clip_id', 'licence', 'author', 'tools']) if (f in e && !nonEmpty(e[f])) err(`${f} must be a non-empty string`);
+    if (e.source === 'cc_licensed') {
+      if (!isHttps(e.source_url)) err('source_url must be an https URL for a cc_licensed clip');
+      else if (BANNED_HOSTS.test(e.source_url)) err('source_url is on YouTube, whose terms forbid downloading; use another source (Wikimedia Commons is preferred)');
+      if (typeof e.retrieved !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.retrieved) || Number.isNaN(Date.parse(e.retrieved))) err('retrieved must be the retrieval date, YYYY-MM-DD, for a cc_licensed clip');
+      if (e.release_id !== null && e.release_id !== undefined) err('release_id must be null for a cc_licensed clip (the licence is the permission)');
+    } else {
+      if ('release_id' in e && !nonEmpty(e.release_id)) err('release_id must be a non-empty string');
+      for (const f of ['source_url', 'retrieved']) if (e[f] !== null && e[f] !== undefined) err(`${f} must be null unless the source is cc_licensed`);
+    }
     if (nonEmpty(e.licence)) {
       if (!Object.hasOwn(LICENCES, e.licence)) err(`licence "${e.licence}" is not on the allowlist (${Object.keys(LICENCES).join(', ')})`);
       else if (e.licence_url !== LICENCES[e.licence]) err(`licence_url must be ${LICENCES[e.licence]}`);

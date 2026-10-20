@@ -12,7 +12,7 @@ const HEIGHT_M = 1.72;
 const L = { neckHead: 0.13, spineNeck: 0.15, shoulder: 0.12, upperArm: 0.186, forearm: 0.146, hipHalf: 0.09, trunkUp: 0.15588, thigh: 0.245, shin: 0.246 };
 
 // Sagittal-plane squat; phase 0 is standing, 1 is the bottom. Our axes: x left, y up, z forward.
-function squatPose(phase, ankleY = 0.003) {
+function squatPose(phase, ankleY = 0.039) {
   const a = (phase * 28 * Math.PI) / 180;   // shin leans forward
   const b = (phase * 82 * Math.PI) / 180;   // thigh angle from vertical, going back
   const g = (phase * 32 * Math.PI) / 180;   // trunk leans forward
@@ -22,6 +22,8 @@ function squatPose(phase, ankleY = 0.003) {
     const ankle = [x, ankleY, 0];
     const knee = [x, ankle[1] + L.shin * Math.cos(a), ankle[2] + L.shin * Math.sin(a)];
     P[`${s}_ankle`] = ankle;
+    P[`${s}_heel`] = [x, 0, ankle[2] - 0.032];  // flat foot on the floor: heel behind, toe in front
+    P[`${s}_toe`] = [x, 0, ankle[2] + 0.124];
     P[`${s}_knee`] = knee;
     P[`${s}_hip`] = [x, knee[1] + L.thigh * Math.cos(b), knee[2] - L.thigh * Math.sin(b)];
   }
@@ -48,7 +50,7 @@ function squatPose(phase, ankleY = 0.003) {
 function rng(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296 - 0.5; }; }
 
 const NAMES = { 7: 'l_ear', 8: 'r_ear', 11: 'l_shoulder', 12: 'r_shoulder', 13: 'l_elbow', 14: 'r_elbow', 15: 'l_wrist', 16: 'r_wrist',
-  23: 'l_hip', 24: 'r_hip', 25: 'l_knee', 26: 'r_knee', 27: 'l_ankle', 28: 'r_ankle' };
+  23: 'l_hip', 24: 'r_hip', 25: 'l_knee', 26: 'r_knee', 27: 'l_ankle', 28: 'r_ankle', 29: 'l_heel', 30: 'r_heel', 31: 'l_toe', 32: 'r_toe' };
 
 /** options: yawDeg (camera angle off a pure front view), fps, seconds, repSeconds, noise (metres) */
 export function buildFixture({ yawDeg = 35, fps = 15, seconds = 3.2, repSeconds = 2.0, noise = 0.004 } = {}) {

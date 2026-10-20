@@ -12,11 +12,13 @@
 //      (a side-on and a front-on clip give the same motion)
 //   5. trim to one repetition (loop): the earliest local minimum of the distance back to frame 0 that is nearly as good as the best
 //   6. resample to outputFps (linear)
-//   7. retarget to our skeleton: build the 15 joints from the landmarks, scale so the figure is 1.0 tall, then rebuild every
-//      bone with the fixed length from the skeleton table, keeping its direction
-//   8. put the figure on the floor and pin the ankle midpoint at x = z = 0 (MediaPipe's origin is the hip centre of each frame, so the world
-//      position of the body is recovered from the feet); round to 3 decimals
-import { JOINTS, BONES, SKELETON_ID, MIN_FPS, MAX_FPS } from '../validate/exercise-motion.mjs';
+//   7. retarget to our skeleton: build the 19 joints from the landmarks, then rebuild every bone from the root (spine_mid)
+//      with the fixed length from the skeleton table, keeping its measured direction (this is also what normalises body height:
+//      only directions are used, so the figure is 1.0 tall whoever was filmed)
+//   8. place the figure: MediaPipe's origin is the hip centre of every frame, so the body's place in the world is recovered from
+//      the feet. In each frame the lowest joint (heel, toe or ankle) is put on y = 0 and the ankle midpoint on x = z = 0; round to
+//      3 decimals. A heel raise keeps its height because the toe stays down; a jump does not (no flight phase can be recovered)
+import { JOINTS, BONES, MIN_FPS, MAX_FPS, MAX_ENTRY_BYTES, FIXTURE_SOURCE, LICENCES } from '../validate/exercise-motion.mjs';
 
 export const FORMAT = 'mediapipe-world-landmarks-v1';
 export class PipelineError extends Error {}
@@ -36,13 +38,19 @@ export const DEFAULTS = {
 
 // MediaPipe Pose landmark indices used (BlazePose 33-point topology).
 const LM = { l_ear: 7, r_ear: 8, l_shoulder: 11, r_shoulder: 12, l_elbow: 13, r_elbow: 14, l_wrist: 15, r_wrist: 16,
-  l_hip: 23, r_hip: 24, l_knee: 25, r_knee: 26, l_ankle: 27, r_ankle: 28 };
+  l_hip: 23, r_hip: 24, l_knee: 25, r_knee: 26, l_ankle: 27, r_ankle: 28, l_heel: 29, r_heel: 30, l_toe: 31, r_toe: 32 };
+
+/** Pose Landmarker model files whose licence was checked (Apache-2.0, see README.md), by sha256. */
+export const PINNED_MODELS = {
+  '4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad': 'pose_landmarker_full float16',
+  '64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b': 'pose_landmarker_heavy float16',
+};
+export const PIPELINE_VERSION = 'exercise-motion 2';
 export const USED = Object.values(LM);
 
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const norm = (a) => Math.hypot(a[0], a[1], a[2]);
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
-const median = (xs) => { const s = [...xs].sort((a, b) => a - b); const n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
 
 /** Solve A x = b by Gaussian elimination with partial pivoting (tiny systems only). */
 function solve(A, b) {
@@ -111,7 +119,7 @@ function readInput(input) {
     }
     return fr;
   });
-  return { fps: input.fps, frames, col };
+  return { fps: input.fps, frames, col, model: input.model ?? null };
 }
 
 /** Steps 1 and 2: returns per-used-landmark tracks [landmark][frame] = [x, y, z], with gaps filled. */
@@ -211,15 +219,14 @@ function retarget(tr, times, o) {
     const P = Object.fromEntries(Object.entries(LM).map(([name, idx]) => [name, at(idx, t)]));
     const hips = mid(P.l_hip, P.r_hip);
     const neck = mid(P.l_shoulder, P.r_shoulder);
-    return { head: mid(P.l_ear, P.r_ear), neck, spine_mid: mid(hips, neck), ...Object.fromEntries(
-      ['l_shoulder', 'r_shoulder', 'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist', 'l_hip', 'r_hip', 'l_knee', 'r_knee', 'l_ankle', 'r_ankle'].map((j) => [j, P[j]])) };
+    const direct = ['l_shoulder', 'r_shoulder', 'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist', 'l_hip', 'r_hip', 'l_knee', 'r_knee',
+      'l_ankle', 'r_ankle', 'l_heel', 'r_heel', 'l_toe', 'r_toe'];
+    return { head: mid(P.l_ear, P.r_ear), neck, spine_mid: mid(hips, neck), ...Object.fromEntries(direct.map((j) => [j, P[j]])) };
   });
-  // Scale: our figure's total bone length over the median measured one, so the person comes out about 1.0 tall.
-  const ours = BONES.reduce((s, b) => s + b[2], 0);
-  const measured = BONES.reduce((s, [p, c]) => s + median(raw.map((f) => norm(sub(f[c], f[p])))), 0);
-  const scale = ours / measured;
+  // Rebuild from the root with our bone lengths and the measured directions. The root itself is placed at the origin: its
+  // position is thrown away below (each frame is placed by its feet), so no size scale is needed.
   const frames = raw.map((f) => {
-    const out = { spine_mid: f.spine_mid.map((v) => v * scale) };
+    const out = { spine_mid: [0, 0, 0] };
     for (const [p, c, len] of BONES) {
       const d = sub(f[c], f[p]);
       const l = norm(d);
@@ -228,10 +235,10 @@ function retarget(tr, times, o) {
     }
     return out;
   });
-  // Floor and feet: the lowest ankle sits on y = 0 and the ankle midpoint on x = z = 0 in every frame (the feet stay put).
+  // Floor and feet: the lowest joint sits on y = 0 and the ankle midpoint on x = z = 0 in every frame (the feet stay put).
   return frames.map((f) => {
     const m = mid(f.l_ankle, f.r_ankle);
-    const shift = [-m[0], -Math.min(f.l_ankle[1], f.r_ankle[1]), -m[2]];
+    const shift = [-m[0], -Math.min(...JOINTS.map((j) => f[j][1])), -m[2]];
     const r = (v) => Math.round(v * 10 ** o.decimals) / 10 ** o.decimals + 0;
     return JOINTS.flatMap((j) => f[j].map((v, i) => r(v + shift[i])));
   });
@@ -239,13 +246,22 @@ function retarget(tr, times, o) {
 
 /**
  * @param input parsed landmarks file
- * @param options DEFAULTS overrides, plus provenance: source, source_id, clip_id, release_id, licence, author, tools, note, author_url
+ * @param options DEFAULTS overrides, plus provenance: source, source_id, clip_id, release_id, source_url, retrieved, licence, author, note, author_url (`tools` is built from the file's model block)
  * @returns one entry of content/exercise-motion.json (key order fixed)
  */
 export function runPipeline(input, options = {}) {
   const o = { ...DEFAULTS, ...options };
   if (!Number.isInteger(o.outputFps) || o.outputFps < MIN_FPS || o.outputFps > MAX_FPS) throw new PipelineError(`outputFps must be an integer from ${MIN_FPS} to ${MAX_FPS}`);
   const src = readInput(input);
+  const source = o.source ?? 'own_filming';
+  let toolsText;
+  if (source === FIXTURE_SOURCE) toolsText = `${PIPELINE_VERSION}; synthetic fixture, no model`;
+  else {
+    const m = src.model;
+    if (!m || typeof m.sha256 !== 'string') throw new PipelineError('the landmarks file has no model block (name, sha256); run run-model.py to make it');
+    if (!Object.hasOwn(PINNED_MODELS, m.sha256)) throw new PipelineError(`model sha256 ${m.sha256} is not one we have checked the licence of (see README.md)`);
+    toolsText = `${PIPELINE_VERSION}; ${PINNED_MODELS[m.sha256]} sha256 ${m.sha256}${m.mediapipe ? `; mediapipe ${m.mediapipe}` : ''}`;
+  }
   const tr = align(smooth(cleanTracks(src, o), o));
   const n = tr[LM.l_hip].length;
   const end = o.loop ? findPeriod(tr, n, src.fps, o) : n - 1;
@@ -255,13 +271,33 @@ export function runPipeline(input, options = {}) {
   const times = Array.from({ length: count }, (_, k) => (o.loop ? (k * end) / count : (k * end) / (count - 1)));
   const frames = retarget(tr, times, o);
   const licence = o.licence ?? 'CC-BY-4.0';
-  const urls = { 'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/', 'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/' };
+  const urls = LICENCES;
   return {
     fps: o.outputFps, loop: o.loop, frames,
-    source: o.source ?? 'own_filming', source_id: o.source_id, clip_id: o.clip_id, release_id: o.release_id,
+    source, source_id: o.source_id, source_url: o.source_url ?? null, retrieved: o.retrieved ?? null,
+    clip_id: o.clip_id, release_id: o.release_id ?? null,
     licence, licence_url: urls[licence] ?? null, author: o.author, author_url: o.author_url ?? null,
-    tools: o.tools ?? `exercise-motion pipeline, skeleton ${SKELETON_ID}`, note: o.note ?? null,
+    tools: toolsText, note: o.note ?? null,
   };
+}
+
+/**
+ * runPipeline, stepping the output fps down (towards MIN_FPS) until the entry fits MAX_ENTRY_BYTES.
+ * @returns { entry, requestedFps } (entry.fps is the rate chosen)
+ * @throws PipelineError naming the longest loop that fits when even MIN_FPS is too big
+ */
+export function runPipelineFit(input, options = {}) {
+  const requestedFps = options.outputFps ?? DEFAULTS.outputFps;
+  const size = (e) => Buffer.byteLength(JSON.stringify(e));
+  let entry;
+  for (let fps = requestedFps; fps >= MIN_FPS; fps--) {
+    entry = runPipeline(input, { ...options, outputFps: fps });
+    if (size(entry) <= MAX_ENTRY_BYTES) return { entry, requestedFps };
+  }
+  const per = Buffer.byteLength(JSON.stringify(entry.frames)) / entry.frames.length;
+  const fixed = size(entry) - Buffer.byteLength(JSON.stringify(entry.frames));
+  const fit = Math.max(Math.floor((MAX_ENTRY_BYTES - fixed) / per), 0);
+  throw new PipelineError(`${(entry.frames.length / MIN_FPS).toFixed(1)} s does not fit ${MAX_ENTRY_BYTES} bytes even at ${MIN_FPS} fps; the longest that fits is about ${(fit / MIN_FPS).toFixed(1)} s (${fit} frames). Film a faster repetition or a shorter range.`);
 }
 
 /** One frame per line, everything else indented by two spaces (matches the other content files' style). */
