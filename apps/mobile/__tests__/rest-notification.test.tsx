@@ -83,7 +83,7 @@ describe('rest timer notification', () => {
   });
 
   it('does not take the rest again when the Workout tab mounts later, so a stale echo is never applied', async () => {
-    mockNative.takeRest.mockResolvedValueOnce({ id: 7, end: NOW + 120_000, skipped: false });
+    mockNative.takeRest.mockResolvedValue({ id: 7, end: NOW + 120_000, skipped: false });
     await render(<RestColdStart />);
     await act(async () => {});
     await setup();
