@@ -75,7 +75,7 @@ describe('never a third party', () => {
     const list: string[] = [];
     const walk = (d: string) => readdirSync(d).forEach((n) => { const p = join(d, n); if (n === 'build' || n === 'assets') return; if (statSync(p).isDirectory()) walk(p); else if (/\.(ts|tsx|kt|gradle)$/.test(n)) list.push(p); });
     files.forEach(walk);
-    for (const f of list) expect({ f, hit: /jsdelivr|unpkg|cdnjs|googleapis|gstatic|https?:\/\/(?!www\.apache\.org|github\.com|jitpack\.io)/.exec(read(f).replace(/^\s*(\/\/|\*|\/\*).*$/gm, ''))?.[0] }).toEqual({ f, hit: undefined });
+    for (const f of list) expect({ f, hit: /jsdelivr|unpkg|cdnjs|googleapis|gstatic|https?:\/\/(?!www\.apache\.org|github\.com)/.exec(read(f).replace(/^\s*(\/\/|\*|\/\*).*$/gm, ''))?.[0] }).toEqual({ f, hit: undefined });
   });
   it('the CSP is unchanged: wasm-unsafe-eval only, same-origin workers, no new origin', () => {
     for (const f of [join(app, 'public/_headers'), join(app, '../../infra/caddy/Caddyfile.web')]) {
@@ -115,7 +115,7 @@ describe('the module registration and build', () => {
   it('the vendored AAR is the pinned file, built from the pinned upstream commit', () => {
     const dir = join(mod, 'android/libs-maven/app/plateandbar/vendor/tesseract4android/4.9.0');
     expect(readdirSync(dir).sort()).toEqual(['tesseract4android-4.9.0.aar', 'tesseract4android-4.9.0.pom']);
-    const aarSha = 'e6226ad06b34aaf4ab4f642d2b8e40fa86172e84bd4e5fc9066d2217472bc78a';
+    const aarSha = '783b1a4ca5dfdcc4d4a6847fbfcedd24728d388e9657ec59531bfd5bf4d67352';
     expect(sha(join(dir, 'tesseract4android-4.9.0.aar'))).toBe(aarSha);
     expect(read(join(mod, 'android/src/test/java/app/plateandbar/labelscan/VendoredAarTest.kt'))).toContain(aarSha);
     const commit = 'd7de990ef78f70d553e327b98b3992d11863f134';
@@ -148,7 +148,7 @@ describe('the native module keeps the image on the device', () => {
   it('only content and file addresses are opened, and the engine is freed after every scan', () => {
     expect(read(join(kt, 'ImageLoader.kt'))).toContain('uri.scheme != "content" && uri.scheme != "file"');
     const r = read(join(kt, 'Recognizer.kt'));
-    expect(r).toContain('api.recycle()');
+    expect(r).toContain('api?.recycle()');
     expect(r).toContain('bitmap.recycle()');
   });
 });

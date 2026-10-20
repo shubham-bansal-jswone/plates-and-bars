@@ -25,7 +25,7 @@ android {
 //   source:  https://github.com/adaptech-cz/Tesseract4Android at d7de990ef78f70d553e327b98b3992d11863f134
 //            ("Fix CMake build", 2025-06-11, the last commit before the 4.9.0 release was published; the tag now points at 15c5347)
 //   build:   infra/scripts/build-tesseract4android.sh (upstream's AGP 8.10.1 and Gradle 8.11.1, NDK 27.1.12297006, CMake 3.22.1, standard release)
-//   sha256:  e6226ad06b34aaf4ab4f642d2b8e40fa86172e84bd4e5fc9066d2217472bc78a  tesseract4android-4.9.0.aar
+//   sha256:  783b1a4ca5dfdcc4d4a6847fbfcedd24728d388e9657ec59531bfd5bf4d67352  tesseract4android-4.9.0.aar
 // The hash is checked by VendoredAarTest.kt (Gradle unit test) and by __tests__/label-ocr-assets.test.ts (jest), so a changed file fails CI.
 // Repositories are per project, and the app (:app) resolves this module's dependencies in its own configuration, so the repository is added to
 // every project of the build, not only to this one.

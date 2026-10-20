@@ -12,7 +12,7 @@ class VendoredAarTest {
   @Test fun `the vendored AAR is the pinned file`() {
     // The unit test runs in the module folder (android/), so the file is read straight from the source tree.
     assertTrue("AAR missing at ${aar.absolutePath}", aar.isFile)
-    assertEquals(12_850_019L, aar.length())
-    assertEquals("e6226ad06b34aaf4ab4f642d2b8e40fa86172e84bd4e5fc9066d2217472bc78a", TessData.sha256(aar))
+    assertEquals(12_847_921L, aar.length())
+    assertEquals("783b1a4ca5dfdcc4d4a6847fbfcedd24728d388e9657ec59531bfd5bf4d67352", TessData.sha256(aar))
   }
 }

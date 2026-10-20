@@ -25,19 +25,22 @@ object Recognizer {
     val started = System.nanoTime()
     val data = TessData.ensure(context)
     val bitmap = ImageLoader.load(context, imageUri, crop) // fails fast on an unreadable image, before the engine starts
-    val api = TessBaseAPI()
+    var api: TessBaseAPI? = null
     try {
+      val engine: TessBaseAPI
       try {
-        if (!api.init(data.root.path, TessData.LANG, TessBaseAPI.OEM_LSTM_ONLY)) throw OcrException("ERR_OCR_ENGINE", "engine_init_failed")
-        api.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
-        api.setImage(bitmap) // copied into the engine's own buffer
+        engine = TessBaseAPI() // inside the try: if the native library fails to load, the bitmap is still freed at once
+        api = engine
+        if (!engine.init(data.root.path, TessData.LANG, TessBaseAPI.OEM_LSTM_ONLY)) throw OcrException("ERR_OCR_ENGINE", "engine_init_failed")
+        engine.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+        engine.setImage(bitmap) // copied into the engine's own buffer
       } finally {
         bitmap.recycle()
       }
-      val lines = readLines(api)
+      val lines = readLines(engine)
       return OcrResult(lines, (System.nanoTime() - started) / 1_000_000)
     } finally {
-      api.recycle() // frees the engine, the page image and the language data
+      api?.recycle() // frees the engine, the page image and the language data
     }
   }
 
