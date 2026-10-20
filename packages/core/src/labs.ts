@@ -40,8 +40,9 @@ const by = (k: number) => (x: number): number => x * k;
 const same = (...names: string[]): UnitRule => ({ names, toCanonical: id });
 const times = (k: number, ...names: string[]): UnitRule => ({ names, toCanonical: by(k) });
 
-const MGDL = 'mg/dl';
-const CHOL = [same(MGDL), times(38.67, 'mmol/l')];
+/** mg/dL, also printed `mg%` by some labs. */
+const MGDL = same('mg/dl', 'mg%');
+const CHOL = [MGDL, times(38.67, 'mmol/l')];
 
 /**
  * The 14 markers, in prototype order (first regex match wins). Patterns are the prototype's, unchanged.
@@ -60,17 +61,17 @@ const DEFS: readonly MarkerDef[] = [
   { key: 'haemoglobin', label: 'Haemoglobin', pattern: /ha?emoglobin|^hb\b/i, tips: ['low'], canonicalUnit: 'g/dL', units: () => [same('g/dl', 'gm/dl', 'gm%', 'g%'), times(0.1, 'g/l')] },
   { key: 'ldl', label: 'LDL cholesterol', pattern: /ldl/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => CHOL },
   { key: 'hdl', label: 'HDL cholesterol', pattern: /hdl/i, tips: ['low'], canonicalUnit: 'mg/dL', units: () => CHOL },
-  { key: 'triglycerides', label: 'Triglycerides', pattern: /triglycer/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [same(MGDL), times(88.57, 'mmol/l')] },
+  { key: 'triglycerides', label: 'Triglycerides', pattern: /triglycer/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [MGDL, times(88.57, 'mmol/l')] },
   {
     key: 'hba1c', label: 'HbA1c', pattern: /hba1c|glycated/i, tips: ['high'], canonicalUnit: '%',
     units: () => [same('%'), { names: ['mmol/mol'], toCanonical: (x) => 0.09148 * x + 2.152 }],
   },
-  { key: 'glucose', label: 'Fasting glucose', pattern: /glucose|fbs|blood sugar/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [same(MGDL), times(18, 'mmol/l')] },
+  { key: 'glucose', label: 'Fasting glucose', pattern: /glucose|fbs|blood sugar/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [MGDL, times(18, 'mmol/l')] },
   { key: 'tsh', label: 'TSH (thyroid)', pattern: /tsh/i, tips: ['high', 'low'], canonicalUnit: 'mIU/L', units: () => [same('miu/l', 'uiu/ml', 'mu/l', 'uu/ml')] },
-  { key: 'creatinine', label: 'Creatinine', pattern: /creatinine/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [same(MGDL), times(1 / 88.4, 'umol/l')] },
+  { key: 'creatinine', label: 'Creatinine', pattern: /creatinine/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [MGDL, times(1 / 88.4, 'umol/l')] },
   { key: 'alt', label: 'ALT (liver)', pattern: /sgpt|alt\b|alanine/i, tips: ['high'], canonicalUnit: 'U/L', units: () => [same('u/l', 'iu/l')] },
   { key: 'ast', label: 'AST (liver)', pattern: /sgot|ast\b|aspartate/i, tips: ['high'], canonicalUnit: 'U/L', units: () => [same('u/l', 'iu/l')] },
-  { key: 'uric_acid', label: 'Uric acid', pattern: /uric/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [same(MGDL), times(1 / 59.48, 'umol/l')] },
+  { key: 'uric_acid', label: 'Uric acid', pattern: /uric/i, tips: ['high'], canonicalUnit: 'mg/dL', units: () => [MGDL, times(1 / 59.48, 'umol/l')] },
 ];
 
 /** The 14 markers (prototype `MARKERS`). */
@@ -79,18 +80,18 @@ export const MARKERS: readonly Marker[] = DEFS;
 /**
  * Word-bounded name patterns, used by `markerOf` (decided in #1075). Same markers and order as the prototype's
  * patterns, but a marker word must stand on its own: "Breast" is not AST, "VLDL" is not LDL, "Salt" is not ALT.
- * "Glucose PP" still matches glucose. Glycated haemoglobin goes to HbA1c, not haemoglobin (the prototype's
- * order sends it to haemoglobin).
+ * "Glucose PP" still matches glucose. Glycated or glycosylated haemoglobin and "Hb A1c" go to HbA1c, not haemoglobin
+ * (the prototype's order sends them to haemoglobin).
  */
 const WORD: Readonly<Record<MarkerKey, RegExp>> = {
   vitamin_d: /\bvit(amin)?\s*d\d?\b|\b25.?oh/i,
   vitamin_b12: /\bb\s*-?12\b|\bcobalamin/i,
   iron_ferritin: /\bferritin|\bserum iron\b|^iron\b/i,
-  haemoglobin: /^(?!.*(glycat|a1c)).*\bha?emoglobin\b|^hb\b/i,
+  haemoglobin: /^(?!.*(glyc|a1c))(.*\bha?emoglobin\b|hb\b)/i,
   ldl: /\bldl\b/i,
   hdl: /\bhdl\b/i,
   triglycerides: /\btriglycer/i,
-  hba1c: /\bhba1c|\bglycated/i,
+  hba1c: /\bhba1c|\bglycated\b|\bglycosylated\b|\ba1c\b/i,
   glucose: /\bglucose\b|\bfbs\b|\bblood sugar\b/i,
   tsh: /\btsh\b/i,
   creatinine: /\bcreatinine\b/i,
@@ -103,10 +104,15 @@ const WORD: Readonly<Record<MarkerKey, RegExp>> = {
  * The first marker whose word-bounded pattern matches the printed test name, or null. Tighter than the prototype
  * (it matched inside words: "Breast" was AST, "VLDL" was LDL); see #1075. `markerOfPrototype` is the exact prototype.
  *
+ * Two more deviations (#1075): a name containing "urine" never maps to a blood marker (it gets the generic rule against
+ * the lab's own range), and "Non-HDL Cholesterol" never maps to `hdl` (generic rule).
+ *
  * Deviates from prototype `markerOf(name)` (tips are content; `tips` lists the sides that have one).
  */
 export function markerOf(name: string): Marker | null {
-  return DEFS.find((d) => WORD[d.key].test(name)) ?? null;
+  if (/urine/i.test(name)) return null;
+  const nonHdl = /\bnon[\s-]*hdl\b/i.test(name);
+  return DEFS.find((d) => !(nonHdl && d.key === 'hdl') && WORD[d.key].test(name)) ?? null;
 }
 
 /** The prototype's `markerOf(name)` exactly, with its loose patterns. Used by `labFlagRaw`; kept so tests can compare with the prototype. */
@@ -206,8 +212,10 @@ export interface LabResult {
   /** The marker the name matched, or null. */
   marker: MarkerKey | null;
   unitStatus: UnitStatus;
-  /** Value and range in the marker's canonical unit when the unit is known (rounded to 4 decimals if converted); else as typed. */
-  /** Null when the value was blank or not a number (the flag is then `none`). */
+  /**
+   * Value and range in the marker's canonical unit when the unit is known (rounded to 4 decimals if converted); else as typed.
+   * `value` is null when it was blank or not a number (the flag is then `none`).
+   */
   value: number | null;
   low: number | null;
   high: number | null;
@@ -321,7 +329,7 @@ export const LAB_TESTS_MAX = 80;
 
 export type LabReportError =
   | 'bad_date' | 'no_tests' | 'too_many_tests'
-  | 'name_missing' | 'value_not_number' | 'low_not_number' | 'high_not_number' | 'unit_too_long' | 'name_too_long';
+  | 'name_missing' | 'value_not_number' | 'low_not_number' | 'high_not_number' | 'unit_too_long' | 'name_too_long' | 'unit_missing';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const FIELD_MAX = 100;
@@ -336,7 +344,7 @@ function isDate(s: unknown): s is string {
 /**
  * The first problem with a report about to be saved, or null. A date must be a real `YYYY-MM-DD`; there is at
  * least one and at most 80 tests; each has a name, a numeric value, a bound that is empty or numeric, and a name
- * and unit of at most 100 characters.
+ * and unit of at most 100 characters. A test whose name matches a marker needs a unit (`unit_missing`; new, #1075).
  *
  * Mirrors the cleaning in prototype `onLabFile` (name required, numeric value, up to 80 tests, date regex); stricter on
  * numbers, because the prototype's `num` reads junk as 0 (see `labFlagRaw`). Returns a code, not copy.
@@ -352,6 +360,7 @@ export function validateLabReport(r: LabReport): LabReportError | null {
     if (t.low.trim() !== '' && !NUMBER.test(t.low.trim())) return 'low_not_number';
     if (t.high.trim() !== '' && !NUMBER.test(t.high.trim())) return 'high_not_number';
     if (t.unit.length > FIELD_MAX) return 'unit_too_long';
+    if (t.unit.trim() === '' && markerOf(t.name)) return 'unit_missing';
   }
   return null;
 }

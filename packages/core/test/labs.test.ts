@@ -295,6 +295,45 @@ describe('hold state', () => {
   });
 });
 
+describe('review fixes (#1075)', () => {
+  it.each(['Glycosylated Haemoglobin', 'Hemoglobin A1c', 'Hb A1c', 'HbA1c', 'Glycated Hemoglobin', 'A1c'])('%s is HbA1c, never haemoglobin', (n) => {
+    expect(markerOf(n)?.key).toBe('hba1c');
+  });
+  it('plain haemoglobin and Hb still map to haemoglobin', () => {
+    expect(markerOf('Hb')?.key).toBe('haemoglobin');
+    expect(markerOf('Hemoglobin (Hb)')?.key).toBe('haemoglobin');
+    expect(markerOf('Hb %')?.key).toBe('haemoglobin');
+  });
+  it('a Hb A1c of 9.5 is red as HbA1c, not read against haemoglobin', () => {
+    expect(labResult(t('Hb A1c', 9.5, '%'))).toMatchObject({ marker: 'hba1c', flag: 'red' });
+  });
+  it('mg% is mg/dL', () => {
+    expect(labResult(t('Fasting glucose', 250, 'mg%', '70', '100'))).toMatchObject({ flag: 'red', unitStatus: 'canonical', unit: 'mg/dL' });
+    expect(labResult(t('LDL', 191, 'mg%')).flag).toBe('red');
+  });
+  it('urine names never map to a blood marker: generic rule only, no hold from the glucose threshold', () => {
+    for (const n of ['Urine Glucose', 'Glucose, Urine', 'Urine Creatinine', 'Urine Protein']) expect(markerOf(n)).toBeNull();
+    expect(labResult(t('Urine Glucose', 250, 'mg/dL', '0', '15'))).toMatchObject({ marker: null, flag: 'red' }); // far outside the lab's own range
+    expect(flagOf('Urine Glucose', 250, 'mg/dL')).toBe('none'); // no range: no fixed threshold
+    expect(reportIsRed({ tests: [t('Urine Glucose', 250, 'mg/dL')] })).toBe(false);
+    expect(flagOf('Urine Glucose', 25, 'mg/dL', '0', '15')).toBe('high');
+  });
+  it('Non-HDL cholesterol never maps to hdl: generic rule', () => {
+    for (const n of ['Non-HDL Cholesterol', 'Non HDL Cholesterol', 'NonHDL']) expect(markerOf(n)).toBeNull();
+    expect(markerOf('HDL Cholesterol')?.key).toBe('hdl');
+    expect(flagOf('Non-HDL Cholesterol', 130, 'mg/dL', '0', '130')).toBe('ok');
+    expect(flagOf('Non-HDL Cholesterol', 131, 'mg/dL', '0', '130')).toBe('high');
+  });
+  it('validateLabReport: a marker name with a blank unit is unit_missing; other names need no unit', () => {
+    const rep = (...tests: LabTest[]): LabReport => ({ id: 'r', date: '2026-10-01', tests });
+    expect(validateLabReport(rep(t('Fasting glucose', 90, '')))).toBe('unit_missing');
+    expect(validateLabReport(rep(t('Fasting glucose', 90, '  ')))).toBe('unit_missing');
+    expect(validateLabReport(rep(t('Fasting glucose', 90, 'mg/dL')))).toBeNull();
+    expect(validateLabReport(rep(t('Urine Glucose', 90, '')))).toBeNull();
+    expect(validateLabReport(rep(t('Calcium', 9, '')))).toBeNull();
+  });
+});
+
 describe('validateLabReport', () => {
   const ok = (tests: LabTest[] = [t('HbA1c', 5.4, '%', '4', '5.6')], date = '2026-10-01'): LabReport => ({ id: 'r', date, tests });
   it('accepts a good report, empty bounds, comma decimals and a negative value', () => {
@@ -334,7 +373,7 @@ describe('the hold reaches calories, flex and workouts (existing core wiring, pi
     expect(kcalTarget('2026-10-09', { flex, labHold: true }, { ...p, targets: { kcal: maint + 300 } })).toBe(maint + 300);
   });
 
-  it('flex: no cut is planned or undone against a day held at maintenance', () => {
+  it('flex: planFlex and undoFlex take the hold; a hold never plans a bigger cut than without it', () => {
     const input = { extra: 500, date: '2026-10-08', today: '2026-10-08', id: 'n', flex: [] as FlexEntry[] };
     const off = planFlex(input, p);
     const on = planFlex({ ...input, labHold: true }, p);
