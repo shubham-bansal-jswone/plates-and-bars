@@ -13,6 +13,7 @@ import { SyncBadge } from '../src/sync/SyncBadge';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider } from '../src/sync/SyncProvider';
 import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
+import { RestColdStart } from '../src/reminders/RestColdStart';
 import { initErrorTracking } from '../src/telemetry/errors';
 import { registerServiceWorker } from '../src/web/registerServiceWorker';
 
@@ -29,6 +30,7 @@ function Providers() {
       <Stores db={db}>
         <DeviceStepsProvider db={db}>
           <ContentRefresher />
+          <RestColdStart />
           <StatusBar style="auto" />
           <Stack screenOptions={{ headerShown: false }} />
           <Gate />

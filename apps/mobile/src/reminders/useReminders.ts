@@ -21,7 +21,7 @@ export interface RemindersState {
   recheck(): void;
 }
 
-const KEYS = ['weigh_in', 'workout', 'lunch', 'dinner', 'water'] as const;
+const KEYS = ['weigh_in', 'workout', 'lunch', 'dinner', 'water', 'rest'] as const;
 const anyOn = (p: ReminderPrefs) => KEYS.some((k) => p[k].on);
 
 /**
