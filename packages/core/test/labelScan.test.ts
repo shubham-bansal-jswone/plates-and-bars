@@ -487,6 +487,30 @@ describe('parseNutritionLabel: review round 2', () => {
   });
 });
 
+describe('parseNutritionLabel: review round 3', () => {
+  it('never puts a column header in the serving unit', () => {
+    for (const head of ['Serving size 30 g   Per 100 g   Per serve', 'Serving size 1 cup (30 g) Per 100 g Per serving']) {
+      const d = parseNutritionLabel(['Nutritional Information', head, 'Energy 450 kcal   135 kcal', 'Protein 10 g   3 g']);
+      expect(d.unit).toBe('100 g');
+      expect(d.alternate?.unit).not.toMatch(/per/i);
+      expect(unitGrams(d.alternate?.unit ?? '')).toBe(30);
+    }
+    const only = parseNutritionLabel(['Nutrition Facts', 'Serving size 2/3 cup (55g) Amount per serving', 'Calories 230', 'Total Fat 8g']);
+    expect(only.unit).toBe('2/3 cup (55g)');
+  });
+
+  it('a whole swap needs at least 3 non-neutral required fields, and any normal match means no swap', () => {
+    const rows = (e: string, p: string, c: string, f: string) => ['Nutritional Information', 'Per 100 g   Per serve (120 g)', e, p, c, f];
+    // Only two non-neutral fields (the rest are 0 in both columns): not a whole swap by this rule.
+    const two = parseNutritionLabel(rows('Energy 48 kcal   40 kcal', 'Protein 4.2 g   3.5 g', 'Carbohydrate 0 g   0 g', 'Total Fat 0 g   0 g'));
+    expect(two.fields.kcal.notes).toContain('serving_mismatch');
+    // One field matches normally: kcal, protein and carbs look swapped but fat is right, so no whole swap (each is still flagged).
+    const mixed = parseNutritionLabel(rows('Energy 48 kcal   40 kcal', 'Protein 4.2 g   3.5 g', 'Carbohydrate 6 g   5 g', 'Total Fat 10 g   12 g'));
+    expect(mixed.fields.fat_g.value).toBe(10);
+    expect(mixed.fields.fat_g.notes).not.toContain('serving_mismatch');
+  });
+});
+
 /** A small seeded generator (mulberry32) so the fuzz runs are the same every time. */
 function rng(seed: number): () => number {
   let a = seed;

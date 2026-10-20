@@ -1655,5 +1655,196 @@
    },
    "missing": []
   }
+ },
+ {
+  "id": "round3-serving-size-merged-with-per-100g",
+  "input": "Nutrition Information\nServing size 200 g Per 100 g\nEnergy 120 kcal\nProtein 5 g\nCarbohydrate 15 g\nTotal Fat 4 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 120,
+    "protein_g": 5,
+    "carbs_g": 15,
+    "fat_g": 4
+   },
+   "missing": [],
+   "level": {
+    "kcal": "high"
+   }
+  }
+ },
+ {
+  "id": "round3-serving-size-ml-merged-with-per-100ml",
+  "input": "Nutrition Information\nServing size 250 ml   Per 100 ml\nEnergy 45 kcal\nProtein 0 g\nCarbohydrate 11 g\nTotal Fat 0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 ml",
+   "values": {
+    "kcal": 45,
+    "protein_g": 0,
+    "carbs_g": 11,
+    "fat_g": 0
+   },
+   "missing": []
+  }
+ },
+ {
+  "id": "round3-serving-size-30g-merged-two-columns",
+  "input": "Nutritional Information\nServing size 30 g   Per 100 g   Per serve\nEnergy 450 kcal   135 kcal\nProtein 10 g   3 g\nCarbohydrate 70 g   21 g\nTotal Fat 15 g   4.5 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 70,
+    "fat_g": 15
+   },
+   "missing": [],
+   "alternate": {
+    "unit": "30 g",
+    "values": {
+     "kcal": 135,
+     "protein_g": 3,
+     "carbs_g": 21,
+     "fat_g": 4.5
+    }
+   }
+  }
+ },
+ {
+  "id": "round3-serving-size-40g-merged-with-title",
+  "input": "Nutrition Information Serving Size 40 g Per 100 g Per Serve\nEnergy 400 kcal   160 kcal\nProtein 10 g   4 g\nCarbohydrate 50 g   20 g\nTotal Fat 20 g   8 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 400,
+    "protein_g": 10,
+    "carbs_g": 50,
+    "fat_g": 20
+   },
+   "missing": [],
+   "alternate": {
+    "unit": "40 g",
+    "values": {
+     "kcal": 160,
+     "protein_g": 4,
+     "carbs_g": 20,
+     "fat_g": 8
+    }
+   }
+  }
+ },
+ {
+  "id": "round3-per-serving-of-100g",
+  "input": "Nutritional Information\nPer 100 g   Per serving of 100 g\nEnergy 450 kcal   450 kcal\nProtein 10 g   10 g\nCarbohydrate 70 g   70 g\nTotal Fat 15 g   15 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 70,
+    "fat_g": 15
+   },
+   "missing": [],
+   "alternate": {
+    "unit": "100 g",
+    "values": {
+     "kcal": 450,
+     "protein_g": 10,
+     "carbs_g": 70,
+     "fat_g": 15
+    }
+   }
+  }
+ },
+ {
+  "id": "round3-per-serve-household-and-100g",
+  "input": "Nutritional Information\nPer 100 g   Per serve (1 cup, 100 g)\nEnergy 450 kcal   450 kcal\nProtein 10 g   10 g\nCarbohydrate 70 g   70 g\nTotal Fat 15 g   15 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 450,
+    "protein_g": 10,
+    "carbs_g": 70,
+    "fat_g": 15
+   },
+   "missing": [],
+   "alternate": {
+    "unit": "100 g",
+    "values": {
+     "kcal": 450,
+     "protein_g": 10,
+     "carbs_g": 70,
+     "fat_g": 15
+    }
+   }
+  }
+ },
+ {
+  "id": "round3-120g-swapped-with-zero-fat",
+  "input": "Nutritional Information\nPer 100 g   Per serve (120 g)\nEnergy 48 kcal   40 kcal\nProtein 4.2 g   3.5 g\nCarbohydrate 6 g   5 g\nTotal Fat 0 g   0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {},
+   "missing": [
+    "kcal",
+    "protein_g",
+    "carbs_g",
+    "fat_g"
+   ],
+   "warn": [
+    "serving_mismatch"
+   ],
+   "alternateEmpty": true
+  }
+ },
+ {
+  "id": "round3-120g-legit-with-zero-fat",
+  "input": "Nutritional Information\nPer 100 g   Per serve (120 g)\nEnergy 40 kcal   48 kcal\nProtein 3.5 g   4.2 g\nCarbohydrate 5 g   6 g\nTotal Fat 0 g   0 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 g",
+   "values": {
+    "kcal": 40,
+    "protein_g": 3.5,
+    "carbs_g": 5,
+    "fat_g": 0
+   },
+   "missing": [],
+   "noWarn": [
+    "serving_mismatch"
+   ],
+   "alternate": {
+    "unit": "120 g",
+    "values": {
+     "kcal": 48,
+     "protein_g": 4.2,
+     "carbs_g": 6,
+     "fat_g": 0
+    }
+   }
+  }
+ },
+ {
+  "id": "round3-low-energy-broth-emptied-by-rule",
+  "input": "Nutritional Information\nPer 100 ml\nEnergy 4 kcal\nProtein 0.5 g\nCarbohydrate 0.6 g\nTotal Fat 0.1 g",
+  "expect": {
+   "basis": "per100",
+   "unit": "100 ml",
+   "values": {
+    "protein_g": 0.5,
+    "carbs_g": 0.6,
+    "fat_g": 0.1
+   },
+   "missing": [
+    "kcal"
+   ]
+  }
  }
 ]

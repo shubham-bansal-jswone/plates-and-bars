@@ -44,7 +44,7 @@ export type LabelNote =
   | 'from_kj'
   /** Computed from the per-serving column and the serving weight. */
   | 'from_serving'
-  /** Per 100 g and per serving disagree by more than about 10 percent. */
+  /** Per 100 g and per serving disagree by more than 10 percent and more than the rounding allowed (0.5 g, 5 kcal for energy; a serving 0 or "<1 g" matches a scaled value under 1 g). */
   | 'serving_mismatch'
   /** Digits were repaired (O to 0, l to 1) or the unit was missing. */
   | 'repaired'
@@ -374,7 +374,10 @@ interface Cols {
 
 function columnsOf(pre: string): Cols {
   // A serving of 100 g or 100 ml ("Per serve (100 g)", "Serving size 100 g") is not a per 100 column.
-  pre = pre.replace(/serv(?:ing|e)\s*size[^\n]*/gi, ' ').replace(/(per\s*(?:serve|serving|portion)\w*)\s*\(?\s*\d+(?:[.,]\d+)?\s*(?:g|gm|gms|ml)\b\)?/gi, '$1');
+  // Only the phrase and its quantity go: a column header merged onto the same line ("Serving size 200 g Per 100 g") stays.
+  pre = pre
+    .replace(/serv(?:ing|e)\s*size\s*[:\-]?\s*(?:(?!per\b)[^\n])*?\d+(?:[.,]\d+)?\s*(?:g|gm|gms|grams?|ml)\b\)?/gi, ' ')
+    .replace(/(per\s*(?:serve|serving|portion)\w*)(?:\s*of)?\s*(?:\((?:(?!per\b)[^)\n])*?)?\s*\d+(?:[.,]\d+)?\s*(?:g|gm|gms|ml)\b\)?/gi, '$1');
   const kinds: { kind: ColKind | 'pct'; idx: number }[] = [];
   const re = /(%\s*(?:rda|dv|nrv|ri|rni|daily\s*values?)(?:\s*per\s*(?:serve|serving|100\s*(?:g|ml)))?|\brda\b|\bnrv\b)|((?:per\s*|\/\s*)?\b100\s*(?:g|gm|gms|grams?|ml)\b)|(amount\s+per\s+serving|per\s*(?:serve|serving|portion|piece|slice|bar|sachet|biscuit)\b)|(per\s*(?:container|pack|package|bottle|bag)\b)/gi;
   for (const m of pre.matchAll(re)) {
@@ -404,10 +407,15 @@ function servingOf(lines: Line[]): Serving | null {
   };
   for (const l of lines) {
     const m = /(?:serving|serve|portion)\s*size\s*[:\-]?\s*(.*)$/i.exec(l.text);
-    if (m && (m[1] as string).trim()) return grab(m[1] as string);
+    if (m && (m[1] as string).trim()) {
+      // Only the serving quantity: not a column header after it ("Per 100 g Per serve").
+      const cut = (m[1] as string).replace(/\s*\bper\s*(?:100|serv|portion).*$/i, '');
+      const q = /^(?:.*?)\d+(?:[.,]\d+)?\s*(?:g|gm|gms|grams?|ml)\b\)?/i.exec(cut);
+      return grab(q ? q[0] : cut);
+    }
   }
   for (const l of lines) {
-    const m = /per\s*(?:serve|serving|portion)\s*[:\-]?\s*\(?\s*(\d+(?:[.,]\d+)?\s*(?:g|gm|gms|grams?|ml)\b)/i.exec(l.text);
+    const m = /per\s*(?:serve|serving|portion)\s*(?:of)?\s*[:\-]?\s*\(?\s*(?:[^)\n]*?,\s*)?(\d+(?:[.,]\d+)?\s*(?:g|gm|gms|grams?|ml)\b)/i.exec(l.text);
     if (m) return grab(m[1] as string);
   }
   return null;
@@ -553,6 +561,7 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
    * How far a per 100 g value and a per serving value are apart, compared in serving units. Rounding is allowed:
    * 0.5 g (5 kcal for energy), and a serving value of 0 or "less than 1 g" matches when the scaled per 100 g value is under 1 g.
    * Past 10 percent the value is `soft` (medium); past `SWAP_RATIO` it is a `swap` (empty).
+   * Limit: a swap at a serving of about 95 to 105 g is within the 10 percent tolerance and cannot be told from rounding.
    */
   const mismatch = (k: LabelKey, p100: Cand, sv: Cand): 'none' | 'soft' | 'swap' => {
     if (W === null) return 'none';
@@ -564,18 +573,23 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
     return Math.max(exp, sv.value) > SWAP_RATIO * Math.max(Math.min(exp, sv.value), 1e-9) ? 'swap' : 'soft';
   };
 
-  // A whole-read column swap: all four required fields disagree, and each serving value is the per 100 g value scaled
-  // the other way (which a ratio test misses for servings of about 71 to 141 g, where (100 / W) squared is under 2).
+  // A whole-read column swap: each serving value is the per 100 g value scaled the other way (which a ratio test misses
+  // for servings of about 71 to 141 g, where (100 / W) squared is under 2). A required field that is 0 (or "<1") in both
+  // columns is neutral (skim milk has fat 0 either way); every other required field with both values must disagree in the
+  // swapped direction, and at least 3 must. One field that matches normally means it is not a swap.
   const fullSwap = ((): boolean => {
     if (per100 < 0 || serve < 0 || W === null) return false;
+    let swapped = 0;
     for (const k of REQUIRED) {
       const a = pick(k, per100);
       const b = pick(k, serve);
-      if (!a || !b || mismatch(k, a, b) === 'none') return false;
+      if (!a || !b || (a.value === 0 && b.value === 0)) continue;
+      if (mismatch(k, a, b) === 'none') return false;
       const e = (a.value * 100) / W;
       if (Math.abs(b.value - e) > Math.max(0.1 * Math.max(b.value, e), ((k === 'kcal' ? 5 : 0.5) * 100) / W)) return false;
+      swapped++;
     }
-    return true;
+    return swapped >= 3;
   })();
 
   /**
