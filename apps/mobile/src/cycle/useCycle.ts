@@ -8,7 +8,7 @@ import { writeLock } from '../db/writeLock';
 import { CYCLE_DELETED, CYCLE_LOGGED, CYCLE_SAVE_FAILED } from './copy';
 
 /** One read-then-write under the write lock the store wipe takes, in a transaction where the database has them (it always does outside tests). */
-const exclusive = (db: StoreDb, task: (d: StoreDb) => Promise<void>): Promise<void> =>
+export const exclusive = (db: StoreDb, task: (d: StoreDb) => Promise<void>): Promise<void> =>
   typeof (db as Partial<PullDb>).withExclusiveTransactionAsync === 'function' ? inTransaction(db as StoreDb & PullDb, task) : writeLock.run(() => task(db));
 
 /**
