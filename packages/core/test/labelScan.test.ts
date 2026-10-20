@@ -23,6 +23,7 @@ interface Vector {
     notes?: Partial<Record<LabelKey, string>>;
     alternate?: { unit: string; values: Partial<Record<LabelKey, number>> };
     alternateEmpty?: boolean;
+    noWarn?: string[];
   };
 }
 
@@ -46,6 +47,7 @@ describe('parseNutritionLabel: vectors', () => {
     expect(d.missing).toEqual(e.missing);
     if (e.reviewable !== undefined) expect(d.reviewable).toBe(e.reviewable);
     for (const w of e.warn ?? []) expect(d.warnings).toContain(w);
+    for (const w of e.noWarn ?? []) expect(d.warnings).not.toContain(w);
     for (const [k, lv] of Object.entries(e.level ?? {})) expect(d.fields[k as LabelKey].level).toBe(lv);
     for (const [k, n] of Object.entries(e.notes ?? {})) expect(d.fields[k as LabelKey].notes).toContain(n);
     if (e.alternate) expect({ unit: d.alternate?.unit, values: d.alternate?.values }).toEqual(e.alternate);
@@ -395,6 +397,93 @@ describe('parseNutritionLabel: review of #1073', () => {
     expect(parse('Total Fat 05 g').fields.fat_g).toMatchObject({ value: 5, level: 'medium' });
     expect(parse('Total Fat 0.5 g').fields.fat_g.level).toBe('high');
     expect(parse('Total Fat 0 g').fields.fat_g.level).toBe('high');
+  });
+});
+
+describe('parseNutritionLabel: review round 2', () => {
+  it('blocks a join when the next line has letters of any script', () => {
+    for (const [label, other, key] of [['Protein', 'सोडियम 400 mg', 'protein_g'], ['Total Fat', 'सोडियम 400 mg', 'fat_g'], ['Total Fat', 'नमक 1.2 g', 'fat_g']] as const) {
+      const d = parseNutritionLabel(['Nutrition Information', 'Per 100 g', label, other]);
+      expect(d.fields[key].value).toBeUndefined();
+    }
+  });
+
+  it('cross-checks a liquid in ml, and skips the check with a unit mismatch, capping at medium', () => {
+    const swapped = parseNutritionLabel(['Nutritional Information', 'Per 100 ml   Per serving (200 ml)', 'Energy 124 kcal   62 kcal', 'Protein 6.4 g   3.2 g', 'Carbohydrate 9.6 g   4.8 g', 'Total Fat 6.8 g   3.4 g']);
+    expect(swapped.values).toEqual({});
+    const mismatch = parseNutritionLabel(['Nutritional Information', 'Per 100 g   Per serve (200 ml)', 'Energy 62 kcal   124 kcal', 'Protein 3.2 g   6.4 g']);
+    expect(mismatch.warnings).toContain('basis_serving_unit_mismatch');
+    expect(mismatch.alternate?.warnings).toContain('basis_serving_unit_mismatch');
+    expect(mismatch.fields.kcal.level).toBe('medium');
+    expect(mismatch.fields.kcal.confidence).toBeLessThan(0.8);
+  });
+
+  it('fills a per 100 ml value from a ml serving only when the units agree', () => {
+    const d = parseNutritionLabel(['Nutritional Information', 'Per 100 ml   Per serving (200 ml)', 'Energy 62 kcal   124 kcal', 'Protein 1.0.5 g   6.4 g']);
+    expect(d.values.protein_g).toBe(3.2);
+    const m = parseNutritionLabel(['Nutritional Information', 'Per 100 ml   Per serving (30 g)', 'Energy 62 kcal   19 kcal', 'Protein 1.0.5 g   1 g']);
+    expect(m.values.protein_g).toBeUndefined();
+  });
+
+  it('empties energy under 5 kcal per 100 g only when the macros are 5 kcal or more', () => {
+    const at = (kcal: string, ...macros: string[]) => parseNutritionLabel(['Nutrition Information', 'Per 100 g', `Energy ${kcal}`, ...macros]);
+    expect(at('4 kcal', 'Protein 0 g', 'Carbohydrate 1.3 g').fields.kcal).toMatchObject({ value: undefined, level: 'low', confidence: 0 });
+    expect(at('4 kcal', 'Protein 0 g', 'Carbohydrate 1.3 g').fields.kcal.notes).toContain('out_of_range');
+    expect(at('4 kcal', 'Protein 0 g', 'Carbohydrate 1.3 g').missing).toContain('kcal');
+    expect(at('4 kcal', 'Protein 0 g', 'Carbohydrate 1.1 g').values.kcal).toBe(4); // 4.4 kcal of macros
+    expect(at('0 kcal', 'Protein 0.3 g', 'Carbohydrate 1 g').values.kcal).toBeUndefined();
+    expect(at('5 kcal', 'Total Fat 3 g').values.kcal).toBe(5);
+    const serv = parseNutritionLabel(['Nutrition Facts', 'Serving size 1 cup (240g)', 'Calories 1', 'Total Fat 3g']);
+    expect(serv.values.kcal).toBeUndefined();
+  });
+
+  it('keeps correct values when the serving value is rounded to 0 or "<1 g"', () => {
+    const d = parseNutritionLabel(['Nutritional Information', 'Per 100 g   Per serve (5 g)', 'Energy 400 kcal   20 kcal', 'Protein 7 g   0 g', 'Total Fat 20 g   1 g', 'Sugars 9 g   <1 g']);
+    expect(d.values).toMatchObject({ protein_g: 7, fat_g: 20, sugars_g: 9 });
+    // 9 g per 100 g at 20 g is 1.8 g per serving, not under 1 g: "<1 g" is a mismatch there.
+    const far = parseNutritionLabel(['Nutritional Information', 'Per 100 g   Per serve (20 g)', 'Energy 400 kcal   80 kcal', 'Sugars 9 g   <1 g']);
+    expect(far.fields.sugars_g.notes).toContain('serving_mismatch');
+    // A per serving 0 against a real per 100 g value of 2 g or more is a swap, not rounding.
+    const zero = parseNutritionLabel(['Nutritional Information', 'Per 100 g   Per serve (30 g)', 'Energy 400 kcal   120 kcal', 'Protein 10 g   0 g']);
+    expect(zero.values.protein_g).toBeUndefined();
+  });
+
+  it('empties both reads on a whole swap at 71 to 141 g, and not when only some rows disagree', () => {
+    for (const w of [75, 80, 100 / 0.8 * 1, 120, 140]) {
+      const k = (x: number) => Math.round(x * 100) / 100;
+      const per = { kcal: 400, p: 10, c: 50, f: 20 };
+      const sw = parseNutritionLabel(['Nutritional Information', `Per 100 g   Per serve (${w} g)`, `Energy ${k(per.kcal * w / 100)} kcal   400 kcal`, `Protein ${k(per.p * w / 100)} g   10 g`, `Carbohydrate ${k(per.c * w / 100)} g   50 g`, `Total Fat ${k(per.f * w / 100)} g   20 g`]);
+      expect(sw.values).toEqual({});
+      expect(sw.alternate).toBeUndefined();
+    }
+    // Only protein disagrees: the other three rows are right, so this is not a whole swap.
+    const some = parseNutritionLabel(['Nutritional Information', 'Per 100 g   Per serve (80 g)', 'Energy 400 kcal   320 kcal', 'Protein 8 g   10 g', 'Carbohydrate 50 g   40 g', 'Total Fat 20 g   16 g']);
+    expect(some.values).toMatchObject({ kcal: 400, carbs_g: 50, fat_g: 20 });
+    // A 100 g serving cannot be told apart, and is not emptied.
+    const same = parseNutritionLabel(['Nutritional Information', 'Per 100 g   Per serve (100 g)', 'Energy 400 kcal   400 kcal', 'Protein 10 g   10 g', 'Carbohydrate 50 g   50 g', 'Total Fat 20 g   20 g']);
+    expect(same.values.kcal).toBe(400);
+  });
+
+  it('splits at "of which" and "saturates", and at "sugars" after a carbohydrate number', () => {
+    const d = parseNutritionLabel(['Nutrition Information', 'Per 100 g', 'Carbohydrate 60 g of which sugars 25 g', 'Fat 20 g of which saturates 8 g', 'Protein 10 g Total Sugars 3 g']);
+    expect(d.values).toMatchObject({ carbs_g: 60, sugars_g: 25, fat_g: 20, saturated_fat_g: 8, protein_g: 10 });
+    const added = parseNutritionLabel(['Nutrition Information', 'Per 100 g', 'Total Sugars 12g Includes 10g Added Sugars 20%']);
+    expect(added.values.added_sugar_g).toBe(10);
+    expect(added.values.sugars_g).toBeUndefined();
+  });
+
+  it('does not join a mg-only line onto a macro, but does onto fibre', () => {
+    expect(parseNutritionLabel(['Nutrition Information', 'Per 100 g', 'Protein', '400 mg']).values.protein_g).toBeUndefined();
+    expect(parseNutritionLabel(['Nutrition Information', 'Per 100 g', 'Total Fat', '2 mcg']).values.fat_g).toBeUndefined();
+    expect(parseNutritionLabel(['Nutrition Information', 'Per 100 g', 'Protein', '7 g', 'Dietary Fibre', '500 mg']).values).toEqual({ protein_g: 7, fibre_g: 0.5 });
+  });
+
+  it('gives the alternate the same unit and fractional-serving warning as the main read', () => {
+    const d = parseNutritionLabel(['Nutritional Information', 'Per 100 g   Per serve (32.5 g)', 'Energy 400 kcal   130 kcal', 'Protein 77 g   25 g']);
+    expect(d.alternate?.unit).toBe('');
+    expect(d.alternate?.warnings).toContain('serving_grams_fractional');
+    expect(d.alternate).not.toHaveProperty('missing');
+    expect(d.alternate).not.toHaveProperty('reviewable');
   });
 });
 
