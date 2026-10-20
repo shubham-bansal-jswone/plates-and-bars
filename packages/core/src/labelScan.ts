@@ -72,6 +72,8 @@ export type LabelWarning =
   | 'serving_grams_fractional'
   /** The serving is in ml over a per 100 g column, or in g over a per 100 ml column: no cross-check, every field at most medium. */
   | 'basis_serving_unit_mismatch'
+  /** The "Per 100" column had no readable unit: read as 100 ml when an ml shows in the header or serving, else 100 g. Every field is at most medium. */
+  | 'basis_unit_inferred'
   /** Macros do not add up to the energy (`looksOff` in off.ts). */
   | 'looks_off'
   | 'serving_mismatch'
@@ -340,7 +342,7 @@ function splitMulti(l: Line): Line[] {
   return bounds.slice(0, -1).map((a, i) => sliceLine(l, a, bounds[i + 1] as number));
 }
 
-const HEADER = /nutrition(?:al)?\s+(?:facts|information|info)|typical\s+values|amount\s+per\s+serv|per\s*100\s*(?:g|ml)|per\s+serv/i;
+const HEADER = /nutrition(?:al)?\s+(?:facts|information|info)|typical\s+values|amount\s+per\s+serv|per\s*100\s*(?:g|ml)|per\s*100\b|per\s+serv/i;
 
 function rowOf(l: Line): Row | null {
   const lab = labelOf(l.text);
@@ -370,26 +372,34 @@ type ColKind = 'per100' | 'serve' | 'other' | 'unknown';
 interface Cols {
   kinds: ColKind[];
   liquid: boolean;
+  /** A "Per 100" column whose unit was not read (it is on another line or lost): g, or ml when an ml shows in the header or serving. */
+  inferred: boolean;
 }
 
-function columnsOf(pre: string): Cols {
+function columnsOf(pre: string, servingMl: boolean): Cols {
+  const header = pre;
   // A serving of 100 g or 100 ml ("Per serve (100 g)", "Serving size 100 g") is not a per 100 column.
   // Only the phrase and its quantity go: a column header merged onto the same line ("Serving size 200 g Per 100 g") stays.
   pre = pre
     .replace(/serv(?:ing|e)\s*size\s*[:\-]?\s*(?:(?!per\b)[^\n])*?\d+(?:[.,]\d+)?\s*(?:g|gm|gms|grams?|ml)\b\)?/gi, ' ')
-    .replace(/(per\s*(?:serve|serving|portion)\w*)(?:\s*of)?\s*(?:\((?:(?!per\b)[^)\n])*?)?\s*\d+(?:[.,]\d+)?\s*(?:g|gm|gms|ml)\b\)?/gi, '$1');
+    .replace(/(per\s*(?:serve|serving|portion)\w*)(?:\s+of\s+|\s*\((?:(?!per\b)[^)\n])*?)\s*\d+(?:[.,]\d+)?\s*(?:g|gm|gms|ml)\b\)?/gi, '$1'); // needs "of" or "(": a bare "Per serving   100g" is a column header
   const kinds: { kind: ColKind | 'pct'; idx: number }[] = [];
-  const re = /(%\s*(?:rda|dv|nrv|ri|rni|daily\s*values?)(?:\s*per\s*(?:serve|serving|100\s*(?:g|ml)))?|\brda\b|\bnrv\b)|((?:per\s*|\/\s*)?\b100\s*(?:g|gm|gms|grams?|ml)\b)|(amount\s+per\s+serving|per\s*(?:serve|serving|portion|piece|slice|bar|sachet|biscuit)\b)|(per\s*(?:container|pack|package|bottle|bag)\b)/gi;
+  let unitless = false;
+  let explicit = false;
+  const re = /(%\s*(?:rda|dv|nrv|ri|rni|daily\s*values?)(?:\s*per\s*(?:serve|serving|100\s*(?:g|ml)))?|\brda\b|\bnrv\b)|((?:per\s*|\/\s*)?\b100\s*(?:g|gm|gms|grams?|ml)\b|per\s*100\b(?!\s*[\d.,%]))|(amount\s+per\s+serving|per\s*(?:serve|serving|portion|piece|slice|bar|sachet|biscuit)\b)|(per\s*(?:container|pack|package|bottle|bag)\b)/gi;
   for (const m of pre.matchAll(re)) {
     const idx = m.index ?? 0;
     // "8 servings per container" is not a column.
     if (m[4] && /servings?\s*$/i.test(pre.slice(Math.max(0, idx - 12), idx))) continue;
+    if (m[2] && !/\d\s*(?:g|gm|gms|grams?|ml)/i.test(m[2])) unitless = true;
+    else if (m[2]) explicit = true;
     kinds.push({ kind: m[1] ? 'pct' : m[2] ? 'per100' : m[3] ? 'serve' : 'other', idx });
   }
   const vals = kinds.filter((k) => k.kind !== 'pct').map((k) => k.kind as ColKind);
   const out: ColKind[] = [];
   for (const k of vals) if (out.length === 0 || !(out[out.length - 1] === k)) out.push(k);
-  return { kinds: out, liquid: /100\s*ml/i.test(pre) };
+  const inferred = unitless && !explicit;
+  return { kinds: out, inferred, liquid: /100\s*ml/i.test(pre) || (inferred && (servingMl || /\bml\b/i.test(header))) };
 }
 
 interface Serving {
@@ -524,7 +534,7 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
   headerAt = rowsFrom;
   const firstRow = lines.findIndex((l, i) => i >= rowsFrom && rowOf(l) !== null);
   const pre = firstRow < 0 ? '' : lines.slice(headerAt, firstRow).map((l) => l.text).join('\n');
-  const cols = columnsOf(pre);
+  const cols = columnsOf(pre, serving?.ml != null);
   let kinds = cols.kinds;
   if (kinds.length === 0) kinds = [serving && /serv(?:ing|e)\s*size/i.test(all.map((l) => l.text).join('\n')) ? 'serve' : 'unknown'];
   const n = kinds.length;
@@ -545,6 +555,7 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
   // The serving amount, in g or ml. It weighs the checks only when its unit is the basis unit (100 g with g, 100 ml with ml);
   // a g serving over a per 100 ml column, or the reverse, is not cross-checked and every field is capped at medium.
   const amt = servG ?? serving?.ml ?? null;
+  const unitInferred = basis === 'per100' && cols.inferred;
   const unitMismatch = basis === 'per100' && amt !== null && (servG !== null ? cols.liquid : !cols.liquid);
   const W = unitMismatch ? null : amt;
   const limit = (k: LabelKey, perHundred: boolean): number => {
@@ -576,7 +587,8 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
   // A whole-read column swap: each serving value is the per 100 g value scaled the other way (which a ratio test misses
   // for servings of about 71 to 141 g, where (100 / W) squared is under 2). A required field that is 0 (or "<1") in both
   // columns is neutral (skim milk has fat 0 either way); every other required field with both values must disagree in the
-  // swapped direction, and at least 3 must. One field that matches normally means it is not a swap.
+  // swapped direction, and at least 3 must. One field that matches normally means it is not a swap. With fewer than three
+  // non-neutral fields this cannot fire, and a swap falls back to the per field check (medium with `serving_mismatch`).
   const fullSwap = ((): boolean => {
     if (per100 < 0 || serve < 0 || W === null) return false;
     let swapped = 0;
@@ -656,7 +668,7 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
         fields[k] = { value: undefined, level: 'low', confidence: 0, notes: [p.slot === 'ambiguous' ? 'ambiguous_column' : 'unreadable'] };
       } else {
         // The level comes from the unrounded confidence: 0.495 is below 0.5 and stays empty.
-        const raw = Math.min(p.cand.conf * p.cand.cert * p.extra, unitMismatch ? HIGH - 0.01 : 1);
+        const raw = Math.min(p.cand.conf * p.cand.cert * p.extra, unitMismatch || unitInferred ? HIGH - 0.01 : 1);
         const conf = Math.round(raw * 100) / 100;
         const lv = level(raw);
         const notes = [...p.cand.notes, ...p.notes];
@@ -673,6 +685,7 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
   const warnings: LabelWarning[] = [];
   const { fields, values } = assemble(primary, basis === 'per100', basis === 'per100' ? serve : -1, warnings);
   if (unitMismatch) warnings.push('basis_serving_unit_mismatch');
+  if (unitInferred) warnings.push('basis_unit_inferred');
   if (noHeader && rows.length > 0) warnings.push('no_header');
   if (basis === 'unknown' && rows.length > 0) warnings.push('basis_unknown');
 
@@ -692,6 +705,7 @@ export function parseNutritionLabel(input: LabelOcrInput): LabelDraft {
     // A main-read warning like `serving_mismatch` also shows on the alternate, which runs the same checks against the per 100 g column.
     const altWarnings: LabelWarning[] = [];
     if (unitMismatch) altWarnings.push('basis_serving_unit_mismatch');
+    if (unitInferred) altWarnings.push('basis_unit_inferred');
     if (servG !== null && !Number.isInteger(servG)) altWarnings.push('serving_grams_fractional');
     const alt = assemble(serve, false, per100, altWarnings);
     if (Object.keys(alt.values).length) draft.alternate = { unit: servingUnitText(serving), fields: alt.fields, values: alt.values, warnings: altWarnings };
