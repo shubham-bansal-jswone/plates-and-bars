@@ -711,3 +711,29 @@ export { importedGrams } from './recipeImport';
  * (12% to 88% of the clip, 5 s when the length is unknown); `frameTimesMs` is the same rounded to whole ms.
  */
 export { FRAME_DEFAULT_DURATION_MS, FRAME_START, FRAME_SPAN, FRAME_COUNT, frameDuration, framePositions, frameTimesMs } from './formFrames';
+
+/**
+ * Lab reports (#1070, device only). No copy here: tips and notices are content, picked by `tipFor` and `LabResult.unitStatus`.
+ * - `MARKERS` mirrors prototype `MARKERS` (names, regexes, tip sides); the tip text is content. `markerOfPrototype` is prototype `markerOf(name)`
+ *   exactly; `markerOf` deviates with word boundaries (#1075).
+ * - `labFlagRaw` mirrors prototype `labFlag(t)` exactly, with no unit handling; `labResult` and `labFlag` are new: one canonical unit per
+ *   marker, standard conversions, no red flag on an unrecognised unit, and a blank or non-numeric value is `none`, a blank or junk bound
+ *   is no range (both deviate from the prototype, #1075).
+ * - `tipFor` and `isFlagged` mirror the tip and `flagged` steps of `renderLabs()`; `labHistory` its trend step.
+ * - `reportIsRed`, `holdAfterSave`, `clearHold` and `labHoldOn` mirror the `lab-save` and `lab-cleared` steps and `labHoldOn()`.
+ *   The hold itself already reaches `kcalTarget`, `planFlex`, `undoFlex` (`labHold`) and `sessionMods` (`labHold`).
+ * - `validateLabReport` mirrors the cleaning in `onLabFile` (name, numeric value, 80 tests, date) and is stricter on numbers.
+ */
+export {
+  MARKERS, LAB_TESTS_MAX, markerOf, markerOfPrototype, labFlagRaw, labResult, labFlag, normaliseUnit, tipFor, isFlagged,
+  reportIsRed, holdAfterSave, clearHold, labHoldOn, labHistory, validateLabReport,
+} from './labs';
+export type { Marker, MarkerKey, TipSide, TipKind, LabFlag, UnitStatus, LabResult, LabTest, LabReport, LabHold, LabReportError } from './labs';
+
+/**
+ * Nutrition-label parser (#1067, slice 1): new rules from the #1067 spike, not prototype ports (the prototype has no label scan).
+ * - `parseNutritionLabel` reads OCR text (plain, or lines with per-word confidence) into a `LabelDraft`: per 100 g or per serving, kcal (kJ / 4.184 rounded, as `offToUserFood`), protein, carbs, fat, fibre and added sugar, each with a confidence and an empty value below 0.5; plausibility reuses `looksOff` from off.ts.
+ * - `labelToScannedInput` and `labelFood` end a draft in `scannedFood` (the same validator and save path as the barcode review); `labelFood` adds fibre and added sugar.
+ */
+export { parseNutritionLabel, labelToScannedInput, labelFood } from './labelScan';
+export type { LabelOcrInput, LabelOcrLine, LabelOcrWord, LabelKey, LabelLevel, LabelNote, LabelField, LabelWarning, LabelAlternate, LabelValues, LabelDraft } from './labelScan';

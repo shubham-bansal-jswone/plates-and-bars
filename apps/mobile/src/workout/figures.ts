@@ -74,7 +74,7 @@ export function getFigure(name: string): FigureEntry | undefined {
 }
 
 /** Cut `text` at the last sentence end that keeps the whole under `max` characters (null when not even the first sentence fits). */
-function sentencesWithin(text: string, max: number): string | null {
+export function sentencesWithin(text: string, max: number): string | null {
   const parts = text.trim().split(/(?<=[.!?])\s+/);
   let out = '';
   for (const p of parts) {

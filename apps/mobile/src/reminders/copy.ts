@@ -19,6 +19,17 @@ export const SECTION = {
   denied: 'Notifications are off for Plate & Bar. Turn them on in your phone’s settings to get reminders.',
   unavailable: 'Reminders are not available on this device yet.',
   saveFailed: 'Couldn’t save that on this device. Try again.',
+  restHint: 'While you rest and the app is in the background, shows the countdown on your phone and tells you when it ends. Your watch buzzes when it ends, with +30 s and Skip rest.',
+} as const;
+
+/** The rest-timer notification (#1068). Generic on purpose: it shows on the lock screen and on a watch. */
+export const REST_NOTE = {
+  title: 'Rest',
+  body: 'Back to your workout when the timer ends.',
+  doneTitle: 'Rest done, go!',
+  doneBody: 'Your next set is ready.',
+  extendLabel: '+30 s',
+  skipLabel: 'Skip rest',
 } as const;
 
 export const LABELS = {
@@ -27,4 +38,5 @@ export const LABELS = {
   lunch: 'Log lunch',
   dinner: 'Log dinner',
   water: 'Water',
+  rest: 'Rest timer notifications',
 } as const;

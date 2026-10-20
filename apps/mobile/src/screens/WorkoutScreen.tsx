@@ -29,6 +29,7 @@ import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
+import { useRestNotification } from '../reminders/useRestNotification';
 import { useRules } from '../workout/useRules';
 import { useWorkoutDay, type PickSeed } from '../workout/useWorkoutDay';
 import type { Workout } from '../workout/types';
@@ -74,6 +75,8 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const v = useViewedDate(now);
   const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
+  // The rest as a notification while the app is in the background (#1068); its +30 s and Skip come back through setRest.
+  useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
   const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 

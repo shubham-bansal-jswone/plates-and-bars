@@ -248,9 +248,10 @@ They are baked in at build time, so changing one needs a new build. PR runs neve
 | `EXPO_PUBLIC_SENTRY_DSN` | Gradle step only | crash reports; unset = the app sends nothing (section 5b) |
 | `EXPO_PUBLIC_BARCODE_SCAN` | Gradle step only | `1` shows the barcode scanner; pair with section 9 |
 | `EXPO_PUBLIC_POSE_TRACKING` | Gradle step only | `1` shows "Track this set" pose tracking (Android, needs a camera) |
+| `EXPO_PUBLIC_EXERCISE_MOTION` | Gradle step only | `1` plays exercise motion loops for exercises that have a clip in `content/exercise-motion.json` (#1069); the bundle ships empty, so it shows nothing until the coach signs off clips |
 | `EXPO_PUBLIC_LABEL_SCAN` | Gradle step only | `1` switches on label scanning (on-device OCR, ADR 010); keep it off until the bake-off on #1067 has passed |
 
-`web-deploy.yml`: set `EXPO_PUBLIC_BARCODE_SCAN`, `EXPO_PUBLIC_POSE_TRACKING` and `EXPO_PUBLIC_LABEL_SCAN` in the `staging` and `production` environments (each has its own); they are read only by the "Build the web export" step and mean the same as above. Unset = off.
+`web-deploy.yml`: set `EXPO_PUBLIC_BARCODE_SCAN`, `EXPO_PUBLIC_POSE_TRACKING`, `EXPO_PUBLIC_EXERCISE_MOTION` and `EXPO_PUBLIC_LABEL_SCAN` in the `staging` and `production` environments (each has its own); they are read only by the "Build the web export" step and mean the same as above. Unset = off.
 
 ## 9. Turning on the barcode lookup (#944, #987)
 

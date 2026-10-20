@@ -22,6 +22,7 @@ name: Android release build
 #   EXPO_PUBLIC_BARCODE_SCAN   set to 1 to show the barcode scanner (#944); unset = off.
 #   EXPO_PUBLIC_POSE_TRACKING  set to 1 to show "Track this set" pose tracking (Android camera); unset = off.
 #   EXPO_PUBLIC_LABEL_SCAN     set to 1 to switch on label scanning (on-device OCR, #1067); unset = off.
+#   EXPO_PUBLIC_EXERCISE_MOTION  set to 1 to play exercise motion loops where a clip exists (#1069); unset = off.
 # PR runs never get the DSN or the three flags (no environment, and the workflow blanks them).
 # EXPO_PUBLIC_SENTRY_ENVIRONMENT is set here, not by you: `production` on a v* tag, `staging` otherwise.
 # Nothing here uploads to Google Play: take the .aab from a v* tag run and upload it by hand. Staged rollout (10 % -> 50 % -> 100 %), halting
@@ -230,6 +231,7 @@ jobs:
           EXPO_PUBLIC_BARCODE_SCAN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_BARCODE_SCAN || '' }}
           EXPO_PUBLIC_POSE_TRACKING: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_POSE_TRACKING || '' }}
           EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}
+          EXPO_PUBLIC_EXERCISE_MOTION: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_EXERCISE_MOTION || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
           ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
           ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}

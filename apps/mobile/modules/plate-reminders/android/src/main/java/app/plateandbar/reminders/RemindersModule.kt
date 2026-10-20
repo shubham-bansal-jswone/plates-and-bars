@@ -25,6 +25,21 @@ class RuleRecord : Record {
   fun toRule() = Rule(id, hour, minute, days, title, body, route)
 }
 
+class RestRecord : Record {
+  // JS numbers arrive as Double: ids and ends are epoch milliseconds, exact in a Double.
+  @Field var id: Double = 0.0
+  @Field var end: Double = 0.0
+  @Field var extendMs: Double = 0.0
+  @Field var title: String = ""
+  @Field var body: String = ""
+  @Field var doneTitle: String = ""
+  @Field var doneBody: String = ""
+  @Field var extendLabel: String = ""
+  @Field var skipLabel: String = ""
+
+  fun toState() = RestState(id.toLong(), end.toLong(), extendMs.toLong(), title, body, doneTitle, doneBody, extendLabel, skipLabel)
+}
+
 class RemindersModule : Module() {
   private val context get() = appContext.reactContext ?: throw Exceptions.ReactContextLost()
 
@@ -59,6 +74,18 @@ class RemindersModule : Module() {
       Scheduler.replaceAll(context, rules.map { it.toRule() })
     }
 
-    AsyncFunction("cancelAll") { -> Scheduler.cancelAll(context) }
+    AsyncFunction("cancelAll") { ->
+      Scheduler.cancelAll(context)
+      RestNotifier.take(context)
+    }
+
+    // Rest-timer notification (#1068). `showRest` when the app goes to the background with a rest running.
+    AsyncFunction("showRest") { rest: RestRecord -> RestNotifier.start(context, rest.toState()) }
+
+    // When the app is in the foreground again or the session ended: removes the notification and returns what its actions did
+    // ({ id, end, skipped }), or null when there was nothing.
+    AsyncFunction("takeRest") { ->
+      RestNotifier.take(context)?.let { mapOf("id" to it.id.toDouble(), "end" to it.end.toDouble(), "skipped" to it.skipped) }
+    }
   }
 }
