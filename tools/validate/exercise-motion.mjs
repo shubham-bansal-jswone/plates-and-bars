@@ -35,8 +35,30 @@ export const LICENCES = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
 };
-// YouTube's terms forbid downloading, even for CC-BY videos, so it is never a source.
-const BANNED_HOSTS = /^https:\/\/([^/]+\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)(\/|$)/i;
+// A cc_licensed clip must come from Wikimedia Commons: an allowlist of exact hosts, so YouTube (whose terms forbid downloading),
+// redirectors, look-alike hosts and other sites are all refused without a list of bad ones.
+export const SOURCE_HOSTS = ['commons.wikimedia.org', 'upload.wikimedia.org'];
+/** @returns an error message, or null when `u` is an https URL on an allowed host with no userinfo and no port */
+export function checkSourceUrl(u) {
+  if (typeof u !== 'string') return 'source_url must be an https URL on Wikimedia Commons for a cc_licensed clip';
+  let url;
+  try { url = new URL(u); } catch { return 'source_url must be a valid URL'; }
+  if (url.protocol !== 'https:') return 'source_url must be https';
+  if (url.username || url.password) return 'source_url must not carry a user name or password';
+  if (url.port) return 'source_url must use the default port';
+  if (!SOURCE_HOSTS.includes(url.hostname)) return `source_url host must be ${SOURCE_HOSTS.join(' or ')} (Wikimedia Commons only; YouTube and other sites are not accepted)`;
+  return null;
+}
+const realDate = (s) => {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
+// Pose Landmarker model files whose licence was checked (Apache-2.0, tools/exercise-motion/README.md), by sha256.
+export const PINNED_MODELS = {
+  '4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad': 'pose_landmarker_full float16',
+  '64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b': 'pose_landmarker_heavy float16',
+};
 export const MIN_FPS = 5;
 export const MAX_FPS = 30;
 export const MIN_FRAMES = 2;
@@ -107,11 +129,16 @@ export function validateExerciseMotion(content, exerciseNames, options = {}) {
     }
 
     if (!sources.includes(e.source)) err(`source must be ${SOURCES.join(', ')} (other third-party video is not accepted)`);
+    if (e.source !== FIXTURE_SOURCE && nonEmpty(e.tools)) {
+      const sha = /\bsha256 ([0-9a-f]{64})\b/.exec(e.tools)?.[1];
+      if (!sha || !Object.hasOwn(PINNED_MODELS, sha) || !e.tools.includes(PINNED_MODELS[sha])) err('tools must name a pinned pose model and its sha256 (as written by the pipeline)');
+    }
     for (const f of ['source_id', 'clip_id', 'licence', 'author', 'tools']) if (f in e && !nonEmpty(e[f])) err(`${f} must be a non-empty string`);
     if (e.source === 'cc_licensed') {
-      if (!isHttps(e.source_url)) err('source_url must be an https URL for a cc_licensed clip');
-      else if (BANNED_HOSTS.test(e.source_url)) err('source_url is on YouTube, whose terms forbid downloading; use another source (Wikimedia Commons is preferred)');
-      if (typeof e.retrieved !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.retrieved) || Number.isNaN(Date.parse(e.retrieved))) err('retrieved must be the retrieval date, YYYY-MM-DD, for a cc_licensed clip');
+      const urlError = checkSourceUrl(e.source_url);
+      if (urlError) err(urlError);
+      if (!realDate(e.retrieved)) err('retrieved must be the retrieval date, a real calendar date as YYYY-MM-DD');
+      else if (e.retrieved > new Date().toISOString().slice(0, 10)) err('retrieved is in the future');
       if (e.release_id !== null && e.release_id !== undefined) err('release_id must be null for a cc_licensed clip (the licence is the permission)');
     } else {
       if ('release_id' in e && !nonEmpty(e.release_id)) err('release_id must be a non-empty string');

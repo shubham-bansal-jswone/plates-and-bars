@@ -4,8 +4,9 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { USED } from '../exercise-motion/pipeline.mjs';
 import {
-  validateExerciseMotion, JOINTS, BONES, SKELETON_ID, SOURCES, LICENCES, MAX_ENTRY_BYTES, BONE_TOLERANCE, FLOOR_TOLERANCE, MIN_FPS, MAX_FPS,
+  validateExerciseMotion, PINNED_MODELS, checkSourceUrl, SOURCE_HOSTS, JOINTS, BONES, SKELETON_ID, SOURCES, LICENCES, MAX_ENTRY_BYTES, BONE_TOLERANCE, FLOOR_TOLERANCE, MIN_FPS, MAX_FPS,
 } from '../validate/exercise-motion.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,7 +31,7 @@ const goodEntry = () => ({
   fps: 10, loop: true, frames: Array.from({ length: 12 }, (_, k) => frame(k, 12)),
   source: 'own_filming', source_id: 'clip/bodyweight-squat-side-001', source_url: null, retrieved: null, clip_id: 'bodyweight-squat-side-001',
   release_id: 'release-2026-001', licence: 'CC-BY-4.0', licence_url: LICENCES['CC-BY-4.0'],
-  author: 'Plate & Bar authors', author_url: null, tools: 'exercise-motion 1', note: null,
+  author: 'Plate & Bar authors', author_url: null, tools: `exercise-motion 2; ${Object.values(PINNED_MODELS)[0]} sha256 ${Object.keys(PINNED_MODELS)[0]}; mediapipe 1.1.1`, note: null,
 });
 const good = () => ({ schema_version: 1, skeleton: SKELETON_ID, joints: [...JOINTS], motions: { 'Bodyweight Squat': goodEntry() } });
 const check = (fn, opts) => { const c = good(); fn(c.motions['Bodyweight Squat'], c); return validateExerciseMotion(c, names, opts); };
@@ -44,6 +45,14 @@ test('the skeleton has the 19 fixed joint names (15 body joints and heels and to
   assert.equal(BONES.length, 18);
   for (const [p, c, len] of BONES) { assert.ok(JOINTS.includes(p) && JOINTS.includes(c)); assert.ok(len > 0 && len < 0.5); }
   assert.equal(new Set(BONES.map((b) => b[1])).size, 18, 'every non-root joint has exactly one parent');
+});
+
+test('run-model.py stores every landmark the pipeline needs', () => {
+  const py = readFileSync(`${here}/../exercise-motion/run-model.py`, 'utf8');
+  const list = /^INDICES = \[([\d, ]+)\]/m.exec(py)?.[1].split(',').map((n) => Number(n.trim()));
+  assert.ok(list, 'INDICES list found in run-model.py');
+  for (const i of USED) assert.ok(list.includes(i), `run-model.py is missing landmark ${i}`);
+  assert.deepEqual([...list].sort((a, b) => a - b), [...USED].sort((a, b) => a - b));
 });
 
 test('the committed bundle ships no entries and is valid; a complete example entry is valid', () => {
@@ -150,7 +159,7 @@ test('rejects duplicate clip and source ids', () => {
 
 const cc = (e) => Object.assign(e, {
   source: 'cc_licensed', source_id: 'commons/File_Bodyweight_squat.webm', source_url: 'https://commons.wikimedia.org/wiki/File:Bodyweight_squat.webm',
-  retrieved: '2026-10-20', clip_id: 'File_Bodyweight_squat.webm', release_id: null, licence: 'CC-BY-4.0', licence_url: LICENCES['CC-BY-4.0'],
+  retrieved: '2026-10-19', clip_id: 'File_Bodyweight_squat.webm', release_id: null, licence: 'CC-BY-4.0', licence_url: LICENCES['CC-BY-4.0'],
   author: 'Jane Example, CC BY 4.0, via Wikimedia Commons',
 });
 
@@ -158,7 +167,7 @@ test('a cc_licensed entry needs source_url, retrieval date and attribution, and 
   assert.deepEqual(check(cc), []);
   for (const l of ['CC0-1.0']) assert.deepEqual(check((e) => { cc(e); e.licence = l; e.licence_url = LICENCES[l]; }), []);
   assert.ok(check((e) => { cc(e); delete e.source_url; }).some((m) => /field "source_url" missing/.test(m)));
-  only(check((e) => { cc(e); e.source_url = null; }), /source_url must be an https URL for a cc_licensed clip/);
+  only(check((e) => { cc(e); e.source_url = null; }), /source_url must be an https URL on Wikimedia Commons/);
   only(check((e) => { cc(e); e.retrieved = null; }), /retrieved must be the retrieval date/);
   only(check((e) => { cc(e); e.retrieved = '20 Oct 2026'; }), /retrieved must be the retrieval date/);
   only(check((e) => { cc(e); e.author = ' '; }), /author must be a non-empty string/);
@@ -169,15 +178,44 @@ test('NC and ND licences are rejected, and so is YouTube', () => {
   for (const l of ['CC-BY-NC-4.0', 'CC-BY-ND-4.0', 'CC-BY-NC-SA-4.0', 'CC-BY-NC-ND-4.0', 'CC-BY-SA-4.0', 'CC-BY-SA-3.0']) {
     only(check((e) => { cc(e); e.licence = l; e.licence_url = `https://creativecommons.org/licenses/${l.toLowerCase()}/`; }), /not on the allowlist/);
   }
-  for (const u of ['https://www.youtube.com/watch?v=abc', 'https://youtu.be/abc', 'https://m.youtube.com/watch?v=abc']) {
-    only(check((e) => { cc(e); e.source_url = u; }), /YouTube/);
-  }
+});
+
+test('a cc_licensed source_url must be https on commons.wikimedia.org or upload.wikimedia.org, nothing else', () => {
+  assert.deepEqual(SOURCE_HOSTS, ['commons.wikimedia.org', 'upload.wikimedia.org']);
+  assert.deepEqual(check((e) => { cc(e); e.source_url = 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Squat.webm'; }), []);
+  const bad = [
+    'https://www.youtube.com/watch?v=abc', 'https://youtu.be/abc', 'https://m.youtube.com/watch?v=abc', 'https://www.youtube-nocookie.com/embed/abc',
+    'https://youtube.com.evil.example/watch', 'https://www.youtube.com@commons.wikimedia.org/wiki/File:X.webm', 'https://evil.example/?u=commons.wikimedia.org',
+    'https://commons.wikimedia.org.evil.example/wiki/File:X.webm', 'https://evilcommons.wikimedia.org/x', 'https://en.wikipedia.org/wiki/Squat',
+    'https://l.facebook.com/l.php?u=https%3A%2F%2Fcommons.wikimedia.org%2Fwiki%2FFile%3AX.webm', 'https://vimeo.com/12345', 'https://bit.ly/abc',
+    'http://commons.wikimedia.org/wiki/File:X.webm', 'ftp://commons.wikimedia.org/x', 'https://user:pw@commons.wikimedia.org/wiki/File:X.webm',
+    'https://commons.wikimedia.org:8443/wiki/File:X.webm', 'commons.wikimedia.org/wiki/File:X.webm', 'not a url', '',
+  ];
+  for (const u of bad) assert.ok(checkSourceUrl(u), `accepted ${u}`);
+  for (const u of bad) only(check((e) => { cc(e); e.source_url = u; }), /source_url/);
+  assert.equal(checkSourceUrl('https://commons.wikimedia.org:443/wiki/File:X.webm'), null, 'the default port is fine');
 });
 
 test('an own_filming entry needs a release id and takes no source_url or retrieval date', () => {
   only(check((e) => { e.release_id = null; }), /release_id must be a non-empty string/);
   only(check((e) => { e.source_url = 'https://example.com/x'; }), /source_url must be null unless the source is cc_licensed/);
   only(check((e) => { e.retrieved = '2026-10-20'; }), /retrieved must be null unless/);
+});
+
+test('retrieved must be a real date and not in the future', () => {
+  for (const d of ['2026-02-30', '2026-13-01', '2026-00-10', '2999-01-01', '2026-1-5']) only(check((e) => { cc(e); e.retrieved = d; }), /retrieved/);
+  assert.deepEqual(check((e) => { cc(e); e.retrieved = '2024-02-29'; }), []);
+});
+
+test('tools must name a pinned model and its sha256; a hand-edited value is rejected', () => {
+  const [sha, name] = Object.entries(PINNED_MODELS)[1];
+  assert.deepEqual(check((e) => { e.tools = `exercise-motion 2; ${name} sha256 ${sha}`; }), []);
+  for (const t of ['anything', 'exercise-motion 2; synthetic fixture, no model', `exercise-motion 2; pose_landmarker_full float16 sha256 ${'ab'.repeat(32)}`,
+    `exercise-motion 2; some other model sha256 ${sha}`, `exercise-motion 2; ${name} sha256 ${sha.slice(0, 60)}`]) {
+    only(check((e) => { e.tools = t; }), /tools must name a pinned pose model/);
+    only(check((e) => { cc(e); e.tools = t; }), /tools must name a pinned pose model/);
+  }
+  assert.deepEqual(check((e) => { e.source = 'synthetic_fixture'; e.tools = 'exercise-motion 2; synthetic fixture, no model'; }, { allowFixture: true }), []);
 });
 
 test('a synthetic fixture source is accepted only when the caller asks for it', () => {

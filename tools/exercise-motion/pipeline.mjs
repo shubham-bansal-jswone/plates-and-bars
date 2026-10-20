@@ -18,10 +18,12 @@
 //   8. place the figure: MediaPipe's origin is the hip centre of every frame, so the body's place in the world is recovered from
 //      the feet. In each frame the lowest of all 19 joints is put on y = 0 and the ankle midpoint on x = z = 0; round to
 //      3 decimals. A heel raise keeps its height because the toe stays down; a jump does not (no flight phase can be recovered)
-import { JOINTS, BONES, MIN_FPS, MAX_FPS, MAX_ENTRY_BYTES, FIXTURE_SOURCE, LICENCES } from '../validate/exercise-motion.mjs';
+import { JOINTS, BONES, MIN_FPS, MAX_FPS, MAX_ENTRY_BYTES, FIXTURE_SOURCE, LICENCES, PINNED_MODELS } from '../validate/exercise-motion.mjs';
 
+export { PINNED_MODELS };
 export const FORMAT = 'mediapipe-world-landmarks-v1';
 export class PipelineError extends Error {}
+const checkFps = (fps) => { if (!Number.isInteger(fps) || fps < MIN_FPS || fps > MAX_FPS) throw new PipelineError(`--fps must be an integer from ${MIN_FPS} to ${MAX_FPS}, got ${fps}`); };
 
 export const DEFAULTS = {
   minVisibility: 0.5,      // below this a landmark is treated as missing (MediaPipe visibility is 0 to 1)
@@ -40,11 +42,6 @@ export const DEFAULTS = {
 const LM = { l_ear: 7, r_ear: 8, l_shoulder: 11, r_shoulder: 12, l_elbow: 13, r_elbow: 14, l_wrist: 15, r_wrist: 16,
   l_hip: 23, r_hip: 24, l_knee: 25, r_knee: 26, l_ankle: 27, r_ankle: 28, l_heel: 29, r_heel: 30, l_toe: 31, r_toe: 32 };
 
-/** Pose Landmarker model files whose licence was checked (Apache-2.0, see README.md), by sha256. */
-export const PINNED_MODELS = {
-  '4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad': 'pose_landmarker_full float16',
-  '64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b': 'pose_landmarker_heavy float16',
-};
 export const PIPELINE_VERSION = 'exercise-motion 2';
 export const USED = Object.values(LM);
 
@@ -251,7 +248,7 @@ function retarget(tr, times, o) {
  */
 export function runPipeline(input, options = {}) {
   const o = { ...DEFAULTS, ...options };
-  if (!Number.isInteger(o.outputFps) || o.outputFps < MIN_FPS || o.outputFps > MAX_FPS) throw new PipelineError(`outputFps must be an integer from ${MIN_FPS} to ${MAX_FPS}`);
+  checkFps(o.outputFps);
   const src = readInput(input);
   const source = o.source ?? 'own_filming';
   let toolsText;
@@ -288,6 +285,7 @@ export function runPipeline(input, options = {}) {
  */
 export function runPipelineFit(input, options = {}) {
   const requestedFps = options.outputFps ?? DEFAULTS.outputFps;
+  checkFps(requestedFps);
   const size = (e) => Buffer.byteLength(JSON.stringify(e));
   let entry;
   for (let fps = requestedFps; fps >= MIN_FPS; fps--) {

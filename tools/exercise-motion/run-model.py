@@ -23,7 +23,7 @@ KNOWN_MODELS = {
     "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad": "pose_landmarker_full (float16)",
     "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b": "pose_landmarker_heavy (float16)",
 }
-INDICES = [7, 8, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]  # the landmarks pipeline.mjs uses
+INDICES = [7, 8, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]  # the landmarks pipeline.mjs uses
 
 
 def main() -> int:
