@@ -31,6 +31,7 @@ const NATIVE_CODES: Record<string, OcrErrorCode> = {
   ERR_OCR_ENGINE: 'engine',
   ERR_OCR_NO_CONTEXT: 'engine',
   ERR_OCR_DATA_HASH: 'data',
+  ERR_OCR_DATA: 'data',
 };
 
 /** Maps what the native module (a coded error from Expo) or the web engine threw to an [OcrError]. An OcrError passes through unchanged. */

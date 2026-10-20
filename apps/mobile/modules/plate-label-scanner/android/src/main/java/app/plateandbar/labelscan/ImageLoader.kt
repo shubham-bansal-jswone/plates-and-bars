@@ -10,9 +10,6 @@ import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import java.io.InputStream
 
-/** Why an image could not be read. The message is a code, never the path or any pixels. */
-class OcrException(val code: String, message: String, cause: Throwable? = null) : Exception(message, cause)
-
 /**
  * Decodes the photo the camera or the system picker handed over, in memory only: nothing is written to disk. Only the cropped part is
  * decoded (BitmapRegionDecoder) and at most [MAX_EDGE] pixels on its long side, so a 12 MP photo costs about as much as a 2 MP one.
@@ -50,7 +47,7 @@ object ImageLoader {
       throw OcrException("ERR_OCR_CROP", "crop_invalid", e)
     }
 
-    val region = decodeRegion(::open, rect) ?: decodeWhole(::open, bounds.outWidth, bounds.outHeight, rect, orientation, crop)
+    val region = decodeRegion(::open, rect) ?: imageIo { decodeWhole(::open, rect, crop) }
     return upright(region, orientation)
   }
 
@@ -71,7 +68,7 @@ object ImageLoader {
   }
 
   // Fallback: decode the whole image at reduced size, then cut out the crop. `rect` is in raw pixels, so it scales with the sample size.
-  private fun decodeWhole(open: () -> InputStream, w: Int, h: Int, rect: PixelRect, orientation: Int, crop: Crop?): Bitmap {
+  private fun decodeWhole(open: () -> InputStream, rect: PixelRect, crop: Crop?): Bitmap {
     val sample = Geometry.sampleSize(rect.width, rect.height, MAX_EDGE)
     val opts = BitmapFactory.Options().apply { inSampleSize = sample }
     val whole = open().use { BitmapFactory.decodeStream(it, null, opts) } ?: throw OcrException("ERR_OCR_IMAGE", "image_unreadable")

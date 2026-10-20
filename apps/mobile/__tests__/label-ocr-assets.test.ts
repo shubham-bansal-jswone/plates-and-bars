@@ -101,12 +101,26 @@ describe('the module registration and build', () => {
   it('registers the Kotlin module for Android', () => {
     expect(JSON.parse(read(join(mod, 'expo-module.config.json')))).toEqual({ platforms: ['android'], android: { modules: ['app.plateandbar.labelscan.LabelScannerModule'] } });
   });
-  it('pins Tesseract4Android 4.9.0 from JitPack for its one group, with lint failing the build', () => {
+  it('uses the vendored Tesseract4Android AAR from a repository limited to its group, not JitPack, and lint fails the build', () => {
     const g = read(join(mod, 'android/build.gradle'));
-    expect(g).toContain("com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.9.0");
-    expect(g).toContain("includeGroup 'com.github.adaptech-cz.Tesseract4Android'");
+    expect(g).toContain("implementation 'app.plateandbar.vendor:tesseract4android:4.9.0'");
+    expect(g).toContain("includeGroup 'app.plateandbar.vendor'");
+    expect(g).toContain('$projectDir/libs-maven');
+    expect(g).toContain('rootProject.allprojects');
+    expect(g).toContain('exclusiveContent');
+    expect(g.replace(/^\s*\/\/.*$/gm, '')).not.toMatch(/jitpack|mavenCentral|google\(\)/i);
     expect(g).toContain('abortOnError true');
     expect(g).not.toMatch(/mlkit|play-services|firebase/i);
+  });
+  it('the vendored AAR is the pinned file, built from the pinned upstream commit', () => {
+    const dir = join(mod, 'android/libs-maven/app/plateandbar/vendor/tesseract4android/4.9.0');
+    expect(readdirSync(dir).sort()).toEqual(['tesseract4android-4.9.0.aar', 'tesseract4android-4.9.0.pom']);
+    const aarSha = 'e6226ad06b34aaf4ab4f642d2b8e40fa86172e84bd4e5fc9066d2217472bc78a';
+    expect(sha(join(dir, 'tesseract4android-4.9.0.aar'))).toBe(aarSha);
+    expect(read(join(mod, 'android/src/test/java/app/plateandbar/labelscan/VendoredAarTest.kt'))).toContain(aarSha);
+    const commit = 'd7de990ef78f70d553e327b98b3992d11863f134';
+    for (const f of [join(mod, 'android/build.gradle'), join(mod, 'android/libs-maven/README.md'), join(app, '../../infra/scripts/build-tesseract4android.sh'), join(app, 'scripts/licences.mjs')]) expect(read(f)).toContain(commit);
+    expect(read(join(mod, 'android/libs-maven/README.md'))).toContain(aarSha);
   });
   it('declares no permission', () => {
     expect(read(join(mod, 'android/src/main/AndroidManifest.xml'))).not.toContain('<uses-permission');
@@ -122,7 +136,7 @@ describe('the module registration and build', () => {
 describe('the native module keeps the image on the device', () => {
   const sources = readdirSync(kt).map((f) => [f, read(join(kt, f))] as const);
   it('has the expected source files', () => {
-    expect(sources.map(([f]) => f).sort()).toEqual(['Geometry.kt', 'ImageLoader.kt', 'LabelScannerModule.kt', 'LineBuilder.kt', 'Recognizer.kt', 'TessData.kt']);
+    expect(sources.map(([f]) => f).sort()).toEqual(['Errors.kt', 'Geometry.kt', 'ImageLoader.kt', 'LabelScannerModule.kt', 'LineBuilder.kt', 'Recognizer.kt', 'TessData.kt', 'Turn.kt']);
   });
   it('no source can send, encode, store or log an image or text (no network, compress, media store, log, error reporter)', () => {
     const banned = /java\.net|HttpURLConnection|okhttp|Socket|URL\(|compress\(|MediaStore|ImageCapture|Log\.|println|Sentry|FileOutputStream|\.writeBytes|\.writeText|openFileOutput|createTempFile\(\s*"?[^A]/;

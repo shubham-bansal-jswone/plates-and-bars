@@ -86,6 +86,7 @@ describe('the native wrapper', () => {
     ['ERR_OCR_ENGINE', 'engine'],
     ['ERR_OCR_NO_CONTEXT', 'engine'],
     ['ERR_OCR_DATA_HASH', 'data'],
+    ['ERR_OCR_DATA', 'data'],
   ])('maps the native code %s to `%s`', async (nativeCode, code) => {
     mockRecognize.mockRejectedValue(Object.assign(new Error(`failed on ${IMAGE}`), { code: nativeCode }));
     const e = (await load().recognize(IMAGE).catch((x: unknown) => x)) as OcrError;

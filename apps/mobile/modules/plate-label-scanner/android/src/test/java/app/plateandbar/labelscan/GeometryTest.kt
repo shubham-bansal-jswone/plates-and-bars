@@ -24,6 +24,22 @@ class GeometryTest {
     for (o in 1..8) assertEquals("orientation $o", PixelRect(0, 0, 400, 300), Geometry.cropToRaw(Crop(0.0, 0.0, 1.0, 1.0), 400, 300, o))
   }
 
+  @Test fun `one exact rectangle per EXIF orientation for a crop that is off centre in both directions`() {
+    // Raw 400 x 300; crop = 10% from the left, 10% from the top, half the width, 30% of the height of the upright image.
+    val crop = Crop(0.1, 0.1, 0.5, 0.3)
+    val want = mapOf(
+      1 to PixelRect(40, 30, 240, 120),
+      2 to PixelRect(160, 30, 360, 120),
+      3 to PixelRect(160, 180, 360, 270),
+      4 to PixelRect(40, 180, 240, 270),
+      5 to PixelRect(40, 30, 160, 180),
+      6 to PixelRect(40, 120, 160, 270),
+      7 to PixelRect(240, 120, 360, 270),
+      8 to PixelRect(240, 30, 360, 180),
+    )
+    for ((o, rect) in want) assertEquals("orientation $o", rect, Geometry.cropToRaw(crop, 400, 300, o))
+  }
+
   @Test fun `a crop keeps its area for every orientation`() {
     for (o in 1..8) {
       val r = Geometry.cropToRaw(Crop(0.1, 0.2, 0.5, 0.4), 400, 300, o)

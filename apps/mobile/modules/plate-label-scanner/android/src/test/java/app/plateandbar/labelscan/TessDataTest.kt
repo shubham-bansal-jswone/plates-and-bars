@@ -66,4 +66,47 @@ class TessDataTest {
     assertTrue("asset missing at ${asset.absolutePath}", asset.isFile)
     assertEquals(TessData.SHA256, TessData.sha256(asset))
   }
+
+  @Test fun `a missing asset is Unavailable, not a raw IOException, and leaves no file`() {
+    val root = tmp.newFolder()
+    try {
+      TessData.ensure(root, goodHash) { throw java.io.FileNotFoundException("no asset") }
+      fail("should have failed")
+    } catch (e: TessData.Unavailable) {
+      assertEquals("data_unavailable", e.message)
+    }
+    assertEquals(0, File(root, "tessdata").listFiles()!!.size)
+  }
+
+  @Test fun `a copy that breaks half way is Unavailable and leaves no temp file`() {
+    val root = tmp.newFolder()
+    val broken = object : java.io.InputStream() {
+      private var n = 0
+      override fun read(): Int = if (n++ < 3) 65 else throw java.io.IOException("disk")
+    }
+    try {
+      TessData.ensure(root, goodHash) { broken }
+      fail("should have failed")
+    } catch (e: TessData.Unavailable) {
+      assertTrue(e.cause is java.io.IOException)
+    }
+    assertEquals(0, File(root, "tessdata").listFiles()!!.size)
+  }
+
+  @Test fun `a folder that cannot be written is Unavailable`() {
+    val root = tmp.newFile() // a file where the folder should be: tessdata cannot be created under it
+    try {
+      TessData.ensure(root, goodHash) { ByteArrayInputStream(good) }
+      fail("should have failed")
+    } catch (e: TessData.Unavailable) {
+      // expected
+    }
+  }
+
+  @Test fun `the bundled bytes are read once on a first run, hashed while copying`() {
+    var reads = 0
+    val root = tmp.newFolder()
+    TessData.ensure(root, goodHash) { reads++; ByteArrayInputStream(good) }
+    assertEquals(1, reads)
+  }
 }

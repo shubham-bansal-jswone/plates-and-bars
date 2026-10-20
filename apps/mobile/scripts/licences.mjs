@@ -155,10 +155,11 @@ const ANDROID_LICENCES = [
   ['com.facebook.yoga', 'MIT', 'yoga.txt', 'proguard-annotations@1.19.0'],
   // The POM names BSD and Apache-2.0; Glide's LICENSE is BSD-2-Clause with MIT and Apache parts for bundled third-party code.
   ['com.github.bumptech.glide', 'BSD-2-Clause AND MIT AND Apache-2.0', 'glide.txt', 'annotations@5.0.5 disklrucache@5.0.5 gifdecoder@5.0.5 glide@5.0.5'],
-  // Tesseract4Android for label scanning (#1067, ADR 010): from JitPack only (not on Maven Central or Google Maven), built from the 4.9.0 tag of
-  // https://github.com/adaptech-cz/Tesseract4Android. The POM names no licence; the repository's LICENSE is Apache-2.0 (checked 2026-10-19), and the
-  // AAR (sha256 bce5d641...2b2a) carries libtesseract.so, libleptonica.so, libjpeg.so and libpngx.so (see NATIVE below). No NOTICE file.
-  ['com.github.adaptech-cz.Tesseract4Android', 'Apache-2.0', null, 'tesseract4android@4.9.0'],
+  // Tesseract4Android for label scanning (#1067, ADR 010): built by us from https://github.com/adaptech-cz/Tesseract4Android at commit d7de990ef78f70d553e327b98b3992d11863f134
+  // (the last commit before the 4.9.0 release was published; the upstream tag has since moved) with infra/scripts/build-tesseract4android.sh,
+  // and vendored in modules/plate-label-scanner/android/libs-maven (AAR sha256 e6226ad0...c78a). Not resolved from JitPack. The
+  // repository's LICENSE is Apache-2.0 (checked 2026-10-19), and the AAR carries libtesseract.so, libleptonica.so, libjpeg.so and libpngx.so (see NATIVE below). No NOTICE file.
+  ['app.plateandbar.vendor', 'Apache-2.0', null, 'tesseract4android@4.9.0'],
   // LiteRT (TensorFlow Lite) runtime for live pose tracking on Android (#947): bundled, runs on the CPU, no Play services. Both POMs and the
   // AAR's LICENSE are Apache-2.0 (checked 2026-10-19); the AAR carries libtensorflowlite_jni.so (see NATIVE below) and ships no NOTICE file.
   ['com.google.ai.edge.litert', 'Apache-2.0', null, 'litert@1.4.0 litert-api@1.4.0'],

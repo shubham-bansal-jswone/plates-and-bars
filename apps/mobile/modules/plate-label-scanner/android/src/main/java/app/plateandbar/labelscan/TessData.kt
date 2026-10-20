@@ -2,7 +2,9 @@ package app.plateandbar.labelscan
 
 import android.content.Context
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 
 /**
@@ -18,6 +20,9 @@ object TessData {
 
   class Mismatch(val actual: String) : Exception("data_hash_mismatch")
 
+  /** The bundled data could not be read or copied (asset missing, disk full, rename failed). The message is a fixed code. */
+  class Unavailable(cause: Throwable? = null) : Exception("data_unavailable", cause)
+
   fun sha256(file: File): String = file.inputStream().use { sha256(it) }
 
   fun sha256(input: InputStream): String {
@@ -27,6 +32,19 @@ object TessData {
       val n = input.read(buf)
       if (n < 0) break
       digest.update(buf, 0, n)
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+  }
+
+  /** Copies `src` to `out` and returns the sha256 of what was copied, in one pass. */
+  private fun copyAndHash(src: InputStream, out: OutputStream): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val buf = ByteArray(64 * 1024)
+    while (true) {
+      val n = src.read(buf)
+      if (n < 0) break
+      digest.update(buf, 0, n)
+      out.write(buf, 0, n)
     }
     return digest.digest().joinToString("") { "%02x".format(it) }
   }
@@ -52,18 +70,21 @@ object TessData {
     if (target.isFile && cachedPath == target.path && cachedSize == target.length() && cachedTime == target.lastModified()) return Verified(root, target, expected)
     if (target.isFile && sha256(target) == expected) return remember(root, target, expected)
     // A unique temp name, then an atomic rename: a reader never sees a half-written model.
-    val tmp = File.createTempFile(ASSET, ".tmp", dir)
     try {
-      open().use { src -> tmp.outputStream().use { out -> src.copyTo(out) } }
-      val actual = sha256(tmp)
-      if (actual != expected) {
-        target.delete()
-        throw Mismatch(actual)
+      val tmp = File.createTempFile(ASSET, ".tmp", dir)
+      try {
+        val actual = open().use { src -> tmp.outputStream().use { out -> copyAndHash(src, out) } } // hashed while copying
+        if (actual != expected) {
+          target.delete()
+          throw Mismatch(actual)
+        }
+        // File.renameTo is a rename(2) on Android: it replaces the target in one step. (the NIO Files API needs API 26; minSdk is 24.)
+        if (!tmp.renameTo(target)) throw Unavailable()
+      } finally {
+        tmp.delete()
       }
-      // File.renameTo is a rename(2) on Android: it replaces the target in one step. (the NIO Files API needs API 26; minSdk is 24.)
-      if (!tmp.renameTo(target)) throw IllegalStateException("data_copy_failed")
-    } finally {
-      tmp.delete()
+    } catch (e: IOException) {
+      throw Unavailable(e) // asset missing, disk full, no write access
     }
     remember(root, target, expected)
   }

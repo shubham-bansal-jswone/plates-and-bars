@@ -13,10 +13,7 @@ class OcrResult(val lines: List<OcrLine>, val ms: Long)
  * text are never logged or written anywhere, and exception messages are fixed codes.
  */
 object Recognizer {
-  // Tesseract keeps big page buffers: two scans at once on a 2 GB phone would double the peak, so scans take turns.
-  private val turn = Any()
-
-  fun run(context: Context, imageUri: String, crop: Crop?): OcrResult = synchronized(turn) {
+  suspend fun run(context: Context, imageUri: String, crop: Crop?): OcrResult = Turn.run {
     try {
       scan(context, imageUri, crop)
     } catch (e: OutOfMemoryError) {

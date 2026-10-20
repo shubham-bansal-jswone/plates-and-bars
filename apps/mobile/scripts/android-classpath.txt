@@ -73,6 +73,7 @@ androidx.viewpager:viewpager:1.0.0
 androidx.window:window-core-android:1.5.1
 androidx.window:window-core:1.5.1
 androidx.window:window:1.5.1
+app.plateandbar.vendor:tesseract4android:4.9.0
 com.abovevacant:epitaph:0.1.1
 com.facebook.fbjni:fbjni:0.7.0
 com.facebook.fresco:animated-base:3.7.0
@@ -113,7 +114,6 @@ com.facebook.soloader:annotation:0.12.1
 com.facebook.soloader:nativeloader:0.12.1
 com.facebook.soloader:soloader:0.12.1
 com.facebook.yoga:proguard-annotations:1.19.0
-com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.9.0
 com.github.bumptech.glide:annotations:5.0.5
 com.github.bumptech.glide:disklrucache:5.0.5
 com.github.bumptech.glide:gifdecoder:5.0.5

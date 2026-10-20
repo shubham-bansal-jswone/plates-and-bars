@@ -3,7 +3,7 @@ Source: https://github.com/tesseract-ocr/tessdata_fast/blob/4.1.0/eng.traineddat
 Licence: Apache-2.0 (https://github.com/tesseract-ocr/tessdata_fast/blob/4.1.0/LICENSE, the text below).
 Engine: Tesseract4Android 4.9.0 (Apache-2.0, Tesseract 5.5.1), from JitPack as com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.9.0.
 
-File, unmodified, and its sha256 (the app checks it on the phone before every run):
+File, unmodified, and its sha256 (the app checks it on the phone on first use in each app process):
   7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2  eng.traineddata  (4,113,088 bytes; LSTM only, English)
 
 Bundled in the app as an Android asset (android/src/main/assets/) and copied to the app's private storage on first use; the app never
