@@ -84,3 +84,21 @@ See `tools/validate/schemas/exercise-motion.schema.json` and `tools/validate/exe
 2. In `content/`, `node validate/cli.mjs` and `npm test` must pass. The validator needs source `own_filming` or `cc_licensed`, a licence on the allowlist, `clip_id`, a `release_id` (own filming only) or `source_url` and `retrieved` (CC clips only), and a real exercise name.
 3. Regenerate `apps/mobile/src/content/bundled.json` (`node scripts/content-meta.mjs` in `apps/mobile`, full-history checkout).
 4. Open a content PR. The coach reviews the motion (range of motion, tempo, joint alignment, no unnatural angles) once a preview exists, and signs off on the PR. The motion data is not wired into the app until the flag `EXPO_PUBLIC_EXERCISE_MOTION` slice lands.
+
+## App player (#1069, `apps/mobile/src/motion/`)
+
+Behind `EXPO_PUBLIC_EXERCISE_MOTION=1` (off by default; set as a build variable like `EXPO_PUBLIC_BARCODE_SCAN`). When on, an exercise with an entry here shows a looping figure in place of the v1.1 start and end frames; with no entry, or the flag off, the v1.1 figures show. Under the system's reduced-motion setting it shows one static key pose (the frame furthest from the first) and runs no timer. Playback blends linearly between keyframes, so 5 fps entries are smooth; it redraws at 15 fps and pauses in the background.
+
+Projection (`project.ts`): a fixed orthographic side camera on the figure's right looking along +x, so screen right = z, screen up = y, x is dropped. The near (right) limb is drawn. Only directions are used and each rig segment gets the v1.1 rig's own length (`SEG` in `tools/exercise-figures/rig.mjs`, a test compares them), so the figure matches the v1.1 drawings:
+
+| Rig joint | From pb19 joints |
+| --- | --- |
+| ankle | `r_ankle` z; height = lower of `r_heel` and `r_toe` above the clip floor, times 98 px per 0.491 body heights (thigh + shin); placed at the rig's ankle mark (150, 212) |
+| knee | `r_ankle` to `r_knee` direction, 48 px |
+| hip | `r_knee` to the midpoint of `l_hip` and `r_hip`, 50 px |
+| shoulder (top of torso) | hip midpoint to `neck`, 70 px |
+| head centre | `neck` to `head`, 26 px |
+| elbow, wrist | `r_shoulder` to `r_elbow` (36 px), `r_elbow` to `r_wrist` (32 px), from the rig's shoulder |
+| toe | `r_heel` to `r_toe` direction (the sole), 15 px from the ankle |
+
+A segment end-on to the camera keeps a default direction instead of producing NaN. Not drawn: equipment props, highlight bands, the left limbs, front or top views.
