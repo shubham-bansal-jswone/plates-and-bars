@@ -211,8 +211,9 @@ export function offToUserFood(p: OffProduct): OffMapResult {
  * Also (#971): stated energy of exactly 0 while 4P + 4C + 9F is above 20 kcal (a missing macro counts as 0),
  * as a diet drink with 10.6 g carbs per 100 ml. Energy of 0 from `energy-kj_100g` (kcal missing) counts as
  * stated 0, since the draft then shows 0 kcal; 0.4 kcal is not 0. Real zero-kcal products have near-zero macros and pass.
+ * Exported for the label parser (#1067); not part of the package's public API.
  */
-function looksOff(kcal: number | null, p: number | null, c: number | null, f: number | null): boolean {
+export function looksOff(kcal: number | null, p: number | null, c: number | null, f: number | null): boolean {
   if ((p ?? 0) + (c ?? 0) + (f ?? 0) > 100) return true;
   if (kcal === 0 && 4 * (p ?? 0) + 4 * (c ?? 0) + 9 * (f ?? 0) > ZERO_KCAL_MACRO_KCAL) return true;
   if (kcal === null || p === null || c === null || f === null) return false;
