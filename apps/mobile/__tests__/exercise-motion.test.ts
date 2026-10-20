@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import fixtureBundle from '../../../tools/exercise-motion/fixtures/squat-synthetic.motion.json';
 import { exerciseMotionEnabled } from '../src/motion/flag';
-import { LICENCES, SOURCE_HOSTS, isPastDate, isSourceUrl, MAX_COORD, MAX_FPS, MIN_FPS, MIN_FRAMES, SKELETON_ID, SOURCES, isMotionBundle, motionAlt, type MotionEntry } from '../src/motion/data';
+import { LICENCES, SOURCE_HOSTS, isCalendarDate, isSourceUrl, MAX_COORD, MAX_FPS, MIN_FPS, MIN_FRAMES, SKELETON_ID, SOURCES, isMotionBundle, motionAlt, type MotionEntry } from '../src/motion/data';
 import { MOTION_ENTRY_NAME, motionFixtureBundle } from './motion-helpers';
 import { ALT_MAX } from '../src/workout/figures';
 import {
@@ -236,7 +236,7 @@ describe('motion bundle validation', () => {
     return b;
   };
   const fresh = () => JSON.parse(JSON.stringify(motionFixtureBundle())) as Record<string, any>;
-  it('accepts a cc_licensed entry with a Commons source_url and a past retrieved date', () => {
+  it('accepts a cc_licensed entry with a Commons source_url and a retrieved date', () => {
     expect(isMotionBundle(cc(fresh()))).toBe(true);
     expect(isMotionBundle(cc(fresh(), { source_url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Squat.webm' }))).toBe(true);
   });
@@ -244,7 +244,7 @@ describe('motion bundle validation', () => {
     const bad: Record<string, unknown>[] = [
       { source_url: null }, { source_url: 'http://commons.wikimedia.org/wiki/File:A.webm' }, { source_url: 'https://www.youtube.com/watch?v=x' },
       { source_url: 'https://commons.wikimedia.org.evil.example/wiki/A' }, { source_url: 'https://commons.wikimedia.org' },
-      { retrieved: null }, { retrieved: '2026-02-30' }, { retrieved: '04/03/2026' }, { retrieved: '2999-01-01' },
+      { retrieved: null }, { retrieved: '2026-02-30' }, { retrieved: '04/03/2026' },
     ];
     for (const f of bad) expect(isMotionBundle(cc(fresh(), f))).toBe(false);
     const own = fresh();
@@ -274,12 +274,14 @@ describe('motion bundle validation', () => {
     expect(accepted.filter(Boolean).length).toBeGreaterThan(4);
     expect(isSourceUrl(42)).toBe(false);
   });
-  it('isPastDate takes a real date up to today and no later', () => {
-    expect(isPastDate('2026-03-04', '2026-03-04')).toBe(true);
-    expect(isPastDate('2026-03-05', '2026-03-04')).toBe(false);
-    expect(isPastDate('2026-02-29')).toBe(false);
-    expect(isPastDate('2026-3-4')).toBe(false);
-    expect(isPastDate(null)).toBe(false);
+  it('isCalendarDate takes a real date, and does not look at the device clock', () => {
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    expect(isCalendarDate(tomorrow)).toBe(true);
+    expect(isMotionBundle(cc(fresh(), { retrieved: tomorrow }))).toBe(true);
+    expect(isCalendarDate('2026-03-04')).toBe(true);
+    expect(isCalendarDate('2026-02-29')).toBe(false);
+    expect(isCalendarDate('2026-3-4')).toBe(false);
+    expect(isCalendarDate(null)).toBe(false);
   });
   it('the shipped content/exercise-motion.json passes the app validator', () => {
     const shipped = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../content/exercise-motion.json'), 'utf8'));

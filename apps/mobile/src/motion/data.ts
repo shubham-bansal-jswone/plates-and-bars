@@ -49,11 +49,14 @@ export function isSourceUrl(v: unknown): v is string {
   const m = SOURCE_URL.exec(v);
   return m !== null && !DOT_SEGMENT.test(m[1]!);
 }
-/** A real calendar date as YYYY-MM-DD, not in the future. */
-export function isPastDate(v: unknown, today: string = new Date().toISOString().slice(0, 10)): v is string {
+/**
+ * A real calendar date as YYYY-MM-DD. There is no "not in the future" check: the app must not depend on the phone's clock, and
+ * the tools validator (CI) already rejects a future `retrieved` before content ships.
+ */
+export function isCalendarDate(v: unknown): v is string {
   if (!isStr(v) || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   const d = new Date(`${v}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v && v <= today;
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
 }
 const isHttps = (v: unknown): boolean => isStr(v) && v.length <= 2000 && /^https:\/\/[^\s]+$/.test(v);
 const nonBlank = (v: unknown): v is string => isStr(v) && !isBlank(v);
@@ -62,7 +65,7 @@ const isFrame = (v: unknown): v is number[] =>
 
 /** cc_licensed: a Commons source_url and a retrieved date; own_filming: both null. */
 const sourceFieldsOk = (v: Record<string, unknown>): boolean =>
-  v.source === 'cc_licensed' ? isSourceUrl(v.source_url) && isPastDate(v.retrieved) : v.source_url === null && v.retrieved === null;
+  v.source === 'cc_licensed' ? isSourceUrl(v.source_url) && isCalendarDate(v.retrieved) : v.source_url === null && v.retrieved === null;
 
 const isEntry = (v: unknown): v is MotionEntry =>
   isObj(v) && Number.isInteger(v.fps) && (v.fps as number) >= MIN_FPS && (v.fps as number) <= MAX_FPS && typeof v.loop === 'boolean' &&
