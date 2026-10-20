@@ -1,0 +1,100 @@
+# Shared by the flows: clean install, consent, setup answers, health check (all No), targets accepted. Ends on Food.
+appId: app.plateandbar.mobile
+---
+- launchApp:
+    clearState: true
+# A system "isn't responding" dialog can cover the app on a slow runner; dismiss it by waiting.
+- runFlow:
+    when:
+      visible: ".*isn't responding"
+    commands:
+      - tapOn: "Wait"
+- extendedWaitUntil:
+    visible: "I understand and agree to my data being stored as described"
+    timeout: 25000
+    optional: true
+# Fallback only: run-on-emulator.sh stops the app and waits for Android to drop its task before each flow, which fixes the splash-screen
+# hang seen after a previous flow (a harness race, https://github.com/shubham-bansal-jswone/plates-and-bars/issues/1064#issuecomment-6266359373).
+# If the app still stays on the splash screen, start it once more; the relaunch is labelled so run-on-emulator.sh warns when it fired.
+- runFlow:
+    when:
+      notVisible: "I understand and agree to my data being stored as described"
+    commands:
+      - launchApp:
+          label: "SPLASH-RELAUNCH (#1064)"
+          clearState: true
+- extendedWaitUntil:
+    visible: "I understand and agree to my data being stored as described"
+    timeout: 60000
+- tapOn: "I understand and agree to my data being stored as described"
+- tapOn: "Continue"
+- tapOn: "Male"
+- tapOn: "Age"
+- inputText: "30"
+- tapOn: "Use cm"
+- tapOn: "Height in cm"
+- inputText: "165"
+- hideKeyboard
+# The weight field's content description did not take focus on Android; its placeholder does.
+- tapOn: "kg"
+- inputText: "82"
+- hideKeyboard
+- tapOn: "Continue"
+- tapOn: "Mostly sitting.*"
+- tapOn: "Continue"
+- tapOn: "6"
+- tapOn: "At a gym.*"
+- tapOn: "Some experience.*"
+- scrollUntilVisible:
+    element: "60 min"
+- tapOn: "60 min"
+- scrollUntilVisible:
+    element: "Continue"
+- tapOn: "Continue"
+- tapOn: "Lose fat\\..*"
+- extendedWaitUntil:
+    visible: "Quick health check"
+    timeout: 20000
+# Every health answer is No: find each question, then the No right below it (an answered No stays on screen, so "the first No" would loop).
+- scrollUntilVisible:
+    element: "Have you ever been diagnosed.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Have you ever been diagnosed.*"
+- scrollUntilVisible:
+    element: "Does your chest hurt.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Does your chest hurt.*"
+- scrollUntilVisible:
+    element: "In the last year, have you fainted.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "In the last year, have you fainted.*"
+- scrollUntilVisible:
+    element: "Do you live with a long-term.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Do you live with a long-term.*"
+- scrollUntilVisible:
+    element: "Do you have a back, knee.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Do you have a back, knee.*"
+- scrollUntilVisible:
+    element: "Has a doctor or other.*"
+    centerElement: true
+- tapOn:
+    text: "No"
+    below: "Has a doctor or other.*"
+- scrollUntilVisible:
+    element: "See my targets"
+- tapOn: "See my targets"
+- scrollUntilVisible:
+    element: "Use these targets"
+- tapOn: "Use these targets"
