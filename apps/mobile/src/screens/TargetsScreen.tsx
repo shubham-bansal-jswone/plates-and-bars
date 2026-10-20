@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { WhyLibrary } from '../why/WhyLibrary';
 import { profileWhyValues } from '../why/values';
+import { useLabHold } from '../labs/useLabHold';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -40,6 +41,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   const { profile, markCleared, setProfile } = useProfile();
   const { ready, settings, saveFailed, loadFailed, setFocus, setRestOff, update } = useSettings();
   const router = useRouter();
+  const labHold = useLabHold(db);
   const c = useTheme();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,7 +85,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   }
   const summary = setupText(profile);
   const drift = weightDrift(weights, profile.weight_kg);
-  const whyValues = profileWhyValues(profile, { date: localDate(now()), flex: settings.flex });
+  const whyValues = profileWhyValues(profile, { date: localDate(now()), flex: settings.flex, labHold });
   return (
     <View style={{ flex: 1 }}>
       <Page>

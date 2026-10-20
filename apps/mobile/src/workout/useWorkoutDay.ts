@@ -56,6 +56,8 @@ interface Options {
   focus: readonly string[];
   /** Contract `Settings.adjustments` (recovery week, re-entry). */
   adjustments: Readonly<Record<string, unknown>>;
+  /** The lab hold is on (#1070): new sessions are lighter. Off when not given. */
+  labHold?: boolean;
   /** Short message for the toast. */
   notify: (msg: string) => void;
   /** A set was ticked: start the rest timer for `name`, then show `next`. */
@@ -84,7 +86,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustments, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
+export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustments, labHold = false, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
   const date = shown ?? localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
   /** The day the loaded session belongs to: while the viewed day is another one the screen is not ready, so no action runs against the old day's rows. */
@@ -306,14 +308,14 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   const start = useCallback(
     (template: string, checkin: Checkin, ciChoice: Workout['ci_choice'], override: Workout['where'] = null) =>
       begin((sessions, d) => {
-        const built = buildSession({ template, date, profile: profile as Profile, where: override ?? (profile as Profile).where, sessions, lifts: d.lifts, ciChoice, checkin, focus, exclusions, swaps, adjustments });
+        const built = buildSession({ template, date, profile: profile as Profile, where: override ?? (profile as Profile).where, sessions, lifts: d.lifts, ciChoice, checkin, focus, exclusions, swaps, adjustments, labHold });
         return {
           workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: templateName(template, override ?? (profile as Profile).where), base: template, where: override, mods: built.mods, exercises: [], ci_choice: ciChoice },
           exs: built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] })),
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue],
+    [db, profile, date, focus, adjustments, labHold, exclusions, swaps, commit, enqueue],
   );
 
   /**
@@ -331,7 +333,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       }
       const where = override ?? (profile as Profile).where;
       const { deload, reentry } = rangesOf(adjustments);
-      const made = seededSession({ base: seed.template, seeded: seed.exercises, picks: names, date, ciChoice, time, where, profile: profile as Profile, deload, reentry, focus, tags: getCatalog().tags, lastSets: (n) => lastFor(n, d.lifts, date)?.sets.length });
+      const made = seededSession({ base: seed.template, seeded: seed.exercises, picks: names, date, ciChoice, time, where, profile: profile as Profile, deload, reentry, labHold, focus, tags: getCatalog().tags, lastSets: (n) => lastFor(n, d.lifts, date)?.sets.length });
       return {
         workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: templateName(seed.template, where), base: made.base, where: override, mods: made.mods, exercises: [], ci_choice: ciChoice },
         exs: made.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: blank(e.sets), ramp: [] })),
@@ -373,6 +375,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
           exclusions,
           swaps,
           adjustments,
+          labHold,
         });
         const first = d.exs.length;
         const builtEx: ExState[] = built.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] }));
@@ -393,7 +396,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, profile, date, focus, adjustments, exclusions, swaps, commit, enqueue, notify],
+    [db, profile, date, focus, adjustments, labHold, exclusions, swaps, commit, enqueue, notify],
   );
 
   const editSet = (i: number, kind: 'work' | 'ramp', j: number, field: 'w' | 'r', value: string) => {

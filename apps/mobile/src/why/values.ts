@@ -20,9 +20,9 @@ function splitWhyValues(profile: Profile): WhyValues {
 
 /**
  * Values for the card placeholders that the stored setup can fill: the targets, the burn breakdown and the fibre target (#550).
- * The fibre target follows `day`'s calorie target (flex included), as on the Food tab; without a day it follows the stored target.
+ * The fibre target follows `day`'s calorie target (flex and the lab hold included), as on the Food tab; without a day it follows the stored target.
  */
-export function profileWhyValues(profile: Profile, day?: { date: string; flex?: readonly FlexEntry[] }): WhyValues {
+export function profileWhyValues(profile: Profile, day?: { date: string; flex?: readonly FlexEntry[]; labHold?: boolean }): WhyValues {
   const { r } = buildResults(profile);
   return {
     kcal: fmt(profile.targets.kcal),
@@ -32,7 +32,7 @@ export function profileWhyValues(profile: Profile, day?: { date: string; flex?: 
     movement: fmt(r.movement),
     training: fmt(r.training),
     digestion: fmt(r.digestion),
-    fibre_g: fibreTarget(day ? kcalTarget(day.date, { flex: day.flex }, profile) : profile.targets.kcal),
+    fibre_g: fibreTarget(day ? kcalTarget(day.date, { flex: day.flex, labHold: day.labHold }, profile) : profile.targets.kcal),
     ...splitWhyValues(profile),
   };
 }
