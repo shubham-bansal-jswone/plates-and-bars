@@ -28,7 +28,7 @@ const frame = (k, n) => {
 };
 const goodEntry = () => ({
   fps: 10, loop: true, frames: Array.from({ length: 12 }, (_, k) => frame(k, 12)),
-  source: 'own_filming', source_id: 'clip/bodyweight-squat-side-001', clip_id: 'bodyweight-squat-side-001',
+  source: 'own_filming', source_id: 'clip/bodyweight-squat-side-001', source_url: null, retrieved: null, clip_id: 'bodyweight-squat-side-001',
   release_id: 'release-2026-001', licence: 'CC-BY-4.0', licence_url: LICENCES['CC-BY-4.0'],
   author: 'Plate & Bar authors', author_url: null, tools: 'exercise-motion 1', note: null,
 });
@@ -94,7 +94,7 @@ test('rejects an unknown exercise, a missing or unknown field, a third-party sou
   only(check((e, c) => { c.motions['Nonsense Lift'] = c.motions['Bodyweight Squat']; delete c.motions['Bodyweight Squat']; }), /no such exercise/);
   only(check((e) => { delete e.release_id; }), /field "release_id" missing/);
   only(check((e) => { e.video_url = 'https://example.com/v.mp4'; }), /unknown field "video_url"/);
-  only(check((e) => { e.source = 'stock_video'; }), /source must be own_filming/);
+  only(check((e) => { e.source = 'stock_video'; }), /source must be own_filming, cc_licensed/);
   only(check((e) => { e.licence = 'CC-BY-NC-4.0'; }), /not on the allowlist/);
   only(check((e) => { e.licence_url = 'https://example.com'; }), /licence_url must be/);
   only(check((e) => { e.release_id = ' '; }), /release_id must be a non-empty string/);
@@ -148,8 +148,40 @@ test('rejects duplicate clip and source ids', () => {
   assert.ok(errs.some((m) => /duplicate clip_id/.test(m)));
 });
 
+const cc = (e) => Object.assign(e, {
+  source: 'cc_licensed', source_id: 'commons/File_Bodyweight_squat.webm', source_url: 'https://commons.wikimedia.org/wiki/File:Bodyweight_squat.webm',
+  retrieved: '2026-10-20', clip_id: 'File_Bodyweight_squat.webm', release_id: null, licence: 'CC-BY-SA-4.0', licence_url: LICENCES['CC-BY-SA-4.0'],
+  author: 'Jane Example, CC BY-SA 4.0, via Wikimedia Commons',
+});
+
+test('a cc_licensed entry needs source_url, retrieval date and attribution, and takes no release id', () => {
+  assert.deepEqual(check(cc), []);
+  for (const l of ['CC0-1.0', 'CC-BY-4.0']) assert.deepEqual(check((e) => { cc(e); e.licence = l; e.licence_url = LICENCES[l]; }), []);
+  assert.ok(check((e) => { cc(e); delete e.source_url; }).some((m) => /field "source_url" missing/.test(m)));
+  only(check((e) => { cc(e); e.source_url = null; }), /source_url must be an https URL for a cc_licensed clip/);
+  only(check((e) => { cc(e); e.retrieved = null; }), /retrieved must be the retrieval date/);
+  only(check((e) => { cc(e); e.retrieved = '20 Oct 2026'; }), /retrieved must be the retrieval date/);
+  only(check((e) => { cc(e); e.author = ' '; }), /author must be a non-empty string/);
+  only(check((e) => { cc(e); e.release_id = 'rel-1'; }), /release_id must be null for a cc_licensed clip/);
+});
+
+test('NC and ND licences are rejected, and so is YouTube', () => {
+  for (const l of ['CC-BY-NC-4.0', 'CC-BY-ND-4.0', 'CC-BY-NC-SA-4.0', 'CC-BY-NC-ND-4.0']) {
+    only(check((e) => { cc(e); e.licence = l; e.licence_url = `https://creativecommons.org/licenses/${l.toLowerCase()}/`; }), /not on the allowlist/);
+  }
+  for (const u of ['https://www.youtube.com/watch?v=abc', 'https://youtu.be/abc', 'https://m.youtube.com/watch?v=abc']) {
+    only(check((e) => { cc(e); e.source_url = u; }), /YouTube/);
+  }
+});
+
+test('an own_filming entry needs a release id and takes no source_url or retrieval date', () => {
+  only(check((e) => { e.release_id = null; }), /release_id must be a non-empty string/);
+  only(check((e) => { e.source_url = 'https://example.com/x'; }), /source_url must be null unless the source is cc_licensed/);
+  only(check((e) => { e.retrieved = '2026-10-20'; }), /retrieved must be null unless/);
+});
+
 test('a synthetic fixture source is accepted only when the caller asks for it', () => {
   const fixture = (e) => { e.source = 'synthetic_fixture'; };
-  only(check(fixture), /source must be own_filming/);
+  only(check(fixture), /source must be own_filming, cc_licensed/);
   assert.deepEqual(check(fixture, { allowFixture: true }), []);
 });

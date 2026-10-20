@@ -1,5 +1,5 @@
-// Usage: node exercise-motion/cli.mjs <landmarks.json> --exercise "<name>" --clip-id <id> --release-id <id> --author "<name>"
-//          [--source own_filming] [--source-id <id>] [--licence CC-BY-4.0] [--author-url <https url>] [--note "<text>"]
+// Usage: node exercise-motion/cli.mjs <landmarks.json> --exercise "<name>" --clip-id <id> --author "<name>" (--release-id <id> | --source-url <url> --retrieved YYYY-MM-DD)
+//          [--source own_filming|cc_licensed] [--source-id <id>] [--licence CC-BY-4.0] [--author-url <https url>] [--note "<text>"]
 //          [--fps 10] [--no-loop] [--window 7] [--order 2] [--min-visibility 0.5] [--max-gap 5]
 //          (--out <file> | --merge <content/exercise-motion.json>)
 // --out writes a one-exercise bundle; --merge adds or replaces the exercise in an existing bundle. Both validate first.
@@ -17,7 +17,10 @@ const fail = (m) => { console.error(m); process.exit(1); };
 
 const input = argv.find((a, i) => !a.startsWith('--') && !(argv[i - 1] ?? '').startsWith('--')) ?? fail('usage: cli.mjs <landmarks.json> --exercise <name> ...');
 const exercise = opt('exercise') ?? fail('--exercise is required');
-for (const r of ['clip-id', 'release-id', 'author']) if (!opt(r)) fail(`--${r} is required (clip register and model release ids, author for the credit)`);
+for (const r of ['clip-id', 'author']) if (!opt(r)) fail(`--${r} is required (clip register id, author for the credit)`);
+const cc = opt('source') === 'cc_licensed';
+if (!cc && !opt('release-id')) fail('--release-id is required for own_filming (the signed model release)');
+if (cc) for (const r of ['source-url', 'retrieved', 'licence']) if (!opt(r)) fail(`--${r} is required for cc_licensed`);
 const num = (name, f) => { const v = opt(name); return v === undefined ? f : Number(v); };
 
 const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.json`, 'utf8')).tags);
@@ -27,7 +30,7 @@ let entry, requestedFps;
 try {
   ({ entry, requestedFps } = runPipelineFit(JSON.parse(readFileSync(input, 'utf8')), {
     source: opt('source', 'own_filming'), source_id: opt('source-id', `clip/${opt('clip-id')}`), clip_id: opt('clip-id'),
-    release_id: opt('release-id'), licence: opt('licence', 'CC-BY-4.0'), author: opt('author'), author_url: opt('author-url', null),
+    release_id: cc ? null : opt('release-id'), source_url: opt('source-url', null), retrieved: opt('retrieved', null), licence: opt('licence', 'CC-BY-4.0'), author: opt('author'), author_url: opt('author-url', null),
     note: opt('note', null), loop: !flag('no-loop'),
     outputFps: num('fps', 10), window: num('window', 7), order: num('order', 2), minVisibility: num('min-visibility', 0.5), maxGapFrames: num('max-gap', 5),
   }));

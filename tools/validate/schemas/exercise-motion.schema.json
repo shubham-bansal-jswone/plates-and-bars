@@ -26,7 +26,7 @@
       "x-max-entry-bytes": 8192,
       "x-bone-tolerance": 0.03,
       "x-floor-tolerance": 0.01,
-      "required": ["fps", "loop", "frames", "source", "source_id", "clip_id", "release_id", "licence", "licence_url", "author", "author_url", "tools", "note"],
+      "required": ["fps", "loop", "frames", "source", "source_id", "source_url", "retrieved", "clip_id", "release_id", "licence", "licence_url", "author", "author_url", "tools", "note"],
       "properties": {
         "fps": { "type": "integer", "minimum": 5, "maximum": 30, "description": "Playback rate; the player interpolates between keyframes." },
         "loop": { "type": "boolean", "description": "True when the last frame leads back into the first without a jump." },
@@ -40,11 +40,13 @@
             "items": { "type": "number", "minimum": -2, "maximum": 2 }
           }
         },
-        "source": { "enum": ["own_filming"], "description": "Own filming only. The video is never shipped, only these joint numbers." },
+        "source": { "enum": ["own_filming", "cc_licensed"], "description": "Own filming, or a Creative Commons clip (no NC, no ND; never YouTube). The video is never shipped, only these joint numbers." },
+        "source_url": { "type": ["string", "null"], "format": "uri", "description": "Required (https) for cc_licensed: the page the clip came from, Wikimedia Commons preferred. Null for own_filming." },
+        "retrieved": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Retrieval date, required for cc_licensed. Null for own_filming." },
         "source_id": { "type": "string", "minLength": 1 },
         "clip_id": { "type": "string", "minLength": 1, "description": "Id of the source clip in the owner's clip register (outside the repo)." },
-        "release_id": { "type": "string", "minLength": 1, "description": "Id of the signed model release for the person filmed." },
-        "licence": { "enum": ["CC-BY-4.0", "CC0-1.0"] },
+        "release_id": { "type": ["string", "null"], "minLength": 1, "description": "Id of the signed model release for the person filmed. Required for own_filming, null for cc_licensed." },
+        "licence": { "enum": ["CC-BY-4.0", "CC0-1.0", "CC-BY-SA-4.0"] },
         "licence_url": { "type": "string", "format": "uri" },
         "author": { "type": "string", "minLength": 1 },
         "author_url": { "type": ["string", "null"], "format": "uri" },

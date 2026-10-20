@@ -27,13 +27,18 @@ export const BONES = [
   ['l_ankle', 'l_heel', 0.05], ['r_ankle', 'r_heel', 0.05],
   ['l_ankle', 'l_toe', 0.13], ['r_ankle', 'r_toe', 0.13],
 ];
-// Own filming only; a synthetic fixture source exists for tests and is refused unless the caller passes allowFixture.
-export const SOURCES = ['own_filming'];
+// Own filming, or a clip under a Creative Commons licence that allows reuse and adaptation (no NC, no ND). A synthetic fixture
+// source exists for tests and is refused unless the caller passes allowFixture.
+export const SOURCES = ['own_filming', 'cc_licensed'];
 export const FIXTURE_SOURCE = 'synthetic_fixture';
 export const LICENCES = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+  // Share-alike: keyframes made from such a clip are likely a derivative that must carry the same licence (THIRD_PARTY.md).
+  'CC-BY-SA-4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
 };
+// YouTube's terms forbid downloading, even for CC-BY videos, so it is never a source.
+const BANNED_HOSTS = /^https:\/\/([^/]+\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)(\/|$)/i;
 export const MIN_FPS = 5;
 export const MAX_FPS = 30;
 export const MIN_FRAMES = 2;
@@ -41,7 +46,7 @@ export const MAX_COORD = 2;
 export const MAX_ENTRY_BYTES = 8192;
 export const BONE_TOLERANCE = 0.03;
 export const FLOOR_TOLERANCE = 0.01;
-const FIELDS = ['fps', 'loop', 'frames', 'source', 'source_id', 'clip_id', 'release_id', 'licence', 'licence_url', 'author', 'author_url', 'tools', 'note'];
+const FIELDS = ['fps', 'loop', 'frames', 'source', 'source_id', 'source_url', 'retrieved', 'clip_id', 'release_id', 'licence', 'licence_url', 'author', 'author_url', 'tools', 'note'];
 const isHttps = (s) => typeof s === 'string' && /^https:\/\/[^\s]+$/.test(s);
 const nullOrString = (v) => v === null || nonEmpty(v);
 const at = (frame, name) => JOINTS.indexOf(name) * 3;
@@ -103,8 +108,17 @@ export function validateExerciseMotion(content, exerciseNames, options = {}) {
       }
     }
 
-    if (!sources.includes(e.source)) err(`source must be ${SOURCES.join(', ')} (third-party video is not accepted)`);
-    for (const f of ['source_id', 'clip_id', 'release_id', 'licence', 'author', 'tools']) if (f in e && !nonEmpty(e[f])) err(`${f} must be a non-empty string`);
+    if (!sources.includes(e.source)) err(`source must be ${SOURCES.join(', ')} (other third-party video is not accepted)`);
+    for (const f of ['source_id', 'clip_id', 'licence', 'author', 'tools']) if (f in e && !nonEmpty(e[f])) err(`${f} must be a non-empty string`);
+    if (e.source === 'cc_licensed') {
+      if (!isHttps(e.source_url)) err('source_url must be an https URL for a cc_licensed clip');
+      else if (BANNED_HOSTS.test(e.source_url)) err('source_url is on YouTube, whose terms forbid downloading; use another source (Wikimedia Commons is preferred)');
+      if (typeof e.retrieved !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.retrieved) || Number.isNaN(Date.parse(e.retrieved))) err('retrieved must be the retrieval date, YYYY-MM-DD, for a cc_licensed clip');
+      if (e.release_id !== null && e.release_id !== undefined) err('release_id must be null for a cc_licensed clip (the licence is the permission)');
+    } else {
+      if ('release_id' in e && !nonEmpty(e.release_id)) err('release_id must be a non-empty string');
+      for (const f of ['source_url', 'retrieved']) if (e[f] !== null && e[f] !== undefined) err(`${f} must be null unless the source is cc_licensed`);
+    }
     if (nonEmpty(e.licence)) {
       if (!Object.hasOwn(LICENCES, e.licence)) err(`licence "${e.licence}" is not on the allowlist (${Object.keys(LICENCES).join(', ')})`);
       else if (e.licence_url !== LICENCES[e.licence]) err(`licence_url must be ${LICENCES[e.licence]}`);

@@ -166,6 +166,28 @@ test('tools is built from the model block; no block or an unpinned model is refu
   assert.match(run().tools, /synthetic fixture, no model/);
 });
 
+test('a cc_licensed clip goes through with its source details and no release id (the CLI insists on them)', () => {
+  const sha = Object.keys(PINNED_MODELS)[0];
+  const input = { ...landmarks(), model: { name: 'x', sha256: sha, mediapipe: '1.1.1' } };
+  const entry = runPipeline(input, { ...PROV, source: 'cc_licensed', release_id: null, licence: 'CC-BY-SA-4.0', source_url: 'https://commons.wikimedia.org/wiki/File:X.webm', retrieved: '2026-10-20' });
+  assert.equal(entry.release_id, null);
+  assert.equal(entry.licence_url, 'https://creativecommons.org/licenses/by-sa/4.0/');
+  const bundle = { schema_version: 1, skeleton: 'pb19-v1', joints: [...JOINTS], motions: { 'Bodyweight Squat': entry } };
+  assert.deepEqual(validateExerciseMotion(bundle, names), []);
+  const dir = mkdtempSync(join(tmpdir(), 'motion-cc-'));
+  const file = join(dir, 'in.json');
+  writeFileSync(file, JSON.stringify(input));
+  const base = [`${tools}/exercise-motion/cli.mjs`, file, '--exercise', 'Bodyweight Squat', '--source', 'cc_licensed', '--clip-id', 'X.webm', '--author', 'Jane, CC BY-SA 4.0', '--out', join(dir, 'o.json')];
+  const missing = spawnSync(process.execPath, base, { encoding: 'utf8' });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /--source-url is required for cc_licensed/);
+  const ok = spawnSync(process.execPath, [...base, '--source-url', 'https://commons.wikimedia.org/wiki/File:X.webm', '--retrieved', '2026-10-20', '--licence', 'CC-BY-SA-4.0'], { encoding: 'utf8' });
+  assert.equal(ok.status, 0, ok.stderr);
+  const nc = spawnSync(process.execPath, [...base, '--source-url', 'https://commons.wikimedia.org/wiki/File:X.webm', '--retrieved', '2026-10-20', '--licence', 'CC-BY-NC-4.0'], { encoding: 'utf8' });
+  assert.notEqual(nc.status, 0);
+  assert.match(nc.stderr, /not on the allowlist/);
+});
+
 test('rejects input that is not a MediaPipe world-landmark file, or too short, or with no repetition', () => {
   assert.throws(() => run({ format: 'other' }), /format must be mediapipe-world-landmarks-v1/);
   const short = landmarks();

@@ -1,6 +1,6 @@
 # exercise-motion
 
-Turns our own filmed clips into `content/exercise-motion.json` (issue #1069): our own 19-joint keyframes (15 body joints plus heels and toes), no body model, no third-party video. The bundle ships with no entries; real data comes from the owner's clips. The app player is a separate slice.
+Turns clips (our own filming, or Creative Commons clips) into `content/exercise-motion.json` (issue #1069): our own 19-joint keyframes (15 body joints plus heels and toes), no body model. Only joint numbers are kept, never video. The bundle ships with no entries; real data comes from the owner's clips. The app player is a separate slice.
 
 ```
 video --(optional, run-model.py)--> landmarks.json --(cli.mjs)--> entry in content/exercise-motion.json --> coach review --> merge
@@ -27,6 +27,14 @@ The pipeline itself (`pipeline.mjs`, `cli.mjs`, `make-fixture.mjs`, the validato
 | opencv-contrib-python 5.0.0.93 | Apache-2.0 (the wheel also bundles FFmpeg under LGPL; we do not redistribute it, the tool runs on our own machine) |
 | numpy 2.5.4 | BSD-3-Clause (plus 0BSD, MIT, Zlib, CC0-1.0 parts) |
 | Installed with them: absl-py 2.5.1 (Apache-2.0), certifi 2026.10.18 (MPL-2.0), flatbuffers 25.12.19 (Apache-2.0), matplotlib 3.11.2 (PSF-based matplotlib licence), sounddevice 0.5.6 (MIT), pillow 13.0.0 (MIT-CMU), cffi, contourpy, cycler, fonttools, kiwisolver, packaging, pycparser, pyparsing, python-dateutil, six (all permissive) | OSI open source. `pip install --dry-run -r requirements.txt` resolved on 2026-10-19; the model step itself has not been run end to end yet (no clip exists) |
+
+## Where clips come from
+
+- `own_filming` (preferred): see "How to film". Needs the signed model release id (`--release-id`).
+- `cc_licensed`: a clip someone else published under CC0-1.0, CC-BY-4.0 or CC-BY-SA-4.0. Wikimedia Commons is the preferred source. The entry needs `source_url` (the page the clip came from), `retrieved` (the date, YYYY-MM-DD), `licence`, and `author` as the attribution string the licence asks for (for example "Name, CC BY-SA 4.0, via Wikimedia Commons"); `release_id` is null. Pass `--source cc_licensed --source-url <url> --retrieved <date> --licence <id>` to the CLI.
+- Never accepted: NC or ND licences (the validator allowlist has none), YouTube in any form (its terms forbid downloading, even for CC-BY videos; the validator rejects youtube.com, youtu.be and youtube-nocookie.com URLs), stock sites with their own terms, scraped gym or app videos, AI-generated video.
+- CC-BY-SA-4.0: keyframes made from such a clip are likely a derivative that must carry the same licence. The entry's `licence` records it; `THIRD_PARTY.md` notes the effect on the content bundle. Prefer CC0 or CC-BY when there is a choice.
+- Check the clip's own licence statement on its page (not only the site's default) and that it shows one person, full body, from the side or front, before running the pipeline. Whoever reviews the PR checks `source_url` shows the licence claimed.
 
 ## How to film
 
@@ -74,6 +82,6 @@ See `tools/validate/schemas/exercise-motion.schema.json` and `tools/validate/exe
 ## From output to content and coach review
 
 1. Run `cli.mjs --merge ../content/exercise-motion.json` for the exercise. Keys are kept sorted and the file is written one frame per line, so the PR diff shows the new entry only.
-2. In `content/`, `node validate/cli.mjs` and `npm test` must pass. The validator needs source `own_filming`, a licence on the allowlist, `clip_id`, `release_id` and a real exercise name.
+2. In `content/`, `node validate/cli.mjs` and `npm test` must pass. The validator needs source `own_filming` or `cc_licensed`, a licence on the allowlist, `clip_id`, a `release_id` (own filming only) or `source_url` and `retrieved` (CC clips only), and a real exercise name.
 3. Regenerate `apps/mobile/src/content/bundled.json` (`node scripts/content-meta.mjs` in `apps/mobile`, full-history checkout).
 4. Open a content PR. The coach reviews the motion (range of motion, tempo, joint alignment, no unnatural angles) once a preview exists, and signs off on the PR. The motion data is not wired into the app until the flag `EXPO_PUBLIC_EXERCISE_MOTION` slice lands.

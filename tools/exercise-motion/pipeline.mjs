@@ -18,7 +18,7 @@
 //   8. place the figure: MediaPipe's origin is the hip centre of every frame, so the body's place in the world is recovered from
 //      the feet. In each frame the lowest joint (heel, toe or ankle) is put on y = 0 and the ankle midpoint on x = z = 0; round to
 //      3 decimals. A heel raise keeps its height because the toe stays down; a jump does not (no flight phase can be recovered)
-import { JOINTS, BONES, MIN_FPS, MAX_FPS, MAX_ENTRY_BYTES, FIXTURE_SOURCE } from '../validate/exercise-motion.mjs';
+import { JOINTS, BONES, MIN_FPS, MAX_FPS, MAX_ENTRY_BYTES, FIXTURE_SOURCE, LICENCES } from '../validate/exercise-motion.mjs';
 
 export const FORMAT = 'mediapipe-world-landmarks-v1';
 export class PipelineError extends Error {}
@@ -246,7 +246,7 @@ function retarget(tr, times, o) {
 
 /**
  * @param input parsed landmarks file
- * @param options DEFAULTS overrides, plus provenance: source, source_id, clip_id, release_id, licence, author, note, author_url (`tools` is built from the file's model block)
+ * @param options DEFAULTS overrides, plus provenance: source, source_id, clip_id, release_id, source_url, retrieved, licence, author, note, author_url (`tools` is built from the file's model block)
  * @returns one entry of content/exercise-motion.json (key order fixed)
  */
 export function runPipeline(input, options = {}) {
@@ -271,10 +271,11 @@ export function runPipeline(input, options = {}) {
   const times = Array.from({ length: count }, (_, k) => (o.loop ? (k * end) / count : (k * end) / (count - 1)));
   const frames = retarget(tr, times, o);
   const licence = o.licence ?? 'CC-BY-4.0';
-  const urls = { 'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/', 'CC0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/' };
+  const urls = LICENCES;
   return {
     fps: o.outputFps, loop: o.loop, frames,
-    source, source_id: o.source_id, clip_id: o.clip_id, release_id: o.release_id,
+    source, source_id: o.source_id, source_url: o.source_url ?? null, retrieved: o.retrieved ?? null,
+    clip_id: o.clip_id, release_id: o.release_id ?? null,
     licence, licence_url: urls[licence] ?? null, author: o.author, author_url: o.author_url ?? null,
     tools: toolsText, note: o.note ?? null,
   };

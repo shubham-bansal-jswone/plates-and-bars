@@ -50,6 +50,8 @@
       ],
       "source": "synthetic_fixture",
       "source_id": "fixture/squat-synthetic",
+      "source_url": null,
+      "retrieved": null,
       "clip_id": "fixture-squat-synthetic",
       "release_id": "none-synthetic",
       "licence": "CC0-1.0",
