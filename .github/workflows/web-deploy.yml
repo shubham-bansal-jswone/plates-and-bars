@@ -14,7 +14,7 @@ name: Web app deploy
 #              sends nothing; set it only after the privacy page and the Play data-safety answers name crash reports, #748, #827;
 #              it needs WEB_SENTRY_ORIGIN, its origin, in the same environment and in the VM .env, checked before the build) and
 #              EXPO_PUBLIC_SITE_URL (https origin of the website, for the app's privacy links, #825; REQUIRED in `production`, the job fails without it).
-#              EXPO_PUBLIC_BARCODE_SCAN, EXPO_PUBLIC_POSE_TRACKING, EXPO_PUBLIC_EXERCISE_MOTION and EXPO_PUBLIC_LAB_REPORTS (set to 1 to switch the feature on; unset = off).
+#              EXPO_PUBLIC_BARCODE_SCAN, EXPO_PUBLIC_POSE_TRACKING, EXPO_PUBLIC_EXERCISE_MOTION, EXPO_PUBLIC_LABEL_SCAN and EXPO_PUBLIC_LAB_REPORTS (set to 1 to switch the feature on; unset = off).
 #              On a v* tag the version (tag without the v) is stamped into app.json, so the web release is plate-and-bar@X.Y.Z.
 #              EXPO_PUBLIC_SENTRY_ENVIRONMENT is set by the workflow: `production` on a v* tag, `staging` otherwise.
 #   secrets    WEB_SSH_KEY (private key of a user that can write only WEB_ROOT), WEB_SSH_KNOWN_HOSTS (ssh-keyscan -t ed25519 host)
@@ -154,6 +154,7 @@ jobs:
           # feature flags: the app enables each only on exactly "1"; unset = off. This job never runs on pull requests.
           EXPO_PUBLIC_BARCODE_SCAN: ${{ vars.EXPO_PUBLIC_BARCODE_SCAN }}
           EXPO_PUBLIC_POSE_TRACKING: ${{ vars.EXPO_PUBLIC_POSE_TRACKING }}
+          EXPO_PUBLIC_LABEL_SCAN: ${{ vars.EXPO_PUBLIC_LABEL_SCAN }}
           EXPO_PUBLIC_EXERCISE_MOTION: ${{ vars.EXPO_PUBLIC_EXERCISE_MOTION }}
           EXPO_PUBLIC_LAB_REPORTS: ${{ vars.EXPO_PUBLIC_LAB_REPORTS }}
         run: |

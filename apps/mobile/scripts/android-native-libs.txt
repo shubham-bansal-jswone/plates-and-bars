@@ -12,9 +12,12 @@ libhermestooling.so
 libhermesvm.so
 libimage_processing_util_jni.so
 libimagepipeline.so
+libjpeg.so
 libjsi.so
+libleptonica.so
 libnative-filters.so
 libnative-imagetranscoder.so
+libpngx.so
 libreact_codegen_rngesturehandler_codegen.so
 libreact_codegen_rnscreens.so
 libreact_codegen_rnsvg.so
@@ -28,6 +31,7 @@ libsentry.so
 libstatic-webp.so
 libsurface_util_jni.so
 libtensorflowlite_jni.so
+libtesseract.so
 libworklets.so
 libzstd-kmp.so
 libzxingcpp_android.so

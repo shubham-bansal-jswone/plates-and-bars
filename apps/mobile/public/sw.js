@@ -15,7 +15,8 @@ const HASHED = /^\/(?:assets|_expo\/static)\//;
 // paths, so this worker never touches them either.
 // The web barcode reader (#944) is the same: its chunk (zxing-decoder-*) and its .wasm under /zxing/<version>/ load only when the scanner opens on a
 // browser whose own BarcodeDetector cannot read EAN-13.
-const ON_DEMAND = /\/(?:pose|zxing)-[^/]*\.js$/;
+// Label OCR (#1067) is the same: its chunk (tesseract-engine-*) and the worker, core and language data under /tesseract/ load only when a label is scanned.
+const ON_DEMAND = /\/(?:pose|zxing|tesseract)-[^/]*\.js$/;
 
 /** Same-origin files this worker may cache or serve from the cache: GET, not an API or auth path. */
 function cacheable(url, origin) {
