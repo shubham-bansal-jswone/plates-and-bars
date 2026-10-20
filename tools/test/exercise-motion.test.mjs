@@ -53,6 +53,10 @@ test('run-model.py stores every landmark the pipeline needs', () => {
   assert.ok(list, 'INDICES list found in run-model.py');
   for (const i of USED) assert.ok(list.includes(i), `run-model.py is missing landmark ${i}`);
   assert.deepEqual([...list].sort((a, b) => a - b), [...USED].sort((a, b) => a - b));
+  const block = /^KNOWN_MODELS = \{([^}]*)\}/m.exec(py)?.[1] ?? '';
+  const known = Object.fromEntries([...block.matchAll(/"([0-9a-f]{64})":\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]));
+  assert.deepEqual(Object.keys(known).sort(), Object.keys(PINNED_MODELS).sort(), 'run-model.py KNOWN_MODELS hashes equal PINNED_MODELS');
+  for (const [sha, name] of Object.entries(PINNED_MODELS)) assert.ok(known[sha].startsWith(name.split(' ')[0]), `same model name for ${sha}`);
 });
 
 test('the committed bundle ships no entries and is valid; a complete example entry is valid', () => {
@@ -190,10 +194,17 @@ test('a cc_licensed source_url must be https on commons.wikimedia.org or upload.
     'https://l.facebook.com/l.php?u=https%3A%2F%2Fcommons.wikimedia.org%2Fwiki%2FFile%3AX.webm', 'https://vimeo.com/12345', 'https://bit.ly/abc',
     'http://commons.wikimedia.org/wiki/File:X.webm', 'ftp://commons.wikimedia.org/x', 'https://user:pw@commons.wikimedia.org/wiki/File:X.webm',
     'https://commons.wikimedia.org:8443/wiki/File:X.webm', 'commons.wikimedia.org/wiki/File:X.webm', 'not a url', '',
+    'https://commons.wikimedia.org\\@youtube.com/', 'https:commons.wikimedia.org/wiki/File:X.webm', 'https://:@commons.wikimedia.org/wiki/File:X.webm',
+    'https://commons.wikimedia.org:0443/wiki/File:X.webm', 'https://commons.wikimedia.org:443/wiki/File:X.webm', 'https://commons%2Ewikimedia.org/wiki/File:X.webm',
+    'https://commons.wikimedia.org', 'https://COMMONS.wikimedia.org/wiki/File:X.webm',
+    'https://\uff43ommons.wikimedia.org/wiki/File:X.webm', 'https://commons\u3002wikimedia\u3002org/wiki/File:X.webm', 'https://commons\uff0ewikimedia.org/wiki/File:X.webm',
+    ' https://commons.wikimedia.org/wiki/File:X.webm', 'https://commons.wikimedia.org/wiki/File:X.webm ', 'https://commons.wikimedia.org/wiki/File:X.webm\n',
+    'https://commons.wikimedia.org/wiki/File: X.webm', 'https://commons.wiki\tmedia.org/wiki/File:X.webm', 'https://commons.wikimedia.org/wiki/File:X.webm#a b',
   ];
   for (const u of bad) assert.ok(checkSourceUrl(u), `accepted ${u}`);
   for (const u of bad) only(check((e) => { cc(e); e.source_url = u; }), /source_url/);
-  assert.equal(checkSourceUrl('https://commons.wikimedia.org:443/wiki/File:X.webm'), null, 'the default port is fine');
+  assert.equal(checkSourceUrl('https://commons.wikimedia.org/wiki/File:Bodyweight_squat.webm'), null);
+  assert.equal(checkSourceUrl('https://commons.wikimedia.org/wiki/File:X.webm?uselang=en#file'), null);
 });
 
 test('an own_filming entry needs a release id and takes no source_url or retrieval date', () => {

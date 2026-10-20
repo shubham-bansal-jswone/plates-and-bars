@@ -38,7 +38,7 @@ export const LICENCES = {
 // A cc_licensed clip must come from Wikimedia Commons: an allowlist of exact hosts, so YouTube (whose terms forbid downloading),
 // redirectors, look-alike hosts and other sites are all refused without a list of bad ones.
 export const SOURCE_HOSTS = ['commons.wikimedia.org', 'upload.wikimedia.org'];
-/** @returns an error message, or null when `u` is an https URL on an allowed host with no userinfo and no port */
+/** @returns an error message, or null when `u` is an https URL on an allowed host with no userinfo and no port, written in canonical form (`new URL(u).href === u`) */
 export function checkSourceUrl(u) {
   if (typeof u !== 'string') return 'source_url must be an https URL on Wikimedia Commons for a cc_licensed clip';
   let url;
@@ -47,6 +47,9 @@ export function checkSourceUrl(u) {
   if (url.username || url.password) return 'source_url must not carry a user name or password';
   if (url.port) return 'source_url must use the default port';
   if (!SOURCE_HOSTS.includes(url.hostname)) return `source_url host must be ${SOURCE_HOSTS.join(' or ')} (Wikimedia Commons only; YouTube and other sites are not accepted)`;
+  // Only the canonical form is stored: a spelling the URL parser rewrites (%2E, full-width or ideographic characters, a default
+  // port, whitespace, a backslash, a missing slash) never matches its own href.
+  if (url.href !== u) return `source_url must be written in canonical form (${url.href})`;
   return null;
 }
 const realDate = (s) => {
