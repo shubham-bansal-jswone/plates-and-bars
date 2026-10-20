@@ -61,10 +61,10 @@ object RestNotifier {
     armAlert(context, armed.end)
   }
 
-  /** "+30 s" from the notification. Ignored when there is no live rest (skipped, cancelled, or long over). */
+  /** "+30 s" from the notification. Extends while [canExtend]; otherwise (skipped, cancelled, or long over) it only takes the alert down. */
   @Synchronized fun extend(context: Context, nowMillis: Long = System.currentTimeMillis()) {
     val s = load(context)
-    if (s == null || !s.active || nowMillis - s.end > REST_ALERT_STALE_MS) return stop(context, s, skipped = false)
+    if (s == null || !canExtend(s, nowMillis)) return stop(context, s, skipped = false)
     val next = s.copy(end = extendedEnd(s.end, s.extendMs, nowMillis), armedAt = nowMillis)
     save(context, next)
     cancelAlarm(context)
@@ -93,12 +93,11 @@ object RestNotifier {
   /** The alarm for [firedEnd] went off. */
   @Synchronized fun alert(context: Context, firedEnd: Long, nowMillis: Long = System.currentTimeMillis()) {
     val s = load(context)
-    when (alertAction(s, firedEnd, nowMillis)) {
-      AlertAction.IGNORE -> return
-      AlertAction.DROP -> return stop(context, s, skipped = false) // too late to be useful: take the countdown down as well
-      AlertAction.SHOW -> if (!enabled(context)) return
-    }
-    if (s == null) return
+    val plan = alertPlan(alertAction(s, firedEnd, nowMillis))
+    // Too late to be useful: the countdown comes down too, and the copy is no longer live.
+    if (plan.cancelCountdown) manager(context).cancel(NOTE_ID)
+    if (plan.deactivate && s != null) save(context, s.copy(active = false))
+    if (!plan.post || s == null || !enabled(context)) return
     ensureChannels(context)
     val n = builder(context, CHANNEL_DONE)
       .setSmallIcon(R.drawable.ic_reminder)

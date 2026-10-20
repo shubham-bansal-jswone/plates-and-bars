@@ -40,9 +40,33 @@ class RestTest {
     assertEquals(AlertAction.SHOW, alertAction(s, 1_000_000L, 1_000_000L + 135_000L))
   }
 
-  @Test fun tooLateAlarmIsDroppedAndTheCountdownGoes() {
+  @Test fun tooLateAlarmIsDropped() {
     val s = state(1_000_000L).copy(armedAt = 1_000_000L - 90_000L)
     assertEquals(AlertAction.DROP, alertAction(s, 1_000_000L, 1_000_000L + REST_ALERT_STALE_MS + 1))
     assertEquals(AlertAction.SHOW, alertAction(s, 1_000_000L, 1_000_000L + REST_ALERT_STALE_MS))
+  }
+
+  @Test fun droppingAnAlarmTakesTheCountdownDownAndEndsTheRest() {
+    assertEquals(AlertPlan(post = false, cancelCountdown = true, deactivate = true), alertPlan(AlertAction.DROP))
+    assertEquals(AlertPlan(post = true, cancelCountdown = false, deactivate = false), alertPlan(AlertAction.SHOW))
+    assertEquals(AlertPlan(post = false, cancelCountdown = false, deactivate = false), alertPlan(AlertAction.IGNORE))
+  }
+
+  @Test fun extendStillWorksOnAnAlertTheNewGateAllowed() {
+    // Armed 180 s ahead, alert shown 135 s late, +30 s tapped at 140 s late: a fresh step from now.
+    val s = state(1_000_000L).copy(armedAt = 1_000_000L - 180_000L)
+    assertTrue(canExtend(s, 1_000_000L + 140_000L))
+    assertEquals(1_000_000L + 140_000L + 30_000L, extendedEnd(s.end, s.extendMs, 1_000_000L + 140_000L))
+  }
+
+  @Test fun extendWorksUpToTheAllowancePlusReactionTime() {
+    val s = state(1_000_000L).copy(armedAt = 1_000_000L - 90_000L) // allowance 2 min
+    assertTrue(canExtend(s, 1_000_000L + 2 * REST_ALERT_STALE_MS))
+    assertFalse(canExtend(s, 1_000_000L + 2 * REST_ALERT_STALE_MS + 1))
+  }
+
+  @Test fun extendDoesNothingForASkippedOrMissingRest() {
+    assertFalse(canExtend(null, 1L))
+    assertFalse(canExtend(state(100_000L, active = false), 100_000L))
   }
 }

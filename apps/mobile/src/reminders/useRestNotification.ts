@@ -41,10 +41,6 @@ export function useRestNotification<T extends RestLike>({ db, rest, setRest, ses
     return () => sub.remove();
   }, [db, setRest]);
 
-  // A cold start finds nothing in `rest`, but a countdown and its alarm may be left from before the process died (AppState sends no
-  // change on start): clear them. The echo is dropped, as there is no rest for it to change.
-  useEffect(() => void takeRestNotification(), []);
-
   // The rest or the session ended (or the screen closed): nothing of it may stay in the shade.
   const had = useRef(false);
   const has = current !== null;

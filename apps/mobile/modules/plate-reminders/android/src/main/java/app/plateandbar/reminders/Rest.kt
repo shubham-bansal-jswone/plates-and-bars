@@ -64,3 +64,20 @@ fun alertAction(state: RestState?, firedEnd: Long, nowMillis: Long): AlertAction
   nowMillis - state.end <= alertLateAllowance(state.end, state.armedAt) -> AlertAction.SHOW
   else -> AlertAction.DROP
 }
+
+/**
+ * Pure: whether "+30 s" still extends. While the alert may still be showing (the late allowance) plus [REST_ALERT_STALE_MS] of
+ * reaction time after it, a tap gives a fresh step from the later of the end and now ([extendedEnd]). Past that the tap only takes
+ * the alert down and changes nothing.
+ */
+fun canExtend(state: RestState?, nowMillis: Long): Boolean =
+  state != null && state.active && nowMillis - state.end <= alertLateAllowance(state.end, state.armedAt) + REST_ALERT_STALE_MS
+
+/** What each [AlertAction] does to the notification and the kept copy. */
+data class AlertPlan(val post: Boolean, val cancelCountdown: Boolean, val deactivate: Boolean)
+
+fun alertPlan(action: AlertAction): AlertPlan = when (action) {
+  AlertAction.SHOW -> AlertPlan(post = true, cancelCountdown = false, deactivate = false) // the alert replaces the countdown
+  AlertAction.DROP -> AlertPlan(post = false, cancelCountdown = true, deactivate = true)
+  AlertAction.IGNORE -> AlertPlan(post = false, cancelCountdown = false, deactivate = false)
+}

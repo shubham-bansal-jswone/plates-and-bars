@@ -5,6 +5,7 @@ import { REST_EXTEND_SEC } from '@plate-and-bar/core';
 import { DEFAULT_PREFS } from '../src/reminders/schedule';
 import { applyEcho } from '../src/reminders/rest';
 import { saveReminderPrefs } from '../src/reminders/store';
+import { RestColdStart } from '../src/reminders/RestColdStart';
 import { useRestNotification } from '../src/reminders/useRestNotification';
 import { openDb } from './sync-helpers';
 
@@ -73,9 +74,21 @@ describe('rest timer notification', () => {
     expect(JSON.stringify(mockNative.showRest.mock.calls[0]![0])).not.toMatch(/set 2/i);
   });
 
-  it('clears a countdown left from before the process died, as soon as the screen mounts (a cold start sends no AppState change)', async () => {
+  it('clears a countdown left from before the process died when the app starts on another tab (a cold start sends no AppState change)', async () => {
+    // Only the root component is mounted: the Workout tab (and its hook) is never shown.
+    await render(<RestColdStart />);
+    await act(async () => {});
+    expect(mockNative.takeRest).toHaveBeenCalledTimes(1);
+    expect(mockNative.showRest).not.toHaveBeenCalled();
+  });
+
+  it('does not take the rest again when the Workout tab mounts later, so a stale echo is never applied', async () => {
+    mockNative.takeRest.mockResolvedValueOnce({ id: 7, end: NOW + 120_000, skipped: false });
+    await render(<RestColdStart />);
+    await act(async () => {});
     await setup();
     expect(mockNative.takeRest).toHaveBeenCalledTimes(1);
+    expect(current).toEqual(running());
   });
 
   it('reads the setting when the app goes to the background, so a switch turned on a moment ago counts', async () => {
@@ -90,26 +103,26 @@ describe('rest timer notification', () => {
     await go('background');
     setState('active');
     await go('active');
-    expect(mockNative.takeRest).toHaveBeenCalled();
+    expect(mockNative.takeRest).toHaveBeenCalledTimes(1);
   });
 
   it('takes it down when it finishes showing after the app is already back in the foreground', async () => {
     await setup();
     setState('active');
     await go('background');
-    await waitFor(() => expect(mockNative.takeRest).toHaveBeenCalled());
+    await waitFor(() => expect(mockNative.takeRest).toHaveBeenCalledTimes(1));
   });
 
   it('takes it down when the session ends', async () => {
     const { db, view } = await setup();
     await view.rerender(<Harness db={db} start={running()} active={false} />);
-    await waitFor(() => expect(mockNative.takeRest).toHaveBeenCalled());
+    await waitFor(() => expect(mockNative.takeRest).toHaveBeenCalledTimes(1));
   });
 
   it('takes it down when the screen closes', async () => {
     const { view } = await setup();
     await view.unmount();
-    expect(mockNative.takeRest).toHaveBeenCalled();
+    expect(mockNative.takeRest).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalled();
   });
 
