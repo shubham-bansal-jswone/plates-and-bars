@@ -75,7 +75,12 @@ export function LabelScanFlow({ meal, onAdd, onSaveMine, onCustom, onClose, onDo
   const capture = async (source: 'camera' | 'library') => {
     try {
       const p = await takeLabelPhoto(source);
-      if (!live.current || !p) return;
+      if (!live.current) {
+        // The flow closed while the picker was open: nothing will use this photo.
+        if (p) releasePhoto(p.uri);
+        return;
+      }
+      if (!p) return;
       release();
       photo.current = p.uri;
       setStep({ k: 'crop', photo: p });
@@ -137,11 +142,12 @@ function CaptureView({ onTake, onCustom, onClose }: { onTake: (s: 'camera' | 'li
 }
 
 function ProblemView({ problem, onRetry, onCustom, onClose }: { problem: Problem; onRetry: () => void; onCustom: () => void; onClose: () => void }) {
+  const focus = useFocusOnMount();
   return (
     <Page>
-      <H1>{t.title}</H1>
+      <View ref={focus} accessible><H1>{t.title}</H1></View>
       <ErrorText>{problemText(problem)}</ErrorText>
-      {problem === 'denied' ? <Button kind="ghost" label="Open settings" onPress={() => void Linking.openSettings().catch(() => undefined)} /> : null}
+      {problem === 'denied' ? <Button kind="ghost" label={t.openSettings} onPress={() => void Linking.openSettings().catch(() => undefined)} /> : null}
       <Button label={t.tryAgain} onPress={onRetry} />
       <Button kind="ghost" label={t.typeIt} onPress={onCustom} />
       <Button kind="ghost" label={t.close} onPress={onClose} />
