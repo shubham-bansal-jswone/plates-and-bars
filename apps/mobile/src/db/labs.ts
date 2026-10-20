@@ -40,15 +40,18 @@ export async function saveReport(db: StoreDb, r: LabReport): Promise<void> {
   await db.runAsync('INSERT OR REPLACE INTO lab_store (key, data) VALUES (?, ?)', `${PREFIX}${r.date}|${r.id}`, JSON.stringify({ date: r.date, tests: r.tests }));
 }
 
-/** The stored hold; null when there is none or the row cannot be read. */
+/**
+ * The stored hold. Null only when there is no row. A row that cannot be parsed counts as the hold ON: the hold is protective, so
+ * damage must not lift it (only "I've seen my doctor" does, by writing a good row).
+ */
 export async function loadHold(db: StoreDb): Promise<LabHold | null> {
   const row = await db.getFirstAsync<{ data: string }>('SELECT data FROM lab_store WHERE key = ?', HOLD_KEY);
   if (!row) return null;
   try {
     const h = JSON.parse(row.data) as Partial<LabHold>;
-    return typeof h.on === 'boolean' ? { on: h.on, ...(isYmd(h.since) ? { since: h.since } : {}) } : null;
+    return typeof h.on === 'boolean' ? { on: h.on, ...(isYmd(h.since) ? { since: h.since } : {}) } : { on: true };
   } catch {
-    return null;
+    return { on: true };
   }
 }
 

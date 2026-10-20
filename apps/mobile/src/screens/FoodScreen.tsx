@@ -69,7 +69,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const labHold = useLabHold(db); // the lab hold (#1070): the target is held at maintenance at least, and flex is ignored
 
   if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
-  if (status !== 'ready' || !settingsReady || !f.ready) return <View style={styles.fill}><DateAnnouncer v={v} /><Page>{/* the same key as the loaded tree's bar, so it is not remounted when the day loads */}<DateBar key="date-bar" v={v} /><Hint>Loading…</Hint></Page></View>;
+  if (status !== 'ready' || !settingsReady || !f.ready || labHold === null) return <View style={styles.fill}><DateAnnouncer v={v} /><Page>{/* the same key as the loaded tree's bar, so it is not remounted when the day loads */}<DateBar key="date-bar" v={v} /><Hint>Loading…</Hint></Page></View>;
 
   const target = kcalTarget(f.date, { flex: settings.flex, labHold }, profile);
   // Shared foods, then eat-out dishes, then the user's foods: the first of a name with fibre data wins (prototype `FIB` before `myFoods`, #151).

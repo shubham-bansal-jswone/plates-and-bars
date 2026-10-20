@@ -76,7 +76,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
   const v = useViewedDate(now);
   const labHold = useLabHold(db); // the lab hold (#1070): new sessions are lighter
-  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, labHold, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
+  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, labHold: labHold === true, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   // The rest as a notification while the app is in the background (#1068); its +30 s and Skip come back through setRest.
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
@@ -89,7 +89,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   // The date bar is in the one Page for every state, so it is not remounted when a day finishes loading (a tap that spans the remount is lost, #1032).
   let content: ReactNode;
   let sheets: ReactNode = null;
-  if (status !== 'ready' || !ready || !day.ready || !rules.ready) content = <Hint>Loading…</Hint>;
+  if (status !== 'ready' || !ready || !day.ready || !rules.ready || labHold === null) content = <Hint>Loading…</Hint>;
   else if (!profile)
     content = (
       <>
@@ -100,7 +100,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   else {
     const body =
       day.exs.length === 0 ? (
-        <StartView key={w.date} now={now} w={w} labHold={labHold} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+        <StartView key={w.date} now={now} w={w} labHold={labHold === true} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
       ) : (
         <SessionView key={w.date} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
       );

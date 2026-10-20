@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { kcalTarget, planFlex, undoFlex } from '@plate-and-bar/core';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -145,5 +145,124 @@ describe('the lab hold in the workout', () => {
     await workout({ hold: true });
     expect(screen.queryByText(labs.workout_note)).toBeNull();
     expect(screen.getByText(/5 exercises, 3 sets each/)).toBeTruthy();
+  });
+});
+
+describe('before the stored hold has been read', () => {
+  /** A db whose read of the hold waits until `release()`. */
+  function gated(db: ReturnType<typeof memoryDb>) {
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const orig = db.getFirstAsync.bind(db);
+    db.getFirstAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('lab_store')) await gate;
+      return orig(sql, ...p);
+    }) as typeof db.getFirstAsync;
+    return release;
+  }
+
+  it('Workout offers no Start until the hold is known, so a normal session is never stored under a hold', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveHold(db, HELD);
+    const release = gated(db);
+    await render(withProfile(db, <WorkoutScreen db={db} now={NOW} />));
+    await act(async () => { await new Promise<void>((r) => setImmediate(r)); });
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    expect(screen.queryByLabelText('Start Push B')).toBeNull();
+    expect(db.rows.has(`workouts:${DATE}`)).toBe(false);
+    await act(async () => release());
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await waitFor(() => expect(db.rows.has(`workouts:${DATE}`)).toBe(true));
+    expect(JSON.parse(db.rows.get(`workouts:${DATE}`)!).mods.light).toBe(true);
+  });
+
+  it('Food shows no target until the hold is known, then the held one', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    await saveHold(db, HELD);
+    const release = gated(db);
+    await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    await act(async () => { await new Promise<void>((r) => setImmediate(r)); });
+    expect(screen.queryByLabelText(/kcal eaten/)).toBeNull();
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    await act(async () => release());
+    expect(await screen.findByLabelText(`0 of ${fmt(maintenance(profile()))} kcal eaten`)).toBeTruthy();
+  });
+
+  it('a failed first read counts as the hold ON (it is protective)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const orig = db.getFirstAsync.bind(db);
+    db.getFirstAsync = ((sql: string, ...p: (string | number)[]) => (sql.includes('lab_store') ? Promise.reject(new Error('disk')) : orig(sql, ...p))) as typeof db.getFirstAsync;
+    await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    expect(await screen.findByLabelText(`0 of ${fmt(maintenance(profile()))} kcal eaten`)).toBeTruthy();
+  });
+});
+
+describe('the hold reaches a second session and a seeded pick session', () => {
+  const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+  const sets = (db: ReturnType<typeof memoryDb>) => {
+    const n: Record<string, number> = {};
+    for (const s of db.sets.values()) {
+      const name = (JSON.parse(s.data) as { exercise: string }).exercise;
+      n[name] = (n[name] ?? 0) + 1;
+    }
+    return n;
+  };
+  const stored = (db: ReturnType<typeof memoryDb>) => JSON.parse(db.rows.get(`workouts:${DATE}`)!) as { mods: { light: boolean }; exercises: { name: string; part: number }[] };
+
+  async function mount(hold: boolean) {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    if (hold) await saveHold(db, HELD);
+    await render(withProfile(db, <WorkoutScreen db={db} now={NOW} />));
+    await screen.findByText('Push B day');
+    return db;
+  }
+
+  async function secondSessionMax(hold: boolean) {
+    const db = await mount(hold);
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    for (const n of ['Barbell Bench Press', 'Machine Shoulder Press', 'Pec Deck Fly', 'Cable Lateral Raise', 'Overhead Cable Extension']) {
+      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 kg`), '20');
+      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
+      await press(`Mark ${n} set 1 done`);
+    }
+    await press('Training again later today?');
+    await press('Add Pull B');
+    await waitFor(() => expect(stored(db).exercises.some((e) => e.part === 2)).toBe(true));
+    const names = stored(db).exercises.filter((e) => e.part === 2).map((e) => e.name);
+    return Math.max(...names.map((n) => sets(db)[n] ?? 0));
+  }
+
+  it('the second session has one set fewer under the hold, and not without it', async () => {
+    expect(await secondSessionMax(true)).toBeLessThanOrEqual(2);
+  });
+
+  it('control: without the hold the second session has 3-set exercises', async () => {
+    expect(await secondSessionMax(false)).toBeGreaterThan(2);
+  });
+
+  async function seededPick(hold: boolean) {
+    const db = await mount(hold);
+    await press('Choose Pull A');
+    await press('Pick exercises');
+    await press('Start these exercises');
+    await screen.findByText('Pull A');
+    return { w: stored(db), max: Math.max(...Object.values(sets(db))) };
+  }
+
+  it('a seeded pick session stores mods.light and one set fewer under the hold', async () => {
+    const { w, max } = await seededPick(true);
+    expect(w.mods.light).toBe(true);
+    expect(max).toBeLessThanOrEqual(2);
+  });
+
+  it('control: without the hold a seeded pick session is normal', async () => {
+    const { w, max } = await seededPick(false);
+    expect(w.mods.light).toBe(false);
+    expect(max).toBeGreaterThan(2);
   });
 });
