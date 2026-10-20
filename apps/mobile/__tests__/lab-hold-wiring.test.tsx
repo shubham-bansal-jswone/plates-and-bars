@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { kcalTarget, planFlex, undoFlex } from '@plate-and-bar/core';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -41,7 +41,6 @@ afterEach(() => {
 
 const profile = () => buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1));
 const maintenance = (p: ReturnType<typeof profile>) => Math.round(buildResults(p).r.tdee / 10) * 10;
-type Db = ReturnType<typeof memoryDb>;
 const HELD = { on: true, since: '2026-10-07' };
 
 async function food(opts: { hold?: boolean; flex?: number } = {}) {
