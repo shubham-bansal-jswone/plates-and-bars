@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
-    "@puppeteer/browsers": "^3.2.3",
+    "@puppeteer/browsers": "^3.2.5",
     "axe-core": "^4.14.0"
   }
 }
