@@ -6,11 +6,11 @@ import { loadContent } from '../src/content/loader';
 import { openDb } from './sync-helpers';
 import { HowToSheet } from '../src/workout/parts';
 import { LibraryEntryButton } from '../src/library/LibraryEntryButton';
+import { filterLibrary, getEquipment, getLibrary, getMuscles, getTypes, NO_FILTER } from '../src/library/exercises';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 const openFilters = async () => fireEvent.press(screen.getByLabelText('Filters'));
-import { filterLibrary, getEquipment, getLibrary, getMuscles, getTypes, NO_FILTER } from '../src/library/exercises';
 const LIBRARY = getLibrary();
 const EQUIPMENT = getEquipment();
 const MUSCLES = getMuscles();
