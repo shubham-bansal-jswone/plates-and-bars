@@ -126,7 +126,7 @@ Known gaps left on purpose (documented in the PRs): iOS photo vault needs backup
 
 ## Local previews
 
-App: `npx -y serve@14.2.4 dist -l 8080 --single` in `apps/mobile` after `npx expo export --platform web` (serve.json sets COOP same-origin and COEP require-corp). Site: `npx astro preview` in `apps/site`.
+App: `npx expo export --platform web` in `apps/mobile`, then `E2E_PORT=4190 node support/server.mjs` in `tests/e2e` (sets COOP same-origin, COEP require-corp and the CSP from `apps/mobile/public/_headers`; there is no `serve.json`). Site: `npx astro preview` in `apps/site`.
 
 ## Two sessions (2026-10-16)
 

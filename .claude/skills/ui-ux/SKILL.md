@@ -16,7 +16,7 @@ No fixed visual style is imposed. Visual direction is decided per product and ta
 | 5 Inspect, 6 Critique | evidence gatherer | `ui-qa` (browser, read-only, returns a defect list) |
 | 7 Iterate, 8 Verify | lane agent, then you | `app` / `website`, then `ui-qa` re-check |
 
-Small tweak (one component, spacing, copy): do all phases inline, spawn nothing. Spawn a specialist only when its output is worth a cold start. Check memory for a spawn freeze before spawning; if frozen, do the phase inline using that agent file as the checklist.
+Small tweak (one component, spacing, copy): do all phases inline, spawn nothing. Spawn a specialist only when its output is worth a cold start.
 
 ## Phases
 
@@ -35,8 +35,17 @@ Generic AI-SaaS look (default card grids, stock gradients, uniform rounded conta
 
 ## Running and inspecting
 
-- Web: `cd apps/mobile && EXPO_NO_TELEMETRY=1 npx expo start --web` (or serve `dist/` after `npx expo export -p web`). Check `HANDOFF.md` for current flags.
-- Browser tools, in order of preference: `mcp__playwright__*` (deterministic, screenshots, resize, console), then `mcp__claude-in-chrome__*`. Load via ToolSearch first.
-- Viewports: 375x812, 768x1024, 1280x800. Light and dark (`browser_emulate_media`).
-- No browser tool available: say so, fall back to `tests/e2e` Playwright screenshots, disclose that visual QA was partial.
+- Launch (web). `expo start --web` is not enough: expo-sqlite on web needs COOP/COEP headers and the app ships under a CSP. Use the e2e static server, which sets both:
+  1. `cd apps/mobile && npm ci` (if `node_modules` is stale, e.g. `Unable to resolve "tesseract.js"`), then `EXPO_NO_TELEMETRY=1 npx expo export --platform web`. Never in a PR worktree (`HANDOFF.md` watchpoints); use the main checkout or a scratch worktree.
+  2. `cd tests/e2e && E2E_PORT=4190 node support/server.mjs &` serves `apps/mobile/dist` at `http://127.0.0.1:4190/`. Stop it when done.
+  3. First load redirects to `/setup` (consent, then 4 setup steps). Reach other screens by completing setup or via seeded state, not by guessing URLs.
+- Browser tools, in order of preference: `mcp__playwright__*`, then `mcp__claude-in-chrome__*`. Load via ToolSearch first. Not available or failing: say so and stop; do not substitute `about:blank` or read code instead.
+- Viewports: 375x812, 768x1024, 1280x800 (`browser_resize`). The app follows the system scheme (`userInterfaceStyle: automatic`), so test light and dark with `browser_emulate_media`.
+- Interact for real (click, type, press keys) and check `browser_console_messages` and `browser_network_requests`. A screen you never reached is not inspected.
+- Artifacts: the Playwright MCP may only write inside the repo root, so screenshots go to `.playwright-mcp/ui-qa/<screen>-<w>x<h>-<light|dark>.png` (the directory is gitignored; snapshots land in `.playwright-mcp/` too). Never commit them; delete the folder when the task is done.
+- Fallback without a working live browser: `tests/e2e` Playwright specs/screenshots, and disclose that visual QA was partial.
 - Never report visual QA done without screenshots actually viewed.
+
+## Playwright MCP setup (once per machine)
+
+Registered per user, not in the repo, so a fresh clone has none: `claude mcp add playwright -s local -- npx @playwright/mcp@0.0.83` (0.0.83 is the latest published as of 2026-10-27 and is what the current registration, `@latest`, resolves to; re-pin deliberately). Check with `claude mcp list`. No credentials are involved. A repo `.mcp.json` was not added: it would duplicate this registration and prompt every contributor to approve a browser-driving server.
