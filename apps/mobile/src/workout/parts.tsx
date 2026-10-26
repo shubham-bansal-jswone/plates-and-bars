@@ -7,6 +7,7 @@ import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
 import { BodyMap } from './BodyMap';
+import { ExerciseFigure } from './ExerciseFigure';
 import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
 import { VideoLink } from './VideoLink';
@@ -128,9 +129,10 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
     <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.sheetBody}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+          <Heading level={2} style={[type.heading, { color: c.ink }]}>
             {name}
           </Heading>
+          <ExerciseFigure name={name} />
           {card ? (
             <>
               {primary.length ? <BodyMap primary={primary} secondary={secondary} /> : null}
