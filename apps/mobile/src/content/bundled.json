@@ -10,9 +10,9 @@
     "updated_at": "2026-10-18T00:57:03Z"
   },
   "exercise-images": {
-    "sha256": "42db9cec220864cdbc681b4bfab424bc3666f86dfe7846d7123a674a2818aae0",
+    "sha256": "7852247e209dc3bcdc7ad08aa6d0c046cb323fbde37c1807c485e83499ae0de7",
     "schema_version": 1,
-    "updated_at": "2026-10-19T08:00:53Z"
+    "updated_at": "2026-10-26T22:59:35Z"
   },
   "exercise-motion": {
     "sha256": "df6c65f7f310180e4b01aa99b27f981b757df67e40cdaf4507e9d90b77e9a8b4",
@@ -37,7 +37,7 @@
   "labs": {
     "sha256": "198cdbe07dac0494fab4ed6e69e8a2ee015a29bb72408df78717462b673c6f2c",
     "schema_version": 1,
-    "updated_at": "2026-10-20T18:35:13Z"
+    "updated_at": "2026-10-20T19:10:19Z"
   },
   "meal-planning": {
     "sha256": "c60afbca533feeea23bd2891c8be138b7cc33629719c9bd61ec928fe963da652",
