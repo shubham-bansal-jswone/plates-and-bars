@@ -105,7 +105,7 @@ async function card(kv: ReturnType<typeof kvDb>, api: ApiClient, name = CARD, si
   const t = await tokens();
   await render(
     <AiProvider db={kv as never} api={api} tokens={t} signedIn={signedIn} now={NOW}>
-      <ExerciseCard ex={state(name)} info={exInfo(name, getCatalog())} sug={{ mode: 'new', reps: 8, text: '', reason: '' }} focus={[]} warm={null} act={actions} infoOf={(n) => exInfo(n, getCatalog())} />
+      <ExerciseCard ex={state(name)} info={exInfo(name, getCatalog())} sug={{ mode: 'new', reps: 8, text: '', reason: '' }} focus={[]} warm={null} act={actions} prior={0} infoOf={(n) => exInfo(n, getCatalog())} />
     </AiProvider>,
   );
 }

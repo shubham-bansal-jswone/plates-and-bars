@@ -17,6 +17,7 @@ function card(o: { learning?: boolean; prior?: number; done?: number; sets?: num
   const ex: ExState = { name: NAME, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets };
   return render(<ExerciseCard ex={ex} info={exInfo(NAME, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} infoOf={(n) => exInfo(n, getCatalog())} learning={o.learning ?? true} prior={o.prior} />);
 }
+const openGuide = () => fireEvent.press(screen.getByRole('button', { name: `Guide and tools for ${NAME}` }));
 const setup = () => screen.getByRole('button', { name: `Setup steps for ${NAME}` });
 
 describe('Learn mode block', () => {
@@ -30,6 +31,7 @@ describe('Learn mode block', () => {
 
   it('on a later learn session keeps Setup closed until it is opened, and the user can close it again', async () => {
     await card({ prior: 1 });
+    await openGuide();
     expect(screen.getByText('Learn mode')).toBeTruthy();
     expect(setup().props.accessibilityState).toMatchObject({ expanded: false });
     expect(screen.queryByText(`1. ${steps()[0]}`)).toBeNull();
@@ -49,6 +51,7 @@ describe('Learn mode block', () => {
   it('cycles back to the first cue after the last one', async () => {
     const n = getCatalog().cards[NAME]!.key_cues.length;
     await card({ prior: 1, done: n, sets: n + 1 });
+    await openGuide();
     expect(screen.getByText(`Focus this set: ${cue(0)}`)).toBeTruthy();
   });
 
