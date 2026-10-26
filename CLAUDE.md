@@ -42,3 +42,7 @@ This project is indexed by GitNexus as **plates-and-bars** (1219 symbols, 2559 r
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## UI/UX
+
+Any task that changes how a screen looks, lays out, or behaves for the user (apps/mobile, apps/site): load `.claude/skills/ui-ux/SKILL.md` first.
