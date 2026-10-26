@@ -12,7 +12,9 @@ import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../compon
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
-import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
+import { CheckinCard, RapidLossCard, ThisWeekCard } from '../progress/CheckinCard';
+import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
+import { useHistory } from '../progress/history/useHistory';
 import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { TrendChart } from '../progress/TrendChart';
@@ -59,15 +61,25 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const labs = useLabs({ db, today: v.today, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
+  const hist = useHistory(db, dataVersion);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const opened = openDay ? hist?.sessions.find((s) => s.date === openDay) : undefined;
+
   const ready = status === 'ready' && p.ready;
+  const showDay = ready && !!hist && !!opened;
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page>
+      <Page resetKey={openDay}>
+        {hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} lifts={hist.lifts} onBack={() => setOpenDay(null)} /> : null}
+        {/* Hidden, not unmounted, while a day is open: typed weights and the sections' state survive going back. */}
+        <View style={showDay ? styles.hidden : styles.body}>
         {ready ? <H1>Progress</H1> : null}
         <DateBar v={v} />
         {ready ? (
           <>
+            <ThisWeekCard date={p.date} c={ci} />
+            {hist ? <RecentWorkouts sessions={hist.sessions} onOpen={setOpenDay} /> : null}
             <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
@@ -83,6 +95,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
         ) : (
           <Hint>Loading…</Hint>
         )}
+        </View>
       </Page>
       <ToastBar message={toast} />
     </View>
@@ -100,7 +113,7 @@ function WeightSection({ p }: { p: Progress }) {
   const series = weightSeries(p.weights, p.date);
   const change = trendChange(series);
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Body weight</Heading>
       <View style={styles.inline}>
         <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={text} onChangeText={setText} />
@@ -116,7 +129,7 @@ function WeightSection({ p }: { p: Progress }) {
         <Hint>{TREND_NONE}</Hint>
       )}
       {recent.map((w) => (
-        <Card key={w.date} style={styles.row} accessible accessibilityLabel={`${w.date}, ${r1(w.weight_kg)} kg`}>
+        <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${w.date}, ${r1(w.weight_kg)} kg`}>
           <Text style={{ color: c.muted }}>{w.date}</Text>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{`${r1(w.weight_kg)} kg`}</Text>
         </Card>
@@ -131,7 +144,7 @@ function WeightSection({ p }: { p: Progress }) {
           <Button label="Got it" onPress={p.dismissJump} />
         </Card>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
@@ -149,7 +162,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
   const waist = waistSeries(p.tapes, p.date);
   const waistChange = trendChange(waist);
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
       {shown.map((m) => (
         <View key={m.key} style={styles.field}>
@@ -174,7 +187,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
         <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint>
       )}
       <Hint>{`How to measure. ${HOW_TO_MEASURE}`}</Hint>
-    </View>
+    </Card>
   );
 }
 
@@ -183,7 +196,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
   const [steps, setSteps] = useStoredText(p.today?.steps != null ? String(p.today.steps) : ''); // 0 is a real count (#303)
   const [sleep, setSleep] = useStoredText(p.today?.sleep != null ? String(p.today.sleep) : ''); // 0 h is valid (contract 0-24)
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Heading>
       <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={steps} onChangeText={setSteps} />
       <Hint>{`steps today, target about ${fmt(stepsTarget(p.notes, p.date))}`}</Hint>
@@ -193,12 +206,14 @@ function StepsSleepSection({ p }: { p: Progress }) {
       <Hint>hours slept last night (aim for 7–9)</Hint>
       <WhyLink id="sleep" />
       <Button label="Save steps and sleep" onPress={() => p.saveStepsSleep(steps, sleep)} />
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  body: { gap: 8 },
+  hidden: { display: 'none' },
   section: { gap: 8, marginTop: 16 },
   inline: { gap: 8 },
   field: { gap: 4 },
