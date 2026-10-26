@@ -77,7 +77,7 @@ describe('ExerciseCard guide and collapse', () => {
     await card({ expanded: false, done: 2, onToggle });
     expect(screen.queryByLabelText(`${NAME} set 1 kg`)).toBeNull();
     expect(screen.getByText('2/3 sets')).toBeTruthy();
-    const row = screen.getByRole('button', { name: `${NAME}, 2 of 3 sets done. Show sets` });
+    const row = screen.getByRole('button', { name: `${NAME}, 2/3 sets. Show sets` });
     expect(row.props.accessibilityState).toMatchObject({ expanded: false });
     await fireEvent.press(row);
     expect(onToggle).toHaveBeenCalledTimes(1);

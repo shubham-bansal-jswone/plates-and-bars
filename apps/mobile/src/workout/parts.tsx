@@ -81,7 +81,7 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
             testID="rest-title"
             accessibilityLabel={left ? `Rest ${time}` : REST_DONE}
             aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined}
-            style={[left ? (time.length > 4 ? type.metricSm : type.metric) : type.label, tabular, { color: c.ink, textAlign: 'center' }]}
+            style={[left ? (time.length > 4 ? type.metricSm : [type.metric, styles.count]) : type.label, tabular, { color: c.ink, textAlign: 'center' }]}
           >
             {left ? time : REST_DONE}
           </Text>
@@ -181,9 +181,11 @@ const styles = StyleSheet.create({
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
   restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, alignItems: 'center' },
-  restWide: { left: undefined, right: 16, bottom: 16, width: 360, padding: 0 },
+  restWide: { left: 'auto', right: 16, bottom: 16, width: 360, padding: 0 },
   rest: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: 560, padding: 8 },
   restSide: { flex: 1, gap: 4 },
+  // The 56 px metric size is wider than the 116 px inside the ring's stroke for "2:30"; 48 sits inside it.
+  count: { fontSize: 48, lineHeight: 52 },
   restBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { press } from './disclosure-helpers';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSwap } from '../src/db/rules';
@@ -21,7 +22,7 @@ async function setup(before?: (db: ReturnType<typeof memoryDb>) => Promise<void>
   await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
   return db;
 }
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 const workout = (db: ReturnType<typeof memoryDb>) => JSON.parse(db.rows.get(`workouts:${DATE}`) as string) as Workout;
 const setCounts = (db: ReturnType<typeof memoryDb>) => {
   const n: Record<string, number> = {};

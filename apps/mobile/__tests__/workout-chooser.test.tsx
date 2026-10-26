@@ -1,4 +1,5 @@
 import { AccessibilityInfo } from 'react-native';
+import { expand, press } from './disclosure-helpers';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { doneCoverage, type CoverageDay } from '@plate-and-bar/core';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -28,7 +29,7 @@ async function setup(now = THURSDAY, adjustments: Record<string, unknown> = {}) 
   await render(withProfile(db, <WorkoutScreen db={db} now={now} />));
   return db;
 }
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 const nothingStored = (db: ReturnType<typeof memoryDb>) => {
   expect([...db.rows.keys()].filter((k) => k.startsWith('workouts:'))).toEqual([]);
   expect(db.sets.size).toBe(0);
@@ -47,6 +48,7 @@ describe('Choosing a workout previews it (#1005)', () => {
     nothingStored(db);
     await press('Back to workouts');
     expect(await screen.findByText('Push B day')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Choose another day'));
     expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
     expect(screen.queryByText('Session')).toBeNull();
     nothingStored(db);
@@ -101,6 +103,7 @@ describe('A session mixing exercises from several workouts (#1005)', () => {
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 kg'), '50');
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 reps'), '8');
     await press('Mark Lat Pulldown set 1 done');
+    await expand('Barbell Bench Press');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '40');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '8');
     await press('Mark Barbell Bench Press set 1 done');
@@ -129,7 +132,8 @@ describe('A session mixing exercises from several workouts (#1005)', () => {
     await screen.findByText('Push B');
     await press('Add exercise');
     await press('Add Lat Pulldown from Pull A');
-    await screen.findByLabelText('Lat Pulldown set 1 kg');
+    await screen.findByRole('button', { name: /^Lat Pulldown, / });
+    await expand('Lat Pulldown');
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 kg'), '50');
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 reps'), '8');
     await press('Mark Lat Pulldown set 1 done');
@@ -188,6 +192,7 @@ describe('Preview picks and announcements (#1005)', () => {
     await press('Add Barbell Bench Press');
     await press('Remove Barbell Bench Press from your exercises');
     expect(await screen.findByText('Push B day')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Choose another day'));
     expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
   });
 

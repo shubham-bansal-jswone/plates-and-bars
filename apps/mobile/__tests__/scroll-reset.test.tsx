@@ -1,4 +1,5 @@
 import { ScrollView } from 'react-native';
+import { press } from './disclosure-helpers';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -14,7 +15,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 const TOP = { x: 0, y: 0, animated: false };
 const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo');
 beforeEach(() => scrollTo.mockClear());
