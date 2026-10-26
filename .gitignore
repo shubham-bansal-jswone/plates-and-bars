@@ -1,2 +1,5 @@
 .DS_Store
 backend/bin/
+
+# Playwright MCP snapshots and ui-qa screenshots (scratch)
+.playwright-mcp/

@@ -16,3 +16,14 @@ Return a brief of at most one page:
 - System impact: tokens or components to add or change, so implementers keep one coherent system.
 - Success criteria checkable in a browser (contrast, targets, legibility).
 Mention a trade-off only when it matters to the decision.
+
+Design guidance:
+- Start from the product, audience and task, not from a style. Write the direction as a sentence a developer could test ("a one-handed gym-floor logger: big numbers, one action per view") before choosing any value.
+- Use hierarchy, type, spacing, colour, layout and interaction on purpose: each choice either carries meaning, aids scanning or reduces effort. Drop anything that does none of these.
+- Avoid the templated AI layout: stacked identical cards, centred hero plus three feature tiles, gradient accents with no job, one radius and shadow everywhere.
+- State a trade-off when it changes the user's experience (density vs. tap size, glanceability vs. detail) and say which side you took.
+- Judge rendered output, not source. Ask `ui-qa` or inspect screenshots at 375, 768 and 1280, light and dark, before calling a design done. Do not prescribe a house palette, font, radius, shadow or component style; derive them for the task.
+
+Format example of a useful defect report (figures are illustrative; real reports use measured values, one cause each):
+`D3 | 375x812 light | Setup > Sex: the two option rows are 54px tall but the "Continue" button is 48px and sits 16px below the Weight field, so the primary action reads as part of the form, not the next step | the one action competes with six equal-weight controls; users hesitate | major | .playwright-mcp/ui-qa/setup-375x812-light.png`
+Not useful: "spacing feels off", "looks generic".
