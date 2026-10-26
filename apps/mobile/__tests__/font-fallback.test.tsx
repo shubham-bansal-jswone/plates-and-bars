@@ -70,9 +70,9 @@ describe.each(['web', 'ios', 'android'] as const)('font fallback on %s', (os) =>
   it('ready: Inter, with the stack behind it on web only', async () => {
     mockUseFonts.mockReturnValue([true, null]);
     await renderAll();
-    const expected = os === 'web' ? `Inter_400Regular, ${STACK}` : 'Inter_400Regular';
     for (const f of svgFamilies()) expect(f).toBe('Inter_400Regular');
-    expect(StyleSheet.flatten(screen.getByLabelText('field').props.style).fontFamily).toBe(expected);
+    // Inputs are set in Inter SemiBold (the identity's entry fields read as numbers).
+    expect(StyleSheet.flatten(screen.getByLabelText('field').props.style).fontFamily).toBe(os === 'web' ? `Inter_600SemiBold, ${STACK}` : 'Inter_600SemiBold');
     expect(StyleSheet.flatten(screen.getByText('Bold').props.style).fontFamily).toBe(
       os === 'web' ? `Inter_700Bold, ${STACK}` : 'Inter_700Bold',
     );

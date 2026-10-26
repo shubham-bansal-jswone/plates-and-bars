@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   lab: { width: 56 },
   bar: { flex: 1, minHeight: 32, borderRadius: 8, overflow: 'hidden', justifyContent: 'center' },
   // Prototype `.bar .fill{opacity:.85}`: the fill is the data mark, so it stays near-solid. Dropping it further
-  // against `track` falls under the 3:1 DESIGN.md §11.1 asks of bars.
+  // against `track` falls under the 3:1 a bar needs against its track.
   fill: { position: 'absolute', top: 0, bottom: 0, left: 0, opacity: 0.85 },
   // Prototype `.bar .tgt{opacity:.5}`: the target line is a quieter mark than the fill, so it keeps the prototype's
   // half opacity. A test asserts it.

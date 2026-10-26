@@ -58,6 +58,6 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
 
 describe('font weights', () => {
   it('maps css weights to the faces we ship', () => {
-    expect(['300', 300, 'normal', undefined, '500', '600', 'bold', '800'].map(toWeight)).toEqual(['300', '300', '400', '400', '500', '600', '700', '700']);
+    expect(['300', 300, 'normal', undefined, '500', '600', 'bold', '800', '900'].map(toWeight)).toEqual(['300', '300', '400', '400', '500', '600', '700', '800', '900']);
   });
 });
