@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { cleanTarget, fitCarbs, macroKcal, macrosOff, RAPID_LOSS_KCAL, type TargetSet } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { Button, Caption, Field, Hint, Label } from '../components/ui';
+import { Button, Caption, Field, Hint } from '../components/ui';
 import type { Profile } from '../setup/types';
 
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -57,8 +57,7 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
   };
   const off = macrosOff(t);
   return (
-    <View style={{ gap: 8, marginTop: 16 }}>
-      <Label>Daily targets</Label>
+    <View style={{ gap: 8 }}>
       {FIELDS.map(([k, label]) => (
         <View key={k} style={{ gap: 4 }}>
           <Caption>{label}</Caption>
