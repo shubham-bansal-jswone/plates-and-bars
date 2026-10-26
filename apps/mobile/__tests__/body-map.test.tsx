@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import { BodyMap } from '../src/workout/BodyMap';
+import { BodyMap, blend } from '../src/workout/BodyMap';
 import { REGIONS } from '../src/workout/bodyMapData';
 import { light } from '../src/theme/tokens';
 
@@ -9,6 +9,7 @@ interface Node {
   children?: Node[] | null;
 }
 const argb = (hex: string) => (0xff000000 + parseInt(hex.slice(1), 16)) >>> 0;
+const also = blend(light.brand, light.surfaceSoft, 0.35);
 const REGION_OF = new Map<string, string>(Object.values(REGIONS).flatMap((list) => list.flatMap(([region, polys]) => polys.map((p) => [`M${p}z`, region] as [string, string]))));
 
 /** Region name to the set of fills its polygons were drawn with. */
@@ -29,14 +30,14 @@ function drawn(): Map<string, Set<number>> {
 const regionsWith = (fill: string) => [...drawn()].filter(([, f]) => f.has(argb(fill))).map(([r]) => r).sort();
 
 describe('BodyMap', () => {
-  it('draws main muscles in the fat colour, also-working in the carbs colour and the rest in the line colour', async () => {
+  it('draws main muscles in the brand colour, also-working at 35% of it and the rest in the soft surface colour', async () => {
     await render(<BodyMap primary={['chest']} secondary={['triceps']} />);
     const d = drawn();
-    expect(d.get('CHEST')).toEqual(new Set([argb(light.fat)]));
-    expect(d.get('TRICEPS')).toEqual(new Set([argb(light.carbs)]));
-    expect(d.get('ABS')).toEqual(new Set([argb(light.line)]));
-    expect(regionsWith(light.fat)).toEqual(['CHEST']);
-    expect(regionsWith(light.carbs)).toEqual(['TRICEPS']);
+    expect(d.get('CHEST')).toEqual(new Set([argb(light.brand)]));
+    expect(d.get('TRICEPS')).toEqual(new Set([argb(also)]));
+    expect(d.get('ABS')).toEqual(new Set([argb(light.surfaceSoft)]));
+    expect(regionsWith(light.brand)).toEqual(['CHEST']);
+    expect(regionsWith(also)).toEqual(['TRICEPS']);
   });
 
   it.each([
@@ -57,13 +58,13 @@ describe('BodyMap', () => {
     ['forearms', ['FOREARM']],
   ])('lights up the right regions for %s', async (muscle, regions) => {
     await render(<BodyMap primary={[muscle]} secondary={[]} />);
-    expect(regionsWith(light.fat)).toEqual(regions);
+    expect(regionsWith(light.brand)).toEqual(regions);
   });
 
   it('a muscle that is both main and also-working shows as main', async () => {
     await render(<BodyMap primary={['chest']} secondary={['chest']} />);
-    expect(regionsWith(light.fat)).toEqual(['CHEST']);
-    expect(regionsWith(light.carbs)).toEqual([]);
+    expect(regionsWith(light.brand)).toEqual(['CHEST']);
+    expect(regionsWith(also)).toEqual([]);
   });
 
   it('speaks the also-working muscles as well as the main ones', async () => {
