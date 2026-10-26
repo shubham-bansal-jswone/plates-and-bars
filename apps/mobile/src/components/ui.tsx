@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
   opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
-  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 40, justifyContent: 'center' },
+  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
 });
