@@ -137,7 +137,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page>
+      <Page wide>
         <H1>Food</H1>
         <DateBar key="date-bar" v={v} />
         <View style={wide ? styles.cols : styles.stack}>

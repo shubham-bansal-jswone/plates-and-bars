@@ -63,7 +63,7 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
   return (
     <Card style={styles.gap}>
       <View style={styles.head}>
-        <View accessible accessibilityLabel={`Estimated burn today so far, ${range}`}>
+        <View style={{ flexShrink: 1 }} accessible accessibilityLabel={`Estimated burn today so far, ${range}`}>
           <Hint>Estimated burn today so far</Hint>
           <Text style={{ color: c.ink, fontWeight: '700', fontSize: 18 }}>{range}</Text>
         </View>
