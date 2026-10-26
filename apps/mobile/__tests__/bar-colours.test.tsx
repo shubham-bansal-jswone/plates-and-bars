@@ -1,3 +1,4 @@
+import { processColor } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { WaterCard } from '../src/food/WaterCard';
@@ -36,8 +37,8 @@ describe.each([['light', light], ['dark', dark]] as const)('goal bars in %s', (_
     expect(bg(fill)).toBe(p.bar);
   });
 
-  it('draws the rest-timer fill in the bar colour', async () => {
+  it('draws the rest-timer ring in the brand colour', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 60000, total: 90, label: 'Bench' }} onAdd={() => {}} onSkip={() => {}} />);
-    expect(bg(screen.getByLabelText(/^Rest \d+% done$/))).toBe(p.bar);
+    expect(screen.getByTestId('ring-progress').props.stroke.payload).toBe(processColor(p.brand));
   });
 });
