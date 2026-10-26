@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Skeleton } from '../components/Skeleton';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -93,7 +94,7 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   return (
     <View style={styles.gap}>
       {failed ? <Hint>Couldn’t read your coverage.</Hint> : null}
-      {!rows && !failed ? <Hint>Loading…</Hint> : null}
+      {!rows && !failed ? <Skeleton heights={[72]} /> : null}
       {rows ? (
         <>
           <Meter title="Weekly coverage: your plan" rows={rows.planned} />
