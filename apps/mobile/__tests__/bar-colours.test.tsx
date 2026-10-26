@@ -1,6 +1,5 @@
-import { processColor } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { processColor, StyleSheet } from 'react-native';
 import { WaterCard } from '../src/food/WaterCard';
 import { Meter } from '../src/targets/sections';
 import { RestBar } from '../src/workout/parts';

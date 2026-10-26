@@ -44,6 +44,7 @@ describe('Workout and water follow the week plan and sequence mode (#681)', () =
     expect(await screen.findByText('Upper A day')).toBeTruthy();
     expect(screen.getByText('This week’s 4-day plan.')).toBeTruthy();
     expect(screen.getByLabelText('Start Upper A')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Choose another day'));
     expect(screen.getByLabelText('Choose Lower B')).toBeTruthy();
     expect(screen.queryByLabelText('Choose Push A')).toBeNull();
   });

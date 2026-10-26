@@ -191,13 +191,13 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <Card style={{ paddingVertical: 0 }}>
         <Press
           accessibilityRole="button"
-          accessibilityLabel={`${ex.name}, ${doneCount} of ${n} sets done. Show sets`}
+          accessibilityLabel={`${ex.name}, ${doneCount}/${n} sets. Show sets`}
           {...a11yState({ expanded: false })}
           onPress={onToggle}
           style={styles.collapsed}
         >
           <Text style={[type.bodyStrong, { color: c.ink, flex: 1 }]}>{ex.name}</Text>
-          <Text style={[type.caption, tabular, { color: allDone ? c.brand : c.muted }]}>{doneCount}/{n} sets</Text>
+          <Text style={[type.caption, tabular, { color: allDone ? c.brand : c.muted }]}>{' '}{doneCount}/{n} sets</Text>
           {allDone ? (
             <Svg width={20} height={20} viewBox="0 0 24 24" aria-hidden>
               <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={c.brand} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />

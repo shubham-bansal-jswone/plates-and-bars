@@ -351,12 +351,17 @@ function Chevron({ open, color }: { open: boolean; color: string }) {
 }
 
 /**
- * A 56px row that shows or hides its children (`aria-expanded`). Uncontrolled: `defaultOpen` sets the first state.
+ * A 56px row that shows or hides its children (`aria-expanded`). `defaultOpen` sets the first state; pass `open` to control it.
  * Children are not mounted while closed.
  */
-export function Disclosure({ label, defaultOpen = false, a11yLabel, children }: { label: string; defaultOpen?: boolean; a11yLabel?: string; children: ReactNode }) {
+export function Disclosure({ label, defaultOpen = false, open: controlled, onOpenChange, a11yLabel, children }: { label: string; defaultOpen?: boolean; /** Controlled: the parent holds the state (so it can open the row itself). */ open?: boolean; onOpenChange?: (open: boolean) => void; a11yLabel?: string; children: ReactNode }) {
   const c = useTheme();
-  const [open, setOpen] = useState(defaultOpen);
+  const [own, setOwn] = useState(defaultOpen);
+  const open = controlled ?? own;
+  const setOpen = (o: boolean) => {
+    setOwn(o);
+    onOpenChange?.(o);
+  };
   return (
     <View style={{ gap: space.sm }}>
       <Press
