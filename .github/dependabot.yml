@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    target-branch: design-overhaul
     schedule:
       interval: weekly
     ignore:
@@ -12,6 +13,7 @@ updates:
         update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /packages/api
+    target-branch: design-overhaul
     schedule:
       interval: weekly
     ignore:
@@ -22,6 +24,7 @@ updates:
         versions: [">=23"]
   - package-ecosystem: npm
     directory: /packages/core
+    target-branch: design-overhaul
     schedule:
       interval: weekly
     ignore:
@@ -32,6 +35,7 @@ updates:
         versions: [">=23"]
   - package-ecosystem: npm
     directory: /apps/mobile
+    target-branch: design-overhaul
     schedule:
       interval: weekly
     ignore:
@@ -60,6 +64,7 @@ updates:
         update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /apps/site
+    target-branch: design-overhaul
     schedule:
       interval: weekly
     ignore:
@@ -68,6 +73,7 @@ updates:
         versions: [">=23"]
   - package-ecosystem: npm
     directory: /tests/e2e
+    target-branch: design-overhaul
     schedule:
       interval: weekly
     ignore:
@@ -76,10 +82,12 @@ updates:
         versions: [">=23"]
   - package-ecosystem: npm
     directory: /tools
+    target-branch: design-overhaul
     schedule:
       interval: weekly
   - package-ecosystem: gradle
     directory: /backend
+    target-branch: design-overhaul
     schedule:
       interval: weekly
     ignore:
