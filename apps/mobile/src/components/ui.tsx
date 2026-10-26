@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
-import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
+import { dark, glowShadow, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
@@ -118,7 +118,7 @@ export function ErrorText({ children }: { children: string }) {
   );
 }
 
-/** The surface a control sits on decides its ring colour (DESIGN.md 8.1): the theme's focus colour on canvas, surface and tint; `link-dark` on a dark surface; white on a brand fill. */
+/** The surface a control sits on decides its ring colour: the theme's focus colour on canvas, surface and tint; `link-dark` on a dark surface; white on a brand fill. */
 export type RingSurface = 'canvas' | 'dark' | 'brand';
 
 /** Focus ring for keyboard and switch-access focus: 2px, 2px offset. On web, mouse clicks do not show it (`:focus-visible`). */
@@ -198,6 +198,8 @@ export function Button({
         disabled && { opacity: 0.45 },
         kind !== 'link' && { backgroundColor: pressed ? palette.pressed : palette.bg, borderColor: palette.border, borderWidth: 1 },
         pressed && kind !== 'link' && { shadowColor: c.shadow, ...pressedShadow },
+        // The one glow of the identity: the primary action, at rest. Light's glow is white, so it draws nothing there.
+        kind === 'primary' && !disabled && !pressed && { shadowColor: c.glow, ...glowShadow },
       ]}
     >
       <Text style={[kind === 'link' ? type.bodyStrong : type.button, { color: palette.fg }]}>{label}</Text>
@@ -230,7 +232,7 @@ export function Choice({
       // A radio must announce its state on web too (WCAG 4.1.2).
       {...a11yState(action ? {} : { checked: selected })}
       onPress={onPress}
-      hitSlop={chip ? { top: 6, bottom: 6 } : undefined}
+      hitSlop={chip ? { top: 2, bottom: 2 } : undefined}
       style={[
         chip ? styles.chip : styles.opt,
         chip
@@ -240,6 +242,26 @@ export function Choice({
     >
       <Text style={[chip ? type.buttonSm : type.bodyStrong, { color: chip && selected ? c.onBrand : c.ink }]}>{label}</Text>
       {sub ? <Text style={[type.caption, { color: c.body }]}>{sub}</Text> : null}
+    </Press>
+  );
+}
+
+/**
+ * A toggle chip: filter, rating and quick-answer buttons. `label` is the spoken name, `text` (default the label) what shows.
+ * Selected = lime fill with dark text. One component for the whole app (it replaces the workout-only copy that lived in workout/parts).
+ */
+export function Chip({ label, text, pressed, danger, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; onPress: () => void }) {
+  const c = useTheme();
+  return (
+    <Press
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      {...a11yState({ pressed })}
+      onPress={onPress}
+      hitSlop={{ top: 2, bottom: 2 }}
+      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null]}
+    >
+      <Text style={[type.buttonSm, { color: pressed ? c.onBrand : danger ? c.danger : c.ink }]}>{text ?? label}</Text>
     </Press>
   );
 }
@@ -256,7 +278,7 @@ export function Group({ children, label }: { children: ReactNode; label?: string
   );
 }
 
-/** Flat card: `surface` fill, 8px radius, 16 padding, no border or shadow. */
+/** Flat card: `surface` fill, 20px radius, 16 padding, no border or shadow. */
 export function Card({ style, ...rest }: ViewProps) {
   const c = useTheme();
   return <View {...rest} style={[styles.card, { backgroundColor: c.surface }, style]} />;
@@ -309,12 +331,12 @@ const styles = StyleSheet.create({
   hint: { ...type.caption },
   label: { ...type.label },
   note: { ...type.caption, padding: space.md, borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
-  btn: { minHeight: 48, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
+  btn: { minHeight: 52, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
   link: { minHeight: 44, paddingHorizontal: space.xs, alignSelf: 'flex-start', justifyContent: 'center' },
-  card: { borderRadius: radius.md, padding: space.lg, gap: space.sm },
+  card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
-  opt: { borderRadius: radius.md, padding: 14, gap: 2, minHeight: 48 },
-  chip: { borderRadius: radius.full, paddingHorizontal: space.md, minHeight: 32, justifyContent: 'center' },
+  opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
+  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 40, justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
 });
