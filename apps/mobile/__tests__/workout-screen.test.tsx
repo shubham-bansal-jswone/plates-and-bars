@@ -81,6 +81,11 @@ async function seedLift(db: Db, name: string, w: number, scores?: number[]) {
 /** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
 const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
 const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+/** The "Guide and tools" disclosure is closed except on an exercise's very first session. */
+const openGuide = async (name: string) => {
+  const b = screen.getByLabelText(`Guide and tools for ${name}`);
+  if (!b.props.accessibilityState?.expanded) await fireEvent.press(b);
+};
 const stored = <T,>(db: Db, key: string) => JSON.parse(db.rows.get(key) as string) as T;
 const storedSets = (db: Db) => [...db.sets.values()].map((s) => JSON.parse(s.data) as WorkoutSet);
 const placeholder = (label: string) => screen.getByLabelText(label).props.placeholder as string;
@@ -429,6 +434,7 @@ describe('Workout tab: logging sets', () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.
     expect(screen.getByText('Suggested: 62.5 kg × 6–10 reps')).toBeTruthy();
+    await openGuide('Barbell Bench Press');
     expect(screen.getAllByLabelText('Why? How the suggested weight is chosen').length).toBeGreaterThan(0);
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
@@ -457,7 +463,7 @@ describe('Workout tab: logging sets', () => {
     expect(l.prev).toMatchObject({ date: '2026-10-05', form: 'yes' });
     expect(l.hist?.at(-1)).toEqual({ date: DATE, e: 75 });
 
-    expect(screen.getByText('Rest 2:30')).toBeTruthy();
+    expect(screen.getByLabelText('Rest 2:30')).toBeTruthy();
     // The panel sits in an opaque dock, so the "How to do" link under it cannot show through the gap.
     const dock = screen.getByLabelText('Rest timer').parent;
     expect(StyleSheet.flatten(dock?.props.style)).toMatchObject({ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: expect.any(String) });
@@ -472,9 +478,9 @@ describe('Workout tab: logging sets', () => {
     const clock = frozenClock();
     try {
       await press('Mark Barbell Bench Press set 1 done');
-      expect(await screen.findByText('Rest 2:30')).toBeTruthy();
+      expect(await screen.findByLabelText('Rest 2:30')).toBeTruthy();
       await press('+30 s');
-      expect(await screen.findByText('Rest 3:00')).toBeTruthy();
+      expect(await screen.findByLabelText('Rest 3:00')).toBeTruthy();
     } finally {
       clock.mockRestore();
     }
@@ -641,6 +647,7 @@ describe('Workout tab: logging sets', () => {
       await setup({ lifts: { 'Overhead Cable Extension': 20 } });
       await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
       await screen.findByText('Push B');
+      await openGuide('Overhead Cable Extension');
       expect(screen.getAllByText('Learn mode').length).toBeGreaterThan(0);
       expect(screen.getByLabelText('Setup steps for Overhead Cable Extension').props.accessibilityState).toMatchObject({ expanded: false });
       for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
@@ -753,6 +760,7 @@ describe('Workout tab: logging sets', () => {
 
   it('opens the how-to card from content (long keys)', async () => {
     await started();
+    await openGuide('Barbell Bench Press');
     await press('How to do Barbell Bench Press');
     const card = getCatalog().cards['Barbell Bench Press']!;
     expect(await screen.findByText(`• ${card.key_cues[0]}`)).toBeTruthy();

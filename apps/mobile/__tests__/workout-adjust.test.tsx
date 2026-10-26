@@ -48,10 +48,15 @@ async function openSession(prep?: (db: Db) => Promise<void> | void) {
   await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
   return db;
 }
+/** The "Guide and tools" disclosures are closed except on an exercise's first session: open them all. */
+const openGuides = async () => {
+  for (const b of screen.queryAllByLabelText(/^Guide and tools for /)) if (!b.props.accessibilityState?.expanded) await fireEvent.press(b);
+};
 async function started(prep?: (db: Db) => Promise<void> | void) {
   const db = await openSession(prep);
   await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
   await screen.findByText('Push B');
+  await openGuides();
   return db;
 }
 const ended = (o: Partial<ExclusionRecord> = {}): ExclusionRecord => ({
@@ -280,6 +285,8 @@ describe('stall card on a non-gym day', () => {
     seed(db, 'Lateral Raise', stalled);
     await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
     await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
+    await screen.findByLabelText('Guide and tools for Lateral Raise');
+    await openGuides();
     await screen.findByText('No progress in 3 sessions');
     expect(screen.queryByLabelText(/^Or switch to /)).toBeNull();
   });
@@ -295,6 +302,8 @@ describe('the day’s where, not the profile’s', () => {
     await saveSet(db, DATE, setRecord(ex, 'work', 0, THURSDAY()));
     seed(db, 'Lateral Raise', lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) }));
     await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
+    await screen.findByLabelText('Guide and tools for Lateral Raise');
+    await openGuides();
     await screen.findByText('No progress in 3 sessions');
     // On the profile's gym, Cable Lateral Raise would be offered.
     expect(screen.queryByLabelText(/^Or switch to /)).toBeNull();

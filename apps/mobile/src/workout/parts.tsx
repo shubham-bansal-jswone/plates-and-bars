@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
-import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from '../components/Text';
 import { Chip, Heading, Button, Hint } from '../components/ui';
-import { pressedShadow, radius, type } from '../theme/tokens';
+import { pressedShadow, radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
 import { BodyMap } from './BodyMap';
 import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
+import { Ring } from './Ring';
 import { VideoLink } from './VideoLink';
 
 // `Chip` lives in components/ui.tsx now (one chip for the whole app); re-exported so existing imports keep working.
@@ -66,29 +67,35 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
     }
   }, [ended, rest.end]);
   const pct = Math.min(100, (1 - left / rest.total) * 100);
+  const wide = useWindowDimensions().width >= 1024;
+  const time = mmss(left);
   return (
-    // The outer layer is opaque and runs to the screen edge, so the page behind never shows through the gap around the panel.
-    <View style={[styles.restDock, { backgroundColor: c.bg }]}>
-      <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
-        <View style={styles.restRow}>
-          <View style={{ flexShrink: 1 }}>
-            {/* At zero on Android and web the visible "Rest done, go!" is hidden from assistive tech: the live region below says it,
-                so a swipe through the bar does not read it twice. On iOS the live region does not speak and its transparent text is
-                skipped, so the visible text stays readable there. While counting, the text stays readable everywhere. */}
-            <Text testID="rest-title" aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>{left ? `Rest ${mmss(left)}` : REST_DONE}</Text>
-            {/* Screen readers only announce a live region whose text changes after it is mounted. This one is mounted empty with
-                the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second.
-                srOnly hides it visually only: no display: none and no aria-hidden, which would silence the region. */}
-            <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : REST_DONE}</Text>
-            <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
-          </View>
+    // The dock is opaque and runs to the screen edge, so the page behind never shows through. On a wide screen it is a floating panel bottom-right.
+    <View style={[styles.restDock, wide ? styles.restWide : { backgroundColor: c.bg, borderColor: c.line, borderTopWidth: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }]}>
+      <View accessibilityLabel="Rest timer" style={[styles.rest, wide && { backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: radius.lg }]}>
+        <Ring progress={pct / 100} label={`Rest ${Math.round(pct)}% done`}>
+          {/* At zero on Android and web the visible "Rest done, go!" is hidden from assistive tech: the live region below says it,
+              so a swipe through the bar does not read it twice. On iOS the live region does not speak and its transparent text is
+              skipped, so the visible text stays readable there. While counting, the text stays readable everywhere. */}
+          <Text
+            testID="rest-title"
+            accessibilityLabel={left ? `Rest ${time}` : REST_DONE}
+            aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined}
+            style={[left ? (time.length > 4 ? type.metricSm : type.metric) : type.label, tabular, { color: c.ink, textAlign: 'center' }]}
+          >
+            {left ? time : REST_DONE}
+          </Text>
+        </Ring>
+        <View style={styles.restSide}>
+          {/* Screen readers only announce a live region whose text changes after it is mounted. This one is mounted empty with
+              the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second.
+              srOnly hides it visually only: no display: none and no aria-hidden, which would silence the region. */}
+          <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : REST_DONE}</Text>
+          <Text accessibilityLiveRegion="polite" style={[type.bodyStrong, { color: c.ink }]}>{rest.label}</Text>
           <View style={styles.restBtns}>
             <Button label="+30 s" kind="ghost" onPress={onAdd} />
-            <Button label={left ? 'Skip' : 'Close'} kind="ghost" onPress={onSkip} />
+            <Button label={left ? 'Skip' : 'Close'} kind={left ? 'ghost' : 'primary'} onPress={onSkip} />
           </View>
-        </View>
-        <View style={[styles.track, { backgroundColor: c.track }]}>
-          <View accessibilityLabel={`Rest ${Math.round(pct)}% done`} style={[styles.fill, { backgroundColor: c.bar, width: `${pct}%` }]} />
         </View>
       </View>
     </View>
@@ -173,12 +180,11 @@ const styles = StyleSheet.create({
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
-  restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 8, alignItems: 'center' },
-  rest: { width: '100%', borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
-  restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
-  restBtns: { flexDirection: 'row', gap: 8 },
-  track: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
-  fill: { height: 8 },
+  restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, alignItems: 'center' },
+  restWide: { left: undefined, right: 16, bottom: 16, width: 360, padding: 0 },
+  rest: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: 560, padding: 8 },
+  restSide: { flex: 1, gap: 4 },
+  restBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },
 });

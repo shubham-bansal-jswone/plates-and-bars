@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
-import { dark, glowShadow, pressedShadow, radius, space, type } from '../theme/tokens';
+import Svg, { Path } from 'react-native-svg';
+import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
@@ -339,4 +340,57 @@ const styles = StyleSheet.create({
   chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 40, justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
+});
+
+function Chevron({ open, color }: { open: boolean; color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" aria-hidden style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
+      <Path d="M7 4l6 6-6 6" stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/**
+ * A 56px row that shows or hides its children (`aria-expanded`). Uncontrolled: `defaultOpen` sets the first state.
+ * Children are not mounted while closed.
+ */
+export function Disclosure({ label, defaultOpen = false, a11yLabel, children }: { label: string; defaultOpen?: boolean; a11yLabel?: string; children: ReactNode }) {
+  const c = useTheme();
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <View style={{ gap: space.sm }}>
+      <Press
+        accessibilityRole="button"
+        accessibilityLabel={a11yLabel ?? label}
+        {...a11yState({ expanded: open })}
+        onPress={() => setOpen(!open)}
+        style={[extra.disclosure, { borderColor: c.line }]}
+      >
+        <Text style={[type.bodyStrong, { color: c.muted, flex: 1 }]}>{label}</Text>
+        <Chevron open={open} color={c.muted} />
+      </Press>
+      {open ? children : null}
+    </View>
+  );
+}
+
+/** A row of up to 3 figures with 1px dividers between them, each cell at least 56px tall. */
+export function MetricRow({ cells }: { cells: readonly { label: string; value: string }[] }) {
+  const c = useTheme();
+  return (
+    <View style={extra.metricRow}>
+      {cells.map((m, i) => (
+        <View key={m.label} accessible accessibilityLabel={`${m.label}: ${m.value}`} style={[extra.metricCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: c.line }]}>
+          <Text style={[type.metricSm, tabular, { color: c.ink }]}>{m.value}</Text>
+          <Text style={[type.small, { color: c.muted }]}>{m.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const extra = StyleSheet.create({
+  disclosure: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.sm, borderTopWidth: 1 },
+  metricRow: { flexDirection: 'row' },
+  metricCell: { flex: 1, minHeight: 56, paddingHorizontal: space.sm, justifyContent: 'center', alignItems: 'center' },
 });
