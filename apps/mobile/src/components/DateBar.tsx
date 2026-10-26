@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import { dateLabel, dateSub, type ViewedDate } from '../state/ViewedDate';
+import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Text } from './Text';
 import { Press } from './ui';
@@ -47,7 +48,7 @@ export function DateBar({ v }: { v: ViewedDate }) {
         <Text style={{ color: c.ink, fontSize: 22 }}>‹</Text>
       </Press>
       <View style={styles.mid} accessible accessibilityLabel={`${label}, ${sub}`}>
-        <Text style={{ color: c.ink, fontWeight: '700' }}>{label}</Text>
+        <Text style={[type.label, { color: c.ink }]}>{label}</Text>
         <Text style={{ color: c.muted, fontSize: 13 }}>{sub}</Text>
       </View>
       <Press accessibilityRole="button" accessibilityLabel="Next day" disabled={v.isToday} onPress={v.next} style={[styles.btn, v.isToday && { opacity: 0.3 }]}>

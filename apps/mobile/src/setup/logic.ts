@@ -72,6 +72,32 @@ export function validateStep(step: number, d: Draft): string {
   return e ? ERROR_COPY[e] : '';
 }
 
+/** The form field an error belongs to, so the UI shows it under that field. */
+export type SetupField = 'sex' | 'age' | 'height' | 'weight' | 'activity' | 'days' | 'where' | 'exp' | 'minutes' | 'goal' | 'screen';
+
+const FIELD_OF: Record<SetupError, SetupField> = {
+  sex_missing: 'sex',
+  age_missing: 'age',
+  age_under_min: 'age',
+  age_over_max: 'age',
+  height_ft_out_of_range: 'height',
+  height_cm_out_of_range: 'height',
+  weight_out_of_range: 'weight',
+  activity_missing: 'activity',
+  days_missing: 'days',
+  where_missing: 'where',
+  exp_missing: 'exp',
+  minutes_missing: 'minutes',
+  goal_missing: 'goal',
+  screen_incomplete: 'screen',
+};
+
+/** The field core's one error for this step names, or null when the step is complete (core still reports one error at a time). */
+export function errorField(step: number, d: Draft): SetupField | null {
+  const e = validateSetupStep(step, d);
+  return e ? FIELD_OF[e] : null;
+}
+
 /** Today as a local `YYYY-MM-DD` (the format core's `normaliseSetup` takes). */
 export function localDate(now: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import { dark, glowShadow, pressedShadow, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
@@ -13,8 +13,9 @@ const ScrollTop = createContext<() => void>(() => {});
  * The ScrollView is reused when the content under it changes, so the offset carries over (#1060); a child that swaps its
  * content in place passes `resetKey` (the page itself) or calls `useScrollToTopOn` (a child) to start the new content at the top.
  */
-export function Page({ children, resetKey }: { children: ReactNode; resetKey?: unknown }) {
+export function Page({ children, resetKey, wide }: { children: ReactNode; resetKey?: unknown; /** Let the column grow to 1040px on a wide screen (>= 900px) for a two-column card layout; forms leave it off. */ wide?: boolean }) {
   const c = useTheme();
+  const isWide = useWide();
   const bottom = useBottomInset();
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
   const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
@@ -26,10 +27,15 @@ export function Page({ children, resetKey }: { children: ReactNode; resetKey?: u
   return (
     <ScrollView ref={ref} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
       <ScrollTop.Provider value={toTop}>
-        <View role="main" style={styles.column}>{children}</View>
+        <View role="main" style={[styles.column, wide && isWide ? styles.columnWide : null]}>{children}</View>
       </ScrollTop.Provider>
     </ScrollView>
   );
+}
+
+/** True on a screen at least 900px wide: the width where `Page` lets a `wide` screen lay its cards out in two columns. */
+export function useWide(): boolean {
+  return useWindowDimensions().width >= 900;
 }
 
 /** Scrolls the enclosing `Page` back to the top whenever `key` changes (not on first render). */
@@ -266,8 +272,9 @@ export function Chip({ label, text, pressed, danger, onPress }: { label: string;
   );
 }
 
-export function Field({ label, ...rest }: TextInputProps & { label: string }) {
-  return <Input accessibilityLabel={label} style={styles.input} {...rest} />;
+export function Field({ label, invalid, ...rest }: TextInputProps & { label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border. */ invalid?: boolean }) {
+  const c = useTheme();
+  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} style={[styles.input, invalid ? { borderColor: c.danger } : null]} {...rest} />;
 }
 
 export function Group({ children, label }: { children: ReactNode; label?: string }) {
@@ -327,6 +334,7 @@ export const layout = StyleSheet.create({
 const styles = StyleSheet.create({
   page: { padding: space.lg, alignItems: 'center', flexGrow: 1 },
   column: { width: '100%', maxWidth: 560, gap: space.sm },
+  columnWide: { maxWidth: 1040 },
   h1: { ...type.title, marginTop: space.sm },
   hint: { ...type.caption },
   label: { ...type.label },
