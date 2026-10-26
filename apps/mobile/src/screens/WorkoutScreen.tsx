@@ -30,6 +30,7 @@ import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { CompletionPanel } from '../workout/CompletionPanel';
+import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRestNotification } from '../reminders/useRestNotification';
@@ -315,7 +316,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
     <View>
       {list.map((n, i) => (
         <View key={n} style={[styles.exRow, { borderColor: c.line }]}>
-          <IndexThumb n={i + 1} />
+          <IndexThumb n={i + 1} name={n} />
           <Text accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ flex: 1 }}>
             <Text style={[type.bodyStrong, { color: c.ink }]}>{n}</Text>
             <Text style={[type.caption, { color: c.muted }]}>{'\n'}{listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
@@ -412,6 +413,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
           </View>
         </Disclosure>
       )}
+      <LibraryEntryButton />
       <ModeNote notify={notify} />
     </>
   );

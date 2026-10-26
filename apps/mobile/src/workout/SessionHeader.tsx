@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { Heading, Press } from '../components/ui';
 import { Text } from '../components/Text';
 import { glowShadow, radius, tabular, type } from '../theme/tokens';
+import { ExerciseFigure, hasFigure } from './ExerciseFigure';
 import { useTheme } from '../theme/useTheme';
 import type { ExState } from './model';
 
@@ -47,9 +48,10 @@ export function StartButton({ label, onPress }: { label: string; onPress: () => 
   );
 }
 
-/** The index number in a 40px square: the thumbnail until the exercise figures have a small size. */
-export function IndexThumb({ n }: { n: number }) {
+/** The row thumbnail: the exercise's own drawing (56px, start frame) when it has one, else the index number in a 40px square. */
+export function IndexThumb({ n, name }: { n: number; name?: string }) {
   const c = useTheme();
+  if (name && hasFigure(name)) return <ExerciseFigure name={name} size="thumb" />;
   return (
     <View aria-hidden style={[styles.thumb, { backgroundColor: c.surfaceSoft }]}>
       <Text style={[type.bodyStrong, tabular, { color: c.muted }]}>{n}</Text>
