@@ -363,6 +363,13 @@ export const AN = (() => {
       a:{ ankle:[150,212], torso:-22, wrist:[190,165] }, b:{ ankle:[150,212], torso:-22, wrist:[162,124] },
       props:(J,P,C) => floor(C,60,260),
       hand:(J,P,C,g) => g.ln([J.wr[0]-5,J.wr[1]+3],[J.wr[0]+5,J.wr[1]+3],3,C.eq) + `<rect x="${(J.wr[0]-10).toFixed(1)}" y="${(J.wr[1]+3).toFixed(1)}" width="20" height="26" rx="6" fill="${C.eq}"/>` },
+    // Batch 5 (own drawings, side view). Prone Y-T-W Raise and Archer Push-ups need a lateral view the side-view rig cannot draw truthfully, so they stay without a drawing.
+    'Dumbbell Fly': { hip:[190,165], eb:1, kb:-1, hl:['chest'],
+      a:{ ankle:[232,222], torso:180, wrist:[122,100], uaS:1 }, b:{ ankle:[232,222], torso:180, wrist:[136,150], uaS:.6 },
+      props:(J,P,C,g) => floor(C,40,290) + g.ln([92,180],[210,180],9,C.eq) + g.ln([150,180],[150,226],4,C.eq), hand:(J,P,C,g) => g.circ(J.wr, 8, C.eq) },
+    'Dead Bug': { hip:[190,211], hl:['abs'],
+      a:{ torso:180, thigh:-90, shinD:0, footA:-90, ua:-90, fa:-90 }, b:{ torso:180, thigh:-12, shinD:-8, footA:-85, ua:192, fa:192 },
+      props:(J,P,C) => floor(C,30,300) },
     'Single-Leg Balance (seconds)': { root:'toe', toe:[190,214], hl:['abs'],
       a:BALANCE, b:BALANCE, rear:calfFree,
       props:(J,P,C,g) => floor(C) + freeLegs(calfFree,J,C,g,130) },
