@@ -73,7 +73,7 @@ export const NOT_NOW = 'Not now';
 export const STOP_SUGGESTING = 'Stop suggesting this';
 export const KEEP_TARGETS = 'Keep current targets';
 export const HABIT_MESSAGE = {
-  streak: (weeks: number, goal: number): string => `${weeks} weeks in a row with ${goal}+ sessions. That’s how habits form.`,
+  streak: (weeks: number, goal: number): string => `${goal}+ sessions in each of the last ${weeks} weeks. That’s how habits form.`,
   missed: 'Missed a few days? No problem. Pick up with your next meal or session; one week never undoes progress.',
   steady: 'Aim for most days, not perfect days. Consistency over weeks is what counts.',
 } as const;
@@ -87,7 +87,7 @@ export const WEEK_NOT_LOGGED = 'not logged';
 export const WEEK_AVG_KCAL = 'avg kcal';
 export const WEEK_AVG_PROTEIN = 'avg protein';
 export const WEEK_SESSIONS = 'sessions';
-export const WEEK_TARGET_HINT = 'The dark line on each bar is your calorie target.';
+export const WEEK_TARGET_HINT = 'The thin line on each bar is your calorie target.';
 
 // Rapid-loss card (prototype `calorieCard`).
 export const RAPID_TITLE = 'Weight is dropping fast';
