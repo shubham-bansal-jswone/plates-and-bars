@@ -130,10 +130,10 @@ describe('exercise library screen', () => {
     await loadContent(await openDb());
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
     expect(screen.getAllByTestId('figure-thumb', { includeHiddenElements: true }).length).toBeGreaterThan(0);
-    await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'dead bug');
+    await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'archer');
     expect(screen.queryAllByTestId('figure-thumb', { includeHiddenElements: true })).toHaveLength(0);
-    expect(screen.getByText('Dead Bug')).toBeTruthy();
-    expect(screen.getAllByText('Abs', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+    expect(screen.getByText('Archer Push-ups')).toBeTruthy();
+    expect(screen.getAllByText('Chest', { includeHiddenElements: true }).length).toBeGreaterThan(0);
   });
 
   it('the detail shows the drawing pair and the muscle map', async () => {
