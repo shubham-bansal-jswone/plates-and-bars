@@ -30,10 +30,10 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
       <H1>{CONSENT.title}</H1>
       <Text style={{ color: c.ink, lineHeight: 22 }}>{CONSENT.intro}</Text>
       {CONSENT.bullets.map((b) => (
-        <Text key={b} style={{ color: c.ink, lineHeight: 22 }}>
-          {'•  '}
-          {b}
-        </Text>
+        <View key={b} style={{ flexDirection: 'row', gap: 10 }}>
+          <Text style={{ color: c.ink, lineHeight: 22 }}>{'•'}</Text>
+          <Text style={{ color: c.ink, lineHeight: 22, flex: 1 }}>{b}</Text>
+        </View>
       ))}
       <LegalLinks />
       <Note>{CONSENT.note}</Note>

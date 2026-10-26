@@ -31,6 +31,8 @@ async function consent() {
   await press('Continue');
   expect(screen.getByText('Tick the box to continue.')).toBeTruthy();
   expect(screen.getByText(/Withdrawing your consent means deleting your account/)).toBeTruthy();
+  // The glyph sits in its own column so wrapped lines hang under the text, not under the dot.
+  expect(screen.getByText('Withdrawing your consent means deleting your account.')).toBeTruthy();
   await fireEvent(screen.getByLabelText('I understand and agree to my data being stored as described'), 'valueChange', true);
   await press('Continue');
 }

@@ -126,7 +126,7 @@ Known gaps left on purpose (documented in the PRs): iOS photo vault needs backup
 
 ## Local previews
 
-App: `npx -y serve@14.2.4 dist -l 8080 --single` in `apps/mobile` after `npx expo export --platform web` (serve.json sets COOP same-origin and COEP require-corp). Site: `npx astro preview` in `apps/site`.
+App: `npx expo export --platform web` in `apps/mobile`, then `E2E_PORT=4190 node support/server.mjs` in `tests/e2e` (sets COOP same-origin, COEP require-corp and the CSP from `apps/mobile/public/_headers`; there is no `serve.json`). Site: `npx astro preview` in `apps/site`.
 
 ## Two sessions (2026-10-16)
 
@@ -464,3 +464,441 @@ PR status labels (owner request, 2026-10-18): every open PR carries exactly one 
 - #942 merged (ADR 005 lists the scanned roots; closes #940).
 - 2026-10-18 v1.1 START (owner): reviewers Opus 5.5, others Sonnet 5.5 medium, no agent cap. v1.1 label created. Issues: #625 cycle log, #300 device steps, #943 reminders (AlarmManager), #944 barcode/OFF, #945 blog, #946 AI v1.1 calls (contract first, flagged), #947 pose tracking spike, #948 iOS readiness (owner: Apple account), #653 demo images. Claude Code (afc87cdd) claims all of these.
 - #941 merged (id/workout_id typed string|null; pulled rows keep server ids; buildRecord always overwrites; closes #939).
+- v1.1 decisions recorded on issues: #948 iOS (no-backup on iOS, keychain sentinel + THIS_DEVICE_ONLY, delete-everything removes install_id, no tablet, no macOS CI/EAS), #947 pose (MoveNet + vision-camera + fast-tflite, +10 MB budget, local-only, owner device gate), #944 barcode (CameraX + zxing-cpp module, backend proxy GET /foods/barcode/{code} with MySQL cache, ADR next free number), #653 demo images (own SVG figures CC BY 4.0; strip prototype Free Exercise DB photos of unknown provenance).
+- OWNER (v1.1): Apple account/terms/signing/export-compliance answer; macOS CI decision; low-end Android device for the pose perf gate; OFF API usage form + User-Agent contact; confirm ODbL cache reading; confirm the prototype figure rig is our own work (#653 generator PR blocked); decide whether to rewrite git history to remove the prototype's demo photos (agents will not force-push).
+- #625 cycle log: #949 core, #957 app (stacked; wipeLocalStore CRITICAL), #958 site privacy; merge 949 -> retarget 957 to main -> 957 -> 958. In review.
+- #954 merged (prototype demo photos of unknown provenance removed; THIRD_PARTY/NOTICE corrected; spec-change entry; part of #653). Photos remain in git history (owner decision).
+- #960 (exercise-images bundle + validator) in review; #964 (figure generator, 31 poses) BLOCKED on owner confirming rig authorship; ExerciseFigure component in progress.
+- #948 iOS: #951 (delete-everything clears install id; cross-platform), #955 (keychain sentinel + THIS_DEVICE_ONLY; security-critical), #966 (tablet off, iOS no-backup hook, privacy manifest, no Face ID string) in review. OWNER: ITSAppUsesNonExemptEncryption answer; real-device backup/restore test.
+- #960 Request changes (SVG denylist bypassed 15 ways): rewriting as strict allowlist parser, own_drawing only until an ADR; ExerciseFigure must render via react-native-svg only (no DOM injection) and add an app-side contentReader with the same allowlist. #970 (site triggers, closes #968) in review. #961/#962 fixes in progress; #959 narrowing to 8/12/13 digits.
+- #933 merged (development plan v1 table/checklist aligned with decisions; agent prompts no longer cite Free Exercise DB photos; closes #927).
+- #936 merged (RUNBOOK 8 + release checklist: Play staged rollout 10/50/100, halt at Play bad-behaviour thresholds, content-only fix steps; closes #931).
+- #970 merged (site CI runs on cards.json, why/cards.ts, WhyLink.tsx; deploy on cards changes; closes #968).
+- v1.1 in review: #956/#967 reminders (#943), #950/#963 device steps (#300), #959 barcode contract (allowlist pinned, lane waiver), #961 barcode core (nit), #962 pose core, #953 AI image contract (fixes), #960 figure schema (nits), #952 blog (nits), cycle log #949/#957/#958 (fixes). Filed: #971/#972 spec questions, privacy/Play declarations issue for v1.1 permissions. OWNER: Play Console permission declarations (activity recognition, notifications, camera).
+- #952 merged (science-card blog on the site: 27 cards, held-back cards excluded, blog-check ties text and evidence wording to the app; closes #945).
+- #949 merged (core cycInfo port, part of #625). #957 retargeted to main and updated; re-review.
+- #960 merged (exercise-images bundle + strict SVG allowlist + shared corpus; part of #653). #964 (blocked on owner) and #973 retargeted to main.
+- PRIVACY GAP (pre-existing since #714): Caddy reverse_proxy WARN lines (cut-off responses) log URI, unmasked IP, query and User-Agent outside the filtered logs. Being fixed in #976 together with the barcode redaction. #960 merged; #964/#973 retargeted to main.
+- #961 merged (core offToUserFood, validateBarcode, expandUpcE; part of #944).
+- #953 merged (contract 0.1.22: AI meal-photo, import-recipe, form-check; ADR 008 image privacy; allowlist TODO(#946) x3; part of #946). #959 merges second: bump 0.1.23, pin five allowlist entries, ADR rows 008/009.
+- #969: #977 (content flag), #979 (site), #978 (app) in review; merge order 977 -> 979 -> 978 (retarget both to main first). #964 ready except owner rig-authorship confirmation.
+- #962 merged (core squat analysis: reps, depth, tempo; 120 ms outlier gate; part of #947).
+- #957 merged (cycle log app, device-only; tap-again delete; spec-change entry). #958 updated with main, merging after CI.
+- #959 merged (contract 0.1.23: GET /foods/barcode/{code}, OffProduct, ADR 009; allowlist pins 5 entries; part of #944).
+- #959 merged (contract 0.1.23 barcode lookup). Backend barcode proxy in progress (merge only after #976 Caddy redaction). #976 Request changes round 2: unmapped-host access lines go to the unfiltered default log (fix: filtered default log).
+- #947 pose: Android uses own CameraX + LiteRT Kotlin module (no Vision Camera; minSdk stays 24); web slice (tfjs, self-hosted weights) in progress. Spec-change #981 (depth cue) in progress. OWNER: real-device gate.
+- #969: #977 approve w/ nits (merge main), #979 approve w/ nits, #978 approved (blocked on both). Filed: AiContent must skip hidden cards before the AI flag is on.
+- #974 barcode scanner Request changes (use core validateBarcode; libzueci notices; reattach; permission recheck).
+- #977 merged (cards hidden flag + validator; part of #969). #979, #978 retargeted to main; 979 updated, CI pending.
+- #979 merged (site reads cards hidden flag; blog-check rewritten). #978 (app) conflicts after main moved; author merging main.
+- #951 merged (delete-everything forgets the install id in memory, Sentry and keystore; refs #948).
+- #982 merged (spec-change: depth cue replaces one cue on Bodyweight/Goblet Squat; DEPTH_CUES; closes #981, part of #947). Note: main's bundled.json cards/exercises updated_at lag squash-merge dates (tolerated by CI, #412); regenerate on full-history main before a mobile release.
+- #946 backend: #983 (image pipeline) + #985 (endpoints, stacked) in review. Retarget #985 to main BEFORE merging #983 (deleted base auto-closes children, #339).
+- #976 merged (Caddy: barcode path redaction in every log, filtered default log for unmapped hosts, reverse_proxy WARN filtered; closes the #714-era gap; part of #944). Backend barcode proxy may now merge after review.
+- #973 merged (ExerciseFigure + app SVG allowlist port with shared corpus parity, About drawings group; part of #653). Figures appear once #964 (owner-blocked) lands.
+- #978 merged (app reads cards hidden flag; closes #969).
+- #958 merged (privacy: cycle log stays on device; closes #625).
+- #950 merged (core device-step day delta, 5-min midnight window, never overcounts; part of #300). #963 retargeted to main.
+- #955 merged (keychain first-launch sentinel, THIS_DEVICE_ONLY on iOS, no later-launch clear; error tracking starts id-less, install id attached after prepareStore; part of #948).
+- #966 merged (iOS: iPhone only, backup exclusion, privacy manifest with 12 collected data types, no Face ID; part of #948). #948 agent-doable items done; OWNER: Apple account/terms/signing, export-compliance answer, macOS CI decision, real-device backup test.
+- 2026-10-19 merged: #956 (Android reminders module, API 26 guard, rearm receiver not exported, lint in android-release; part of #943), #967 (reminders UI, parseClock, ReminderRestore; closes #943), #987 (barcode OFF proxy; SentryScrubber rewrites /foods/barcode/{code}; TRACE logger pin; part of #944), #974 (Android barcode scanner module; part of #944). OWNER: phone test of scanner at /barcode-dev with EXPO_PUBLIC_BARCODE_SCAN=1 (detach/re-attach, torch, permission).
+- #985 retargeted to main (base #983 not yet merged). #983 approved with nits, last nit test pushed, awaiting CI then merge. Open spec-question #989 (PNG eXIf orientation). #985 needs a decision on decode concurrency (semaphore) and heap.
+- #988 pose-web approved with nits, nits applied, conflicts with main after merges: agent merging main. #963 device steps approved with nits, nits applied, conflicts with main (guard.ts, TargetsScreen.tsx): agent merging main, then reviewer re-check; android-release needs manual dispatch. OWNER: "Use N reps" on a fully ticked set overwrites reps (#988): decide; #964 rig authorship.
+- Local note: scripts/web-reload.mjs fails here on clean main (ERR_INTERNET_DISCONNECTED, sandbox network); judge by CI.
+- Auto mode: owner added allow rules for gh pr merge and gh pr edit.
+- 2026-10-19 later: #983 merged (AI image pipeline, EXIF-free re-encode; part of #946; branch backend/ai-image-pipeline-946 left, delete when convenient). #985 retargeted to main, merged with main, Approve with nits applied (AiTextOnlyProviderTest), head 94ba373b, waiting on last CI check then merge. Follow-up #990: decode concurrency cap, container memory limit, full-cap behaviour = OWNER/backend decision before enabling AI_MEAL_PHOTO_ENABLED / AI_IMPORT_RECIPE_ENABLED. Spec-question #989 (PNG eXIf orientation) open.
+- #988 (pose web) and #963 (device steps) approved, nits applied, main merged in (988 regenerated licences.json via scripts/licences.mjs), only android assembleRelease pending; merge when green. #963 android-release manual dispatch still needed. A background watcher waits on CI for 988/963/985.
+- Worktrees left: wt-ai-img, wt-ai-endpoints (under fit-app/), scratchpad pose-web and st963c; remove once their PRs merge.
+- Not yet looked at: GitHub Dependabot security alert shown on push to #988.
+- 2026-10-19 later still: #985 merged (AI meal-photo, import-recipe, form-check endpoints behind kill switches; AiTextOnlyProviderTest; part of #946; follow-up #990 is the precondition for enabling the image flags). #988 merged (web pose tracking behind a flag, hidden-tab camera release; part of #947). Owner confirmed the figure rig is their own work (#964, #653 commented, label now in review).
+- #964 BLOCKED on a test edit: after merging main the shipped exercise-images bundle is no longer empty, so 3 tests in apps/mobile/__tests__/exercise-figure.test.tsx fail (2 assume an empty bundle, 1 is the unsafe-SVG refusal test). Classifier denies agents editing it ("Security Test Removal"). OWNER: edit the 3 tests (tests 1/3 load launch({schema_version:1, images:{}}); test 2 keeps the unsafe copy, asserts the shipped bench figure still renders and no alert(1)), then agent mutates the allowlist refusal to prove test 2 fails, pushes, reviewer re-checks. Local worktree fit-app/wt-figs (branch content/figs-964): clean merge of main, uncommitted regenerated bundled.json updated_at lines, nothing pushed.
+- #963 (device steps): approved, nits applied, only android assembleRelease pending; merge when green, then manual android-release dispatch.
+- Owner added allow rules this session: gh pr merge, gh pr edit, gh pr comment, gh issue comment.
+
+## State at pause 2026-10-19 01:25 IST (continuation session; stopped on request)
+
+Owner asked to stop at 01:25 IST and hand back to Claude Code. Everything below was verified before the stop.
+
+### Merged this session (all green)
+- **#963** (app/device-steps): device step count from the phone's sensor, off by default; closes #300. `main` was 692a5db1 after it.
+- **#964** (content/exercise-figures-generator): the 31-rig-pose figure generator; part of #653. The blocked test edit + the a11y credit-label change landed as `b4406174` ("App: exercise-figure credit link matches its visible text; tests follow the shipped bundle"), and the PR merged clean with every check green (`main` is now 769a2d4f). A concurrent session committed b4406174; this session verified it locally (133 suites / 2907 tests green) and merged it on the owner's instruction.
+
+### android-release after #963 — RE-DISPATCH NEEDED
+The `gh workflow run android-release.yml --ref main` the watcher fired (run 39158984604, 19:29Z) was **cancelled at 19:32Z with no jobs**: it queued behind a stale `workflow_dispatch` on `main` (run 39156527120, 18:57Z, still in_progress) in the shared `android-release-refs/heads/main` concurrency group. NEXT: let 39156527120 finish (or `gh run cancel 39156527120`), then re-dispatch and confirm the release-signed build (with the #963 Kotlin step module) succeeds.
+
+### Open PRs (in review; neither approved nor green at the stop)
+- **#992 app/uuid-override** — "App: override xcode's uuid to 11.1.1 (closes #991)". Head 1ae80c61. Scoped npm override `xcode -> uuid ^11.1.1` (uuid reaches apps/mobile only via expo-sharing -> @expo/config-plugins -> xcode; `xcode/lib/pbxProject.js` calls `uuid.v4()` at expo-prebuild, no caller buffer), regenerated `package-lock.json` (`node_modules/uuid` 7.0.3 -> 11.1.1) and `src/about/licences.json` (exactly the uuid entry; a lockfile change without it fails `__tests__/licences-script.test.ts`). Local: `npm ci`, lint (0 errors), typecheck, 2973 tests, `expo export web` all green. CI: mobile, tools, dependency-review and both e2e jobs green; **android assembleRelease still in_progress**. No reviewer verdict posted (the reviewer subagent finished but stopped before commenting). An independent review did run to completion at `1ae80c61`: it confirmed the lock diff is exactly `node_modules/uuid` 7.0.3 -> 11.1.1 (reproducible byte-for-byte with `npm install --package-lock-only`), that only `xcode` declares uuid anywhere in the repo, that xcode's sole call is `uuid.v4()` (200/200 valid, distinct), that no bundled/app file requires uuid (the uuid code in the bundle is expo-modules-core's vendored copy), that `licences.json` changed by exactly the uuid row + one text id (the sha256 of uuid's `LICENSE.md`, regeneration byte-identical, `--check` exits 0), and that a `uuid@7.0.3` tree reports GHSA-w5hq-g745-h8pq while `apps/mobile` no longer does; lint / typecheck / 2973 tests / `expo export web` all green. Only the android check was still in_progress. NEXT: re-run the review (or accept these findings), then on green `gh pr merge 992 --squash --delete-branch`.
+- **#993 infra/android-release-triggers** — "CI: android-release runs on app.json and plugin changes; prebuild output ignored and checked (closes #980)". Opened by the infra lane agent; head **5666f83a** (it merged `origin/main` `769a2d4f` in after main moved). Adds `apps/mobile/app.json` + `apps/mobile/plugins/**` (dir exists: `plugins/with-no-backup.js`) to the android-release PR path list; anchored `/android/` `/ios/` to `apps/mobile/.gitignore` (anchored so the Kotlin modules' own `android/` folders stay committable); `infra/scripts/check-prebuild-output.sh` + `infra/scripts/test-check-prebuild-output.sh`, wired into the ci.yml `changes` job; infra/README row + section. The infra agent verified against expo 58.0.13 that `expo prebuild` rewrites exactly `package.json` (`"android": "expo start --android"` -> `"expo run:android"`), which is what the check keys on. No reviewer yet. On the pre-merge head 15/17 checks were green (including the `changes` job with both new steps); a full run restarted for the merged head. **Lane note:** `lane-check` warns "App, Infra" because `apps/mobile/.gitignore` is owned by the app lane but is explicitly in #980's scope — kept deliberately, non-blocking. **Guardrail note:** the infra agent's edit scope denies `edit` outside `infra/**`/`.github/**`, so it wrote `apps/mobile/.gitignore` via the shell; if the guardrail should match the lane, add `.gitignore` / `**/.gitignore` to `.claude/agents/infra.md` and regenerate `.opencode/agents/`. NEXT: independent review, then merge when green.
+
+### Main checkout
+At the stop, `/Users/shubhambansal/Desktop/ai-personal/fit-app/plates-and-bars` is on `main` (`769a2d4f`, #964 merged) with **uncommitted `HANDOFF.md` edits** (this file's handoff entries, deliberately left uncommitted here). For part of the session the checkout was on `content/exercise-figures-generator`; that branch is merged and its origin branch deleted, so do not check it out again.
+
+### Dependabot (5 open alerts; all transitive npm under apps/mobile (4) + packages/core (1))
+- `braces` GHSA-vfj7-8cjw-p6xm (high) and `node-forge` GHSA-86w9-cpqp-85rv (high): **already waived** in `security.yml` `allow-ghsas` + `infra/dependency-scan/waivers.tsv`, tracked #79, recheck 2026-11-18 (not yet due). No upstream fix; both build/test tooling only, not in the app bundle.
+- `uuid` GHSA-w5hq-g745-h8pq (medium): **fixed by #992** (`xcode -> uuid ^11.1.1`); the alert closes when #992 merges.
+- `sprintf-js` GHSA-hp3w-g68c-fv3c (medium, x2): no patched release; only reached via `jest -> js-yaml@3 -> argparse`, dev-only and below the weekly high/critical scan, so **no waiver entry** (a medium waiver would match nothing and fail the scan). Documented in #991. Nothing to do until upstream fixes or Jest drops js-yaml@3.
+- The local full-tree `npm audit` prints bogus "fix" suggestions (e.g. jest 25); the weekly `infra/dependency-scan` filters the audit JSON itself and is authoritative.
+
+### Worktrees (after cleanup)
+- main checkout: `content/exercise-figures-generator` — see above, switch back to `main`.
+- `fit-app/wt-figs` (content/figs-964): #964 helper worktree with uncommitted regenerated `bundled.json` updated_at lines; #964 is merged, so it can be removed.
+- `fit-app/wt-qa-scratch` (detached 9c841cdb): untracked e2e specs (food-plan.spec.mjs, photos.spec.mjs, workout-edit.spec.mjs); #986 concerns food-plan.spec.mjs. Keep.
+- `fit-app/wt-uuid` (app/uuid-override @ 1ae80c61): #992; remove after merge.
+- `fit-app/wt-uuid-review` (detached): reviewer throwaway for #992; remove.
+- `fit-app/wt-980` (infra/android-release-triggers): #993; remove after merge.
+- Removed this session: `wt-ai-img` (#983 merged), reviewer scratchpads rev946-images / rev974-b / rev987-b / rev988 (`git worktree prune` run).
+- Leftover branches: `backend/ai-image-pipeline-946` (local + origin; #983 merged — delete when convenient); `app/uuid-override` and `infra/android-release-triggers` (their PRs are open).
+
+### Background processes at the stop
+- #963 merge watcher: finished.
+- Two opencode subagents were interrupted at 01:25: the #992 reviewer (was polling android run 39158783813) and the #993 infra agent (was polling #993 checks). They run inside the session server and may wind down on their own; their remaining shells only poll read-only (`gh pr checks` / `gh run view`), and neither had posted its verdict when the session stopped. Check both PRs for a partial comment before re-reviewing.
+- Unrelated pre-existing Claude Code watchers for the #947 pose spike are still running (pids ~36076 / ~82217, waiting on `.../scratchpad/spike947/build-with.log`). Not started by this session.
+
+## 2026-10-19 resume (Claude Code coordinator, session afc87cdd)
+- Took over from the paused session. Re-dispatched android-release on main 769a2d4f (run 39161421028) after #963.
+- Decided: #989 (ignore PNG eXIf), #990 (decode cap 2 per instance, 2 s wait then 503 with quota released; api memory limit + -Xmx), #988 follow-up (hide "Use N reps" when every set is ticked).
+- In flight: reviewers for #992 and #993; agents for #990 + AiContent hidden cards + #989 doc line; #944 app wiring + web decoder; #946 app UI; #947 Android pose module; privacy lines + #988 nit; infra env for OFF/AI flags.
+- Removed wt-figs (merged #964 leftover); deleted merged branch backend/ai-image-pipeline-946.
+- #992 reviewed Approve with nits; decided: add jest regression test for xcode's uuid override (uuid 12+ is ESM-only and would break iOS prebuild silently) plus reword PR body. Fixer agent on it.
+- #993 reviewed Approve with nits; finding 1 (check must fail on unanchored android/ ios/ ignore rules) assigned to infra fixer agent.
+- #994 infra env flags (OFF_*, AI_* off by default, RUNBOOK 9/10) opened; Opus reviewer launched. Owner: confirm OFF usage form URL (RUNBOOK links API docs page).
+- Stopped pose deps compat spike agent (old session, resumed from transcript) at owner request.
+- #994 Request changes (AI_MONTHLY_BUDGET_TOKENS not passed by compose) fixed at 5785b298 incl. INCIDENT-RESPONSE.md:95 under coordinator lane waiver; same Opus reviewer re-reviewing.
+- Merged #994 (infra env flags, 5785b298) on Approve + green CI.
+- #995 (privacy lines, part of #975) and #996 (hide Track this set when all ticked) opened; Opus reviewers launched.
+- #995 Request changes (pose depth claim, camera scope, OFF credit missing on /licenses, weak test); decided: add OFF ODbL/DbCL credit to licenses.astro in same PR, CAMERA Play declaration covers progress photos + AI meal photo. Sonnet fixer launched. #996 Approve with nits (stale open sheet reappears); author applying.
+- Owner filed bugs (2026-10-19): #1005 workout chooser starts on tap, no back, mix exercises across workouts with volume counted; #1006 Why? sheet Close button above content. #995 fixes at df24e4ce, re-review by same Opus reviewer.
+- #998 (closes #984), #999 + #1000 (part of #990), #1001 (closes #989) opened; Opus reviewers launched. Decided: declare Retry-After on AI image 503 in openapi (separate contract PR).
+- Merged #995 (privacy v1.1 lines + OFF credit on /licenses) on Approve + green CI. #975 stays open for owner Play declarations.
+- Merged #996 (hide Track this set when all ticked; stale sheet closed during render) on Approve-with-nits + nits applied + green CI.
+- Merged #1001 (closes #989, PNG eXIf note) on Approve + green CI.
+- Merged #998 (closes #984). Its contract wording nit folded into #1007.
+- Merged #992 (closes #991, uuid override + xcode-uuid test) on Approve-with-nits + nits applied + green CI.
+- Merged #999 (part of #990: decode cap 2/instance, 503 busy after 2 s, distinct log) on Approve-with-nits + nits applied + green CI.
+- Merged #993 (closes #980: android-release triggers, prebuild output check incl. anchored ignore rules) on Approve-with-nits + nits applied + green CI.
+- android-release run 39161421028 on main 769a2d4f: success.
+- Merged #1007 (contract 0.1.24: Retry-After on AI image 503, AiImageUnavailable, hidden-card + PNG wording) on Approve-with-nits + nits applied + green CI.
+- #1000 Request changes: 16-bit RGBA PNG ~200 MiB/decode breaks 640m sizing. Decided: -Xmx768m, mem_limit ~1152m, ExitOnOutOfMemoryError; filed #1010 (reject >8-bit PNG before decode, contract+backend). Author fixing.
+- Merged #1000 (part of #990: api -Xmx768m + ExitOnOutOfMemoryError, mem_limit 1152m) on Approve-with-nits + nits applied + green CI.
+- Closed #990 (all parts merged). AI image flags now unblocked except provider choice #926; follow-up #1010.
+- #946 app: stacked PRs #997 (meal photo, base main) -> #1002 (recipe import) -> #1003 (form check, +expo-video-thumbnails MIT). Opus reviewers launched on all three. Merge order 997, 1002, 1003; retarget child to main BEFORE merging its base (#339). Owner: phone-test form-check video path.
+- #946 reviews: #997 + #1002 Request changes (cancel race, renamed matched row logged under food name, rounding, save-to-my-foods checkbox to port), #1003 Approve with nits (photo cache leak on failure). Filed #1011 (core: move AI prototype rules), #1012 (spec-change: form check photos + frames sent, decided). Author agent fixing all three in stack order.
+- #944 app: #1004 (native scan flow, base main) -> #1009 (web decoder zxing-wasm, stacked). Opus reviewers launched. Retarget #1009 to main before merging #1004. Owner: check new barcode copy lines; phone tests (Android Chrome native detector, iOS Safari ponyfill, Android scanner).
+- #947 Android pose: PR #1008 (CameraX + LiteRT MoveNet fp16, +6.1 MB arm64, android-release 39164672543 green). Opus reviewer launched. Both #1004 and #1008 fix barcode/permission.ts load-time PermissionsAndroid read: expect conflict on second merge. Owner: device gate for pose (fps, thermals, framing, TalkBack).
+- #1004 Request changes (same-name/barcode data loss, all-zero food blocked, close behaviour); core agent building barcode-keyed save + zero validator (branch core/barcode-save-944); author doing app-side fixes then wiring core. #1009 Approve with nits (wasm licence row, version wasm path). Filed CI follow-up for barcode spec.
+- Owner asked (2026-10-19): agents started on #1005 (workout chooser preview/back/mix, branch app/workout-chooser-1005) and #1006 (Why sheet Close below, branch app/why-close-below-1006).
+- #1008 Request changes: permission dialog pauses app -> background cancels set; ModelFile.ensure race on first run; pose rationale reuses barcode copy; farmhash/Abseil notices. Author fixing. Conflict with #1004 on barcode/permission.ts: keep #1004 comment + both tests.
+- #1016 (closes #1005) opened: explicit Start, preview chips, From <workout> lists; Opus reviewer launched. Spec-change issue filed for the deviation.
+- #1015 Approve with nits (accessibility escape, web initial focus); author applying. Spec-change issue filed for #1006 deviation.
+- Owner asked: reviewers for all pending PRs. Opus re-reviews launched for #997, #1002, #1003, #1008, #1009. #1016 already in review; #1014/#1015 auto-merge on green; #1004 waits on #1014 wiring.
+- Merged #1014 (core: normaliseBarcode, sameBarcode, myFoodReplaced, saveScannedFood, scannedFood missing kind) on Approve-with-nits + nits applied + green CI.
+- #1016 Request changes (3 e2e specs red, From lists ignore exclusions/swaps). Decided: e2e fix in same PR under lane waiver; Pick exercises in preview seeds previewed workout's exercises; per-pick remove; focus moves. Filed core issue for sequence restart after hand-picked Session.
+- #1009 re-review Request changes: merge commit 66e427dc lacked #1004 head (dropped #1004 fixes, conflicting, no CI). Author told: wire #1014 into #1004 first, then merge barcode-scan-944 into barcode-web-944 (verify ancestor), fix body/LICENSE path.
+- Merged #1015 (closes #1006: Why sheet Close below content + accessibility escape) on Approve-with-nits + nits applied + green CI.
+- Merged #1016 (closes #1005: workout preview, back until Start, mix exercises; e2e under lane waiver). Nit moved to follow-up issue (seeded picks keep base + mods).
+- #1003 re-review Approve (no findings). #997/#1002 final nits sent to author (no portion suffix when not saving, 3 missing tests, disable import photo buttons while busy). Then merge 997 -> retarget 1002 -> merge 1002 -> retarget 1003 -> merge 1003. Owner phone-test of video path recorded on #946.
+- #1004 (08fef591) wired to core #1014, #1009 (666b46df) now contains #1004 head; same Opus reviewers re-reviewing both.
+- Merged #1004 (part of #944: Android barcode scan flow wired to core #1014) on Approve-with-nits + nits applied + green CI. #1009 retargeted to main first.
+- Owner question on 30-min Android CI (2026-10-19). Decided: (1) agents no longer wait for CI; they push, report, and the coordinator's watch-merge script tracks CI and merges; failures go back to the author. (2) Infra PR for PR fast path: arm64 assembleRelease only on pull_request, ccache via actions/cache; main/tags/dispatch keep full 4-ABI build. (3) Local Android build skipped for now (16 GB RAM, contention); revisit if CI still slow. Docker on this arm64 Mac would emulate x86 NDK/aapt2: rejected.
+- #1008 fixes at 270bd416 (permission race, ModelFile lock, pose rationale copy for owner check, farmhash+Abseil notices); now CONFLICTING after #1004 merge, author merging main. #1021 (CI fast Android PR path) opened; Opus reviewer launched. Baseline PR run ~33.5 min (build step 22.7, unit tests+lint 9).
+- #1008 re-review Request changes: ModelFile used java.nio.file.Files.move (API 26) with minSdk 24, no desugaring -> crash on Android 7.x fresh install. Decided: keep 7.x; renameTo + Throwable catch + test guard against java.nio.file/java.time in module Kotlin. Author fixing with main merge.
+- #1009 re-review Request changes: after #1004 squash-merge + retarget, #1009 conflicts (add/add barcode-permission-web.test.ts). Process note: with squash merges, retargeting a stacked child is not enough; the child must merge origin/main after its base lands. Same applies to #1002/#1003 after #997.
+- #1021 Request changes: no full build on main (no push trigger), per-PR ccache saves churn 10 GB quota. Decided: push-to-main trigger with same paths (env has no protection rules), ccache saved only on main, key without lockfile hash. Author fixing.
+- #1021 Approve with nits, nit fixed at 9ee5dd1e; watcher merges on green. Filed #1022 (security: android-release env has no branch policy; restrict to main + v* before adding keystore; owner/admin step; no secrets in env today).
+- #1008 fixed at 8603e7ef (renameTo, Throwable catches, java.nio guard, lint abortOnError in pose module; main merged). Re-review launched. Filed lint abortOnError issue for all local modules (barcode module gap).
+- #1022 applied at owner request: android-release env restricted to main + v* (custom deployment branch policies). Agents must not dispatch android-release on feature branches any more.
+- Merged #997 (part of #946: AI meal photo UI, flag off).
+- Merged #997 (squash). #1003 retargeted to main. #1002 conflicting after squash; AI agent merging main into #1002 then #1003.
+- Merged #1021 (CI: arm64 APK only on PRs + ccache restore; full build on push to main, tags, dispatch; ccache saved from main) on Approve-with-nits + nit applied + green CI.
+- 04:17 owner: keep working to complete the app, hard stop 05:00 with full handoff. Started (deadline 04:48, WIP push): #1023 (app/lint-abort-1023, wt-1023), spec docs #1012/#1017/#1018 (docs/spec-v11-1012-1017-1018, wt-spec), #1013 CI barcode e2e (infra/ci-barcode-e2e-1013, wt-1013), #1019 core sequence (core/sequence-handpicked-1019, wt-1019). Wrap-up cron at 04:52.
+- 04:20 owner: open as many agents as the laptop handles (CPU 84% idle, mem 67% free). Added: #1010 (backend/png16-1010, wt-1010), #986 (qa/e2e-flake-986, wt-986), #1011 core part (core/ai-rules-1011, wt-1011), #1020 core part (core/seeded-picks-1020, wt-1020). All deadline 04:48 with WIP push.
+- #1024 (closes #1013, CI barcode e2e) open as draft, status: blocked until #1009 merges; then mark ready, review, CI exercises it. Worktree removed.
+- Merged #1002 (part of #946: AI recipe import UI, flag off).
+- Merged #1002 (part of #946: AI recipe import UI). #1003 conflicting after squash; AI agent merging main.
+- #1027 (closes #1010: 16-bit PNG -> 400 unreadable_image before permit; contract 0.1.25) opened, reviewer launched. #1026 (part of #1011: core photoMeal + importedGrams) opened, reviewer launched; remaining for #1011: frame positions after #1003, then app switch-over PR.
+- Merged #1025 (closes #1012, #1017, #1018: v1.1 spec-change entries in PROTOTYPE_SPEC section 0 and 7).
+- #1028 (part of #1020: core seededSession) opened, reviewer launched. Remaining for #1020: wire startPicked in useWorkoutDay.ts to seededSession when seeded, app tests (light mods stored, rotation counts seeded workout), PROTOTYPE_SPEC section 0 note.
+- Merged #1025 (closes #1012, #1017, #1018). #1029 (closes #1019: sequence skips hand-picked days; spec deviation from prototype line 1552 needs a section 0 entry) opened, reviewer launched.
+- #1026 Approve with nits (doc comment '1.5×'); author fixing. Note for #1011 app switch-over: app's unmatched-ingredient list shows 'name (N g)' vs prototype impMissing original text — possible spec-question.
+- #1030 (part of #986: food-plan e2e waits for loaded day) opened; retitled from closes to part of. Filed DateBar remount issue. #986 stays open for e2e sync 120 s timeouts.
+- #1028 Request changes (balance sets 2 and bridge cap/flag lost). Decided: seeded takes BuiltSession.exercises entries; author fixing by 04:48. #1030 reviewer launched.
+- Merged #1009 (part of #944: web barcode decoder, zxing-wasm 3.1.3 self-hosted). Owner: iOS Safari check.
+- Merged #1009 (part of #944: web barcode). #944 app work complete (owner: Android Chrome / iOS Safari / Android scanner device checks). #1024 un-drafted, needs main merge (author asked) then review. #1031 (closes #1023) reviewer launched; whichever of #1008/#1031 merges second adds :plate-pose:lintDebug. #1027 nits sent to author.
+- #1029 Approve with nits: narrow comparison skip; decided split change -> stop walk at most recent real template, not in plan -> first entry. Author fixing. Spec section 0 entry for #1019 deviation still needed (follow-up docs PR).
+- #1030 Approve with nits (comment wording 'likely' + #1032 link); e2e (web) must be green before merge. #1032 extended to WorkoutScreen/ProgressScreen.
+- #1031 Approve with nits (block-comment regex); merges AFTER #1008 and must add :plate-pose:lintDebug once #1008 is on main. Author fixing.
+- #1031 nits applied at 5cf3464b; status: blocked on #1008. After #1008 merges: merge origin/main into app/lint-abort-1023, append :plate-pose:lintDebug to the 'Local modules unit tests and lint' step, push, then merge on green. #1024 review nit (drop dead guard step) sent to author.
+- #1028 re-review Approve with nits: decided added balance pick gets plain defaults (only seeded balance keeps 2); test must distinguish (under-60 added case). Author fixing.
+- 04:31 owner extended deadline to 06:00 (wrap-up cron 05:52; agent deadline 05:48). #1028 fixed at 89b4fcc6 (added balance = plain defaults), final re-review launched. Started #1032 (app/datebar-remount-1032, wt-1032) and #986 sync timeouts (qa/e2e-sync-timeouts-986, wt-986b).
+- Merged #1026 (part of #1011: core photoMeal rules + importedGrams). #1011 remaining: frame positions into core after #1003, then app switch-over PR.
+- #1008 CI green but CONFLICTING after #1009/#1026 merges; author merging main (licences regenerate). Then merge #1008, then #1031 adds :plate-pose:lintDebug.
+- #1033 (closes #1032: DateBar stays mounted, WorkoutScreen restructured to one Page) opened, reviewer launched. Open Dependabot alerts: braces (high), node-forge (high), sprintf-js (medium x2); agent on branch app/dependabot-oct19 (wt-deps).
+- Dependabot alerts #1, #4, #5, #6 (braces, node-forge, sprintf-js): no patched versions upstream (first_patched_version null). Left open, not dismissed; re-check later. Leftover empty worktree scratchpad/wt-deps + local branch app/dependabot-oct19 (no commits): agent's removal was denied by permission classifier; left for owner to remove.
+- #1034 (part of #986: sync spec waits for consent line before Delete everything) opened, reviewer launched. Filed #1035 (DataScreen layout shift moves buttons; app lane).
+- Merged #1030 (part of #986: food-plan e2e waits for loaded day). #986 stays open for sync 120 s timeouts.
+- Merged #1027 (closes #1010: 16-bit PNG refused before decode, contract 0.1.25).
+- #1034 Approve with nits; checklist nit fixed by coordinator in PR body; watcher merges on green. #1036 (closes #1035: storage line moved below buttons; prototype deviation) opened, reviewer launched.
+- Merged #1024 (closes #1013: barcode Playwright spec in web e2e; barcode steps confirmed run+pass).
+- Merged #1029 (closes #1019: hand-picked days skipped in sequence, split change restarts; HAND_PICKED exported). Follow-ups: app uses HAND_PICKED in db/workouts.ts:67; PROTOTYPE_SPEC section 0 entry for this deviation.
+- Merged #1029 (closes #1019). Follow-up agent: app uses HAND_PICKED + section 0 entry (branch app/hand-picked-const-1019, wt-1019b). #1028 approved but conflicting; author merging main. #1036 Request changes -> placeholder in prototype position; author fixing.
+- #1033 Approve with nits (stable key, Progress duplicate key fix); author applying. #1003 CONFLICTING again after #1009 etc.; AI agent merging main. Note: #1003 and #1008 both touch licences files: whichever merges second needs another main merge.
+- #1037 (app HAND_PICKED in loadSessionLog + section 0 entry for #1019) opened; GitNexus rated loadSessionLog CRITICAL (13 dependents) though value unchanged; reviewer launched.
+- Merged #1034 (part of #986: sync spec waits for consent line before Delete everything). #986 open until sync job green over several runs.
+- 04:50 decided #971 (warn when stated 0 kcal and macros >20 kcal/100) and #972 (fibre hint unless en:india or en:united-states); agents started: core/off-rules-971-972 (wt-971), docs/notice-assets-965 (wt-965), backend/record-counter-667 (wt-667), qa/e2e-offline-sync-688 (wt-688). #1037 nits applied at b41384f7, watcher merging.
+- #667: items 1-2 already on main; item 3 (staging SYNC_MAX_RECORDS_PER_ACCOUNT) is infra, blocked on #36 VM. Issue relabelled infra, left open.
+- Merged #1028 (part of #1020: core seededSession). #1020 remaining: app wiring of startPicked + app tests + PROTOTYPE_SPEC section 0 note.
+- #1038 (closes #965: NOTICE stale Expo-template entry removed; licences --check guards) and #1039 (part of #688: offline-then-sync + server-delete e2e; Maestro smoke remains owner/CI item) opened; reviewers launched.
+- Merged #1028 (core seededSession). Started #1020 app wiring (app/seeded-picks-1020, wt-1020b) incl. section 0 entry.
+- #1040 (closes #971, #972) opened, reviewer launched; #944 comment records the rule changes.
+- #1038 Approve with nits (check must not silently disable; narrow NOTICE match; exit-1 tests); author fixing. Owner question: is the brand mark (apps/mobile/assets/brand/*.svg) original artwork? Note: local main checkout is stale at 769a2d4f vs origin/main; owner can git pull --ff-only (HANDOFF.md is locally modified).
+- #1039 Request changes (second test relies on 30 s timer; needs explicit Sync now); author fixing.
+- Merged #1036 (closes #1035: Data screen storage line placeholder in prototype position, aria-hidden).
+- Merged #1036 (closes #1035). #1039 fixed at 7e01ae5a; re-review watching first CI run.
+- Merged #1033 (closes #1032: DateBar stays mounted on Food/Workout; Progress duplicate keys fixed).
+- Merged #1033 (closes #1032). #1038 nits applied at 5e45f83b, watcher merging. #1041 (closes #1020 app side + section 0 entry; seeded start shows workout name) opened, reviewer launched.
+- #1040 nits applied at be943f64, watcher merging. #1037 CONFLICTING after #1033 (WorkoutScreen); author merging main.
+- Merged #1008 (part of #947: Android pose module, flag off). Next: #1031 merge main (step-name conflict with #1008's 'Reminders and pose module...' step), keep :plate-pose targets, add barcode+device-steps lint.
+- Merged #1008 (part of #947: Android pose module). #947 app work complete (owner device gate: pose fps/thermals/framing/TalkBack, cold first install). #1031 author merging main + plate-pose lint target.
+- Merged #1039 (part of #688: offline-then-sync + server-delete e2e). #688 remaining: Maestro Android smoke (owner/CI-infra).
+- Merged #1040 (closes #971, #972: OFF zero-kcal looks_off and fibre hint by country).
+- Merged #1039 (part of #688; first CI run of new specs passed). #1041 Approve with nits: decided base only if a seeded exercise remains; hide Training away toggle while seeded; 3 mutation-guard tests; spec text fix. Author fixing.
+- Merged #1037 (app uses core HAND_PICKED everywhere; section 0 entry for #1019).
+- Merged #1037 (HAND_PICKED in app + #1019 section 0 entry). Merged #1040 (closes #971, #972).
+- #1003 merged up to main again at 949c604c (licences regenerated), watcher merging. #1041 fixes at 80901da8, watcher merging. Started #1011 frame positions core PR (core/form-frames-1011, wt-1011b).
+- Merged #1041 (closes #1020: seeded picks keep base/adjustments; base only while a seeded exercise remains; away toggle hidden while seeded; section 0 entry).
+- Merged #1041 (closes #1020). #1042 (part of #1011: core form frames) Request changes (frameTimesMs must use 5000 for <=0); author fixing.
+- Merged #1031 (closes #1023: every local native module lint abortOnError + CI lint for reminders, pose, barcode, device-steps).
+- Merged #1038 (closes #965: NOTICE agrees with THIRD_PARTY; licences --check guards icon/splash). Owner: confirm brand mark is original artwork.
+- Merged #1031 (closes #1023), #1038 (closes #965). #1042 fixed at b27a0616, re-review running. Started #1011 app switch-over for meal photo + recipe import (app/ai-rules-core-1011, wt-1011c); frames switch-over waits for #1003 + #1042.
+- Merged #1003 (part of #946: AI form check UI, flag off). #946 app work complete; owner phone test of video path pending. #1011 next: frame positions into core, then app switch-over.
+- Merged #1003 (part of #946). #946 app + backend complete; flags gated on #926 provider, Play data safety, owner phone test.
+- Merged #1042 (part of #1011: core form frame positions). #1011 remaining: app frames.ts switch to core frameTimesMs.
+- Merged #1042 (part of #1011). Started frames switch-over (app/form-frames-core-1011, wt-1011d). After it and #1043 merge, #1011 can close.
+- #1044 (part of #1011: app frames.ts uses core frameTimesMs) opened, reviewer launched. #1043 nits (3 missing guard tests) being applied.
+- Merged #1043 (part of #1011: meal photo + recipe import use core rules; 3 guard tests added).
+- Merged #1044 (part of #1011: app frames use core frameTimesMs).
+
+## 2026-10-19 06:00 stop (Claude Code coordinator, session afc87cdd)
+
+Stopped at the owner's 6 am deadline (extended from 5 am). State at 05:38 IST:
+
+**Open PRs: none.** origin/main is at d350e46a (#1042), and #1043 and #1044 merged after it.
+**Running agents: none.** **Running watchers: none.**
+
+### Merged this session (2026-10-19)
+#992, #993, #994, #995, #996, #998, #999, #1000, #1001, #1007, #1014, #1004, #1009, #1015, #1016, #997, #1002, #1003, #1008, #1021, #1024, #1025, #1026, #1027, #1028, #1029, #1030, #1031, #1033, #1034, #1036, #1037, #1038, #1039, #1040, #1041, #1042, #1043, #1044.
+
+### Issues closed
+#980, #984, #989, #990, #991, #1005, #1006, #1010, #1011, #1012, #1013, #1017, #1018, #1019, #1020, #1022, #1023, #1032, #1035, #965, #971, #972 (some were closed through PR keywords).
+
+### Still open, with the next action
+- **#944 barcode:** app, web and backend are all merged, behind EXPO_PUBLIC_BARCODE_SCAN and OFF_ENABLED, both off.
+  - Owner: OFF usage form and OFF_CONTACT_EMAIL; device checks (Android scanner, Android Chrome native detector, iOS Safari ponyfill).
+  - Then turn the flags on per RUNBOOK section 9.
+- **#946 AI images:** app and backend are merged, with the flags off.
+  - Owner: AI provider (#926); Play data safety wording for AI images; phone test of the form-check video path (the picker's video copy must be deleted).
+  - Then follow RUNBOOK section 10.
+- **#947 pose:** web and Android are merged, behind EXPO_PUBLIC_POSE_TRACKING, off.
+  - Owner device gate: fps, thermals, framing, TalkBack, starting from a cold first install (the permission dialog path).
+- **#975 Play declarations:** owner Play Console items. Physical activity, Notifications, Camera (which also covers progress photos and the AI meal photo), Data Safety.
+- **#986 e2e flakes:** #1030 (food-plan) and #1034 (sync delete) are merged. Keep the issue open until the sync job has been green across several runs, then close it.
+- **#688:**
+  - #1039 merged (offline-then-sync and server delete). The new specs passed on their first CI run.
+  - Remaining: the Maestro Android smoke test, which needs an emulator or device and is an owner/CI-infra item.
+- **#667:** items 1 and 2 are already on main. Item 3 (staging SYNC_MAX_RECORDS_PER_ACCOUNT=200000) is infra work, blocked on the VM (#36).
+- **#653:** the remaining 40 pose figures. Coach review is an owner item. Not started this session.
+- **#948 iOS readiness, #926 provider, #36 VM, #29 branch protection:** owner items, as before.
+
+### Follow-ups worth filing or doing next
+- **Recipe import unmatched list:** it shows "name (N g)", while the prototype's impMissing shows the original text. Possible spec-question (noted in the #1026 review).
+- **sync.spec.mjs** still has its own copies of newEmail, badge and the second-device helpers. It could import them from tests/e2e/support/sync.mjs (#1039 review, optional).
+- **Workout no-profile state:** the title sits below the DateBar there, which differs from Food and Progress (#1033 review, cosmetic).
+- **ccache timing for #1021:** the first push-to-main full build seeds the cache. Compare the next app PR's android job time with the 33.5 min baseline, and check that `ccache -s` shows hits. If it shows 0 cacheable calls, the CMake launcher is not reaching AGP.
+- **AI image heap:** -Xmx768m and mem_limit 1152m were sized for 16-bit PNGs. #1027 now refuses those, so the heap could be revisited (optional).
+- **Dependabot alerts #1, #4, #5 and #6** (braces, node-forge, sprintf-js): no patched versions exist upstream. Left open, not dismissed. Re-check later.
+
+### Leftovers on disk
+- `scratchpad/wt-deps` worktree and local branch `app/dependabot-oct19`, with no commits. The agent's removal attempt was denied by the permission classifier. Owner can run `git worktree remove <path>` and `git branch -d app/dependabot-oct19`.
+- `../wt-qa-scratch`: kept as before (untracked e2e specs, related to #986).
+- The local main checkout is stale (769a2d4f). Run `git pull --ff-only`; HANDOFF.md is modified locally and uncommitted.
+
+### Process notes for the next session
+- **Merge watcher:** `/private/tmp/claude-503/-Users-shubhambansal-Desktop-ai-personal-fit-app-plates-and-bars/afc87cdd-c105-4f91-b067-2bafa1b56545/scratchpad/watch-merge.sh PR SHA "handoff line"`.
+  - It waits until no check is pending, then does a strict green check and a squash merge with --match-head-commit.
+  - The scratchpad may be cleared, so recreate the script if it is missing.
+- **Agents do not wait for CI.** They push and report, and the coordinator watcher merges.
+- **Stacked PRs with squash merges:** after the base merges, retarget the child to main AND merge origin/main into the child. Retargeting alone leaves conflicts.
+- **Shared licence files:** PRs that touch licences.json or android-classpath.txt conflict with each other. Regenerate licences.json with `scripts/licences.mjs`; never hand-merge it.
+- **android-release environment:** now restricted to `main` and `v*` (#1022), so do not dispatch android-release on feature branches.
+- **GitNexus index is stale** (fcc73b3). Many app symbols come back UNKNOWN. Run `node .gitnexus/run.cjs analyze --index-only` before relying on impact results.
+- 06:0x owner pulled: main checkout now fast-forwarded to 0fe020e6 (includes #1043, #1044). Stale-checkout note above is resolved.
+
+## 2026-10-19 12:15 resume (owner said "continue")
+- Scratchpad is gone. The merge watcher now lives at /Users/shubhambansal/Desktop/ai-personal/fit-app/.agent-tools/watch-merge.sh, and agent worktrees go under /Users/shubhambansal/Desktop/ai-personal/fit-app/.agent-wt/.
+- #1021 measured: PR android runs now take about 14 to 20 minutes (baseline 33.5). ccache hit rate is 24.7% of cacheable calls, uncacheable calls are 53%, and the max size shows 5.0 GiB, so CCACHE_MAXSIZE is not applied. Follow-up agent: infra/ccache-tuning (wt-ccache).
+- GitNexus re-index started (`node .gitnexus/run.cjs analyze --index-only`); log at /tmp/gitnexus-analyze.log.
+- Agents started:
+  - #653 figures batch 2: content/figures-batch2-653 (wt-653b).
+  - Recipe import unmatched list to match the prototype: app/import-unmatched-original (wt-impmissing).
+  - ccache tuning: infra/ccache-tuning (wt-ccache).
+- #1046 (contract 0.1.26 ImportedIngredient.original, part of #1045), #1047 (ccache cap in config + per-run stats; counters were cumulative, real per-run hit rate 100%), #1048 (figures batch 2: 12 poses, 43 total, part of #653) opened; Opus reviewers launched.
+- #1046 Approve with nits: decided original gets minLength 1 + non-blank pattern now (new field). #1048 Request changes (pull-up elbow above bar, RDL arm stretched, row reads as squat/curl, push-up start bent; add segment-length test); author fixing. #1047 approved, watcher merging.
+- Merged #1046 (contract 0.1.26: ImportedIngredient.original, non-blank, part of #1045). Next: backend + app for #1045.
+- Merged #1046 (contract 0.1.26). Started #1045 backend (backend/import-original-1045, wt-1045b) and app (app/import-original-1045, wt-1045a).
+- #1049 (app shows original, part of #1045) and #1050 (backend passes original through, part of #1045) opened; Opus reviewers launched.
+- Merged #1047 (ccache cap in conf, per-run stats with -s -v).
+- Merged #1047. Per-run ccache on PR: 161/161 hits; uncacheable 183 = 178 precompiled header + 5 link. Started infra/ccache-pch (wt-pch) to set pch sloppiness.
+- Merged #1048 (part of #653: figures batch 2, 43 exercises; segment-length test). 28 exercises remain; coach review owner step.
+- Merged #1048 (figures batch 2, 43 total). Started batch 3 (content/figures-batch3-653, wt-653c). Decided on #653: isometrics get one static frame (test allowlist tied to catalogue tag); front/top-view exercises get no figure for now.
+- Merged #1049 (part of #1045: app shows original in unmatched note).
+- Merged #1049 (part of #1045). #1052 (figures batch 3, 55/71) opened; reviewer launched. 15 left without figure: 5 decided (isometrics single frame, front-view none) + 10 drawable.
+- Merged #1050 (part of #1045: backend returns original, contract-blank trim before/after cut, fuzzed).
+- Merged #1050; closed #1045.
+- #1051 (ccache pch sloppiness: cacheable 161 -> 339/344; PCH hits unproven until a main save + later run) opened; reviewer launched to judge stale-object risk.
+- Merged #1052 (figures batch 3, 55/71; batch-2 Dumbbell Split Squat rear leg fixed; rear-leg test).
+- Merged #1052 (figures 55/71). Started batch 4 (content/figures-batch4-653, wt-653d): remaining 10 drawable + Plank/Wall Sit single frame with tag-checked allowlist.
+- #1053 (figures batch 4: 66/71; Plank/Wall Sit single frame; Dumbbell Fly skipped; Cable Crossover front view) opened; reviewer launched. Follow-ups: Single-Leg Balance frame, Bodyweight Pull-up dead hang 148°, tools/README count, app figureAlt 'held position' for 1-frame entries.
+- Merged #1051 (ccache pch sloppiness; expect ~339/344 hits from the second main run after merge — verify).
+- Merged #1051 (ccache pch sloppiness). TODO verify: the 2nd push-to-main android-release run after this merge should show ~339/344 hits in its 'ccache statistics' step. Started app figureAlt 'held position' (app/figure-held-alt, wt-heldalt).
+- Merged #1053 (figures batch 4: 67/71; Single-Leg Balance, Plank, Wall Sit single frames; pull-up dead hang fixed). #653 remaining: Dumbbell Fly + 3 front-view exercises (decided no figure), coach review (owner).
+- Merged #1054 (one-frame figures: held-position alt, capped width).
+- Merged #1053 (figures 67/71) and #1054. No open PRs. Watching main android-release: 39218850622 (first after #1051, seeds PCH cache), then run for f673fbbf (#1054) should show PCH hits.
+- 13:43 owner: work on issues not needing input. Closed #697 (reminders shipped). Updated #200 (only monitoring install left, waits #36). Started #975 Play data safety doc (docs/play-data-safety-v11-975, wt-975) and #688 Maestro smoke CI (qa/maestro-smoke-688, wt-688m).
+- #1055 (Play data safety v1.1 checklist, part of #975) opened; reviewer will dump the built APK's permissions to settle READ_MEDIA_* and check repo variables. Note from author: iOS privacy manifest needs Photos/Videos once AI images go on (backup-config.test asserts absent).
+- #1055 Request changes (reminders contract field wording, full permission list, settled items). Settled: no repo/env variables -> release builds have barcode/pose flags off and NO ANDROID_API_URL (owner must set env vars before store build); no READ_MEDIA_* in manifest. Started app/manifest-copy-preupload (wt-manifest): block SYSTEM_ALERT_WINDOW etc, fix reminders/store.ts comment, iOS picker strings.
+- #1056 (block SYSTEM_ALERT_WINDOW, USE_BIOMETRIC, USE_FINGERPRINT; reminders comment; iOS picker strings) opened; reviewer will dump the PR APK's permissions and confirm expo-secure-store never needs biometric at runtime.
+- Merged #1055 (Play data safety v1.1 checklist, part of #975).
+- Merged #1057 (android-release + web-deploy map EXPO_PUBLIC_BARCODE_SCAN/POSE_TRACKING from env vars; RUNBOOK 8.4). Owner: staging/production envs + WEB_DEPLOY_ENABLED not created yet.
+- Merged #1056 (blocked SYSTEM_ALERT_WINDOW/USE_BIOMETRIC/USE_FINGERPRINT, biometric guard test, iOS photo copy, reminders comment).
+- Merged #1056, #1057. ccache check: main full build 39226041548 hits 335/1356, cache 0.4/0.4 GB full, 555 cleanups -> 400M too small for 4 ABIs + PCH. Started infra/ccache-size (wt-ccache2). #36: owner hit Oracle A1 'out of capacity' in AD-1; advised smaller shape / PAYG / CLI retry loop.
+- 2026-10-19 15:15 #36 OCI: on owner request wiped account to fresh (deleted old 200 GB boot volume instance-20260521-1554, old vcn-public with NAT/service/internet gateways, subnet, route tables). Kept identity (user, groups, Tenant Admin Policy, API key, Oracle-Tags). Recreated plateandbar-vcn 10.0.0.0/16 + plateandbar-igw + plateandbar-public 10.0.0.0/24, ingress TCP 22/80/443, UDP 443. Launch retry loop running (.agent-tools/oci-launch.sh).
+- 2026-10-19 #36 owner decision: API host = <server-ip>.sslip.io (no domain).
+- 2026-10-19 #1058 (ccache 400M->2G + main-only ccache-prune job keeping newest 2) opened; PR run arm64 61% hit. Opus reviewer launched; label status: in review.
+- 2026-10-19 #1058 Opus review: Approve with nits (cache quota already ~10.7 GB so keep 1 entry; test rejects || in guard; prune step no silent green). Author agent applying; label nits pending. Backend AccountControllerTest flake on old head.
+- 2026-10-19 #36 owner stopped Oracle launch loop (never got A1 capacity). Owner deleted all 7 personal GCP projects (DELETE_REQUESTED, 30-day undelete); personal billing account closed. Staging host still undecided.
+- 2026-10-19 #1058 merged: ccache 2G, main-only prune keeps newest entry. Confirm on first main run: true 4-ABI cache size, prune deletes older ccache-* entries.
+- 2026-10-19 #688 Maestro Android smoke PR #1061 opened (dispatch+nightly, API34 x86_64 emulator, 3 flows, green run 39240835458). Opus reviewer launched; label in review. App bugs found #1059 (buttons under nav bar) and #1060 (stale scroll) — two Sonnet app agents launched (branches app/nav-bar-inset-1059, app/scroll-reset-1060). After #1061 merges: dispatch android-smoke once from Actions to confirm on main.
+- 2026-10-19 #1061 Opus review: Request changes (flows outside QA lane -> move to tests/e2e/maestro/; food assert too weak; link #1059/#1060; file splash-hang issue; ccache 2G; licence Apache-2.0; fork cron guard). Author agent resumed; label changes requested.
+- 2026-10-19 PRs #1062 (Fixes #1059, bottom inset in Page+SheetModal) and #1063 (Fixes #1060, Page resetKey scroll-to-top) opened; both touch Page in ui.tsx. Two Opus reviewers launched; labels in review. #1062 agent ran git stash once in its worktree (restored, dropped; GitHub Desktop stash@{0} on main untouched). Worktree .agent-wt/scroll-reset-1060 still present.
+- 2026-10-19 #1063 Opus: Approve with nits (useLayoutEffect, stronger asserts, conflict with #1062 in Page -> #1062 merges first). Coordinator: Start (preview->session) also resets in this PR; SignIn left. Author resumed; label nits pending.
+- 2026-10-19 #1062 Opus: Request changes (lint no-undef jest in jest/setup.js; barcode ScanFlow raw Modal still under nav bar -> flag means 'ancestor pads'; FlatList screens -> follow-up issue; tests 2-3 weak). Merge order flipped: #1063 first, then #1062 merges main. Both authors messaged.
+- 2026-10-19 #1063 merged (Fixes #1060): Page resetKey/useScrollToTopOn; setup steps, workout preview and Start open at top. Next: tell #1062 author to merge origin/main and resolve ui.tsx.
+- 2026-10-19 #1063 merged; #1060 closed. #1062 author told to merge main, resolve ui.tsx, full checks; then fresh Opus re-review. Follow-up #1065 (FlatList stack screens under nav bar) filed.
+- 2026-10-19 #36 owner asked to resume OCI launch loop (task b3ci4jt59).
+- 2026-10-19 #1062 merged (Fixes #1059): bottom safe-area inset via useBottomInset/PaddedWindow in Page, SheetModal, ScanFlow. Follow-up #1065. After #1061 merges: remove Maestro 50%,94% tap workaround.
+- 2026-10-19 #1062 merged; #1059 closed. #1058 confirmed on main run 39235492009: 4-ABI ccache 0.6/2.0 GB, hits 72.3% (980/1356), prune deleted 6 old ccache-* entries, 1 left (526 MiB). #1061 author told to merge main and drop 50%,94% + scroll workarounds. OCI loop still InternalError (16:58).
+- 2026-10-19 owner: check remaining items. Started app agents: #1065 (FlatList inset, branch app/flatlist-inset-1065) and #1064 investigation (splash hang; app bug vs harness race, branch app/splash-hang-1064 if code). Remaining open issues otherwise owner-gated or deferred pointers (see 'what's left' summary).
+- 2026-10-19 #1064 classified harness race (process killed by previous task removal before attach); no app change. #1061 author told to stopApp + wait for pid gone before clearState launch, Fixes #1064. Label app removed, qa added.
+- 2026-10-19 #1066 (Fixes #1065, FlatList bottom inset in ExerciseLibrary + Licences) opened; Opus reviewer launched; label in review. Author slip: git checkout HEAD -- src wiped edits, reapplied and re-verified.
+- 2026-10-19 #1066 merged (Fixes #1065): FlatList bottom inset in ExerciseLibrary and Licences; audit found no other uncovered list.
+- 2026-10-19 #1061 reworked (head 567b8168): flows in tests/e2e/maestro/, stronger food asserts (negative run 39244281690), workarounds removed, per-flow force-stop + wait (Fixes #1064), ccache 2G, fork guard. Proof run 39248911764 green. Opus re-review launched; label in review.
+- 2026-10-19 #1061 re-review: Approve with nits (settle timeout must fail flow; adb failure must not read as settled). Author resumed for nits + fresh proof run; label nits pending.
+- 2026-10-19 owner: work towards v2. Created label v2 and issues #1067 (label scanning OCR), #1068 (smartwatch), #1069 (video-to-3D demos), #1070 (lab reports, gated on medical+legal review; spec only). Four Sonnet spike agents launched to post research/spec comments; coordinator decides then builds first slices behind flags.
+- 2026-10-19 #1068 decided: no Wear OS app (Data Layer = Play services); first slice = rest-timer notification mirrored to watch, +30s/Skip, setting off by default; app agent building (app/rest-notification-1068). #1070 spec posted (43 medical items, 11 legal questions); decided no AI/CDN, manual entry first, hold device-local; owner must arrange medical+legal review.
+- 2026-10-19 #1067 decided: Tesseract 5 (Tesseract4Android 4.9.0 + tesseract.js, tessdata_fast eng), PP-OCRv5 fallback; no sodium, no Hindi slice 1; <=8 MB arm64; mandatory review. Agents: contract ADR 010 (contract/adr-010-label-scan), core parser (core/label-parser-1067). App module next. Owner: 40-60 label photos for bake-off.
+- 2026-10-19 PR #1071 (ADR 010 label scanning) opened; Opus reviewer launched. #1069 decided: own clips -> MediaPipe Pose Landmarker 3D offline -> own 15-joint skeleton keyframes in content/exercise-motion.json; slice 1 projects to 2D SVG; Bodyweight Squat behind EXPO_PUBLIC_EXERCISE_MOTION. Licence gate on MediaPipe model card first. Content agent building schema+pipeline (content/exercise-motion-1069). Owner: film squat clips side+front.
+- 2026-10-19 #1071 Opus: Approve with nits (5 wording); coordinator: bake-off also gates web (tesseract.js time + download size). Author resumed; label nits pending.
+- 2026-10-19 #1071 merged: ADR 010 label scanning with on-device OCR (part of #1067).
+- 2026-10-19 #1071 merged (ADR 010). App agent started on OCR engine (plate-label-scanner module + tesseract.js web wrapper, flag EXPO_PUBLIC_LABEL_SCAN, branch app/label-ocr-engine-1067); screens wait for core parser.
+- 2026-10-19 #1072 (part of #1068: rest-timer notification, +30s/Skip, plate-reminders Kotlin, switch in Reminders section, device-only) opened; Kotlin uncompiled locally, untested on device/watch. Opus reviewer launched (incl. whether ongoing notifications bridge to Wear). Label in review.
+- 2026-10-19 #1072 Opus: Request changes (cold-start takeRest missing; ongoing countdown not bridged to Wear -> copy fix, watch gets end alert only; stale gate too tight for setAndAllowWhileIdle; prefs not synchronized). Decided: keep setOngoing, swipe doesn't cancel alert. Author resumed; must wait for android job (Kotlin compile + RestTest) green.
+- 2026-10-19 #1073 (core label parser, part of #1067; 44 vectors, fuzz, 100% coverage) opened; Opus reviewer launched (focus: no wrong-but-confident values, reviewable semantics).
+- 2026-10-19 #1061 merged (closes #688, fixes #1064): Maestro Android smoke, nightly + dispatch, per-flow settle. Next: dispatch android-smoke once on main.
+- 2026-10-19 #1061 merged; #688 and #1064 closed. android-smoke dispatched on main: run 39253433006. #1074 (part of #1069: motion format + pipeline; licence gate passed, BlazePose GHUM 3D model card Apache-2.0) opened; Opus reviewer launched.
+- 2026-10-19 #1073 Opus: Request changes (joinSplit pairs label with unrelated nutrient line -> wrong high-confidence values; stacked labels mispair; added sugar takes total sugars; rounding edge; alternate unchecked; swap only medium; 1.046 kJ; labelFood fibre unvalidated). Author resumed; decided alternate gets levels + same checks.
+- 2026-10-19 #1074 Opus: Approve with nits. Decided: keep 8 KB cap, CLI steps fps down to 5 then fails; tools from pinned model block; skeleton pb19-v1 (add heels+toes), per-clip floor; one clip (side) per entry; app player rescales to rig segment lengths. Author resumed; nits pending.
+- 2026-10-19 #1073 fixes pushed (head 1e053917, 107 tests, alternate now {unit,fields,values,warnings}); fresh Opus re-review launched incl. 1.046 kcal and two-row split edge cases.
+
+## 2026-10-19 pause (owner: "pause everything")
+Stopped: all agents (#1068 fixes, #1069 fixes, #1067 OCR engine, #1073 re-reviewer), the OCI launch loop, and the smoke-run watcher. No watcher or loop running. GitHub run 39253433006 (android-smoke dispatch on main, first run) was still in progress; check its result on resume.
+Open PRs:
+- #1072 (#1068 rest notification): review fixes pushed at 12b60fad (cold-start take, late-alarm gate, locking, setting read at background). Not yet verified that the android job compiled Kotlin and passed :plate-reminders:testDebugUnitTest. Label: status: changes requested. Next: check CI, then fresh Opus re-review.
+- #1073 (#1067 core label parser): fixes at 1e053917; re-review was stopped before posting. Label: status: in review. Next: relaunch Opus re-review (incl. "1.046 kcal" low-energy question, two-row split edge cases).
+- #1074 (#1069 motion format + pipeline): head 4da09b22. Review-fix commits 3e9dcb59 and eb0c2ae5 exist ONLY locally in .agent-wt/motion-1069b (branch content/exercise-motion-1069-fix, not pushed). Next: verify, merge that branch into content/exercise-motion-1069 and push, then re-review. Label: status: nits pending.
+Unfinished work in worktrees (kept, not removed):
+- .agent-wt/label-ocr-1067 (branch app/label-ocr-engine-1067): uncommitted OCR engine work (workflows, package.json/lock, sw.js, licences, etc.). Not pushed; no PR. Resume or restart the OCR engine task.
+- .agent-wt/rn-fix (app/rest-notification-1068-fix) clean, pushed.
+- .agent-wt/motion-1069b see above.
+Owner items unchanged: #36 VM (Oracle PAYG or Google billing), #926 AI provider, #975 Play Console, phone tests (#944/#946/#947), #653 coach review, #948 Apple, #29 branch protection, #1067 label photos, #1069 squat clips, #1070 medical+legal review.
+
+## 2026-10-20 resume
+Owner decisions (recorded on issues and in memory single-user-mode):
+- #926: AI off; it is the last item.
+- #975: owner is the only user, so no Play consent for now. Revisit before production, on the owner's say-so. All features on in owner builds.
+- #948 and #29: skipped.
+- #1070: build now. No doctor or lawyer; owner consents.
+- #1069: YouTube not allowed; Wikimedia Commons CC clips allowed.
+- Owner tests on their own Android phone.
+- Removed the stale wt-deps worktree entry (git worktree prune). The local branch app/dependabot-oct19 is kept.
+Done this session:
+- android-release env vars: EXPO_PUBLIC_BARCODE_SCAN=1 and EXPO_PUBLIC_POSE_TRACKING=1.
+- Owner APK build dispatched: run 39437952783.
+- OCI single try at 19:42: "Out of host capacity" on both shapes. Loop restarted.
+- Smoke on main run 39253433006: success.
+- #1072 CI is all green, including android (Kotlin and RestTest).
+Running:
+- Re-reviews of #1072 and #1073.
+- #1074 author: push local fixes plus cc_licensed source.
+- OCR engine agent resumed.
+- Lab reports core agent: core/lab-reports-1070.
+- 2026-10-20 #1074 pushed 70acace7 (all review items + cc_licensed source). Decided: per-frame floor = lowest of all 19 joints (MediaPipe world landmarks hip-centred); drop CC-BY-SA (CC0 + CC-BY-4.0 only, CONTENT-LICENSE unchanged). Author applying; then Opus re-review.
+- 2026-10-20 #1072 re-review: Request changes (extend uses flat 2 min gate; JS take-down tests vacuous after mount take; cold start on non-Workout tab misses take). Decided: +30s within window = fresh 30 s, past window = dismiss. Author resumed. Follow-up idea: upload Gradle test-results for per-case proof.
+- 2026-10-20 #1073 round-2 review: Request changes (Devanagari joins, ml cross-check, <5 kcal energy, rounding-zero emptied, 71-141 g swaps, of-which split, mg join, alternate unit). Decided: C fires when 4P+4C+9F>=5 kcal/100; basis/serving unit mismatch caps medium. Author resumed.
+- 2026-10-20 #1074 round-2: Request changes (run-model.py omits heel/toe landmarks; provenance only in CLI; YouTube regex bypassable). Decided: cc_licensed = Commons-only hostname allowlist. Author resumed.
+- 2026-10-20 #1074 round-2 fixes pushed (f4d017db, 208 tests, Commons allowlist, pinned provenance in validator). Round-3 Opus review launched.
+- 2026-10-20 #1076 (core lab reports: 14 markers, red flags, unit conversion, hold wiring tests; 101 tests) opened. #1075 decided: blank value -> none, never hold; app requires unit; tighten markerOf (Breast/VLDL); labFlagRaw keeps prototype. Author applying before review. App lane needs: labHold into FoodScreen, why/values.ts, workout sessionMods; device-local hold store; content/labs.json tips.
+- 2026-10-20 #1073 round-2 fixes pushed (c35c0a6c, 2040 tests, 29 new fail on old head; extra fix: 100 g serving not a per-100 column). Round-3 Opus review launched (block only on wrong-confident or wrongly emptied required fields).
+- 2026-10-20 #1074 round-3: Approve with nits (canonical URL check, KNOWN_MODELS vs PINNED_MODELS test, body size). Author applying; then merge on green.
+- 2026-10-20 #1073 round-3: Request changes (serving-size regex swallows merged column header -> per-serving values high). Decided full-swap: zero-in-both neutral, >=3 non-neutral mismatches. Author resumed.
+- 2026-10-20 #1077 (OCR engine: plate-label-scanner Tesseract4Android 4.9.0 via JitPack + tesseract.js 7 self-hosted; flag wiring) opened. Size: +9.05 MB installed arm64, ~5.1 MB compressed; decided budget = compressed download (recorded on #1067; revisit per-ABI APK/AAB before production). 16 KB pass. Opus reviewer launched (JitPack pinning focus).
+- 2026-10-20 #1073 round-3 fixes pushed (ad89ff66, 2051 tests; author saw 2033 once, unexplained). Round-4 Opus review launched (incl. test-count stability).
+- 2026-10-20 #1074 merged (part of #1069): exercise motion format pb19-v1, validator, landmark pipeline, Commons-only cc_licensed. Next: app keyframe player.
+- 2026-10-20 #1074 merged. App motion player agent started (app/exercise-motion-player-1069, EXPO_PUBLIC_EXERCISE_MOTION).
+- 2026-10-20 #1077 review: Request changes (CI red: JitPack can't resolve Tesseract4Android 4.9.0, tag moved, rebuild failed; AAR unpinned; scan blocks Expo shared async queue). Decided: build AAR ourselves from pinned release commit via infra/scripts/build-tesseract4android.sh and vendor it with sha256 test. Filed #1078 (Playwright OCR web smoke) and #1079 (unfiltered JitPack repo). Author resumed.
+- 2026-10-20 #1073 round-4: Request changes (unitless 'Per 100' header not recognised since round 1 -> per-100 values read as per-serving, high). Decided: unitless Per 100 = ml if 'ml' in header/serving text else g; inferred unit caps medium. Test count 2051 stable. Author resumed.
+- 2026-10-20 #1072 round-2 fixes pushed (ff3a94ea; CI all green incl android; RestColdStart at root, canExtend, alertPlan). Round-3 Opus review launched.
+- 2026-10-20 #1072 round-3: Approve with nits. Decided: losing in-app rest on process death OK for slice 1, follow-up issue. Author applying; then merge on green.
+- 2026-10-20 #1073 round-4 fixes pushed (ee5ee28e, 2058 tests; unitless Per 100 -> inferred unit capped medium). Round-5 Opus review launched (false positives for per 100 match).
+- 2026-10-20 #1073 round-5: Approve with nits. Applying nits 1-2 (per 100 kcal columns = other; liquid from chosen column; lookahead). Nits 3-5 fail safe, listed as known limits. Coordinator verifies diff and merges on green.
+- 2026-10-20 #1072 nits pushed (82562d7f), follow-up #1080; watcher merging on green. #1073 round-5 Approve with nits; final nits 1-2 being applied. #1081 (motion player, EXPO_PUBLIC_EXERCISE_MOTION) opened; Opus reviewer launched; Pause/Play kept. Filed #1082 (flaky mobile jest under load).
+- 2026-10-20 #1081 review: Approve with nits (focus pause, data.ts parity test, relative degenerate threshold). Lane waiver recorded on #1069. Filed About motion credit and lying-exercise fit issues. Author applying.
+- 2026-10-20 #1073 merged (part of #1067): core nutrition-label parser after 5 review rounds; known limits in PR body. Next: label screens once #1077 merges.
+- 2026-10-20 #1081 fixes pushed (0d3f7ea0); watcher merging on green. Content agent started: find CC0/CC-BY Commons squat clip, run pipeline, PR content/motion-squat-1069.
+- 2026-10-20 #1069 no CC0/CC-BY-4.0 squat on Commons; decided allow CC-BY-3.0 (adaptations OK under our CC BY 4.0 with attribution). Agent adding CC-BY-3.0 + processing File:Squat_-_exercise_demonstration_video.webm (content/motion-squat-1069).
+- 2026-10-20 #1072 merged (part of #1068): rest-timer notification, end alert mirrored to watch; follow-up #1080. Next: android-release var for rest notification is a user setting (no flag needed).
+- 2026-10-20 #1081 merged (part of #1069): exercise-motion player behind EXPO_PUBLIC_EXERCISE_MOTION. Before flag on: #1083 About credit, a real clip.
+- 2026-10-20 #1072 and #1081 merged. #1069 CC-BY-3.0 allowlist edit blocked by permission system (licence gate change); awaiting owner approval, not worked around.
+- 2026-10-20 #1085 (Fixes #1083, About Motion credits) opened. Decided: app does not check retrieved against device clock (CI enforces). Author adjusting; then Opus review.
+- 2026-10-20 #1085 Opus: Approve with nits (comment fix; About credits regardless of flag = intended). Author applying; then merge on green.
+- 2026-10-20 #1085 merged (Fixes #1083): About Motion credits.
+- 2026-10-20 owner approved CC BY 3.0 for motion clips (#1069). Clip agent resumed.
+- 2026-10-20 Coordinator made CC-BY-3.0 allowlist edit (owner-approved directly) on content/motion-squat-1069 (7a8a384c; tools 208 pass, app motion tests pass). Clip agent resumed for processing only. Reviewers launched: #1077 (vendored AAR from d7de990, CI green), #1076 (lab rules).
+- 2026-10-20 #1077 re-review: Approve with nits (JitPack wording; random tmp paths in .so -> make build reproducible + re-vendor; gradle wrapper sha; TessBaseAPI in try). Author applying.
+- 2026-10-20 owner said close the app agent: stopped OCR agent a3182ed7; #1077 nits (JitPack wording, reproducible AAR, wrapper sha, TessBaseAPI try) NOT applied yet, label changes requested. #1076 Opus: Approve with nits; decisions on #1075 (glycosylated->HbA1c, mg%, urine generic, non-HDL generic, unit_missing); core author applying.
+- 2026-10-20 #1069 Commons squat clip rejected (barbell, rear view, 72/171 frames hidden). Owner must film own squat. CC-BY-3.0 commit 7a8a384c kept unmerged on content/motion-squat-1069.
+- 2026-10-20 owner: resume #1077. Fresh app agent applying re-review nits (reproducible AAR, wrapper sha, wording, TessBaseAPI try).
+- 2026-10-20 18:20 core agent not stuck: #1076 nits pushed (003732e3) but PR CONFLICTING with main (index.ts exports after #1073), so no CI. Core agent resumed to merge main.
+- 2026-10-20 #1076 merged (part of #1070): core lab-report rules. Next: lab screens app agent.
+- 2026-10-20 #1076 merged (core lab rules). App agent started for lab screens + hold wiring (app/lab-reports-1070, EXPO_PUBLIC_LAB_REPORTS; content/labs.json; device-only).
+- 2026-10-21 Lab app PRs: #1086 (storage, screens, content, flag) and #1087 (hold wiring, stacked). Reviewers launched. Follow-up issue filed.
+- 2026-10-21 #1087 Opus: Approve with nits (hold false before first read -> Start may store normal session; corrupt hold row lifts hold; missing tests). Decided: hook returns null until loaded, Start waits; unparsable hold row = hold ON; add tests. Will batch with #1086 review into one fix agent.
+- 2026-10-21 #1086 Opus: Approve with nits (a11y grouping hides red notice; deleteReports misses damaged rows). Lab app agent resumed to apply #1086 then #1087 nits.
+- 2026-10-21 #1086/#1087 nits applied (577aeb08 / c147a3b2). Watcher merging #1086; then #1087 retarget+merge main.
+- 2026-10-21 owner asked for exercise form instructions (Blender rig keyframing) in /Users/shubhambansal/Desktop/ai-personal/fit-app/anatomy-build/form-instructions/ (outside repo). README format written; 3 content agents writing 71 files.
+- 2026-10-21 #1086 merged (part of #1070): lab reports storage, screens, content, flag. Next: retarget #1087 to main, merge main, CI, merge.
+- 2026-10-21 #1086 merged. #1087 auto-closed (base deleted); coordinator merged main into app/lab-reports-1070-hold (8af00a45, add/add resolved to hold versions, jest 3490 pass) and opened #1089. #1077 nits done (reproducible AAR 783b1a4c, two-build identical, wrapper sha checks), CI green; watchers merging #1077 then #1089.
+- 2026-10-21 #1089 merged (part of #1070, supersedes #1087): lab hold wiring.
+- 2026-10-21 #1089 merged. #1077 was CONFLICTING (flag lists vs LAB_REPORTS); coordinator merged main (keep both flags), release-env ok, jest 3553 pass; watcher re-armed.
+- 2026-10-21 Form instructions batch 2 done (48/71 files). README gained hip-angle, limb-length, padding and coaching-over-drawing notes. Noted app 2D figure deviations (glute bridge top, crunch, rear delt fly, bench dips, push-up depth) for #653 coach review.
+- 2026-10-21 All 71 form-instruction files written (+README) in anatomy-build/form-instructions; rows set to card's 45°. App 2D figure discrepancies listed on #653 for coach review.
+- 2026-10-21 #1077 merged (part of #1067): OCR engine, reproducible self-built Tesseract4Android AAR, tesseract.js self-hosted. Next: label-scan screens.
+- 2026-10-21 #1077 merged (OCR engine). Label-scan screens agent started (app/label-scan-screens-1067).
+- 2026-10-21 Set android-release EXPO_PUBLIC_LAB_REPORTS=1; owner build dispatched run 39485238647 (barcode, pose, lab reports on; rest notification is a user setting; label scan + motion off until ready).
+- 2026-10-21 #1090 (label-scan screens: capture, crop, recognise, mandatory review, save) opened; Opus reviewer launched.
+- 2026-10-21 #1090 Opus: Approve with nits. Decided: refuse ambiguous '1,234'; unknown basis requires serving size. Noted label scan on #975. Author applying.
+- 2026-10-21 #1090 nits applied (b43fab28); watcher merging.
+- 2026-10-21 Cancelled queued owner build 39485238647; will use the main push build after #1090 merges + LABEL_SCAN var set.
+- 2026-10-21 #1090 merged (part of #1067): label-scan screens. Next: set EXPO_PUBLIC_LABEL_SCAN=1 for owner build; bake-off needs owner label photos.
+- 2026-10-21 #1090 merged. EXPO_PUBLIC_LABEL_SCAN=1 for owner builds (noted on #1067; bake-off still required pre-production). Owner build run 39488523206 on f40dee86 (barcode, pose, lab reports, label scan).
+- 2026-10-21 owner stopped OCI launch loop again (never got A1 capacity).
+- 2026-10-21 Owner build 39488523206 success (android-release artifact 184 MB, expires 2026-11-03): barcode, pose, lab reports, label scan on.
