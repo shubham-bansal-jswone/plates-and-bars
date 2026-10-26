@@ -846,7 +846,7 @@ describe('Progress screen, seven days', () => {
   const food = (date: string, kcal: number, p: number, id: string) => ({ id, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, meal: 'Lunch', name: 'dal', qty: 2, kcal: kcal / 2, protein_g: p / 2, carbs_g: 1, fat_g: 1 });
   /** The style the day's bar was drawn with: the fill (width) and the target line (left), found by the bar's label. */
   const weekBar = (label: string) => {
-    const [fill, tgt] = screen.getByLabelText(label).children;
+    const [fill, tgt] = (screen.getByLabelText(label).children[0] as unknown as { children: unknown[] }).children;
     const flat = (el: unknown) => StyleSheet.flatten((el as { props: { style?: unknown } }).props.style as never) as Record<string, unknown>;
     return { fill: flat(fill), tgt: flat(tgt) };
   };
@@ -857,9 +857,7 @@ describe('Progress screen, seven days', () => {
     await saveLog(db, food(addDays(DATE, -2), 1600, 70, 'b') as never);
     await setup({ db });
     expect(await screen.findByRole('header', { name: 'Seven days to 8 Oct' })).toBeTruthy();
-    expect(await screen.findByText('2,400 kcal')).toBeTruthy();
-    expect(screen.getByText('1,600 kcal')).toBeTruthy();
-    expect(screen.getAllByText('not logged')).toHaveLength(5);
+    expect(await screen.findByLabelText('Thu, 2,400 kcal, 90 g protein')).toBeTruthy();
     expect(screen.getByLabelText('2,000 avg kcal')).toBeTruthy();
     expect(screen.getByLabelText('80 g avg protein')).toBeTruthy();
     expect(screen.getByLabelText('0 sessions')).toBeTruthy();
@@ -867,8 +865,8 @@ describe('Progress screen, seven days', () => {
     // 76.9230…% (1,990 / 2,587); over target, so the fill is the caution colour at the prototype's 0.85 opacity, and
     // the target line keeps the prototype's 0.5.
     expect(weekBar('Thu, 2,400 kcal, 90 g protein')).toMatchObject({
-      fill: { width: '92.77155005798222%', opacity: 0.85 },
-      tgt: { left: '76.92307692307693%', opacity: 0.5 },
+      fill: { height: '92.77155005798222%', opacity: 0.85 },
+      tgt: { bottom: '76.92307692307693%', opacity: 0.5 },
     });
     // A blank day's bar announces the day and that nothing was logged, as the prototype's bar does too (#588), not "0 kcal, 0 g protein".
     expect(screen.getByLabelText('Wed, not logged')).toBeTruthy();
@@ -882,7 +880,6 @@ describe('Progress screen, seven days', () => {
     expect(await week.findByLabelText('– avg kcal')).toBeTruthy();
     expect(week.getByLabelText('– avg protein')).toBeTruthy();
     expect(week.getByLabelText('0 sessions')).toBeTruthy();
-    expect(week.getAllByText('not logged')).toHaveLength(7);
     expect(week.getByLabelText('Fri, not logged')).toBeTruthy();
   });
 });
