@@ -7,6 +7,7 @@ import { defaultSettings, type Settings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
+import { expand } from './disclosure-helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
@@ -313,11 +314,13 @@ describe('Workout date navigation', () => {
     const db = await setup();
     await back();
     await screen.findByText('Yesterday');
+    await fireEvent.press(screen.getByLabelText('Choose another day'));
     await fireEvent.press(screen.getByLabelText('Choose Push B'));
     await fireEvent.press(screen.getByLabelText('Start Push B'));
     await screen.findAllByLabelText(/^Mark .* set 1 done$/);
     const template = 'Push B';
     for (const n of stored<Workout>(db, `workouts:${YESTERDAY}`).exercises.map((e) => e.name)) {
+      await expand(n);
       const kg = screen.queryByLabelText(`${n} set 1 kg`);
       if (kg) await fireEvent.changeText(kg, '10');
       await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
