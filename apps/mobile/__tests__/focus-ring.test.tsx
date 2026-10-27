@@ -75,3 +75,24 @@ describe('focus ring', () => {
     expect(ring(screen.getByLabelText('Rest timer').parent as never)).toMatchObject({ width: 2, color: light.focus });
   });
 });
+
+describe('switch hit area (#1121)', () => {
+  it('is at least 44x44 around the 40x20 track, and a tap on it toggles', async () => {
+    const onValueChange = jest.fn();
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={onValueChange} />);
+    const hit = StyleSheet.flatten(screen.getByTestId('switch-hit-area').props.style as never) as Record<string, number>;
+    expect(hit.minWidth).toBeGreaterThanOrEqual(44);
+    expect(hit.minHeight).toBeGreaterThanOrEqual(44);
+    await fireEvent.press(screen.getByTestId('switch-hit-area'));
+    expect(onValueChange).toHaveBeenCalledWith(true);
+  });
+
+  it.each([['dark', dark], ['light', light]])('keeps the off-state thumb and track visible in %s', async (_n, pal) => {
+    jest.spyOn(useThemeModule, 'useTheme').mockReturnValue(pal as never);
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={() => {}} />);
+    const sw = screen.getByLabelText('Rest timer');
+    expect(sw.props.thumbColor).toBe(pal.ink);
+    expect(sw.props.trackColor.false).toBe(pal.muted);
+    expect(pal.ink).not.toBe(pal.muted);
+  });
+});
