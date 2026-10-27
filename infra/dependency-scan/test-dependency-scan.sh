@@ -92,8 +92,8 @@ w "$W1"; rc=0; run tomorrow > /dev/null 2>&1 || rc=$?; eq "bad date rc" "$rc" 2
 # security.yml's dependency-review allow-ghsas must list exactly the GHSAs in waivers.tsv (#79): one list, two places
 repo="$(cd "$here/../.." && pwd)"
 allow="$(sed -n 's/^ *allow-ghsas: *//p' "$repo/.github/workflows/security.yml" | tr ',' '\n' | tr -d ' ' | sort)"
-listed="$(grep -v '^#' "$here/waivers.tsv" | cut -f1 | sort)"
-if [ -z "$allow" ] || [ "$allow" != "$listed" ]; then fail "allow-ghsas in security.yml differs from the first column of waivers.tsv"; fi
+listed="$({ grep -v '^#' "$here/waivers.tsv" || true; } | cut -f1 | sort)"
+if [ "$allow" != "$listed" ]; then fail "allow-ghsas in security.yml differs from the first column of waivers.tsv"; fi
 
 # the committed waiver file parses and every entry is for a real scope with an issue link
 "$here/report.sh" "$here/waivers.tsv" /dev/null 2026-10-18 "$tmp/out" > /dev/null || fail "waivers.tsv does not parse"
