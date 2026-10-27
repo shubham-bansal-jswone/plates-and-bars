@@ -14,7 +14,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** Once the provider has answered, any failure keeps the quota unit; only a failed call releases it. */
+/** Once the provider has answered, an unusable reply gives the daily unit back (tokens stay recorded); failing to record the tokens keeps it. */
 class AiServiceBilledFailureTest {
 
     final ObjectMapper json = new ObjectMapper();
@@ -37,7 +37,7 @@ class AiServiceBilledFailureTest {
     }
 
     @Test
-    void aParserThatThrowsAfterABilledResponseKeepsTheUnit() {
+    void aParserThatThrowsAfterABilledResponseRecordsTokensAndReleasesTheUnit() {
         when(provider.complete(any(), any(), any())).thenReturn(new AiProvider.Completion("{}", 10, 5));
         when(replies.describeMeal(any())).thenThrow(new IllegalStateException("parser bug"));
         assertThatThrownBy(this::call).isInstanceOfSatisfying(ApiException.class, e -> {
@@ -45,7 +45,7 @@ class AiServiceBilledFailureTest {
             org.assertj.core.api.Assertions.assertThat(e.code()).isEqualTo("unavailable");
         });
         verify(quotas).recordTokens(held, 10, 5);
-        verify(quotas, never()).release(any());
+        verify(quotas).release(held);
     }
 
     @Test
