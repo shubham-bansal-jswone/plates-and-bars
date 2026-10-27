@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -146,9 +146,22 @@ export function useFocusRing(surface: RingSurface = 'canvas') {
 /** Pressable with the focus ring. Every tappable control uses this, so none can miss the ring. */
 export function Press({ surface, style, onFocus, onBlur, ...rest }: PressableProps & { surface?: RingSurface; ref?: Ref<ComponentRef<typeof View>> }) {
   const f = useFocusRing(surface);
+  // react-native-web's Pressable (a div) only answers Enter; the ARIA checkbox, radio and switch contract is Space, and Space would scroll the page (#1139).
+  const spaceKey = Platform.OS === 'web' && (rest.accessibilityRole === 'checkbox' || rest.accessibilityRole === 'radio' || rest.accessibilityRole === 'switch' || rest.role === 'checkbox' || rest.role === 'radio' || rest.role === 'switch');
   return (
     <Pressable
       {...rest}
+      {...(spaceKey && !rest.disabled
+        ? {
+            onKeyDown: ((e: { key: string; repeat?: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; target?: unknown; currentTarget?: unknown; preventDefault(): void }) => {
+              rest.onKeyDown?.(e as never);
+              // Only a bare Space on the control itself: a focusable child keeps its own Space, and Ctrl/Alt/Meta+Space stay with the browser.
+              if (e.key !== ' ' || e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
+              e.preventDefault();
+              if (!e.repeat) rest.onPress?.(e as never);
+            }) as unknown as PressableProps['onKeyDown'],
+          }
+        : null)}
       onFocus={(e) => {
         f.onFocus(e);
         onFocus?.(e);
