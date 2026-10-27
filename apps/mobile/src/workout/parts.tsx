@@ -34,6 +34,10 @@ export interface RestState {
   end: number;
   total: number;
   label: string;
+  /** The exercise the label names; the label is recomputed or the rest cleared when it is gone or has no undone set. */
+  target?: string;
+  /** The day the rest started on. */
+  date?: string;
 }
 
 const REST_DONE = 'Rest done, go!';
