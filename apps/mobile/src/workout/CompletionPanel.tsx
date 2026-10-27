@@ -45,12 +45,12 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
       {/* MetricRow holds 3 cells; a 4th (cardio) goes on a second row so none truncates at 360 px. */}
       <MetricRow cells={cells.slice(0, 3)} />
       {cells.length > 3 ? <MetricRow cells={cells.slice(3)} /> : null}
-      {exs.map((e) => {
+      {exs.map((e, i) => {
         const b = bestSet(e.sets);
         const rates = [...new Set(e.sets.flatMap((s) => (s.rate ? [RATE_LABEL[s.rate]] : [])))];
         const pr = lifts[e.name]?.pbToast === date;
         return (
-          <View key={e.name} style={[styles.row, { borderColor: c.line }]}>
+          <View key={`${i}-${e.name}`} style={[styles.row, { borderColor: c.line }]}>
             <View style={{ flex: 1 }}>
               <Text style={[type.bodyStrong, { color: c.ink }]}>{e.name}</Text>
               {rates.length ? <Text style={[type.caption, { color: c.muted }]}>Felt: {rates.join(', ')}</Text> : null}

@@ -4,19 +4,17 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const rowOf = (name: string) => screen.queryByRole('button', { name: new RegExp(`^${esc(name)}, \\d+/\\d+ sets\\. Show sets`) });
 
 /**
- * `fireEvent.press` on the control named `label`, opening what hides it first: the workout screen keeps day choices, the
- * check-in, week tools and each exercise's guide in disclosures, and only one exercise's sets expanded at a time.
+ * `fireEvent.press` on the control named `label`, exactly as it is on screen. It never opens anything on the way, so a control that
+ * moved behind a closed disclosure or a collapsed exercise fails here: open that one explicitly with `expand`, `reveal` or `open`.
  */
-export async function press(label: string | RegExp) {
-  if (!screen.queryByLabelText(label)) {
-    // The collapsed exercise the label names (the longest name inside it), then every closed disclosure.
-    const text = typeof label === 'string' ? label : '';
-    const rows = screen.queryAllByRole('button', { name: / sets\. Show sets$/ }).filter((r) => text.includes(String(r.props.accessibilityLabel).split(', ')[0]!));
-    const row = rows.sort((x, y) => String(y.props.accessibilityLabel).length - String(x.props.accessibilityLabel).length)[0];
-    if (row) await fireEvent.press(row);
-    for (const b of screen.queryAllByRole('button')) if (b.props.accessibilityState?.expanded === false && !/Show sets$/.test(String(b.props.accessibilityLabel))) await fireEvent.press(b);
-  }
+export function press(label: string | RegExp) {
   return fireEvent.press(screen.getByLabelText(label));
+}
+
+/** Opens the one disclosure named `label` when it is closed. */
+export async function open(label: string | RegExp) {
+  const d = screen.getByRole('button', { name: label });
+  if (d.props.accessibilityState?.expanded === false) await fireEvent.press(d);
 }
 
 /** Opens an exercise's sets when it is collapsed (one exercise is expanded at a time). */
@@ -30,6 +28,13 @@ export async function reveal(name: string) {
   await expand(name);
   const g = screen.queryByLabelText(`Guide and tools for ${name}`);
   if (g && !g.props.accessibilityState?.expanded) await fireEvent.press(g);
+}
+
+/** Presses a workout chip ("Choose …", "Pick exercises") on the start view, opening "Choose another day" first when that disclosure is there and closed. */
+export async function pressDay(label: string) {
+  const d = screen.queryByRole('button', { name: 'Choose another day' });
+  if (d?.props.accessibilityState?.expanded === false) await fireEvent.press(d);
+  return press(label);
 }
 
 /** Types 10 and 10 into set 1 of every exercise and ticks it, expanding each exercise in turn. Returns how many exercises. */
