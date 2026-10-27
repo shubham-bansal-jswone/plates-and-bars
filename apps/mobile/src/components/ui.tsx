@@ -255,7 +255,7 @@ export function Choice({
 
 /**
  * A toggle chip: filter, rating and quick-answer buttons. `label` is the spoken name, `text` (default the label) what shows.
- * Selected = lime fill with dark text. One component for the whole app (it replaces the workout-only copy that lived in workout/parts).
+ * Selected = lime fill with dark text. One component for the whole app.
  */
 export function Chip({ label, text, pressed, danger, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; onPress: () => void }) {
   const c = useTheme();
@@ -273,9 +273,9 @@ export function Chip({ label, text, pressed, danger, onPress }: { label: string;
   );
 }
 
-export function Field({ label, invalid, ...rest }: TextInputProps & { label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border. */ invalid?: boolean }) {
+export function Field({ label, invalid, style, ...rest }: TextInputProps & { label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
   const c = useTheme();
-  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} style={[styles.input, invalid ? { borderColor: c.danger } : null]} {...rest} />;
+  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, style, invalid ? { borderColor: c.danger } : null]} />;
 }
 
 export function Group({ children, label }: { children: ReactNode; label?: string }) {

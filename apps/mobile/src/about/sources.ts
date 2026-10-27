@@ -46,7 +46,7 @@ export const getFoodSources = perLoad(() => {
 /** Fonts bundled with the app. */
 export const FONT_SOURCES: readonly SourceInfo[] = [
   { code: 'inter', name: 'Inter (all text, titles and numbers)', licence: 'SIL Open Font License 1.1', url: null },
-  { code: 'roboto', name: 'Roboto Light (older light-theme headings)', licence: 'SIL Open Font License 1.1', url: null },
+  { code: 'roboto', name: 'Roboto Light (older headings)', licence: 'SIL Open Font License 1.1', url: null },
 ];
 
 /** The body map shapes (`workout/bodyMapData.ts`). MIT asks for this notice in every copy of the data. */
