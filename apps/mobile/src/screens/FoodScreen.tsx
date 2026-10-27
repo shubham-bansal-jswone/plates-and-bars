@@ -249,7 +249,7 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
     <View accessible accessibilityLabel={`${name} ${fmt(v)} of ${fmt(goal)} g, ${left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}`} style={styles.macro}>
       <View style={styles.between}>
         <Text style={[type.bodyStrong, { color: c.ink }]}>{name}</Text>
-        <Text style={[type.bodyStrong, tabular, { color: left >= 0 ? c.ink : c.caution }]}>{left >= 0 ? `${fmt(left)} g left` : `${fmt(-left)} g over`}</Text>
+        <Text style={[type.bodyStrong, tabular, { color: left >= 0 ? c.ink : c.caution }]}>{left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}</Text>
       </View>
       <View aria-hidden style={[styles.track, { backgroundColor: c.track }]}><View style={{ height: 10, borderRadius: radius.full, backgroundColor: color, width: `${goal > 0 ? Math.min(100, (v / goal) * 100) : 0}%` }} /></View>
       <Text style={[type.small, tabular, { color: c.muted }]}>{`${fmt(v)} of ${fmt(goal)} g`}</Text>

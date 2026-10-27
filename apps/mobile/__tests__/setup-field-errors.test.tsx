@@ -45,8 +45,23 @@ describe('setup field errors', () => {
     expect(screen.getByText('Enter your age.')).toBeTruthy();
     expect(screen.getByLabelText('Age').props['aria-invalid']).toBe(true);
     expect(screen.getByLabelText('Weight in kg').props['aria-invalid']).toBeUndefined();
+    // The error is also the invalid field's hint, so refocusing the field reads why it is wrong; other fields have none.
+    expect(screen.getByLabelText('Age').props.accessibilityHint).toBe('Enter your age.');
+    expect(screen.getByLabelText('Weight in kg').props.accessibilityHint).toBeUndefined();
     await fireEvent.changeText(screen.getByLabelText('Age'), '30');
     expect(screen.queryByText('Enter your age.')).toBeNull();
     expect(screen.getByLabelText('Age').props['aria-invalid']).toBeUndefined();
+  });
+});
+
+describe('setup progress bar', () => {
+  it('says step 1 of 4 to a screen reader, matching "Step N of 4"', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await screen.findByText('Before you start');
+    await fireEvent(screen.getByLabelText('I understand and agree to my data being stored as described'), 'valueChange', true);
+    await fireEvent.press(screen.getByLabelText('Continue'));
+    await screen.findByText('Let’s work out your targets');
+    expect(screen.getByText(/Step 1 of 4/)).toBeTruthy();
+    expect(screen.getByLabelText('Setup progress').props.accessibilityValue).toEqual({ min: 0, max: 4, now: 1 });
   });
 });
