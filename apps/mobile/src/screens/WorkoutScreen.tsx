@@ -234,7 +234,6 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
       : `Training ${where === 'gym' ? 'at a gym' : `with ${where === 'dumbbells' ? 'dumbbells only' : 'bodyweight only'}`} today`;
 
   const wide = useWindowDimensions().width >= 1024;
-  const [ciOpen, setCiOpen] = useState<boolean | null>(null);
   const hasBuilt = !!(built && startT) && !picked.length;
   const list = picked.length ? picked : hasBuilt ? names : [];
   const muscles = picked.length ? { prim: pickedPrim, sec: pickedSec } : { prim, sec };
@@ -349,10 +348,11 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
     </>
   ) : null;
 
-  // Above Start, as in the prototype: the answers shape the session Start builds.
+  // Inline and above Start, as in the prototype: the answers shape the session Start builds, so they are never behind a tap.
   const checkin = (
     hasBuilt && built ? (
-      <Disclosure label="Quick check-in (optional)" open={ciOpen ?? flags.flagged} onOpenChange={setCiOpen}>
+      <View style={{ gap: 8 }}>
+        <Text style={[type.bodyStrong, { color: c.ink }]}>Quick check-in (optional)</Text>
         {CHECKIN.map((q) => (
           <View key={q.key} style={{ gap: 6 }}>
             <Text style={{ color: c.ink, fontSize: 14 }}>{q.label}</Text>
@@ -380,13 +380,12 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
           <Hint>Good to go.</Hint>
         ) : null}
         {built.mods.short ? <Hint>{ci.time} minutes: the main {built.exercises.length} exercises only.</Hint> : null}
-      </Disclosure>
+      </View>
     ) : null
   );
 
   const disclosures = (
     <>
-      {musclesView && !wide ? <Disclosure label="Muscles today">{musclesView}</Disclosure> : null}
       {seed ? null : (
         <Disclosure label={awayLabel} open={away} onOpenChange={setAway}>
           <View style={styles.wrap}>
@@ -444,10 +443,10 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
         {top}
         <View style={styles.cols}>
           <View style={styles.colLeft}>
+            {cards}
             {hero}
             {checkin}
             {action}
-            {cards}
             {disclosures}
             {cardio}
           </View>
@@ -463,10 +462,11 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
   return (
     <>
       {top}
+      {cards}
       {hero}
       {checkin}
       {action}
-      {cards}
+      {musclesView}
       {exerciseList}
       {notes}
       {disclosures}
@@ -501,20 +501,22 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const vol = sessionVolume(day.exs);
   const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
   const mapShown = mapOpen ?? done === 0;
-  const complete = all > 0 && done === all;
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
 
+  // The map sits outside "Session info": it is open until the first tick on every width (prototype sessionMapHtml). Only the reference rows are collapsed.
   const info = (
-    <Disclosure label="Session info" defaultOpen={wide}>
-      <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
-      {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
+    <>
       {mainMuscles.length ? (
         <View>
           <Button kind="link" label={`Muscles today: ${listJoin(mainMuscles.map((m) => muscleName(m)))}`} expanded={mapShown} onPress={() => setMapOpen(!mapShown)} />
           {mapShown ? <BodyMap primary={mainMuscles} secondary={alsoMuscles} /> : null}
         </View>
       ) : null}
-    </Disclosure>
+      <Disclosure label="Session info" defaultOpen={wide}>
+        <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
+        <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
+      </Disclosure>
+    </>
   );
 
   const stack = (

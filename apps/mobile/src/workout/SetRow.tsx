@@ -6,7 +6,7 @@ import { Press, a11yState } from '../components/ui';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import type { Row } from './model';
-import { SET_ROW_H, TICK_SIZE } from './Ring';
+import { SET_ROW_H, TICK_SIZE } from './setSizes';
 
 /** One set (or ramp set): index, weight and reps inputs, and the 56px tick. Labels are part of the app's test and a11y contract. */
 export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, current }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): void; /** The next set to do: its tick is the one lime ring; later undone sets keep a quiet outline. */ current?: boolean }) {
