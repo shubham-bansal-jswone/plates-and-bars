@@ -150,9 +150,9 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page resetKey={day.exs.length > 0}>
-        {/* On a wide screen the content is two columns, wider than Page's phone-sized column: it overflows it evenly on both sides. */}
-        <View style={[styles.body, wide && { width: Math.min(1120, winW - 32), alignSelf: 'center' }]}>
+      <Page resetKey={day.exs.length > 0} wide={wide}>
+        {/* On a wide screen the content is two columns in Page's wide container, the same one Food and Targets use. */}
+        <View style={styles.body}>
           <DateBar v={v} />
           {content}
         </View>
@@ -605,7 +605,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       <>
         {head}
         <View style={styles.cols}>
-          <View style={styles.colLeft}>{stack}</View>
+          <View style={styles.colMain}>{stack}</View>
           <View style={styles.colSide}>{info}</View>
         </View>
         {spacer}
@@ -628,6 +628,7 @@ const styles = StyleSheet.create({
   exRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, borderTopWidth: 1 },
   cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   colLeft: { flex: 1, maxWidth: 560, gap: 8 },
+  colMain: { flex: 1, gap: 8 },
   colRight: { flex: 1, maxWidth: 560, gap: 8 },
   colSide: { width: 360, gap: 8 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
