@@ -174,7 +174,7 @@ The chain is stateless (`SessionCreationPolicy.STATELESS`), CSRF/form/basic logi
 `FoodsController` -> `BarcodeService` -> (`BarcodeCache`, `OffClient`, `OffMapper`, `Gs1`).
 
 ### 4.7 `ratelimit`, `common`
-See sections 11 and 12.
+See section 15 (`ratelimit`) and sections 11 and 12 (`common`).
 
 ---
 
@@ -438,7 +438,7 @@ No circuit breaker or generic resilience library is present; resilience is per-i
 | Google JWKS | Nimbus cache | n/a | 1 h | refetch rate-limited |
 | Content bundles | In memory (`ContentBundles`) | bundle name | process lifetime | restart |
 
-Client side: `content_bundles` SQLite table with `ContentRefresher` (see 6.8 below), and a service worker (`public/sw.js`, `registerServiceWorker`) for offline web start (#718).
+Client side: `content_bundles` SQLite table with `ContentRefresher` (see section 20.4), and a service worker (`public/sw.js`, `registerServiceWorker`) for offline web start (#718).
 
 ---
 
@@ -449,7 +449,7 @@ There is **no message broker or queue**. Asynchronous behaviour that exists:
 - `RecordRecount` runs once in a daemon thread on `ApplicationReadyEvent` when the record cap is on.
 - `GET /me/export` uses Servlet async (`StreamingResponseBody`, `spring.mvc.async.request-timeout: 10m`).
 - `OffClient` uses a single-thread scheduled executor as a body watchdog.
-- On the device, sync is a periodic loop (section 14).
+- On the device, sync is a periodic loop (section 20.4).
 
 ---
 
