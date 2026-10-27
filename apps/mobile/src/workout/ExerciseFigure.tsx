@@ -25,6 +25,9 @@ export function ExerciseFigure({ name, size = 'full' }: { name: string; size?: '
 /** True when the exercise has a drawing; list rows use it to pick the thumbnail or a placeholder. */
 export const hasFigure = (name: string): boolean => getFigure(name) !== undefined;
 
+/** True when the full figure draws something (a motion entry or the frames); the detail screen shows a placeholder otherwise. */
+export const hasDrawing = (name: string): boolean => hasFigure(name) || (exerciseMotionEnabled() && getMotion(name) !== undefined);
+
 function FigureThumb({ name }: { name: string }) {
   const c = useTheme();
   const entry = getFigure(name);
@@ -45,7 +48,7 @@ function FigurePair({ name }: { name: string }) {
   // Behind EXPO_PUBLIC_EXERCISE_MOTION (#1069): a motion entry replaces the pair; no entry, or the flag off, keeps the v1.1 frames.
   const motion = exerciseMotionEnabled() ? getMotion(name) : undefined;
   if (motion) return <MotionFigure name={name} entry={motion} />;
-  if (!entry) return null;
+  if (!entry || !hasDrawing(name)) return null; // stays in step with hasDrawing, which the detail screen uses to pick its placeholder
   const alt = figureAlt(name, entry, getCatalog().cards[name]?.setup[0]);
   // The visible text starts the accessible name, so axe's label-content-name-mismatch rule holds.
   const credit = `Drawing: ${entry.author} (${licenceLabel(entry.licence)})`;

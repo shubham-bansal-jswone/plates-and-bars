@@ -46,7 +46,7 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
           return (
             <G key={view} transform={`translate(${dx} 0)`}>
               {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} />))}
-              <SvgText x={50} y={216} textAnchor="middle" fontSize={9} fill={c.muted} fontFamily={fontFamily}>
+              <SvgText x={50} y={216} textAnchor="middle" fontSize={12} fill={c.muted} fontFamily={fontFamily}>
                 {name}
               </SvgText>
             </G>
