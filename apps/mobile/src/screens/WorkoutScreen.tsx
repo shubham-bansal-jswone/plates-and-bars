@@ -26,9 +26,11 @@ import { workoutLists } from '../workout/workoutLists';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
+import { RING_SIZE } from '../workout/Ring';
 import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
+import { CompletionPanel } from '../workout/CompletionPanel';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
 import { HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
@@ -149,7 +151,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       </Page>
       {sheets}
       {restBar}
-      <ToastBar message={toast} />
+      <ToastBar message={toast} lift={rest ? RING_SIZE + 30 : 0} />
     </View>
   );
 }
@@ -501,6 +503,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const vol = sessionVolume(day.exs);
   const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
   const mapShown = mapOpen ?? done === 0;
+  const complete = all > 0 && done === all;
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
 
   // The map is open until the first tick on every width (prototype sessionMapHtml).
@@ -578,8 +581,12 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>
       <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
-      <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
+      {/* Once every set is ticked the completion panel shows the burn estimate; showing it here too would repeat it. */}
+      {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
+      <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
+        <CompletionPanel db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
+      </View>
     </>
   );
 
