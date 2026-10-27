@@ -328,6 +328,16 @@ export function Switch(props: SwitchProps) {
   const c = useTheme();
   const f = useFocusRing();
   return (
+    // The 44x44 hit area is an outer Pressable around the unchanged 40x20 track; a tap on its padding toggles too (#1121).
+    // Not an a11y node: the switch inside carries the role, label and state.
+    <Pressable
+      testID="switch-hit-area"
+      accessible={false}
+      importantForAccessibility="no"
+      tabIndex={-1}
+      disabled={props.disabled ?? false}
+      onPress={() => props.onValueChange?.(!props.value)}
+      style={styles.switchHit}>
     <View style={[styles.switchRing, f.ring]}>
       <RNSwitch
         trackColor={{ true: c.brand, false: c.muted }}
@@ -337,6 +347,7 @@ export function Switch(props: SwitchProps) {
         {...focusHandlers(f, props)}
       />
     </View>
+    </Pressable>
   );
 }
 
@@ -359,6 +370,7 @@ const styles = StyleSheet.create({
   group: { gap: space.sm },
   opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
   chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, justifyContent: 'center' },
+  switchHit: { minWidth: 44, minHeight: 44, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
 });
