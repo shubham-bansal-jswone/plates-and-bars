@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { mondayOf, type WeekPlan } from '@plate-and-bar/core';
-import { Button, Hint } from '../components/ui';
+import { Button, Hint, Chip } from '../components/ui';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
-import { Chip } from './parts';
 import { fixedWeekdays, weekPlanFor } from './adjust';
 
 /** "Fewer days this week?" and the note while a condensed week runs (prototype `renderStart`, schedule tools). */

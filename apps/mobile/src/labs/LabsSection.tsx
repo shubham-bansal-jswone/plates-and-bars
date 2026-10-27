@@ -3,11 +3,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabReport, type LabTest } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { SheetModal } from '../components/Sheet';
-import { Button, Card, ErrorText, Field, Heading, Hint, Note } from '../components/ui';
+import { Button, Card, ErrorText, Field, Heading, Hint, Note, Chip } from '../components/ui';
 import { shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { Chip } from '../workout/parts';
 import { labs, tipText } from './content';
 import {
   FLAG_WORD, LABS_ADD, LABS_ADD_TEST, LABS_ALL, LABS_COUNT, LABS_DATE_LABEL, LABS_DATE_PLACEHOLDER, LABS_DELETE, LABS_DELETE_AGAIN, LABS_DISCARD, LABS_FIELD, LABS_LATEST, LABS_PLACEHOLDER,
