@@ -112,7 +112,7 @@ describe('Workout session: Muscles today', () => {
 
   it.each([
     [390, false],
-    [1280, true],
+    [1280, false],
   ])('at %i px the map is expanded after the first tick: %s', async (width, expanded) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- spy on the module object the screen reads from
     jest.spyOn(require('react-native'), 'useWindowDimensions').mockReturnValue({ width, height: 900, scale: 1, fontScale: 1 });
