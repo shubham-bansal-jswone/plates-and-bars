@@ -1,3 +1,4 @@
+import { AccessibilityInfo } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import type { LiftRecord } from '@plate-and-bar/core';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
@@ -14,6 +15,7 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({}),
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []),
 }));
+jest.mock('react-native/Libraries/ReactNative/RendererProxy', () => ({ ...jest.requireActual('react-native/Libraries/ReactNative/RendererProxy'), findNodeHandle: () => 7 }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
@@ -41,15 +43,18 @@ describe('history logic', () => {
     expect(buildSessions({ '2026-10-06': { t: 'x' } }, { '2026-10-06': [wset('a', 'Row', 0, 60, 8, false)] })).toEqual([]);
   });
 
-  it('trends one exercise oldest first and only calls a personal best when checkBest does', () => {
+  it('trends one exercise oldest first and calls a personal best only when core stored the toast for that day', () => {
     const s = buildSessions(log, sets);
-    const lift = (hist: { date: string; e: number }[]) => ({ date: '2026-10-06', sets: [], hist }) as unknown as LiftRecord;
-    expect(exerciseTrend(s, 'Row', lift([{ date: '2026-10-04', e: 60 }, { date: '2026-10-06', e: 70 }]))).toMatchObject({
+    const lift = (hist: { date: string; e: number }[], pbToast: string | null) => ({ date: '2026-10-06', sets: [], hist, pbToast }) as unknown as LiftRecord;
+    const hist = [{ date: '2026-10-04', e: 60 }, { date: '2026-10-06', e: 70 }];
+    expect(exerciseTrend(s, 'Row', lift(hist, '2026-10-06'))).toMatchObject({
       points: [{ date: '2026-10-04', volume: 500 }, { date: '2026-10-06', volume: 840 }],
       heaviest: 60,
       pbDate: '2026-10-06',
     });
-    expect(exerciseTrend(s, 'Row', lift([{ date: '2026-10-04', e: 70 }, { date: '2026-10-06', e: 70.1 }])).pbDate).toBeNull(); // under 0.5% better
+    // Core's own call wins: a stored history that looks like a best (the capped hist forgot an older, higher one) shows nothing without the toast.
+    expect(exerciseTrend(s, 'Row', lift(hist, null)).pbDate).toBeNull();
+    expect(exerciseTrend(s, 'Row', lift(hist, '2026-10-04')).pbDate).toBeNull(); // the toast was for an earlier day
     expect(exerciseTrend(s, 'Row', undefined).pbDate).toBeNull();
   });
 
@@ -74,20 +79,12 @@ describe('Progress: recent workouts', () => {
     expect(await screen.findByText('No workouts logged yet. Your sessions will appear here.')).toBeTruthy();
   });
 
-  it('keeps the calorie-burn explainer behind a disclosure', async () => {
-    await setup(memoryDb());
-    const open = await screen.findByLabelText('How is this worked out?');
-    expect(screen.queryByText(/7,700 kcal equals 1 kg/)).toBeNull();
-    await fireEvent.press(open);
-    expect(screen.getByText(/7,700 kcal equals 1 kg/)).toBeTruthy();
-  });
-
   it('lists logged days, opens one, and refreshes after a sync pull', async () => {
     const db = memoryDb();
     await saveWorkout(db, workout('2026-10-06', 'Pull A'));
     await saveSet(db, '2026-10-06', wset('a', 'Row', 0, 60, 8));
     await saveSet(db, '2026-10-06', wset('b', 'Row', 1, 60, 6));
-    await saveLift(db, 'Row', { date: '2026-10-06', sets: [], hist: [{ date: '2026-10-01', e: 50 }, { date: '2026-10-06', e: 70 }] } as unknown as LiftRecord);
+    await saveLift(db, 'Row', { date: '2026-10-06', sets: [], hist: [{ date: '2026-10-01', e: 50 }, { date: '2026-10-06', e: 70 }], pbToast: '2026-10-06' } as unknown as LiftRecord);
     const { rerender } = await setup(db);
     const row = await screen.findByLabelText('6 Oct, Pull A, 2 sets, 840 kg');
     expect(screen.queryByText('No workouts logged yet. Your sessions will appear here.')).toBeNull();
@@ -105,5 +102,39 @@ describe('Progress: recent workouts', () => {
     await rerender(1); // a sync pull stored records
     await flush();
     expect(await screen.findByLabelText('7 Oct, Push A, 1 set, 400 kg')).toBeTruthy();
+  });
+
+  async function withDay() {
+    const db = memoryDb();
+    await saveWorkout(db, workout('2026-10-06', 'Pull A'));
+    await saveSet(db, '2026-10-06', wset('a', 'Row', 0, 60, 8));
+    const ui = await setup(db);
+    return { db, ...ui };
+  }
+
+  it('moves focus to the day heading when a day opens, and back to the row after Back', async () => {
+    const spy = jest.spyOn(AccessibilityInfo, 'setAccessibilityFocus').mockImplementation(() => undefined);
+    await withDay();
+    const row = await screen.findByLabelText('6 Oct, Pull A, 1 set, 480 kg');
+    await flush();
+    const n0 = spy.mock.calls.length;
+    await fireEvent.press(row);
+    await screen.findByRole('header', { name: 'Pull A' });
+    expect(spy).toHaveBeenCalledTimes(n0 + 1); // the day heading
+    await fireEvent.press(screen.getByLabelText('Back to progress'));
+    await screen.findByRole('header', { name: 'Recent workouts' });
+    expect(spy).toHaveBeenCalledTimes(n0 + 2); // the row
+    spy.mockRestore();
+  });
+
+  it('goes back to the page when the open day disappears after a sync', async () => {
+    const { db, rerender } = await withDay();
+    await fireEvent.press(await screen.findByLabelText('6 Oct, Pull A, 1 set, 480 kg'));
+    await screen.findByRole('header', { name: 'Pull A' });
+    await saveSet(db, '2026-10-06', wset('a', 'Row', 0, 60, 8, false)); // un-ticked on another device
+    await rerender(1);
+    await flush();
+    expect(await screen.findByRole('header', { name: 'Recent workouts' })).toBeTruthy();
+    expect(screen.queryByLabelText('Back to progress')).toBeNull();
   });
 });

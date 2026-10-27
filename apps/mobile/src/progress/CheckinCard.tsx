@@ -3,8 +3,7 @@ import { WhyLink } from '../why/WhyLink';
 import { CYCLE_CHECKIN_NOTE } from '../cycle/copy';
 import { CARDIO_WEEK_MIN, RAPID_LOSS_KCAL, round1 } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { useState } from 'react';
-import { Heading, Button, Card, Hint, Press, a11yState } from '../components/ui';
+import { Heading, Button, Card, Disclosure, Hint } from '../components/ui';
 import { MetricRow } from './Metrics';
 import { fmt, shortDate } from '../format';
 import { useProfile } from '../state/ProfileProvider';
@@ -29,42 +28,6 @@ export function RapidLossCard({ c: ci }: { c: Checkin }) {
       <Button label={NOT_NOW} kind="ghost" onPress={ci.declineRapid} />
       {ci.rapidDeclines >= 3 ? <Button label={STOP_SUGGESTING} kind="ghost" onPress={ci.stopSuggestingRapid} /> : null}
     </Card>
-  );
-}
-
-/** Progress tab, first block: "This week" metric rows from the check-in's own numbers (sessions done of planned, days logged, averages). */
-export function ThisWeekCard({ date, c: ci }: { date: string; c: Checkin }) {
-  const t = useTheme();
-  const { profile } = useProfile();
-  const k = ci.checkin;
-  if (!profile || ci.settingsFailed || !k) return null;
-  return (
-    <View style={styles.section}>
-      <Heading level={2} style={[typeScale.heading, { color: t.ink }]}>This week</Heading>
-      <Hint>{`The 7 days up to ${shortDate(date)}`}</Hint>
-      <MetricRow items={[
-        { big: String(k.sessions), small: ` / ${k.plannedN}`, label: 'sessions' },
-        { big: String(k.logged), small: ' / 7', label: 'days logged' },
-      ]} />
-      <MetricRow items={[
-        { big: k.logged ? fmt(k.avgK) : '–', label: `avg kcal${k.logged ? ` (target ${fmt(profile.targets.kcal)})` : ''}` },
-        { big: k.logged ? `${fmt(k.avgP)} g` : '–', label: `avg protein, ${k.pDays} day${k.pDays === 1 ? '' : 's'} on target` },
-      ]} />
-    </View>
-  );
-}
-
-/** A tap-to-open block, so the text stays off the first screen. */
-function Disclosure({ label, children }: { label: string; children: string }) {
-  const t = useTheme();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Press accessibilityRole="button" accessibilityLabel={label} {...a11yState({ expanded: open })} onPress={() => setOpen(!open)} style={styles.disclosure}>
-        <Text style={[typeScale.bodyStrong, { color: t.link }]}>{open ? 'Hide' : label}</Text>
-      </Press>
-      {open ? <Hint>{children}</Hint> : null}
-    </>
   );
 }
 
@@ -99,6 +62,16 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
   return (
     <View style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Heading>
+      <Hint>{`The 7 days up to ${shortDate(date)}`}</Hint>
+      {/* The one lime number on the Progress screen: sessions done this week. */}
+      <MetricRow items={[
+        { big: String(k.sessions), small: ` / ${k.plannedN}`, label: 'sessions', lime: true },
+        { big: String(k.logged), small: ' / 7', label: 'days logged' },
+      ]} />
+      <MetricRow items={[
+        { big: k.logged ? fmt(k.avgK) : '–', label: `avg kcal${k.logged ? ` (target ${fmt(target)})` : ''}` },
+        { big: k.logged ? `${fmt(k.avgP)} g` : '–', label: `avg protein, ${k.pDays} day${k.pDays === 1 ? '' : 's'} on target` },
+      ]} />
       <Text style={{ color: t.ink }}>{cycleNote ? `${weekly} ${CYCLE_CHECKIN_NOTE}` : weekly}</Text>
       <Text style={{ color: t.ink }}>{cardio}</Text>
       <WhyLink id="activity" />
@@ -110,7 +83,7 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
         ) : (
           <Hint>{`Needs ${[b.needDays ? `${b.needDays} more complete day${b.needDays === 1 ? '' : 's'} in the last 2 weeks (tick “I’ve logged everything” on the Food tab)` : '', b.needW ? `${b.needW} more weigh-in${b.needW === 1 ? '' : 's'} in the last 3 weeks` : ''].filter(Boolean).join(' and ')}. Until then, the setup formula is used.`}</Hint>
         )}
-        <Disclosure label="How is this worked out?">{BURN_HOW}</Disclosure>
+        <Disclosure label="How this works"><Hint>{BURN_HOW}</Hint></Disclosure>
       </Card>
       {s ? (
         <Card style={styles.gap}>
@@ -151,5 +124,4 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
 const styles = StyleSheet.create({
   section: { gap: 8, marginTop: 16 },
   gap: { gap: 8 },
-  disclosure: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
 });

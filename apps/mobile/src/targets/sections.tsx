@@ -8,14 +8,13 @@ import { addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, togg
 import { loadSets, loadWorkout, loadLifts, type WorkoutDb } from '../db/workouts';
 import { loadExclusions, loadSwaps } from '../db/rules';
 import { fmt } from '../format';
-import { Hint, Label } from '../components/ui';
+import { Hint, Label, Chip } from '../components/ui';
 import type { Profile } from '../setup/types';
 import type { Settings } from '../settings/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
 import { listJoin, muscleName } from '../workout/copy';
-import { Chip } from '../workout/parts';
 import { dayQueue, dayWrites } from '../workout/dayQueue';
 import { freshRead } from '../state/freshRead';
 import { useDataVersion } from '../sync/useDataVersion';

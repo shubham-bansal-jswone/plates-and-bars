@@ -26,7 +26,7 @@ describe.each([['light', light], ['dark', dark]] as const)('goal bars in %s', (_
     const day = { date: '2026-10-01', logs: [{ name: 'Rice', qty: 1, kcal: 1500, protein_g: 80, carbs_g: 100, fat_g: 40 }], trained: false };
     await render(<WeekCard date="2026-10-01" days={[day]} kcalTarget={2000} />);
     const bar = screen.getByLabelText(/kcal, .* g protein/);
-    const fill = (bar as unknown as { children: { children: { props: { style?: unknown } }[] }[] }).children[0]!.children[0];
+    const fill = (bar as unknown as { children: { props: { style?: unknown } }[] }).children[0];
     expect(bg(fill)).toBe(p.bar);
   });
 

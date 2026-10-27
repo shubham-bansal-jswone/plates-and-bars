@@ -1,5 +1,5 @@
 import { HAND_PICKED } from '@plate-and-bar/core';
-import { press } from './disclosure-helpers';
+import { press, pressDay } from './disclosure-helpers';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -29,7 +29,7 @@ describe('Workout start: Pick exercises', () => {
   it('a 0-training-day profile has the chip on its rest day, picks an exercise, starts and logs a set', async () => {
     const db = await setup(0);
     expect(await screen.findByText('Rest day')).toBeTruthy();
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -48,7 +48,7 @@ describe('Workout start: Pick exercises', () => {
     await screen.findByText('Rest day');
     await press('Training away from your gym?');
     await press('Dumbbells only');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Dumbbell Curl');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -61,7 +61,7 @@ describe('Workout start: Pick exercises', () => {
     expect(screen.getByLabelText('Start Push B')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Choose another day'));
     expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -79,7 +79,7 @@ describe('Workout start: Pick exercises', () => {
   it('shows no "added" toast for a start-screen library pick', async () => {
     await setup(0);
     await screen.findByText('Rest day');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -89,7 +89,7 @@ describe('Workout start: Pick exercises', () => {
   it('a typed known name starts the session without a toast', async () => {
     const db = await setup(0);
     await screen.findByText('Rest day');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await fireEvent.changeText(screen.getByLabelText('Your own exercise'), 'barbell bench press');
     await press('Add the exercise you typed');
     await press('Start this exercise');
@@ -103,7 +103,7 @@ describe('Start-screen pick of a new name', () => {
   it('saves from the tag sheet, starts the session and shows no toast', async () => {
     const db = await setup(0);
     await screen.findByText('Rest day');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await fireEvent.changeText(screen.getByLabelText('Your own exercise'), 'Zottman Curl');
     await press('Add the exercise you typed');
     await screen.findByLabelText('Main muscle: biceps');
@@ -122,7 +122,7 @@ describe('Pick exercises keeps what the day already holds', () => {
     await screen.findByText('Rest day');
     await fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '25');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).cardio_min).toBe(25));
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -134,7 +134,7 @@ describe('Pick exercises keeps what the day already holds', () => {
     await screen.findByText('Push B day');
     await press('Sleep last night: Poor');
     await press('Lighter session');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');

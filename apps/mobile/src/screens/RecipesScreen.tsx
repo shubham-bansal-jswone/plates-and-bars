@@ -4,7 +4,7 @@ import { addPrep, fitSuggestions, isPrepEntry, OIL_LEVEL, RECIPE_LOG_STEP, recip
 import { localDate } from '../setup/logic';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { Button, Caption, ErrorText, Field, Hint, H1, Label, Note, Page, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, Hint, H1, Label, Note, Page, Press, Chip } from '../components/ui';
 import { fmt } from '../format';
 import { newId } from '../db/records';
 import { useSettings } from '../state/SettingsProvider';
@@ -19,7 +19,7 @@ import { blankDraft, fromImport, fromLibrary, fromPreset, fromRecipe, withFit, t
 import { IngredientRows } from '../recipes/IngredientRows';
 import { useRecipes } from '../recipes/useRecipes';
 import { useTheme } from '../theme/useTheme';
-import { Chip, ToastBar } from '../workout/parts';
+import { ToastBar } from '../workout/parts';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 

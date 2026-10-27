@@ -2,7 +2,8 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { useFontFamily } from '../theme/fonts';
-import { light, type Palette } from '../theme/tokens';
+import { blend } from '../theme/blend';
+import type { Palette } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { REGIONS } from './bodyMapData';
 import { listJoin, muscleName } from './copy';
@@ -21,15 +22,9 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
   return out;
 }
 
-/** `fg` over `bg` at `a` (0 to 1), as a hex: the 35% "also working" tint is built from palette values, not a literal. */
-export function blend(fg: string, bg: string, a: number): string {
-  const ch = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
-  return `#${[0, 1, 2].map((i) => Math.round(ch(fg, i) * a + ch(bg, i) * (1 - a)).toString(16).padStart(2, '0')).join('')}`;
-}
-
 /** The also-working fill: the brand colour over the soft surface, strong enough to reach 3:1 against an untargeted region (the prototype's 35% does not, and falls to 1.7:1 in light). */
 export function alsoFill(c: Palette): string {
-  return blend(c.brand, c.surfaceSoft, c === light ? 0.7 : 0.5);
+  return blend(c.brand, c.surfaceSoft, c.alsoAlpha);
 }
 
 /** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `alsoFill`, the rest in the soft surface colour. */

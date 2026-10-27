@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { expand, press } from './disclosure-helpers';
+import { expand, press, pressDay } from './disclosure-helpers';
 import { kcalTarget, planFlex, undoFlex } from '@plate-and-bar/core';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -249,8 +249,8 @@ describe('the hold reaches a second session and a seeded pick session', () => {
 
   async function seededPick(hold: boolean) {
     const db = await mount(hold);
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Start these exercises');
     await screen.findByText('Pull A');
     return { w: stored(db), max: Math.max(...Object.values(sets(db))) };
