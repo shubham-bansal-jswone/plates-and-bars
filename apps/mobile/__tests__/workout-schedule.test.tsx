@@ -73,7 +73,7 @@ describe('missed day', () => {
 
   it('is not shown in sequence mode', async () => {
     await open({ mode: 'sequence' });
-    await screen.findByText(/ day$/);
+    await screen.findByRole('header', { name: / day$/ });
     expect(screen.queryByText(/^You missed/)).toBeNull();
   });
 
