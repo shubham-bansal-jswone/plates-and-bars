@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { render, screen, waitFor } from '@testing-library/react-native';
 import { press, reveal } from './disclosure-helpers';
 import { EXERCISE_OVERRIDES_MAX, type LiftRecord } from '@plate-and-bar/core';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
