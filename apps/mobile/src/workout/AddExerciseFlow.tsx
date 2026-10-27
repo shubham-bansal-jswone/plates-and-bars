@@ -48,7 +48,6 @@ export function AddExerciseFlow({ open, onClose, inSession, workouts, add, notif
       {tagging ? (
         <CustomTagsSheet
           name={tagging}
-          notify={notify}
           onClose={() => setTagging(null)}
           onSave={async (tags) => {
             const name = tagging;
