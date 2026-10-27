@@ -1,4 +1,5 @@
 import { dark, light, type Palette } from '../src/theme/tokens';
+import { blend } from '../src/theme/blend';
 import { toWeight } from '../src/theme/fonts';
 import { alsoFill } from '../src/workout/BodyMap';
 
@@ -12,13 +13,7 @@ function contrast(a: string, b: string): number {
   return (hi! + 0.05) / (lo! + 0.05);
 }
 
-// Colour `fg` drawn at `alpha` over `bg`, as a hex string.
-function blend(fg: string, bg: string, alpha: number): string {
-  const px = (h: string, i: number) => parseInt(h.slice(i, i + 2), 16);
-  return `#${[1, 3, 5].map((i) => Math.round(px(fg, i) * alpha + px(bg, i) * (1 - alpha)).toString(16).padStart(2, '0')).join('')}`;
-}
-
-type K = keyof Palette;
+type K = { [P in keyof Palette]: Palette[P] extends string ? P : never }[keyof Palette];
 // Text on the surfaces it is drawn on. Disabled text is exempt (WCAG), so it is not listed.
 const TEXT: [K, K][] = [
   ['ink', 'bg'], ['ink', 'surface'], ['ink', 'surfaceElevated'], ['ink', 'surfaceSoft'], ['ink', 'tint'], ['ink', 'field'], ['muted', 'field'],
@@ -64,8 +59,12 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
     expect(contrast(alsoFill(p), p.surfaceSoft)).toBeGreaterThanOrEqual(3);
   });
   it('only uses six-digit hex colours, so the maths above is what is drawn', () => {
-    for (const v of Object.values(p)) expect(v).toMatch(/^#[0-9A-F]{6}$/);
+    for (const v of Object.values(p).filter((x) => typeof x === 'string')) expect(v).toMatch(/^#[0-9A-F]{6}$/);
   });
+});
+
+it('also-working alpha comes from the palette, so a copied palette keeps it', () => {
+  expect(alsoFill({ ...light })).toBe(alsoFill(light));
 });
 
 describe('font weights', () => {

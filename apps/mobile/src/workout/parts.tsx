@@ -3,7 +3,7 @@ import { SheetModal } from '../components/Sheet';
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Text } from '../components/Text';
-import { Heading, Button, Hint } from '../components/ui';
+import { Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
