@@ -60,7 +60,6 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = useCallback((msg: string) => {
     setToast(msg);
-    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(msg); // iOS has no live regions; Android reads the toast's own
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
