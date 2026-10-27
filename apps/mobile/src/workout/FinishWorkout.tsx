@@ -25,9 +25,9 @@ export function FinishWorkout({ done, all, onFinish }: { done: number; all: numb
   if (!asking) return <Button ref={button} kind="ghost" label="Complete workout" onPress={() => setAsking(true)} />;
   return (
     <Card>
-      <View ref={prompt} accessible accessibilityRole="alert" testID="finish-prompt">
+      <View ref={prompt} accessible testID="finish-prompt">
         <Text style={[type.bodyStrong, { color: c.ink }]}>{`Finish with ${done} of ${all} sets?`}</Text>
-        <Text style={[type.caption, { color: c.muted }]}>Unticked sets are removed from today.</Text>
+        <Text style={[type.caption, { color: c.muted }]}>Unticked sets, and exercises you haven’t started with their warm-ups, are removed from today.</Text>
       </View>
       <View style={styles.row}>
         <View style={styles.fill}>
