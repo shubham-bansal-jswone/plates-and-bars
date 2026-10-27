@@ -46,14 +46,16 @@ export function addToStoredDay(opts: { db: Db; date: string; now: () => Date; na
 }
 
 /**
+ * Resolves true when the removal was saved (or there was nothing to remove), false when the save failed.
  * Takes `name` out of the stored session (the undo of `addToStoredDay`): its sets become tombstones. The last exercise out
  * leaves a cardio-only day when there are cardio minutes, else deletes the workout, as the hook's `removeExercise` does.
  */
-export function removeFromStoredDay(opts: { db: Db; date: string; now: () => Date; name: string; onError: () => void }): Promise<unknown> {
+export function removeFromStoredDay(opts: { db: Db; date: string; now: () => Date; name: string; onError: () => void }): Promise<boolean> {
   const { db, date, now, name } = opts;
+  let ok = false;
   return enqueueDay(async () => {
     const [stored, sets] = await Promise.all([loadWorkout(db, date), loadSets(db, date)]);
-    if (!live(stored) || !stored.exercises.some((e) => e.name === name)) return;
+    if (!live(stored) || !stored.exercises.some((e) => e.name === name)) return void (ok = true);
     const at = stamp(now());
     const rest = stored.exercises.filter((e) => e.name !== name);
     const row: Workout = rest.length
@@ -66,5 +68,6 @@ export function removeFromStoredDay(opts: { db: Db; date: string; now: () => Dat
       for (const s of sets) if (s.exercise === name && !s.deleted_at) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
       await saveWorkout(h, row);
     });
-  }, opts.onError);
+    ok = true;
+  }, opts.onError).then(() => ok);
 }

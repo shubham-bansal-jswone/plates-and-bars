@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { Button, Card, H1, Heading, Hint, Page } from '../components/ui';
@@ -60,33 +60,47 @@ function AddToSession({ name, session }: { name: string; session: SessionTarget 
     };
   }, [db, date, name]);
   const onError = () => setError(true);
-  const add = async () => {
+  // A second tap while a save runs is ignored: a double tap must not turn "added" into "already there".
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const run = async (task: () => Promise<void>) => {
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
     setError(false);
-    const r = await addToStoredDay({ db, date, now, name, onError });
-    if (r === 'added') setState('just');
-    else if (r === 'already') setState('in');
+    try {
+      await task();
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
   };
-  const undo = () => {
-    setError(false);
-    setState('out');
-    void removeFromStoredDay({ db, date, now, name, onError });
-  };
+  const add = () =>
+    run(async () => {
+      const r = await addToStoredDay({ db, date, now, name, onError });
+      if (r === 'added') setState('just');
+      else if (r === 'already') setState('in');
+    });
+  // The Add button comes back only once the removal is saved; on a failure Undo stays and the error shows.
+  const undo = () =>
+    run(async () => {
+      if (await removeFromStoredDay({ db, date, now, name, onError })) setState('out');
+    });
   if (state === 'unknown') return null;
   return (
     <View style={{ gap: 4 }}>
       {state === 'just' ? (
         <>
           <Text accessibilityLiveRegion="polite" style={[type.textBody, { color: c.body }]}>{`${name} added to today’s session.`}</Text>
-          <Button label="Undo" a11yLabel={`Undo adding ${name} to today’s session`} kind="ghost" onPress={undo} />
+          <Button label="Undo" a11yLabel={`Undo adding ${name} to today’s session`} kind="ghost" busy={busy} onPress={() => void undo()} />
         </>
+      ) : state === 'in' ? (
+        // Not the faded disabled Button: this text is the only sign the exercise is already in, so it keeps full contrast.
+        <View accessible accessibilityRole="text" accessibilityLabel={`${name} is already in today’s session`} accessibilityState={{ disabled: true }} style={{ minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: c.line, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={[type.buttonSm, { color: c.body }]}>In today’s session</Text>
+        </View>
       ) : (
-        <Button
-          label={state === 'in' ? 'In today’s session' : 'Add to today’s session'}
-          a11yLabel={state === 'in' ? `${name} is already in today’s session` : `Add ${name} to today’s session`}
-          kind="ghost"
-          disabled={state === 'in'}
-          onPress={() => void add()}
-        />
+        <Button label="Add to today’s session" a11yLabel={`Add ${name} to today’s session`} kind="ghost" busy={busy} onPress={() => void add()} />
       )}
       {error ? <Text accessibilityRole="alert" style={[type.textBody, { color: c.body }]}>Couldn’t save that. Try again.</Text> : null}
     </View>

@@ -106,4 +106,35 @@ describe('library: add to today’s session (#1122)', () => {
     await screen.findByText('Couldn’t save that. Try again.');
     expect(db.rows.has(`workouts:${DATE}`)).toBe(false);
   });
+
+  it('a double tap on Add adds once and still shows the added status with Undo', async () => {
+    const db = memoryDb();
+    await open(db);
+    const add = await screen.findByLabelText(`Add ${NAME} to today’s session`);
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    db.hold = () => gate; // the first save stays pending while the second tap lands
+    await fireEvent.press(add);
+    await fireEvent.press(add);
+    db.hold = undefined;
+    release();
+    await screen.findByText(`${NAME} added to today’s session.`);
+    expect(screen.getByLabelText(`Undo adding ${NAME} to today’s session`)).toBeTruthy();
+    expect(stored(db).exercises).toHaveLength(1);
+  });
+
+  it('a failed Undo keeps Undo available and shows the error, and a retry then works', async () => {
+    const db = memoryDb();
+    await open(db);
+    await fireEvent.press(await screen.findByLabelText(`Add ${NAME} to today’s session`));
+    await screen.findByText(`${NAME} added to today’s session.`);
+    db.failWrites = true;
+    await fireEvent.press(screen.getByLabelText(`Undo adding ${NAME} to today’s session`));
+    await screen.findByText('Couldn’t save that. Try again.');
+    expect(screen.getByLabelText(`Undo adding ${NAME} to today’s session`)).toBeTruthy();
+    expect(screen.queryByLabelText(`Add ${NAME} to today’s session`)).toBeNull();
+    db.failWrites = false;
+    await fireEvent.press(screen.getByLabelText(`Undo adding ${NAME} to today’s session`));
+    await screen.findByLabelText(`Add ${NAME} to today’s session`);
+  });
 });
