@@ -61,7 +61,7 @@ interface Options {
   /** Short message for the toast. */
   notify: (msg: string) => void;
   /** A set was ticked: start the rest timer for `name`, then show `next`. */
-  startRest: (name: string, next: string) => void;
+  startRest: (name: string, next: string, target: string) => void;
   /** Saved exercise rules and swaps; they shape the session being built. */
   exclusions: readonly Exclusion[];
   swaps: readonly Swap[];
@@ -444,8 +444,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         s.t = stamp(now());
         const nj = ex.sets.findIndex((x) => !x.done);
         const nx = d.exs.slice(i + 1).find((e) => e.sets.some((x) => !x.done));
-        if (nj >= 0) startRest(ex.name, `Next: set ${nj + 1} of ${ex.name}`);
-        else if (nx) startRest(ex.name, `Next: ${nx.name}`);
+        if (nj >= 0) startRest(ex.name, `Next: set ${nj + 1} of ${ex.name}`, ex.name);
+        else if (nx) startRest(ex.name, `Next: ${nx.name}`, nx.name);
       },
       async (name) => {
         if (dropped.current.get(id) === null) return;

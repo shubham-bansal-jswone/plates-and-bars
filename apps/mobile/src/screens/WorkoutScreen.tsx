@@ -64,12 +64,13 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const startRest = useCallback((name: string, label: string) => {
+  const v = useViewedDate(now);
+  const startRest = useCallback((name: string, label: string, target: string) => {
     if (restOff) return;
     const total = restFor(name, getCatalog().tags);
     const t = Date.now();
-    setRest({ id: t, end: t + total * 1000, total, label });
-  }, [restOff]);
+    setRest({ id: t, end: t + total * 1000, total, label, target, date: v.date });
+  }, [restOff, v.date]);
 
   // Tab screens stay mounted; rules removed on the Targets tab show here when this tab is shown again.
   const [shown, setShown] = useState(0);
@@ -81,12 +82,17 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const winW = useWindowDimensions().width;
   const wide = winW >= 1024;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
-  const v = useViewedDate(now);
   const labHold = useLabHold(db); // the lab hold (#1070): new sessions are lighter
   const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, labHold: labHold === true, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   // The rest as a notification while the app is in the background (#1068); its +30 s and Skip come back through setRest.
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
+  // The dock never names an exercise that is gone or finished: it moves on to the next one with an undone set, or closes when none is left.
+  // Only on the day it started on (the rest keeps running while another day is read). Adjusting state while rendering, as React documents.
+  if (rest?.target && rest.date === v.date && day.ready) {
+    const open = day.exs.filter((e) => e.sets.some((x) => !x.done));
+    if (!open.some((e) => e.name === rest.target)) setRest(open[0] ? { ...rest, label: `Next: ${open[0].name}`, target: open[0].name } : null);
+  }
   const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
