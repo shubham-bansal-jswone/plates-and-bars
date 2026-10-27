@@ -51,6 +51,7 @@ name: Android release build
 on:
   push:
     tags: ['v*']
+    # Deliberately main only: deploying every design-overhaul merge is not wanted until main is fast-forwarded.
     branches: [main]
     paths:
       - '.github/workflows/android-release.yml'

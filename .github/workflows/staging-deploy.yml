@@ -9,6 +9,7 @@ name: Staging deploy
 # Merge to main already needed green CI on the PR; this workflow does not re-run it.
 on:
   push:
+    # Deliberately main only: deploying every design-overhaul merge is not wanted until main is fast-forwarded.
     branches: [main]
     paths:
       - 'backend/**'
