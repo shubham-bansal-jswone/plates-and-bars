@@ -11,7 +11,7 @@ import { loadKitchenTests } from '../db/kitchenTests';
 import { loadWeights } from '../db/progress';
 import { listIntro } from '../kitchen/copy';
 import { ResultsView } from '../components/ResultsView';
-import { Button, ErrorText, H1, Hint, Label, Note, Page, Switch, Press } from '../components/ui';
+import { Button, Card, ErrorText, Heading, H1, Hint, Label, Note, Page, Switch, Press, useWide } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
 import { setupText } from '../setup/summary';
@@ -22,6 +22,7 @@ import { TargetsEditor } from '../targets/TargetsEditor';
 import { RulesSection } from '../targets/RulesSection';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
+import { type } from '../theme/tokens';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
 import { DeviceStepsSection } from '../steps/DeviceStepsSection';
@@ -36,13 +37,14 @@ interface Props {
   now?: () => Date;
 }
 
-/** Targets tab: the stored setup's targets, focus muscles and coverage, and the workout settings. */
+/** Targets tab: Daily targets (editable), Training rules, and Account and data. */
 export function TargetsScreen({ db, now = () => new Date() }: Props) {
   const { profile, markCleared, setProfile } = useProfile();
   const { ready, settings, saveFailed, loadFailed, setFocus, setRestOff, update } = useSettings();
   const router = useRouter();
   const labHold = useLabHold(db);
   const c = useTheme();
+  const wide = useWide();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = useCallback((msg: string) => {
@@ -86,49 +88,46 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   const summary = setupText(profile);
   const drift = weightDrift(weights, profile.weight_kg);
   const whyValues = profileWhyValues(profile, { date: localDate(now()), flex: settings.flex, labHold: labHold === true });
-  return (
-    <View style={{ flex: 1 }}>
-      <Page>
-        <View style={{ gap: 8 }}>
-          <H1>Your setup</H1>
-          <Text style={{ color: c.ink, lineHeight: 22 }}>{summary.line}</Text>
-          <Hint>{summary.burn}</Hint>
-        </View>
-        <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets hideHeadline />
+  const section = (title: string) => (
+    <Heading level={2} style={[type.heading, { color: c.ink, marginTop: 16 }]}>
+      {title}
+    </Heading>
+  );
+  const intro = (
+    <>
+      <View style={{ gap: 8 }}>
+        <H1>Your setup</H1>
+        <Text style={{ color: c.ink, lineHeight: 22 }}>{summary.line}</Text>
+        <Hint>{summary.burn}</Hint>
+      </View>
+      <ResultsView profile={profile} onCleared={profile.cleared ? undefined : markCleared} hideTargets hideHeadline />
+    </>
+  );
+  const targets = (
+    <>
+      {section('Daily targets')}
+      <Card>
         <TargetsEditor profile={profile} setProfile={setProfile} now={now} notify={notify} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 }}>
           {/* The numbers are the stored (possibly edited) targets; the burn breakdown is what setup computed. */}
           <WhyLink id="targets" label="Why these numbers?" values={whyValues} />
           <WhyLink id="protein" label="Why this much protein?" values={whyValues} />
         </View>
-        {drift ? (
-          <View style={{ gap: 8, marginTop: 8 }}>
-            <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
-            <Button label="Recalculate targets" onPress={() => router.push('/setup?recalc=1' as never)} />
-          </View>
-        ) : null}
-        <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
-        <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
-        <Button label="Exercise library" kind="ghost" onPress={() => router.push('/library' as never)} />
-        <Button label="About and sources" kind="ghost" onPress={() => router.push('/about' as never)} />
-        {ready ? (
-          <>
-            <RulesSection db={db} today={localDate(now())} now={now} notify={notify} profile={profile} weekPlan={settings.adjustments.weekPlan as WeekPlan | undefined} />
-            <FocusSection focus={settings.focus} onChange={setFocus} notify={notify} />
-            <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
-          </>
-        ) : null}
-        <WhyLibrary values={whyValues} now={now} />
-        <AiSection />
-        {ready ? (
+      </Card>
+    </>
+  );
+  const rules = (
+    <>
+      {section('Training rules')}
+      {ready ? (
+        <>
+          <RulesSection db={db} today={localDate(now())} now={now} notify={notify} profile={profile} weekPlan={settings.adjustments.weekPlan as WeekPlan | undefined} />
+          <FocusSection focus={settings.focus} onChange={setFocus} notify={notify} />
+          <CoverageSection db={db} profile={profile} settings={settings} today={localDate(now())} />
           <View style={{ gap: 8, marginTop: 16 }}>
             <Label>Workout</Label>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Switch
-                accessibilityLabel="Start a rest timer after each set"
-                value={!settings.rest_off}
-                onValueChange={(on) => setRestOff(!on)}
-              />
+              <Switch accessibilityLabel="Start a rest timer after each set" value={!settings.rest_off} onValueChange={(on) => setRestOff(!on)} />
               {/* The text toggles the switch too, as the prototype's label does; the switch carries the spoken name. */}
               <Press focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setRestOff(!settings.rest_off)} style={{ flex: 1 }}>
                 <Text style={{ color: c.ink, fontSize: 16 }}>Start a rest timer after each set</Text>
@@ -137,17 +136,59 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             {loadFailed ? <ErrorText>Couldn’t read your saved settings, so changes are not saved. Restart the app to try again.</ErrorText> : null}
             {saveFailed ? <ErrorText>Couldn’t save that on this device. Try again.</ErrorText> : null}
           </View>
-        ) : null}
-        <DeviceStepsSection />
-        <RemindersSection db={db} profile={profile} />
-        {ready ? <WaterSizesSection sizes={settings.water_sizes} onChange={(k, ml) => update((s) => ({ water_sizes: { ...s.water_sizes, [k]: ml } }))} /> : null}
-        {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Water sizes and before My foods as there; the list itself is on its own screen. */}
-        <View style={{ gap: 8, marginTop: 16 }}>
-          <Label>Kitchen tests</Label>
-          {kitchen !== null ? <Hint>{listIntro(kitchen)}</Hint> : null}
-          <Button label="Kitchen tests" kind="ghost" onPress={() => router.push('/kitchen-test' as never)} />
+        </>
+      ) : null}
+      <Button label="Exercise library" kind="ghost" onPress={() => router.push('/library' as never)} />
+      <DeviceStepsSection />
+      <RemindersSection db={db} profile={profile} />
+    </>
+  );
+  const account = (
+    <>
+      {section('Account and data')}
+      {drift ? (
+        <View style={{ gap: 8 }}>
+          <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
+          <Button label="Recalculate targets" onPress={() => router.push('/setup?recalc=1' as never)} />
         </View>
-        <MyFoodsSection db={db} notify={notify} />
+      ) : null}
+      <Button label="Redo setup" kind="ghost" onPress={() => router.push('/setup?redo=1' as never)} />
+      <Button label="Download or delete my data" kind="ghost" onPress={() => router.push('/data' as never)} />
+      <Button label="About and sources" kind="ghost" onPress={() => router.push('/about' as never)} />
+      <WhyLibrary values={whyValues} now={now} />
+      <AiSection />
+      {ready ? <WaterSizesSection sizes={settings.water_sizes} onChange={(k, ml) => update((s) => ({ water_sizes: { ...s.water_sizes, [k]: ml } }))} /> : null}
+      {/* Prototype `ktListHtml`: the kitchen tests section of Targets, after Water sizes and before My foods as there; the list itself is on its own screen. */}
+      <View style={{ gap: 8, marginTop: 16 }}>
+        <Label>Kitchen tests</Label>
+        {kitchen !== null ? <Hint>{listIntro(kitchen)}</Hint> : null}
+        <Button label="Kitchen tests" kind="ghost" onPress={() => router.push('/kitchen-test' as never)} />
+      </View>
+      <MyFoodsSection db={db} notify={notify} />
+    </>
+  );
+  return (
+    <View style={{ flex: 1 }}>
+      <Page wide>
+        {wide ? (
+          <View style={{ flexDirection: 'row', gap: 24, alignItems: 'flex-start' }}>
+            <View style={{ flex: 1, gap: 8 }}>
+              {intro}
+              {targets}
+            </View>
+            <View style={{ flex: 1, gap: 8 }}>
+              {rules}
+              {account}
+            </View>
+          </View>
+        ) : (
+          <>
+            {intro}
+            {targets}
+            {rules}
+            {account}
+          </>
+        )}
       </Page>
       <ToastBar message={toast} />
     </View>

@@ -4,17 +4,18 @@ import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
-import { Button, Caption, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
+import { Button, Caption, Card, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
 import { LegalLinks } from '../legal/LegalLinks';
 import { DeletionNotice } from '../account/DeletionNotice';
 import type { Profile } from '../setup/types';
-import { buildProfile, draftFromProfile, emptyDraft, keepStoredHeight, validateStep, type Draft } from '../setup/logic';
+import { buildProfile, draftFromProfile, emptyDraft, errorField, keepStoredHeight, validateStep, type Draft, type SetupField } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { setSetupLeaving } from '../state/setupExit';
 import { postToast } from '../state/pendingToast';
 import { useTheme } from '../theme/useTheme';
+import { radius } from '../theme/tokens';
 
 type Pick = <K extends keyof Draft>(k: K, v: Draft[K]) => void;
 const entries = <K extends string>(o: Record<K, readonly [string, string]>) => Object.entries(o) as [K, readonly [string, string]][];
@@ -29,12 +30,14 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
     <Page>
       <H1>{CONSENT.title}</H1>
       <Text style={{ color: c.ink, lineHeight: 22 }}>{CONSENT.intro}</Text>
-      {CONSENT.bullets.map((b) => (
-        <View key={b} style={{ flexDirection: 'row', gap: 10 }}>
-          <Text style={{ color: c.ink, lineHeight: 22 }}>{'•'}</Text>
-          <Text style={{ color: c.ink, lineHeight: 22, flex: 1 }}>{b}</Text>
-        </View>
-      ))}
+      <Card>
+        {CONSENT.bullets.map((b) => (
+          <View key={b} style={{ flexDirection: 'row', gap: 10 }}>
+            <Text style={{ color: c.brand, lineHeight: 22 }}>{'•'}</Text>
+            <Text style={{ color: c.ink, lineHeight: 22, flex: 1 }}>{b}</Text>
+          </View>
+        ))}
+      </Card>
       <LegalLinks />
       <Note>{CONSENT.note}</Note>
       <View style={[layout.row, { marginTop: 8 }]}>
@@ -62,8 +65,13 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
   );
 }
 
-function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
+/** `err` shown under the field it names (`errField`), and nowhere else. */
+function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set: Pick; err: string; errField: SetupField | null }) {
   const c = useTheme();
+  const bad = (f: SetupField) => !!err && errField === f;
+  // The inline error is also the invalid field's hint, so focusing the field again reads why it is wrong.
+  const hint = (f: SetupField) => (bad(f) ? err : undefined);
+  const showErr = (at: SetupField) => (bad(at) ? <ErrorText>{err}</ErrorText> : null);
   if (step === 0)
     return (
       <>
@@ -72,10 +80,13 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
         <View style={layout.field}>
           <Label>Sex</Label>
           <Group label="Sex">
-            <Choice label="Male" selected={d.sex === 'male'} onPress={() => set('sex', 'male')} />
-            <Choice label="Female" selected={d.sex === 'female'} onPress={() => set('sex', 'female')} />
+            <View style={layout.row}>
+              <Choice chip label="Male" selected={d.sex === 'male'} onPress={() => set('sex', 'male')} />
+              <Choice chip label="Female" selected={d.sex === 'female'} onPress={() => set('sex', 'female')} />
+            </View>
           </Group>
           <Hint>Used only for the calorie formula, which differs by sex.</Hint>
+          {showErr('sex')}
         </View>
         {d.sex === 'female' ? (
           <View style={layout.field}>
@@ -92,31 +103,34 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
         <View style={layout.field}>
           <Caption>Age</Caption>
           <View style={layout.row}>
-            <Field label="Age" inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
+            <Field label="Age" invalid={bad('age')} accessibilityHint={hint('age')} inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
           </View>
+          {showErr('age')}
         </View>
         <View style={layout.field}>
           <Label>Height</Label>
           <View style={layout.row}>
             {d.unit === 'ft' ? (
               <>
-                <Field label="Height feet" inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
-                <Field label="Height inches" inputMode="numeric" placeholder="in" value={d.inch} onChangeText={(v) => set('inch', v)} />
+                <Field label="Height feet" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
+                <Field label="Height inches" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="in" value={d.inch} onChangeText={(v) => set('inch', v)} />
                 <Button kind="link" label="Use cm" onPress={() => set('unit', 'cm')} />
               </>
             ) : (
               <>
-                <Field label="Height in cm" inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
+                <Field label="Height in cm" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
                 <Button kind="link" label="Use feet and inches" onPress={() => set('unit', 'ft')} />
               </>
             )}
           </View>
+          {showErr('height')}
         </View>
         <View style={layout.field}>
           <Caption>Weight (kg)</Caption>
           <View style={layout.row}>
-            <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
+            <Field label="Weight in kg" invalid={bad('weight')} accessibilityHint={hint('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
           </View>
+          {showErr('weight')}
         </View>
       </>
     );
@@ -130,6 +144,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
             <Choice key={k} label={l} sub={s} selected={d.activity === k} onPress={() => set('activity', k)} />
           ))}
         </Group>
+        {showErr('activity')}
       </>
     );
   if (step === 2)
@@ -145,6 +160,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
               ))}
             </View>
           </Group>
+          {showErr('days')}
         </View>
         {d.days ? (
           <>
@@ -155,6 +171,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
                   <Choice key={k} label={l} sub={s} selected={d.where === k} onPress={() => set('where', k)} />
                 ))}
               </Group>
+              {showErr('where')}
             </View>
             <View style={layout.field}>
               <Label>Training experience</Label>
@@ -163,6 +180,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
                   <Choice key={k} label={l} sub={s} selected={d.exp === k} onPress={() => set('exp', k)} />
                 ))}
               </Group>
+              {showErr('exp')}
             </View>
             <View style={layout.field}>
               <Label>Typical session length</Label>
@@ -173,6 +191,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
                   ))}
                 </View>
               </Group>
+              {showErr('minutes')}
             </View>
           </>
         ) : null}
@@ -186,6 +205,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
           <Choice key={k} label={l} sub={s} selected={d.goal === k} onPress={() => set('goal', k)} />
         ))}
       </Group>
+      {showErr('goal')}
       <View style={layout.field}>
         <Label>Quick health check</Label>
         <WhyLink id="screening" />
@@ -207,6 +227,7 @@ function StepBody({ step, d, set }: { step: number; d: Draft; set: Pick }) {
             </Group>
           </View>
         ))}
+        {showErr('screen')}
       </View>
       {d.goal === 'lose' ? (
         <View style={layout.field}>
@@ -275,13 +296,14 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
 
   if (!consent) return <Consent onContinue={giveConsent} />;
 
+  const errField = err ? errorField(step, d) : null;
   const next = () => {
     const e = validateStep(step, d);
     setErr(e);
     if (!e) setStep(step + 1);
   };
   return (
-    <Page resetKey={step}>
+    <Page resetKey={step} wide={!!profile}>
       <View style={[layout.row, { justifyContent: 'space-between' }]}>
         {step > 0 ? (
           <Button
@@ -313,22 +335,26 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
         accessible
         accessibilityRole="progressbar"
         accessibilityLabel="Setup progress"
-        accessibilityValue={{ min: 0, max: STEPS + 1, now: Math.min(step + 1, STEPS + 1) }}
-        style={{ height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: c.track }}
+        accessibilityValue={{ min: 0, max: STEPS, now: Math.min(step + 1, STEPS) }}
+        style={{ flexDirection: 'row', gap: 4 }}
       >
-        <View style={{ height: '100%', width: `${(Math.min(step + 1, STEPS + 1) / (STEPS + 1)) * 100}%`, backgroundColor: c.brand }} />
+        {Array.from({ length: STEPS }, (_, i) => (
+          <View key={i} style={{ flex: 1, height: 6, borderRadius: radius.full, backgroundColor: i <= step ? c.brand : c.track }} />
+        ))}
       </View>
       {profile ? (
         <>
-          <ResultsView profile={profile} showWhy />
-          {err ? <ErrorText>{err}</ErrorText> : null}
-          <Button label="Use these targets" onPress={() => save(profile, 'Targets updated')} />
-          {stored ? <Button kind="ghost" label="Keep my current targets" onPress={() => save({ ...profile, targets: stored.targets }, 'Setup saved, targets unchanged')} /> : null}
+          <ResultsView profile={profile} showWhy columns />
+          <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center', gap: 8 }}>
+            {err ? <ErrorText>{err}</ErrorText> : null}
+            <Button label="Use these targets" onPress={() => save(profile, 'Targets updated')} />
+            {stored ? <Button kind="ghost" label="Keep my current targets" onPress={() => save({ ...profile, targets: stored.targets }, 'Setup saved, targets unchanged')} /> : null}
+          </View>
         </>
       ) : (
         <>
-          <StepBody step={step} d={d} set={set} />
-          {err ? <ErrorText>{err}</ErrorText> : null}
+          <StepBody step={step} d={d} set={set} err={err} errField={errField} />
+          {err && !errField ? <ErrorText>{err}</ErrorText> : null}
           <Button label={step === STEPS - 1 ? 'See my targets' : 'Continue'} onPress={next} />
         </>
       )}
