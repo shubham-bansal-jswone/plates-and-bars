@@ -222,7 +222,7 @@ export function Button({
         kind === 'primary' && !disabled && !pressed && { shadowColor: c.glow, ...glowShadow },
       ]}
     >
-      <Text style={[kind === 'link' ? type.bodyStrong : type.button, { color: palette.fg }]}>{label}</Text>
+      <Text style={[kind === 'link' ? type.bodyStrong : type.button, kind === 'link' && { flexShrink: 1 }, { color: palette.fg }]}>{label}</Text>
     </Press>
   );
 }
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   label: { ...type.label },
   note: { ...type.caption, padding: space.md, borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
   btn: { minHeight: 52, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
-  link: { minHeight: 44, minWidth: 44, alignSelf: 'flex-start', justifyContent: 'center' },
+  link: { minHeight: 44, minWidth: 44, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center' },
   card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
   opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
