@@ -37,6 +37,7 @@ import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
 import { HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRestNotification } from '../reminders/useRestNotification';
+import { usePersistedRest } from '../workout/restStore';
 import { useRules } from '../workout/useRules';
 import { useWorkoutDay, type PickSeed } from '../workout/useWorkoutDay';
 import { useLabHold } from '../labs/useLabHold';
@@ -87,6 +88,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const labHold = useLabHold(db); // the lab hold (#1070): new sessions are lighter
   const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, labHold: labHold === true, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
+  usePersistedRest(db, rest, setRest, v.date);
   // The rest as a notification while the app is in the background (#1068); its +30 s and Skip come back through setRest.
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
   // The dock never names an exercise that is gone or finished: it moves on to the next one with an undone set, or closes when none is left.
