@@ -348,7 +348,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
         {names.length} exercises{eachSets ? `, ${eachSets} sets each${beginnerRamp(profile, date) ? ' for your first 2 weeks' : ''}` : ''}
         {names.some((n) => isFocus(n, focus, getCatalog().tags)) ? ', plus 1 on focus muscles' : ''}
         {profile.minutes ? `, sized to your ${profile.minutes}-minute sessions` : ''}.
-        {built.left.length ? ` ${listJoin(built.left)} {built.left.length === 1 ? 'rotates' : 'rotate'} in on your other ${startT} days.` : ''}
+        {built.left.length ? ` ${listJoin(built.left)} ${built.left.length === 1 ? 'rotates' : 'rotate'} in on your other ${startT} days.` : ''}
       </Hint>
       {built.lost.map((n) => (
         <Hint key={n}>

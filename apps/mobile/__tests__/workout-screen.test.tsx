@@ -393,7 +393,7 @@ describe('Workout tab: logging sets', () => {
     await press('Close');
     await typeAndAdd('Cossack Squat');
     await press('Add Cossack Squat with these muscles');
-    expect(await screen.findByText('Pick at least one main muscle.')).toBeTruthy();
+    expect(await screen.findByText('Choose a main muscle first.')).toBeTruthy();
     await press('Main muscle: quads');
     await press('Also working: glutes');
     await press('Add Cossack Squat with these muscles');
