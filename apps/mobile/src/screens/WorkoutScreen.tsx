@@ -598,7 +598,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       <>
         {head}
         <View style={styles.cols}>
-          <View style={[styles.colLeft, { maxWidth: undefined }]}>{stack}</View>
+          <View style={styles.colMain}>{stack}</View>
           <View style={styles.colSide}>{info}</View>
         </View>
         {spacer}
@@ -621,6 +621,7 @@ const styles = StyleSheet.create({
   exRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, borderTopWidth: 1 },
   cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   colLeft: { flex: 1, maxWidth: 560, gap: 8 },
+  colMain: { flex: 1, gap: 8 },
   colRight: { flex: 1, maxWidth: 560, gap: 8 },
   colSide: { width: 360, gap: 8 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },

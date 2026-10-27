@@ -28,6 +28,8 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 const mockScreens: MockScreen[] = [];
 
 describe('tab bar', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   beforeEach(async () => {
     mockScreens.length = 0;
     mockTabs.mockClear();
@@ -54,7 +56,6 @@ describe('tab bar', () => {
     expect(await side(390)).toBe(0);
     expect(await side(768)).toBe(104);
     expect(await side(1280)).toBe(120);
-    jest.restoreAllMocks();
   });
 
   it('gives each tab a 24px icon, filled when active and outlined when not', () => {
