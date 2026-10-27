@@ -29,6 +29,8 @@ export interface Palette {
   brand: string;
   /** Fill of a goal bar drawn on `track` (3:1, also at the 0.85 opacity the Seven-days bar uses). `brand` is too dark for that in dark mode (#504). */
   bar: string;
+  /** Share of `brand` over `surfaceSoft` in the body map's also-working fill; chosen per palette so it reaches 3:1 against an untargeted region. */
+  alsoAlpha: number;
   brandPressed: string;
   brandActive: string;
   onBrand: string;
@@ -70,6 +72,7 @@ export const light: Palette = {
   outline: '#8B8F9B',
   brand: '#2457E6',
   bar: '#2457E6',
+  alsoAlpha: 0.7,
   brandPressed: '#1D48C2',
   brandActive: '#16389A',
   onBrand: '#FFFFFF',
@@ -105,6 +108,7 @@ export const dark: Palette = {
   outline: '#6B736A',
   brand: '#B7FF00',
   bar: '#B7FF00',
+  alsoAlpha: 0.5,
   brandPressed: '#9EE000',
   brandActive: '#86C400',
   onBrand: '#090B09',

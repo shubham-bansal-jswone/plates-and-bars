@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Field, Heading, Hint, Chip } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
+import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import type { WorkoutList } from './workoutLists';
 
 /** "Add exercise" (prototype `openExerciseSheet`): the exercise library by group, without the exercises already in the session. */
@@ -19,6 +20,7 @@ export function AddExerciseSheet({ inSession, workouts = [], onPick, onCustom, o
             Add exercise
           </Heading>
           <Hint>It goes at the end of today’s session.</Hint>
+          <LibraryEntryButton onBeforeOpen={onClose} />
           <View style={styles.own}>
             <View style={{ flex: 1 }}>
               <Field label="Your own exercise" placeholder="Or type your own" value={typed} onChangeText={setTyped} />
