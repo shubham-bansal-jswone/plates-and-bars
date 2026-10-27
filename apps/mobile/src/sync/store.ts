@@ -10,6 +10,8 @@ export const KEY_PHOTOS_WIPE = 'device.photos_wipe_pending';
 export const KEY_SETTINGS_KEPT = 'device.settings_kept';
 /** Reminder choices (#943). Device-only like the settings edits kept above: removed by a store wipe, with the alarms. */
 export const KEY_REMINDERS = 'device.reminders';
+/** The running rest dock (#1143): end time, label and list, so a reload resumes it. Device-only, removed by a store wipe with the day it belongs to. */
+export const KEY_REST = 'device.rest';
 export const KEY_CURSOR = 'sync.cursor';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 
