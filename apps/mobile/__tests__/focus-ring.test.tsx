@@ -90,9 +90,9 @@ describe('switch hit area (#1121)', () => {
   it.each([['dark', dark], ['light', light]])('keeps the off-state thumb and track visible in %s', async (_n, pal) => {
     jest.spyOn(useThemeModule, 'useTheme').mockReturnValue(pal as never);
     await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={() => {}} />);
-    const sw = screen.getByLabelText('Rest timer');
-    expect(sw.props.thumbColor).toBe(pal.ink);
-    expect(sw.props.trackColor.false).toBe(pal.muted);
+    const sw = screen.getByLabelText("Rest timer");
+    expect(sw.props.thumbTintColor).toBe(pal.ink);
+    expect(sw.props.tintColor).toBe(pal.muted);
     expect(pal.ink).not.toBe(pal.muted);
   });
 });
