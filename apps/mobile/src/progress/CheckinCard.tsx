@@ -3,8 +3,7 @@ import { WhyLink } from '../why/WhyLink';
 import { CYCLE_CHECKIN_NOTE } from '../cycle/copy';
 import { CARDIO_WEEK_MIN, RAPID_LOSS_KCAL, round1 } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Heading, Button, Card, Disclosure, Hint } from '../components/ui';
-import { MetricRow } from './Metrics';
+import { Heading, Button, Card, Disclosure, Hint, MetricRow } from '../components/ui';
 import { fmt, shortDate } from '../format';
 import { useProfile } from '../state/ProfileProvider';
 import { type as typeScale } from '../theme/tokens';
@@ -64,14 +63,18 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
       <Heading level={2} style={[typeScale.heading, { color: t.ink }]}>{CHECKIN_TITLE}</Heading>
       <Hint>{`The 7 days up to ${shortDate(date)}`}</Hint>
       {/* The one lime number on the Progress screen: sessions done this week. */}
-      <MetricRow items={[
-        { big: String(k.sessions), small: ` / ${k.plannedN}`, label: 'sessions', lime: true },
-        { big: String(k.logged), small: ' / 7', label: 'days logged' },
-      ]} />
-      <MetricRow items={[
-        { big: k.logged ? fmt(k.avgK) : '–', label: `avg kcal${k.logged ? ` (target ${fmt(target)})` : ''}` },
-        { big: k.logged ? `${fmt(k.avgP)} g` : '–', label: `avg protein, ${k.pDays} day${k.pDays === 1 ? '' : 's'} on target` },
-      ]} />
+      <Card>
+        <MetricRow cells={[
+          { value: String(k.sessions), small: ` / ${k.plannedN}`, label: 'sessions', lime: true },
+          { value: String(k.logged), small: ' / 7', label: 'days logged' },
+        ]} />
+      </Card>
+      <Card>
+        <MetricRow cells={[
+          { value: k.logged ? fmt(k.avgK) : '–', label: `avg kcal${k.logged ? ` (target ${fmt(target)})` : ''}` },
+          { value: k.logged ? `${fmt(k.avgP)} g` : '–', label: `avg protein, ${k.pDays} day${k.pDays === 1 ? '' : 's'} on target` },
+        ]} />
+      </Card>
       <Text style={{ color: t.ink }}>{cycleNote ? `${weekly} ${CYCLE_CHECKIN_NOTE}` : weekly}</Text>
       <Text style={{ color: t.ink }}>{cardio}</Text>
       <WhyLink id="activity" />
@@ -110,11 +113,13 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
           {s.kind !== 'protein' && ci.declines >= 3 ? <Button label={STOP_SUGGESTING} kind="ghost" onPress={ci.stopSuggesting} /> : null}
         </Card>
       ) : null}
-      <MetricRow items={[
-        { big: String(h.thisWeek), label: `sessions this week (aim ${h.goal}+)` },
-        { big: `${h.logged}/7`, label: 'days with food logged' },
-        { big: String(h.weeks), label: 'on-track weeks in a row' },
-      ]} />
+      <Card>
+        <MetricRow cells={[
+          { value: String(h.thisWeek), label: `sessions this week (aim ${h.goal}+)` },
+          { value: `${h.logged}/7`, label: 'days with food logged' },
+          { value: String(h.weeks), label: 'on-track weeks in a row' },
+        ]} />
+      </Card>
       <Hint>{h.message === 'streak' ? HABIT_MESSAGE.streak(h.weeks, h.goal) : HABIT_MESSAGE[h.message]}</Hint>
       <WhyLink id="habits" />
     </View>
