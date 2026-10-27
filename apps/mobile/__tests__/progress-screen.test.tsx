@@ -543,7 +543,7 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText('The 7 days up to 8 Oct')).toBeTruthy();
     expect(screen.getByText(/Steps: about 8,000 a day\. Sleep: 6\.5 hours a night, under the 7–9 hours/)).toBeTruthy();
     expect(screen.getByText(/Needs 10 more complete days in the last 2 weeks.* and 6 more weigh-ins/)).toBeTruthy();
-    expect(screen.getByLabelText('1/7 days with food logged')).toBeTruthy();
+    expect(screen.getByLabelText('days with food logged: 1/7')).toBeTruthy();
     expect(screen.getByLabelText('Why? Building the habit')).toBeTruthy();
     expect(screen.getAllByLabelText('Why? Steps, cardio and lifting')).toHaveLength(2);
     expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
@@ -574,7 +574,7 @@ describe('Weekly check-in, burn and habits', () => {
     await saveWorkout(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: DATE, template: 'Upper A', base: 'Upper A', where: 'gym', cardio_min: 30, mods: {}, exercises: [], ci_choice: null });
     await saveSet(db, DATE, { id: 's1', version: 0, updated_at: '', deleted_at: null, workout_id: null, exercise: 'Bench', kind: 'work', set_index: 0, weight_kg: 40, reps: 8, done: true, rate: null, t: null });
     await setup({ db });
-    expect(await screen.findByLabelText(/^1 \/ \d+ sessions$/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^sessions: 1 \/ \d+$/)).toBeTruthy();
     expect(screen.getByText(/Cardio: 30 of 150 min/)).toBeTruthy();
     expect(screen.getByLabelText('Thu, trained, not logged')).toBeTruthy();
   });
