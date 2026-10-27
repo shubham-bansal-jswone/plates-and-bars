@@ -387,15 +387,18 @@ export function Disclosure({ label, defaultOpen = false, open: controlled, onOpe
   );
 }
 
-/** A row of up to 3 figures with 1px dividers between them, each cell at least 56px tall. */
-export function MetricRow({ cells }: { cells: readonly { label: string; value: string }[] }) {
+/** A row of up to 3 figures with 1px dividers between them, each cell at least 56px tall. `small` is muted text after the value (e.g. " / 6"); `lime` draws the value in the brand colour when it is a real, non-zero number (set on one cell per screen). Spoken as "label: value". */
+export function MetricRow({ cells }: { cells: readonly { label: string; value: string; small?: string; lime?: boolean }[] }) {
   const c = useTheme();
   return (
     <View style={extra.metricRow}>
       {cells.map((m, i) => (
-        <View key={m.label} accessible accessibilityLabel={`${m.label}: ${m.value}`} style={[extra.metricCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: c.line }]}>
-          <Text style={[type.metricSm, tabular, { color: c.ink }]}>{m.value}</Text>
-          <Text style={[type.small, { color: c.muted }]}>{m.label}</Text>
+        <View key={m.label} accessible accessibilityLabel={`${m.label}: ${m.value}${m.small ?? ''}`} style={[extra.metricCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: c.line }]}>
+          <Text style={[type.metricSm, tabular, { color: m.lime && m.value !== '–' && m.value !== '0' ? c.brand : c.ink }]}>
+            {m.value}
+            {m.small ? <Text style={[type.small, { color: c.muted }]}>{m.small}</Text> : null}
+          </Text>
+          <Text style={[type.small, { color: c.muted, textAlign: 'center' }]}>{m.label}</Text>
         </View>
       ))}
     </View>
