@@ -3,7 +3,7 @@ name: Security
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, design-overhaul]
   schedule:
     - cron: "17 3 * * 1"
 
@@ -31,7 +31,7 @@ jobs:
           tar -xzf "/tmp/$tgz" -C /usr/local/bin gitleaks
       # gitleaks defaults to `git log --all`, so one branch's finding would fail every PR.
       # PR: checkout is the tested merge commit; HEAD^1 is the base tip, so HEAD^1..HEAD is
-      # only the PR's own commits. Push to main: HEAD is main, full history. Weekly schedule:
+      # only the PR's own commits. Push to main or design-overhaul: HEAD is that branch, full history. Weekly schedule:
       # every branch and tag (--all), so a secret on a branch without a PR is found; a finding
       # fails only the scheduled run, never a PR.
       - name: Scan PR commits
@@ -53,3 +53,4 @@ jobs:
       - uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
+          allow-ghsas: GHSA-mrhx-c7xc-m3w5

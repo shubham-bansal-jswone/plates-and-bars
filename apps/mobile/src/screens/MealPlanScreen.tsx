@@ -98,7 +98,7 @@ function Plan({ onBack, mine, now = () => new Date() }: Props & { mine: ReturnTy
           })}
           <Hint>{GROCERY_NOTE}</Hint>
           <View style={styles.wrap}>
-            <Button label="Back to the plan" kind="ghost" onPress={() => setGrocery(false)} />
+            <Button label="Back to the plan" kind="link" onPress={() => setGrocery(false)} />
             <Button label="Copy as text" kind="ghost" onPress={copy} />
           </View>
         </Page>
