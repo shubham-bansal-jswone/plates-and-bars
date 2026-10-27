@@ -45,4 +45,21 @@ describe('SVG labels use the body font (#908)', () => {
     expect(families).toHaveLength(2);
     for (const f of families) expect(f).toContain('Inter_400Regular');
   });
+
+  it('BodyMap view names are at least 12 px (#1126)', async () => {
+    await render(
+      <FontsProvider>
+        <BodyMap primary={[]} secondary={[]} />
+      </FontsProvider>,
+    );
+    const sizes: number[] = [];
+    const walk = (n: Node | null | undefined) => {
+      if (!n) return;
+      if (n.type === 'RNSVGText') sizes.push(Number((n.props as { font?: { fontSize?: unknown } }).font?.fontSize));
+      n.children?.forEach(walk);
+    };
+    walk(screen.toJSON() as Node);
+    expect(sizes).toHaveLength(2);
+    for (const z of sizes) expect(z).toBeGreaterThanOrEqual(12);
+  });
 });
