@@ -60,7 +60,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
   const focus = useFocusOnMount();
   return (
     <View style={styles.section}>
-      <Button kind="ghost" label="Back to progress" onPress={onBack} />
+      <Button kind="link" label="Back to progress" onPress={onBack} />
       <View ref={focus} accessible>
         <Heading level={2} style={[typeScale.title, { color: c.ink }]}>{session.name}</Heading>
       </View>
