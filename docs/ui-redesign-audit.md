@@ -262,7 +262,7 @@ Keep four destinations; rename and reorder only if validated: **Today** (new lan
 
 ### 5.2 Workout: start view
 - **Current:** map, list, hint, check-in, Start last.
-- **Proposed:** header (day name, estimated duration from `buildSession` data), compact exercise list with figure thumbnails where available, **sticky lime "Start <day>"**, secondary row: Preview muscles, Adjust (where today / lighter session / check-in), Pick exercises, Choose another day.
+- **Proposed:** header (day name, estimated duration from `buildSession` data), compact exercise list with figure thumbnails where available, **sticky lime "Start <day>"**, secondary row: Preview muscles, Adjust (where today / lighter session / check-in), Pick exercises, Choose another day. (Superseded 2026-10-27: the muscle map and the quick check-in stay inline as in the prototype; only "Choose another day" and "Training away" are disclosures, see the owner decision above.)
 - **Components:** extend `Card`, new `StickyAction` (built on `Button`), thumbnail `ExerciseFigure` (small variant).
 - **Edge cases:** rest day (copy exists), labs hold note, clearance card, hand-picked list, preview mode, no profile, offline.
 - **Acceptance:** Start is visible without scrolling at 375x812 and 1280x800; all current start paths (preview, pick, check-in choice, where override) still reach `w.start`/`w.startPicked` with identical arguments (Jest `workout-chooser`, `workout-leftovers`); axe passes.
