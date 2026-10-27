@@ -1,40 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Text } from '../components/Text';
-import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
-import { pressedShadow, radius, type } from '../theme/tokens';
+import { Heading, Button, Hint, Press } from '../components/ui';
+import { pressedShadow, radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
 import { BodyMap } from './BodyMap';
+import { ExerciseFigure } from './ExerciseFigure';
 import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
+import { Ring } from './Ring';
 import { VideoLink } from './VideoLink';
 
-/** A toggle chip (prototype `.chip` with `aria-pressed`). */
-/** `label` is the spoken name; `text` (default the label) is what shows. */
-export function Chip({ label, text, pressed, danger, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; onPress: () => void }) {
-  const c = useTheme();
-  return (
-    <Press
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      {...a11yState({ pressed })}
-      onPress={onPress}
-      hitSlop={{ top: 6, bottom: 6 }}
-      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null]}
-    >
-      <Text style={{ color: pressed ? c.onBrand : danger ? c.danger : c.ink, ...type.buttonSm }}>{text ?? label}</Text>
-    </Press>
-  );
-}
-
 /** The short message at the bottom of the screen (prototype `toast`). */
-export function ToastBar({ message }: { message: string | null }) {
+/** `lift` raises the toast by that many px (the Workout tab lifts it above the rest dock, which would otherwise cover it). */
+export function ToastBar({ message, lift = 0 }: { message: string | null; lift?: number }) {
   const c = useTheme();
   if (!message) return null;
   return (
-    <View pointerEvents="none" style={styles.toastWrap}>
+    <View pointerEvents="none" style={[styles.toastWrap, lift ? { bottom: 90 + lift } : null]}>
       <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.toast, { backgroundColor: c.toastBg, color: c.toastFg, shadowColor: c.shadow, ...pressedShadow }]}>
         {message}
       </Text>
@@ -81,29 +67,34 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
     }
   }, [ended, rest.end]);
   const pct = Math.min(100, (1 - left / rest.total) * 100);
+  const time = mmss(left);
   return (
-    // The outer layer is opaque and runs to the screen edge, so the page behind never shows through the gap around the panel.
-    <View style={[styles.restDock, { backgroundColor: c.bg }]}>
-      <View accessibilityLabel="Rest timer" style={[styles.rest, { backgroundColor: c.surface, borderColor: c.line }]}>
-        <View style={styles.restRow}>
-          <View style={{ flexShrink: 1 }}>
-            {/* At zero on Android and web the visible "Rest done, go!" is hidden from assistive tech: the live region below says it,
-                so a swipe through the bar does not read it twice. On iOS the live region does not speak and its transparent text is
-                skipped, so the visible text stays readable there. While counting, the text stays readable everywhere. */}
-            <Text testID="rest-title" aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>{left ? `Rest ${mmss(left)}` : REST_DONE}</Text>
-            {/* Screen readers only announce a live region whose text changes after it is mounted. This one is mounted empty with
-                the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second.
-                srOnly hides it visually only: no display: none and no aria-hidden, which would silence the region. */}
-            <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : REST_DONE}</Text>
-            <Text accessibilityLiveRegion="polite" style={{ color: c.muted, fontSize: 14 }}>{rest.label}</Text>
-          </View>
+    // The dock is opaque and runs to the screen edge, so the page behind never shows through; on wide screens its panel stays a 560 px column in the middle.
+    <View style={[styles.restDock, { backgroundColor: c.bg, borderColor: c.line, borderTopWidth: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }]}>
+      <View accessibilityLabel="Rest timer" style={styles.rest}>
+        <Ring progress={pct / 100} label={`Rest ${Math.round(pct)}% done`}>
+          {/* At zero on Android and web the visible "Rest done, go!" is hidden from assistive tech: the live region below says it,
+              so a swipe through the bar does not read it twice. On iOS the live region does not speak and its transparent text is
+              skipped, so the visible text stays readable there. While counting, the text stays readable everywhere. */}
+          <Text
+            testID="rest-title"
+            accessibilityLabel={left ? `Rest ${time}` : REST_DONE}
+            aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined}
+            style={[left ? (time.length > 4 ? type.metricSm : [type.metric, styles.count]) : type.label, tabular, { color: c.ink, textAlign: 'center' }]}
+          >
+            {left ? time : REST_DONE}
+          </Text>
+        </Ring>
+        <View style={styles.restSide}>
+          {/* Screen readers only announce a live region whose text changes after it is mounted. This one is mounted empty with
+              the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second.
+              srOnly hides it visually only: no display: none and no aria-hidden, which would silence the region. */}
+          <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : REST_DONE}</Text>
+          <Text accessibilityLiveRegion="polite" style={[type.bodyStrong, { color: c.ink }]}>{rest.label}</Text>
           <View style={styles.restBtns}>
             <Button label="+30 s" kind="ghost" onPress={onAdd} />
-            <Button label={left ? 'Skip' : 'Close'} kind="ghost" onPress={onSkip} />
+            <Button label={left ? 'Skip' : 'Close'} kind={left ? 'ghost' : 'primary'} onPress={onSkip} />
           </View>
-        </View>
-        <View style={[styles.track, { backgroundColor: c.track }]}>
-          <View accessibilityLabel={`Rest ${Math.round(pct)}% done`} style={[styles.fill, { backgroundColor: c.bar, width: `${pct}%` }]} />
         </View>
       </View>
     </View>
@@ -143,9 +134,15 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
     <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.sheetBody}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+          <Press accessibilityRole="button" accessibilityLabel={`Close ${name} guide`} onPress={onClose} style={styles.closeX}>
+            <Svg width={24} height={24} viewBox="0 0 24 24" aria-hidden>
+              <Path d="M5 5l14 14M19 5L5 19" stroke={c.ink} strokeWidth={2.5} strokeLinecap="round" />
+            </Svg>
+          </Press>
+          <Heading level={2} style={[type.heading, { color: c.ink }]}>
             {name}
           </Heading>
+          <ExerciseFigure name={name} />
           {card ? (
             <>
               {primary.length ? <BodyMap primary={primary} secondary={secondary} /> : null}
@@ -185,16 +182,16 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
 }
 
 const styles = StyleSheet.create({
-  chip: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
-  restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 8, alignItems: 'center' },
-  rest: { width: '100%', borderWidth: 1, borderRadius: radius.lg, padding: 10, gap: 8, maxWidth: 560 },
-  restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
-  restBtns: { flexDirection: 'row', gap: 8 },
-  track: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
-  fill: { height: 8 },
+  restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, alignItems: 'center' },
+  rest: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: 560, padding: 4 },
+  restSide: { flex: 1, gap: 4 },
+  // The 56 px metric size is wider than the ring holds for "2:30"; 34 sits inside the 100 px ring.
+  count: { fontSize: 34, lineHeight: 38 },
+  restBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },
+  closeX: { minWidth: 44, minHeight: 44, alignSelf: 'flex-end', alignItems: 'center', justifyContent: 'center' },
 });
