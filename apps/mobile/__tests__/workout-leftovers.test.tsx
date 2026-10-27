@@ -89,6 +89,7 @@ describe('library detail list styles (#1126)', () => {
     await render(<ExerciseDetail exercise={e} onBack={() => {}} />);
     expect(screen.getByText(`1. ${e.card!.setup[0]}`)).toBeTruthy();
     expect(screen.getByText(`\u2022 ${e.card!.key_cues[0]}`)).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Where you should feel it' })).toBeTruthy();
     if (e.card!.breathing) expect(screen.getByText(e.card!.breathing)).toBeTruthy();
   });
 });

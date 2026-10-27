@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import type { ExerciseTag } from '@plate-and-bar/core';
 import { useAi } from '../ai/AiProvider';
 import { AI_COPY, failureMessage } from '../ai/copy';
-import { Button, Heading, Hint, Label, Chip } from '../components/ui';
+import { Button, ErrorText, Heading, Hint, Label, Chip } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { BodyMap } from './BodyMap';
 import { MUSCLE_CODES, muscleName } from './copy';
@@ -24,6 +24,7 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
   const [base, setBase] = useState<ExerciseTag>(FALLBACK_TAGS);
   const [primary, setPrimary] = useState<string[]>([]);
   const [secondary, setSecondary] = useState<string[]>([]);
+  const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(AI_COPY.suggestFallback);
   const alive = useRef(true);
@@ -49,10 +50,15 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
   // The suggestion is only asked for while the user has not picked anything: a status read that lands late must not replace their picks.
   const toggle = (list: string[], set: (l: string[]) => void, m: string) => {
     asked.current = true;
+    setMissing(false);
     set(list.includes(m) ? list.filter((x) => x !== m) : [...list, m]);
   };
   const save = () => {
-    if (!primary.length) return notify('Pick at least one main muscle.');
+    // The toast can sit behind the sheet, so the same news shows next to the button too.
+    if (!primary.length) {
+      setMissing(true);
+      return notify('Pick at least one main muscle.');
+    }
     onSave({ ...base, primary, secondary });
   };
   return (
@@ -79,6 +85,7 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
                 <Chip key={m} label={`Also working: ${muscleName(m)}`} text={muscleName(m)} pressed={secondary.includes(m)} onPress={() => toggle(secondary, setSecondary, m)} />
               ))}
             </View>
+            {missing ? <ErrorText>Choose a main muscle first.</ErrorText> : null}
             <Button label="Add exercise" a11yLabel={`Add ${name} with these muscles`} onPress={save} />
           </>
         )}

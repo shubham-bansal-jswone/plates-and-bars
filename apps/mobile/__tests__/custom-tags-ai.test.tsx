@@ -139,6 +139,9 @@ describe('custom exercise tag suggestion', () => {
     await tap('Add Pec deck with these muscles');
     expect(onSave).not.toHaveBeenCalled();
     expect(notify).toHaveBeenCalledWith('Pick at least one main muscle.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose a main muscle first.');
+    await tap('Main muscle: chest');
+    expect(screen.queryByText('Choose a main muscle first.')).toBeNull();
   });
 
   it('shows the working hint while the suggestion is out, and Cancel stays available', async () => {
