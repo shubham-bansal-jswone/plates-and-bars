@@ -363,6 +363,10 @@ export const AN = (() => {
       a:{ ankle:[150,212], torso:-22, wrist:[190,165] }, b:{ ankle:[150,212], torso:-22, wrist:[162,124] },
       props:(J,P,C) => floor(C,60,260),
       hand:(J,P,C,g) => g.ln([J.wr[0]-5,J.wr[1]+3],[J.wr[0]+5,J.wr[1]+3],3,C.eq) + `<rect x="${(J.wr[0]-10).toFixed(1)}" y="${(J.wr[1]+3).toFixed(1)}" width="20" height="26" rx="6" fill="${C.eq}"/>` },
+    // Batch 5 (own drawings, side view). The rig has one view and one forearm length: Dumbbell Fly (its bottom draws as a pressing bend, the mistake it should warn against), Prone Y-T-W Raise and Archer Push-ups need a lateral view or a forearm scale, so they stay without a drawing.
+    'Dead Bug': { hip:[190,211], hl:['abs'],
+      a:{ torso:180, thigh:-90, shinD:0, footA:-90, ua:-90, fa:-90 }, b:{ torso:180, thigh:-12, shinD:-8, footA:-85, ua:192, fa:192 },
+      props:(J,P,C) => floor(C,30,300) },
     'Single-Leg Balance (seconds)': { root:'toe', toe:[190,214], hl:['abs'],
       a:BALANCE, b:BALANCE, rear:calfFree,
       props:(J,P,C,g) => floor(C) + freeLegs(calfFree,J,C,g,130) },
