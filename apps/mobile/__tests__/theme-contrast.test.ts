@@ -27,7 +27,12 @@ const TEXT: [K, K][] = [
   ['link', 'bg'], ['link', 'surface'], ['link', 'surfaceElevated'], ['link', 'tint'],
   ['danger', 'bg'], ['danger', 'surface'], ['caution', 'bg'], ['caution', 'surface'],
   ['toastFg', 'toastBg'], ['toastAction', 'toastBg'],
+  // `subtle` is for large text and text straight on the canvas only; it does not reach 4.5:1 on cards (see LARGE_TEXT).
+  ['subtle', 'bg'],
 ];
+// `subtle` on the card surfaces: large text only (3:1). Dark is 4.30 on surface, 3.96 on surfaceElevated, 3.60 on surfaceSoft;
+// small text must use `muted`.
+const LARGE_TEXT: [K, K][] = [['subtle', 'surface'], ['subtle', 'surfaceElevated'], ['subtle', 'surfaceSoft']];
 // Bars, borders, focus rings and icons: 3:1 against what they sit on.
 const GRAPHIC: [K, K][] = [
   ['protein', 'surface'], ['protein', 'bg'], ['protein', 'track'],
@@ -44,6 +49,9 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
   it.each(TEXT)('text %s on %s is at least 4.5:1', (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(4.5);
   });
+  it.each(LARGE_TEXT)('large text %s on %s is at least 3:1', (fg, bg) => {
+    expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(3);
+  });
   it.each(GRAPHIC)('graphic %s on %s is at least 3:1', (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(3);
   });
@@ -58,6 +66,6 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
 
 describe('font weights', () => {
   it('maps css weights to the faces we ship', () => {
-    expect(['300', 300, 'normal', undefined, '500', '600', 'bold', '800'].map(toWeight)).toEqual(['300', '300', '400', '400', '500', '600', '700', '700']);
+    expect(['300', 300, 'normal', undefined, '500', '600', 'bold', '800', '900'].map(toWeight)).toEqual(['300', '300', '400', '400', '500', '600', '700', '800', '900']);
   });
 });

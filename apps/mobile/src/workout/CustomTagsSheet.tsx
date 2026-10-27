@@ -4,11 +4,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import type { ExerciseTag } from '@plate-and-bar/core';
 import { useAi } from '../ai/AiProvider';
 import { AI_COPY, failureMessage } from '../ai/copy';
-import { Button, Heading, Hint, Label } from '../components/ui';
+import { Button, Heading, Hint, Label, Chip } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { BodyMap } from './BodyMap';
 import { MUSCLE_CODES, muscleName } from './copy';
-import { Chip } from './parts';
 import { FALLBACK_TAGS, tagsFromSuggestion } from './suggestTags';
 import { isBlank } from '../text/blank';
 
