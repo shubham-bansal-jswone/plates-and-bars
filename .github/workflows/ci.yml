@@ -349,7 +349,6 @@ jobs:
           path: |
             tests/e2e/test-results/
             tests/e2e/.barcode-dist/
-            tests/e2e/.light-dist/
           retention-days: 7
 
   e2e-sync:
