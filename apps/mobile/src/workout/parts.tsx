@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
+import { Heading, Button, Hint } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
@@ -10,24 +10,6 @@ import { BodyMap } from './BodyMap';
 import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
 import { VideoLink } from './VideoLink';
-
-/** A toggle chip (prototype `.chip` with `aria-pressed`). */
-/** `label` is the spoken name; `text` (default the label) is what shows. */
-export function Chip({ label, text, pressed, danger, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; onPress: () => void }) {
-  const c = useTheme();
-  return (
-    <Press
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      {...a11yState({ pressed })}
-      onPress={onPress}
-      hitSlop={{ top: 6, bottom: 6 }}
-      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null]}
-    >
-      <Text style={{ color: pressed ? c.onBrand : danger ? c.danger : c.ink, ...type.buttonSm }}>{text ?? label}</Text>
-    </Press>
-  );
-}
 
 /** The short message at the bottom of the screen (prototype `toast`). */
 export function ToastBar({ message }: { message: string | null }) {
@@ -185,7 +167,6 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
 }
 
 const styles = StyleSheet.create({
-  chip: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
