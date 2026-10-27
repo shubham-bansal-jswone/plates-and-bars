@@ -461,10 +461,10 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect(lines.find((l) => l.startsWith('Training'))).toContain('No regular training yet.');
   });
 
-  it('progress bar steps 1 to 5 across the questions and results', async () => {
+  it('progress bar steps 1 to 4 across the questions, matching "Step N of 4"', async () => {
     await render(withProfile(memoryDb(), <SetupScreen />));
     await consent();
-    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 5, now: 1 });
+    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 4, now: 1 });
     await press('Male');
     await fireEvent.changeText(screen.getByLabelText('Age'), '30');
     await press('Use cm');
@@ -474,8 +474,8 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect(screen.getByRole('progressbar').props.accessibilityValue.now).toBe(2);
   });
 
-  it('the results step is the fifth', async () => {
+  it('the results screen shows the bar full (4 of 4)', async () => {
     await redo();
-    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 5, now: 5 });
+    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 4, now: 4 });
   });
 });

@@ -2,12 +2,13 @@ import { useRouter } from 'expo-router';
 import { WhyLink } from '../why/WhyLink';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Skeleton } from '../components/Skeleton';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
 import { checkinBannerDue, DEFAULT_CARBS_TARGET, DEFAULT_FAT_TARGET, DEFAULT_PROTEIN_TARGET, fibreTarget, flexPlanFor, flexToast, FRUIT_VEG_TARGET, fruitVegServings, kcalTarget, logPrep, logTotals, mealByTime, planFlex, planForMeal, prepFor, proteinUpgrade, showAddedSugar, undoFlex, type FoodFacts, type PlanItem, type PrepEntry, type ProteinUpgrade } from '@plate-and-bar/core';
 import { fmt } from '../format';
-import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press } from '../components/ui';
+import { a11yState, Heading, Button, Card, ErrorText, H1, Hint, Note, Page, Press, useWide } from '../components/ui';
 import { newId } from '../db/records';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
@@ -27,7 +28,7 @@ import { BurnCard } from '../food/BurnCard';
 import { WaterCard } from '../food/WaterCard';
 import { useProfile } from '../state/ProfileProvider';
 import { useSettings } from '../state/SettingsProvider';
-import { radius } from '../theme/tokens';
+import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
 import { usePendingToast } from '../state/pendingToast';
@@ -67,9 +68,10 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   const f = useFoodDay({ db, date: v.date, now, notify, reloadKey: dataVersion });
   const water = useWater({ db, date: f.date, now, profile, adjustments: settings.adjustments, notify, reloadKey: dataVersion });
   const labHold = useLabHold(db); // the lab hold (#1070): the target is held at maintenance at least, and flex is ignored
+  const wide = useWide();
 
-  if (f.failed && !f.ready) return <Page><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
-  if (status !== 'ready' || !settingsReady || !f.ready || labHold === null) return <View style={styles.fill}><DateAnnouncer v={v} /><Page>{/* the same key as the loaded tree's bar, so it is not remounted when the day loads */}<DateBar key="date-bar" v={v} /><Hint>Loading…</Hint></Page></View>;
+  if (f.failed && !f.ready) return <Page wide><ErrorText>Couldn’t read your saved food. Restart the app to try again.</ErrorText></Page>;
+  if (status !== 'ready' || !settingsReady || !f.ready || labHold === null) return <View style={styles.fill}><DateAnnouncer v={v} /><Page wide>{/* the same key as the loaded tree's bar, so it is not remounted when the day loads */}<DateBar key="date-bar" v={v} /><Skeleton /></Page></View>;
 
   const target = kcalTarget(f.date, { flex: settings.flex, labHold }, profile);
   // Shared foods, then eat-out dishes, then the user's foods: the first of a name with fibre data wins (prototype `FIB` before `myFoods`, #151).
@@ -135,19 +137,26 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page>
+      <Page wide>
         <H1>Food</H1>
         <DateBar key="date-bar" v={v} />
-        <View accessibilityRole="summary" accessibilityLabel={`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`} style={styles.gap}>
-          <Text style={{ color: left < 0 ? c.caution : c.ink, fontSize: 40, fontWeight: '300' }}>{fmt(Math.abs(left))}</Text>
-          <Text style={{ color: c.body }}>{left < 0 ? 'kcal over' : 'kcal left'}</Text>
-          <Text style={{ color: c.ink }}>{`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`}</Text>
-        </View>
-        <Macro name="Protein" v={t.protein_g} goal={profile?.targets.protein_g ?? DEFAULT_PROTEIN_TARGET} color={c.protein} />
-        <Macro name="Carbs" v={t.carbs_g} goal={profile?.targets.carbs_g ?? DEFAULT_CARBS_TARGET} color={c.carbs} />
-        <Macro name="Fat" v={t.fat_g} goal={profile?.targets.fat_g ?? DEFAULT_FAT_TARGET} color={c.fat} />
+        <View style={wide ? styles.cols : styles.stack}>
+        <View style={wide ? styles.col : styles.stack}>
+        <Card accessibilityRole="summary" accessibilityLabel={`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`} style={styles.hero}>
+          <View style={styles.heroTop}>
+            <Text style={[type.metric, tabular, { color: left < 0 ? c.caution : c.brand }]}>{fmt(Math.abs(left))}</Text>
+            <Text style={[type.bodyStrong, { color: c.muted }]}>{left < 0 ? 'kcal over' : 'kcal left'}</Text>
+          </View>
+          <View aria-hidden style={[styles.track, { backgroundColor: c.track }]}><View style={{ height: 10, borderRadius: radius.full, backgroundColor: left < 0 ? c.caution : c.brand, width: `${target > 0 ? Math.min(100, (t.kcal / target) * 100) : 0}%` }} /></View>
+          <Text style={[tabular, { color: c.ink }]}>{`${fmt(t.kcal)} of ${fmt(target)} kcal eaten`}</Text>
+        </Card>
+        <Card style={styles.macros}>
+          <Macro name="Protein" v={t.protein_g} goal={profile?.targets.protein_g ?? DEFAULT_PROTEIN_TARGET} color={c.protein} />
+          <Macro name="Carbs" v={t.carbs_g} goal={profile?.targets.carbs_g ?? DEFAULT_CARBS_TARGET} color={c.carbs} />
+          <Macro name="Fat" v={t.fat_g} goal={profile?.targets.fat_g ?? DEFAULT_FAT_TARGET} color={c.fat} />
+        </Card>
         {f.logs.length ? (
-          <View style={styles.gap}>
+          <Card style={styles.gap}>
             <View style={styles.wrap}>
               <Text style={{ color: c.ink }}><Text style={styles.b}>Fibre </Text>{`${fmt(t.fibre_g)} of ${fibreTarget(target)} g`}</Text>
               <WhyLink id="fibre" values={{ fibre_g: fibreTarget(target) }} />
@@ -155,12 +164,12 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
               {showAddedSugar(t) ? <Text style={{ color: c.ink }}><Text style={styles.b}>Added sugar </Text>{`${fmt(t.added_sugar_g)} g`}</Text> : null}
             </View>
             {t.withoutFibre ? <Hint>{`${t.withoutFibre} item${t.withoutFibre > 1 ? 's' : ''} without fibre data (photo estimates or custom foods) aren’t counted.`}</Hint> : null}
-          </View>
+          </Card>
         ) : (
-          <View style={styles.gap}>
+          <Card>
             <Hint>Nothing logged for this day yet. Add food under a meal, or copy the previous day if you ate the same things.</Hint>
             <Button label="Copy previous day" kind="link" onPress={() => void f.copyPrevious()} />
-          </View>
+          </Card>
         )}
         {todaysFlex.length ? (
           <View style={styles.gap}>
@@ -212,6 +221,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             <Hint>{AI_COPY.photoSnapHint}</Hint>
           </View>
         ) : null}
+        </View>
+        <View style={wide ? styles.col : styles.stack}>
         {MEALS.map((m) => (
           <MealSection key={m} meal={m} items={f.logs.filter((l) => l.meal === m)} facts={facts} prep={prepFor(settings.prep, m, f.date)} onLogPrep={(id) => logPrepared(m, id)} upgrade={upgradeFor(m)} onUpgrade={(u) => { f.add(m, logOf(u.food, u.qty)); notify(upgradeAdded(u.food.name)); }} planned={planForMeal(settings.meal_plan, f.date, m)} onLogPlanned={logPlanned} known={(n) => !!findFood(n)} onRemove={f.remove} onAdd={() => { setAddMode('list'); setAdding(m); }} onDescribe={ai.available('describe_meal') ? () => setDescribing(m) : undefined} onRecipes={() => router.push({ pathname: '/recipes', params: { meal: m } })} />
         ))}
@@ -221,6 +232,8 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             <Text style={{ color: c.ink, flex: 1 }}>I’ve logged everything I ate today <Text style={{ color: c.muted }}>(only complete days are used for your real calorie burn)</Text></Text>
           </Press>
         ) : null}
+        </View>
+        </View>
       </Page>
       {adding ? <AddSheet meal={adding} mine={f.mine} mineFacts={f.mineFacts} onAdd={(n) => f.add(adding, n)} onSaveMine={f.saveMine} onClose={() => setAdding(null)} canDescribe={ai.available('describe_meal')} canPhoto={ai.available('meal_photo')} initialMode={addMode} onToast={notify} /> : null}
       {describing ? <DescribeSheet meal={describing} onAdd={(n) => f.add(describing, n)} onClose={() => setDescribing(null)} /> : null}
@@ -233,12 +246,13 @@ function Macro({ name, v, goal, color }: { name: string; v: number; goal: number
   const c = useTheme();
   const left = goal - v;
   return (
-    <View accessible accessibilityLabel={`${name} ${fmt(v)} of ${fmt(goal)} g, ${left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}`} style={styles.gap}>
+    <View accessible accessibilityLabel={`${name} ${fmt(v)} of ${fmt(goal)} g, ${left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}`} style={styles.macro}>
       <View style={styles.between}>
-        <Text style={{ color: c.ink, fontWeight: '700' }}>{name}</Text>
-        <Text style={{ color: c.muted }}>{`${fmt(v)} / ${fmt(goal)} g · ${left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}`}</Text>
+        <Text style={[type.bodyStrong, { color: c.ink }]}>{name}</Text>
+        <Text style={[type.bodyStrong, tabular, { color: left >= 0 ? c.ink : c.caution }]}>{left >= 0 ? `${fmt(left)} g to go` : `${fmt(-left)} g over`}</Text>
       </View>
-      <View style={[styles.track, { backgroundColor: c.track }]}><View style={{ height: 8, borderRadius: radius.full, backgroundColor: color, width: `${goal > 0 ? Math.min(100, (v / goal) * 100) : 0}%` }} /></View>
+      <View aria-hidden style={[styles.track, { backgroundColor: c.track }]}><View style={{ height: 10, borderRadius: radius.full, backgroundColor: color, width: `${goal > 0 ? Math.min(100, (v / goal) * 100) : 0}%` }} /></View>
+      <Text style={[type.small, tabular, { color: c.muted }]}>{`${fmt(v)} of ${fmt(goal)} g`}</Text>
     </View>
   );
 }
@@ -247,20 +261,20 @@ function MealSection({ meal, items, facts, prep, onLogPrep, upgrade, onUpgrade, 
   const c = useTheme();
   const kcal = logTotals(items, facts).kcal;
   return (
-    <View style={styles.gap}>
+    <Card>
       <View style={styles.between}>
-        <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>{meal}</Heading>
-        <Text style={{ color: c.muted }}>{items.length ? `${fmt(kcal)} kcal` : ''}</Text>
+        <Heading level={2} style={[type.heading, { color: c.ink }]}>{meal}</Heading>
+        <Text style={[type.bodyStrong, tabular, { color: c.muted }]}>{items.length ? `${fmt(kcal)} kcal` : ''}</Text>
       </View>
       {items.map((m) => (
-        <Card key={m.id} style={styles.item}>
+        <View key={m.id} style={[styles.item, { borderTopWidth: 1, borderTopColor: c.line }]}>
           <View style={styles.fill}>
             <Text style={{ color: c.ink, fontWeight: '600' }}>{m.name}{m.qty !== 1 ? ` ×${r1(m.qty)}` : ''}</Text>
             <Text style={{ color: c.muted, fontSize: 14 }}>{`${fmt(m.protein_g * m.qty)} g protein, ${fmt(m.carbs_g * m.qty)} g carbs, ${fmt(m.fat_g * m.qty)} g fat`}</Text>
           </View>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(m.kcal * m.qty)}</Text>
+          <Text style={[type.bodyStrong, tabular, { color: c.ink }]}>{fmt(m.kcal * m.qty)}</Text>
           <Press accessibilityRole="button" accessibilityLabel={`Remove ${m.name}`} onPress={() => onRemove(m.id)} style={styles.x}><Text style={{ color: c.muted, fontSize: 22 }}>×</Text></Press>
-        </Card>
+        </View>
       ))}
       {!items.length && planned?.length ? (
         <View style={[styles.between, styles.item]}>
@@ -284,22 +298,32 @@ function MealSection({ meal, items, facts, prep, onLogPrep, upgrade, onUpgrade, 
           <Button label="Add" a11yLabel={`Add ${upgrade.label} to ${meal.toLowerCase()}`} kind="ghost" onPress={() => onUpgrade(upgrade)} />
         </View>
       ) : null}
-      <Button label={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} kind="ghost" />
+      <Press accessibilityRole="button" accessibilityLabel={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} style={[styles.add, { borderColor: c.brand }]}>
+        <Text style={[type.button, { color: c.brand }]}>{`+ Add to ${meal.toLowerCase()}`}</Text>
+      </Press>
       {onDescribe ? <Button label={AI_COPY.describeButton} a11yLabel={`Describe your ${meal.toLowerCase()} in words, AI estimate`} onPress={onDescribe} kind="ghost" /> : null}
       <Button label="Recipes" a11yLabel={`Recipes for ${meal.toLowerCase()}: build a recipe, the library and cooking mode`} onPress={onRecipes} kind="link" />
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  stack: { gap: 8 },
+  cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  col: { flex: 1, gap: 8 },
+  hero: { gap: 10 },
+  heroTop: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
+  macros: { gap: 14 },
+  macro: { gap: 6 },
+  add: { minHeight: 56, borderRadius: radius.full, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   snap: { gap: 6, marginTop: 14 },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12, borderRadius: radius.md },
   gap: { gap: 4, marginTop: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   b: { fontWeight: '700' },
-  track: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
+  track: { height: 10, borderRadius: radius.full, overflow: 'hidden' },
   item: { flexDirection: 'row', alignItems: 'center', gap: 8, },
   x: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, marginTop: 12 },
