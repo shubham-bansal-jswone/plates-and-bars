@@ -2,7 +2,15 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { ExerciseLibraryScreen } from '../src/library/ExerciseLibraryScreen';
 import labels from '../../../content/labels.json';
 import { BackHandler } from 'react-native';
+import { loadContent } from '../src/content/loader';
+import { openDb } from './sync-helpers';
+import { HowToSheet } from '../src/workout/parts';
+import { LibraryEntryButton } from '../src/library/LibraryEntryButton';
 import { filterLibrary, getEquipment, getLibrary, getMuscles, getTypes, NO_FILTER } from '../src/library/exercises';
+
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+const openFilters = async () => fireEvent.press(screen.getByLabelText('Filters'));
 const LIBRARY = getLibrary();
 const EQUIPMENT = getEquipment();
 const MUSCLES = getMuscles();
@@ -46,6 +54,7 @@ describe('exercise library screen', () => {
   it('shows the count, filters by chip and clears', async () => {
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
     expect(screen.getByText('71 of 71 exercises')).toBeTruthy();
+    await openFilters();
     await fireEvent.press(screen.getAllByLabelText('Cable')[0]!);
     const n = filterLibrary(LIBRARY, { ...NO_FILTER, equipment: 'cable' }).length;
     expect(screen.getByText(`${n} of 71 exercises`)).toBeTruthy();
@@ -75,6 +84,7 @@ describe('exercise library screen', () => {
   it('radios cannot be unticked; All resets the group', async () => {
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
     const n = filterLibrary(LIBRARY, { ...NO_FILTER, equipment: 'cable' }).length;
+    await openFilters();
     await fireEvent.press(screen.getAllByLabelText('Cable')[0]!);
     await fireEvent.press(screen.getAllByLabelText('Cable')[0]!);
     expect(screen.getByText(`${n} of 71 exercises`)).toBeTruthy();
@@ -102,8 +112,50 @@ describe('exercise library screen', () => {
     expect(screen.getByLabelText('Search exercises')).toBeTruthy();
   });
 
-  it('shows no images', async () => {
+  it('collapses the filters, shows active ones as removable chips and keeps the count', async () => {
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
-    expect(screen.queryAllByRole('image')).toHaveLength(0);
+    expect(screen.queryByLabelText('Equipment filter')).toBeNull();
+    await openFilters();
+    expect(screen.getByLabelText('Equipment filter')).toBeTruthy();
+    await fireEvent.press(screen.getAllByLabelText('Cable')[0]!);
+    await fireEvent.press(screen.getByLabelText('Hide filters'));
+    expect(screen.queryByLabelText('Equipment filter')).toBeNull();
+    const n = filterLibrary(LIBRARY, { ...NO_FILTER, equipment: 'cable' }).length;
+    expect(screen.getByText(`${n} of 71 exercises`)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Remove Cable filter'));
+    expect(screen.getByText('71 of 71 exercises')).toBeTruthy();
+  });
+
+  it('rows carry a drawing thumbnail, or a placeholder with the first main muscle when none', async () => {
+    await loadContent(await openDb());
+    await render(<ExerciseLibraryScreen onBack={() => {}} />);
+    expect(screen.getAllByTestId('figure-thumb', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+    await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'archer');
+    expect(screen.queryAllByTestId('figure-thumb', { includeHiddenElements: true })).toHaveLength(0);
+    expect(screen.getByText('Archer Push-ups')).toBeTruthy();
+    expect(screen.getAllByText('Chest', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+  });
+
+  it('the detail shows the drawing pair and the muscle map', async () => {
+    await loadContent(await openDb());
+    await render(<ExerciseLibraryScreen onBack={() => {}} />);
+    await fireEvent.press(screen.getByText('Barbell Bench Press'));
+    expect(screen.getByTestId('figure-row')).toBeTruthy();
+    expect(screen.getByLabelText(/^Muscles worked: /)).toBeTruthy();
+  });
+
+  it('LibraryEntryButton closes the caller then opens the library route', async () => {
+    const before = jest.fn();
+    await render(<LibraryEntryButton onBeforeOpen={before} />);
+    await fireEvent.press(screen.getByLabelText('Exercise library'));
+    expect(before).toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/library');
+  });
+
+  it('the how-to sheet shows the drawing above the muscle map', async () => {
+    await loadContent(await openDb());
+    await render(<HowToSheet name="Barbell Bench Press" onClose={() => {}} />);
+    expect(screen.getByTestId('figure-row')).toBeTruthy();
+    expect(screen.getByLabelText(/^Muscles worked: /)).toBeTruthy();
   });
 });

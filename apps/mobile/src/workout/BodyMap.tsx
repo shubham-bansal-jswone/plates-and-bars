@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { useFontFamily } from '../theme/fonts';
+import { light, type Palette } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { REGIONS } from './bodyMapData';
 import { listJoin, muscleName } from './copy';
@@ -20,11 +21,23 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
   return out;
 }
 
-/** The prototype's front and back muscle map (`bodyMapSvg`): main muscles in the fat colour, also-working in the carbs colour. */
+/** `fg` over `bg` at `a` (0 to 1), as a hex: the 35% "also working" tint is built from palette values, not a literal. */
+export function blend(fg: string, bg: string, a: number): string {
+  const ch = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  return `#${[0, 1, 2].map((i) => Math.round(ch(fg, i) * a + ch(bg, i) * (1 - a)).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** The also-working fill: the brand colour over the soft surface, strong enough to reach 3:1 against an untargeted region (the prototype's 35% does not, and falls to 1.7:1 in light). */
+export function alsoFill(c: Palette): string {
+  return blend(c.brand, c.surfaceSoft, c === light ? 0.7 : 0.5);
+}
+
+/** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `alsoFill`, the rest in the soft surface colour. */
 export function BodyMap({ primary, secondary }: { primary: readonly string[]; secondary: readonly string[] }) {
   const c = useTheme();
   const fontFamily = useFontFamily()('400');
-  const fill = (v: number) => (v === 2 ? c.fat : v === 1 ? c.carbs : c.line);
+  const also = alsoFill(c);
+  const fill = (v: number) => (v === 2 ? c.brand : v === 1 ? also : c.surfaceSoft);
   const label = `Muscles worked: ${primary.length ? listJoin(primary.map(muscleName)) : 'none'}${secondary.length ? `. Also working: ${listJoin(secondary.map(muscleName))}` : ''}`;
   const views = [
     { view: 'front', map: FRONT, dx: 0, name: 'Front' },
@@ -47,11 +60,11 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
       </Svg>
       <View style={styles.legend}>
         <View style={styles.key}>
-          <View style={[styles.swatch, { backgroundColor: c.fat }]} />
+          <View style={[styles.swatch, { backgroundColor: c.brand }]} />
           <Text style={{ color: c.muted, fontSize: 13 }}>Main focus</Text>
         </View>
         <View style={styles.key}>
-          <View style={[styles.swatch, { backgroundColor: c.carbs }]} />
+          <View style={[styles.swatch, { backgroundColor: also }]} />
           <Text style={{ color: c.muted, fontSize: 13 }}>Also working</Text>
         </View>
       </View>

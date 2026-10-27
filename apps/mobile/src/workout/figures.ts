@@ -98,7 +98,7 @@ export const licenceLabel = (id: string): string => id.replace(/-/g, ' ');
 
 /** Theme colours for the drawing's tokens, light or dark. Colour values stay in theme/tokens.ts; this only picks. */
 export const figureColours = (c: Palette): Record<Token | 'current', string> =>
-  ({ body: c.ink, arm: c.body, hl: c.fat, eq: c.muted, bg: c.tint, current: c.ink });
+  ({ body: c.ink, arm: c.body, hl: c.brand, eq: c.muted, bg: c.surface, current: c.ink });
 
 /** The frame's SVG text with currentColor and the --fig-* variables replaced by theme colours (no CSS variables on native). */
 export function themedSvg(svg: string, c: Palette): string {
