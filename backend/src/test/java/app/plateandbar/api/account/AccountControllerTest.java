@@ -123,6 +123,7 @@ class AccountControllerTest {
         streamsDocument();
         export(USER, "198.51.100.10")
                 .andExpect(status().isOk())
+                .andExpect(header().exists("X-Request-Id"))
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(header().string(
                         "Content-Disposition", "attachment; filename=\"plate-and-bar-export-2026-10-08.json\""))
@@ -152,6 +153,7 @@ class AccountControllerTest {
         doThrow(app.plateandbar.api.common.ApiException.unauthorized()).when(service).requireAccount(user);
         export(user, "198.51.100.30")
                 .andExpect(status().isUnauthorized())
+                .andExpect(header().exists("X-Request-Id")) // guard: RequestIdFilter stays ahead of auth
                 .andExpect(jsonPath("$.code").value("unauthorized"));
         verify(service, never()).writeExport(any(), any(), any());
         // The refusals gave their place back: more of them than the default cap of 2 changes nothing for a good one.
