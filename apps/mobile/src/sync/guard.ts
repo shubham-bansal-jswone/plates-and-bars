@@ -5,7 +5,7 @@ import type { StoreDb } from '../db/records';
 import { bumpStoreEpoch, revertStoreEpoch, storeEpoch } from '../db/storeEpoch';
 import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_PHOTOS_WIPE, KEY_REMINDERS, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
+import { KEY_PHOTOS_WIPE, KEY_REMINDERS, KEY_REST, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { markSignOutPending } from './webSession';
 import { cancelReminders } from '../reminders/sync';
@@ -64,6 +64,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SETTINGS_KEPT);
     await txn.runAsync('DELETE FROM settings WHERE key IN (?, ?)', KEY_STEPS_ON, KEY_STEPS_BASELINE); // the baseline is a day's step count: it must not reach the next account (#300)
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_REMINDERS);
+    await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_REST);
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", KEY_PHOTOS_WIPE);
     bumpStoreEpoch();

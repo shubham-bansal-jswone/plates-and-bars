@@ -545,6 +545,50 @@ describe('Workout tab: logging sets', () => {
     expect(screen.queryByText(/^Next:/)).toBeNull();
   });
 
+  describe('the rest dock across a reload (#1143)', () => {
+    const NOW_MS = new Date(2026, 9, 8, 10, 0, 0).getTime();
+    const saved = (over: object = {}) => JSON.stringify({ id: 1, end: NOW_MS + 122_000, total: 150, label: 'Next: Machine Shoulder Press', from: ['Machine Shoulder Press', 'Pec Deck Fly'], date: DATE, ...over });
+    const reload = async (raw: string) => {
+      const db = await started();
+      jest.spyOn(Date, 'now').mockReturnValue(NOW_MS);
+      await press('Mark Barbell Bench Press set 1 done');
+      db.rows.set('settings:device.rest', raw);
+      await screen.unmount();
+      await mount(db);
+      await flush();
+      return db;
+    };
+
+    it('ticking a set stores the rest, and a reload resumes it with the time left and its Next label', async () => {
+      const db = await started();
+      jest.spyOn(Date, 'now').mockReturnValue(NOW_MS);
+      await press('Mark Barbell Bench Press set 1 done');
+      expect(JSON.parse(db.rows.get('settings:device.rest') as string)).toMatchObject({ end: NOW_MS + 150_000, date: DATE });
+      jest.spyOn(Date, 'now').mockReturnValue(NOW_MS + 28_000);
+      await screen.unmount();
+      await mount(db);
+      expect(await screen.findByLabelText('Rest 2:02')).toBeTruthy();
+      expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
+    });
+
+    it('an elapsed rest is not shown and is dropped', async () => {
+      const db = await reload(saved({ end: NOW_MS - 1000 }));
+      expect(screen.queryByLabelText('Rest timer')).toBeNull();
+      await waitFor(() => expect(db.rows.has('settings:device.rest')).toBe(false));
+    });
+
+    it('a rest from another day is dropped', async () => {
+      const db = await reload(saved({ date: '2026-10-07' }));
+      expect(screen.queryByLabelText('Rest timer')).toBeNull();
+      await waitFor(() => expect(db.rows.has('settings:device.rest')).toBe(false));
+    });
+
+    it('a stored list with no exercise left to do closes the dock', async () => {
+      await reload(saved({ from: ['Gone Exercise'] }));
+      expect(screen.queryByLabelText('Rest timer')).toBeNull();
+    });
+  });
+
   it('the rest timer’s +30 s button adds core’s REST_EXTEND_SEC', async () => {
     await started();
     // A frozen clock, so the countdown reads exactly 2:30, then 3:00.
