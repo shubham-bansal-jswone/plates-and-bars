@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { plannedLogged, toastMs } from '../src/food/copy';
 import { buildPlan, groceryList, type MealPlan } from '@plate-and-bar/core';
@@ -165,6 +166,8 @@ describe('Meal plan screen', () => {
     await fireEvent.press(screen.getByLabelText('Copy as text'));
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(list.text);
     expect(await screen.findByText('Grocery list copied')).toBeTruthy();
+    // A screen-level Back is a link, like the others (#1156): link buttons align to the start.
+    expect(StyleSheet.flatten(screen.getByLabelText('Back to the plan').props.style).alignSelf).toBe('flex-start');
     await fireEvent.press(screen.getByLabelText('Back to the plan'));
     expect(screen.getByRole('header', { name: 'Your week of meals' })).toBeTruthy();
   });
