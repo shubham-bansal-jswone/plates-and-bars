@@ -742,6 +742,17 @@ describe('Estimated burn today so far', () => {
   });
 });
 
+describe('Estimated burn on a past day (#1123)', () => {
+  it('says "today so far" only for today; a past day names its date', async () => {
+    await setup();
+    await screen.findByText('Estimated burn today so far');
+    await fireEvent.press(screen.getByRole('button', { name: 'Previous day' }));
+    expect(await screen.findByText('Estimated burn on Wednesday, 7 Oct')).toBeTruthy();
+    expect(screen.queryByText('Estimated burn today so far')).toBeNull();
+    expect(screen.getByLabelText(/^Estimated burn on Wednesday, 7 Oct, /)).toBeTruthy();
+  });
+});
+
 describe('Meal prep on Food', () => {
   const batch = (over: Record<string, unknown> = {}) => ({ id: 'b1', name: 'Dal (home-style)', meal: 'Lunch' as const, left: 3, until: '2026-10-14', food: { kcal: 161, protein_g: 7.8, carbs_g: 23.3, fat_g: 4.6 }, ...over });
   async function withPrep(prep: ReturnType<typeof batch>[]) {
