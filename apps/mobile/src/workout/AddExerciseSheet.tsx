@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Field, Heading, Hint } from '../components/ui';
+import { Button, Field, Heading, Hint, Chip } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
-import { Chip } from './parts';
 import type { WorkoutList } from './workoutLists';
 
 /** "Add exercise" (prototype `openExerciseSheet`): the exercise library by group, without the exercises already in the session. */

@@ -1,8 +1,8 @@
 import { completeSetup, expect, label, tab, test } from '../support/app.mjs';
 
-// The rest bar is a dock over the bottom of the Workout screen. At 1200 px it once sat bottom-left (#147); it belongs under the
-// content column. Layout is not computed under jest, so this measures the real boxes on the web build (#630).
-test('the rest bar sits under the content column on wide web and fits the screen on a phone', async ({ page }) => {
+// The rest bar is a dock over the bottom of the Workout screen. At 1200 px it once sat bottom-left (#147); it is now the same centred
+// bottom dock at every width. Layout is not computed under jest, so this measures the real boxes on the web build (#630).
+test('the rest dock is a centred bottom dock at every width and fits a phone', async ({ page }) => {
   await completeSetup(page);
   await tab(page, 'Workout');
   // Today's planned session, or the first other template on a rest day.
@@ -35,6 +35,7 @@ test('the rest bar sits under the content column on wide web and fits the screen
     await page.setViewportSize({ width, height: 800 });
     await expect.poll(async () => Math.round((await panel.boundingBox()).width), { message: `panel width at ${width} px` }).toBe(Math.min(560, width - 24));
     box = await panel.boundingBox();
+    expect(Math.round(box.x + box.width / 2), `panel centred at ${width} px`).toBe(width / 2);
     expect(box.y + box.height, `panel bottom is inside the viewport at ${width} px`).toBeLessThanOrEqual(800);
   }
 });
