@@ -18,6 +18,10 @@ import { VideoLink } from './VideoLink';
 /** `lift` raises the toast by that many px (the Workout tab lifts it above the rest dock, which would otherwise cover it). */
 export function ToastBar({ message, lift = 0 }: { message: string | null; lift?: number }) {
   const c = useTheme();
+  // iOS has no live regions, so it is told each time the toast text changes; Android and web read the polite live region below.
+  useEffect(() => {
+    if (message && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(message);
+  }, [message]);
   if (!message) return null;
   return (
     <View pointerEvents="none" style={[styles.toastWrap, lift ? { bottom: 90 + lift } : null]}>
@@ -34,6 +38,10 @@ export interface RestState {
   end: number;
   total: number;
   label: string;
+  /** Exercise names in order from the one just ticked onward. The label names the first still having an undone set (never an earlier exercise); the rest is cleared when none has. */
+  from?: string[];
+  /** The day the rest started on. */
+  date?: string;
 }
 
 const REST_DONE = 'Rest done, go!';

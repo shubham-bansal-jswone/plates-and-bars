@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { addDays, BURN_RANGE, burnToday, latestWeight, stepsTarget, workoutBurn, type BurnToday } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { fmt } from '../format';
+import { dateSub } from '../state/ViewedDate';
 import { Button, Card, Field, Hint } from '../components/ui';
 import { loadDayNote } from '../db/food';
 import { loadWeights } from '../db/progress';
@@ -25,12 +26,14 @@ interface Props {
   onSaveStepsSleep: (steps: string, sleep: string) => boolean;
   /** Kcal eaten so far (digestion is a tenth of it). */
   kcalEaten: number;
+  /** The real today: "today so far" wording shows only when `date` is it (#1123). */
+  today?: string;
   /** Changes when sync stored pulled records. */
   reloadKey?: number;
 }
 
-/** Prototype `energyHtml`: "Estimated burn today so far" as a range, with a Details breakdown. Everything is core's `burnToday`. */
-export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kcalEaten, reloadKey = 0 }: Props) {
+/** Prototype `energyHtml`: "Estimated burn today so far" (on a past day, "Estimated burn on <date>") as a range, with a Details breakdown. Everything is core's `burnToday`. */
+export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kcalEaten, today = date, reloadKey = 0 }: Props) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
   const [facts, setFacts] = useState<{ kg: number; sets: Awaited<ReturnType<typeof loadSets>>; cardio: number | null; stepsGoal: number } | null>(null);
@@ -50,6 +53,7 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
   if (!facts) return null;
   const wb = workoutBurn(facts.sets, facts.cardio, facts.kg);
   const b: BurnToday = burnToday(profile, facts.kg, steps, wb, kcalEaten);
+  const label = date === today ? 'Estimated burn today so far' : `Estimated burn on ${dateSub(date)}`;
   const range = `${fmt(b.total * (1 - BURN_RANGE))}–${fmt(b.total * (1 + BURN_RANGE))} kcal`;
   // "~10% of food eaten" is the prototype's copy for `burnToday`'s digestion share. Core exports no constant for
   // it (the 0.1 is inside `burnToday`), and `BURN_RANGE` — the only exported 0.1 — is the ±10% shown around the
@@ -63,8 +67,8 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
   return (
     <Card style={styles.gap}>
       <View style={styles.head}>
-        <View style={{ flexShrink: 1 }} accessible accessibilityLabel={`Estimated burn today so far, ${range}`}>
-          <Hint>Estimated burn today so far</Hint>
+        <View style={{ flexShrink: 1 }} accessible accessibilityLabel={`${label}, ${range}`}>
+          <Hint>{label}</Hint>
           <Text style={{ color: c.ink, fontWeight: '700', fontSize: 18 }}>{range}</Text>
         </View>
         <Button label={open ? 'Hide' : 'Details'} a11yLabel={open ? 'Hide burn details' : 'Show burn details'} kind="ghost" expanded={open} onPress={() => setOpen(!open)} />
