@@ -9,9 +9,11 @@ export interface Metric {
   /** Smaller text after the number, e.g. " / 6". */
   small?: string;
   label: string;
+  /** The screen's one key number: drawn in lime when it is a real, non-zero value. Set it on one cell per screen. */
+  lime?: boolean;
 }
 
-/** A card of oversized italic numbers with small muted labels and thin vertical dividers between them. The first one is the key number (lime). */
+/** A card of oversized italic numbers with small muted labels and thin vertical dividers between them. A cell is lime only when it is marked `lime`. */
 export function MetricRow({ items }: { items: readonly Metric[] }) {
   const c = useTheme();
   return (
@@ -20,7 +22,7 @@ export function MetricRow({ items }: { items: readonly Metric[] }) {
         <View key={m.label} style={styles.item}>
           {i > 0 ? <View style={[styles.divider, { backgroundColor: c.line }]} /> : null}
           <View style={styles.cell} accessible accessibilityLabel={`${m.big}${m.small ?? ''} ${m.label}`}>
-            <Text style={[typeScale.metricSm, tabular, { color: i === 0 && m.big !== '–' && m.big !== '0' ? c.brand : c.ink }]}>
+            <Text style={[typeScale.metricSm, tabular, { color: m.lime && m.big !== '–' && m.big !== '0' ? c.brand : c.ink }]}>
               {m.big}
               {m.small ? <Text style={[typeScale.small, { color: c.muted }]}>{m.small}</Text> : null}
             </Text>
