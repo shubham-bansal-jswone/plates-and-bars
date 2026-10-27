@@ -1,5 +1,5 @@
 import { ScrollView } from 'react-native';
-import { press } from './disclosure-helpers';
+import { press, pressDay } from './disclosure-helpers';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -49,7 +49,7 @@ describe('a changed step or preview starts at the top (#1060)', () => {
     await render(withProfile(db, <WorkoutScreen db={db} now={() => new Date(2026, 9, 8, 10, 0, 0)} />));
     await screen.findByText('Push B day');
     expect(scrollTo).not.toHaveBeenCalled();
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     await screen.findByText('Pull A day');
     expect(scrollTo).toHaveBeenCalledTimes(1);
     expect(scrollTo).toHaveBeenLastCalledWith(TOP);
@@ -64,7 +64,7 @@ describe('a changed step or preview starts at the top (#1060)', () => {
     await saveSettings(db, defaultSettings('2026-10-08T00:00:00Z'));
     await render(withProfile(db, <WorkoutScreen db={db} now={() => new Date(2026, 9, 8, 10, 0, 0)} />));
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     await screen.findByText('Pull A day');
     scrollTo.mockClear();
     await press('Start Pull A');

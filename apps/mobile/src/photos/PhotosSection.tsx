@@ -3,11 +3,10 @@ import { SheetModal } from '../components/Sheet';
 import { Image, PanResponder, Platform, ScrollView, StyleSheet, View, type ImageStyle } from 'react-native';
 import { measureAt, round1, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Heading, Hint, Note } from '../components/ui';
+import { Button, Heading, Hint, Note, Chip } from '../components/ui';
 import { shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { Chip } from '../workout/parts';
 import { CameraDenied, capturePhoto } from './capture';
 import {
   CHECKIN_HOW,

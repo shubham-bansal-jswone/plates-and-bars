@@ -4,8 +4,6 @@ import Svg, { Circle } from 'react-native-svg';
 import { glowShadow } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
-export const TICK_SIZE = 56;
-export const SET_ROW_H = 64;
 export const RING_SIZE = 100;
 export const RING_STROKE = 7;
 

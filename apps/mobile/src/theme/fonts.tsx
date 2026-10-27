@@ -13,7 +13,7 @@ import { Roboto_300Light } from '@expo-google-fonts/roboto/300Light';
 import type { FontWeight } from './tokens';
 
 // Bundled with the app (no CDN request). Inter carries everything: Black Italic is the hero face (display, metrics), ExtraBold the
-// titles. Roboto Light stays loaded only for the light theme's older screens that still ask for weight 300.
+// titles. Roboto Light stays loaded for the older headings (sheet titles, the kcal-left figure) that still ask for weight 300, in both themes.
 const FAMILY: Record<FontWeight, string> = {
   '300': 'Roboto_300Light',
   '400': 'Inter_400Regular',

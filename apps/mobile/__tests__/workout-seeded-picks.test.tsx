@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { press } from './disclosure-helpers';
+import { press, pressDay } from './disclosure-helpers';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSwap } from '../src/db/rules';
@@ -37,10 +37,10 @@ describe('Picks seeded from a workout preview keep its base and adjustments (#10
   it('a Lighter session check-in stores the lighter mods and trimmed set counts', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     await press('Sleep last night: Poor');
     await press('Lighter session');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Start these exercises');
     await screen.findByText('Pull A');
     const w = workout(db);
@@ -53,8 +53,8 @@ describe('Picks seeded from a workout preview keep its base and adjustments (#10
   it('stores the previewed workout as the base, so the rotation counts it', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Start these exercises');
     await screen.findByText('Pull A');
     const w = workout(db);
@@ -69,8 +69,8 @@ describe('Picks seeded from a workout preview keep its base and adjustments (#10
   it('removing one seeded exercise and adding one from another workout keeps the base', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press from Push B');
     await press('Remove Lat Pulldown from your exercises');
     await press('Start these exercises');
@@ -87,7 +87,7 @@ describe('Picks seeded from a workout preview keep its base and adjustments (#10
     await screen.findByText('Push B day');
     await press('Sleep last night: Poor');
     await press('Lighter session');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -98,10 +98,10 @@ describe('Picks seeded from a workout preview keep its base and adjustments (#10
   it('going back drops the seed: later hand picks have no base', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Back to workouts');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -118,10 +118,10 @@ describe('The base applies only while a seeded exercise remains (#1020)', () => 
   it('remove every seeded exercise, then add one: plain hand-picked', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await removeAllPull();
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -131,8 +131,8 @@ describe('The base applies only while a seeded exercise remains (#1020)', () => 
   it('add one, then remove every seeded exercise: plain hand-picked', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press from Push B');
     await removeAllPull();
     await press('Start this exercise');
@@ -144,10 +144,10 @@ describe('The base applies only while a seeded exercise remains (#1020)', () => 
   it('emptying the picks drops the seed: a seeded name picked again from scratch has no base', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await removeAllPull();
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Lat Pulldown');
     await press('Start this exercise');
     await screen.findByText('Session');
@@ -157,9 +157,9 @@ describe('The base applies only while a seeded exercise remains (#1020)', () => 
   it('a 30 minute check-in time is kept as the short flag', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     await press('Time today: 30 min');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Start these exercises');
     await screen.findByText('Pull A');
     expect(workout(db)).toMatchObject({ base: 'Pull A', mods: { short: true } });
@@ -168,8 +168,8 @@ describe('The base applies only while a seeded exercise remains (#1020)', () => 
   it('a seeded bridge exercise stays a bridge', async () => {
     const db = await setup((d) => saveSwap(d, { id: '', version: 0, updated_at: 'x', deleted_at: null, from: 'Dumbbell Curl', to: 'Hammer Curl', since: '2026-10-05', bridge_until: '2026-10-21' }));
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Start these exercises');
     await screen.findByText('Pull A');
     const ex = workout(db).exercises;
@@ -181,8 +181,8 @@ describe('The base applies only while a seeded exercise remains (#1020)', () => 
     await setup();
     await screen.findByText('Push B day');
     expect(screen.getByLabelText('Training away from your gym?')).toBeTruthy();
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     expect(screen.queryByLabelText('Training away from your gym?')).toBeNull();
     await press('Back to workouts');
     expect(screen.getByLabelText('Training away from your gym?')).toBeTruthy();
