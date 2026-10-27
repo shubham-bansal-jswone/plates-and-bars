@@ -315,26 +315,28 @@ export function Switch(props: SwitchProps) {
   const c = useTheme();
   const f = useFocusRing();
   return (
-    // The 44x44 hit area is an outer Pressable around the unchanged 40x20 track; a tap on its padding toggles too (#1121).
-    // Not an a11y node: the switch inside carries the role, label and state.
-    <Pressable
-      testID="switch-hit-area"
-      accessible={false}
-      importantForAccessibility="no"
-      tabIndex={-1}
-      disabled={props.disabled ?? false}
-      onPress={() => props.onValueChange?.(!props.value)}
-      style={styles.switchHit}>
-    <View style={[styles.switchRing, f.ring]}>
-      <RNSwitch
-        trackColor={{ true: c.brand, false: c.muted }}
-        thumbColor={props.value ? c.onBrand : c.ink}
-        {...webThumb(c.onBrand)}
-        {...props}
-        {...focusHandlers(f, props)}
+    // The 44x44 hit area is a sibling Pressable behind the unchanged 40x20 track, so clicks on the switch never reach it (#1121).
+    // Not an a11y node or tab stop: the switch carries the role, label and state.
+    <View style={styles.switchHit}>
+      <Pressable
+        testID="switch-hit-area"
+        accessible={false}
+        focusable={false}
+        importantForAccessibility="no"
+        disabled={props.disabled ?? false}
+        onPress={() => props.onValueChange?.(!props.value)}
+        style={StyleSheet.absoluteFill}
       />
+      <View style={[styles.switchRing, f.ring]}>
+        <RNSwitch
+          trackColor={{ true: c.brand, false: c.muted }}
+          thumbColor={props.value ? c.onBrand : c.ink}
+          {...webThumb(c.onBrand)}
+          {...props}
+          {...focusHandlers(f, props)}
+        />
+      </View>
     </View>
-    </Pressable>
   );
 }
 

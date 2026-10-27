@@ -77,13 +77,25 @@ describe('focus ring', () => {
 });
 
 describe('switch hit area (#1121)', () => {
-  it('is at least 44x44 around the 40x20 track, and a tap on it toggles', async () => {
+  it('is at least 44x44 around the 40x20 track, and a tap on the padding toggles once', async () => {
     const onValueChange = jest.fn();
     await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={onValueChange} />);
-    const hit = StyleSheet.flatten(screen.getByTestId('switch-hit-area').props.style as never) as Record<string, number>;
-    expect(hit.minWidth).toBeGreaterThanOrEqual(44);
-    expect(hit.minHeight).toBeGreaterThanOrEqual(44);
+    const box = StyleSheet.flatten(screen.getByTestId('switch-hit-area').parent!.props.style as never) as Record<string, number>;
+    expect(box.minWidth).toBeGreaterThanOrEqual(44);
+    expect(box.minHeight).toBeGreaterThanOrEqual(44);
     await fireEvent.press(screen.getByTestId('switch-hit-area'));
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+    expect(onValueChange).toHaveBeenCalledWith(true);
+  });
+
+  it('a press on the switch itself is not forwarded to the hit area (no double fire on web)', async () => {
+    const onValueChange = jest.fn();
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={onValueChange} />);
+    // The switch has no press ancestor handler; the hit area is a sibling, so the press must not reach onValueChange.
+    await fireEvent.press(screen.getByLabelText('Rest timer'));
+    expect(onValueChange).not.toHaveBeenCalled();
+    await fireEvent(screen.getByLabelText('Rest timer'), 'valueChange', true);
+    expect(onValueChange).toHaveBeenCalledTimes(1);
     expect(onValueChange).toHaveBeenCalledWith(true);
   });
 
