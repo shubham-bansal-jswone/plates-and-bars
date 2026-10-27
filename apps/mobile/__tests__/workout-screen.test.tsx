@@ -495,20 +495,43 @@ describe('Workout tab: logging sets', () => {
     expect(screen.queryByText('Next: Barbell Bench Press')).toBeNull();
   });
 
-  it('a swap during a rest keeps the dock on the replacement, not the exercise after it (#1150)', async () => {
-    await started();
-    await cutToOneSet('Machine Shoulder Press');
-    await press('Mark Machine Shoulder Press set 1 done');
-    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
-    await reveal('Pec Deck Fly');
-    await press('Can’t do Pec Deck Fly');
+  async function swapToday(name: string) {
+    await reveal(name);
+    await press(`Can’t do ${name}`);
     await press('Equipment isn’t available');
     await press('Just today');
     const rows = screen.getAllByRole('button').filter((b) => /Works your/.test(String(b.props.accessibilityLabel ?? '')));
     const pick = String(rows[0]?.props.accessibilityLabel).split('. ')[0] as string;
     await fireEvent.press(rows[0] as never);
-    await waitFor(() => expect(screen.queryByLabelText('Can’t do Pec Deck Fly')).toBeNull());
+    await waitFor(() => expect(screen.queryByText(`Swapped in ${pick}`)).toBeTruthy()); // a ticked exercise stays; the replacement follows it
+    return pick;
+  }
+
+  it('a swap during a rest keeps the dock on the replacement, not the exercise after it (#1150)', async () => {
+    await started();
+    await cutToOneSet('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done');
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+    const pick = await swapToday('Pec Deck Fly');
     expect(screen.getByText(`Next: ${pick}`)).toBeTruthy();
+  });
+
+  it('swapping the exercise just ticked: the dock names the replacement from its first set, not "set 2" (#1150)', async () => {
+    await started();
+    await expand('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done');
+    expect(screen.getByText('Next: set 2 of Machine Shoulder Press')).toBeTruthy();
+    const pick = await swapToday('Machine Shoulder Press');
+    expect(screen.getByText(`Next: ${pick}`)).toBeTruthy();
+    expect(screen.queryByText(/set 2 of/)).toBeNull();
+  });
+
+  it('swapping a later exercise leaves the dock label alone (#1150)', async () => {
+    await started();
+    await cutToOneSet('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done');
+    await swapToday('Cable Lateral Raise');
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
   });
 
   it('ticking the final set closes the rest dock, so it does not cover the Session done panel (#1141)', async () => {
