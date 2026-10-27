@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { mondayOf, type WeekPlan } from '@plate-and-bar/core';
-import { Button, Hint, Chip } from '../components/ui';
+import { Button, Chip, Disclosure, Hint } from '../components/ui';
 import { useSettings } from '../state/SettingsProvider';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { fixedWeekdays, weekPlanFor } from './adjust';
@@ -24,19 +24,14 @@ export function WeekTools({ date, notify }: { date: string; notify: (msg: string
       </View>
     );
   return (
-    <View style={{ gap: 8 }}>
-      <Button label="Fewer days this week?" kind="link" expanded={open} onPress={() => setOpen(!open)} />
-      {open ? (
-        <>
-          <View style={styles.row}>
-            {([3, 4, 5] as const).map((n) => (
-              <Chip key={n} label={`${n} days`} onPress={() => set(n)} />
-            ))}
-          </View>
-          <Hint>A condensed plan for this week only, then back to normal.</Hint>
-        </>
-      ) : null}
-    </View>
+    <Disclosure label="Fewer days this week?" open={open} onOpenChange={setOpen}>
+      <View style={styles.row}>
+        {([3, 4, 5] as const).map((n) => (
+          <Chip key={n} label={`${n} days`} onPress={() => set(n)} />
+        ))}
+      </View>
+      <Hint>A condensed plan for this week only, then back to normal.</Hint>
+    </Disclosure>
   );
 }
 
