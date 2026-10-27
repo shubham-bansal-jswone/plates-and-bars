@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { a11yState, Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
 import { BodyMap } from './BodyMap';
+import { ExerciseFigure } from './ExerciseFigure';
 import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
 import { VideoLink } from './VideoLink';
@@ -143,9 +145,15 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
     <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.sheetBody}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+          <Press accessibilityRole="button" accessibilityLabel={`Close ${name} guide`} onPress={onClose} style={styles.closeX}>
+            <Svg width={24} height={24} viewBox="0 0 24 24" aria-hidden>
+              <Path d="M5 5l14 14M19 5L5 19" stroke={c.ink} strokeWidth={2.5} strokeLinecap="round" />
+            </Svg>
+          </Press>
+          <Heading level={2} style={[type.heading, { color: c.ink }]}>
             {name}
           </Heading>
+          <ExerciseFigure name={name} />
           {card ? (
             <>
               {primary.length ? <BodyMap primary={primary} secondary={secondary} /> : null}
@@ -197,4 +205,5 @@ const styles = StyleSheet.create({
   fill: { height: 8 },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },
+  closeX: { minWidth: 44, minHeight: 44, alignSelf: 'flex-end', alignItems: 'center', justifyContent: 'center' },
 });

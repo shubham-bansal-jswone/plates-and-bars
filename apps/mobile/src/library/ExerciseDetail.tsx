@@ -4,6 +4,7 @@ import { Button, Card, H1, Hint, Label, Page } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BodyMap } from '../workout/BodyMap';
+import { ExerciseFigure } from '../workout/ExerciseFigure';
 import { VideoLink } from '../workout/VideoLink';
 import { equipmentLabel, jointLabel, muscleLabel, typeLabel, type LibraryExercise } from './exercises';
 
@@ -21,7 +22,7 @@ function Section({ title, items }: { title: string; items: readonly string[] }) 
   );
 }
 
-/** One exercise: name, tags, its muscle map and the how-to notes (no demo images). */
+/** One exercise: name, its start and end drawing, muscle map, tags and the how-to notes. */
 export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExercise; onBack: () => void }) {
   const c = useTheme();
   const card = e.card;
@@ -35,6 +36,8 @@ export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExerc
     <Page>
       <Button label="Back to library" kind="link" onPress={onBack} />
       <H1>{e.name}</H1>
+      <ExerciseFigure name={e.name} />
+      {e.primary.length ? <BodyMap primary={e.primary} secondary={e.secondary} /> : null}
       <Card accessibilityLabel="Tags">
         {row('Equipment', equipmentLabel(e.equipment))}
         {row('Type', typeLabel(e.type))}
@@ -47,7 +50,6 @@ export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExerc
       </Card>
       {card ? (
         <>
-          {e.primary.length ? <BodyMap primary={e.primary} secondary={e.secondary} /> : null}
           <View style={{ gap: 4 }}>
             <Label>Where you should feel it</Label>
             <Text style={[type.textBody, { color: c.body }]}>{card.where_to_feel}</Text>
