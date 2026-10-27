@@ -61,9 +61,20 @@ describe('Progress date navigation', () => {
     await back();
     expect(await screen.findByText('Yesterday')).toBeTruthy();
     expect(screen.getByText('Wednesday, 7 Oct')).toBeTruthy();
-    expect(screen.getByText('Seven days to 7 Oct')).toBeTruthy();
+    expect(screen.getByText('Seven days to 8 Oct')).toBeTruthy();
     await forward();
     expect(await screen.findByText('Today')).toBeTruthy();
+  });
+
+  it('keeps "Seven days" on the real current week while a past day is viewed (#1123)', async () => {
+    const db = memoryDb();
+    await saveLog(db, { id: 'w-today', version: 0, updated_at: `${TODAY}T00:00:00Z`, deleted_at: null, date: TODAY, meal: 'Lunch', name: 'Dal', qty: 1, kcal: 1234, protein_g: 40, carbs_g: 100, fat_g: 20, food_id: null } as never);
+    await setup(db);
+    await back();
+    await screen.findByText('Yesterday');
+    expect(screen.getByText('Seven days to 8 Oct')).toBeTruthy();
+    expect(await screen.findByText('1,234 kcal')).toBeTruthy(); // today's bar, though yesterday is viewed
+    expect(screen.getByLabelText('Thu, 1,234 kcal, 40 g protein')).toBeTruthy();
   });
 
   it('a weigh-in saved on a past day is that day’s, not today’s, and the form shows each day’s own value', async () => {
@@ -126,7 +137,7 @@ describe('Progress date navigation', () => {
       return read(sql, ...p);
     }) as typeof db.getFirstAsync;
     await back();
-    expect(await screen.findByText('Seven days to 7 Oct')).toBeTruthy();
+    expect(await screen.findByText('Seven days to 8 Oct')).toBeTruthy();
     expect(screen.getByText(WEEK_LOADING)).toBeTruthy();
     expect(screen.queryByLabelText(/not logged|kcal/)).toBeNull();
     await act(async () => open());

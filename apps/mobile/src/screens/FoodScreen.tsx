@@ -208,7 +208,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
           onFlex={plan}
           onPlanWeek={() => router.push('/meal-plan')}
         />
-        {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} sleep={f.note?.sleep ?? null} onSaveStepsSleep={f.saveStepsSleep} kcalEaten={t.kcal} reloadKey={dataVersion} /> : (
+        {profile ? <BurnCard db={db} date={f.date} profile={profile} steps={f.note?.steps ?? null} sleep={f.note?.sleep ?? null} onSaveStepsSleep={f.saveStepsSleep} kcalEaten={t.kcal} today={v.today} reloadKey={dataVersion} /> : (
           <View style={[styles.banner, { backgroundColor: c.tint }]}>
             <Text style={{ color: c.ink, flex: 1 }}>{SETUP_BANNER}</Text>
             <Button label="Start setup" onPress={() => router.push('/setup' as never)} />
