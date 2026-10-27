@@ -28,6 +28,8 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 const mockScreens: MockScreen[] = [];
 
 describe('tab bar', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   beforeEach(async () => {
     mockScreens.length = 0;
     mockTabs.mockClear();
@@ -41,6 +43,19 @@ describe('tab bar', () => {
     expect(o.headerShown).toBe(false);
     expect(o.tabBarActiveTintColor).toBe('#2457E6');
     expect(o.sceneStyle).toMatchObject({ paddingTop: 24 });
+  });
+
+  it('keeps the tab items in the content column: 560 wide on a tablet, 1040 on a wide screen, the full width on a phone', async () => {
+    const side = async (width: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- spy on the module object the layout reads from
+      jest.spyOn(require('react-native'), 'useWindowDimensions').mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
+      mockTabs.mockClear();
+      await render(<TabsLayout />);
+      return mockTabs.mock.calls[0][0].screenOptions.tabBarStyle.paddingHorizontal;
+    };
+    expect(await side(390)).toBe(0);
+    expect(await side(768)).toBe(104);
+    expect(await side(1280)).toBe(120);
   });
 
   it('gives each tab a 24px icon, filled when active and outlined when not', () => {

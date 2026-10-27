@@ -2,11 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { BottomTabBar } from 'expo-router/tabs';
 import type { ReactNode } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomInsetPadded } from '../../src/components/bottomInset';
-import { Press } from '../../src/components/ui';
+import { Press, useWide } from '../../src/components/ui';
 import { ViewedDateProvider } from '../../src/state/ViewedDate';
 import { type } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
@@ -55,6 +55,9 @@ const TAB_BAR_HEIGHT = 60;
 export default function TabsLayout() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  // The bar keeps its full-width background, but its items sit in the page's content column (560, or 1040 on a wide screen).
+  const side = Math.max(0, (width - (useWide() ? 1040 : 560)) / 2);
   return (
     <ViewedDateProvider>
     <BottomInsetPadded.Provider value>
@@ -86,6 +89,7 @@ export default function TabsLayout() {
           borderTopWidth: 1,
           height: TAB_BAR_HEIGHT + insets.bottom,
           paddingBottom: insets.bottom,
+          paddingHorizontal: side,
         },
       }}
     >
