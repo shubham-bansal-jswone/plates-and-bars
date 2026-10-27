@@ -25,6 +25,9 @@ export function ExerciseFigure({ name, size = 'full' }: { name: string; size?: '
 /** True when the exercise has a drawing; list rows use it to pick the thumbnail or a placeholder. */
 export const hasFigure = (name: string): boolean => getFigure(name) !== undefined;
 
+/** True when the full figure draws something (a motion entry or the frames); the detail screen shows a placeholder otherwise. */
+export const hasDrawing = (name: string): boolean => hasFigure(name) || (exerciseMotionEnabled() && getMotion(name) !== undefined);
+
 function FigureThumb({ name }: { name: string }) {
   const c = useTheme();
   const entry = getFigure(name);
