@@ -634,7 +634,8 @@ Observed in code or recorded in ADRs (`docs/adr/`), with inferred reasoning mark
 
 ```mermaid
 flowchart TD
-  R[Request] --> SG[RequestSizeGuardFilter]
+  R[Request] --> RID[RequestIdFilter]
+  RID --> SG[RequestSizeGuardFilter]
   SG --> CORS[CORS]
   CORS --> SS[SecuritySignalFilter]
   SS --> JWT[JwtAuthFilter]
