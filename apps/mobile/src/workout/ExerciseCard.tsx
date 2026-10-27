@@ -4,17 +4,16 @@ import { StyleSheet, View } from 'react-native';
 import { radius, tabular, type } from '../theme/tokens';
 import { Text } from '../components/Text';
 import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { a11yState, Disclosure, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
+import { a11yState, Chip, Disclosure, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName, rampEasyNote } from './copy';
 import type { ExState, Row } from './model';
 import { ExerciseSettings } from './ExerciseSettingsSheet';
-import { Chip } from './parts';
 import { TrackSet } from '../pose/TrackSet';
 import { FormCheckButton } from '../ai/FormCheck';
 import { ExerciseFigure } from './ExerciseFigure';
-import { TICK_SIZE } from './Ring';
+import { TICK_SIZE } from './setSizes';
 import { SetRow } from './SetRow';
 import Svg, { Path } from 'react-native-svg';
 
@@ -185,6 +184,29 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
     </View>
   );
 
+  // What to do next, shown for every exercise (collapsed rows too, so a returning user sees it without opening each row): the suggestion and why, the warm-up, Learn mode, and the stall and ladder cards.
+  const suggested = !showRamp && sug.text ? <Text style={[type.bodyStrong, { color: c.ink }]}>Suggested: {sug.text}</Text> : null;
+  const followUp = (
+    <>
+      {!showRamp && sug.reason ? (
+        <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
+          <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
+          <WhyLink id="progression" />
+        </View>
+      ) : null}
+      {warm ? (
+        <View>
+          <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
+            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
+          </Text>
+          <WhyLink id="warmup" subject={ex.name} />
+        </View>
+      ) : null}
+      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
+      {cards}
+    </>
+  );
+
   if (!expanded) {
     const n = ex.sets.length;
     return (
@@ -208,6 +230,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
             </Svg>
           )}
         </Press>
+        <View style={styles.collapsedBody}>
+          {suggested}
+          {followUp}
+        </View>
       </Card>
     );
   }
@@ -222,7 +248,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
         </View>
         <ExerciseSettings name={ex.name} info={info} notify={notify} />
       </View>
-      {!showRamp && sug.text ? <Text style={[type.bodyStrong, { color: c.ink }]}>Suggested: {sug.text}</Text> : null}
+      {suggested}
 
       {showRamp ? (
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
@@ -263,22 +289,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
         </View>
       ) : null}
 
-      {!showRamp && sug.reason ? (
-        <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
-          <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
-          <WhyLink id="progression" />
-        </View>
-      ) : null}
-      {warm ? (
-        <View>
-          <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
-            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
-          </Text>
-          <WhyLink id="warmup" subject={ex.name} />
-        </View>
-      ) : null}
-      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
-      {cards}
+      {followUp}
 
       {heads(wHead, rw)}
       <View style={{ gap: 8 }}>
@@ -360,6 +371,7 @@ const styles = StyleSheet.create({
   guide: { borderRadius: radius.md, borderWidth: 1, padding: 10, gap: 6 },
   heads: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   headCell: { flex: 1, minWidth: 60, textAlign: 'center' },
+  collapsedBody: { gap: 8, paddingBottom: 12 },
   collapsed: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8 },
   remove: { minHeight: 48, marginTop: 24, borderWidth: 1, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
 });
