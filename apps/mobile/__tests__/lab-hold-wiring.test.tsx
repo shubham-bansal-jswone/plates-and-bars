@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { expand, press, pressDay } from './disclosure-helpers';
 import { kcalTarget, planFlex, undoFlex } from '@plate-and-bar/core';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -201,7 +202,7 @@ describe('before the stored hold has been read', () => {
 });
 
 describe('the hold reaches a second session and a seeded pick session', () => {
-  const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+  
   const sets = (db: ReturnType<typeof memoryDb>) => {
     const n: Record<string, number> = {};
     for (const s of db.sets.values()) {
@@ -226,6 +227,7 @@ describe('the hold reaches a second session and a seeded pick session', () => {
     await press('Start Push B');
     await screen.findByText('Push B');
     for (const n of ['Barbell Bench Press', 'Machine Shoulder Press', 'Pec Deck Fly', 'Cable Lateral Raise', 'Overhead Cable Extension']) {
+      await expand(n);
       await fireEvent.changeText(screen.getByLabelText(`${n} set 1 kg`), '20');
       await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
       await press(`Mark ${n} set 1 done`);
@@ -247,8 +249,8 @@ describe('the hold reaches a second session and a seeded pick session', () => {
 
   async function seededPick(hold: boolean) {
     const db = await mount(hold);
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Start these exercises');
     await screen.findByText('Pull A');
     return { w: stored(db), max: Math.max(...Object.values(sets(db))) };
