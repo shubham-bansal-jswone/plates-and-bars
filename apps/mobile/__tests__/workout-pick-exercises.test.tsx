@@ -1,4 +1,5 @@
 import { HAND_PICKED } from '@plate-and-bar/core';
+import { press } from './disclosure-helpers';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -21,7 +22,7 @@ async function setup(days: 0 | 6) {
   await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
   return db;
 }
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 const stored = <T,>(db: ReturnType<typeof memoryDb>, key: string) => JSON.parse(db.rows.get(key) as string) as T;
 
 describe('Workout start: Pick exercises', () => {
@@ -58,6 +59,7 @@ describe('Workout start: Pick exercises', () => {
     const db = await setup(6);
     expect(await screen.findByText('Push B day')).toBeTruthy();
     expect(screen.getByLabelText('Start Push B')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Choose another day'));
     expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
     await press('Pick exercises');
     await press('Add Barbell Bench Press');

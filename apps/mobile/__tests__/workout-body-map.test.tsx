@@ -35,6 +35,8 @@ async function tickFirstSet() {
 async function press(label: string) {
   await fireEvent.press(screen.getByLabelText(label));
 }
+/** The session's muscle map sits in the "Session info" disclosure, closed until opened. */
+const openInfo = () => press('Session info');
 
 describe('musclesOf', () => {
   it('rolls the exercises up to main muscles and also-working ones that are not already main', () => {
@@ -52,6 +54,8 @@ describe('Workout start preview: muscle map', () => {
   it('shows the map with a text alternative, the legend and the muscle lists', async () => {
     await mount();
     expect(await screen.findByText('Push B day')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull(); // closed until opened
+    await press('Muscles today');
     expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
     expect(screen.getByText('Main focus')).toBeTruthy();
     expect(screen.getByText('Also working')).toBeTruthy();
@@ -62,6 +66,7 @@ describe('Workout start preview: muscle map', () => {
     // Pull A (Tuesday): rows and pulldowns also work the biceps.
     await mount(() => new Date(2026, 9, 6, 10, 0, 0));
     expect(await screen.findByText("Pull A day")).toBeTruthy();
+    await press('Muscles today');
     const label = screen.getByLabelText(/^Muscles worked: /).props.accessibilityLabel as string;
     expect(label).toMatch(/\. Also working: /);
     expect(screen.getByText(/Also working: /, { exact: false })).toBeTruthy();
@@ -83,8 +88,11 @@ describe('Workout session: Muscles today', () => {
     return db;
   }
 
-  it('is a disclosure, open with the map until the first set is ticked', async () => {
+  it('is a button inside Session info, open with the map until the first set is ticked', async () => {
     await started();
+    expect(screen.queryByLabelText(`Muscles today: ${MAIN}`)).toBeNull(); // Session info is closed
+    expect(screen.getByLabelText('Session info').props.accessibilityState).toMatchObject({ expanded: false });
+    await openInfo();
     const toggle = screen.getByLabelText(`Muscles today: ${MAIN}`);
     expect(toggle.props.accessibilityRole).toBe('button');
     expect(toggle.props.accessibilityState).toMatchObject({ expanded: true });
@@ -98,6 +106,7 @@ describe('Workout session: Muscles today', () => {
 
   it('opens and closes on a tap, and keeps the choice once made', async () => {
     await started();
+    await openInfo();
     await press(`Muscles today: ${MAIN}`);
     expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull();
     await tickFirstSet();
@@ -114,6 +123,7 @@ describe('Workout session: Muscles today', () => {
     await screen.findByText('Pull A day');
     await press('Start Pull A');
     await screen.findByText('Pull A');
+    await openInfo();
     const label = screen.getByLabelText(/^Muscles worked: /).props.accessibilityLabel as string;
     expect(label).toMatch(/\. Also working: forearms$/);
     expect(screen.getByText('Also working')).toBeTruthy();
@@ -142,11 +152,13 @@ describe('Workout session: Muscles today', () => {
     const view = await render(ui());
     await press((await screen.findByLabelText('Start Pull A')).props.accessibilityLabel);
     await screen.findByText('Pull A');
+    await openInfo();
     await press(screen.getByLabelText(/^Muscles today: /).props.accessibilityLabel);
     expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull();
     clock = THURSDAY();
     await view.rerender(ui());
     await screen.findByText('Push B');
+    await openInfo();
     expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
   });
 });
