@@ -46,7 +46,7 @@ describe('SVG labels use the body font (#908)', () => {
     for (const f of families) expect(f).toContain('Inter_400Regular');
   });
 
-  it('BodyMap view names are at least 12 px (#1126)', async () => {
+  it('BodyMap view names are at least 12 viewBox units (#1126; about 13 px rendered while BodyMap maxHeight stays 240, so recheck this if that style changes)', async () => {
     await render(
       <FontsProvider>
         <BodyMap primary={[]} secondary={[]} />
