@@ -1,1 +1,2 @@
 # id	scope	issue	recheck	reason
+GHSA-mrhx-c7xc-m3w5	apps/mobile	#1100	2026-12-23	zod (high) has no non-breaking fix; reaches the app only transitively through expo > @expo/cli (build tooling, not in the app runtime or bundle). Owner decision on #1100. Re-check for a fixed expo or zod release.
