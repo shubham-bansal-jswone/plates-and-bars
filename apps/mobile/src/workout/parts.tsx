@@ -3,7 +3,7 @@ import { SheetModal } from '../components/Sheet';
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Text } from '../components/Text';
-import { Chip, Heading, Button, Hint, Press } from '../components/ui';
+import { Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
@@ -12,9 +12,6 @@ import { ExerciseFigure } from './ExerciseFigure';
 import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
 import { VideoLink } from './VideoLink';
-
-// `Chip` lives in components/ui.tsx now (one chip for the whole app); re-exported so existing imports keep working.
-export { Chip };
 
 /** The short message at the bottom of the screen (prototype `toast`). */
 export function ToastBar({ message }: { message: string | null }) {
