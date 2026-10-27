@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { render, screen, waitFor } from '@testing-library/react-native';
 import { press, reveal } from './disclosure-helpers';
 import { EXERCISE_OVERRIDES_MAX, type LiftRecord } from '@plate-and-bar/core';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
@@ -49,15 +49,10 @@ async function openSession(prep?: (db: Db) => Promise<void> | void) {
   await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
   return db;
 }
-/** The "Guide and tools" disclosures are closed except on an exercise's first session: open them all. */
-const openGuides = async () => {
-  for (const b of screen.queryAllByLabelText(/^Guide and tools for /)) if (!b.props.accessibilityState?.expanded) await fireEvent.press(b);
-};
 async function started(prep?: (db: Db) => Promise<void> | void) {
   const db = await openSession(prep);
   await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
   await screen.findByText('Push B');
-  await openGuides();
   return db;
 }
 const ended = (o: Partial<ExclusionRecord> = {}): ExclusionRecord => ({
