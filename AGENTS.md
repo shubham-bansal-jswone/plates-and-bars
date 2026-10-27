@@ -43,6 +43,15 @@ This project is indexed by GitNexus as **plates-and-bars** (1219 symbols, 2559 r
 
 <!-- gitnexus:end -->
 
+## Stack
+
+Ignore any generic Maven/Postgres/Redis stack text from a user-level `CLAUDE.md`; it does not match this repo (`LLD.md` section 2).
+
+- Backend (`backend/`): Spring Boot built with **Gradle** (`backend/build.gradle`, `./gradlew`), **MySQL** 8.4 with Flyway. Compose runs `mysql`, `api` and `caddy` only: no Redis or other cache server, no message broker.
+- Rate limits, the AI reply cache and the Open Food Facts limiter are in-process (Bucket4j, Caffeine). That is correct for the single `api` container; running more than one instance would multiply the limits and split the caches (scaling constraint, `LLD.md`).
+- App: Expo / React Native in `apps/mobile`, shared TypeScript in `packages/core`, API contract in `packages/api`.
+- CI: `.github/workflows/` (`ci.yml` is the main pipeline).
+
 ## UI/UX
 
 Any task that changes how a screen looks, lays out, or behaves for the user (apps/mobile, apps/site): load `.claude/skills/ui-ux/SKILL.md` first.
