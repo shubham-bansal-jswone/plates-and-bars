@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
+import { CompletionPanel } from '../src/workout/CompletionPanel';
+import { blankRow, type ExState, type Row } from '../src/workout/model';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
@@ -9,6 +11,50 @@ import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
+
+const row = (w: string, r: string, done: boolean, rate: Row['rate'] = null): Row => ({ ...blankRow(), w, r, done, rate });
+const ex = (name: string, sets: Row[], part: 1 | 2 = 1): ExState => ({ name, part, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets });
+const panel = (exs: ExState[], o: { cardio?: number | null; pbOn?: string } = {}) =>
+  render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={exs} cardio={o.cardio ?? null} lifts={o.pbOn ? { 'Barbell Bench Press': { pbToast: o.pbOn } as never } : {}} reloadKey={0} />);
+
+describe('CompletionPanel', () => {
+  it('shows only values derived from the sets: done/all, volume, exercises, best set, ratings', async () => {
+    await panel([ex('Barbell Bench Press', [row('60', '8', true, 'right'), row('62.5', '6', true, 'hard')]), ex('Pec Deck Fly', [row('30', '12', true)])]);
+    expect(screen.getByText('Session done')).toBeTruthy();
+    expect(screen.getByLabelText('Sets: 3/3')).toBeTruthy();
+    expect(screen.getByLabelText('Volume (kg): 1,215')).toBeTruthy(); // 60x8 + 62.5x6 + 30x12 = 480 + 375 + 360
+    expect(screen.getByLabelText('Exercises: 2')).toBeTruthy();
+    expect(screen.getByText('62.5 x 6')).toBeTruthy(); // the heaviest set
+    expect(screen.getByText('Felt: Just right, Hard')).toBeTruthy();
+    expect(screen.queryByText(/streak|crushed|duration/i)).toBeNull();
+    expect(screen.queryByText('Personal record')).toBeNull();
+  });
+
+  it('is nothing while any set is undone, and nothing for an empty session', async () => {
+    await panel([ex('Barbell Bench Press', [row('60', '8', true), row('60', '8', false)])]);
+    expect(screen.queryByText('Session done')).toBeNull();
+    await screen.unmount();
+    await panel([]);
+    expect(screen.queryByText('Session done')).toBeNull();
+  });
+
+  it('marks a personal record only when the lift record says today set one', async () => {
+    await panel([ex('Barbell Bench Press', [row('60', '8', true)])], { pbOn: '2026-10-08' });
+    expect(screen.getByText('Personal record')).toBeTruthy();
+    await screen.unmount();
+    await panel([ex('Barbell Bench Press', [row('60', '8', true)])], { pbOn: '2026-10-01' });
+    expect(screen.queryByText('Personal record')).toBeNull();
+  });
+
+  it('a bodyweight session shows total reps in place of volume; cardio minutes and a second session are labelled', async () => {
+    await panel([ex('Push-up', [row('', '10', true), row('', '8', true)]), ex('Pec Deck Fly', [row('', '12', true)], 2)], { cardio: 20 });
+    expect(screen.queryByLabelText(/^Volume/)).toBeNull();
+    expect(screen.getByLabelText('Reps: 30')).toBeTruthy();
+    expect(screen.getByLabelText('Cardio (min): 20')).toBeTruthy();
+    expect(screen.getByText('Today, both sessions together.')).toBeTruthy();
+    expect(screen.getByText('10 reps')).toBeTruthy();
+  });
+});
 
 const THURSDAY = () => new Date(2026, 9, 8, 10, 0, 0);
 const profile = () =>

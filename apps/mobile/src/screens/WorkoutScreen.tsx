@@ -29,6 +29,7 @@ import { BurnLine } from '../workout/BurnLine';
 import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
+import { CompletionPanel } from '../workout/CompletionPanel';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
 import { Chip, HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
@@ -149,7 +150,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       </Page>
       {sheets}
       {restBar}
-      <ToastBar message={toast} />
+      <ToastBar message={toast} lift={rest ? 130 : 0} />
     </View>
   );
 }
@@ -580,6 +581,9 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
+      <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
+        <CompletionPanel db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
+      </View>
     </>
   );
 

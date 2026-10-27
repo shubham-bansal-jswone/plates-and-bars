@@ -17,30 +17,24 @@ test('the rest bar sits under the content column on wide web and fits the screen
   await label(page, markLabel).click();
 
   const panel = label(page, 'Rest timer');
-  // Other tabs stay mounted and visible, so take the page column that holds the set just ticked.
-  const column = page.locator('[role="main"]').filter({ has: page.locator(`[aria-label=${JSON.stringify(markLabel)}]`) });
   await expect(panel).toBeVisible();
 
-  // Phone first, the app's default viewport: the panel is the width of the screen less the dock's 8 px padding.
+  // Phone first, the app's default viewport: the panel is the width of the screen less the dock's 12 px padding.
   const phone = page.viewportSize();
   expect(phone.width).toBe(390);
   let box = await panel.boundingBox();
   expect(box.x, 'panel left edge at 390 px').toBeGreaterThanOrEqual(0);
-  expect(box.x, 'panel is at most 8 px from the left edge at 390 px').toBeLessThanOrEqual(8);
-  expect(phone.width - (box.x + box.width), 'panel is at most 8 px from the right edge at 390 px').toBeLessThanOrEqual(8);
+  expect(box.x, 'panel is at most 12 px from the left edge at 390 px').toBeLessThanOrEqual(12);
+  expect(phone.width - (box.x + box.width), 'panel is at most 12 px from the right edge at 390 px').toBeLessThanOrEqual(12);
   expect(phone.width - (box.x + box.width), 'panel stays inside the right edge at 390 px').toBeGreaterThanOrEqual(0);
   expect(box.y + box.height, 'panel bottom is inside the viewport at 390 px').toBeLessThanOrEqual(phone.height);
 
-  // Wide windows: the panel has the column's left edge and width. The literal numbers are the reviewer's measurements; they also
-  // catch the column itself collapsing, which a comparison between the two boxes alone would not.
-  for (const { width, left, right } of [{ width: 1200, left: 320, right: 880 }, { width: 800, left: 120, right: 680 }]) {
+  // At every width the rest dock is the same bottom dock: the window width less its padding, at most 560, centred (a floating panel on wide
+  // windows covered the session info column, so it was dropped).
+  for (const width of [1200, 800]) {
     await page.setViewportSize({ width, height: 800 });
-    await expect.poll(async () => (await column.boundingBox()).x, { message: `column left edge at ${width} px` }).toBe(left);
-    const col = await column.boundingBox();
+    await expect.poll(async () => Math.round((await panel.boundingBox()).width), { message: `panel width at ${width} px` }).toBe(Math.min(560, width - 24));
     box = await panel.boundingBox();
-    expect(col.x + col.width, `column right edge at ${width} px`).toBe(right);
-    expect(box.x, `panel left edge at ${width} px`).toBe(col.x);
-    expect(box.x + box.width, `panel right edge at ${width} px`).toBe(col.x + col.width);
     expect(box.y + box.height, `panel bottom is inside the viewport at ${width} px`).toBeLessThanOrEqual(800);
   }
 });
