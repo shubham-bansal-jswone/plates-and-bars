@@ -5,7 +5,7 @@ import { buildLocalExport } from '../account/exportLocal';
 import { DATA_COPY as t } from '../account/copy';
 import { clearOldExports, saveTextFile, type SaveResult } from '../account/saveFile';
 import type { DeleteResult, ServerExportResult } from '../account/server';
-import { Button, ErrorText, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, ErrorText, H1, Hint, Note, Page } from '../components/ui';
 import { LegalLinks } from '../legal/LegalLinks';
 import type { WorkoutDb } from '../db/workouts';
 import { hasConsent } from '../sync/engine';
@@ -139,6 +139,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   return (
     <Page>
       <H1>{t.title}</H1>
+      <Card>
       <Hint>{t.intro}</Hint>
       {/* The consent is read async. Until it is known the slot holds a blank, screen-reader-hidden line (aria-hidden, as Caption does: react-native-web ignores the older props), so the text arriving never moves the controls (#1035) and never flashes a wrong one. */}
       <View aria-hidden={pendingConsent}>
@@ -146,6 +147,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
       </View>
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
+      </Card>
       {message ? <Note>{message}</Note> : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
       <View style={{ gap: 12 }}>
