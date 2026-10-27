@@ -11,6 +11,6 @@ export function Text({ style, ...rest }: TextProps) {
   const ready = useFontsReady();
   const flat = StyleSheet.flatten(style) ?? {};
   // Only once loaded: the bundled fonts are one family per weight, so only then can fontWeight be reset; before that the style's own weight must stay.
-  const fontFamily = ready ? family(flat.fontWeight) : undefined;
-  return <RNText {...rest} style={fontFamily ? [flat, { fontFamily, fontWeight: 'normal' }] : flat} />;
+  const fontFamily = ready ? family(flat.fontWeight, flat.fontStyle) : undefined;
+  return <RNText {...rest} style={fontFamily ? [flat, { fontFamily, fontWeight: 'normal', ...(flat.fontStyle === 'italic' ? { fontStyle: 'normal' as const } : null) }] : flat} />;
 }
