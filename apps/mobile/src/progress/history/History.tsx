@@ -34,7 +34,7 @@ export function RecentWorkouts({ sessions, onOpen }: { sessions: readonly Histor
                   <Text style={[typeScale.small, { color: c.muted }]}>{`${shortDate(s.date)}, ${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}`}</Text>
                 </View>
                 {s.volume > 0 ? (
-                  <Text style={[typeScale.metricSm, tabular, { color: c.brand }]}>
+                  <Text style={[typeScale.metricSm, tabular, { color: c.ink }]}>
                     {fmt(s.volume)}
                     <Text style={[typeScale.small, { color: c.muted }]}> kg</Text>
                   </Text>

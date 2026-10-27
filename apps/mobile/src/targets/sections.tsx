@@ -116,7 +116,7 @@ export function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
         <View key={r.muscle} accessible accessibilityLabel={`${title}, ${name(r.muscle)}: ${fmt(r.shown)} sets${r.low ? ', low' : ''}`} style={styles.row}>
           <Text style={[styles.muscle, { color: c.ink }]}>{name(r.muscle)}</Text>
           <View style={[styles.track, { backgroundColor: c.track }]}>
-            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: radius.full, backgroundColor: r.low ? c.caution : c.bar }} />
+            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: radius.full, backgroundColor: r.low ? c.caution : title.startsWith('Done') ? c.bar : c.muted }} />
           </View>
           <Text style={{ color: r.low ? c.caution : c.ink, fontWeight: '700', minWidth: 28, textAlign: 'right' }}>{fmt(r.shown)}</Text>
         </View>

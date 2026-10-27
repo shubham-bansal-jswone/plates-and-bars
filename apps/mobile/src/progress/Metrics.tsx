@@ -20,7 +20,7 @@ export function MetricRow({ items }: { items: readonly Metric[] }) {
         <View key={m.label} style={styles.item}>
           {i > 0 ? <View style={[styles.divider, { backgroundColor: c.line }]} /> : null}
           <View style={styles.cell} accessible accessibilityLabel={`${m.big}${m.small ?? ''} ${m.label}`}>
-            <Text style={[typeScale.metricSm, tabular, { color: i === 0 ? c.brand : c.ink }]}>
+            <Text style={[typeScale.metricSm, tabular, { color: i === 0 && m.big !== '–' && m.big !== '0' ? c.brand : c.ink }]}>
               {m.big}
               {m.small ? <Text style={[typeScale.small, { color: c.muted }]}>{m.small}</Text> : null}
             </Text>

@@ -222,7 +222,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
         </View>
         <ExerciseSettings name={ex.name} info={info} notify={notify} />
       </View>
-      {!showRamp && sug.text ? <Text style={[type.bodyStrong, { color: c.brand }]}>Suggested: {sug.text}</Text> : null}
+      {!showRamp && sug.text ? <Text style={[type.bodyStrong, { color: c.ink }]}>Suggested: {sug.text}</Text> : null}
 
       {showRamp ? (
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>

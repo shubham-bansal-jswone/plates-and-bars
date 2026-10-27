@@ -577,7 +577,9 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
-      <CompletionPanel db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
+      <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
+        <CompletionPanel db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
+      </View>
     </>
   );
 
