@@ -506,7 +506,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const complete = all > 0 && done === all;
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
 
-  // The map sits outside "Session info": it is open until the first tick on every width (prototype sessionMapHtml). Only the reference rows are collapsed.
+  // The map is open until the first tick on every width (prototype sessionMapHtml).
   const info = (
     <>
       {mainMuscles.length ? (
@@ -515,11 +515,6 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
           {mapShown ? <BodyMap primary={mainMuscles} secondary={alsoMuscles} /> : null}
         </View>
       ) : null}
-      <Disclosure label="Session info" defaultOpen={wide}>
-        <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
-        {/* Once every set is ticked the completion panel shows the burn estimate; showing it here too would repeat it. */}
-        {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
-      </Disclosure>
     </>
   );
 
@@ -585,6 +580,9 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={[type.caption, { color: c.muted }]}>
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>
+      <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
+      {/* Once every set is ticked the completion panel shows the burn estimate; showing it here too would repeat it. */}
+      {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
       <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
         <CompletionPanel db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
