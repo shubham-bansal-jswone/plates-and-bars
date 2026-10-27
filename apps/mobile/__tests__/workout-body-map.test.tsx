@@ -48,6 +48,8 @@ describe('musclesOf', () => {
   });
 });
 
+afterEach(() => jest.restoreAllMocks());
+
 describe('Workout start preview: muscle map', () => {
   it('shows the map with a text alternative, the legend and the muscle lists', async () => {
     await mount();
@@ -106,6 +108,18 @@ describe('Workout session: Muscles today', () => {
     await tickFirstSet();
     await waitFor(() => expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull());
     expect(screen.getByLabelText(`Muscles today: ${MAIN}`).props.accessibilityState).toMatchObject({ expanded: false });
+  });
+
+  it.each([
+    [390, false],
+    [1280, true],
+  ])('at %i px the map is expanded after the first tick: %s', async (width, expanded) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- spy on the module object the screen reads from
+    jest.spyOn(require('react-native'), 'useWindowDimensions').mockReturnValue({ width, height: 900, scale: 1, fontScale: 1 });
+    await started();
+    await tickFirstSet();
+    await screen.findByText('1 of 15 sets done, 480 kg lifted');
+    expect(screen.getByLabelText(`Muscles today: ${MAIN}`).props.accessibilityState).toMatchObject({ expanded });
   });
 
   it('opens and closes on a tap, and keeps the choice once made', async () => {
