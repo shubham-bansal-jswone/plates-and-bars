@@ -431,7 +431,6 @@ describe('Workout tab: logging sets', () => {
     expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
     await openGuide('Barbell Bench Press'); // the rest line is reference material
     expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText('Session info'));
     await fireEvent.press(screen.getByLabelText('Why these exercises? How your sessions are built'));
     expect(await screen.findByText(/You train 6 days a week, so your plan uses push\/pull\/legs twice, which trains .* Sessions are trimmed to fit about 60 minutes, keeping/)).toBeTruthy();
     expect(screen.queryByText(/starting with 2 sets per exercise/)).toBeNull();
@@ -490,7 +489,6 @@ describe('Workout tab: logging sets', () => {
     expect(screen.queryByText(/kcal burned/)).toBeNull();
     await press('Mark Barbell Bench Press set 1 done');
     // One set, about 3 minutes, at the 82 kg profile weight: core's workoutBurn.
-    await fireEvent.press(screen.getByLabelText('Session info'));
     expect(await screen.findByText('About 20 kcal burned')).toBeTruthy();
     expect(screen.getByText(/Rough estimate from 1 set \(about 3 minutes\) at your bodyweight; about 15 kcal of it is above what you’d burn resting/)).toBeTruthy();
 
@@ -508,7 +506,6 @@ describe('Workout tab: logging sets', () => {
     // One set (about 3 minutes) burns 20 kcal at the 82 kg profile weight, 15 at 60 kg, 25 at 100 kg and 35 at 140 kg.
     await started({ weighIns: [{ date: '2026-10-01', weight_kg: 60 }, { date: '2026-10-07', weight_kg: 100 }, { date: '2026-10-09', weight_kg: 140 }] });
     await press('Mark Barbell Bench Press set 1 done');
-    await fireEvent.press(screen.getByLabelText('Session info'));
     expect(await screen.findByText('About 25 kcal burned')).toBeTruthy();
   });
 
@@ -516,7 +513,6 @@ describe('Workout tab: logging sets', () => {
     await started({ weightKg: 0 });
     expect(screen.queryByText(/Add your weight/)).toBeNull();
     await press('Mark Barbell Bench Press set 1 done');
-    await fireEvent.press(screen.getByLabelText('Session info'));
     expect(await screen.findByText('Add your weight (setup or Progress tab) to see calories burned.')).toBeTruthy();
     expect(screen.queryByText(/kcal burned/)).toBeNull();
   });
@@ -534,7 +530,6 @@ describe('Workout tab: logging sets', () => {
     await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
     await screen.findByText('Push B');
     await press('Mark Barbell Bench Press set 1 done');
-    await fireEvent.press(screen.getByLabelText('Session info'));
     await flush();
     expect(screen.queryByText(/Add your weight/)).toBeNull();
     release();
@@ -648,8 +643,7 @@ describe('Workout tab: logging sets', () => {
       expect(screen.getAllByText('Learn mode').length).toBeGreaterThan(0);
       expect(screen.getByLabelText('Setup steps for Overhead Cable Extension').props.accessibilityState).toMatchObject({ expanded: false });
       await expand('Overhead Cable Extension');
-      await expand('Overhead Cable Extension');
-    for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
+      for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
       expect(screen.queryByLabelText('Setup steps for Overhead Cable Extension')).toBeNull();
     });
   });

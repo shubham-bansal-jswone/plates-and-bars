@@ -52,12 +52,10 @@ describe('Workout screen: start view and session', () => {
     expect(screen.queryByText('Session done')).toBeNull();
   });
 
-  it('session: Session info starts closed and holds the Why link', async () => {
+  it('session: the Why link is inline in the header', async () => {
     await mount();
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
-    expect(screen.queryByLabelText('Why these exercises? How your sessions are built')).toBeNull();
-    await fireEvent.press(screen.getByLabelText('Session info'));
     expect(screen.getByLabelText('Why these exercises? How your sessions are built')).toBeTruthy();
   });
 });

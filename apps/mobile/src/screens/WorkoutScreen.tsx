@@ -503,7 +503,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const mapShown = mapOpen ?? done === 0;
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
 
-  // The map sits outside "Session info": it is open until the first tick on every width (prototype sessionMapHtml). Only the reference rows are collapsed.
+  // The map is open until the first tick on every width (prototype sessionMapHtml).
   const info = (
     <>
       {mainMuscles.length ? (
@@ -512,10 +512,6 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
           {mapShown ? <BodyMap primary={mainMuscles} secondary={alsoMuscles} /> : null}
         </View>
       ) : null}
-      <Disclosure label="Session info" defaultOpen={wide}>
-        <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
-        <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
-      </Disclosure>
     </>
   );
 
@@ -581,6 +577,8 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={[type.caption, { color: c.muted }]}>
         {done} of {all} sets done, {fmt(vol)} kg lifted
       </Text>
+      <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
+      <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
     </>
   );
