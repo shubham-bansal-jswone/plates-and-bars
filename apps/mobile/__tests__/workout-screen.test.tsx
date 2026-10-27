@@ -485,13 +485,22 @@ describe('Workout tab: logging sets', () => {
     expect(screen.queryByTestId('rest-title')).toBeNull(); // nothing left to do: the dock closes
   });
 
+  it('after a removal the dock names only exercises after the ticked one, never an earlier skipped one (#1141)', async () => {
+    await started();
+    await cutToOneSet('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done'); // Bench is skipped
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+    await removeExercise('Pec Deck Fly');
+    expect(screen.getByText('Next: Cable Lateral Raise')).toBeTruthy();
+    expect(screen.queryByText('Next: Barbell Bench Press')).toBeNull();
+  });
+
   it('ticking the final set closes the rest dock, so it does not cover the Session done panel (#1141)', async () => {
     await started();
     for (const n of PUSH_B.slice(1)) await removeExercise(n);
     await expand('Barbell Bench Press');
     await press('Mark Barbell Bench Press set 1 done');
     expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
-    while (screen.queryByLabelText('Remove last set of Barbell Bench Press') && !screen.queryByLabelText('Mark Barbell Bench Press set 3 done')) await press('Remove last set of Barbell Bench Press');
     for (let k = 2; screen.queryByLabelText(`Mark Barbell Bench Press set ${k} done`); k++) await press(`Mark Barbell Bench Press set ${k} done`);
     expect(screen.queryByTestId('rest-title')).toBeNull();
     expect(screen.queryByText(/^Next:/)).toBeNull();

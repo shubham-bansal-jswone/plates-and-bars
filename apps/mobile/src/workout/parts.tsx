@@ -34,8 +34,8 @@ export interface RestState {
   end: number;
   total: number;
   label: string;
-  /** The exercise the label names; the label is recomputed or the rest cleared when it is gone or has no undone set. */
-  target?: string;
+  /** Exercise names in order from the one just ticked onward. The label names the first still having an undone set (never an earlier exercise); the rest is cleared when none has. */
+  from?: string[];
   /** The day the rest started on. */
   date?: string;
 }

@@ -65,11 +65,11 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const v = useViewedDate(now);
-  const startRest = useCallback((name: string, label: string, target: string) => {
+  const startRest = useCallback((name: string, label: string, from: string[]) => {
     if (restOff) return;
     const total = restFor(name, getCatalog().tags);
     const t = Date.now();
-    setRest({ id: t, end: t + total * 1000, total, label, target, date: v.date });
+    setRest({ id: t, end: t + total * 1000, total, label, from, date: v.date });
   }, [restOff, v.date]);
 
   // Tab screens stay mounted; rules removed on the Targets tab show here when this tab is shown again.
@@ -89,9 +89,11 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
   // The dock never names an exercise that is gone or finished: it moves on to the next one with an undone set, or closes when none is left.
   // Only on the day it started on (the rest keeps running while another day is read). Adjusting state while rendering, as React documents.
-  if (rest?.target && rest.date === v.date && day.ready) {
-    const open = day.exs.filter((e) => e.sets.some((x) => !x.done));
-    if (!open.some((e) => e.name === rest.target)) setRest(open[0] ? { ...rest, label: `Next: ${open[0].name}`, target: open[0].name } : null);
+  if (rest?.from && rest.date === v.date && day.ready) {
+    // Only exercises from the ticked one onward (the prototype's tick rule), never an earlier skipped one.
+    const open = new Set(day.exs.filter((e) => e.sets.some((x) => !x.done)).map((e) => e.name));
+    const first = rest.from.find((n) => open.has(n));
+    if (first !== rest.from[0] || !first) setRest(first ? { ...rest, label: `Next: ${first}`, from: rest.from.slice(rest.from.indexOf(first)) } : null);
   }
   const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
