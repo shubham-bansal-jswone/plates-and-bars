@@ -4,6 +4,10 @@ Audit and design brief only. No application code, dependencies, skills or agents
 
 Branch audited: `design-overhaul` (from `main` `a856fe0d`), web export built from it on 2026-10-27.
 
+**Owner decision, 2026-10-27 (#1129):** the prototype (`docs/prototype/plate-and-bar.html`) wins over this audit. The muscle map (open until the first tick), quick check-in, stall/ladder cards, suggested weight and reason, warm-up, Learn mode, burn line and "Why these exercises?" stay inline. Only repeated reference material ("Guide and tools") is collapsed. On phones, set 1 therefore may not be visible without scrolling in the active session (accepted trade-off). Wherever a proposal below collapses one of the inline items, this decision overrides it.
+
+**Implementation status:** the redesign is tracked in issues #1103-#1111 and #1120-#1129; PRs #1112-#1119, #1130 and #1131 implement it. The audit text below is the original assessment and is not rewritten per PR.
+
 ---
 
 ## 1. Current-state inventory
@@ -79,7 +83,7 @@ Tab bar: `app/(tabs)/_layout.tsx`: four tabs (Food, Workout, Progress, Targets),
 | Asset | Path | Facts |
 |---|---|---|
 | Written how-to cards | `content/exercises.json` (`cards`) | Setup steps, key cues, common mistakes, breathing, easier/harder, where-to-feel, `misplaced_feel` |
-| Start/end drawings | `content/exercise-images.json` | 67 entries (64 pairs, 3 single frames), SVG inline, 253,621 bytes. All `source: own_drawing`, licence **CC-BY-4.0**, author "Plate & Bar authors". 4 of 71 exercises have none: Dumbbell Fly, Prone Y-T-W Raise, Dead Bug, Archer Push-ups |
+| Start/end drawings | `content/exercise-images.json` | 67 entries when audited (64 pairs, 3 single frames), SVG inline, 253,621 bytes; now 68 drawings (the Dumbbell Fly drawing was dropped, #1114; Dead Bug was added). All `source: own_drawing`, licence **CC-BY-4.0**, author "Plate & Bar authors". 3 of 71 exercises have none: Prone Y-T-W Raise, Archer Push-ups, Dumbbell Fly (tracked in #1120) |
 | Drawing pipeline | `tools/exercise-figures/` (`rig.mjs`, `generate.mjs`), validators in `tools/validate/` | Parametric rig; frames 320x240, 1-2 KB; colours via `currentColor` and `var(--fig-*)` so the app themes them (`workout/figures.ts` `themedSvg`); allowlist SVG parser (`svgAllowlist.ts`) |
 | Muscle map | `workout/BodyMap.tsx`, `bodyMapData.ts` | Front/back polygons; main = `c.fat` (amber), also = `c.carbs` (teal) |
 | Motion player | `src/motion/*`, `content/exercise-motion.json`, `tools/exercise-motion/` | Player exists behind `EXPO_PUBLIC_EXERCISE_MOTION=1`; **bundle has 0 entries** (361 bytes); no clips; pipeline is MediaPipe-based and was never run end to end (its README says so) |
@@ -158,14 +162,14 @@ Severity: **High** blocks the core job (start, log, understand), **Med** adds fr
 
 | # | Finding | Evidence | Recommendation | Sev |
 |---|---|---|---|---|
-| U1 | **The primary action is buried.** On the start view the Start button comes after the body map, a numbered list, a hint paragraph and the optional check-in. At 375x812 "Start Pull A" is not on screen. | `WorkoutScreen.tsx` `StartView` (Button after the check-in `View`); `audit-workout-start-375x812-light.png` | Make Start a sticky or first-fold primary action; collapse the map and check-in behind "Adjust" | High |
-| U2 | **Active session shows chrome before sets.** The body map is open until the first set is ticked (`mapShown = mapOpen ?? done === 0`), then each card stacks meta text, "Why?" links, four text links, Learn mode, guide boxes and warm-up lines before the first set row. At 375x812 no set input is visible on first entry. | `WorkoutScreen.tsx` `SessionView`; `ExerciseCard.tsx`; `audit-workout-session-375x812-light.png` | One expanded exercise at a time with its sets first; everything else behind a "Guide" disclosure; collapsed rows for the rest | High |
+| U1 | **The primary action is buried.** On the start view the Start button comes after the body map, a numbered list, a hint paragraph and the optional check-in. At 375x812 "Start Pull A" is not on screen. | `WorkoutScreen.tsx` `StartView` (Button after the check-in `View`); `audit-workout-start-375x812-light.png` | Make Start a sticky or first-fold primary action; collapse the map and check-in behind "Adjust" (superseded 2026-10-27: map and check-in stay inline, see the owner decision above) | High |
+| U2 | **Active session shows chrome before sets.** The body map is open until the first set is ticked (`mapShown = mapOpen ?? done === 0`), then each card stacks meta text, "Why?" links, four text links, Learn mode, guide boxes and warm-up lines before the first set row. At 375x812 no set input is visible on first entry. | `WorkoutScreen.tsx` `SessionView`; `ExerciseCard.tsx`; `audit-workout-session-375x812-light.png` | One expanded exercise at a time with its sets first; everything else behind a "Guide" disclosure; collapsed rows for the rest (superseded 2026-10-27: only "Guide and tools" is collapsed, the other items stay inline) | High |
 | U3 | **No finish, summary or reward moment.** Session status is the text "0 of 15 sets done, 0 kg lifted". Nothing marks a finished session or shows what it added. | Section 1.5 search | Add a completion state that reads existing session data (sets, volume, per-exercise results, rest taken); no new rules | High |
 | U4 | **No history.** Users cannot see past sessions or an exercise's trend, though lift records exist. Progress is weight, photos, labs, steps and a weekly calorie card. | Section 1.5; `ProgressScreen.tsx` | Add a read-only history and per-exercise view built from existing `workouts`/`lift_stats` via core selectors | High |
 | U5 | **First-time logging stops beginners.** Tick with empty kg/reps on a first-time exercise shows a toast, "Enter the weight and reps first"; the screen also explains a 3-step ramp. | `audit-workout-after-tick-375x812-light.png`; `ExerciseCard.tsx` ramp block | Keep core's ramp rules; improve presentation: one clear "Find your weight" path, a visible "I know my weight" option, inline hint on the field instead of a transient toast | Med |
 | U6 | **In-workout controls are small.** Rating, "Add set", form answers and "Remove exercise" are `Chip`s: 32 px high (hitSlop 6 gives 44 on native; on web the box is 32). Set tick is 48 px and fine. "Remove exercise" sits beside "Add set". | `parts.tsx` `Chip`; `ui.tsx` `chip`; measured 32 px in the earlier audit | Minimum 44 px visible targets for in-workout controls; separate destructive actions from "Add set" | Med |
 | U7 | **Link overload.** About 6 blue underlined links per exercise ("Why?", "How to do", "Can't do", "Form check", "Track set", "Setup"), all the same weight as primary content. | `ExerciseCard.tsx`; `audit-workout-1280x800-light.png` | Demote to an overflow/guide pattern; keep one visible "How to" affordance | Med |
-| U8 | **Exercise demonstrations are hard to reach.** The 67 drawings appear only in Learn mode before the first set. The how-to sheet and library detail show the muscle map and text but no figure. The fallback is a YouTube search that leaves the app. | `ExerciseCard.tsx:153`; `parts.tsx` `HowToSheet`; `ExerciseDetail.tsx` | Show the existing figure in the how-to sheet, library detail and the session header | High |
+| U8 | **Exercise demonstrations are hard to reach.** The drawings (67 when audited, now 68) appear only in Learn mode before the first set. The how-to sheet and library detail show the muscle map and text but no figure. The fallback is a YouTube search that leaves the app. | `ExerciseCard.tsx:153`; `parts.tsx` `HowToSheet`; `ExerciseDetail.tsx` | Show the existing figure in the how-to sheet, library detail and the session header | High |
 | U9 | **Library is buried.** Reachable only via Targets > "Exercise library" (a ghost button among account buttons). | `TargetsScreen.tsx:112` | Surface it from the Workout tab and from "Add exercise" | Med |
 | U10 | **Custom workouts are per-session only.** Users can hand-pick exercises for one start (`startPicked`) or condense the week ("Fewer days this week?"); there is no saved, named routine. Custom exercises exist (`CustomTagsSheet`). | `WorkoutScreen.tsx`; `ScheduleTools.tsx`; `core/plan.ts` `SPLITS` fixed by days | Product decision first (Open questions); a saved routine needs a synced record | Med |
 | U11 | **Landing and navigation are nutrition-first.** Setup ends on Food; no "Today" overview ties food, workout and progress together. Targets mixes settings (targets, rules) with account/data/library/about. | `SetupFlow.save` -> `router.replace('/')`; `TargetsScreen.tsx` | Evolve the four tabs rather than replace: see 5.1 | Med |
@@ -265,10 +269,10 @@ Keep four destinations; rename and reorder only if validated: **Today** (new lan
 
 ### 5.3 Workout: active session
 - **Current:** map + cards with many links.
-- **Proposed:** progress header (sets done/total, volume, elapsed derived from stored times only if they exist: otherwise omit); current exercise expanded with **sets first**: set rows (kg, reps, 56 px tick), rating chips after a tick, Rest dock; other exercises collapsed to one line with status; "Guide" disclosure holds figure, cues, Why links, Can't do, Form check, Track set, Learn mode.
+- **Proposed:** progress header (sets done/total, volume, elapsed derived from stored times only if they exist: otherwise omit); current exercise expanded with **sets first**: set rows (kg, reps, 56 px tick), rating chips after a tick, Rest dock; other exercises collapsed to one line with status; "Guide" disclosure holds figure, cues, Why links, Can't do, Form check, Track set, Learn mode. **Decision 2026-10-27:** only "Guide and tools" is collapsed; the muscle map, check-in, stall/ladder cards, suggested weight and reason, warm-up, Learn mode, burn line and "Why these exercises?" stay inline.
 - **Components:** `SetRow` extraction from `ExerciseCard.tsx`, `ExerciseHeader`, `GuideDisclosure`, unified `Chip`.
 - **Edge cases:** first-time ramp (core `sug.mode === 'new'`), assisted/dumbbell/bodyweight kinds (`wHead`), cardio-only day, second session, ladder cards, pain flow (`FeelStep` pain branch must stay prominent), keyboard open on mobile.
-- **Acceptance:** first set input visible on entry without scrolling at 375x812; ticking a set starts the rest bar exactly as today (`startRest`); all `Mark … set N done` and `… set N kg/reps` labels unchanged; the pain path still offers "Find an alternative" and "Skip remaining sets".
+- **Acceptance:** first set input visible on entry without scrolling at 375x812 (relaxed 2026-10-27: on phones set 1 may need scrolling, accepted trade-off); ticking a set starts the rest bar exactly as today (`startRest`); all `Mark … set N done` and `… set N kg/reps` labels unchanged; the pain path still offers "Find an alternative" and "Skip remaining sets".
 
 ### 5.4 Workout: completion
 - **Current:** none.
@@ -296,7 +300,7 @@ Keep four destinations; rename and reorder only if validated: **Today** (new lan
 - **Acceptance:** `setup-flow.test.tsx` Jest suite (28 `it` blocks) and e2e `setup.spec.mjs` unchanged in outcome; no extra mandatory fields.
 
 ### 5.9 Exercise library and detail
-- **Proposed:** list rows with figure thumbnail (67/71 have drawings; show a neutral placeholder for 4), filter chips as one collapsible row, detail with figure pair, muscle map, written card, "Add to today's session".
+- **Proposed:** list rows with figure thumbnail (68/71 have drawings; show a neutral placeholder for 3), filter chips as one collapsible row, detail with figure pair, muscle map, written card, "Add to today's session".
 - **Acceptance:** works offline; filter logic untouched (`filterLibrary`); `exercise-library.test.tsx` passes.
 
 ### 5.10 Cross-cutting
@@ -308,12 +312,12 @@ Skeleton loading for Workout and Progress; reusable `EmptyState`; consistent off
 
 | Question | Finding |
 |---|---|
-| What exists? | 67 own SVG start/end drawings (CC-BY-4.0), written cards for form, a muscle map, a MediaPipe-based motion pipeline and player with **no clips**, no video, no 3D. |
+| What exists? | 68 own SVG start/end drawings (CC-BY-4.0), written cards for form, a muscle map, a MediaPipe-based motion pipeline and player with **no clips**, no video, no 3D. |
 | Licensing | Drawings own work, CC-BY-4.0, enforced by validator and `isFigureBundle`; credit link to About in `ExerciseFigure`. Motion pipeline licences (MediaPipe Apache-2.0) are documented in `tools/exercise-motion/README.md`. |
 | Suitable for the redesign? | Yes for static start/end frames: tiny (1-2 KB), themeable via CSS variables, offline, CSP-safe. Not a substitute for motion demos. |
-| Gaps | (1) Figures not shown in how-to sheet, library or session header. (2) 4 exercises without drawings (Dumbbell Fly, Prone Y-T-W Raise, Dead Bug, Archer Push-ups). (3) Motion bundle empty; flagged off. (4) "Targeted muscle highlighting" exists (`BodyMap`) but uses amber/teal and sits above every session. |
+| Gaps | (1) Figures not shown in how-to sheet, library or session header. (2) 3 exercises without drawings (Prone Y-T-W Raise, Archer Push-ups, Dumbbell Fly; #1120). (3) Motion bundle empty; flagged off. (4) "Targeted muscle highlighting" exists (`BodyMap`) but uses amber/teal and sits above every session. |
 | Do not recommend yet | New animation systems, Lottie, 3D engines, or third-party clips: no clips exist, the pipeline was never run end to end, and any third party asset needs an ADR. |
-| Most practical next step | Surface existing figures and muscle map consistently (how-to, library detail, session guide, start thumbnails) using the lime-themed `themedSvg` mapping; then add the 4 missing drawings through `tools/exercise-figures`. Re-evaluate motion only after real clips and coach sign-off (#1069). |
+| Most practical next step | Surface existing figures and muscle map consistently (how-to, library detail, session guide, start thumbnails) using the lime-themed `themedSvg` mapping; then add the 3 missing drawings through `tools/exercise-figures`. Re-evaluate motion only after real clips and coach sign-off (#1069). |
 
 ---
 
@@ -324,7 +328,7 @@ Skeleton loading for Workout and Progress; reusable `EmptyState`; consistent off
 | 0 | Decisions in section 8; remove stale `DESIGN.md` comments; add this brief as `ui-designer` input | `tokens.ts`, `ui.tsx`, `fonts.tsx`, tab layout comments | owner answers | none |
 | 1 | Tokens, fonts, base components, tab bar, sheets (identity lands everywhere at once because colours are token-only) | `theme/tokens.ts`, `theme/fonts.tsx`, `components/ui.tsx`, `Input.tsx`, `Sheet.tsx`, `app/(tabs)/_layout.tsx` | phase 0 | Jest for `Button`/`Choice`/`Field`; axe light+dark Playwright (`a11y.spec.mjs`); `ui-qa` pass at 375/768/1280 |
 | 2 | Workout start + active session redesign; unify `Chip`; `SetRow`, `GuideDisclosure`, sticky Start, rest dock | `screens/WorkoutScreen.tsx`, `workout/ExerciseCard.tsx`, `workout/parts.tsx`, new small components | phase 1 | existing `workout-*`, `exercise-card-*` Jest; `workout-*.spec.mjs`; Maestro `03-workout.yaml`; new tests for sticky Start and first-set-visible layout |
-| 3 | Exercise media surfacing; 4 missing drawings | `workout/ExerciseFigure.tsx`, `HowToSheet`, `library/*`, `tools/exercise-figures`, `content/exercise-images.json` | phase 1 | `exercise-figure.test.tsx`, validator CLIs, library tests |
+| 3 | Exercise media surfacing; 3 missing drawings | `workout/ExerciseFigure.tsx`, `HowToSheet`, `library/*`, `tools/exercise-figures`, `content/exercise-images.json` | phase 1 | `exercise-figure.test.tsx`, validator CLIs, library tests |
 | 4 | Completion summary and workout history | new `workout/Summary`, `progress/History`, core selectors if needed (`packages/core`) | phase 2 | core unit tests with fixtures; screen tests; verify against stored records |
 | 5 | Navigation/Today and library entry; Targets split | `app/(tabs)/*`, `TargetsScreen.tsx`, `FoodScreen.tsx` | owner decision on IA | `screens.spec.mjs`, `setup.spec.mjs`, Maestro |
 | 6 | Progress and Food restyle, setup polish (inline errors, chips), empty/loading/offline states, responsive wide layout | `ProgressScreen`, `FoodScreen`, `SetupScreen`, `progress/*`, shell | phases 1-2 | specs for each; `ui-qa` checklist |
@@ -352,7 +356,7 @@ Process: each phase is its own PR into `design-overhaul`, preceded by a `ui-desi
 - Read: `LLD.md`; `theme/{tokens,useTheme,fonts}`; `components/{ui,Sheet,Input,Text}`; `app/(tabs)/_layout.tsx`; `screens/{Workout,Progress,Targets,Food,Setup}Screen` (Food/Progress/Targets headings and structure by grep, Workout and Setup in full); `workout/{ExerciseCard,parts,ExerciseFigure,BodyMap,ScheduleTools,VideoLink,figures}`; `library/*`; `sync/SyncBadge`; `state/Gate`; core `plan.ts` splits; content files and `tools/exercise-motion` README.
 - Computed: WCAG contrast for the mandated palette and candidate derived colours.
 - Built `npx expo export --platform web` from `apps/mobile` (after `npm ci` earlier in the session), served with `tests/e2e/support/server.mjs`, drove the real app with the Playwright MCP, and viewed the screenshots in section 1.9. The browser console was not re-read in this task's flows (earlier setup flows showed 0 errors).
-- Quantified: 113 inline `fontSize` literals in 47 files; 0 colour literals outside `tokens.ts`; 70 files using `useTheme`; 195 Jest files; 4 of 71 exercises without a figure.
+- Quantified: 113 inline `fontSize` literals in 47 files; 0 colour literals outside `tokens.ts`; 70 files using `useTheme`; 195 Jest files; 4 of 71 exercises without a figure when audited (now 3 of 71, see section 1).
 
 **Not verified**
 - Jest, Playwright specs and Maestro were **not run** for this audit.
