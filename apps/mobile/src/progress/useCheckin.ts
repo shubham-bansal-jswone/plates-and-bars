@@ -43,8 +43,10 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   // Settings feed the suggestion and are written back, so nothing runs until the stored record has loaded.
   const usable = settingsReady && !loadFailed;
   // The days belong to the date they were read for: while another day is being read, none are shown (and none are used for a card's key).
-  const [daysRead, setDaysRead] = useState<{ date: string; days: ProgressDay[] } | null>(null);
+  const [daysRead, setDaysRead] = useState<{ date: string; days: ProgressDay[]; week: ProgressDay[] } | null>(null);
   const days = daysRead && daysRead.date === date ? daysRead.days : null;
+  // The real date, so a day that is today is complete only when ticked (core #150), as in useProgress.
+  const today = localDate(now());
   const [lifts, setLifts] = useState<Record<string, LiftRecord>>({});
   const [sessions, setSessions] = useState<SessionLog>({});
   // Tab screens stay mounted, so the days are read again each time the tab is shown.
@@ -60,19 +62,20 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
         { queue: dayQueue, writes: dayWrites },
         async () => {
           const keys = Array.from({ length: DAYS }, (_, i) => addDays(date, i - DAYS + 1));
-          const read = await Promise.all(
-            keys.map(async (d): Promise<ProgressDay> => {
+          // "This week" is always the real current week (#1123): when a past day is viewed, its last 7 days are read too.
+          const weekKeys = date < today ? Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)) : [];
+          const readDay = async (d: string): Promise<ProgressDay> => {
               const [logs, note, workout, sets] = await Promise.all([loadLogs(db, d), loadDayNote(db, d), loadWorkout(db, d), loadSets(db, d)]);
               const w = workout && !workout.deleted_at ? workout : null;
               return { date: d, logs, complete: note?.complete, steps: note?.steps, sleep: note?.sleep, cardioMin: w?.cardio_min, trained: !!w && sets.some((s) => s.kind === 'work' && s.done && !s.deleted_at) };
-            }),
-          );
+          };
+          const [read, week] = await Promise.all([Promise.all(keys.map(readDay)), Promise.all(weekKeys.map(readDay))]);
           const [l, s] = await Promise.all([loadLifts(db), loadSessionLog(db)]);
-          return { read, l, s };
+          return { read, week, l, s };
         },
         () => live,
-        ({ read, l, s }) => {
-          setDaysRead({ date, days: read });
+        ({ read, week, l, s }) => {
+          setDaysRead({ date, days: read, week });
           setLifts(l);
           setSessions(s);
         },
@@ -83,11 +86,9 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
     return () => {
       live = false;
     };
-  }, [db, date, shown, notify, reloadKey]);
+  }, [db, date, today, shown, notify, reloadKey]);
 
   const A = settings.adjustments as Adjustments;
-  // The real date, so a day that is today is complete only when ticked (core #150), as in useProgress.
-  const today = localDate(now());
   const adaptive = settings.adaptive as AdaptiveState;
   const checkin = useMemo(
     () =>
@@ -131,6 +132,8 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
     habit,
     /** The last 21 days as read for the check-in, null until loaded; the "Seven days" block uses the last 7. */
     days,
+    /** The days for the "Seven days" block: always the real current week, whichever day is viewed. */
+    weekDays: date < today ? daysRead?.date === date ? daysRead.week : null : days,
     ready: days !== null && usable,
     /** The stored settings could not be read: the card shows a message and no actions. */
     settingsFailed: loadFailed,
