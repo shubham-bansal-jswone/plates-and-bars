@@ -43,10 +43,10 @@ export const getFoodSources = perLoad(() => {
   return mergeSources(fromContent);
 });
 
-/** Fonts bundled with the app (docs/design/DESIGN.md section 4.1). */
+/** Fonts bundled with the app. */
 export const FONT_SOURCES: readonly SourceInfo[] = [
-  { code: 'inter', name: 'Inter (body and UI text)', licence: 'SIL Open Font License 1.1', url: null },
-  { code: 'roboto', name: 'Roboto (headlines and big numbers)', licence: 'SIL Open Font License 1.1', url: null },
+  { code: 'inter', name: 'Inter (all text, titles and numbers)', licence: 'SIL Open Font License 1.1', url: null },
+  { code: 'roboto', name: 'Roboto Light (older headings)', licence: 'SIL Open Font License 1.1', url: null },
 ];
 
 /** The body map shapes (`workout/bodyMapData.ts`). MIT asks for this notice in every copy of the data. */

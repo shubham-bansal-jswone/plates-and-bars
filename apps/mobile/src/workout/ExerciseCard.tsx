@@ -1,20 +1,21 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, View } from 'react-native';
-import { Input } from '../components/Input';
-import { radius } from '../theme/tokens';
+import { radius, tabular, type } from '../theme/tokens';
 import { Text } from '../components/Text';
 import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
+import { a11yState, Chip, Disclosure, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName, rampEasyNote } from './copy';
 import type { ExState, Row } from './model';
 import { ExerciseSettings } from './ExerciseSettingsSheet';
-import { Chip } from './parts';
 import { TrackSet } from '../pose/TrackSet';
 import { FormCheckButton } from '../ai/FormCheck';
 import { ExerciseFigure } from './ExerciseFigure';
+import { TICK_SIZE } from './setSizes';
+import { SetRow } from './SetRow';
+import Svg, { Path } from 'react-native-svg';
 
 const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
 
@@ -63,6 +64,9 @@ interface Props {
   prior?: number;
   /** Shows the short message at the bottom of the screen (the settings sheet's "Saved for this exercise"). */
   notify?: (msg: string) => void;
+  /** Shown in full (default) or as one collapsed row; the screen keeps one expanded at a time. */
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
@@ -83,26 +87,6 @@ function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: 
   );
 }
 
-function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): void; nl: boolean }) {
-  const c = useTheme();
-  return (
-    <View style={styles.set}>
-      <Text style={{ color: c.muted, width: 28, fontWeight: '700' }}>{n}</Text>
-      <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" value={row.w} placeholder={ph.w} onChangeText={(v) => onEdit('w', v)} style={styles.input} />
-      <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" value={row.r} placeholder={ph.r} onChangeText={(v) => onEdit('r', v)} style={styles.input} />
-      <Press
-        accessibilityRole="checkbox"
-        accessibilityLabel={`Mark ${label} done`}
-        {...a11yState({ checked: row.done })}
-        onPress={onTick}
-        style={[styles.tick, { borderColor: c.brand, backgroundColor: row.done ? c.brand : c.surface }]}
-      >
-        <Text style={{ color: row.done ? c.onBrand : c.link, fontWeight: '700', fontSize: 18 }}>✓</Text>
-      </Press>
-    </View>
-  );
-}
-
 /** "Where did you feel that set most?" and what each answer shows (prototype `feelHtml`; the rule is core's `feelResult`). */
 function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
   const c = useTheme();
@@ -119,7 +103,7 @@ function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
             <Text style={{ fontWeight: '700' }}>Stop this exercise for today.</Text> Pain is different from muscle effort or burning. If it happens again next session, pick a different exercise, and see a physio if it keeps happening.
           </Note>
         </View>
-        <View style={styles.wrap}>
+        <View style={{ gap: 8 }}>
           <Button label="Find an alternative" a11yLabel={`Find an alternative to ${ex.name}`} onPress={act.cantPain} />
           {ex.sets.some((s) => !s.done) ? <Button label="Skip remaining sets" a11yLabel={`Skip remaining sets of ${ex.name}`} kind="ghost" onPress={act.skipRest} /> : null}
         </View>
@@ -165,7 +149,7 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
 }
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle }: Props) {
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
     if (!armed) return;
@@ -191,37 +175,80 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
   const ladder = ladderOf(ex.name, getCatalog().ladders);
   const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, info).r;
 
+  const heads = (w: string, r: string) => (
+    <View aria-hidden style={styles.heads}>
+      <View style={{ width: 28 }} />
+      <Text style={[type.small, { color: c.muted }, styles.headCell]}>{w}</Text>
+      <Text style={[type.small, { color: c.muted }, styles.headCell]}>{r}</Text>
+      <View style={{ width: TICK_SIZE }} />
+    </View>
+  );
+
+  // What to do next, shown for every exercise (collapsed rows too, so a returning user sees it without opening each row): the suggestion and why, the warm-up, Learn mode, and the stall and ladder cards.
+  const suggested = !showRamp && sug.text ? <Text style={[type.bodyStrong, { color: c.ink }]}>Suggested: {sug.text}</Text> : null;
+  const followUp = (
+    <>
+      {!showRamp && sug.reason ? (
+        <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
+          <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
+          <WhyLink id="progression" />
+        </View>
+      ) : null}
+      {warm ? (
+        <View>
+          <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
+            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
+          </Text>
+          <WhyLink id="warmup" subject={ex.name} />
+        </View>
+      ) : null}
+      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
+      {cards}
+    </>
+  );
+
+  if (!expanded) {
+    const n = ex.sets.length;
+    return (
+      <Card style={{ paddingVertical: 0 }}>
+        <Press
+          accessibilityRole="button"
+          accessibilityLabel={`${ex.name}, ${doneCount}/${n} sets. Show sets`}
+          {...a11yState({ expanded: false })}
+          onPress={onToggle}
+          style={styles.collapsed}
+        >
+          <Text style={[type.bodyStrong, { color: c.ink, flex: 1 }]}>{ex.name}</Text>
+          <Text style={[type.caption, tabular, { color: allDone ? c.brand : c.muted }]}>{' '}{doneCount}/{n} sets</Text>
+          {allDone ? (
+            <Svg width={20} height={20} viewBox="0 0 24 24" aria-hidden>
+              <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={c.brand} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          ) : (
+            <Svg width={20} height={20} viewBox="0 0 20 20" aria-hidden>
+              <Path d="M7 4l6 6-6 6" stroke={c.muted} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          )}
+        </Press>
+        <View style={styles.collapsedBody}>
+          {suggested}
+          {followUp}
+        </View>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <View style={styles.head}>
         <View style={{ flex: 1 }}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>
+          <Heading level={2} style={[type.heading, { color: c.ink }]}>
             {ex.name}
           </Heading>
         </View>
         <ExerciseSettings name={ex.name} info={info} notify={notify} />
       </View>
-      <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
-        {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
-        {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
-        {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ladder ? `\n${ladder.label} ladder: step ${ladder.i + 1} of ${ladder.steps.length}` : ''}{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
-      </Text>
-      <WhyLink id="rest" subject={ex.name} />
-      {tag ? (
-        <Text style={{ color: c.ink, fontSize: 14 }}>
-          {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
-          <Text style={{ fontWeight: '700' }}>Works: </Text>
-          {listJoin(tag.primary.map((m) => muscleName(m)))}
-          {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => muscleName(m)))}</Text> : null}
-        </Text>
-      ) : null}
-      <View style={styles.wrap}>
-        <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
-        <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
-        <FormCheckButton name={ex.name} />
-        <TrackSet name={ex.name} sets={ex.sets} onApply={(j, n) => act.edit('work', j, 'r', String(n))} />
-      </View>
-      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
+      {suggested}
 
       {showRamp ? (
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
@@ -240,9 +267,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           ) : (
             <>
               <Hint>These don’t count as working sets.</Hint>
+              {heads('kg', 'reps')}
               {ex.ramp.map((s, j) => (
                 <View key={s.id} style={{ gap: 6 }}>
-                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} nl={nl} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} />
+                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} current={!s.done && ex.ramp.findIndex((x) => !x.done) === j} />
                   <RateRow row={s} label={`${ex.name} ramp set ${j + 1}`} onRate={(v) => act.rampRate(j, v)} />
                 </View>
               ))}
@@ -259,30 +287,18 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
             </>
           )}
         </View>
-      ) : sug.reason ? (
-        <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>Suggested: {sug.text}</Text>
-          <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
-          <WhyLink id="progression" />
-        </View>
       ) : null}
-      {warm ? (
-        <View>
-          <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
-            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
-          </Text>
-          <WhyLink id="warmup" subject={ex.name} />
-        </View>
-      ) : null}
-      {cards}
 
-      <View style={{ gap: 6 }}>
+      {followUp}
+
+      {heads(wHead, rw)}
+      <View style={{ gap: 8 }}>
         {ex.sets.map((s, j) => {
           const t = setTarget(ex.sets, j, sug, info, ex.found);
           const label = `${ex.name} set ${j + 1}`;
           return (
             <View key={s.id} style={{ gap: 6 }}>
-              <SetRow n={String(j + 1)} label={label} row={s} wHead={wHead} repsHead={rw} nl={nl} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} />
+              <SetRow n={String(j + 1)} label={label} row={s} wHead={wHead} repsHead={rw} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );
@@ -310,12 +326,39 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <View style={styles.setRow}>
         <Chip label={`Add set to ${ex.name}`} text="Add set" onPress={act.addSet} />
         {ex.sets.length > 1 ? <Chip label={`Remove last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
-        <Chip
-          label={armed ? `Tap again to remove ${ex.name} from today` : `Remove exercise ${ex.name} from today`}
-          text={armed ? 'Tap again to remove' : 'Remove exercise'}
-          onPress={() => (armed ? act.remove() : setArmed(true))}
-        />
       </View>
+
+      <Disclosure label="Guide and tools" a11yLabel={`Guide and tools for ${ex.name}`} defaultOpen={prior === 0}>
+        <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
+          {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
+          {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
+          {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ladder ? `\n${ladder.label} ladder: step ${ladder.i + 1} of ${ladder.steps.length}` : ''}{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
+        </Text>
+        <WhyLink id="rest" subject={ex.name} />
+        {tag ? (
+          <Text style={{ color: c.ink, fontSize: 14 }}>
+            {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
+            <Text style={{ fontWeight: '700' }}>Works: </Text>
+            {listJoin(tag.primary.map((m) => muscleName(m)))}
+            {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => muscleName(m)))}</Text> : null}
+          </Text>
+        ) : null}
+        <View style={styles.wrap}>
+          <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
+          <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
+          <FormCheckButton name={ex.name} />
+          <TrackSet name={ex.name} sets={ex.sets} onApply={(j, n) => act.edit('work', j, 'r', String(n))} />
+        </View>
+      </Disclosure>
+
+      <Press
+        accessibilityRole="button"
+        accessibilityLabel={armed ? `Tap again to remove ${ex.name} from today` : `Remove exercise ${ex.name} from today`}
+        onPress={() => (armed ? act.remove() : setArmed(true))}
+        style={[styles.remove, { borderColor: c.ghostBorder }]}
+      >
+        <Text style={[type.buttonSm, { color: c.danger }]}>{armed ? 'Tap again to remove' : 'Remove exercise'}</Text>
+      </Press>
     </Card>
   );
 }
@@ -326,7 +369,9 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   learn: { borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', padding: 10, gap: 6 },
   guide: { borderRadius: radius.md, borderWidth: 1, padding: 10, gap: 6 },
-  set: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, minWidth: 60 },
-  tick: { width: 48, height: 48, borderWidth: 2, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  heads: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  headCell: { flex: 1, minWidth: 60, textAlign: 'center' },
+  collapsedBody: { gap: 8, paddingBottom: 12 },
+  collapsed: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  remove: { minHeight: 48, marginTop: 24, borderWidth: 1, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
 });

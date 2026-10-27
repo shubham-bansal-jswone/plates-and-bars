@@ -1,4 +1,6 @@
-// Design tokens from docs/design/DESIGN.md (issue #179): "Plate blue" on black and white canvases.
+// Design tokens. "TRAIN HARD. TRACK EVERYTHING.": black canvas, electric lime as the one high-energy signal (primary actions,
+// active states, workout progress, key metrics). `dark` is the identity and the default (see useTheme); `light` is the older
+// "Plate blue" palette, kept working behind EXPO_PUBLIC_THEME=system.
 // This is the only file with colour values. Macro colours are for bars, rings, dots and icons, never text.
 export interface Palette {
   /** Page canvas. */
@@ -14,6 +16,8 @@ export interface Palette {
   ink: string;
   body: string;
   muted: string;
+  /** The brand's secondary text colour. Only for large text or text on the canvas: on `surface` it is under 4.5:1 (use `muted`). */
+  subtle: string;
   /** Disabled text; exempt from contrast rules. */
   disabled: string;
   line: string;
@@ -25,6 +29,8 @@ export interface Palette {
   brand: string;
   /** Fill of a goal bar drawn on `track` (3:1, also at the 0.85 opacity the Seven-days bar uses). `brand` is too dark for that in dark mode (#504). */
   bar: string;
+  /** Share of `brand` over `surfaceSoft` in the body map's also-working fill; chosen per palette so it reaches 3:1 against an untargeted region. */
+  alsoAlpha: number;
   brandPressed: string;
   brandActive: string;
   onBrand: string;
@@ -45,6 +51,8 @@ export interface Palette {
   toastAction: string;
   /** Pressed-state shadow colour. */
   shadow: string;
+  /** Restrained glow under the one primary action and the rest-timer ring; lime in dark, none in light. */
+  glow: string;
 }
 
 export const light: Palette = {
@@ -56,6 +64,7 @@ export const light: Palette = {
   ink: '#000000',
   body: '#5C5F66',
   muted: '#6B6B6B',
+  subtle: '#6B6B6B',
   disabled: '#CCCCCC',
   line: '#E6E8EC',
   track: '#E6E8EC',
@@ -63,6 +72,7 @@ export const light: Palette = {
   outline: '#8B8F9B',
   brand: '#2457E6',
   bar: '#2457E6',
+  alsoAlpha: 0.7,
   brandPressed: '#1D48C2',
   brandActive: '#16389A',
   onBrand: '#FFFFFF',
@@ -78,69 +88,84 @@ export const light: Palette = {
   toastFg: '#FFFFFF',
   toastAction: '#8AB0FF',
   shadow: '#000000',
+  glow: '#FFFFFF',
 };
 
 export const dark: Palette = {
-  bg: '#000000',
-  surface: '#181818',
-  field: '#181818',
-  surfaceElevated: '#121314',
-  surfaceSoft: '#1F1F1F',
-  ink: '#FFFFFF',
-  body: '#B3B3B3',
-  muted: '#A3A3A3',
-  disabled: '#5C5C5C',
-  line: '#2A2B2D',
-  track: '#2A2B2D',
-  ghostBorder: '#2A2B2D',
-  outline: '#63656A',
-  brand: '#2457E6',
-  bar: '#6F95FF',
-  brandPressed: '#1D48C2',
-  brandActive: '#16389A',
-  onBrand: '#FFFFFF',
-  link: '#8AB0FF',
-  focus: '#8AB0FF',
-  protein: '#6F95FF',
+  bg: '#090B09',
+  surface: '#151915',
+  field: '#151915',
+  surfaceElevated: '#1C211C',
+  surfaceSoft: '#232923',
+  ink: '#F5F7F2',
+  body: '#B4BBB3',
+  muted: '#8E968D',
+  subtle: '#777F76',
+  disabled: '#4F574F',
+  line: '#2A302A',
+  track: '#2A302A',
+  ghostBorder: '#4A524A',
+  outline: '#6B736A',
+  brand: '#B7FF00',
+  bar: '#B7FF00',
+  alsoAlpha: 0.5,
+  brandPressed: '#9EE000',
+  brandActive: '#86C400',
+  onBrand: '#090B09',
+  link: '#B7FF00',
+  focus: '#B7FF00',
+  protein: '#B7FF00',
   carbs: '#2DD4BF',
   fat: '#F5B53D',
-  tint: '#0F1A33',
-  danger: '#FF6B81',
-  caution: '#FB923C',
-  toastBg: '#FFFFFF',
-  toastFg: '#000000',
-  toastAction: '#1D48C2',
+  tint: '#1C2410',
+  danger: '#FF5252',
+  caution: '#FFB020',
+  toastBg: '#F5F7F2',
+  toastFg: '#090B09',
+  toastAction: '#3F5F00',
   shadow: '#000000',
+  glow: '#B7FF00',
 };
 
 /** Corner radii: inputs, cards and tiles, sheets, and every button, chip and badge. */
-export const radius = { sm: 4, md: 8, lg: 16, full: 9999 } as const;
+export const radius = { sm: 10, md: 14, lg: 20, full: 9999 } as const;
 
 /** Spacing scale. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
 
-export type FontWeight = '300' | '400' | '500' | '600' | '700';
+export type FontWeight = '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
 export interface TextStyleToken {
   fontSize: number;
   fontWeight: FontWeight;
   lineHeight: number;
   letterSpacing?: number;
+  /** Italic is only drawn for the Black weight (the athletic display face). */
+  fontStyle?: 'italic';
 }
 
-/** Mobile type scale: display and headings in Roboto 300, everything else in Inter. */
+/** Type scale: Inter throughout. Display, titles and metrics are ExtraBold or Black (italic Black for the hero face); labels and buttons Bold. */
 export const type = {
-  display: { fontSize: 34, fontWeight: '300', lineHeight: 41, letterSpacing: -0.1 },
-  title: { fontSize: 28, fontWeight: '300', lineHeight: 35 },
-  heading: { fontSize: 22, fontWeight: '300', lineHeight: 28 },
-  label: { fontSize: 18, fontWeight: '600', lineHeight: 22 },
+  display: { fontSize: 40, fontWeight: '900', lineHeight: 44, letterSpacing: -0.8, fontStyle: 'italic' },
+  title: { fontSize: 30, fontWeight: '800', lineHeight: 36, letterSpacing: -0.5 },
+  heading: { fontSize: 22, fontWeight: '800', lineHeight: 28, letterSpacing: -0.3 },
+  label: { fontSize: 17, fontWeight: '700', lineHeight: 22 },
   textBody: { fontSize: 16, fontWeight: '400', lineHeight: 24 },
-  bodyStrong: { fontSize: 16, fontWeight: '500', lineHeight: 24 },
+  bodyStrong: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
   caption: { fontSize: 14, fontWeight: '400', lineHeight: 21 },
-  small: { fontSize: 12, fontWeight: '500', lineHeight: 18 },
-  button: { fontSize: 16, fontWeight: '700', lineHeight: 20, letterSpacing: 0.4 },
-  buttonSm: { fontSize: 14, fontWeight: '700', lineHeight: 18, letterSpacing: 0.3 },
+  small: { fontSize: 12, fontWeight: '600', lineHeight: 18 },
+  button: { fontSize: 16, fontWeight: '800', lineHeight: 20, letterSpacing: 0.3 },
+  buttonSm: { fontSize: 14, fontWeight: '700', lineHeight: 18, letterSpacing: 0.2 },
+  /** Oversized workout numbers: the rest countdown, weight and reps while logging, the day's kcal left. Pair with `tabular`. */
+  metric: { fontSize: 56, fontWeight: '900', lineHeight: 60, letterSpacing: -1.5, fontStyle: 'italic' },
+  metricSm: { fontSize: 28, fontWeight: '900', lineHeight: 32, letterSpacing: -0.5, fontStyle: 'italic' },
 } as const satisfies Record<string, TextStyleToken>;
+
+/** Digits of equal width, so a ticking timer or a column of weights does not jitter. */
+export const tabular = { fontVariant: ['tabular-nums'] } as const;
+
+/** The glow of a primary action: lime, low opacity, no offset. Dark theme only in effect (light's `glow` is #FFFFFF). */
+export const glowShadow = { shadowOffset: { width: 0, height: 0 }, shadowRadius: 16, shadowOpacity: 0.3 } as const;
 
 /** Resting elevation is none; this is the pressed-state shadow (0 4px 12px, 16% black). */
 export const pressedShadow = { shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, shadowOpacity: 0.16, elevation: 4 } as const;

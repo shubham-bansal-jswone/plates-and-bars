@@ -40,6 +40,10 @@ function seedBench(db: Db) {
   db.rows.set(`lift_stats:${BENCH}`, JSON.stringify(rec));
 }
 
+/** The "Guide and tools" disclosures are closed except on an exercise's first session: open them all. */
+const openGuides = async () => {
+  for (const b of screen.queryAllByLabelText(/^Guide and tools for /)) if (!b.props.accessibilityState?.expanded) await fireEvent.press(b);
+};
 async function open(prep?: (db: Db) => Promise<void> | void) {
   const db = memoryDb();
   await saveProfile(db, profile());
@@ -48,6 +52,7 @@ async function open(prep?: (db: Db) => Promise<void> | void) {
   await mount(db);
   await press('Start Push B');
   await screen.findByText('Push B');
+  await openGuides();
   return db;
 }
 const mount = (db: Db) => render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
@@ -122,6 +127,7 @@ describe('exercise settings sheet', () => {
     await screen.unmount();
     await mount(db);
     await screen.findByText('Push B');
+    await openGuides();
     expect(screen.getByText(/Machine, 6–15 reps, steps of 5 kg/)).toBeTruthy();
     await press(`${BENCH} settings`);
     expect(screen.getByLabelText('Equipment: Machine').props['aria-pressed']).toBe(true);

@@ -115,11 +115,11 @@ describe('check-in and coverage reload after a sync pull, without a focus event 
     await saveProfile(db, profile);
     const ui = (k: number) => at(k, withProfile(db, <ProgressScreen db={db} now={NOW} />));
     const view = await render(ui(0));
-    expect(await screen.findByLabelText(/^0 \/ \d+ sessions$/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^sessions: 0 \/ \d+$/)).toBeTruthy();
     await saveWorkout(db, { ...wk, cardio_min: 30 });
     await saveSet(db, DATE, done('s1'));
     await view.rerender(ui(1));
-    expect(await screen.findByLabelText(/^1 \/ \d+ sessions$/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^sessions: 1 \/ \d+$/)).toBeTruthy();
   });
 
   it('the check-in waits for a queued workout write before it reads', async () => {
@@ -127,7 +127,7 @@ describe('check-in and coverage reload after a sync pull, without a focus event 
     await saveProfile(db, profile);
     const ui = (k: number) => at(k, withProfile(db, <ProgressScreen db={db} now={NOW} />));
     const view = await render(ui(0));
-    expect(await screen.findByLabelText(/^0 \/ \d+ sessions$/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^sessions: 0 \/ \d+$/)).toBeTruthy();
     let release = () => {};
     dayQueue.current = dayQueue.current.then(
       () =>
@@ -140,7 +140,7 @@ describe('check-in and coverage reload after a sync pull, without a focus event 
     await act(async () => turns()); // the reload is waiting on the queue
     await saveSet(db, DATE, done('s1')); // lands "while the queued write runs"
     release();
-    expect(await screen.findByLabelText(/^1 \/ \d+ sessions$/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^sessions: 1 \/ \d+$/)).toBeTruthy();
   });
 
   it('the coverage meters show sets that arrived', async () => {
