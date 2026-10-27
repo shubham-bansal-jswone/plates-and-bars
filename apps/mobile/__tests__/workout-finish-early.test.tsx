@@ -78,7 +78,7 @@ describe('Complete workout', () => {
     expect(screen.getByTestId('rest-title')).toBeTruthy();
     await press('Complete workout');
     expect(screen.getByText('Finish with 2 of 15 sets?')).toBeTruthy();
-    expect(screen.getByText('Unticked sets are removed from today.')).toBeTruthy();
+    expect(screen.getByText('Unticked sets, and exercises you haven’t started with their warm-ups, are removed from today.')).toBeTruthy();
     await press('Confirm');
     expect(await screen.findByText('Session done')).toBeTruthy();
     expect(screen.getByLabelText('Sets: 2/2')).toBeTruthy();
