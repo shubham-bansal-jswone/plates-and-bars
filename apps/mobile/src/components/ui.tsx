@@ -318,7 +318,7 @@ export function Switch(props: SwitchProps) {
     <View style={[styles.switchRing, f.ring]}>
       <RNSwitch
         trackColor={{ true: c.brand, false: c.muted }}
-        thumbColor={c.onBrand}
+        thumbColor={props.value ? c.onBrand : c.ink}
         {...webThumb(c.onBrand)}
         {...props}
         {...focusHandlers(f, props)}

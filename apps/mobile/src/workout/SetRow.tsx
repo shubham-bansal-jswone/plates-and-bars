@@ -9,7 +9,7 @@ import type { Row } from './model';
 import { SET_ROW_H, TICK_SIZE } from './Ring';
 
 /** One set (or ramp set): index, weight and reps inputs, and the 56px tick. Labels are part of the app's test and a11y contract. */
-export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): void }) {
+export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, current }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): void; /** The next set to do: its tick is the one lime ring; later undone sets keep a quiet outline. */ current?: boolean }) {
   const c = useTheme();
   const num = [type.metricSm, tabular, styles.input];
   return (
@@ -22,10 +22,10 @@ export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick }: {
         accessibilityLabel={`Mark ${label} done`}
         {...a11yState({ checked: row.done })}
         onPress={onTick}
-        style={({ pressed }) => [styles.tick, { borderColor: c.brand, backgroundColor: row.done ? c.brand : c.surface }, pressed && { transform: [{ scale: 0.92 }] }]}
+        style={({ pressed }) => [styles.tick, { borderColor: row.done || current ? c.brand : c.outline, backgroundColor: row.done ? c.brand : c.surface }, pressed && { transform: [{ scale: 0.92 }] }]}
       >
         <Svg width={28} height={28} viewBox="0 0 24 24" aria-hidden>
-          <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={row.done ? c.onBrand : c.brand} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={row.done ? c.onBrand : current ? c.brand : c.muted} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       </Press>
     </View>
