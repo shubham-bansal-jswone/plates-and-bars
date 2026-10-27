@@ -1,7 +1,6 @@
 import { render } from '@testing-library/react-native';
 import type { PressableProps } from 'react-native';
-import { a11yState, Button, Choice } from '../src/components/ui';
-import { Chip } from '../src/workout/parts';
+import { a11yState, Button, Choice, Chip } from '../src/components/ui';
 import { sourcesMatching } from './source-files';
 
 // react-native-web ignores accessibilityState; only the aria-* props reach the DOM. Record what the primitives hand to Pressable.
