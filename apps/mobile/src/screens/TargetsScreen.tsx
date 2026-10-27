@@ -175,9 +175,11 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             <View style={{ flex: 1, gap: 8 }}>
               {intro}
               {targets}
+            </View>
+            <View style={{ flex: 1, gap: 8 }}>
+              {rules}
               {account}
             </View>
-            <View style={{ flex: 1, gap: 8 }}>{rules}</View>
           </View>
         ) : (
           <>

@@ -31,7 +31,7 @@ describe.each([['light', light], ['dark', dark]] as const)('goal bars in %s', (_
   });
 
   it('draws the set-volume fill in the bar colour', async () => {
-    await render(<Meter title="Done in the last 7 days" rows={[{ muscle: 'chest', sets: 10, shown: 10, low: false, barPct: 80 }]} />);
+    await render(<Meter title="Done in the last 7 days" done rows={[{ muscle: 'chest', sets: 10, shown: 10, low: false, barPct: 80 }]} />);
     const fill = (screen.getByLabelText('Done in the last 7 days, Chest: 10 sets') as unknown as { children: { children: { props: { style?: unknown } }[] }[] }).children[1]!.children[0];
     expect(bg(fill)).toBe(p.bar);
   });

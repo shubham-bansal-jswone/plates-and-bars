@@ -1,3 +1,4 @@
+import { Dimensions } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import golden from '../../../docs/spec/golden/targets.json';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
@@ -51,6 +52,20 @@ function goldenProfile() {
     new Date(2026, 9, 8),
   );
 }
+
+describe('TargetsScreen reading order', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it.each([500, 1200])('reads Training rules before Account and data at %i px, so the order does not change with the window', async (width) => {
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText('Account and data');
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree.indexOf('Training rules')).toBeGreaterThan(-1);
+    expect(tree.indexOf('Training rules')).toBeLessThan(tree.indexOf('Account and data'));
+  });
+});
 
 describe('TargetsScreen', () => {
   it('shows a visible name and unit over each Daily targets field (#901)', async () => {

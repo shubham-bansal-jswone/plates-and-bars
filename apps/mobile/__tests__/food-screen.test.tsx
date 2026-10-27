@@ -81,6 +81,8 @@ describe('Food screen', () => {
     expect(screen.getByLabelText(`Protein 0 of ${DEFAULT_PROTEIN_TARGET} g, ${DEFAULT_PROTEIN_TARGET} g to go`)).toBeTruthy();
     expect(screen.getByLabelText(`Carbs 0 of ${DEFAULT_CARBS_TARGET} g, ${DEFAULT_CARBS_TARGET} g to go`)).toBeTruthy();
     expect(screen.getByLabelText(`Fat 0 of ${DEFAULT_FAT_TARGET} g, ${DEFAULT_FAT_TARGET} g to go`)).toBeTruthy();
+    // What is shown matches what is spoken: the prototype's "g to go", not "g left".
+    expect(screen.getByText(`${DEFAULT_FAT_TARGET} g to go`)).toBeTruthy();
   });
 
   describe('flex chips', () => {

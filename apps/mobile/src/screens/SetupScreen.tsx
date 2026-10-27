@@ -69,6 +69,8 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
 function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set: Pick; err: string; errField: SetupField | null }) {
   const c = useTheme();
   const bad = (f: SetupField) => !!err && errField === f;
+  // The inline error is also the invalid field's hint, so focusing the field again reads why it is wrong.
+  const hint = (f: SetupField) => (bad(f) ? err : undefined);
   const showErr = (at: SetupField) => (bad(at) ? <ErrorText>{err}</ErrorText> : null);
   if (step === 0)
     return (
@@ -101,7 +103,7 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
         <View style={layout.field}>
           <Caption>Age</Caption>
           <View style={layout.row}>
-            <Field label="Age" invalid={bad('age')} inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
+            <Field label="Age" invalid={bad('age')} accessibilityHint={hint('age')} inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
           </View>
           {showErr('age')}
         </View>
@@ -110,13 +112,13 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
           <View style={layout.row}>
             {d.unit === 'ft' ? (
               <>
-                <Field label="Height feet" invalid={bad('height')} inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
-                <Field label="Height inches" invalid={bad('height')} inputMode="numeric" placeholder="in" value={d.inch} onChangeText={(v) => set('inch', v)} />
+                <Field label="Height feet" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
+                <Field label="Height inches" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="in" value={d.inch} onChangeText={(v) => set('inch', v)} />
                 <Button kind="link" label="Use cm" onPress={() => set('unit', 'cm')} />
               </>
             ) : (
               <>
-                <Field label="Height in cm" invalid={bad('height')} inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
+                <Field label="Height in cm" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
                 <Button kind="link" label="Use feet and inches" onPress={() => set('unit', 'ft')} />
               </>
             )}
@@ -126,7 +128,7 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
         <View style={layout.field}>
           <Caption>Weight (kg)</Caption>
           <View style={layout.row}>
-            <Field label="Weight in kg" invalid={bad('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
+            <Field label="Weight in kg" invalid={bad('weight')} accessibilityHint={hint('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
           </View>
           {showErr('weight')}
         </View>
@@ -333,7 +335,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
         accessible
         accessibilityRole="progressbar"
         accessibilityLabel="Setup progress"
-        accessibilityValue={{ min: 0, max: STEPS + 1, now: Math.min(step + 1, STEPS + 1) }}
+        accessibilityValue={{ min: 0, max: STEPS, now: Math.min(step + 1, STEPS) }}
         style={{ flexDirection: 'row', gap: 4 }}
       >
         {Array.from({ length: STEPS }, (_, i) => (
