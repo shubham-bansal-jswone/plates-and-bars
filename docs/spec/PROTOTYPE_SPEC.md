@@ -11,7 +11,7 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 ## 0. Changes since the Development Plan was written
 
 **2026-10-27 — the active session expands one exercise at a time (deliberate difference; prototype and golden fixtures unchanged).**
-- #1138 (owner decision; see `docs/ui-redesign-audit.md` and PR #1133). The prototype expands every exercise in the session. The app expands one and collapses the others to a row that still shows the suggestion, warm-up, Learn mode and stall/ladder cards. Inside an exercise only "Guide and tools" is collapsed. Regenerating the app from the prototype must not revert this.
+- #1138 (owner decision; see `docs/ui-redesign-audit.md` and PR #1133). The prototype expands every exercise in the session. The app expands one and collapses the others to a row that still shows the suggestion, reason, warm-up, Learn mode and stall/ladder cards. Inside an exercise only "Guide and tools" is collapsed. Regenerating the app from the prototype must not revert this.
 
 **2026-10-19 — picks seeded from a workout preview keep its base and adjustments (deliberate difference; prototype and golden fixtures unchanged).**
 - #1020 (follow-up to #1017; core in PR #1028, app wiring in this PR). The prototype's `exPick` starts a hand-picked session with `mods: {}` and no `base`, so a session begun from "Pick exercises" inside a previewed workout is not counted by the rotation and sequence and ignores the check-in, re-entry and deload adjustments.
