@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
-import { MetricRow } from '../src/progress/Metrics';
+import { MetricRow } from '../src/components/ui';
 import { CheckinCard } from '../src/progress/CheckinCard';
 import { BURN_HOW } from '../src/progress/copy';
 import { ProfileProvider } from '../src/state/ProfileProvider';
@@ -22,17 +22,17 @@ const colour = (label: string) => {
 describe('MetricRow lime rule', () => {
   it('only a cell marked lime with a real, non-zero value is lime', async () => {
     await render(
-      <MetricRow items={[
-        { big: '3', label: 'plain' },
-        { big: '4', label: 'key', lime: true },
-        { big: '0', label: 'zero', lime: true },
-        { big: '–', label: 'none', lime: true },
+      <MetricRow cells={[
+        { value: '3', label: 'plain' },
+        { value: '4', label: 'key', lime: true },
+        { value: '0', label: 'zero', lime: true },
+        { value: '–', label: 'none', lime: true },
       ]} />,
     );
-    expect(colour('3 plain')).not.toBe(dark.brand);
-    expect(colour('4 key')).toBe(dark.brand);
-    expect(colour('0 zero')).not.toBe(dark.brand);
-    expect(colour('– none')).not.toBe(dark.brand);
+    expect(colour('plain: 3')).not.toBe(dark.brand);
+    expect(colour('key: 4')).toBe(dark.brand);
+    expect(colour('zero: 0')).not.toBe(dark.brand);
+    expect(colour('none: –')).not.toBe(dark.brand);
   });
 });
 
@@ -54,10 +54,10 @@ describe('Weekly check-in: one lime number and the burn disclosure', () => {
     await mount();
     expect(screen.getByText('The 7 days up to 8 Oct')).toBeTruthy();
     expect(screen.queryByText('This week')).toBeNull();
-    const lime = ['2 / 4 sessions', '3 / 7 days logged', '2,000 avg kcal (target 2,000)', '2 sessions this week (aim 3+)'].filter((l) => {
+    const lime = ['sessions: 2 / 4', 'days logged: 3 / 7', 'avg kcal (target 2,000): 2,000', 'sessions this week (aim 3+): 2'].filter((l) => {
       try { return colour(l) === dark.brand; } catch { return false; }
     });
-    expect(lime).toEqual(['2 / 4 sessions']);
+    expect(lime).toEqual(['sessions: 2 / 4']);
   });
 
   it('How this works keeps its name, opens and closes, and carries the state', async () => {
