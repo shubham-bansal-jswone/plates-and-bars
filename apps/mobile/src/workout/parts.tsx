@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from '../components/Text';
 import Svg, { Path } from 'react-native-svg';
-import { Chip, Heading, Button, Hint, Press } from '../components/ui';
+import { Text } from '../components/Text';
+import { Heading, Button, Hint, Press } from '../components/ui';
 import { pressedShadow, radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { buzz, restDoneBuzz } from '../haptics';
@@ -13,9 +13,6 @@ import { getCatalog } from './catalog';
 import { musclesOf } from './muscles';
 import { Ring } from './Ring';
 import { VideoLink } from './VideoLink';
-
-// `Chip` lives in components/ui.tsx now (one chip for the whole app); re-exported so existing imports keep working.
-export { Chip };
 
 /** The short message at the bottom of the screen (prototype `toast`). */
 /** `lift` raises the toast by that many px (the Workout tab lifts it above the rest dock, which would otherwise cover it). */

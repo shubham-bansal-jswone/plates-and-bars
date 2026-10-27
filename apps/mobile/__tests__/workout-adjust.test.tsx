@@ -81,13 +81,13 @@ describe('re-check card for a timed rule that ended', () => {
     expect(screen.getByText(/You’ll start at about 55% of your old weight for 2 weeks, then build back up\./)).toBeTruthy();
   });
 
-  it('sits under the day title and its Start button, at level 2 while the day title is level 1', async () => {
+  it('sits above the day title, as in the prototype, at level 2 while the day title is level 1', async () => {
     await openSession((db) => saveExclusion(db, ended()));
     await screen.findByText('Ready to try Pec Deck Fly again?');
     const heads = screen.getAllByRole('header');
-    // The day title leads so Start stays on the first screen; the cards follow it. The Cardio block (#619, prototype h3) comes last.
-    expect(heads.map((h) => h.props['aria-level'])).toEqual([1, 2, 3]);
-    expect(heads.map((h) => (h.children as unknown[]).join(''))).toEqual(['Push B day', 'Ready to try Pec Deck Fly again?', 'Cardio']);
+    // The Cardio block (#619, prototype h3) now also shows on the start view, after them.
+    expect(heads.map((h) => h.props['aria-level'])).toEqual([2, 1, 3]);
+    expect(heads.map((h) => (h.children as unknown[]).join(''))).toEqual(['Ready to try Pec Deck Fly again?', 'Push B day', 'Cardio']);
   });
 
   it('does not show before the check-again day', async () => {
@@ -132,7 +132,6 @@ describe('re-check card for a timed rule that ended', () => {
 describe('ladder cards', () => {
   it('step up: saves a swap with a 14-day bridge and dismisses the card', async () => {
     const db = await started((d) => seed(d, 'Machine Shoulder Press', lift({ sets: [set(15), set(15), set(15)] })));
-    await reveal('Machine Shoulder Press');
     expect(await screen.findByText('Ready to try Seated Dumbbell Press?')).toBeTruthy();
     expect(screen.getByText(/done Machine Shoulder Press for 5 sessions/)).toBeTruthy();
     await press('Try it next session, Machine Shoulder Press');
@@ -194,7 +193,6 @@ describe('stall card', () => {
 
   it('Switch to 6–8 writes the exercise’s override and the card’s range changes', async () => {
     const db = await started((d) => seed(d, 'Pec Deck Fly', stalledLift()));
-    await reveal('Pec Deck Fly');
     expect(await screen.findByText('No progress in 3 sessions')).toBeTruthy();
     expect(screen.getByLabelText('Why? Why change the rep range after a stall?, Pec Deck Fly')).toBeTruthy();
     expect(screen.getByText(/Try a heavier rep range for the next few weeks: 6–8 reps\./)).toBeTruthy();
@@ -202,6 +200,7 @@ describe('stall card', () => {
     await waitFor(() => expect(settingsOf(db).exercise_overrides['Pec Deck Fly']).toMatchObject({ type: 'machine', rep_low: 6, rep_high: 8 }));
     expect(screen.getByText('Pec Deck Fly: now 6–8 reps')).toBeTruthy();
     expect(screen.queryByText('No progress in 3 sessions')).toBeNull();
+    await reveal('Pec Deck Fly'); // the rep range line is in the guide, not the card
     expect(screen.getByText(/Machine, 6–8 reps/)).toBeTruthy();
   });
 
@@ -279,7 +278,6 @@ describe('stall card on a non-gym day', () => {
     const stalled = lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) });
     // Gym: Cable Lateral Raise has Lateral Raise as its sideways exercise.
     await started((d) => seed(d, 'Cable Lateral Raise', stalled));
-    await reveal('Cable Lateral Raise');
     expect(screen.getByLabelText('Or switch to Lateral Raise, Cable Lateral Raise')).toBeTruthy();
   });
   it('with dumbbells only, the cable exercise is not offered', async () => {
@@ -289,8 +287,6 @@ describe('stall card on a non-gym day', () => {
     seed(db, 'Lateral Raise', stalled);
     await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
     await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
-    await screen.findByRole('button', { name: /^Lateral Raise, / });
-    await reveal('Lateral Raise');
     await screen.findByText('No progress in 3 sessions');
     expect(screen.queryByLabelText(/^Or switch to /)).toBeNull();
   });
@@ -306,8 +302,6 @@ describe('the day’s where, not the profile’s', () => {
     await saveSet(db, DATE, setRecord(ex, 'work', 0, THURSDAY()));
     seed(db, 'Lateral Raise', lift({ sets: [set(10)], hist: [50, 60, 59, 59.5, 60].map((e, i) => ({ date: `2026-09-${10 + i}`, e })) }));
     await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
-    await screen.findByLabelText('Guide and tools for Lateral Raise'); // the only exercise, so expanded
-    await reveal('Lateral Raise');
     await screen.findByText('No progress in 3 sessions');
     // On the profile's gym, Cable Lateral Raise would be offered.
     expect(screen.queryByLabelText(/^Or switch to /)).toBeNull();
