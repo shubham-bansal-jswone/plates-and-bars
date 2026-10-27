@@ -328,14 +328,27 @@ export function Switch(props: SwitchProps) {
   const c = useTheme();
   const f = useFocusRing();
   return (
-    <View style={[styles.switchRing, f.ring]}>
-      <RNSwitch
-        trackColor={{ true: c.brand, false: c.muted }}
-        thumbColor={props.value ? c.onBrand : c.ink}
-        {...webThumb(c.onBrand)}
-        {...props}
-        {...focusHandlers(f, props)}
+    // The 44x44 hit area is a sibling Pressable behind the unchanged 40x20 track, so clicks on the switch never reach it (#1121).
+    // Not an a11y node or tab stop: the switch carries the role, label and state.
+    <View style={styles.switchHit}>
+      <Pressable
+        testID="switch-hit-area"
+        accessible={false}
+        focusable={false}
+        importantForAccessibility="no"
+        disabled={props.disabled ?? false}
+        onPress={() => props.onValueChange?.(!props.value)}
+        style={StyleSheet.absoluteFill}
       />
+      <View style={[styles.switchRing, f.ring]}>
+        <RNSwitch
+          trackColor={{ true: c.brand, false: c.muted }}
+          thumbColor={props.value ? c.onBrand : c.ink}
+          {...webThumb(c.onBrand)}
+          {...props}
+          {...focusHandlers(f, props)}
+        />
+      </View>
     </View>
   );
 }
@@ -359,6 +372,7 @@ const styles = StyleSheet.create({
   group: { gap: space.sm },
   opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
   chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, justifyContent: 'center' },
+  switchHit: { minWidth: 44, minHeight: 44, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
 });
