@@ -50,8 +50,10 @@ export function CustomTagsSheet({ name, onSave, onClose }: { name: string; onSav
   // The suggestion is only asked for while the user has not picked anything: a status read that lands late must not replace their picks.
   const toggle = (list: string[], set: (l: string[]) => void, m: string) => {
     asked.current = true;
-    setMissing(0);
-    set(list.includes(m) ? list.filter((x) => x !== m) : [...list, m]);
+    const next = list.includes(m) ? list.filter((x) => x !== m) : [...list, m];
+    // Only a chosen main muscle answers the alert; an "Also working" tap or clearing the last main one does not.
+    if (set === setPrimary && next.length) setMissing(0);
+    set(next);
   };
   const save = () => {
     // One alert only: a toast as well would be read twice by a screen reader. Nonce so a repeat press re-announces.
