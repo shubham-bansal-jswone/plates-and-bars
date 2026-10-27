@@ -29,9 +29,9 @@ test('the rest bar sits under the content column on wide web and fits the screen
   expect(phone.width - (box.x + box.width), 'panel stays inside the right edge at 390 px').toBeGreaterThanOrEqual(0);
   expect(box.y + box.height, 'panel bottom is inside the viewport at 390 px').toBeLessThanOrEqual(phone.height);
 
-  // Wide windows (1024 and up): a 360 px floating panel, 16 px from the bottom-right corner (the redesign; it no longer spans the column,
-  // which is two columns wide there). Below 1024 it is the phone dock: the window width less its padding, at most 560, centred.
-  for (const { width, floating } of [{ width: 1200, floating: true }, { width: 800, floating: false }]) {
+  // At every width the rest dock is the same bottom dock: the window width less its padding, at most 560, centred (a floating panel on wide
+  // windows covered the session info column, so it was dropped).
+  for (const { width, floating } of [{ width: 1200, floating: false }, { width: 800, floating: false }]) {
     await page.setViewportSize({ width, height: 800 });
     await expect.poll(async () => Math.round((await panel.boundingBox()).width), { message: `panel width at ${width} px` }).toBe(floating ? 360 : Math.min(560, width - 24));
     box = await panel.boundingBox();
