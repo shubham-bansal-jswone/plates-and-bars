@@ -38,6 +38,8 @@ export default defineConfig({
     // The app formats numbers by locale (1,990 kcal) and picks the day by time zone: do not take them from the host.
     locale: 'en-US',
     timezoneId: 'Asia/Kolkata',
+    // The app follows the system scheme; specs are written against the dark identity. a11y.spec.mjs sets both schemes itself.
+    colorScheme: 'dark',
     acceptDownloads: true,
     launchOptions: { executablePath: chrome },
     trace: 'retain-on-failure',
