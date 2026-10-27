@@ -74,4 +74,31 @@ class RequestIdFilterTest {
         }
         assertThat(MDC.get("requestId")).isNull();
     }
+
+    @Test
+    void filtersAsyncAndErrorDispatchesToo() throws Exception {
+        for (jakarta.servlet.DispatcherType type : new jakarta.servlet.DispatcherType[] {
+                jakarta.servlet.DispatcherType.ASYNC, jakarta.servlet.DispatcherType.ERROR}) {
+            MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/v1/me/export");
+            req.setDispatcherType(type);
+            AtomicReference<String> seen = new AtomicReference<>();
+            filter.doFilter(req, new MockHttpServletResponse(), (rq, rs) -> seen.set(MDC.get("requestId")));
+            assertThat(seen.get()).as(type.name()).isNotNull();
+        }
+    }
+
+    @Test
+    void aRedispatchKeepsTheIdOfTheFirstPass() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/x"); // client sent no id
+        MockHttpServletResponse first = new MockHttpServletResponse();
+        filter.doFilter(req, first, (rq, rs) -> { });
+        String id = first.getHeader("X-Request-Id");
+
+        req.setDispatcherType(jakarta.servlet.DispatcherType.ERROR);
+        MockHttpServletResponse second = new MockHttpServletResponse();
+        AtomicReference<String> seen = new AtomicReference<>();
+        filter.doFilter(req, second, (rq, rs) -> seen.set(MDC.get("requestId")));
+        assertThat(second.getHeader("X-Request-Id")).isEqualTo(id);
+        assertThat(seen.get()).isEqualTo(id);
+    }
 }

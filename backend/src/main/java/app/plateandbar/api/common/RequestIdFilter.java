@@ -28,12 +28,24 @@ public class RequestIdFilter extends OncePerRequestFilter {
     private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9._-]{1,64}");
 
     @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
+
+    @Override
+    protected boolean shouldNotFilterErrorDispatch() {
+        return false;
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String id = request.getHeader(HEADER);
+        // A re-dispatch (async, or Tomcat's /error) of the same request keeps the id chosen on the first pass.
+        String id = request.getAttribute(MDC_KEY) instanceof String kept ? kept : request.getHeader(HEADER);
         if (id == null || !SAFE.matcher(id).matches()) {
             id = UUID.randomUUID().toString();
         }
+        request.setAttribute(MDC_KEY, id);
         MDC.put(MDC_KEY, id);
         response.setHeader(HEADER, id);
         try {
