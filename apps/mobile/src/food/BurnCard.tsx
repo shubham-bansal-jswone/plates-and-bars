@@ -32,7 +32,7 @@ interface Props {
   reloadKey?: number;
 }
 
-/** Prototype `energyHtml`: "Estimated burn today so far" as a range, with a Details breakdown. Everything is core's `burnToday`. */
+/** Prototype `energyHtml`: "Estimated burn today so far" (on a past day, "Estimated burn on <date>") as a range, with a Details breakdown. Everything is core's `burnToday`. */
 export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kcalEaten, today = date, reloadKey = 0 }: Props) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
