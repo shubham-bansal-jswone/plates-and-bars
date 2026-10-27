@@ -1,9 +1,8 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SheetModal } from '../components/Sheet';
-import { Heading, Button } from '../components/ui';
+import { Heading, Button, Chip } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
-import { Chip } from '../workout/parts';
 
 /** "Exercise to avoid" (prototype `openAvoidPicker`): the exercise library by group; picking one opens the can't-do sheet. */
 export function AvoidPicker({ visible, onPick, onClose }: { visible: boolean; onPick: (name: string) => void; onClose: () => void }) {
