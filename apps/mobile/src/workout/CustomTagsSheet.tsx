@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import type { ExerciseTag } from '@plate-and-bar/core';
 import { useAi } from '../ai/AiProvider';
 import { AI_COPY, failureMessage } from '../ai/copy';
-import { Button, Heading, Hint, Label, Chip } from '../components/ui';
+import { Button, ErrorText, Heading, Hint, Label, Chip } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { BodyMap } from './BodyMap';
 import { MUSCLE_CODES, muscleName } from './copy';
@@ -18,12 +18,13 @@ import { isBlank } from '../text/blank';
  * main muscle) is the manual sheet with the prototype's fallback tags. Nothing waits on the network: Cancel works while
  * the suggestion is out, and a late answer after the sheet closed is dropped.
  */
-export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: string; onSave: (tags: ExerciseTag) => void; onClose: () => void; notify: (msg: string) => void }) {
+export function CustomTagsSheet({ name, onSave, onClose }: { name: string; onSave: (tags: ExerciseTag) => void; onClose: () => void }) {
   const c = useTheme();
   const ai = useAi();
   const [base, setBase] = useState<ExerciseTag>(FALLBACK_TAGS);
   const [primary, setPrimary] = useState<string[]>([]);
   const [secondary, setSecondary] = useState<string[]>([]);
+  const [missing, setMissing] = useState(0);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(AI_COPY.suggestFallback);
   const alive = useRef(true);
@@ -49,10 +50,12 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
   // The suggestion is only asked for while the user has not picked anything: a status read that lands late must not replace their picks.
   const toggle = (list: string[], set: (l: string[]) => void, m: string) => {
     asked.current = true;
+    setMissing(0);
     set(list.includes(m) ? list.filter((x) => x !== m) : [...list, m]);
   };
   const save = () => {
-    if (!primary.length) return notify('Pick at least one main muscle.');
+    // One alert only: a toast as well would be read twice by a screen reader. Nonce so a repeat press re-announces.
+    if (!primary.length) return setMissing((n) => n + 1);
     onSave({ ...base, primary, secondary });
   };
   return (
@@ -79,6 +82,7 @@ export function CustomTagsSheet({ name, onSave, onClose, notify }: { name: strin
                 <Chip key={m} label={`Also working: ${muscleName(m)}`} text={muscleName(m)} pressed={secondary.includes(m)} onPress={() => toggle(secondary, setSecondary, m)} />
               ))}
             </View>
+            {missing ? <ErrorText key={missing}>Choose a main muscle first.</ErrorText> : null}
             <Button label="Add exercise" a11yLabel={`Add ${name} with these muscles`} onPress={save} />
           </>
         )}

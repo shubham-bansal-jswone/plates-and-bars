@@ -350,7 +350,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
         {names.length} exercises{eachSets ? `, ${eachSets} sets each${beginnerRamp(profile, date) ? ' for your first 2 weeks' : ''}` : ''}
         {names.some((n) => isFocus(n, focus, getCatalog().tags)) ? ', plus 1 on focus muscles' : ''}
         {profile.minutes ? `, sized to your ${profile.minutes}-minute sessions` : ''}.
-        {built.left.length ? ` ${listJoin(built.left)} rotate in on other ${startT} days.` : ''}
+        {built.left.length ? ` ${listJoin(built.left)} ${built.left.length === 1 ? 'rotates' : 'rotate'} in on your other ${startT} days.` : ''}
       </Hint>
       {built.lost.map((n) => (
         <Hint key={n}>
@@ -569,7 +569,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
           <Button label="Training again later today?" kind="link" onPress={() => setOpen(!open)} />
           {open ? (
             <>
-              <Hint>Twice-a-day training is for experienced lifters with enough recovery. Pick different muscles from this morning’s session.</Hint>
+              <Hint>Twice-a-day training is for experienced lifters with enough recovery. Pick different muscles from your earlier session today.</Hint>
               <View style={styles.wrap}>
                 {choices.map((t) => (
                   <Chip key={t} label={`Add ${t}`} text={t} onPress={() => void w.addSecond(t)} />

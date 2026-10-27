@@ -127,7 +127,7 @@ test('typed exercise: a new name needs a main muscle, then it is added and survi
   await expect(tags).toBeVisible();
   await expect(tags.getByRole('heading', { name })).toBeFocused();
   await label(page, `Add ${name} with these muscles`).click();
-  await expect(page.getByText('Pick at least one main muscle.')).toBeVisible();
+  await expect(page.getByText('Choose a main muscle first.')).toBeVisible();
 
   const mainChip = tags.locator('[aria-label^="Main muscle: "]').first();
   const alsoChip = tags.locator('[aria-label^="Also working: "]').nth(1);
