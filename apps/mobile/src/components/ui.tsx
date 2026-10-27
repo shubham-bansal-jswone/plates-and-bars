@@ -153,11 +153,13 @@ export function Press({ surface, style, onFocus, onBlur, ...rest }: PressablePro
       {...rest}
       {...(spaceKey && !rest.disabled
         ? {
-            onKeyDown: (e: { key: string; repeat?: boolean; preventDefault(): void }) => {
-              if (e.key !== ' ') return;
+            onKeyDown: ((e: { key: string; repeat?: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; target?: unknown; currentTarget?: unknown; preventDefault(): void }) => {
+              rest.onKeyDown?.(e as never);
+              // Only a bare Space on the control itself: a focusable child keeps its own Space, and Ctrl/Alt/Meta+Space stay with the browser.
+              if (e.key !== ' ' || e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
               e.preventDefault();
               if (!e.repeat) rest.onPress?.(e as never);
-            },
+            }) as unknown as PressableProps['onKeyDown'],
           }
         : null)}
       onFocus={(e) => {

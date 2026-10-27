@@ -35,6 +35,24 @@ describe('set tick keyboard (#1139)', () => {
     expect(onTick).not.toHaveBeenCalled();
   });
 
+  it.each(['ctrlKey', 'altKey', 'metaKey'])('ignores Space with %s', async (mod) => {
+    Platform.OS = 'web';
+    const onTick = jest.fn();
+    const preventDefault = jest.fn();
+    await fireEvent(await tick(onTick), 'keyDown', { key: ' ', [mod]: true, preventDefault });
+    expect(onTick).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('does not hijack Space from a focusable child', async () => {
+    Platform.OS = 'web';
+    const onTick = jest.fn();
+    const preventDefault = jest.fn();
+    await fireEvent(await tick(onTick), 'keyDown', { key: ' ', target: {}, currentTarget: {}, preventDefault });
+    expect(onTick).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
   it('leaves native alone', async () => {
     const onTick = jest.fn();
     await fireEvent(await tick(onTick), 'keyDown', { key: ' ', preventDefault: jest.fn() });
